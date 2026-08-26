@@ -1,0 +1,253 @@
+---
+name: harvest
+description: "Decomposes a reviewed implementation plan into backlog feature/task/subtask hierarchy"
+argument-hint: "plan=docs/plans/{YYYY-MM-DD}-{slug}-plan.md"
+input:
+  properties:
+    plan:
+      type: string
+      description: "Path to the reviewed implementation plan"
+    dry_run:
+      type: boolean
+      description: "When true, output the planned structure without creating entries"
+  required:
+    - plan
+---
+
+# Harvest Skill
+
+The `harvest` skill turns a reviewed implementation plan into backlog
+feature, task, and subtask items. It is the reusable decomposition step
+invoked by the stage agent.
+
+This skill does not perform planning or review. It assumes the incoming
+plan has already been reviewed or otherwise approved for decomposition.
+
+## Agent-Intercom Communication
+
+When the `agent-intercom` capability pack is installed, call `ping` at
+session start. If reachable, broadcast at every step. If unreachable,
+warn the operator that visibility is degraded and continue locally.
+
+| Event | Level | Message prefix |
+|---|---|---|
+| Session start | info | `[HARVEST] Starting: plan={input.plan}` |
+| Plan accepted | info | `[HARVEST] Using reviewed plan: {plan_path}` |
+| Structure parsed | info | `[HARVEST] Parsed implementation units: {unit_count}` |
+| Dry run | info | `[HARVEST] Dry run: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
+| Feature created | info | `[HARVEST] Created feature: {feature_id} — {title}` |
+| Task created | info | `[HARVEST] Created task: {task_id} — {title}` |
+| Dependency wired | info | `[HARVEST] Dependency: {item_id} blocked by {depends_on}` |
+| Complete | success | `[HARVEST] Complete: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
+
+## Inputs
+
+* `${input:plan}`: (Required) Path to the reviewed implementation plan.
+* `${input:dry_run:false}`: (Optional, defaults to `false`) Preview the
+  planned hierarchy without creating entries.
+
+## Workflow
+
+### Phase 1: Validate the reviewed plan
+
+1. Read `${input:plan}` in full.
+2. Confirm the file exists and represents an implementation plan.
+3. Locate the latest `## Plan Review` section and require literal machine-readable
+   markers: `dispatch_mode:` and `decision:`. Missing markers fail closed because
+   they may indicate reviewer dispatch was silently skipped.
+4. Interpret `decision:`:
+   * `decision: PASS` — proceed.
+   * `decision: ADVISORY` — proceed only with explicit authorization recorded in
+     the harvest invocation or plan review notes; otherwise halt and request the
+     operator decision.
+   * `decision: FAIL` or any other value — halt; the plan is not harvest-ready.
+5. Interpret `dispatch_mode:`. `multi-agent`, `single-agent-declared-degradation`,
+   and `same-model-declared-degradation` are acceptable only when the review section
+   states that every selected persona was covered. Missing, empty, or unavailable
+   dispatch modes halt before backlog creation.
+6. Confirm the plan has already cleared the review gate or is explicitly marked ready
+   for harvesting according to the markers above.
+7. Broadcast the accepted plan path.
+8. Halt if the plan is missing, unreadable, lacks review markers, has a FAIL decision,
+   has an unauthorized ADVISORY decision, or is clearly not ready for backlog
+   creation. Recommend running `plan-review` first when the review state is unclear.
+
+### Phase 2: Parse the plan structure
+
+Extract the planning data needed for decomposition:
+
+1. Root feature title from frontmatter and top-level headings.
+2. Problem frame, requirements trace, decisions, and standards check
+   for the root feature description.
+3. Task candidates from each implementation unit.
+4. Subtask candidates from file lists, acceptance criteria, verification
+   steps, and test surfaces inside each implementation unit.
+5. Dependency edges from the plan's dependency graph.
+
+Use repository search tools to validate file references or symbols when
+the plan mentions existing code locations that need confirmation.
+
+### Phase 3: Build the hierarchy model
+
+Map the plan into the backlog hierarchy:
+
+* one feature representing the whole reviewed plan
+* one task per implementation unit
+* one or more subtasks per file group, verification slice, or explicit
+  execution step inside the unit
+
+Before creating anything, apply backlog shaping rules:
+
+1. Keep tasks small enough to fit a focused implementation session
+   (the 2-hour rule).
+2. Keep each task within a single skill domain.
+3. Require a verifiable exit state for every task and subtask.
+4. Preserve plan references so downstream execution can trace work
+   back to the plan.
+
+**Size + complexity are mandatory, non-conflated, two-axis metadata
+(NON-NEGOTIABLE):** Every emitted task-kind work item MUST be assigned both a
+`size` value (effort/volume: `XS`, `S`, `M`, `L`, `XL`) and a `complexity`
+value (difficulty/uncertainty: `trivial`, `low`, `medium`, `high`). These are
+two independent axes, never a single combined scalar. This section is
+self-contained — the rules below (structured-emission capability gate, enum
+validation gate, two-axis granularity gate, provenance-completeness rule) are
+the complete normative contract for this skill and do not depend on any file
+outside this template. When the autoharness repository's own
+`docs/size-complexity-reference.md` is present in the current workspace (as it
+is in the autoharness dogfood repository itself), treat it as supplementary
+rationale and worked examples only — it is not copied into every installed
+target workspace, so it must never be a required read for following the
+rules here.
+
+**Structured-emission capability gate:** Whether `size`/`complexity` are
+written as structured backlog fields, and in how many calls, depends on the
+active backlog registry — check `features.sizing`, and check exactly which
+operation (`create_task` vs. `update_task`) declares the `size`/`complexity`/
+`size_source`/`size_ruleset_version` params before assuming support or
+call-sequencing:
+
+* When the registry advertises `features.sizing: true` (for example,
+  `backlogit`), write `size` and `complexity` as structured fields on every
+  task-kind work item, validated per the enum gate below — but do not assume
+  they can be set in the same call that creates the task, or even in the
+  same call as each other. `backlogit` 1.8.0's `create_task` operation
+  (`backlogit_create_item` / `backlogit add`) accepts no sizing params at
+  all, and its `update_task` operation enforces two mutually exclusive,
+  body-preserving mutation seams: `size` (with `size_source`/
+  `size_ruleset_version` together) is one seam, `complexity` is a separate
+  seam, and neither can be combined with the other or with any other field
+  update in one call. The required sequence for a registry with this shape
+  is therefore: (1) create the task with no sizing params, (2) a follow-up
+  update call setting `size` (+ `size_source`/`size_ruleset_version` when the
+  registry defines those provenance params, set together as one call), (3) a
+  further, separate update call setting `complexity`. Always inspect the
+  registry's actual `params` declarations per operation before assuming a
+  different (or more permissive) sequence is safe.
+* When the registry does not advertise `features.sizing` (absent or `false` —
+  for example, `backlog-md`, whose `create_task`/`update_task` operations
+  expose no structured size/complexity params), the backend has no
+  structured slot for these values. Preserve both values anyway by embedding
+  them as clearly labeled prose in the task description (for example,
+  `Size: M | Complexity: medium`), still enum-validated, and flag this
+  degradation explicitly in the harvest report so operators know structured
+  provenance is unavailable for this backend. Do not skip assigning size and
+  complexity, and do not halt task creation, merely because the backend
+  lacks structured fields.
+
+**Enum validation gate (fail-closed):** Validate `size` against
+`XS|S|M|L|XL` and `complexity` against `trivial|low|medium|high` before
+emitting or writing any work item, whether as structured fields or as
+prose-embedded values per the capability gate above. Reject and halt on any
+other value rather than silently coercing or defaulting it. This validation
+is an extension of the existing P-003 granularity gate below, not a separate
+check — a task that fails size/complexity validation is exactly as unready
+for staging as one missing an acceptance criterion.
+
+**Two-axis granularity gate (extends the 2-hour rule, P-003):** The 2-hour
+rule from shaping rule 1 above is evaluated on BOTH axes independently, never
+on size alone, regardless of backend:
+
+* A `size` estimate implying more than 2 hours of human-equivalent effort
+  requires splitting the task, regardless of its `complexity`.
+* A `complexity: high` task requires de-risking (via further decomposition,
+  a spike, or additional deliberation) or an explicit split before being
+  emitted as a single executable task — even when its `size` is small. High
+  complexity is never a reason to skip the granularity check just because
+  the size looks small.
+
+Do not conflate the two axes: never derive `complexity` from `size` (or vice
+versa), and never emit a single blended difficulty/effort scalar in place of
+the two distinct fields.
+
+**Parent-first ordering (NON-NEGOTIABLE):** Tasks require a `parent_id`
+referencing an existing feature. The root feature MUST be created before any
+tasks are created. If the harvest context does not include an existing parent
+feature for task-kind work items, create or identify one before proceeding.
+Omitting `parent_id` for task-kind artifacts violates the required
+parent-child hierarchy (P-003 decomposition integrity) and may be blocked by
+the configured backlog registry or policy gates.
+
+When the `backlogit` capability pack is installed and the registry advertises
+`features.shipments: true`, the parent feature MUST be added to the shipment
+before its child tasks during shipment assembly. This ordering is enforced
+downstream by the Ship agent — flag it explicitly in the harvest report so
+Ship can assemble the shipment correctly.
+
+### Phase 4: Execute or preview
+
+If `${input:dry_run}` is `true`:
+
+1. Produce the proposed feature, task, subtask, and dependency structure,
+   including the proposed `size` and `complexity` value for every task.
+2. Broadcast the dry-run counts.
+3. Do not call backlog mutation tools.
+
+If `${input:dry_run}` is `false`:
+
+1. Query the backlog first to avoid duplicate root features.
+   Use `backlogit_list_items` or `backlogit_search_items` to check for existing
+   items with matching titles.
+2. Create the root feature via `backlogit_create_item` or
+   `backlogit add --type {artifact_type} --title {title}`.
+3. Create one task per implementation unit under that feature via
+   `backlogit_create_item`/`backlogit add --type {artifact_type} --title {title}` (`create_task`). Then set `size`
+   and `complexity` per the structured-emission capability gate above: when
+   `features.sizing: true`, apply them as one or more follow-up
+   `backlogit_update_item`/`backlogit update {id}` (`update_task`) calls in whatever
+   number and order the registry's declared `params` require (for example,
+   `backlogit` requires a separate call for `size`/`size_source`/
+   `size_ruleset_version` and another separate call for `complexity`); when
+   `features.sizing` is absent or `false`, embed both values as prose in the
+   description at creation time instead. Validate both values per the enum
+   validation gate above before any write, structured or prose.
+4. Create granular subtasks under each task.
+5. Wire dependencies when the backlog tool supports dependency operations
+   (check the backlog registry for availability).
+6. Broadcast each created feature, task, and dependency edge as it is
+   written.
+
+### Phase 5: Verify and report
+
+1. Confirm the created hierarchy through backlog read operations.
+2. Report the created IDs, counts, and dependency summary.
+3. Return the ready backlog as the output of the planning pipeline.
+4. Recommend handing the resulting backlog to the build-and-ship
+   workflow for harness, build, review, CI, and pull request execution.
+
+## Guardrails
+
+* Do not modify the plan file.
+* Do not skip duplicate checks.
+* Do not create shipment artifacts from this skill. Shipment assembly
+  happens downstream in Stage (Step 5.5) or Ship (fallback path).
+* Keep descriptions self-contained enough for the next executor to act
+  without reopening the plan for basic context.
+* Never emit a task without both `size` and `complexity` set and enum-validated.
+* Never combine `size` and `complexity` into one field or derive one axis from
+  the other. This rule is fully stated above and does not require any external
+  file to be present in the installed workspace.
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)** — backlog decomposition is structured and deterministic.

@@ -1,0 +1,144 @@
+---
+description: "Transform feature or chore descriptions and requirements into structured implementation plans grounded in repo patterns and research"
+---
+
+# Implementation Plan
+
+Transform WHAT (requirements document) into HOW (implementation plan). Produces a structured plan that the stage agent decomposes into tasks via the harvest skill.
+
+## When to Use
+
+Invoke when a deliberation outcome, brainstorm requirements document, or spike findings document is ready for technical planning. The output feeds into `plan-harden` when the work is risky, then into the `plan-review` skill for validation before the stage agent harvests it into backlog work.
+
+## Inputs
+
+* `source`: (Required) Path to source document — `docs/decisions/{file}.md` for deliberation outcomes or spike findings, or `docs/product-specs/{file}.md` for brainstorm requirements documents.
+
+## Output
+
+A plan file at `docs/plans/{YYYY-MM-DD}-{slug}-plan.md`.
+
+## Required Protocol
+
+When the `agent-intercom` capability pack is installed, follow
+`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility at the
+start of planning, broadcast major planning milestones, and use the intercom clarification flow
+when unresolved source ambiguity or planning trade-offs require operator input.
+
+When the `agent-engram` capability pack is installed, follow
+`.github/instructions/agent-engram.instructions.md`: verify the engram search surface before relying
+on indexed discovery, and prefer engram-first lookup while researching the codebase.
+
+When the `graphtor-docs` capability pack is installed, follow
+`.github/instructions/graphtor-docs.instructions.md`: prefer graphtor-docs indexed documentation
+retrieval for concept and API lookup before broad grep — Engram for code relationships,
+graphtor-docs for documentation and API questions.
+
+### Phase 1: Understand the Source
+
+1. Read and parse the source document
+2. Extract: problem frame, requirements, success criteria, scope boundaries
+3. Identify any outstanding questions that need resolution before planning
+
+### Phase 2: Research the Codebase
+
+Search the learnings library (`docs/compound/`) for relevant past solutions BEFORE deeper repo analysis. Treat retrieval as mandatory pre-planning context, not an optional fallback.
+
+Use workspace search tools to understand:
+
+* Existing patterns and conventions in the codebase
+* Modules and symbols relevant to the feature or chore
+* Test patterns established in the project
+* Dependencies and integration points
+
+When the `agent-engram` capability pack is installed, prefer `unified_search` for broad discovery,
+`list_symbols` for inventory, `map_code` for caller/callee context, and `impact_analysis` before
+manual caller tracing.
+
+When the `graphtor-docs` capability pack is installed, prefer `search_local_docs`,
+`search_semantic`, and `research_topic` for documentation, API, and concept lookup; reserve Engram
+for code relationships.
+
+### Phase 3: Structure the Plan
+
+Produce a plan with these sections:
+
+#### Problem Frame
+
+Restate the problem in technical terms, referencing specific code paths and modules.
+
+#### Requirements Trace
+
+Map each requirement from the source document to specific implementation actions.
+
+#### Implementation Units
+
+Break the work into discrete units, each following the granularity constraints:
+
+* **2-Hour Rule**: Fewer than 3 files, fewer than 5 functions, fewer than 4 test scenarios
+* **Width Isolation**: Single domain per unit (code OR docs OR tests OR config)
+* **Atomic Milestone**: Each unit produces a verifiable outcome
+
+For each unit, specify:
+
+* What changes are needed
+* Which files are affected
+* What tests verify the change
+* Execution posture (test-first, characterization-first, migration-first, spike)
+
+#### Dependency Graph
+
+Identify which units depend on others. Sequence them to minimize blocking.
+
+#### Decisions and Rationale
+
+Document key technical decisions with the reasoning behind each choice.
+
+#### Risks and Caveats
+
+Identify potential issues, unknowns, and mitigation strategies.
+
+#### Plan Hardening Signals (REQUIRED)
+
+Every plan MUST include this section. Explicitly record whether the plan needs
+hardening before review. Mark each signal as present or absent and include a
+short justification:
+
+* public API, schema, or contract change
+* security, auth, permission, or compliance-sensitive behavior
+* migration, backfill, destructive data/config action, or irreversible step
+* external integration, operator checkpoint, or external dependency
+* high runtime, rollout, or rollback risk
+
+Conclude with `Requires plan hardening: yes|no`. This conclusion is mandatory —
+P-006 treats its absence as `yes` (fail-safe). Even trivial plans must include
+`Requires plan hardening: no` to pass the gate without unnecessary hardening.
+
+#### Runtime Verification and Closure
+
+For each implementation unit, identify:
+
+* Whether it changes a runtime surface (CLI, API, browser UI, background jobs)
+* What runtime verification should prove before the work is considered absorbed
+* What operational closure artifact should exist (monitoring checklist, rollback trigger, ownership, validation window)
+
+When one or more hardening signals are present, seed enough detail that the
+downstream `plan-harden` step can tighten the plan instead of inventing safety,
+verification, or rollback expectations from scratch.
+
+## Quality Criteria
+
+* Every requirement from the source document maps to at least one implementation unit
+* Every unit satisfies the 2-hour rule, width isolation, and atomic milestone constraints
+* Dependency graph has no cycles
+* Decisions include rationale (not just the choice)
+* Risks identify mitigations
+* Relevant prior learnings are surfaced before planning concludes
+* Plans record whether `plan-harden` is required before review — this field is mandatory, not optional
+* Plans include runtime verification and closure expectations for changed runtime surfaces
+
+## Model Routing
+
+This skill operates at **Tier 3 (Frontier)** — technical planning and codebase analysis require deep reasoning.
+
+Generated by autoharness | Template: impl-plan/SKILL.md.tmpl

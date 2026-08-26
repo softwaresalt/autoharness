@@ -181,8 +181,98 @@ artifacts:
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
-    checksum: "e2fe06c688fdc4da43403678791673f5afb333358fce93dbf8b0c243178401ac"
+    checksum: "eff8b2ff2f7e0e2d424540cb4a68376877ded496e4d5b8c956355a18f7f9eb85"
     note: "pre-existing, source-controlled global artifact"
+  - path: ".github/skills/compact-context/SKILL.md"
+    primitive: 1
+    template: "skills/compact-context/SKILL.md.tmpl"
+    checksum: "b8421b9fed19c52b722e992cd97e106794b99f9f2e78049a63582054873f823d"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; P-020 mandatory post-merge closure skill -- its absence blocked Orchestrator shipment routing. Runtime fill-in tokens {count}/{size_reduction} normalized from the template's double-brace form to the single-brace form the same file already uses in its Intercom prose and broadcast table; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/deliberate/SKILL.md"
+    primitive: 4
+    template: "skills/deliberate/SKILL.md.tmpl"
+    checksum: "2c0014137f5a813541ca56dbb9b31b444c3d5908a09e0a748ce3698db0feb7b3"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; Phase 5 artifact example retains its fenced runtime fill-in placeholders ({{TITLE}}, {{PROBLEM_DESCRIPTION}}, ...) verbatim per the documented runtime-fill-in convention in .github/copilot-review-instructions.md Rule 1; they are inside a fenced code block and are excluded by design from the unresolved-placeholder gate; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/file-lock/SKILL.md"
+    primitive: 5
+    template: "skills/file-lock/SKILL.md.tmpl"
+    checksum: "bb17bed11ef3555f034262b2913eb6e3858cba0cab825f01089c453cfdbd9808"
+    note: "installed by scoped follow-up to the 8AC574F1 merge-install, closing the transitive dangling reference that install of shipment-reconcile introduced: shipment-reconcile's safe-close procedure invokes this skill unconditionally (acquire at L260, release at L351, path cited at L1071). Template ships zero {{VARIABLE}} tokens so rendering is a no-op; the only transform is the H1/MD041 promotion of the leading `## File Lock` heading, matching the same normalization applied to the 7 other `##`-leading skill templates in this install. Written LF-only; checksum is SHA-256 over the raw LF file bytes. Companion `scripts/` artifacts are registered separately below under the engine's `concurrency pack script` template convention."
+  - path: "scripts/acquire_lock.ps1"
+    primitive: 5
+    template: "concurrency pack script"
+    checksum: "14453d7e8a9c95ac5d917816b331c1a9fd6812a9ea1e49ac009c6f3bec7b5e3d"
+    note: "concurrency pack script for the file-lock skill; copied verbatim (no variable resolution) from templates/skills/file-lock/scripts/ into the workspace scripts/ directory per install-harness Step 2.5 and the artifact map. Resolved by verify_workspace._resolve_source_template's `concurrency pack script` branch with mode `copy`. Referenced by both .github/skills/file-lock/SKILL.md and the already-installed .github/instructions/concurrency.instructions.md (L47-48, L63-64), which cited these paths before they existed. Bytes copied verbatim to match the sibling scripts/ EOL convention (core.autocrlf=true; git normalizes to LF in the blob)."
+  - path: "scripts/acquire_lock.sh"
+    primitive: 5
+    template: "concurrency pack script"
+    checksum: "65c543969c5014f5c91623be6087986acaa57ef6e98eb5ea15b944962d8886e7"
+    note: "concurrency pack script for the file-lock skill; copied verbatim (no variable resolution) from templates/skills/file-lock/scripts/ into the workspace scripts/ directory per install-harness Step 2.5 and the artifact map. Resolved by verify_workspace._resolve_source_template's `concurrency pack script` branch with mode `copy`. Referenced by both .github/skills/file-lock/SKILL.md and the already-installed .github/instructions/concurrency.instructions.md (L47-48, L63-64), which cited these paths before they existed. Bytes copied verbatim to match the sibling scripts/ EOL convention (core.autocrlf=true; git normalizes to LF in the blob)."
+  - path: "scripts/release_lock.ps1"
+    primitive: 5
+    template: "concurrency pack script"
+    checksum: "3900e9d814a29f44837c67d461119c39afc96fdd9dc6f4efdbc0d0460bcdbe3c"
+    note: "concurrency pack script for the file-lock skill; copied verbatim (no variable resolution) from templates/skills/file-lock/scripts/ into the workspace scripts/ directory per install-harness Step 2.5 and the artifact map. Resolved by verify_workspace._resolve_source_template's `concurrency pack script` branch with mode `copy`. Referenced by both .github/skills/file-lock/SKILL.md and the already-installed .github/instructions/concurrency.instructions.md (L47-48, L63-64), which cited these paths before they existed. Bytes copied verbatim to match the sibling scripts/ EOL convention (core.autocrlf=true; git normalizes to LF in the blob)."
+  - path: "scripts/release_lock.sh"
+    primitive: 5
+    template: "concurrency pack script"
+    checksum: "975eefc6c944c93548988a87c158fa27d9683ea878b783a1e07d8ebd769a6b09"
+    note: "concurrency pack script for the file-lock skill; copied verbatim (no variable resolution) from templates/skills/file-lock/scripts/ into the workspace scripts/ directory per install-harness Step 2.5 and the artifact map. Resolved by verify_workspace._resolve_source_template's `concurrency pack script` branch with mode `copy`. Referenced by both .github/skills/file-lock/SKILL.md and the already-installed .github/instructions/concurrency.instructions.md (L47-48, L63-64), which cited these paths before they existed. Bytes copied verbatim to match the sibling scripts/ EOL convention (core.autocrlf=true; git normalizes to LF in the blob)."
+  - path: ".github/skills/fix-ci/SKILL.md"
+    primitive: 4
+    template: "skills/fix-ci/SKILL.md.tmpl"
+    checksum: "050446b265074581ae7e094b427f1f7100f2f660fbf1925ca67713e9fc2d6176"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; quality-gate variables resolved from this repository's real CI job set in .github/workflows/ci.yml rather than the stale/empty profile fields: LINT_COMMAND=markdownlint \"**/*.md\", TEST_COMMAND=PYTHONPATH=src python -m unittest discover -s tests, QUALITY_GATE_3=bash scripts/ci-topology-check.sh; no formatter is configured so FORMAT_CHECK/FORMAT_FIX resolve to the '# no ... configured' form already used by the installed github-pr-automation.instructions.md; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/harvest/SKILL.md"
+    primitive: 4
+    template: "skills/harvest/SKILL.md.tmpl"
+    checksum: "d268983c3723804e3c7b46913ff3df9c7b616113a369bbc230d2639e52c7e533"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; backlog CLI operation variables rendered with the single-brace parameter form documented in the install-harness variable resolution table (backlogit update {id}) rather than the registry's raw double-brace tokens; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/impl-plan/SKILL.md"
+    primitive: 4
+    template: "skills/impl-plan/SKILL.md.tmpl"
+    checksum: "5f6f031a2c89818d210ff176f2165c1bf6ce93ee22e823c571f29e078ea06f12"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/operational-closure/SKILL.md"
+    primitive: 10
+    template: "skills/operational-closure/SKILL.md.tmpl"
+    checksum: "82ee5e78e3fec64bd00d741278b94c7a68aa166ae8c68464abb7dae91bc17ce4"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; browser-verification / release-observability / strict-safety instruction references are pack-gated conditionals; those packs are not enabled in this workspace so the guarded references are inert; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/plan-harden/SKILL.md"
+    primitive: 4
+    template: "skills/plan-harden/SKILL.md.tmpl"
+    checksum: "1b465a704368278aa5f26192d459879aee6022501999661bb62b081cd32c2561"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/plan-review/SKILL.md"
+    primitive: 7
+    template: "skills/plan-review/SKILL.md.tmpl"
+    checksum: "5037d701f444f65211a380edadf1872c20b7691cd7c2f2fed18b655a1ed9d704"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; DANGLING: references seven .github/agents/subagents/*.agent.md review personas (constitution-reviewer, python-reviewer, architecture-strategist, scope-boundary-auditor, learnings-researcher, security-lens-reviewer, agent-native-parity-reviewer) that are NOT installed in this workspace -- emitted faithfully and reported rather than silently rewritten; the review persona layer is a separate install gap; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/pr-lifecycle/SKILL.md"
+    primitive: 4
+    template: "skills/pr-lifecycle/SKILL.md.tmpl"
+    checksum: "e98eaeb657161ff6e9596b5f4c82ad89b636af8e2c456091ec5e51f9764a2d66"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; DEFAULT_BRANCH resolved to 'main' via git symbolic-ref on origin/HEAD; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/review/SKILL.md"
+    primitive: 7
+    template: "skills/review/SKILL.md.tmpl"
+    checksum: "e46d39410cb2ecb3569b73a654aca5f9e2a3a4d93e14c82ee58ca633522f118b"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; DANGLING: references security-reviewer.agent.md, template-integrity-reviewer.agent.md, and schema-cli-docs-coupling-reviewer.agent.md, none of which are installed. SECURITY_REVIEW_PATTERNS synthesized for primary language Python and restricted to paths that actually exist and are git-tracked in this repository; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/runtime-verification/SKILL.md"
+    primitive: 10
+    template: "skills/runtime-verification/SKILL.md.tmpl"
+    checksum: "c9dfbb8008d14d578bb4326d6f65d5a56f9d0ca3ff4d63c1b671270f6320cbb6"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/shipment-reconcile/SKILL.md"
+    primitive: 4
+    template: "skills/shipment-reconcile/SKILL.md.tmpl"
+    checksum: "066eafbf550457e499fa847294ff11b51ec9ed1cdf8a8b3af69729b49a76927c"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; OP_ARCHIVE_ITEM_MCP/CLI resolved from templates/backlog/registries/backlogit.registry.yaml because .autoharness/backlog-registry.yaml omits the archive_item operation entirely -- registry gap reported. DANGLING: the safe-close procedure invokes the file-lock skill (.github/skills/file-lock/SKILL.md) and cites .github/policies/workflow-policies.md; neither is installed in this workspace; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/spike/SKILL.md"
+    primitive: 4
+    template: "skills/spike/SKILL.md.tmpl"
+    checksum: "432f761e89c004e75f7c0cee5d5d44fc4780c9a147eaf2556b98ca6fd6b02d86"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
   - path: ".github/prompts/install-harness.prompt.md"
     primitive: 6
     template: "global prompt definition"
@@ -298,8 +388,8 @@ variables_used:
   PRIMARY_LANGUAGE: "Python"
   PRIMARY_LANGUAGE_LOWER: "python"
   BUILD_COMMAND: "pip install -e ."
-  TEST_COMMAND: "pytest"
-  LINT_COMMAND: ""
+  TEST_COMMAND: "PYTHONPATH=src python -m unittest discover -s tests"
+  LINT_COMMAND: 'markdownlint "**/*.md"'
   FORMAT_COMMAND: ""
   BUILD_CHECK_COMMAND: "python -m py_compile src/autoharness/cli.py"
   TEST_DIR: "tests"
@@ -320,6 +410,38 @@ variables_used:
   DOCS_DESIGN_DOCS: "docs/design-docs"
   DOCS_PRODUCT_SPECS: "docs/product-specs"
   CIRCUIT_BREAKER_COOLDOWN: "5 minutes"
+  # --- Recorded by the 13-skill scoped merge-install (stash 8AC574F1). ---
+  # Gate commands are this repository's real gates per .github/workflows/ci.yml:
+  # "autoharness has no ruff/pyright/pytest configured; the only real gates are
+  # the stdlib unittest suite (here) and markdownlint (the pre-commit/pre-push
+  # hooks)."  profile.test.command ("pytest") and profile.lint.command ("") are
+  # stale against that ground truth; recorded here so rendering matches reality
+  # without mutating the discovery profile. Root-cause fix (re-running
+  # workspace-discovery to correct profile.test/profile.lint) is deliberately
+  # left as a follow-up, outside this shipment's scope.
+  FORMAT_CHECK_COMMAND: "# no format check command configured"
+  FORMAT_FIX_COMMAND: "# no format fix command configured"
+  POLL_INTERVAL: "30"
+  MAX_WAIT: "600"
+  # profile.ci.quality_gates is empty; enumerated from the real CI job set.
+  QUALITY_GATE_1: 'markdownlint "**/*.md"'
+  QUALITY_GATE_2: "PYTHONPATH=src python -m unittest discover -s tests"
+  QUALITY_GATE_3: "bash scripts/ci-topology-check.sh"
+  QUALITY_GATE_4: "# no fourth quality gate configured"
+  # Synthesized for primary language Python; restricted to paths that exist and
+  # are git-tracked in this repository (src/autoharness/remote and
+  # src/autoharness/supervise are untracked and deliberately excluded).
+  SECURITY_REVIEW_PATTERNS: "`src/autoharness/cli.py`, `src/autoharness/gates/**`, `src/autoharness/verify_workspace.py`, `scripts/**`, `.github/workflows/**`"
+  # .autoharness/backlog-registry.yaml omits the archive_item operation that
+  # templates/backlog/registries/backlogit.registry.yaml declares; resolved from
+  # the canonical registry template. Registry gap reported as a follow-up.
+  OP_ARCHIVE_ITEM_MCP: "backlogit_archive_item"
+  OP_ARCHIVE_ITEM_CLI: "backlogit archive {id}"
+  # Registry cli_command values embed lowercase {{param}} runtime tokens;
+  # normalized to the single-brace form the install-harness variable resolution
+  # table documents (`backlogit show {id}`, `backlogit update {id}`).
+  OP_CREATE_CLI: "backlogit add --type {artifact_type} --title {title}"
+  OP_UPDATE_CLI: "backlogit update {id}"
   HARNESS_ENFORCED_SUMMARY: |
     * Markdown formatting and markdownlint heading hierarchy (MD001/MD025/MD041, P-008)
     * Workflow policies P-001 through P-021 and constitutional principle sequencing

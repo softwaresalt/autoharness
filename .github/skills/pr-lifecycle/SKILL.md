@@ -1,0 +1,336 @@
+---
+name: pr-lifecycle
+description: "Manages the full PR lifecycle: creation, review comment handling, CI remediation, and user-approved merge"
+argument-hint: "branch=feature/{feature-number}-{slug}"
+input:
+  properties:
+    branch:
+      type: string
+      description: "Feature branch to create PR for"
+    title:
+      type: string
+      description: "PR title (optional, defaults to branch name)"
+  required:
+    - branch
+---
+
+# PR Lifecycle Skill
+
+Manage the branch-to-merged workflow for a feature or chore branch. This
+skill creates or updates the pull request, responds to review feedback,
+keeps CI healthy, and stops at the user merge gate unless the user
+explicitly approves the merge.
+
+## Purpose
+
+Use this skill when implementation work is ready to move through pull
+request execution. It centralizes the PR control loop so higher-level
+agents can treat review, CI follow-up, and merge approval as one bounded
+workflow.
+
+## Agent-Intercom Communication
+
+When the `agent-intercom` capability pack is installed, call `ping` at
+session start. If reachable, broadcast at every step. If unreachable,
+warn the operator that visibility is degraded and continue locally.
+
+| Event | Level | Message prefix |
+|---|---|---|
+| Session start | info | `[PR-LIFECYCLE] Starting: branch={input.branch}` |
+| Branch pushed | info | `[PR-LIFECYCLE] Branch pushed: {branch}` |
+| PR created | info | `[PR-LIFECYCLE] PR created: {pr_url}` |
+| PR updated | info | `[PR-LIFECYCLE] PR updated: {pr_url}` |
+| Feedback received | info | `[PR-LIFECYCLE] Review feedback: {comment_count} comments` |
+| Fix applied | info | `[PR-LIFECYCLE] Fix applied for: {comment_summary}` |
+| CI failure | warning | `[PR-LIFECYCLE] CI failed — delegating to fix-ci` |
+| CI green | info | `[PR-LIFECYCLE] CI passing` |
+| Ready for merge | success | `[PR-LIFECYCLE] PR ready — awaiting user approval` |
+| Merged | success | `[PR-LIFECYCLE] Merged: {pr_url}` |
+| Blocked | warning | `[PR-LIFECYCLE] Blocked: {reason}` |
+
+## Inputs
+
+* `${input:branch}`: (Required) Branch name to ship.
+* `${input:title}`: (Optional) PR title override. When omitted, derive
+  the title from the branch name or prepared PR description.
+
+## Workflow
+
+### Step 1: Prepare the branch
+
+1. Confirm the branch exists locally and is ready to push.
+2. Gather or generate the PR title and body before calling GitHub
+   tooling.
+3. Ensure the PR body contains the `## Local Review Readiness` block required by
+   `.github/instructions/github-pr-automation.instructions.md` §1.9, including:
+   * reviewed HEAD SHA
+   * outcome (`READY`, `READY_WITH_FOLLOWUPS`, or `BLOCKED`)
+   * blocking-finding summary
+   * successful full local build evidence for code-changing PRs, or explicit non-applicability
+     for documentation-only/backlog-only PRs
+   * follow-up item IDs or residual-risk notes when applicable
+4. Halt instead of creating/updating the PR if the calling agent cannot provide
+   a current-HEAD local readiness record.
+5. Halt instead of creating/updating the PR if the current-HEAD readiness record
+   reports `BLOCKED`.
+6. Halt instead of creating/updating the PR if code was added, removed, or changed
+   and the readiness evidence lacks a successful full local build command/result.
+7. Push the branch if it is not already available on the remote.
+
+### Step 2: Create or update the pull request
+
+1. Use the GitHub CLI (`gh pr create` or `gh pr edit`) to create or
+   refresh the pull request.
+2. Capture the PR URL, branch, and base branch as the active context.
+3. Reuse an existing PR when the branch already has one instead of
+   creating duplicates.
+4. After PR creation or update, verify the local readiness block is still present
+   in the PR body and references the current HEAD SHA.
+
+### Step 2b: Optional shadow review
+
+When the repository is hosted on GitHub, Copilot Review may be requested in
+advisory shadow mode immediately after PR creation or after pushing new commits:
+
+1. Request shadow review per `.github/instructions/github-pr-automation.instructions.md` §1.1 when the operator or workflow enables migration shadow mode.
+2. Poll for completion using the back-off cadence in §1.2.
+3. Do not treat shadow review as a required dependency for merge readiness unless the operator explicitly elevates it for the current PR.
+4. When `DARK_MODE_ACTIVE` is present, keep shadow review advisory by default:
+   local review readiness remains authoritative, and timeout/unavailability is
+   recorded in the PR readiness summary instead of blocking merge readiness.
+
+### Step 3: Handle review feedback
+
+1. Monitor PR review comments, especially automated shadow-review comments when requested.
+2. For GitHub-hosted repositories, follow the optional shadow-review
+   workflow in `.github/instructions/github-pr-automation.instructions.md` Part 1:
+   categorize comments (§1.3), apply fixes (§1.4), reply to threads
+   (§1.5), and resolve bot-authored threads via GraphQL (§1.6). Before applying
+   any fix, classify the comment against the **P-021 C1** same-contract-surface
+   test (see the operational restatement in
+   `.github/instructions/circuit-breaker.instructions.md`'s "Review-Fix Cycle
+   Definition" section): only a comment that passes C1 may be fixed directly.
+   When `DARK_MODE_ACTIVE` is present and the operator is AFK, continue these
+   bounded review-fix-push iterations autonomously: fix in-scope comments, commit and
+   push, reply with the fixing commit, resolve bot-authored threads, and only halt
+   for unsafe changes, unresolved P0/P1 findings, elevated blocking review, or
+   circuit-breaker limits.
+3. For non-GitHub repositories, apply bounded fixes directly when they
+   are clearly actionable and pass the same P-021 C1 test.
+4. Re-run the relevant validation after each fix cycle.
+5. Before every code-changing fix push, require successful full local build
+   evidence. Documentation-only/backlog-only fixes may record full-build
+   non-applicability. Halt on missing or failed build evidence.
+6. Keep the PR description and review context aligned with the latest
+   branch state.
+7. **Out-of-scope disposition (P-021 C2/C3)**: every comment that fails the C1
+   test in step 2/3 above MUST follow this required ordered, capture-first
+   sequence instead of being fixed — the loop terminates honestly rather than
+   by expansion:
+   * (a) **Capture per P-021 C2**, performed BEFORE any thread reply/closure
+     because C2 makes capture a precondition for closing the finding. Record
+     the full six-field payload:
+     1. The literal token `DEFERRED SCOPE EXPANSION`.
+     2. A one-sentence statement of the expansion.
+     3. Why it is out of scope, citing the P-021 C1 test.
+     4. Source refs — PR number, review-thread ID, task ID, feature ID,
+        shipment ID. On the GitHub-hosted path (step 2) the PR number and the
+        review-thread ID BOTH always exist at capture, so no per-field `N/A`
+        case arises there. On the non-GitHub path (step 3) there is no
+        review-thread mechanism: record the review-thread ID as `N/A` and the
+        PR number with its actual value whenever a PR is already open (the
+        normal case), never fusing the two refs into a single `PR/thread`
+        token or assuming one field's availability from the other's.
+     5. A `requires deliberation` flag.
+     6. Kind and a PROVISIONAL priority only — re-prioritization and triage
+        remain Stage-only (P-021 C5 capture-only carve-out).
+   * **Thread-present disposition (GitHub-hosted path, step 2)**: (b) post a
+     substantive thread reply explaining the finding, why it is out of scope
+     citing the C1 boundary, that no code change was made, and CITING THE
+     GENERATED DEFERRED ENTRY ID returned by the (a) capture, per P-021 C3;
+     (c) resolve the thread via §1.6, permitted only after the reply citing
+     that ID is posted; (d) add a residual-risk record entry in the PR body
+     naming the SAME deferred entry ID. Replying to or resolving an
+     out-of-scope thread BEFORE the C2 capture exists is PROHIBITED, since the
+     reply cannot cite an entry ID that has not been generated yet; a reply
+     omitting the deferred entry ID does not satisfy C3.
+   * **Threadless discharge (non-GitHub path, step 3)**: no review-thread
+     mechanism exists on this path, so the C3 thread-reply/resolve step does
+     not apply and its absence is NOT a C3 shortfall. After the (a) capture,
+     cite the generated deferred entry ID in the TASK-LEVEL, run-level, and
+     closure/PR residual-risk records instead — the complete set the
+     reference obligation requires when no thread reply can carry the ID.
+   * If a finding captured threadless on the non-GitHub path later surfaces on
+     a review thread (e.g. the repository migrates to a GitHub-hosted review
+     flow within the same run), the reply cites the ALREADY-CAPTURED deferred
+     entry ID; this skill MUST NOT create a second entry, consistent with the
+     SINGLE-WRITE CAPTURE INVARIANT and LATE-SURFACING THREAD rule (both
+     authored in 134.004-T).
+
+### Step 4: Handle CI failures
+
+1. If CI fails, invoke the `fix-ci` skill with the active PR or branch
+   context.
+2. For GitHub-hosted repositories, ensure the fix-ci skill follows the
+   CI polling protocol in `.github/instructions/github-pr-automation.instructions.md` Part 2
+   for status monitoring, failure extraction, and fix-push-poll loops.
+3. Ensure code-changing CI remediation pushes include successful full local build
+   evidence, or documentation-only/backlog-only remediation records explicit
+   non-applicability.
+4. Let `fix-ci` own the remediation loop for failing checks and
+   unresolved review comments.
+5. Return to PR monitoring once CI and review status are clean again.
+
+### Step 4b: Re-request review after fixes
+
+When fixes were pushed (from either review or CI remediation) and shadow review
+is enabled:
+
+1. Re-request shadow review per `.github/instructions/github-pr-automation.instructions.md`
+   §1.7.
+2. Poll for the new review using the same back-off cadence.
+3. Resolve any remaining bot-authored threads per §1.6.
+4. Repeat until the review is clean or the review-fix cycle limit is
+   reached.
+
+### Step 5: Merge approval gate
+
+#### Step 5a: Pre-Merge Review Readiness Verification (NON-NEGOTIABLE)
+
+Before presenting the PR as merge-ready, run the defense-in-depth
+local review readiness verification defined in
+`.github/instructions/github-pr-automation.instructions.md` §1.9:
+
+1. Execute the §1.9 readiness query with full pagination until `hasNextPage`
+   is false. If pagination cannot complete, fail closed and halt.
+2. Evaluate all four gate checks in order:
+   - **Check 1**: A local review readiness record exists for the current `headRefOid`.
+   - **Check 2**: The local review outcome is `READY` or `READY_WITH_FOLLOWUPS`.
+   - **Check 3**: Any residual P2/P3 findings are explicitly tracked as follow-up items or residual-risk notes.
+   - **Check 4**: Code-changing PRs include successful full local build evidence, or
+     documentation-only/backlog-only PRs explicitly mark full-build non-applicability.
+3. If any check fails, **halt immediately**. Do not present the PR as
+   merge-ready. Report the blocking condition to the operator.
+4. If advisory shadow-review feedback exists, surface it in the merge-readiness summary without treating it as merge-blocking by default.
+5. Surface human review threads, `reviewDecision`, and any
+   `CHANGES_REQUESTED` reviews in the merge-readiness summary — these
+   may independently block merge at the GitHub level.
+6. In dark mode, this local readiness gate is the authoritative merge-readiness
+   gate: unresolved local P0/P1 findings block, `READY_WITH_FOLLOWUPS` requires
+   explicit follow-up handling, and shadow-review unavailability does not block
+   unless elevated by the activation contract or operator.
+
+#### Step 5b: Present merge readiness
+
+1. When the §1.9 gate passes and checks are green, present the status
+   to the user.
+2. Wait for explicit user approval before any merge action.
+3. **Never auto-merge** and never treat silence as approval.
+4. If the user does not approve merge, leave the PR open and report
+   the ready state.
+5. **Operator approval gate (P-014)**: After the §1.9 gate passes, wait for an
+   explicit operator approval signal. Green CI is not approval. A passing §1.9
+   gate is not approval. Record P-014 (via P-005 telemetry) if merge is executed
+   without an explicit approval signal.
+   When `DARK_MODE_ACTIVE` is present, the activation record may satisfy this
+   approval signal only when the PR is inside scope, `merge_approval_pre_authorized`
+   is `true`, §1.9 passed for the current HEAD, required checks are green or
+   explicitly non-applicable, and P-009/P-016 have passed. Otherwise, wait for
+   explicit operator approval.
+6. **Branch retention (NON-NEGOTIABLE)**: Remain on the current feature
+   or chore branch while awaiting merge approval. Do NOT checkout
+   `main` or any other branch. The calling agent (Ship)
+   depends on the branch context being preserved for post-merge work.
+
+#### Step 5c: Last-Mile §1.9 Re-check Before Merge Execution
+
+After receiving operator approval, or after confirming a valid
+`DARK_MODE_ACTIVE` approval record, and before executing any normal merge or
+admin fallback:
+
+1. Re-query the PR `headRefOid`.
+2. Confirm the `headRefOid` still matches the HEAD covered by the latest passed
+   §1.9 gate and the PR body's `Reviewed HEAD` value.
+3. If the branch advanced, the PR body reviewed SHA differs from `headRefOid`, or
+   the latest passed §1.9 gate covered a different SHA, re-run §1.9 in full
+   before merge or fallback — the prior gate result is stale.
+4. If the branch HEAD and review state are unchanged from the §1.9 gate run,
+   log `P-014 LAST-MILE CHECK PASSED: branch unchanged, local readiness still covers HEAD`.
+5. Execute the merge or admin fallback only after this check passes.
+
+This last-mile check closes the race window between approval receipt and merge
+execution. It is a lightweight incremental query (not a full §1.9 re-run) when the
+branch has not changed.
+
+#### Step 5d: Merge Execution and Admin Fallback State Machine
+
+1. Classify the pre-merge normal path. If a merge commit can proceed, record
+   `NORMAL_MERGE_READY` before executing the merge command.
+2. Attempt the normal merge path first using merge-commit strategy.
+3. If normal merge succeeds, record a distinct `MERGE_SUCCEEDED` result with the
+   merge SHA and finish.
+4. If normal merge is rejected, classify the blocking state before taking any
+   fallback action:
+   * `REVIEW_REQUIRED_BLOCK`
+   * `CONVERSATION_RESOLUTION_BLOCK`
+   * `CHECKS_BLOCK`
+   * `MERGE_STRATEGY_BLOCK`
+   * `MISSING_ADMIN_RIGHTS`
+   * `UNKNOWN_MERGE_BLOCK`
+5. In dark mode, admin fallback may be attempted only for branch-protection
+   review/conversation blocks explicitly covered by `admin_fallback_pre_authorized`.
+   Before fallback, run Step 5c's immediate `headRefOid` re-query/comparison and
+   re-confirm required checks, P-009 merge-commit strategy, P-016 topology, and
+   scope match.
+6. Never use admin fallback for failed/pending/missing required checks, stale
+   local review readiness, unresolved local P0/P1 findings, squash/rebase-only
+   merge strategy, secrets-safety risk, scope mismatch, or unknown merge blocks.
+7. Record every normal merge and admin fallback attempt in the PR summary or
+   merge evidence with state, reason, command/API used, and result. If fallback
+   fails because credentials lack bypass rights, halt with `MISSING_ADMIN_RIGHTS`.
+
+### Step 6: Post-merge cleanup
+
+After a user-approved merge:
+
+1. Report the merge result and resulting default-branch state.
+2. **Do NOT checkout `main` and start working on it.**
+   Post-merge closure work belongs on a dedicated `post-merge/` branch
+   created by the Ship agent. This skill's responsibility ends at
+   reporting the merge result.
+3. Delete the feature branch only when that cleanup is requested or
+   already part of the chosen PR flow.
+4. Summarize any follow-up items, release notes, or residual risks
+   that remain after merge.
+
+## Completion Criteria
+
+The skill is complete only when one of these outcomes is explicit:
+
+* the PR is open and ready, waiting on user merge approval
+* the PR feedback and CI loop is blocked with a clear reason
+* the PR was merged after explicit user approval
+
+## Stop Conditions
+
+| Counter | Limit | Action |
+|---|---|---|
+| Fix-CI delegation cycles | 5 | Halt, leave PR for manual intervention |
+| Review-fix cycles | 3 | For each remaining advisory shadow-review comment that FAILS P-021 C1: accept as a backlog follow-up via a full P-021 C2 capture carrying the full six-field payload above (not an informal note). An in-scope comment unresolved solely because this cycle budget is exhausted is NOT captured this way — see the P-021 C4 annotation below. |
+
+**P-021 C4 annotation**: reaching the review-fix cycle limit does not authorize
+expanding into an out-of-scope comment, and neither does an operator
+instruction to continue. Operator authorization at the limit can only open a
+SEPARATE work unit through P-021 C2 capture plus C6 Stage deliberation — it
+never makes the expansion in-scope for the cycle already in flight (P-021 C4).
+An in-scope comment (one that PASSES P-021 C1) left unresolved purely because
+this cycle-count budget is exhausted is a different case: it is never captured
+as a `DEFERRED SCOPE EXPANSION` entry (it was never out of scope), and per the
+P-021 C3 symmetric guard it MUST NOT be silently closed as a backlog
+follow-up either — halt this comment instead and surface it to the operator
+for explicit disposition (extend the cycle-count limit, or explicitly accept
+documented residual risk) before the PR is presented as merge-ready.
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)** — PR creation and follow-up is routine coordination.

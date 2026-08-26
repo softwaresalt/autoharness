@@ -1,0 +1,139 @@
+---
+description: "Compact and consolidate memory, plan, and tracking artifacts into durable summaries in docs/ — mandatory workflow step, not advisory"
+---
+
+# Compact Context
+
+Scan `docs/memory/`, `docs/plans/`, and `docs/closure/` for stale or oversized artifacts, produce compacted summaries, and archive verbose originals. For plans with appended reviews, consolidate into a decided-plan that replaces the original plan + review verbosity.
+
+This skill is a **mandatory workflow step** invoked explicitly by the stage or ship agent (when checkpoint threshold is exceeded or at batch completion). It is NOT advisory — built-in AI assistant memory features do not write to `docs/`, so compaction is the only mechanism that ensures session knowledge is consolidated into durable, version-controlled artifacts.
+
+## When to Use
+
+Invoke as part of the standard workflow:
+
+* **Stage or Ship agent**: When checkpoint count for a feature or chore exceeds 10 (mandatory trigger)
+* **Ship agent**: At every post-merge closure (mandatory per-merge trigger — **P-020**), after writing the session memory summary
+* **Manual**: When `docs/memory/` file count > 40, total size > 500 KB, or the operator requests it
+
+> **Invocation is mandatory; candidate selection is threshold-gated.** P-020 mandates
+> that Ship **invokes** this skill at every post-merge closure. It does not mandate
+> heavy compaction: the **candidate selection** below stays threshold-gated
+> (`threshold_days`, `max_files`, `max_size_kb`; active checkpoints are never
+> compacted). One candidate is intended per merge — the just-closed release unit's
+> memory qualifies under the completed-work rule (Phase 2, "completed feature or
+> chore") — so the guaranteed call performs a **bounded, cheap Tier-1 consolidation**
+> of that fresh memory (the intended post-merge floor), degrading to a scan-only
+> no-op only when no completed-work memory exists and nothing else exceeds the
+> thresholds.
+
+## Inputs
+
+* `target`: (Optional) One of `memory`, `plans`, `all`. Defaults to `all`.
+* `threshold_days`: (Optional, default 14) Files older than this are candidates for compaction.
+* `max_files`: (Optional, default 40) File count threshold that triggers compaction.
+* `max_size_kb`: (Optional, default 500) Total size threshold in KB.
+
+## Output
+
+* Compacted summary files in `docs/memory/` (for memory/checkpoints)
+* Decided-plan files in `docs/plans/` (for plans with appended reviews)
+* Compacted closure summaries in `docs/closure/` (for verification and closure records)
+* Verbose originals moved to `docs/archive/`
+* Summary report of what was compacted
+
+## Required Protocol
+
+### Phase 1: Assess
+
+> **Intercom**: When the `agent-intercom` capability pack is installed, broadcast `[COMPACT] Starting compaction: target={target}` before scanning.
+
+Scan the target directories:
+
+**Memory and checkpoints** (`docs/memory/`):
+
+* Count files and total size per date subdirectory
+* Identify files older than `threshold_days`
+* Cross-reference against active backlog work items (do not compact active task checkpoints)
+
+**Plans** (`docs/plans/`):
+
+* Identify plans with appended review sections (plan-review skill appends findings)
+* Identify plans whose associated feature or chore is complete (all tasks Done)
+
+**Closure records** (`docs/closure/`):
+
+* Identify verification and closure artifacts for completed features or chores
+
+### Phase 2: Identify Candidates
+
+Mark artifacts as compaction candidates if:
+
+* **Memory files**: Older than threshold AND not referenced by any active work item
+* **Memory files**: Part of a completed feature or chore (all tasks Done)
+* **Memory files**: Superseded by a more recent checkpoint for the same task
+* **Plans**: Feature or chore is complete AND plan has appended review content ready for consolidation
+* **Closure records**: Feature or chore is complete AND more than `threshold_days` old
+
+> **Intercom**: When the `agent-intercom` capability pack is installed, broadcast `[COMPACT] Candidates identified: {count} files` after candidate identification is complete.
+
+### Phase 3: Compact
+
+**Memory compaction** (per-release-unit or per-date group):
+
+1. Read all candidate memory/checkpoint files in the group
+2. Generate a dense summary capturing: decisions made, files modified, key learnings, failed approaches, outcomes
+3. Write the compacted summary to `docs/memory/compacted/{YYYY-MM-DD}-{release-unit-or-slug}-compacted.md`
+4. Move verbose originals to `docs/archive/memory/`
+
+**Plan consolidation** (per-plan):
+
+1. Read the plan file including all appended review sections
+2. Extract: final decisions, implementation units that survived review, key constraints, rejected alternatives
+3. Write a decided-plan to `docs/plans/{YYYY-MM-DD}-{slug}-decided-plan.md` — a concise document containing only the actionable decisions and rationale, not the full deliberation history
+4. Move the verbose original plan to `docs/archive/plans/`
+
+**Closure compaction** (per-release-unit):
+
+1. Read verification and closure artifacts for the completed feature or chore
+2. Generate a consolidated closure record: what was verified, healthy/failure signals, monitoring status, follow-up items
+3. Write the compacted closure to `docs/closure/{YYYY-MM-DD}-{slug}-closure-summary.md`
+4. Move verbose originals to `docs/archive/closure/`
+
+### Phase 4: Report
+
+Summarize:
+
+* Files compacted: {count}
+* Space recovered: {size_reduction}
+* Active task checkpoints preserved: {count}
+* Plans consolidated into decided-plans: {count}
+* Closure records compacted: {count}
+
+> **Intercom**: When the `agent-intercom` capability pack is installed, broadcast `[COMPACT] Compacted {count} files, recovered {size_reduction}` after the summary is produced.
+
+## Behavioral Constraints
+
+* Never delete files — always archive to `docs/archive/`
+* Never compact checkpoints for active (Active status) work items
+* Preserve the most recent checkpoint for each completed task
+* All archive operations maintain a traceable path from the compacted summary back to the original verbose artifacts
+* Decided-plans must preserve all final decisions and their rationale — compaction removes verbosity, not substance
+
+## Intercom Events
+
+When the `agent-intercom` capability pack is installed, broadcast the
+following events at the specified trigger points:
+
+| Event | Trigger | Broadcast format |
+|---|---|---|
+| `start` | Skill invoked (Phase 1 begin) | `[COMPACT] Starting compaction: target={target}` |
+| `candidates` | Phase 2 complete | `[COMPACT] Candidates identified: {count} files` |
+| `complete` | Phase 4 report produced | `[COMPACT] Compacted {count} files, recovered {size_reduction}` |
+
+## Model Routing
+
+This skill operates at **Tier 1 (Fast/Cheap)** — summarization and consolidation are low-complexity.
+Recommended model class: GPT-5.4-mini, Claude Haiku, or equivalent fast/cheap tier.
+
+Generated by autoharness | Template: compact-context/SKILL.md.tmpl
