@@ -12,7 +12,7 @@ prior_deliberation: 028-DL
 prior_artifact: docs/decisions/2026-08-25-pr-review-convergence-finding-ledger-deliberation.md
 prior_spike: docs/decisions/2026-08-16-observable-termination-record-spike.md
 related_artifacts: [028-DL, 110-F, 115-F, 139-S, 001-SP]
-source: docs/decisions/2026-08-25-dag-as-steering-mechanism-determinism-opportunity-map.md
+source: docs/decisions/2026-08-25-machine-produced-structure-determinism-and-the-surviving-dag-partition.md
 doc_type: decision
 artifact_kind: deliberation
 agent: stage
