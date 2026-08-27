@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-03-no-parallel-branches-worktrees-policy-decided-plan.md
 title: "No Parallel Branches/Worktrees Policy — decided plan"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-07-03
 feature: "060-F"
 tasks: ["060.001-T", "060.002-T", "060.003-T", "060.004-T"]
@@ -11,7 +12,9 @@ supersedes:
 
 # Decided Plan: No Parallel Branches/Worktrees Policy
 
-**Outcome:** Planned, not shipped. The source plan turns stash `CE080560` into first-class policy `P-016`: agents must not execute across parallel implementation branches/worktrees. The only allowed exception is a narrow Stage-owned spike/research worktree. The recommended first shipment is `060.001-T` only, so the governing rule exists before agent templates and entry-point docs depend on it.
+**Outcome:** Shipped. The source plan turns stash `CE080560` into first-class policy `P-016`: agents must not execute across parallel implementation branches/worktrees. The only allowed exception is a narrow Stage-owned spike/research worktree. The recommended first shipment is `060.001-T` only, so the governing rule exists before agent templates and entry-point docs depend on it.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `060-F`, `060.001-T`, `060.002-T`, `060.003-T`, `060.004-T` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

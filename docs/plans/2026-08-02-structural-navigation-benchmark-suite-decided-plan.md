@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-08-02-structural-navigation-benchmark-suite-decided-plan.md
 title: "Structural-Navigation Benchmark Suite"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-08-02
 feature: "085-F"
 tasks: ["085.001-T", "085.002-T", "085.003-T", "085.004-T", "085.005-T", "085.006-T", "085.007-T", "085.008-T"]
@@ -12,6 +13,8 @@ supersedes:
 # Decided Plan: Structural-Navigation Benchmark Suite
 
 **Outcome:** Planned as feature `085-F` with chosen direction **C — Hybrid, deterministic-core-first**. P-006 hardening is present in the source plan, but no PR or merge evidence is recorded there, so status remains `planned`. The decided shipment delivers the reproducible deterministic replay core end to end, while keeping live-run mode as a documented, additive opt-in extension rather than part of this increment.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `085-F`, `085.001-T`, `085.002-T`, `085.003-T`, `085.004-T`, `085.005-T`, `085.006-T`, `085.007-T`, `085.008-T` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

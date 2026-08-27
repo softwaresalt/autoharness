@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-29-agent-file-rename-underscore-decided-plan.md
 title: "Rename dot-prefixed agent definition files to underscore-prefixed"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-07-29
 feature: "097-F"
 shipment: "102-S"
@@ -20,6 +21,8 @@ that were folded in before re-review. The source plan contains no PR or merge
 proof of shipment, so this decided-plan records the reviewed state rather than a
 shipped outcome. This replaces the verbose original, archived for traceability
 at `docs/archive/plans/2026-07-29-agent-file-rename-underscore-plan.md`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `097-F`, `097.001-T`, `097.002-T`, `097.003-T`, `097.004-T`, `097.005-T` confirmed complete in `.backlogit/`. Remaining open follow-up work tracked separately: `102-S` (active).
 
 ## Problem (settled)
 

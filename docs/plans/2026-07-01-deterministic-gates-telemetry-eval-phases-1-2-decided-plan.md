@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-01-deterministic-gates-telemetry-eval-phases-1-2-decided-plan.md
 title: "Deterministic Validation Gates + Telemetry & Evaluation Engine (Phases 1-2) — decided plan"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-07-01
 supersedes:
   - docs/archive/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md
@@ -18,6 +19,8 @@ evidence is recorded in these plan artifacts for the combined Phase 1/2 scope, s
 this decided-plan records the result as **reviewed**, not shipped. This replaces
 the verbose originals, archived for traceability at `docs/archive/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md` and
 `docs/archive/plans/2026-07-01-telemetry-eval-phase2-plan.md`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `051-F` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

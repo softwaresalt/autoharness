@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-02-agent-output-timestamps-decided-plan.md
 title: "Agent Output Timestamps for Phase Transitions — decided plan"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-07-02
 feature: "059-F"
 tasks:
@@ -19,6 +20,8 @@ verdict, shipment, PR, or merge commit, so this decided-plan remains **planned**
 P-001 sequencing also kept shipment assembly out of scope while `057-S` was the
 active release unit. This replaces the verbose original, archived for traceability
 at `docs/archive/plans/2026-07-02-agent-output-timestamps-plan.md`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `057-S`, `059-F`, `059.001-T`, `059.002-T` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

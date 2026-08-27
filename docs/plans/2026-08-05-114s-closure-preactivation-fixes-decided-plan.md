@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-08-05-114s-closure-preactivation-fixes-decided-plan.md
 title: "114-S Closure Pre-Activation Fixes"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-08-05
 feature: "109-F"
 shipment: "115-S"
@@ -13,6 +14,8 @@ supersedes:
 # Decided Plan: 114-S Closure Pre-Activation Fixes
 
 **Outcome:** Reviewed and stabilized as the pre-activation correction set for feature `109-F` / shipment `115-S`. The source plan records multiple re-review addenda ending in **PASS — 0 P0, 0 unresolved P1**, but it does not record a PR number or merge commit, so status remains `reviewed`. The decided scope is to fix three already-merged correctness defects **before** any `115-S` activation task wires the topology gate into a live caller.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `109-F`, `109.007-T`, `109.008-T`, `109.013-T`, `109.017-T`, `109.018-T`, `109.021-T`, `109.022-T`, `109.023-T`, `114-S`, `115-S` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

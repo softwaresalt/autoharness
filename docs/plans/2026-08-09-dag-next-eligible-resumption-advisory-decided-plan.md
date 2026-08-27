@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-08-09-dag-next-eligible-resumption-advisory-decided-plan.md
 title: "Deterministic next-eligible resumption advisory"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-08-09
 tasks: ["115.001-T", "115.002-T", "115.003-T"]
 supersedes:
@@ -11,6 +12,8 @@ supersedes:
 # Decided Plan: Deterministic next-eligible resumption advisory
 
 **Outcome:** Reviewed as a read-only extension to the shipped DAG-readiness substrate. The source plan itself is marked `reviewed` and includes P-006 hardening, but it does not contain a PR number or merge commit, so status remains `reviewed`. The decided scope adds an advisory `next_eligible` cursor for restart and resumption scenarios without turning DAG readiness into a scheduler, claim mechanism, or new enforcement surface.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `115.001-T`, `115.002-T`, `115.003-T` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

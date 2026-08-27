@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-10-ci-gate-rename-decided-plan.md
 title: "Rename Dogfood CI Aggregation Gate to ci gate"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-07-10
 feature: "071-F"
 shipment: "083-S"
@@ -18,6 +19,8 @@ dogfood chore but no PR or merge evidence, so this decided-plan preserves the
 reviewed state rather than claiming shipment. This decided-plan replaces the
 verbose original, archived for traceability at
 `docs/archive/plans/2026-07-10-ci-gate-rename-plan.md`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `071-F`, `071.001-T`, `083-S` confirmed complete in `.backlogit/`.
 
 ## Decision
 

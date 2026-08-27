@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-02-model-routing-construct1-removal-decided-plan.md
 title: "model_routing Construct 1 Removal — decided plan"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-07-02
 feature: "053-F"
 shipment: "058-S"
@@ -20,6 +21,8 @@ The source artifact records the operator's Construct 1 clarification and the
 Construct 2 deferral, but no plan-review verdict, PR, merge commit, or shipment
 evidence, so this decided-plan remains **planned**. This replaces the verbose
 original, archived for traceability at `docs/archive/plans/2026-07-02-model-routing-construct1-removal-plan.md`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `053-F`, `053.001-T`, `053.002-T`, `053.003-T`, `053.004-T`, `058-S` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

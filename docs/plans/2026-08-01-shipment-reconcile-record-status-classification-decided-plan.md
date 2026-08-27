@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-08-01-shipment-reconcile-record-status-classification-decided-plan.md
 title: "Shipment-record-status integrity classification for shipment-reconcile pre-mode"
 doc_type: decided-plan
 status: planned

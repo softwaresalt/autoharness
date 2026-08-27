@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-07-09-copilot-review-merge-gate-decided-plan.md
 title: "Copilot-Review Merge Gate — decided plan"
 doc_type: decided-plan
 status: reviewed

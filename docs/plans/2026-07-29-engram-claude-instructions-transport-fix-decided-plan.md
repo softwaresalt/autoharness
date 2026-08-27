@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-29-engram-claude-instructions-transport-fix-decided-plan.md
 title: "Engram .claude/instructions.md stdio-transport correction"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-07-29
 source_stash_id: "8FD768E9"
 prior_work: "036.005-T"
@@ -16,6 +17,8 @@ The source plan contains inline review approval but no PR or merge evidence, so
 this decided-plan preserves the reviewed state rather than claiming shipment.
 This replaces the verbose original, archived for traceability at
 `docs/archive/plans/2026-07-29-engram-claude-instructions-transport-fix-plan.md`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `036.005-T` confirmed complete in `.backlogit/`.
 
 ## Decision
 

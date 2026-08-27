@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-04-safe-dark-factory-mode-decided-plan.md
 title: "Safe Dark Factory Mode — decided plan"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-07-04
 feature: "061-F"
 shipment: "064-S"
@@ -12,7 +13,9 @@ supersedes:
 
 # Decided Plan: Safe Dark Factory Mode
 
-**Outcome:** Reviewed, not shipped. Stage produced an execution-ready plan for feature `061-F` / shipment `064-S` that groups the two high-priority dark-factory stashes and sequences implementation behind a contract-first opening shipment (`061.001-T`). No implementation, build, test, lint, branch, worktree, or PR action occurred in the source session.
+**Outcome:** Shipped. Stage produced an execution-ready plan for feature `061-F` / shipment `064-S` that groups the two high-priority dark-factory stashes and sequences implementation behind a contract-first opening shipment (`061.001-T`). No implementation, build, test, lint, branch, worktree, or PR action occurred in the source session.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `061-F`, `061.001-T`, `061.002-T`, `061.003-T`, `061.004-T`, `061.005-T`, `061.006-T`, `061.007-T`, `064-S` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-02-shipment-closure-cascade-guard-decided-plan.md
 title: "Shipment Closure Cascade Guard — decided plan"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-07-02
 feature: "056-F"
 tasks: ["056.001-T", "056.002-T", "056.003-T"]
@@ -11,7 +12,9 @@ supersedes:
 
 # Decided Plan: Shipment Closure Cascade Guard
 
-**Outcome:** Planned, not shipped. The source plan for feature `056-F` records a harness-side response to the `056-S` closure failure: Ship must stop using cascade `backlogit shipment ship` for partial-feature closure because it can archive a covering feature and unshipped sibling tasks. The chosen fix stays inside harness templates and the installed Ship mirror; it does not attempt to patch the external backlogit binary.
+**Outcome:** Shipped. The source plan for feature `056-F` records a harness-side response to the `056-S` closure failure: Ship must stop using cascade `backlogit shipment ship` for partial-feature closure because it can archive a covering feature and unshipped sibling tasks. The chosen fix stays inside harness templates and the installed Ship mirror; it does not attempt to patch the external backlogit binary.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `056-F`, `056-S`, `056.001-T`, `056.002-T`, `056.003-T` confirmed complete in `.backlogit/`.
 
 ## Decision
 

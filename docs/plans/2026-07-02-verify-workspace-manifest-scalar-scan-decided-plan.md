@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-02-verify-workspace-manifest-scalar-scan-decided-plan.md
 title: "verify_workspace Manifest Scalar Placeholder Scan — decided plan"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-07-02
 feature: "057-F"
 tasks: ["057.001-T"]
@@ -11,7 +12,9 @@ supersedes:
 
 # Decided Plan: verify_workspace Manifest Scalar Placeholder Scan
 
-**Outcome:** Planned, not shipped. The source plan for feature `057-F` closes a verifier gap: unresolved `{{...}}` placeholders in top-level scalar fields of `.autoharness/harness-manifest.yaml` can currently ship undetected because `verify_workspace.py` scans rendered artifacts but not the manifest's own scalar values.
+**Outcome:** Shipped. The source plan for feature `057-F` closes a verifier gap: unresolved `{{...}}` placeholders in top-level scalar fields of `.autoharness/harness-manifest.yaml` can currently ship undetected because `verify_workspace.py` scans rendered artifacts but not the manifest's own scalar values.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `057-F`, `057.001-T` confirmed complete in `.backlogit/`.
 
 ## Decision
 

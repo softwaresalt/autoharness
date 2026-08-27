@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-07-09-full-preset-sync-remediation-decided-plan.md
 title: "Full-Preset Harness Sync Remediation — decided plan"
 doc_type: decided-plan
 status: reviewed

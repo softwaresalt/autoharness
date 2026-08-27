@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-07-10-scripted-install-deploy-and-consolidated-docs-decided-plan.md
 title: "Scripted Install/Deploy Automation + Consolidated Installation Guide"
 doc_type: decided-plan
 status: reviewed

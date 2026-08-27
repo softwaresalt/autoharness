@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-08-03-size-complexity-telemetry-staging-decided-plan.md
 title: "Size + Complexity first-class staging & backlogit telemetry evidence mapping"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-08-03
 tasks: ["107.001-T", "107.002-T", "107.003-T", "107.004-T", "107.005-T", "108.001-T", "108.002-T", "108.003-T", "108.004-T"]
 supersedes:
@@ -11,6 +12,8 @@ supersedes:
 # Decided Plan: Size + Complexity first-class staging & backlogit telemetry evidence mapping
 
 **Outcome:** Planned with chosen direction **B — Two ordered shipments (S1 staging → S2 telemetry), non-conflated size/complexity**. The source plan maps the work to parent features `107-F` and `108-F`, with `112-S` carrying staging first and `113-S` carrying telemetry second. P-006 hardening is present because the telemetry half touches the ratified schema surface and its live runtime model, but the source plan records no PR or merge evidence, so status remains `planned`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `082-F`, `084-F`, `107-F`, `107.001-T`, `107.002-T`, `107.003-T`, `107.004-T`, `107.005-T`, `108-F`, `108.001-T`, `108.002-T`, `108.003-T`, `108.004-T`, `112-S`, `113-S` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-07-27-multi-model-adversarial-review-routing-decided-plan.md
 title: "Multi-model adversarial review routing enhancements"
 doc_type: decided-plan
 status: reviewed

@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-07-29-telemetry-subsystem-hardening-lineage-decided-plan.md
 title: "Telemetry Subsystem Hardening Lineage"
 doc_type: decided-plan
 status: shipped

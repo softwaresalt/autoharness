@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-08-07-082F-cross-pack-measurability-decided-plan.md
 title: "082-F Cross-Pack Measurability Documentation"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-08-07
 feature: "082-F"
 supersedes:
@@ -11,6 +12,8 @@ supersedes:
 # Decided Plan: 082-F Cross-Pack Measurability Documentation
 
 **Outcome:** Planned as a documentation-only delivery for feature `082-F`. The source plan records no PR or merge evidence, so status remains `planned`. The decided scope is to turn the already-gathered Engram and graphtor-docs evidence into durable mapping docs and one consolidated adapter-gap/sensitivity report before any broader pack-adapter implementation begins.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `082-F`, `108-F` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

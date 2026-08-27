@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-07-10-unified-ci-local-gating-primitive-decided-plan.md
 title: "Unified CI + Local-Gating Harness Primitive"
 doc_type: decided-plan
 status: reviewed

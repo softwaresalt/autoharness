@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-07-28-copilot-cli-output-compression-088f-decided-plan.md
 title: "Copilot CLI Output Compression Experiment Hardening Lineage"
 doc_type: decided-plan
-status: reviewed
+status: shipped
 created: 2026-07-28
 feature:
   - "088-F"
@@ -15,6 +16,8 @@ supersedes:
 # Decided Plan: Copilot CLI Output Compression Experiment Hardening Lineage
 
 **Outcome:** Consolidated the 088-F/093-F Copilot CLI output-compression lineage into a reviewed end state. The 2026-07-15 origin plan and the 2026-07-28 follow-up both carried `approved-with-conditions` verdicts, and the 2026-07-26 hardening follow-up passed plan review. The source plans themselves record that `088.004-T` shipped the failure-bearing-success decline detector in commit `118bf21`, but they do not carry one final PR/merge note for the full 088-F/093-F lineage, so this decided-plan records the lineage as **reviewed** rather than shipped. It replaces the verbose originals archived at the paths listed under `supersedes`.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `088-F`, `088.001-T`, `088.004-T`, `088.007-T`, `093-F` confirmed complete in `.backlogit/`. Remaining open follow-up work tracked separately: `093.001-T` (queued), `093.003-T` (queued).
 
 ## Evolution
 

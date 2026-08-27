@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-decided-plan.md
 title: "Model-Routing Hierarchy + Dynamic Reload — decided plan"
 doc_type: decided-plan
 status: planned

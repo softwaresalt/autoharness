@@ -1,7 +1,8 @@
 ---
+source: docs/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-decided-plan.md
 title: "Telemetry-driven Auto-escalation Protocol"
 doc_type: decided-plan
-status: planned
+status: shipped
 created: 2026-08-02
 feature: "106-F"
 supersedes:
@@ -11,6 +12,8 @@ supersedes:
 # Decided Plan: Telemetry-driven Auto-escalation Protocol
 
 **Outcome:** Planned as feature `106-F` / capability `011-DL(b)` and recorded in the source plan as policy **P-013.6** with P-006 hardening applied. No PR or merge evidence appears in the source plan, so status remains `planned`. The decided scope formalizes the autoharness-side protocol and verification surface only: agents can compile an escalation payload, resolve a stronger reasoning route, and hand off terminally to engram, while the telemetry emitter/store and automated threshold-evaluation engine remain explicitly routed out.
+
+**Delivery status (verified against the backlog at compaction time):** shipped — `097-S`, `104-F`, `106-F` confirmed complete in `.backlogit/`.
 
 ## Decisions
 

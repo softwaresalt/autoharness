@@ -1,4 +1,5 @@
 ---
+source: docs/plans/2026-08-07-capability-pack-runtime-installer-decided-plan.md
 title: "Capability-Pack Runtime Detection & Checklist Increment"
 doc_type: decided-plan
 status: planned
