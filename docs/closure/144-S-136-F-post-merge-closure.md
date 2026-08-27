@@ -22,7 +22,7 @@ Shipment `144-S` executed feature `136-F` (stash `395EBE60`): swept `docs/`
 for the unquoted-colon-in-plain-scalar YAML hazard that had been silently
 aborting `backlogit docs lint`'s workspace-wide traversal, and added a
 regression guard so the failure class cannot recur. The single known
-instance (`docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
+instance (`docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
 line 12) was already repaired by `138.001-T` (feature `138-F`, shipment
 `146-S`, merged prior to this shipment's claim).
 

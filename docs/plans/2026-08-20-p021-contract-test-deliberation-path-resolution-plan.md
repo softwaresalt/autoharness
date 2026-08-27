@@ -249,7 +249,7 @@ were owned by two different shipments that blocked each other in effect:
 
 | Blocker | Gate | Former owner |
 | --- | --- | --- |
-| `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 unquoted YAML scalar | Gate 1 - YAML frontmatter validity | `136.001-T` in `144-S` |
+| `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` line 12 unquoted YAML scalar | Gate 1 - YAML frontmatter validity | `136.001-T` in `144-S` |
 | Stale `.backlogit/queue/019-DL.md` load in two P-021 contract modules | configured pytest suite | `138.001-T` in `146-S` |
 
 * `146-S` repaired only the pytest blocker, so `138.001-T` would have completed
@@ -268,7 +268,7 @@ added, carried in verbatim from the superseded `136.001-T`:
 
 **Scope A - quote the malformed `blast_radius` scalar**
 
-*File*: `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`,
+*File*: `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`,
 line 12.
 
 ```yaml
@@ -290,7 +290,7 @@ Acceptance criterion 7 above ("No file outside `tests/` is modified") is
 1. `tests/test_scope_containment_policy_contract.py`
 2. `tests/test_scope_containment_boundary_contract.py`
 3. `tests/test_scope_containment_semantics_contract.py`
-4. `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` - **one
+4. `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` - **one
    line only**
 
 Nothing else. No `src/`, no `schemas/`, no `templates/`, no `.github/`, no other

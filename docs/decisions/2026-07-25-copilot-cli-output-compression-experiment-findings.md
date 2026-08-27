@@ -12,7 +12,7 @@ backlog_items:
   - "093-S"
   - "086-F"
 linked_artifacts:
-  - "docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md"
+  - "docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md"
   - "docs/spikes/2026-07-15-copilot-cli-output-compression-experiment.md"
   - "docs/spikes/2026-07-13-brainspace-compression-feasibility.md"
   - ".backlogit/archive/086-F.md"

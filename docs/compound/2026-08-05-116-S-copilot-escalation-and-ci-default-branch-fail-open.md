@@ -112,7 +112,7 @@ tokenization mechanism.
 
 ## Cross-reference
 
-* `docs/closure/116-S-109-F-post-merge-closure.md` — full shipment closure
+* `docs/archive/closure/116-S-109-F-post-merge-closure.md` — full shipment closure
   record, all 13 thread dispositions with fixing SHAs (9 Copilot review
   rounds, 13 distinct threads).
 * `docs/pipeline-topology-gate-ci-rollout.md` — "Threat Model & CODEOWNERS

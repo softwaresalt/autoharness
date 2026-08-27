@@ -1,17 +1,24 @@
 ---
 title: "Machine-Produced Structure, Not Graph Structure, Is the Binding Constraint on Determinism — with the DAG partition that survives"
-original_title: "DAG as Steering Mechanism: A Determinism Opportunity Map for the Autoharness Workflow Surface"
-retitled: 2026-08-25
-retitle_reason: "Three adversarial rounds moved the headline finding from a DAG proposal to the convention-durability law. Retitled per Round-3 §1 so the title matches the conclusion rather than the opening question."
-original_filename: docs/decisions/2026-08-25-dag-as-steering-mechanism-determinism-opportunity-map.md
 date: 2026-08-25
 status: decided
+topic: "Where can DAG structure act as a steering mechanism toward determinism in autoharness workflows, and what actually determines whether such structure survives?"
+description: "Three adversarial rounds. Isolating a confound (two conventions read by the same gate, differing only in whether absence is penalized) shows adoption diverging to 100% vs 41% at p=1.97e-05. Headline finding — the binding constraint is whether a machine produces the structure or penalizes its absence, not whether the structure is a graph. Seven of nine closed-world surfaces survive the resulting filter; two die. Ends BLOCKED on a named harness gap rather than a deferral."
+depth: deep
 source_stash: 34AAF1C7
 deliberation_id: 029-DL
-prior_deliberation: 028-DL
-prior_artifact: docs/decisions/2026-08-25-pr-review-convergence-finding-ledger-deliberation.md
-prior_spike: docs/decisions/2026-08-16-observable-termination-record-spike.md
 related_artifacts: [028-DL, 110-F, 115-F, 139-S, 001-SP]
+linked_artifacts:
+  - "docs/decisions/2026-08-25-pr-review-convergence-finding-ledger-deliberation.md"
+  - "docs/decisions/2026-08-16-observable-termination-record-spike.md"
+  - "docs/memory/2026-08-25-stage-029-dl-dag-steering-determinism.md"
+prior_spike: docs/decisions/2026-08-16-observable-termination-record-spike.md
+tags:
+  - "dag"
+  - "determinism"
+  - "convention-durability"
+  - "architecture"
+  - "stage-deliberation"
 source: docs/decisions/2026-08-25-machine-produced-structure-determinism-and-the-surviving-dag-partition.md
 doc_type: decision
 artifact_kind: deliberation

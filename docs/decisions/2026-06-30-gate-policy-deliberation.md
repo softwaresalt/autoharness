@@ -6,7 +6,7 @@ depth: "deep"
 decision_status: "decided"
 promoted_to: "plan"
 linked_artifacts:
-  - "docs/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md"
+  - "docs/archive/plans/2026-06-30-deterministic-validation-gates-phase1-plan.md"
   - "docs/decisions/2026-06-30-validation-gates-config-schema-deliberation.md"
   - "docs/design-docs/autoharness-evals-gates-design.md"
 source_stash_ids:

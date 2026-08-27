@@ -6,8 +6,6 @@ route: claude-opus-5 / anthropic / high
 session_id: stage-2026-08-25-029DL-dag-steering-determinism
 source_stash: 34AAF1C7
 deliberation_id: 029-DL
-prior_deliberation: 028-DL
-decision_artifact: docs/decisions/2026-08-25-machine-produced-structure-determinism-and-the-surviving-dag-partition.md
 source: docs/memory/2026-08-25-stage-029-dl-dag-steering-determinism.md
 doc_type: memory
 ---

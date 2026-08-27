@@ -6,13 +6,13 @@ source: docs/decisions/2026-08-05-114s-closure-preactivation-fixes-deliberation.
 topic: "For the two topology.py defects flagged by 114-S closure, what bounded contract preserves the gate's read-only detection authority (P-001/P-016) while making the post-claim retry and closure_complete() actually correct?"
 depth: "deep"
 decision_status: "accepted"
-promoted_to: "docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md"
+promoted_to: "docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md"
 linked_artifacts:
   - "src/autoharness/gates/topology.py"
   - "src/autoharness/cli.py"
-  - "docs/closure/114-S-109-F-post-merge-closure.md"
+  - "docs/archive/closure/114-S-109-F-post-merge-closure.md"
 source_documents:
-  - "docs/closure/114-S-109-F-post-merge-closure.md"
+  - "docs/archive/closure/114-S-109-F-post-merge-closure.md"
   - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md"
   - "docs/decisions/2026-07-02-shipment-closure-cascade-guard-deliberation.md"
 feature: "109-F"
@@ -36,7 +36,7 @@ tags:
 
 Shipment `114-S` (gate A of feature `109-F`'s staged A→B→C topology-gate
 rollout) shipped and closed `READY_WITH_CONDITIONS`. Its post-merge closure
-(`docs/closure/114-S-109-F-post-merge-closure.md`) surfaced **three
+(`docs/archive/closure/114-S-109-F-post-merge-closure.md`) surfaced **three
 pre-existing correctness defects** in already-merged `main` code, plus **one
 audit-log completeness discrepancy**. The closure's Releasability verdict
 makes fixing the three code defects a hard **condition that must be satisfied

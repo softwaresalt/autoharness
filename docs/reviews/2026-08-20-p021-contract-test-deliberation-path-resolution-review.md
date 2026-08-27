@@ -201,7 +201,7 @@ plan was expanded to absorb the malformed-frontmatter repair formerly held by
 
 | Aspect | Round 1 | Round 2 |
 | --- | --- | --- |
-| Task 1 scope | three `tests/` modules | three `tests/` modules **+ one line** of `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` |
+| Task 1 scope | three `tests/` modules | three `tests/` modules **+ one line** of `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` |
 | Acceptance criterion 7 | "no file outside `tests/`" | superseded by an enumerated **four-file budget** |
 | Acceptance criterion 1 | suite-scoped (per A1) | **all** mandatory gates green (Gate 1-4 + pytest), A1 escape hatch retained |
 | Size / complexity | `S` / `low` | `S` / `low` (unchanged) |

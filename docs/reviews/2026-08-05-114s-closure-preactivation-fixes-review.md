@@ -5,9 +5,9 @@ doc_type: review
 source: docs/reviews/2026-08-05-114s-closure-preactivation-fixes-review.md
 date: 2026-08-05
 route: claude-opus-4.8 / anthropic / high (Stage role route)
-plan: docs/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md
+plan: docs/archive/plans/2026-08-05-114s-closure-preactivation-fixes-plan.md
 deliberation: docs/decisions/2026-08-05-114s-closure-preactivation-fixes-deliberation.md
-closure: docs/closure/114-S-109-F-post-merge-closure.md
+closure: docs/archive/closure/114-S-109-F-post-merge-closure.md
 scope_reviewed: 3 harvested tasks — 115-S {109.021-T, 109.022-T, 109.023-T} + intra-shipment sequencing over the 115-S activation set; re-reviewed 2026-08-05b for the 109.017-T CLAIM_NOT_OBSERVED consumption P1; re-reviewed 2026-08-05c for the 109.021-T delayed-vs-failed indistinguishability P1
 verdict: PASS
 p0: 0

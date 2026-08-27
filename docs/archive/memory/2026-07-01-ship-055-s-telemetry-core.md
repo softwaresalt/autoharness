@@ -17,7 +17,7 @@ structured Execution Epochs to a repo-local SQLite aggregator and an emit-only
 JSONL stream. Merged via PR
 [#122](https://github.com/softwaresalt/autoharness/pull/122) as merge commit
 `a36ea8335db18bc7487dafd2f7ffa374e0e3e11a`. Includes the reviewed Phase-2 plan
-(`docs/plans/2026-07-01-telemetry-eval-phase2-plan.md`).
+(`docs/archive/plans/2026-07-01-telemetry-eval-phase2-plan.md`).
 
 ## What shipped
 

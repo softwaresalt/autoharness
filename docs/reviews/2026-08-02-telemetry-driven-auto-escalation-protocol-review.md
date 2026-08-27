@@ -3,7 +3,7 @@ title: "plan-review — Telemetry-driven Auto-escalation Protocol (106-F)"
 type: plan-review
 date: 2026-08-02
 route: claude-opus-4.8 / anthropic / high (P-013.5)
-plan: docs/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md
+plan: docs/archive/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md
 spike: docs/spikes/2026-08-02-telemetry-driven-auto-escalation-protocol-spike.md
 source_stash: 34D50F2D
 deliberation: 011-DL

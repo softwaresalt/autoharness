@@ -22,7 +22,7 @@ already "archived" in the P-007 archive-integrity sense and the explicit
 archive step can be skipped.
 
 This is incorrect. `109-S`'s post-merge closure (see
-`docs/closure/109-S-105-F-post-merge-closure.md`) discovered — via the
+`docs/archive/closure/109-S-105-F-post-merge-closure.md`) discovered — via the
 closure PR's own Copilot review — that three artifacts had only ever been
 `move --status done`'d and never explicitly archived, so none carried
 `archived_status`/`archived_from` metadata or the terminal
@@ -63,7 +63,7 @@ backlogit get <id>   # check: status: archived (not done) + archived_status/arch
 This was correctly applied proactively during `110-S`'s closure (all 9
 manifest tasks + the shipment + the covering feature were explicitly
 archived one at a time, each verified to still carry the protected-set
-invariant — see `docs/closure/110-S-106-F-post-merge-closure.md`).
+invariant — see `docs/archive/closure/110-S-106-F-post-merge-closure.md`).
 
 ## Second occurrence (111-S / 085-F)
 
@@ -77,7 +77,7 @@ misclassification then repeated for the covering feature `085-F`
 (archived via `move --status done` only). A Copilot review thread on the
 `111-S` post-merge closure PR caught the task-level gap; the symmetric
 feature-level gap was found proactively in the same fix pass. See
-`docs/closure/111-S-085-F-post-merge-closure.md`.
+`docs/archive/closure/111-S-085-F-post-merge-closure.md`.
 
 **This compound-doc reminder alone was insufficient to prevent recurrence.**
 Recorded follow-up: add an explicit pre-flight status check as a hard step
@@ -98,7 +98,7 @@ tasks (`107.001-T`–`107.005-T`) had again been physically relocated to
 first step, before treating any file as "pre-archived" — no Copilot review
 thread was needed to catch it, and no corruption occurred. All 5 tasks were
 then explicitly archived one at a time. See
-`docs/closure/112-S-107-F-post-merge-closure.md`.
+`docs/archive/closure/112-S-107-F-post-merge-closure.md`.
 
 This confirms the pre-flight check works when actually performed, but the
 recurrence (third time) shows the check is still easy to skip without
@@ -125,7 +125,7 @@ one at a time via `backlogit archive <id>`, verified to now carry `status:
 archived` + `archived_status: done` + `archived_from`, with the protected
 sibling feature `082-F` re-confirmed untouched (`status: blocked`,
 queue-resident) after each call. See
-`docs/closure/113-S-108-F-post-merge-closure.md`.
+`docs/archive/closure/113-S-108-F-post-merge-closure.md`.
 
 This is the fourth recorded occurrence of the same gap. The pattern is now
 unambiguous: an agent's first instinct is to treat "file physically under

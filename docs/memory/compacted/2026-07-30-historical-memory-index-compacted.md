@@ -66,11 +66,14 @@ consuming deferred stash `5F14396E`. It is distinct from the per-release-unit
 post-merge floor compactions that produced the `104S-099F` and `105S-101F`
 compacted indexes in this same directory.
 
-**Forwarding rule.** Every file listed below was moved verbatim (via `git mv`,
-history preserved) from `docs/memory/<name>` to `docs/archive/memory/<name>`.
-No institutional knowledge was deleted — the dense takeaway lives here and the
-full verbose original lives at the archive path. To read the full note for any
-row, prepend `docs/archive/memory/` to the filename.
+**Forwarding rule.** Every file listed below was moved (with Git history preserved via
+rename detection) from `docs/memory/<name>` to `docs/archive/memory/<name>`. Content is
+otherwise unchanged, with one deliberate exception: where an archived note contained a
+relative link to another artifact that this same compaction relocated, that link was
+repointed to the artifact's new path so the reference still resolves. No prose, findings,
+or institutional knowledge were altered or deleted — the dense takeaway lives here and the
+full verbose original lives at the archive path. To read the full note for any row,
+prepend `docs/archive/memory/` to the filename.
 
 **Preserved in place (not compacted):** `docs/memory/compacted/*` (this index +
 the two per-unit indexes), the `.gitkeep`, `docs/memory/098-S-closure.md` (closed

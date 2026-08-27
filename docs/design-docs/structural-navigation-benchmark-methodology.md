@@ -4,7 +4,7 @@
 opt-in (not implemented by this shipment).
 
 **Source (085-F / 111-S):**
-[`docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`](../plans/2026-08-02-structural-navigation-benchmark-suite-plan.md)
+[`docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`](../plans/2026-08-02-structural-navigation-benchmark-suite-plan.md)
 
 **Code:** `src/autoharness/eval/benchmark/` — `scenarios.py`, `harness.py`, `scorer.py`,
 `metrics.py`, `controls.py`, `reporting.py`.

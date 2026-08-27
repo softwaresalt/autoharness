@@ -7,7 +7,7 @@ doc_type: decision
 source: docs/decisions/2026-07-04-dark-factory-brainstorm-intake-design.md
 source_documents:
   - "docs/decisions/2026-07-04-safe-dark-factory-mode-deliberation.md"
-  - "docs/plans/2026-07-04-safe-dark-factory-mode-plan.md"
+  - "docs/archive/plans/2026-07-04-safe-dark-factory-mode-plan.md"
   - "references/atv-starterkit/.github/skills/ce-brainstorm/SKILL.md"
 backlog_items:
   - "061-F"

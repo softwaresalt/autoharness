@@ -108,7 +108,7 @@ active stash) — no further Ship-side retirement was needed.
   `main` synced to merge commit `77ee301a`, merged at `2026-08-21T09:38:35Z`.
 - **Rollback trigger**: revert merge commit `77ee301a` if the frontmatter
   quoting change regresses `backlogit docs lint` parsing of
-  `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`, or
+  `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`, or
   if the `_resolve_backlog_artifact` resolver change causes either P-021
   contract-test sibling to fail to locate a backlog artifact it previously
   found via the hardcoded path.

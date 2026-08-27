@@ -10,7 +10,7 @@ PR: #376, merge commit `77ee301a2cb91cda5c244d0d52363a8d95277dc7`
 
 **SHIPPED.** Both baseline-red blockers repaired in one gate-atomic task
 (138.001-T): the malformed `blast_radius` YAML scalar in
-`docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` (Gate 1)
+`docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md` (Gate 1)
 and the hardcoded `.backlogit/queue/019-DL.md` path in two P-021
 contract-test modules (pytest/unittest). Shipment cascade-closed via the
 P-015 verified fully-covered-root exception.

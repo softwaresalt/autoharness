@@ -4,7 +4,7 @@ description: "Reframes stash 86F19EF7 from 'patch backlogit' to a harness-side g
 topic: "How should the harness close shipments safely given the external backlogit shipment-ship parent-cascade bug that autoharness cannot patch?"
 depth: "deep"
 decision_status: "accepted"
-promoted_to: "docs/plans/2026-07-02-shipment-closure-cascade-guard-plan.md"
+promoted_to: "docs/archive/plans/2026-07-02-shipment-closure-cascade-guard-plan.md"
 linked_artifacts:
   - "templates/agents/.ship.agent.md.tmpl"
   - "templates/skills/shipment-reconcile/SKILL.md.tmpl"

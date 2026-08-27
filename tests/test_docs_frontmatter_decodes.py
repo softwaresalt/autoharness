@@ -7,7 +7,7 @@ report for the *entire* repository -- one bad file masked conformance
 checking across all of ``docs/``.
 
 The known instance -- an unquoted plain scalar containing ``": "`` in
-``docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md``
+``docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md``
 (line 12, ``blast_radius``) -- was repaired by ``138.001-T`` (feature
 ``138-F``, shipment ``146-S``) as the gate-atomic baseline repair that
 unblocked this shipment. ``136.002-T`` (this shipment, ``144-S``) swept the

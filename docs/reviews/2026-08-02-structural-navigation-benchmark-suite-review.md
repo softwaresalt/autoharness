@@ -3,7 +3,7 @@ title: "plan-review — Structural-Navigation Benchmark Suite (085-F)"
 type: plan-review
 date: 2026-08-02
 route: claude-opus-4.8 / anthropic / high (P-013.5, inherited)
-plan: docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md
+plan: docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md
 spike: docs/spikes/2026-08-02-structural-navigation-benchmark-feasibility.md
 deliberation: docs/decisions/2026-08-02-structural-navigation-benchmark-design-deliberation.md
 feature: 085-F

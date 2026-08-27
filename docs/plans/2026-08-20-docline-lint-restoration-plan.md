@@ -31,7 +31,7 @@ malformed-frontmatter failure class non-recurring.
 
 ## Task 1 - Quote the malformed `blast_radius` scalar
 
-**File**: `docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
+**File**: `docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
 
 Line 12 currently:
 
@@ -48,7 +48,7 @@ blast_radius: "elevated (result-integrity + multi-family: eval code / tests / do
 **Acceptance**
 * The file's frontmatter parses as YAML.
 * No other line in the file is modified (`git diff` shows exactly one changed line).
-* `backlogit docs lint --path docs/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
+* `backlogit docs lint --path docs/archive/plans/2026-08-02-structural-navigation-benchmark-suite-plan.md`
   no longer reports a decode error.
 
 ## Task 2 - Sweep `docs/` for the same hazard

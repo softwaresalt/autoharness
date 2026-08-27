@@ -10,7 +10,7 @@ source_stash_ids:
   - "34D50F2D"
 deliberation: "011-DL"
 spike: docs/spikes/2026-08-02-telemetry-driven-auto-escalation-protocol-spike.md
-plan: docs/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md
+plan: docs/archive/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md
 backlog_items:
   - "106-F"
   - "106.009-T"
@@ -145,7 +145,7 @@ emitter/store/evaluator remain external-guard, out of scope.
 * Spike: `docs/spikes/2026-08-02-telemetry-driven-auto-escalation-protocol-spike.md`
   (F1 — telemetry forward-contract-only boundary; F5 — dark-mode/P-017
   authority-preservation compatibility).
-* Plan: `docs/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md`
+* Plan: `docs/archive/plans/2026-08-02-telemetry-driven-auto-escalation-protocol-plan.md`
   ("Out of scope (external-guard, spike F1/F5)").
 * External-guard precedent: stash `2970FA4E`
   (`docs/decisions/2026-07-30-ship-claim-integrity-preflight-spike.md`,

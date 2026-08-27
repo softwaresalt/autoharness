@@ -338,7 +338,7 @@ never backfilled.
 
 - Rewrote `conditions:` into the established list-of-mappings shape
   (`id`/`description`/`satisfied: true`/`evidence`; see
-  `docs/closure/114-S-109-F-post-merge-closure.md` and
+  `docs/archive/closure/114-S-109-F-post-merge-closure.md` and
   `docs/closure/139-S-130-F-post-merge-closure.md` for the precedent this
   follows), citing the same round-4 residual-risk disposition evidence
   already described in the body of this closure record (PR #398's Local

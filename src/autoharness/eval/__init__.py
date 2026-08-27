@@ -6,7 +6,7 @@ through an **injectable, pluggable runner** (never a live model), running a
 **deterministic rule-based reviewer matrix** over a git diff, and summarizing
 comparable baseline metrics across configs.
 
-Design constraints (see docs/plans/2026-07-01-telemetry-eval-phase2-plan.md):
+Design constraints (see docs/archive/plans/2026-07-01-telemetry-eval-phase2-plan.md):
 
 * **No live LLM / network calls.** autoharness has no in-process model runtime.
   The runner interface is injectable so runs are fully deterministic and

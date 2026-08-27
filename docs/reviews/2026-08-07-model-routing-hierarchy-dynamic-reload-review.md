@@ -12,8 +12,8 @@ model_route:
   model_provider: anthropic
   reasoning_effort: high
 linked_artifacts:
-  - "docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-plan.md"
-  - "docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md"
+  - "docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-plan.md"
+  - "docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md"
 tags: ["plan-review", "F02FD596", "E8B5B3C5"]
 ---
 

@@ -217,7 +217,7 @@ triggers it) but is not unreachable in an absolute sense, and must be
 fixed and verified via a dedicated Stage-triaged hotfix task — the fix
 itself is fully verified and ready, just deliberately not applied on this
 closure branch, per the same discipline as the `114-S`/`109-F` closure
-precedent (`docs/closure/114-S-109-F-post-merge-closure.md`) for dormant
+precedent (`docs/archive/closure/114-S-109-F-post-merge-closure.md`) for dormant
 residual gate defects surfaced by a closure PR's own review.
 
 ## Addendum (2026-08-18) — Condition satisfied; closure now complete

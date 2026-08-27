@@ -43,7 +43,7 @@ metric name, alongside the metric block:
   consumers that want provenance opt in by reading it (and must treat a missing
   key as "fully observed / no degradation to report").
 
-This honors the plan's additive-field contract (`docs/plans/2026-07-26-telemetry-hardening-plan.md`
+This honors the plan's additive-field contract (`docs/archive/plans/2026-07-26-telemetry-hardening-plan.md`
 lines 482-486) and the invariant in `docs/telemetry-reference.md` that derived
 metrics are always numeric-or-`unavailable`. The provenance helper
 (`_ratio_provenance(value, *operand_qualities)`) returns the worst non-observed
