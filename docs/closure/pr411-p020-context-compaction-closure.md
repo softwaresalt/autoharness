@@ -79,8 +79,12 @@ qualifies as completed feature/chore memory. That rule is **independent of the
   `docs/memory/compacted/2026-08-26-pr411-adversarial-review-merge-compacted.md`
 * Verbose original archived to
   `docs/archive/memory/2026-08-26-orchestrator-pr411-adversarial-review-merge.md`
-* Traceable path preserved in both directions via the summary's
-  `compacted_from` field
+* Traceable path preserved **from the summary back to the verbose original**
+  via the summary's `compacted_from` field — the single direction the skill's
+  archive constraint requires. Traceability is deliberately one-way, not
+  bidirectional: the archived original retains its pre-archive `source:` value
+  as a provenance record of where it was written, so it carries no forward link
+  to the summary.
 
 **Directory assessment after consolidation:**
 
