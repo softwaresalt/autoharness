@@ -64,23 +64,40 @@ commits and independently re-verified before merge.
 
 ## P-020 compaction
 
-`compact-context` was invoked at closure as required. Threshold assessment on
-merged `main`:
+`compact-context` was invoked at closure as required, and the **post-merge floor
+consolidation was performed**.
 
-| Directory | Files | Size | Candidates |
+**Candidate (completed-work rule, Phase 2).** The just-closed release unit's
+session memory —
+`docs/memory/2026-08-26-orchestrator-pr411-adversarial-review-merge.md` —
+qualifies as completed feature/chore memory. That rule is **independent of the
+14-day age threshold**, so this candidate is eligible despite being fresh.
+
+**Action taken (Phase 3, bounded Tier-1 consolidation):**
+
+* Dense summary written to
+  `docs/memory/compacted/2026-08-26-pr411-adversarial-review-merge-compacted.md`
+* Verbose original archived to
+  `docs/archive/memory/2026-08-26-orchestrator-pr411-adversarial-review-merge.md`
+* Traceable path preserved in both directions via the summary's
+  `compacted_from` field
+
+**Directory assessment after consolidation:**
+
+| Directory | Files | Size | Further candidates |
 |---|---|---|---|
-| `docs/memory` | 90 (49 of them compacted summaries, preserved by rule) | 720 KB | 0 |
+| `docs/memory` | 91 (50 of them compacted summaries, preserved by rule) | 725 KB | 0 |
 | `docs/plans` | 65 | 642 KB | 0 |
-| `docs/closure` | 31 | 399 KB | 0 |
+| `docs/closure` | 32 | 405 KB | 0 |
 | `docs/compound` | 76 | 427 KB | 0 |
 
-**Outcome: bounded Tier-1 no-op.** This PR *was* the historical compaction — it
-consumed the entire pre-2026-08-10 backlog in one pass. Every remaining
-non-compacted memory file dates from 2026-08-18 or later, inside the 14-day
-threshold, so no file qualifies as a candidate under Phase 2. `docs/memory` and
-`docs/plans` remain above the raw file-count and size triggers purely because
-the compacted summaries and recent working memory both live there; compacting
-recent working memory would be premature.
+Beyond the completed-work candidate above, **no further file qualifies**. PR
+#411 was itself the historical compaction and consumed the entire pre-2026-08-10
+backlog in one pass, so every remaining non-compacted memory file dates from
+2026-08-18 or later, inside the 14-day threshold. `docs/memory` and `docs/plans`
+remain above the raw file-count and size triggers only because the compacted
+summaries and recent working memory both live there; compacting recent working
+memory would be premature.
 
 ## Residual risk
 

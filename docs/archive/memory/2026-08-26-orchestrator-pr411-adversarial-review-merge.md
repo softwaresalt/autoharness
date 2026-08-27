@@ -43,12 +43,18 @@ requiring verification.** Accepting them uncritically would have caused three
 wrong "fixes" — including renaming `decided-plan`, which would have *created*
 inconsistency with `main` and contradicted the governing skill.
 
-## Root cause of the P0/P1 class
+## Root cause of the dangling-reference finding
 
 Compaction **flattened dated subdirectories**:
 `docs/memory/<date>/x.md` → `docs/archive/memory/x.md`. A naive
 `docs/X` → `docs/archive/X` substitution cannot express that mapping, which is
 exactly why a set of references survived the original commit unrepointed.
+
+This explains the **dangling-reference finding only**. The other two findings
+have unrelated causes: the false delivery statuses came from asserting status at
+compaction time without joining against the backlog, and the missing docline
+fields came from the new summaries omitting `source`/`title` that the authoring
+profile requires.
 
 ## Self-review caught a defect the external reviewers missed
 
