@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 118-S through 120-S: Shipment-Record-Status Diagnostics, Crash-Resumption
+  Protocol & Cross-Pack Measurability Docs (2026-08-06 to 08-08)'
+source: docs/closure/2026-08-06-shipment-status-crash-resumption-crosspack-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"

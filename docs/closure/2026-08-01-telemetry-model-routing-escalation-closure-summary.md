@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 107-S through 110-S: Telemetry Events, Model-Routing Enforcement
+  & Escalation Protocol (2026-08-01/02)'
+source: docs/closure/2026-08-01-telemetry-model-routing-escalation-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"

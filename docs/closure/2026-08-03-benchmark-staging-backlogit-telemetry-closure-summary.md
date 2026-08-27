@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 111-S through 113-S: Benchmark Suite, Staging Size/Complexity
+  & Backlogit Telemetry Mapping (2026-08-03/04)'
+source: docs/closure/2026-08-03-benchmark-staging-backlogit-telemetry-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"

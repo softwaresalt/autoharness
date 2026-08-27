@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 114-S through 117-S: Pipeline-Topology Gates A/B/C + DAG Readiness
+  Phase 1 (2026-08-05/06)'
+source: docs/closure/2026-08-05-pipeline-topology-gates-abc-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"

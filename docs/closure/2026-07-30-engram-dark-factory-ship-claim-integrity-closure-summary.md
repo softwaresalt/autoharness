@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 104-S through 106-S: Engram Doc Fix, Dark-Factory Sequencing
+  & Ship Claim-Integrity Hardening (2026-07-30/31)'
+source: docs/closure/2026-07-30-engram-dark-factory-ship-claim-integrity-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"

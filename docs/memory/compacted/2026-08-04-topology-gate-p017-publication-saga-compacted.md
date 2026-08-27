@@ -228,6 +228,20 @@ predecessor formally resolved).
    (Branch B, PR #304 finding 1) were discovered by reading `backlogit`'s Go implementation
    directly, not by trusting docs or prior assumptions.
 
+## Operator-only decisions remaining (carried forward — still open)
+
+Preserved from the source checkpoint `docs/archive/memory/2026-08-04-stage-109F-topology-gate.md`.
+These are operator-only calls that were never resolved inside this saga and therefore survive
+compaction:
+
+1. Whether to git-commit the `.backlogit` planning artifacts (Stage left the worktree
+   unchanged beyond backlogit's own writes; untracked graphql files untouched).
+2. **CI hard-fail vs warn in required mode** (default advisory-first; flip after bake-in) —
+   still a live product question for the topology gate rollout.
+3. Optional backlogit-recorded worktree-owner token for cross-machine worktree observability
+   (deferred; out of the then-current bounded scope).
+4. Prioritize the deferred DAG-visibility follow-up (`33CC445C`) in a future turn.
+
 ## Outcome
 
 Branch A (`109-F`, PR #296) and Branch B (`110-F`/`111-F`/`112-F`, PR #304) both merged.

@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 093-S through 097-S: 088-F Compression Experiment, Review Routing
+  & Telemetry Hardening (2026-07-26 to 2026-07-28)'
+source: docs/closure/2026-07-26-088f-compression-experiment-review-telemetry-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"

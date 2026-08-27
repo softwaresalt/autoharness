@@ -15,6 +15,13 @@ consolidates:
 
 # Compacted: Composability spike → Copilot CLI Supervisor/Control-Plane Plan 1 (2026-08-09 → 2026-08-12)
 
+> **⚠️ Deprecated architecture — retained for historical traceability only.**
+> The Copilot CLI Supervisor / Control-Plane design summarized below was subsequently
+> **abandoned**. Its sibling design and closure artifacts are quarantined under
+> `docs/archive/deprecated-supervisor-design/`. Do **not** treat any supervisor
+> architecture described here as current or as guidance for new work — this summary
+> records what was attempted and why, not what the harness does today.
+
 ## Spike — 34D50F2D candidate (a): composability (2026-08-09)
 
 Bounded Stage research spike (read-only, no implementation) on the unified CLI/MCP/library

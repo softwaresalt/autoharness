@@ -1,4 +1,7 @@
 ---
+title: 'Closure Summary — 121-S through 123-S: Model-Routing Hierarchy Fix, Capability-Pack
+  Runtime Detection & Deterministic Resumption Advisory (2026-08-08/09)'
+source: docs/closure/2026-08-08-model-routing-capability-pack-resumption-closure-summary.md
 doc_type: closure-compaction-summary
 compaction_phase: phase-3-closure-compaction
 compacted_on: "2026-08-26"
