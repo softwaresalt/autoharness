@@ -9,7 +9,7 @@ Covers the harness-config schema's encoding of:
     removed or renamed, and the current dogfood config remains schema-valid.
 
 See docs/decisions/2026-08-07-model-routing-hierarchy-dynamic-reload-deliberation.md
-and docs/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md.
+and docs/archive/plans/2026-08-07-model-routing-hierarchy-dynamic-reload-hardening.md.
 """
 
 from __future__ import annotations

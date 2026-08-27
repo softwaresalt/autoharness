@@ -7,7 +7,7 @@ depends on it.
 
 See:
 
-* Plan: `docs/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md`
+* Plan: `docs/archive/plans/2026-07-15-copilot-cli-output-compression-experiment-plan.md`
 * Spike: `docs/spikes/2026-07-15-copilot-cli-output-compression-experiment.md`
 * Reused CCR analysis: `docs/spikes/2026-07-13-brainspace-compression-feasibility.md`
 * Findings + decision memo: `docs/decisions/2026-07-25-copilot-cli-output-compression-experiment-findings.md`
