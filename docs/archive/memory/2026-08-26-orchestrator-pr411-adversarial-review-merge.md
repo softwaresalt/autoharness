@@ -69,11 +69,18 @@ the fail-safe default, so it was **captured as `99E4CF94`**, not fixed in flight
 
 * **Re-engaging the Copilot reviewer.** Re-requested review via REST, then polled
   the full §1.2 back-off (2/2/3/3/5 min = 15 min). Copilot's last review stayed
-  pinned at `3aa53bcf` while HEAD advanced. This reproduces the documented
-  **P-018 deadlock**: once the review request is satisfied, a review-fix push
-  moves HEAD but triggers no new review, so the gate can never self-clear.
+  pinned at `3aa53bcf` while HEAD advanced, so the gate could not self-clear.
   Resolved via the audited `--force` override (precedent: PR #337, same verdict),
   logged to `.autoharness/gates/copilot-review-force-audit.log`.
+
+  **Correction — the deadlock is intermittent, not structural.** This entry
+  first concluded that once a review request is satisfied a review-fix push
+  triggers no new review, so the gate can *never* self-clear. PR #412 disproved
+  that generalization within the hour: it re-reviewed automatically after two
+  successive post-review fix pushes (`a0d96d01`, then `2793c297`) and cleared
+  the P-018 gate each time without force. The observation above still stands for
+  #411; the inference drawn from it did not. Force only on an observed stall
+  across the full §1.2 back-off, never on an unreviewed HEAD alone.
 * **`--json` on `backlogit docs lint`.** Suppresses output entirely; the bare
   command already emits JSON. The `--json` flag silently produced an empty
   result that read as "0 findings" — a false all-clear.

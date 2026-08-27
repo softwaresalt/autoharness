@@ -63,12 +63,18 @@ than fixed in flight.
 ## Failed approaches
 
 * **Re-engaging the stalled Copilot reviewer** — REST re-request plus the full
-  §1.2 back-off (2/2/3/3/5 min) left its review pinned at an old HEAD. This is
-  the documented **P-018 deadlock**: once the review request is satisfied, a
-  review-fix push moves HEAD but triggers no new review, so the gate cannot
-  self-clear. Exit is the audited `--force` (precedent: PR #337, same verdict).
-  Note this is specific to post-review pushes — a *fresh* PR still gets reviewed
-  normally, as PR #412 demonstrated.
+  §1.2 back-off (2/2/3/3/5 min) left its review pinned at an old HEAD while HEAD
+  advanced, so the gate could not self-clear. Exit was the audited `--force`
+  (precedent: PR #337, same verdict).
+
+  **The deadlock is intermittent, not structural — do not generalize it.** This
+  memory originally inferred that a post-review push never re-triggers review.
+  PR #412 disproved that within the hour: it re-reviewed automatically after
+  *two* successive post-review fix pushes (`a0d96d01`, then `2793c297`),
+  clearing the gate each time with no force. An unreviewed HEAD is therefore
+  **not** by itself evidence of a stall. Force only after observing a real stall
+  across the full §1.2 back-off — treating the deadlock as the default would
+  convert an audited exception into routine bypass of a fail-closed gate.
 * **`--json` on `backlogit docs lint`** — suppresses output entirely and reads
   as a false "0 findings"; the bare command already emits JSON.
 * **Default `subprocess` encoding on Windows** — `cp1252` raises
