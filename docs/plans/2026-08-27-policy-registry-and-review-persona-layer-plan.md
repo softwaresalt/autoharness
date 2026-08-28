@@ -97,7 +97,10 @@ Two install gaps, both **pre-existing** and both verified against the tree at
   this plan asserted that `python-reviewer` had no template and that three
   templates had no reader. Both claims were wrong; the corrected audit is:
 
-  * All 11 installed identities have a template source. 9 render 1:1 from
+  * All 11 **path-cited** installed identities enumerated above have a template
+    source (this is the count of the *path-shaped citation set*, not the
+    installed-persona count — the corrected installed set is **13**, see the
+    conclusion below). 9 render 1:1 from
     `templates/agents/review/`; `learnings-researcher` renders from
     `templates/agents/**research**/` (different directory; a naive
     `review/`-only installer misses it — RK-D).
@@ -181,8 +184,11 @@ section below is itself direct evidence of GAP 2.
     `templates/policies/workflow-policies.md.tmpl`.
   * Bind the 9 placeholders present in the template:
     `{{TEST_COMMAND}}` = `PYTHONPATH=src python -m unittest discover -s tests`
-    (**Q5**); `{{BUILD_CHECK_COMMAND}}` = `pip install -e .` (profile
-    `build.command`); `{{DEFAULT_BRANCH}}` = `main`;
+    (**Q5**); `{{BUILD_CHECK_COMMAND}}` =
+    `python -m py_compile src/autoharness/cli.py` (**D9** — sourced from
+    `.autoharness/harness-manifest.yaml` `variables.BUILD_CHECK_COMMAND`;
+    **NOT** profile `build.command`, and **NOT** the manifest's separate
+    `BUILD_COMMAND: "pip install -e ."`); `{{DEFAULT_BRANCH}}` = `main`;
     `{{BACKLOG_TOOL_NAME}}` = `backlogit`; `{{BACKLOG_DIRECTORY}}` = `.backlogit`;
     `{{STATUS_DONE}}` = `done`; `{{FEATURE_SHIPMENTS}}` = `true`;
     `{{OP_SHIP_SHIPMENT_MCP}}` = `backlogit_ship_shipment`; `{{DATE}}` =
@@ -192,8 +198,70 @@ section below is itself direct evidence of GAP 2.
     raw LF bytes), and a `note` citing `336F3AB7`.
 * **Execution posture**: migration-first — the artifact must exist before U2
   changes what the engine asserts about it.
-* **Tests**: covered in U8 (this unit is a render; its own assertion is
-  "zero unresolved `{{...}}` and 27 `P-0NN` headings present").
+* **Tests**: covered in U8 (this unit is a render). Its own assertions are:
+  (a) 27 `P-0NN` headings present; (b) the placeholder scan over the rendered
+  registry finds zero unresolved `{{...}}` **except** the single literal
+  ellipsis meta-token exempted by the named `EXEMPT_POLICY_PROSE_META_TOKEN`
+  rule (D9-B); and (c) **value-level binding assertion (D9-A)** — the rendered
+  compile/red-phase clauses (template L48 postcondition and L88 red-phase
+  precondition) contain the literal string
+  `python -m py_compile src/autoharness/cli.py`, and contain **no** occurrence
+  of `pip install -e .`. Assertion (c) is required because (b) alone passes on
+  a *wrongly* bound value — a placeholder that resolves is not a placeholder
+  that resolves *correctly*.
+
+#### D9 — `{{BUILD_CHECK_COMMAND}}` is the compile check, not the build (added 2026-08-28, review-fix cycle 3)
+
+**The defect this closes.** The earlier revision bound
+`{{BUILD_CHECK_COMMAND}}` to `pip install -e .`, citing profile
+`build.command`. That was a **wrong-source, wrong-semantics** binding on the
+most authoritative surface this shipment installs. `.autoharness/harness-manifest.yaml`
+already declares **two separate variables** with distinct meanings, and the
+plan conflated them:
+
+| Manifest variable | Authoritative value | Meaning |
+|---|---|---|
+| `BUILD_COMMAND` | `pip install -e .` | Install/build the distribution. **Not bound by U1** — the registry template does not reference it. |
+| `BUILD_CHECK_COMMAND` | `python -m py_compile src/autoharness/cli.py` | Cheap **compile check**: does the harness still compile? This is the one U1 binds. |
+
+**Why the semantics matter and are not interchangeable.** The registry template
+uses `{{BUILD_CHECK_COMMAND}}` in exactly two clauses, both of which require a
+*compile* check:
+
+* **L48 (harness-architect postcondition)** — "the harness compiles
+  (`{{BUILD_CHECK_COMMAND}}`)". `pip install -e .` is an install, not a compile
+  assertion.
+* **L88 (red-phase precondition)** — "`{{BUILD_CHECK_COMMAND}}` exits 0 **AND**
+  `{{TEST_COMMAND}}` exits non-zero with expected failure markers". Binding an
+  install command here makes the red-phase gate assert the wrong property and
+  couples every red-phase transition to a mutating environment operation.
+
+**D9-A — the binding is value-asserted, not merely resolution-asserted.** U8
+scenario 1 asserts the rendered clauses contain
+`python -m py_compile src/autoharness/cli.py` and do **not** contain
+`pip install -e .`. Without this, a wrong binding passes the zero-placeholder
+scan simply because *some* value substituted.
+
+**D9-B — the registry's own literal `{{...}}` meta-token is exempt by a named
+rule.** `templates/policies/workflow-policies.md.tmpl` **L359** contains the
+literal token `` `{{...}}` `` in P-013.5 fail-closed-verification prose, where
+it *names the concept of* an unresolved placeholder ("`model_family` /
+`model_provider` is empty or an unresolved `{{...}}` placeholder"). It is
+intended literal content of the installed registry and survives the render. A
+bare "zero unresolved `{{...}}`" assertion over the rendered registry is
+therefore **impossible as written** and would fail permanently. The scan MUST
+exempt it by the named, commented rule **`EXEMPT_POLICY_PROSE_META_TOKEN`**,
+scoped to a **closed allow-list of exactly one token** — the bare
+ellipsis form `{{...}}`, which carries no identifier and can never be a
+bindable variable. No other token is exempted by this rule, and it is
+**distinct** from the persona-side `EXEMPT_OUTPUT_SCHEMA_EXEMPLARS` rule (D8-D)
+and from U8 scenario 2's route exemption.
+
+**D9-C — source of truth.** For every remaining U1 binding, the manifest's
+`variables:` block is authoritative over `workspace-profile.yaml`, consistent
+with D2's resolution of the same class of ambiguity for `{{TEST_COMMAND}}`.
+D9 and D2 are the same rule applied to two variables; neither licenses reading
+a binding from the profile.
 
 ### U2 — Reconcile the policy-registry resolution contradiction
 
@@ -308,12 +376,40 @@ forbidden — this is the exact defect already recorded at
 synthesized variables across the 13 S0 personas. `{{PRIMARY_LANGUAGE}}`,
 `{{PRIMARY_LANGUAGE_LOWER}}`, `{{TIER_1_FAMILY}}`, `{{TIER_1_PROVIDER}}`, and
 `{{TIER_1_REASONING_EFFORT}}` are already manifest/config-bound and need no pin.
-`{{file_path}}` and `{{line_number}}` are **JSON output-schema exemplars inside a
-fenced code block**, not render variables — they are intended to survive into the
-installed artifact literally. **U8's zero-`{{...}}` placeholder scan MUST exempt
-fenced-code-block output exemplars by a named rule, or it will false-positive on
-every persona.** (This is a distinct exemption from U8 scenario 2's route
-exemption; do not conflate the three.)
+
+**Output-schema exemplars — ONE named rule, THREE tokens.** The persona
+templates additionally carry **exactly three** tokens that are **JSON
+output-schema exemplars inside a fenced code block**, not render variables:
+
+| Exemplar token | Occurs in | Role in the JSON example |
+|---|---|---|
+| `{{file_path}}` | 11 of the 13 persona templates | placeholder for the file the *finding* refers to |
+| `{{line_number}}` | 10 of the 13 persona templates | placeholder for the line the *finding* refers to |
+| `{{principle_number}}` | `constitution-reviewer.agent.md.tmpl` **L43** | placeholder for the constitutional principle the *finding* cites |
+
+All three are **exemplar tokens intentionally retained**: they are literal
+content of the installed persona, describing the shape of the JSON a reviewer
+subagent emits **at review time**. They are **not** unresolved install
+variables, they have **no** install-time value, and **none of them may be bound
+to fabricated content**. Binding `{{principle_number}}` (or either of the other
+two) to any invented value would corrupt the persona's output schema and is a
+**hard stop**.
+
+They are handled by **one explicit named rule**,
+**`EXEMPT_OUTPUT_SCHEMA_EXEMPLARS`**, defined once and referenced everywhere:
+
+> **`EXEMPT_OUTPUT_SCHEMA_EXEMPLARS`** — during the zero-unresolved-`{{...}}`
+> scan over installed persona artifacts, a matched token is exempt **iff** it
+> is (a) a member of the closed allow-list `{{file_path}}`, `{{line_number}}`,
+> `{{principle_number}}`, **and** (b) located inside a fenced output-schema
+> code block. Both conditions are required; neither alone is sufficient. The
+> allow-list is **closed** — no other token is exempt under this rule, and a
+> token that is not on the list is a genuine unbound variable and MUST fail.
+
+**U8's zero-`{{...}}` placeholder scan MUST apply this rule by name, or it will
+false-positive on every persona.** This rule is distinct from U8 scenario 2's
+route exemption and from D9-B's `EXEMPT_POLICY_PROSE_META_TOKEN` registry rule;
+do not conflate them and do not apply any of them to a real unbound variable.
 
 * **Explicitly NOT done here**: authoring
   `templates/agents/review/python-reviewer.agent.md.tmpl`. Creating a fixed
@@ -412,11 +508,18 @@ exemption; do not conflate the three.)
 ### U8 — Verification and regression tests
 
 * **Domain**: tests. **Files: <=3** under `tests/`.
-* **Scenarios (4)**:
+* **Scenarios (5)**:
   1. `.github/policies/workflow-policies.md` exists, contains P-001…P-021 and
      the `dark_factory_policy_contract` `must_contain` tokens (`P-017`,
      `Run pipeline in dark mode`, `DARK_MODE_ACTIVE`, `BRAINSTORM_HANDOFF_READY`,
-     `DARK_MODE_COMPLETE`), and has **zero unresolved `{{...}}`**.
+     `DARK_MODE_COMPLETE`), and has **zero unresolved `{{...}}` subject to the
+     named `EXEMPT_POLICY_PROSE_META_TOKEN` rule (D9-B)** — the single literal
+     ellipsis meta-token carried from template L359 is exempt; every other
+     `{{...}}` match fails. **Plus the D9-A value-level binding assertion**: the
+     rendered L48 postcondition and L88 red-phase precondition clauses contain
+     `python -m py_compile src/autoharness/cli.py`, and the rendered registry
+     contains no occurrence of `pip install -e .`. A resolution-only assertion
+     is insufficient — a wrong binding resolves too.
   2. **Route-resolution test with declared placeholder handling.** Every persona
      path cited by any installed skill/agent under `.github/agents/subagents/`
      **resolves**. This is a *property* test, not a hardcoded list, so it will not
@@ -465,12 +568,22 @@ exemption; do not conflate the three.)
        placeholders unmodified** (D8-C: proves no template was hard-coded).
      This scenario is what prevents unreviewed persona content from reaching a
      normative review surface. A render that merely "looks reasonable" fails it.
-* **Placeholder-scan exemption (ADDED 2026-08-28, D8-D)**: the zero-`{{...}}`
-  scan MUST exempt **fenced-code-block output-schema exemplars** (`{{file_path}}`,
-  `{{line_number}}`) by a named, commented rule. These are intended literal
-  content of the installed persona, not unbound variables. This is a **third,
-  distinct** exemption — do not conflate it with scenario 2's route exemption or
-  apply either to real unbound variables.
+* **Placeholder-scan exemptions — TWO named rules, no others (D8-D, D9-B;
+  amended 2026-08-28 review-fix cycle 3)**: the zero-`{{...}}` scan runs over
+  all 14 installed artifacts and MUST apply exactly these two named, commented
+  rules:
+  * **`EXEMPT_OUTPUT_SCHEMA_EXEMPLARS` (D8-D)** — persona artifacts only. Closed
+    allow-list of **three** tokens — `{{file_path}}`, `{{line_number}}`,
+    **`{{principle_number}}`** — exempt **only** when inside a fenced
+    output-schema code block. These are exemplar tokens intentionally retained
+    as literal persona content; they have no install-time value and MUST NOT be
+    bound to fabricated content.
+  * **`EXEMPT_POLICY_PROSE_META_TOKEN` (D9-B)** — the policy registry only.
+    Closed allow-list of **one** token, the bare ellipsis `{{...}}` carried from
+    template L359's P-013.5 fail-closed-verification prose.
+  Every other `{{...}}` match is a genuine unbound variable and MUST fail.
+  Neither rule may be widened, and neither is the same as scenario 2's route
+  exemption — the three are distinct and must not be conflated.
 * **Carried-forward finding (recorded, not fixed)**: `workspace-profile.yaml`
   still declares `test.runner: pytest` while Q5 names
   `PYTHONPATH=src python -m unittest discover -s tests` as authoritative. Emit
@@ -505,12 +618,14 @@ Serial order: `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8`.
 | D5 | Install **all 13** personas; the Law-2 exclusion set is **empty** | **Corrected 2026-08-28.** `technology-reviewer` is a source template, not a separate identity; `correctness-reviewer` and `maintainability-reviewer` are cited by bare filename in `install-harness` L1200-L1201 ("Always-on") and `tune-harness` L462-L469 (local-first review drift). Law 2 is satisfied by all 13. U8 scenario 3 now asserts *reader existence*, not absence. |
 | D6 | Reconcile **all three** stale DANGLING manifest notes in U7 (L255, L265, L275) | **Corrected 2026-08-28.** A note asserting a now-false condition is itself a stale normative surface. L275 was missed by the earlier revision: installing the registry (U1) falsifies its registry claim, and `336F3AB7` **was already archived during staging (2026-08-28T04:14:26Z)**, which falsifies its stash claim as of now. Ship reconciles the note; Ship does **not** archive the stash. |
 | D7 | Do not fix `workspace-profile.yaml` in this shipment | It feeds `profile_hash`; changing it has manifest-wide blast radius disproportionate to S0's purpose. |
+| D8 | Pin all five synthesized persona variables before any render; handle the three output-schema exemplars by one named rule | See D8/D8-A…D8-D above. A "mechanical render" over a synthesized placeholder is a contradiction; and `{{file_path}}`/`{{line_number}}`/`{{principle_number}}` are exemplar tokens that must survive literally, never be bound to fabricated content. |
+| D9 | Bind `{{BUILD_CHECK_COMMAND}}` from the manifest's `BUILD_CHECK_COMMAND` (`python -m py_compile src/autoharness/cli.py`), **not** from profile `build.command` and **not** from the manifest's separate `BUILD_COMMAND` | **Added 2026-08-28, review-fix cycle 3.** The template uses the variable in a *compile* postcondition (L48) and a *red-phase* precondition (L88); `pip install -e .` asserts the wrong property there. `BUILD_COMMAND` and `BUILD_CHECK_COMMAND` are two distinct manifest variables with distinct meanings and must not be conflated. Enforced by the D9-A value-level assertion, because a wrong binding still resolves. Same rule as D2, applied to a second variable: the manifest `variables:` block is authoritative over the profile. |
 
 ## Risks and Caveats
 
 | # | Risk | Mitigation |
 |---|---|---|
-| RK-A | Rendering an 83 KB registry with a wrong variable binding silently publishes a wrong authoritative policy | U8 scenario 1 asserts zero unresolved placeholders **and** the exact `must_contain` token set; D2 pins the one contested binding. |
+| RK-A | Rendering an 83 KB registry with a wrong variable binding silently publishes a wrong authoritative policy | **Realized once (review-fix cycle 3): `{{BUILD_CHECK_COMMAND}}` was bound to `pip install -e .`.** A zero-placeholder scan cannot catch this class — a *wrong* value resolves exactly as cleanly as a right one. Mitigation is therefore two-layer: (a) D2 and **D9** pin the two contested bindings to the manifest `variables:` block, naming `BUILD_COMMAND` and `BUILD_CHECK_COMMAND` as distinct; (b) U8 scenario 1 adds the **D9-A value-level assertion** over the rendered compile/red-phase clauses, plus the exact `must_contain` token set. The placeholder scan remains, scoped by the two named exemption rules (D8-D, D9-B). |
 | RK-B | Installing the registry flips `dark_factory_policy_contract` from missing to *evaluated*, which may surface **new** assertion failures that were previously masked by the missing file | Expected and desirable, but it is a **status-change, not a regression**. U8 runs the targeted check and any newly-surfaced failure is reported as a finding rather than silently patched. |
 | RK-C | Manifest checksum computed over CRLF on Windows would mismatch CI | Explicit LF-only + SHA-256-over-raw-LF-bytes contract, matching the existing manifest note convention. |
 | RK-D | `learnings-researcher` lives in a different template directory and is missed by a `review/`-only installer | Called out explicitly in U4. |
@@ -591,7 +706,7 @@ installed set (11 -> 13 personas), so hardening remains required.
 
 | ProposedAction | ActionRisk | Required ActionResult |
 |---|---|---|
-| Create `.github/policies/workflow-policies.md` (83 KB, new authoritative surface) | **MEDIUM** — un-masks a `required: True` assertion; publishes policy text as authoritative | File present, zero unresolved `{{...}}`, 27 `P-0NN` headings, `must_contain` tokens present, byte-identical to template modulo placeholders |
+| Create `.github/policies/workflow-policies.md` (83 KB, new authoritative surface) | **MEDIUM** — un-masks a `required: True` assertion; publishes policy text as authoritative | File present, 27 `P-0NN` headings, `must_contain` tokens present, byte-identical to template modulo placeholders; **zero unresolved `{{...}}` under the named `EXEMPT_POLICY_PROSE_META_TOKEN` rule** (D9-B — closed 1-token allow-list for the literal ellipsis meta-token at template L359; a bare zero-placeholder assertion here is impossible as written); **plus the D9-A value assertion** — the rendered compile/red-phase clauses contain `python -m py_compile src/autoharness/cli.py` and the file contains no `pip install -e .` |
 | Amend the three existing manifest `note` fields declaring DANGLING references (L255, L265, L275) | **LOW-MEDIUM** — edits historical install provenance | Notes updated to record resolution **and retain the original gap history**; provenance is amended, never erased |
 | Create `.github/agents/subagents/` with 13 identities | **MEDIUM** — makes reviewer dispatch newly available, changing downstream review behavior | All 13 present, every cited route resolves (with `{{PRIMARY_LANGUAGE_LOWER}}` expanded or exempted by a named rule), every installed persona has a named reader |
 | Render `python-reviewer.agent.md` from `technology-reviewer.agent.md.tmpl` (installed filename differs from template basename) | **LOW-MEDIUM** — a provenance check that assumes name equality could misread this as drift | Manifest entry records the template source explicitly; U8 scenario 3 asserts the mapping |
@@ -610,7 +725,20 @@ blocking; touching `8AC574F1`'s scope.
 1. **Pre-flight**: capture `verify-workspace` output **before** U1 so RK-B
    status-changes are attributable rather than guessed.
 2. **Placeholder scan**: zero `{{...}}` across all 14 newly installed artifacts,
-   not just the registry.
+   not just the registry — **under exactly two named, commented exemption rules
+   and no others** (amended 2026-08-28, review-fix cycle 3):
+   * **`EXEMPT_OUTPUT_SCHEMA_EXEMPLARS`** (D8-D) — the 13 persona artifacts
+     only; closed **3-token** allow-list `{{file_path}}`, `{{line_number}}`,
+     `{{principle_number}}`, exempt only inside a fenced output-schema code
+     block. Retained exemplars; never bound to fabricated content.
+   * **`EXEMPT_POLICY_PROSE_META_TOKEN`** (D9-B) — the registry only; closed
+     **1-token** allow-list, the bare ellipsis `{{...}}` at template L359.
+   Every other match is a genuine unbound variable and MUST fail. Without both
+   rules this step is an **impossible assertion** and fails permanently.
+2b. **Value-level binding assertion** (D9-A): the rendered registry's
+   compile/red-phase clauses contain `python -m py_compile src/autoharness/cli.py`
+   and the file contains no `pip install -e .`. Step 2 cannot substitute for
+   this — a *wrong* binding resolves as cleanly as a right one.
 3. **Checksum round-trip**: recompute each manifest checksum from the installed
    file and compare, catching CRLF drift (INV-5).
 4. **Exit-code invariance** (INV-3): `verify-workspace` exit-code behavior
@@ -729,9 +857,37 @@ file-and-line primary evidence. The one *new* P2 introduced by this correction
 and is bounded to two mechanical renders. Both P3s are accepted or recorded as
 follow-ups.
 
-Task granularity remains within budget: 8 units, max 5 files each, max 4 test
-scenarios, single domain per unit. U6 at 5 files and U8 at 4 scenarios are the
-widest, both comfortably inside the 2-hour rule.
+Task granularity remains within budget: 8 units, **max 5 files each, max 5 test
+scenarios**, single domain per unit. **U6 at 5 files and U8 at 5 scenarios are
+the widest** (corrected 2026-08-28, review-fix cycle 3 — the earlier "max 4
+files / max 4 scenarios" wording understated both actual reviewed bounds; U6
+grew to 5 renders in the first correction and U8 to 5 scenarios in cycle 2, so
+the stated bound trailed the reviewed content rather than the content exceeding
+a reviewed bound).
+
+**Both remain inside the 2-hour rule, and the rule is NOT weakened to
+accommodate them.** The rule bounds *human-equivalent effort*, not file or
+scenario count, and neither widening adds a new domain, a new discovery step,
+or an unpinned decision:
+
+* **U6 — 5 files.** All five are **mechanical template renders** into
+  `.github/agents/subagents/` from existing `templates/agents/review/` sources,
+  in a single domain (installed artifacts), with no authoring and no
+  hand-patching. The one synthesized placeholder (`{{CONCURRENCY_PATTERNS}}`)
+  is **pre-pinned by U3/D8**, so the marginal cost of files 4 and 5 is a copy
+  plus a checksum, not a judgement. This is directly comparable to U4's 4
+  renders, which review already accepted.
+* **U8 — 5 scenarios.** Scenario 5 is a **verbatim-content comparison** against
+  values already pinned in D8-B, plus one live-resolver cross-check and one
+  template-unmodified assertion; scenario 1's cycle-3 additions (the D9-A
+  value-level assertion and two named exemption rules) are literal-string
+  assertions over an already-rendered file. None requires new discovery,
+  and all fit the existing `<=3` test-file budget. The difficulty of this unit
+  remains concentrated in scenarios 2 and 3, which are unchanged — which is why
+  U8 stays **size M / complexity medium** rather than splitting.
+
+Neither unit's `size`/`complexity` assignment changes, and no split is
+required.
 
 Q1, Q5, and Q7 operator approvals are preserved exactly: report persistence
 allowed with named consumers; authoritative test command
@@ -791,6 +947,16 @@ justified in-plan or already addressed by an explicit verification step. Task
 granularity is within budget: 8 units, max 4 files each, max 4 test scenarios,
 single domain per unit.
 
+> **STALE-COUNT MARKER (added 2026-08-28, review-fix cycle 3).** The
+> "max 4 files each, max 4 test scenarios" bound in the paragraph above was
+> accurate **only** for the superseded 2026-08-27 plan revision (U6 was 3
+> renders; U8 was 4 scenarios). It is **historical provenance, not an active
+> bound**, and is deliberately left byte-intact rather than rewritten — this
+> plan amends provenance, it never erases it. The **operative** bounds are
+> **max 5 files (U6) and max 5 test scenarios (U8)**, recorded in the
+> 2026-08-28 verdict rationale above with the 2-hour-rule justification. Do not
+> read this superseded paragraph as a live granularity constraint.
+
 Superseded verdict marker: `PASS` (2026-08-27) — **not operative**; superseded by
 the 2026-08-28 re-review above, which is the governing verdict for this plan.
 
@@ -834,6 +1000,51 @@ statements that were false or stale; none alters an executable obligation.
 Re-running plan-review would re-litigate an unchanged implementation contract and
 would consume one of the three review-fix cycles without a contract delta to
 review.
+
+### Amendment record — review-fix cycle 3 (2026-08-28, `e3b2f591`) — FINAL CYCLE
+
+A third local review of `chore/stage-156-S` at `e3b2f591` returned
+P1×2 + P2×1 + P3×3 against the **staging artifacts**. All are fixed above. **This
+is the third and final allowed review-fix cycle** (Stop Conditions: 3 review-fix
+cycles per plan). **The PASS verdict is RETAINED, not re-run**, on the same
+contract-completion test used in cycle 2:
+
+| Test | Result |
+|---|---|
+| New implementation unit added? | **No** — U1-U8 unchanged. |
+| Files created/modified changed? | **No** — still 1 registry + 13 personas + 1 manifest + ≤3 test files + 1 docstring; still **0 new templates**. |
+| Protected invariants INV-1…INV-5 changed? | **No.** |
+| Operator approvals (Q1/Q5/Q7) re-interpreted? | **No** — Q5's command is unchanged and still authoritative. Q5 governs `{{TEST_COMMAND}}` only and was never the source for `{{BUILD_CHECK_COMMAND}}`. |
+| Ship's discretion widened? | **No — strictly NARROWED again.** D9 replaces a wrong pinned value with the authoritative manifest value and forbids reading the binding from the profile; D8-D closes the exemplar allow-list at exactly three named tokens. |
+| Was the amended obligation already in the contract? | **Yes, in both P1 cases.** (P1-1) U1 already had to bind the registry's 9 placeholders correctly and INV-1 already demanded byte-identity modulo *correct* substitution; D9 fixes a wrong value and adds the assertion that makes correctness *checkable*, since resolution alone cannot distinguish a right binding from a wrong one. (P1-2) The DoD already demanded zero unresolved `{{...}}` across all 14 artifacts; D8-D's enumeration was simply **incomplete** (it named 2 of the 3 exemplar tokens), which made the obligation unsatisfiable for `constitution-reviewer`. Naming the third token completes an existing rule; it adds no new obligation. |
+| Anything new entering the product? | **No new content.** D9 changes one bound value from wrong to authoritative-existing; nothing is invented. `{{principle_number}}` is explicitly **NOT** bound to fabricated content — it is exempted as a retained exemplar, exactly like the two tokens already named. |
+| 2-hour rule weakened to fit the corrected bounds? | **No.** The corrected U6=5-files / U8=5-scenarios bounds were already the reviewed content; only the *stated* bound trailed it. The verdict rationale above now records both bounds with an explicit effort justification, and no unit's `size`/`complexity` changes. |
+
+**Findings closed this cycle:**
+
+| # | Finding | Fix |
+|---|---|---|
+| P1-1 | `{{BUILD_CHECK_COMMAND}}` bound to `pip install -e .` from profile `build.command` | **D9** binds it to the authoritative manifest value `python -m py_compile src/autoharness/cli.py`; `BUILD_COMMAND` vs `BUILD_CHECK_COMMAND` semantics separated in D9's table, RK-A, and U1; **D9-A** adds the value-level compile/red-phase assertion so a wrong binding cannot pass merely by resolving. |
+| P1-2 | `{{principle_number}}` unaccounted for in the exemplar exemption | **D8-D** rewritten as **one named rule** `EXEMPT_OUTPUT_SCHEMA_EXEMPLARS` over a **closed 3-token allow-list** (`{{file_path}}`, `{{line_number}}`, `{{principle_number}}`) scoped to fenced output-schema code blocks; propagated to 148-F DoD, 148.003-T, 148.008-T. Explicitly labeled retained exemplars, never bound to fabricated content. |
+| P2 | 148.004/005/006 zero-placeholder assertions were bare | Each now incorporates D8-D by name and cross-references the closed allow-list. |
+| P3-a | 148.004-T said "all 11 personas" | Corrected to **13**. |
+| P3-b | U8 heading said "Scenarios (4)" | Corrected to **Scenarios (5)**. |
+| P3-c | Verdict rationale said max 4 files / max 4 scenarios | Corrected to the actual reviewed bounds **U6=5 files, U8=5 scenarios**, with a 2-hour-rule justification that does not weaken the rule; the superseded 2026-08-27 paragraph is left byte-intact behind an explicit non-operative STALE-COUNT MARKER. |
+
+**Additional same-class defect found by the cycle-3 sweep and fixed here** (not
+in the reported findings, but in the swept classes "wrong binding" and "bare
+impossible zero-placeholder assertion"): the registry template carries a
+**literal `{{...}}` ellipsis meta-token at L359** inside P-013.5
+fail-closed-verification prose. A bare "zero unresolved `{{...}}`" assertion over
+the rendered registry was therefore **impossible as written** — the same defect
+class as P1-2, on the registry surface instead of the persona surface. Closed by
+**D9-B**'s named `EXEMPT_POLICY_PROSE_META_TOKEN` rule over a closed
+**1-token** allow-list.
+
+**Conclusion**: `decision: PASS` stands, unchanged. The cycle-3 fixes correct two
+wrong/incomplete pinned values and four stale counts inside an implementation
+contract whose units, files, invariants, and approvals are all unchanged. There
+is no contract delta to re-review, and the fix-cycle budget is now exhausted.
 
 ```text
 dispatch_mode: single-agent-declared-degradation
