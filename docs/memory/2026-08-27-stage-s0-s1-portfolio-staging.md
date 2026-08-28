@@ -1,5 +1,29 @@
 # Stage session — S0 + S1 portfolio staging (031-DL)
 
+> **⚠️ PARTIALLY SUPERSEDED — 2026-08-28.** Two "Decisions worth carrying forward"
+> entries below (**#2 `python-reviewer` has no template** and **#3 three persona
+> templates deliberately NOT installed**) were **FALSE** and are **NO LONGER
+> OPERATIVE**. They are retained verbatim, struck through and annotated in place,
+> because they are the record of a measurement-shape defect worth compounding —
+> not because they are true. **Authoritative correction:**
+> [`docs/memory/2026-08-28-stage-156s-blocked-review-repair.md`](2026-08-28-stage-156s-blocked-review-repair.md).
+>
+> **Corrected canonical mapping**: `python-reviewer.agent.md` is a **render
+> target**, not a missing template. Its canonical source is the **existing**
+> `templates/agents/review/technology-reviewer.agent.md.tmpl`, mapped by installed
+> `.github/skills/install-harness/SKILL.md` L1203
+> (`technology-reviewer.agent.md -> .github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md`)
+> with `PRIMARY_LANGUAGE_LOWER: "python"` bound at `.autoharness/harness-manifest.yaml`
+> L394. **No `python-reviewer.agent.md.tmpl` is authored.**
+>
+> **Corrected canonical persona set**: the Law-2 exclusion set is **EMPTY**. All 12
+> `templates/agents/review/` templates plus `learnings-researcher` install, giving
+> **13 personas / 14 installed artifacts** (was 11 / 12). `correctness-reviewer`,
+> `maintainability-reviewer`, and `technology-reviewer` are **all** accounted for:
+> the first two are "Always-on" per `install-harness/SKILL.md` L1200-L1201 and
+> gate `tune-harness` L462-L469 drift detection; the third is the *source template*
+> for `python-reviewer`, not a separate excluded identity.
+
 * **Date**: 2026-08-27
 * **Agent**: Stage (`claude-opus-5` / anthropic / high — route freshly resolved and honored)
 * **Operator authorization (verbatim)**: `Approve Q1/Q5/Q7 as recommended; stage S0, then S1.`
@@ -36,13 +60,36 @@ dispatch after S0 lands, S0 did not actually close GAP 2.**
    `PYTHONPATH=src python -m unittest discover -s tests` is bound at render time.
    `workspace-profile.yaml` still declares `pytest` — the stale side, deliberately **not**
    fixed here (it feeds `profile_hash`).
-2. **`python-reviewer` has no template anywhere in the tree.** It is cited by installed
-   skills but has no source; `language-engineer` is an implementation agent, not a
-   substitute. S0 `148.003-T` authors it, fixed-name rather than `{{PRIMARY_LANGUAGE}}`-
-   parameterized, because the skills cite the literal filename.
-3. **Three persona templates are deliberately NOT installed** (`correctness-reviewer`,
-   `maintainability-reviewer`, `technology-reviewer`) — no citing reader, Law 2. The
-   exclusion is asserted by a test so it stays intentional.
+2. ~~**`python-reviewer` has no template anywhere in the tree.** It is cited by
+   installed skills but has no source; `language-engineer` is an implementation
+   agent, not a substitute. S0 `148.003-T` authors it, fixed-name rather than
+   `{{PRIMARY_LANGUAGE}}`-parameterized, because the skills cite the literal
+   filename.~~
+   **SUPERSEDED 2026-08-28 — THIS WAS FALSE.**
+   `templates/agents/review/technology-reviewer.agent.md.tmpl` existed in-workspace
+   the entire time and is the canonical source. `python-reviewer.agent.md` is its
+   **render target** via `install-harness/SKILL.md` L1203 with
+   `PRIMARY_LANGUAGE_LOWER: "python"`. `148.003-T` (U3) was repurposed from
+   *template authoring* to *render-mapping and binding pinning*; **it authors no
+   template**, and creating `python-reviewer.agent.md.tmpl` is now explicitly
+   forbidden in this shipment. **Root cause worth compounding**: a filename search
+   cannot find a template whose render target is renamed by a mapping.
+   See `2026-08-28-stage-156s-blocked-review-repair.md`.
+3. ~~**Three persona templates are deliberately NOT installed**
+   (`correctness-reviewer`, `maintainability-reviewer`, `technology-reviewer`) —
+   no citing reader, Law 2. The exclusion is asserted by a test so it stays
+   intentional.~~
+   **SUPERSEDED 2026-08-28 — THIS WAS FALSE, and the test that would have frozen
+   it MUST NOT be written.** All three classifications were wrong:
+   `correctness-reviewer` and `maintainability-reviewer` are cited by **bare
+   filename** (`install-harness/SKILL.md` L1200-L1201 "Always-on";
+   `tune-harness/SKILL.md` L462-L469 treats their absence as real local-first
+   review drift) — a path-shaped grep structurally cannot see that citation shape.
+   `technology-reviewer` is not a separate excludable identity at all; it is the
+   source template for `python-reviewer`. **The Law-2 exclusion set is EMPTY**;
+   all **13** personas install. `148.008-T` (U8) scenario 3 is INVERTED to assert
+   reader *existence*, never absence.
+   See `2026-08-28-stage-156s-blocked-review-repair.md`.
 4. **`verify_workspace.py` contains two contradictory contracts** about
    `.github/policies/workflow-policies.md`: `_resolve_policy_registry` documents that the
    dogfood self-install *never* installs a mirror, while `DARK_FACTORY_ASSERTIONS` marks it

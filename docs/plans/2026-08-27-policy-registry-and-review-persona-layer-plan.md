@@ -14,8 +14,11 @@ status: reviewed
 
 * **Source stash**: `336F3AB7` (critical bug, age 2 days) — *"Policy registry and
   review-persona layer are cited repo-wide but were never installed."* This plan
-  is the sole downstream owner of that entry; the entry is consumed and archived
-  only after shipment verification succeeds.
+  is the sole downstream owner of that entry. **The entry was consumed and
+  archived during staging on 2026-08-28T04:14:26Z, before execution begins —
+  archival is COMPLETE, not a pending shipment step.** Ship MUST NOT attempt to
+  archive it again; a re-archive attempt will fail (`stash get 336F3AB7` already
+  returns `not found`) and is not a shipment obligation.
 * **Stash disposition traceability (reverse lineage).** `336F3AB7` was archived
   on 2026-08-28T04:14:26Z. The archived record in
   `.backlogit/archive/stash.jsonl` carries only `id`, `priority`, `kind`, `text`,
@@ -230,13 +233,95 @@ section below is itself direct evidence of GAP 2.
     `workspace-profile.yaml` `languages.primary: "python"`).
   * Enumerate `technology-reviewer.agent.md.tmpl`'s placeholders and pin each
     binding so U5's render is mechanical and reviewable.
-  * Record the corrected decision **D4** below.
+  * **Extended 2026-08-28 (P2-2)**: also pin `{{CONCURRENCY_PATTERNS}}` for
+    `concurrency-reviewer.agent.md.tmpl`, which U6 renders. U3 is now the
+    **single binding-pin unit for every synthesized persona variable in S0**,
+    regardless of which unit performs the render.
+  * Record the corrected decision **D4** below, and new decision **D8**.
+
+#### D8 — Pinned bindings for the 5 synthesized persona variables (added 2026-08-28)
+
+**The defect this closes.** Five placeholders in the S0 persona set are classed
+by installed `install-harness/SKILL.md` L329-L333 as *"Synthesized from language
+… model"* — i.e. the installer is expected to **invent** their content. A
+"mechanical render" instruction over a synthesized placeholder is a
+contradiction: Ship would either emit unresolved `{{...}}` (failing the U8
+placeholder scan and the INV-1/DoD zero-placeholder rule) or improvise
+**unreviewed persona content** into a normative review surface. Both are
+unacceptable. All five are therefore **pinned here, with a reviewed in-repo
+derivation, before any render occurs.**
+
+| # | Variable | Template | Pinned value | Derivation (reviewed, in-repo) |
+|---|---|---|---|---|
+| 1 | `{{CONCURRENCY_PATTERNS}}` | `concurrency-reviewer.agent.md.tmpl` L31 | `asyncio, task, queue, thread, process` | **Code-backed, deterministic.** `src/autoharness/verify_workspace.py` `_language_defaults("python")["concurrency_patterns"]` (L2200), wired by `variables.setdefault("CONCURRENCY_PATTERNS", language_defaults["concurrency_patterns"])` (L2885). **Not synthesized** — copied verbatim from the shipped resolver. |
+| 2 | `{{LANGUAGE_SAFETY_CHECKS}}` | `technology-reviewer.agent.md.tmpl` L21 | see D8-B below | `_language_defaults("python")` `unsafe_policy` + `lint_policy` (L2196-L2197), plus `constitution.instructions.md` §I *Safety-First Python*. |
+| 3 | `{{LANGUAGE_IDIOM_CHECKS}}` | `technology-reviewer.agent.md.tmpl` L25 | see D8-B below | `_language_defaults("python")` `naming_conventions` + `documentation_conventions` (L2199-L2200), plus `constitution.instructions.md` §I (prefer stdlib / existing project dependencies). |
+| 4 | `{{LANGUAGE_ERROR_HANDLING_CHECKS}}` | `technology-reviewer.agent.md.tmpl` L29 | see D8-B below | `_language_defaults("python")` `error_handling_policy` + `error_handling_conventions` + `error_pattern` (`raise/except`), plus `constitution.instructions.md` §I *"Explicit error handling is required; silent failures are forbidden."* |
+| 5 | `{{LANGUAGE_PERFORMANCE_CHECKS}}` | `technology-reviewer.agent.md.tmpl` L33 | see D8-B below | **Weakest derivation — see RK-J.** `_language_defaults` has **no** `performance` key, so there is no language-model source. Derived instead from `constitution.instructions.md` §X *Agent Context Efficiency* and §I (prefer the standard library and existing project dependencies). |
+
+**D8-A — Binding #1 is a copy, not a judgement.** `{{CONCURRENCY_PATTERNS}}`
+already has a shipped, reviewed resolver. Ship MUST bind the literal
+`asyncio, task, queue, thread, process` and MUST NOT re-synthesize it. If the
+value read from `_language_defaults` at execution time differs from this pin,
+that is a **hard stop** for U3 (the resolver changed under the plan), not a
+licence to improvise.
+
+**D8-B — Bindings #2-#5 are pinned to this exact reviewed content.** Each is a
+Markdown bullet list rendered verbatim into the corresponding section. This
+content is reviewed here, in the plan, so that U5's render stays mechanical:
+
+```text
+{{LANGUAGE_SAFETY_CHECKS}}
+* Prefer typed, explicit Python over dynamic shortcuts that hide failure modes.
+* Silent failures are forbidden; every failure path must be explicit and observable.
+* Prefer the standard library and existing project dependencies over new ones.
+* Lint and format failures block the change until corrected.
+
+{{LANGUAGE_IDIOM_CHECKS}}
+* Use snake_case for modules, functions, and variables; PascalCase for classes.
+* Use docstrings for public modules, classes, and functions.
+* Prefer standard-library constructs over hand-rolled equivalents.
+* Keep each module to a single responsibility.
+
+{{LANGUAGE_ERROR_HANDLING_CHECKS}}
+* Raise specific exceptions and handle them at clear boundaries.
+* Use explicit exceptions with contextual messages; avoid bare `except` blocks.
+* Do not swallow exceptions — a caught exception must be handled, re-raised, or logged with context.
+* Preserve the original error context when wrapping or re-raising.
+
+{{LANGUAGE_PERFORMANCE_CHECKS}}
+* Return minimal, targeted data; avoid bulk file reads or directory scans where a structured query suffices.
+* Prefer a structured query over directory scanning when both are available.
+* Avoid repeated I/O or re-parsing inside loops; read once and reuse.
+* Flag unbounded in-memory accumulation over workspace-sized inputs.
+```
+
+**D8-C — Technology-agnostic template discipline is preserved.** These values are
+bound at **render time into installed artifacts**; the templates
+`technology-reviewer.agent.md.tmpl` and `concurrency-reviewer.agent.md.tmpl`
+**keep their placeholders unchanged** and remain language-neutral. **No template
+file is edited by U3, U5, or U6.** Hard-coding Python content into a `.tmpl` is
+forbidden — this is the exact defect already recorded at
+`verify_workspace.py` L2172-L2180 (the generic `error_pattern` fallback comment).
+
+**D8-D — Scope of the pin.** These five are the **complete** set of unbound
+synthesized variables across the 13 S0 personas. `{{PRIMARY_LANGUAGE}}`,
+`{{PRIMARY_LANGUAGE_LOWER}}`, `{{TIER_1_FAMILY}}`, `{{TIER_1_PROVIDER}}`, and
+`{{TIER_1_REASONING_EFFORT}}` are already manifest/config-bound and need no pin.
+`{{file_path}}` and `{{line_number}}` are **JSON output-schema exemplars inside a
+fenced code block**, not render variables — they are intended to survive into the
+installed artifact literally. **U8's zero-`{{...}}` placeholder scan MUST exempt
+fenced-code-block output exemplars by a named rule, or it will false-positive on
+every persona.** (This is a distinct exemption from U8 scenario 2's route
+exemption; do not conflate the three.)
+
 * **Explicitly NOT done here**: authoring
   `templates/agents/review/python-reviewer.agent.md.tmpl`. Creating a fixed
   Python-specific duplicate of an existing generic template is forbidden in this
-  shipment.
+  shipment. Likewise, **editing any `.tmpl` to inline the D8 values is forbidden**.
 * **Tests**: the mapping is asserted by U8 scenario 2 (route resolution) and
-  scenario 3 (rendered-from-technology-reviewer provenance).
+  scenario 3 (rendered-from-technology-reviewer provenance); the D8 pins are
+  asserted by U8 scenario 5 (added 2026-08-28).
 
 ### U4 — Install the 4 always-on personas
 
@@ -255,6 +340,11 @@ section below is itself direct evidence of GAP 2.
   mapping), `security-reviewer`, `security-lens-reviewer`,
   `agent-native-parity-reviewer`.
 * **Depends on U3** (mapping pinned before the render, not template authoring).
+* **Binding contract (added 2026-08-28, P2-2)**: the `python-reviewer` render
+  MUST bind `{{LANGUAGE_SAFETY_CHECKS}}`, `{{LANGUAGE_IDIOM_CHECKS}}`,
+  `{{LANGUAGE_ERROR_HANDLING_CHECKS}}`, and `{{LANGUAGE_PERFORMANCE_CHECKS}}` to
+  the **verbatim D8-B values**. Ship MUST NOT synthesize, paraphrase, extend, or
+  reorder them, and MUST NOT emit them unresolved. Any deviation is a hard stop.
 
 ### U6 — Install the 3 domain personas and the 2 always-on personas, and record the Law-2 result
 
@@ -281,6 +371,11 @@ section below is itself direct evidence of GAP 2.
   * Law 2 ("no artifact without a named reader") is therefore **satisfied** by
     all 13 installed personas, not violated.
 * **Execution posture**: mechanical render, LF-only, no hand-patching.
+* **Binding contract (added 2026-08-28, P2-2)**: the `concurrency-reviewer`
+  render MUST bind `{{CONCURRENCY_PATTERNS}}` to the verbatim D8 pin
+  `asyncio, task, queue, thread, process`. Ship MUST NOT synthesize it and MUST
+  NOT emit it unresolved. **U6 therefore now depends on U3** — the pin must exist
+  before the render. This edge did not exist before the correction.
 
 ### U7 — Register the 13 persona artifacts and reconcile the three stale DANGLING notes
 
@@ -302,8 +397,11 @@ section below is itself direct evidence of GAP 2.
      correction.** Its `DANGLING (partial, narrowed)` note states that the
      `.github/policies/workflow-policies.md` citation *"remains dangling — the
      policy registry layer is a separate, still-open install gap tracked by stash
-     336F3AB7."* **U1 installs that exact file and this shipment archives
-     `336F3AB7`, so both halves of that sentence become false on landing.**
+     336F3AB7."* **U1 installs that exact file, and `336F3AB7` was ALREADY
+     ARCHIVED during staging (2026-08-28T04:14:26Z) — so the stash half of that
+     sentence is false as of now, and the registry half becomes false the moment
+     U1 lands.** Both halves must be reconciled. **No archive action is required
+     of Ship.**
      Leaving it is the same stale-normative-surface defect U2 fixes.
 * **Provenance is amended, never erased**: each note records the resolution AND
   retains the original gap history.
@@ -352,6 +450,27 @@ section below is itself direct evidence of GAP 2.
      * `python-reviewer.agent.md` is present and its manifest entry records
        `technology-reviewer.agent.md.tmpl` as its template source.
   4. `_resolve_policy_registry` precedence (installed-first, template-fallback).
+  5. **Pinned-binding conformance (ADDED 2026-08-28, P2-2).** For each of the five
+     D8 variables, assert the **installed** artifact contains the pinned value
+     **verbatim** and contains no residual placeholder token:
+     * `python-reviewer.agent.md` carries the D8-B `{{LANGUAGE_SAFETY_CHECKS}}`,
+       `{{LANGUAGE_IDIOM_CHECKS}}`, `{{LANGUAGE_ERROR_HANDLING_CHECKS}}`, and
+       `{{LANGUAGE_PERFORMANCE_CHECKS}}` bullet lists exactly as recorded in D8-B;
+     * `concurrency-reviewer.agent.md` carries
+       `asyncio, task, queue, thread, process`, and that string equals
+       `_language_defaults("python")["concurrency_patterns"]` read at test time
+       (**cross-check assertion** — it fails if the resolver and the pin diverge);
+     * the source templates `technology-reviewer.agent.md.tmpl` and
+       `concurrency-reviewer.agent.md.tmpl` **still contain their five
+       placeholders unmodified** (D8-C: proves no template was hard-coded).
+     This scenario is what prevents unreviewed persona content from reaching a
+     normative review surface. A render that merely "looks reasonable" fails it.
+* **Placeholder-scan exemption (ADDED 2026-08-28, D8-D)**: the zero-`{{...}}`
+  scan MUST exempt **fenced-code-block output-schema exemplars** (`{{file_path}}`,
+  `{{line_number}}`) by a named, commented rule. These are intended literal
+  content of the installed persona, not unbound variables. This is a **third,
+  distinct** exemption — do not conflate it with scenario 2's route exemption or
+  apply either to real unbound variables.
 * **Carried-forward finding (recorded, not fixed)**: `workspace-profile.yaml`
   still declares `test.runner: pytest` while Q5 names
   `PYTHONPATH=src python -m unittest discover -s tests` as authoritative. Emit
@@ -364,10 +483,13 @@ section below is itself direct evidence of GAP 2.
 U1 ──> U2                     (registry must exist before the engine's contract is reconciled)
 U1 ──> U7                     (manifest edits serialize on one file; and the L275 note cannot be
                                truthfully reconciled until U1 has installed the registry)
-U3 ──> U5                     (technology-reviewer -> python-reviewer mapping pinned before its render)
+U3 ──> U5                     (technology-reviewer -> python-reviewer mapping + D8-B bindings
+                               pinned before its render)
+U3 ──> U6                     (ADDED 2026-08-28: the D8 {{CONCURRENCY_PATTERNS}} pin must exist
+                               before concurrency-reviewer is rendered)
 U4, U5, U6 ──> U7             (all personas installed before registration)
 U2, U7 ──> U8                 (verification last)
-U4, U6                        (no inbound edge beyond U1's file serialization)
+U4                            (no inbound edge beyond U1's file serialization)
 ```
 
 Serial order: `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8`.
@@ -381,7 +503,7 @@ Serial order: `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8`.
 | D3 | Keep the template-fallback branch in `_resolve_policy_registry` | Target installs may legitimately have no mirror; deleting the branch would convert a tolerant resolution into a false failure. |
 | D4 | `python-reviewer` is **rendered from the existing `technology-reviewer` template**, not authored as a new fixed template | **Corrected 2026-08-28.** The prior D4 rested on a false premise (no template exists). `templates/agents/review/technology-reviewer.agent.md.tmpl` exists and installed `install-harness/SKILL.md` L1203 already maps it to `{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` = `python-reviewer.agent.md` here. Authoring a Python-specific duplicate would fork the canonical surface and create the drift this shipment closes. Routing generalization remains out of scope. |
 | D5 | Install **all 13** personas; the Law-2 exclusion set is **empty** | **Corrected 2026-08-28.** `technology-reviewer` is a source template, not a separate identity; `correctness-reviewer` and `maintainability-reviewer` are cited by bare filename in `install-harness` L1200-L1201 ("Always-on") and `tune-harness` L462-L469 (local-first review drift). Law 2 is satisfied by all 13. U8 scenario 3 now asserts *reader existence*, not absence. |
-| D6 | Reconcile **all three** stale DANGLING manifest notes in U7 (L255, L265, L275) | **Corrected 2026-08-28.** A note asserting a now-false condition is itself a stale normative surface. L275 was missed by the earlier revision: installing the registry (U1) and archiving `336F3AB7` falsifies both of its claims. |
+| D6 | Reconcile **all three** stale DANGLING manifest notes in U7 (L255, L265, L275) | **Corrected 2026-08-28.** A note asserting a now-false condition is itself a stale normative surface. L275 was missed by the earlier revision: installing the registry (U1) falsifies its registry claim, and `336F3AB7` **was already archived during staging (2026-08-28T04:14:26Z)**, which falsifies its stash claim as of now. Ship reconciles the note; Ship does **not** archive the stash. |
 | D7 | Do not fix `workspace-profile.yaml` in this shipment | It feeds `profile_hash`; changing it has manifest-wide blast radius disproportionate to S0's purpose. |
 
 ## Risks and Caveats
@@ -397,6 +519,8 @@ Serial order: `U1 -> U2 -> U3 -> U4 -> U5 -> U6 -> U7 -> U8`.
 | RK-G | The persona citation scan yields the literal `{{PRIMARY_LANGUAGE_LOWER}}-reviewer` token, which cannot resolve as a raw path; a naive route-resolution test either fails permanently or is silently weakened to pass | U8 scenario 2 requires an explicit, named EXPAND (preferred) or EXEMPT branch and records which was used. A silent regex miss is called out as unacceptable. |
 | RK-H | **Premise risk (realized once already).** A path-shaped grep cannot see bare-filename citations, and a template whose render target is renamed by a mapping looks "missing" under a filename search. Both produced false conclusions in the prior revision of this plan. | The audit is now cited to primary evidence with file+line (`install-harness` L1200-L1203, `tune-harness` L462-L469, `harness-manifest` L394), and U8 scenario 3 tests reader existence rather than a frozen exclusion list. |
 | RK-I | `python-reviewer.agent.md` installs from a template with a different basename (`technology-reviewer.agent.md.tmpl`); a provenance or checksum check assuming name equality misreads this as drift | U7 records the template source explicitly in the manifest entry; U8 scenario 3 asserts the mapping. |
+| RK-J | **Unbound synthesized persona content (2026-08-28, P2-2).** Five placeholders are classed by `install-harness/SKILL.md` L329-L333 as *"Synthesized from language … model"*. A "mechanical render" over a synthesized placeholder would force Ship either to emit unresolved `{{...}}` or to **improvise unreviewed persona content into a normative review surface**. `{{LANGUAGE_PERFORMANCE_CHECKS}}` is the weakest case: `_language_defaults` has **no** performance key, so no language-model source exists at all. | All five pinned verbatim in **D8/D8-B** with a reviewed in-repo derivation, before any render. U5/U6 carry an explicit verbatim-binding contract; U8 scenario 5 asserts conformance and cross-checks the concurrency pin against the live resolver. **Residual**: the #2-#5 wording is Stage-reviewed prose, not code-derived — it is authoritative *for this shipment only*, and a follow-up should add `safety/idiom/error/performance_checks` keys to `_language_defaults` so a future render derives them deterministically. Out of S0 scope (would change the resolver, blast radius beyond the persona layer). |
+| RK-K | **Superseded resolved checkpoint cannot be amended (2026-08-28, P3).** Resolved checkpoint `checkpoint-20260828-041509.json` records the pre-correction S0 state (false `python-reviewer` template premise, 11-persona set). backlogit exposes **no official amendment path for a resolved checkpoint** — `backlogit_create_checkpoint` only creates, `backlogit_resolve_checkpoint` only resolves. | **Accepted bounded residual risk.** Hand-editing tool-owned state is forbidden, so the stale checkpoint is left byte-intact. Containment: (a) it is **resolved**, so the recovery protocol's candidate scan (active-only) will never select it; (b) the superseding checkpoint names it in `supersedes_checkpoint`; (c) the correction is recorded in `docs/memory/2026-08-28-stage-156s-blocked-review-repair.md` and in this plan. **Bound**: the only exposure is an operator reading the resolved checkpoint directly and out of context. Not a gate on execution. |
 
 ## Plan Hardening Signals (REQUIRED)
 
@@ -497,8 +621,17 @@ blocking; touching `8AC574F1`'s scope.
 ### Rollback and monitoring
 
 * **Rollback order** (reverse dependency): U7 manifest entries -> U6/U5/U4
-  persona files -> U3 template -> U2 docstring -> U1 registry. Each step is a
-  file deletion or revert; no data migration, nothing irreversible.
+  persona files -> ~~U3 template~~ **U3 pinned-bindings record** -> U2 docstring
+  -> U1 registry. Each step is a file deletion or revert; no data migration,
+  nothing irreversible.
+  * **Corrected 2026-08-28 (P3):** the step formerly labelled *"U3 template"* was
+    obsolete. **U3 creates no template and writes no file** — it produces the
+    render-mapping and D8 binding pins recorded in this plan and in the closure
+    record. There is consequently **nothing to delete or revert for U3**; the step
+    is retained in the ordering only as a no-op placeholder so the reverse-dependency
+    sequence stays readable. Ship MUST NOT look for, or attempt to remove, a
+    `templates/agents/review/python-reviewer.agent.md.tmpl` during rollback —
+    it never existed and is forbidden to create.
 * **Rollback trigger**: exit-code invariance broken (INV-3), or RK-B findings
   that cannot be dispositioned as findings within this shipment.
 * **Monitoring window**: the next `verify-workspace` run and the next
@@ -554,7 +687,7 @@ evidence before re-scoring:
 |---|---|---|
 | P1 — false `python-reviewer` premise | `templates/agents/review/technology-reviewer.agent.md.tmpl` exists; `install-harness/SKILL.md` L1203 maps it to `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md`; `harness-manifest.yaml` L394 binds `python` | **Corrected** — U3 repurposed to mapping, U5 renders from the existing template, no new template authored |
 | P2.2 — missing `U7 -> U1` edge | Both units write `.autoharness/harness-manifest.yaml`; L275 depends on U1's install | **Corrected** — edge added and read back |
-| P2.3 — only 2 of 3 DANGLING notes reconciled | Manifest L275 asserts `.github/policies/workflow-policies.md` still dangling and `336F3AB7` still open; U1 installs that file and this shipment archives that stash | **Corrected** — U7 now reconciles L255, L265, L275 |
+| P2.3 — only 2 of 3 DANGLING notes reconciled | Manifest L275 asserts `.github/policies/workflow-policies.md` still dangling and `336F3AB7` still open; U1 installs that file, and that stash was already archived during staging | **Corrected** — U7 now reconciles L255, L265, L275 |
 | P2.4 — impossible raw-path assertion | Citation scan emits the literal `{{PRIMARY_LANGUAGE_LOWER}}-reviewer` token | **Corrected** — U8 scenario 2 requires a named EXPAND or EXEMPT branch |
 | P2.5 — correctness/maintainability wrongly excluded | `install-harness` L1200-L1201 ("Always-on"); `tune-harness` L462-L469 (local-first review drift) | **Corrected** — both installed in U6; exclusion set now empty |
 
@@ -675,6 +808,32 @@ the **2026-08-28 re-review** and supersede the 2026-08-27 pass.
 * **Operator approvals preserved**: Q1 (report persistence with named consumers),
   Q5 (`PYTHONPATH=src python -m unittest discover -s tests`), Q7 (S0 not waived)
 * **Status**: cleared for harvest and shipment assembly; execution remains with Ship
+
+### Amendment record — review-fix cycle 2 (2026-08-28, `f54152ec`)
+
+A second local review of `chore/stage-156-S` at `f54152ec` returned P2×2 + P3×3
+against the **staging artifacts**. Those fixes are applied above. **The PASS
+verdict is RETAINED, not re-run.** Justification that this is a *contract
+completion*, not a scope change:
+
+| Test | Result |
+|---|---|
+| New implementation unit added? | **No** — U1-U8 unchanged. |
+| Files created/modified changed? | **No** — still 1 registry + 13 personas + 1 manifest + ≤3 test files + 1 docstring; still **0 new templates**. |
+| Protected invariants INV-1…INV-5 changed? | **No.** |
+| Operator approvals (Q1/Q5/Q7) re-interpreted? | **No** — Q5's command is unchanged and still authoritative. |
+| Ship's discretion widened? | **No — strictly NARROWED.** D8 replaces "synthesize these five values" with "bind these five exact values". |
+| Was the amended obligation already in the contract? | **Yes.** The DoD and U8 already demanded **zero unresolved `{{...}}`** across all 14 installed artifacts. D8 does not add that obligation — it makes it *satisfiable* by naming what to bind. The plan previously required an outcome it gave no reviewed means of reaching; that is a gap in the contract, and D8 closes it. |
+| Anything new entering the product? | **One item, gated.** The D8-B prose becomes installed persona content. It is Stage-reviewed, derived from named in-repo reviewed sources, and gated by new U8 scenario 5 (verbatim conformance + live-resolver cross-check + template-unmodified assertion). Its residual weakness (`LANGUAGE_PERFORMANCE_CHECKS` has no code-derived source) is recorded as **RK-J**, not concealed. |
+
+The P3 fixes (obsolete U3-template rollback step, `336F3AB7` past-tense
+restatement, RK-K checkpoint residual) are documentation-accuracy corrections to
+statements that were false or stale; none alters an executable obligation.
+
+**Conclusion**: `decision: PASS` stands, unchanged, on the corrected document.
+Re-running plan-review would re-litigate an unchanged implementation contract and
+would consume one of the three review-fix cycles without a contract delta to
+review.
 
 ```text
 dispatch_mode: single-agent-declared-degradation

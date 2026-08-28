@@ -5,6 +5,9 @@ agent: stage
 session_id: "stage-2026-08-28-156S-blocked-review-repair"
 branch: "chore/stage-156-S"
 reviewed_commit: "1bafd85e65df6c3228c863cdbf6fa72561c8a115"
+amended_at: 2026-08-28
+amended_for_commit: "f54152ec"
+amendment_cycle: "review-fix cycle 2"
 shipments: ["156-S", "157-S"]
 features: ["148-F", "149-F"]
 deliberation: "031-DL"
@@ -106,11 +109,81 @@ freezing an exclusion list.
 `156-S` ships. Do **not** stage S2-S11; stash `D911A3B2` and `89E833E1` remain
 ACTIVE and own that later scope.
 
+## Review-fix cycle 2 — second local review of `f54152ec` (2026-08-28)
+
+A second local review of `chore/stage-156-S` at `f54152ec` returned **P2×2 + P3×3**
+against the staging artifacts. All in-scope findings applied; still Stage-owned S0
+staging correction (no source/template/config implementation, no build, no commit,
+no PR, no claim, Ship not invoked).
+
+| Finding | Correction |
+|---|---|
+| **P2-1** stale memory artifact | `2026-08-27-stage-s0-s1-portfolio-staging.md` amended, **not erased**: top-of-file supersession banner + both false decisions (#2 `python-reviewer` has no template, #3 three personas deliberately NOT installed) struck through and annotated in place, pointing here and stating the corrected canonical mapping and 13-persona set. |
+| **P2-2** unbound synthesized persona content | **Plan decision D8 added.** All five synthesized variables pinned with reviewed in-repo derivations *before* render. U3 (`148.003-T`) scope extended to be the **single binding-pin unit** for both templates; U5/U6 gained verbatim-binding contracts; **new `148.006-T -> 148.003-T` blocks edge**; U8 gained **scenario 5** (verbatim conformance + live-resolver cross-check + templates-unmodified) and the **D8-D fenced-code exemption**. |
+| **P3-1** obsolete `U3 template` rollback step | Relabelled to *"U3 pinned-bindings record"* with an explicit note that U3 **writes no file**, so there is nothing to roll back, and Ship must not look for a `python-reviewer.agent.md.tmpl`. |
+| **P3-2** future-tense stash archive | `336F3AB7` restated in **past tense** across plan (provenance, U7, D6, review finding table), `148-F`, and `148.007-T`: archived **2026-08-28T04:14:26Z during staging, before execution**; **Ship must not archive it again**. Reverse-lineage caveat preserved verbatim in all three places. |
+| **P3-3** unamendable superseded checkpoint | Recorded as **accepted bounded residual risk RK-K** (plan Risks table + `148-F` DoD + below). Checkpoint left byte-intact; **not hand-edited**. |
+
+### The five pinned synthesized values (D8)
+
+| Variable | Pinned value | Derivation |
+|---|---|---|
+| `{{CONCURRENCY_PATTERNS}}` | `asyncio, task, queue, thread, process` | **Code-backed.** `verify_workspace.py` `_language_defaults("python")["concurrency_patterns"]` L2200, wired L2885. Copied verbatim from the shipped resolver — *not* synthesized. |
+| `{{LANGUAGE_SAFETY_CHECKS}}` | D8-B bullet list | `_language_defaults("python")` `unsafe_policy` + `lint_policy`; `constitution.instructions.md` §I. |
+| `{{LANGUAGE_IDIOM_CHECKS}}` | D8-B bullet list | `_language_defaults("python")` `naming_conventions` + `documentation_conventions`; constitution §I. |
+| `{{LANGUAGE_ERROR_HANDLING_CHECKS}}` | D8-B bullet list | `_language_defaults("python")` `error_handling_policy` + `error_handling_conventions` + `error_pattern`; constitution §I. |
+| `{{LANGUAGE_PERFORMANCE_CHECKS}}` | D8-B bullet list | **Weakest (RK-J)** — `_language_defaults` has **no** performance key. Constitution §X + §I. |
+
+**Template discipline held**: values bind at *render time into installed artifacts*;
+both `.tmpl` files keep their placeholders unmodified (D8-C), and U8 scenario 5
+asserts that inverted polarity explicitly. Q5's authoritative test command is
+unchanged.
+
+### Why the S0 plan review was NOT re-run
+
+The PASS is **retained**. No new unit; identical file set (still **0 new
+templates**); INV-1…INV-5 untouched; Q1/Q5/Q7 unchanged. Ship's discretion is
+**narrowed**, never widened — D8 replaces *"synthesize these five values"* with
+*"bind these five exact values"*. The DoD **already** demanded zero unresolved
+`{{...}}`; the plan simply gave no reviewed means of reaching it, and D8 closes
+that contract gap. Full justification table recorded in the plan's
+**Amendment record** section.
+
+### Size/complexity after cycle 2
+
+`148.003-T` **XS -> S** (complexity held `low`) — the only estimate that moved;
+scope grew from one template's bindings to five pinned values across two
+templates, but remains analysis-and-record with no file authored. All others
+unchanged (`148.005-T` S/trivial, `148.006-T` S/trivial, `148.007-T` S/low,
+`148.008-T` M/medium). **Every task still inside the 2-hour rule; no split
+required.**
+
+### Accepted bounded residual risks
+
+* **RK-J** — the four `LANGUAGE_*_CHECKS` pins are **Stage-reviewed prose, not
+  resolver-derived**; `_language_defaults` has no performance key at all. They are
+  authoritative *for this shipment only*. Follow-up (out of S0 scope, changes the
+  resolver): add `safety/idiom/error/performance_checks` keys to
+  `_language_defaults`. U8 scenario 5 locks the shipped values against silent drift.
+* **RK-K** — resolved checkpoint `checkpoint-20260828-041509.json` records the
+  pre-correction S0 state and **has no official amendment path**
+  (`create`/`resolve` only). **Deliberately left byte-intact — not hand-edited**,
+  since hand-editing tool-owned state is forbidden. **Bounded** because: it is
+  `resolved`, and the crash-resumption candidate scan partitions on `status:
+  active`, so it can never be selected for restore; the superseding checkpoint
+  `checkpoint-20260828-064518.json` names it in `supersedes_checkpoint`; and the
+  correction is recorded here, in the plan (RK-K), and in `148-F`'s DoD. The only
+  exposure is an operator reading that resolved checkpoint directly and out of
+  context. **Not a gate on execution.**
+
 ## Tooling notes for future sessions
 
 * `backlogit_update_item`'s `description` parameter is a **whole-body replace** —
   it wipes existing `<!-- BEGIN:section -->` blocks. Set `description` first, then
   re-supply **all** sections via `sections` in a follow-up call.
+  **Cycle-2 refinement**: passing **only** `sections` (omitting `description`)
+  updates the named blocks and **preserves** both the lead paragraph and any
+  section not named — this is the safe body-editing seam.
 * `size` (with `size_source` + `size_ruleset_version`) and `complexity` are
   separate, mutually exclusive, body-preserving mutation seams.
 * Status transitions are gated: `queued -> done` is rejected; go via `active`.
