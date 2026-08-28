@@ -6,7 +6,24 @@ depth: "deep"
 date: 2026-08-27
 status: "decided"
 decision_status: "decided"
-promoted_to: "none"
+promoted_to: "partial"
+promoted_units:
+  - unit: "S0"
+    plan: "docs/plans/2026-08-27-policy-registry-and-review-persona-layer-plan.md"
+    feature: "148-F"
+    shipment: "156-S"
+    status: "queued"
+  - unit: "S1"
+    plan: "docs/plans/2026-08-27-pre-review-detector-sdk-plan.md"
+    feature: "149-F"
+    shipment: "157-S"
+    status: "queued"
+    blocked_by: "156-S"
+promotion_note: >-
+  S0 and S1 are staged (plan -> harden -> review -> harvest -> shipment).
+  S2-S11 are NOT staged; stash D911A3B2 and 89E833E1 remain ACTIVE and own that
+  later scope. Promotion metadata corrected 2026-08-28 (was promoted_to: "none",
+  which was stale once 148-F/156-S and 149-F/157-S were created).
 deliberation_id: "031-DL"
 agent: "stage"
 route: "claude-opus-5 / anthropic / high"
@@ -32,6 +49,8 @@ linked_artifacts:
   - "docs/decisions/2026-08-27-recurring-review-issues-tooling-opportunities-spike.md"
   - "docs/decisions/2026-08-25-pr-review-convergence-finding-ledger-deliberation.md"
   - "docs/decisions/2026-08-25-machine-produced-structure-determinism-and-the-surviving-dag-partition.md"
+  - "docs/plans/2026-08-27-policy-registry-and-review-persona-layer-plan.md"
+  - "docs/plans/2026-08-27-pre-review-detector-sdk-plan.md"
 tags:
   - "pre-review-evidence"
   - "fault-line-dag"
