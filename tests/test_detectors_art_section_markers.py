@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import tempfile
 import types
 import unittest
@@ -268,6 +269,135 @@ None.
             workspace = Path(tmp)
             with self.assertRaises(BacklogUnavailableError):
                 produce(self._node(), types.SimpleNamespace(workspace=workspace))
+
+    def _init_git_repo(self, workspace: Path) -> None:
+        for argv in (
+            ["git", "init", "--quiet"],
+            ["git", "config", "user.email", "test@example.com"],
+            ["git", "config", "user.name", "Test"],
+        ):
+            subprocess.run(argv, cwd=str(workspace), check=True, capture_output=True, text=True)
+
+    def _git_commit_all(self, workspace: Path, message: str) -> None:
+        subprocess.run(["git", "add", "-A"], cwd=str(workspace), check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "commit", "--quiet", "-m", message],
+            cwd=str(workspace),
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_art_01_rejects_dirty_worktree_when_head_sha_is_supplied(self) -> None:
+        # Copilot review finding (PR #420): ART-01 reads the live working
+        # tree while the report key (`detectors/report.py`) and the
+        # applicability diff (`detectors/applicability.py`) are based only
+        # on immutable base/HEAD SHAs. If the relevant paths have
+        # uncommitted changes, the evidence produced cannot be reconstructed
+        # from that HEAD later, and because report publication is
+        # append-only/no-clobber, a later clean run at the same epoch could
+        # never replace it. When the real `ApplicabilityContext.head_sha` is
+        # present, a positively-confirmed dirty git status for the relevant
+        # paths must reject the evidence as `insufficient_evidence` rather
+        # than a false `passed`/`failed`.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            self._write_workspace(
+                workspace,
+                task_body="""---
+artifact_type: task
+id: 149.006-T
+priority: medium
+status: queued
+title: Task
+---
+
+## Description
+
+<!-- BEGIN:description -->
+Valid body.
+<!-- END:description -->
+
+## Acceptance Criteria
+
+<!-- BEGIN:acceptance-criteria -->
+- one
+<!-- END:acceptance-criteria -->
+
+## Implementation Notes
+
+<!-- BEGIN:implementation-notes -->
+None.
+<!-- END:implementation-notes -->
+""",
+            )
+            self._init_git_repo(workspace)
+            self._git_commit_all(workspace, "initial commit")
+            head_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=str(workspace), check=True, capture_output=True, text=True
+            ).stdout.strip()
+            # Dirty the queue file *after* the commit -- this is the
+            # scenario the finding describes.
+            queue_dir = workspace / ".backlogit" / "queue"
+            (queue_dir / "149.006-T.md").write_text(
+                (queue_dir / "149.006-T.md").read_text(encoding="utf-8") + "\nDirty edit.\n",
+                encoding="utf-8",
+            )
+            context = types.SimpleNamespace(workspace=workspace, head_sha=head_sha)
+            evidence = produce(self._node(), context)
+            result = validate(self._node(), {self._node().node_id: evidence}, context)
+        self.assertEqual(result.status, "insufficient_evidence")
+        self.assertFalse(evidence.payload["worktree_clean"])
+        self.assertIn("uncommitted changes", result.message)
+
+    def test_art_01_passes_clean_committed_worktree_when_head_sha_is_supplied(self) -> None:
+        # Sanity companion to the dirty-worktree rejection above: a fully
+        # committed, clean working tree with `head_sha` supplied must still
+        # reach the normal `passed` verdict -- the new check must not
+        # over-reject a genuinely clean, reproducible state.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            self._write_workspace(
+                workspace,
+                task_body="""---
+artifact_type: task
+id: 149.006-T
+priority: medium
+status: queued
+title: Task
+---
+
+## Description
+
+<!-- BEGIN:description -->
+Valid body.
+<!-- END:description -->
+
+## Acceptance Criteria
+
+<!-- BEGIN:acceptance-criteria -->
+- one
+<!-- END:acceptance-criteria -->
+
+## Implementation Notes
+
+<!-- BEGIN:implementation-notes -->
+None.
+<!-- END:implementation-notes -->
+""",
+            )
+            self._init_git_repo(workspace)
+            self._git_commit_all(workspace, "initial commit")
+            head_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=str(workspace), check=True, capture_output=True, text=True
+            ).stdout.strip()
+            context = types.SimpleNamespace(workspace=workspace, head_sha=head_sha)
+            evidence = produce(self._node(), context)
+            result = validate(self._node(), {self._node().node_id: evidence}, context)
+        self.assertEqual(result.status, "passed")
+        self.assertTrue(evidence.payload["worktree_clean"])
 
 
 if __name__ == "__main__":

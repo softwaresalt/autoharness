@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import threading
 import uuid
 from dataclasses import dataclass
@@ -14,6 +15,31 @@ from pathlib import Path
 from typing import Iterable
 
 from autoharness.detectors.contract import NodeResult
+
+_COMMIT_SHA_PATTERN = re.compile(r"^[0-9a-fA-F]{4,64}$")
+
+
+class InvalidCommitShaError(ValueError):
+    """Raised when a commit SHA supplied to the report path helpers is unsafe."""
+
+
+def _validate_commit_sha(value: str, *, field: str) -> str:
+    """Reject any ``value`` that is not a plain hex commit SHA fragment.
+
+    Both public path helpers (:func:`report_path_for` and
+    :func:`emit_pre_review_report`) route through :func:`compute_epoch_key`,
+    which embeds ``head_sha`` directly into a filesystem path segment. A
+    caller (this is a public SDK surface, not only the CLI, which already
+    resolves refs through ``git rev-parse``) could otherwise supply an
+    absolute path, ``../`` traversal, or path separators and redirect the
+    report write outside ``workspace``. Validating once here, at the shared
+    epoch-key boundary, contains both downstream path helpers.
+    """
+    if not isinstance(value, str) or not _COMMIT_SHA_PATTERN.match(value):
+        raise InvalidCommitShaError(
+            f"{field} must be a hex commit SHA (4-64 hex characters); got {value!r}"
+        )
+    return value
 
 
 def _rfc3339_now() -> str:
@@ -60,6 +86,7 @@ def compute_epoch_key(
     tool_versions: dict[str, str],
     autoharness_version: str | None = None,
 ) -> tuple[str, str]:
+    head_sha = _validate_commit_sha(head_sha, field="head_sha")
     fingerprint = build_freshness_fingerprint(
         base_sha=base_sha,
         registry_version=registry_version,
@@ -205,7 +232,8 @@ def emit_pre_review_report(
         tool_versions=tool_versions,
         autoharness_version=autoharness_version,
     )
-    path = workspace / ".autoharness" / "gates" / "pre-review" / f"{epoch_key}.json"
+    workspace_resolved = workspace.resolve()
+    path = workspace_resolved / ".autoharness" / "gates" / "pre-review" / f"{epoch_key}.json"
     payload = build_report_payload(
         tuple(results),
         base_sha=base_sha,
@@ -223,6 +251,36 @@ def emit_pre_review_report(
     wrote_new = False
     publication_failed = False
     message = ""
+    # A target repository can plant `.autoharness` or `gates` as a symlink
+    # (or, on Windows, a reparse point) pointing outside `workspace`, even
+    # before the deeper `pre-review` directory exists. Because this is a
+    # report-only writer, resolve the intended publication directory --
+    # `Path.resolve()` defaults to non-strict mode, so it follows symlinks
+    # for every already-existing ancestor component and appends any
+    # not-yet-created remainder (e.g. `pre-review`) literally -- and refuse
+    # to create or open files there unless the result is still contained
+    # within `workspace_resolved`, mirroring the workspace-containment
+    # convention already used by `telemetry/tool_event.py`'s
+    # `_reject_if_escapes_workspace`.
+    resolved_parent = path.parent.resolve()
+    try:
+        resolved_parent.relative_to(workspace_resolved)
+    except ValueError:
+        return ReportEmissionResult(
+            path=path,
+            epoch_key=epoch_key,
+            fingerprint=fingerprint,
+            payload=payload,
+            payload_bytes=payload_bytes,
+            tool_versions={key: tool_versions[key] for key in sorted(tool_versions)},
+            wrote_new=False,
+            publication_failed=True,
+            message=(
+                "pre-review report publish refused: publication directory "
+                f"{path.parent} resolves outside workspace {workspace_resolved} "
+                "(symlink or reparse-point escape)"
+            ),
+        )
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with temp_path.open("xb") as handle:

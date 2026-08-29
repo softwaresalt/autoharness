@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,54 @@ _MARKER_RE = re.compile(r"<!--\s*(BEGIN|END):([a-z0-9-]+)\s*-->")
 
 def _workspace_from_context(context: Any) -> Path:
     return Path(getattr(context, "workspace", "."))
+
+
+def _relevant_worktree_clean(workspace: Path, backlog_root: Path, head_sha: str | None) -> bool:
+    """Return ``False`` only when git *positively confirms* uncommitted
+    (staged, unstaged, or untracked) changes under the ``templates/`` and
+    ``queue/`` directories beneath ``backlog_root``; return ``True``
+    otherwise, including when this check does not apply at all.
+
+    ART-01's evidence is published under a report keyed only by the
+    immutable base/HEAD SHAs (``detectors/report.py``'s epoch key,
+    ``detectors/applicability.py``'s diff), but this detector reads
+    ``path.read_text()`` straight from the live working tree. If the
+    relevant paths have uncommitted changes, a run today cannot be reliably
+    reconstructed from that HEAD later, and because report publication is
+    append-only/no-clobber (see ``emit_pre_review_report``), a later clean
+    run at the *same* epoch key could never replace it -- so a positively
+    confirmed dirty status must reject the evidence as unverifiable.
+
+    ``head_sha`` is the same value the real `gate pre-review` CLI path
+    threads through ``ApplicabilityContext`` (``detectors/applicability.py``)
+    into every producer/validator call, and is exactly the SHA the report's
+    epoch key is derived from. This check's entire premise is "does the
+    working tree match what `head_sha` implies"; when no `head_sha` is
+    supplied at all (e.g. a bare test fixture context with no epoch-key
+    concept in play), there is nothing to verify reproducibility against, so
+    the check is a no-op. When git itself is unavailable or the workspace is
+    not a git repository, there is likewise no signal of dirtiness to act
+    on, so this returns ``True`` rather than manufacturing a false positive.
+    """
+    if not head_sha:
+        return True
+    templates_dir = backlog_root / "templates"
+    queue_dir = backlog_root / "queue"
+    paths = [str(path) for path in (templates_dir, queue_dir) if path.exists()]
+    if not paths:
+        return True
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all", "--", *paths],
+            cwd=str(workspace),
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return True
+    if proc.returncode != 0:
+        return True
+    return not proc.stdout.strip()
 
 
 def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
@@ -102,6 +151,8 @@ def _inspect_declared_sections(body: str, sections: tuple[dict[str, Any], ...]) 
 def produce(node: NodeSpec, context: Any) -> Evidence:
     workspace = _workspace_from_context(context)
     backlog_root = resolve_backlog_root(workspace)
+    head_sha = getattr(context, "head_sha", None)
+    worktree_clean = _relevant_worktree_clean(workspace, backlog_root, head_sha)
     templates = _load_template_sections(backlog_root)
     artifacts = []
     for path in sorted((backlog_root / "queue").glob("*.md")):
@@ -117,12 +168,42 @@ def produce(node: NodeSpec, context: Any) -> Evidence:
                 "sections": _inspect_declared_sections(body, sections),
             }
         )
-    return Evidence(node.node_id, {"artifacts": artifacts}, provenance={"artifact_count": len(artifacts)})
+    return Evidence(
+        node.node_id,
+        {"artifacts": artifacts, "worktree_clean": worktree_clean},
+        provenance={"artifact_count": len(artifacts), "worktree_clean": worktree_clean},
+    )
 
 
 def validate(node: NodeSpec, evidence_map, _context: Any) -> NodeResult:
     evidence = evidence_map[node.node_id]
     artifacts = evidence.payload.get("artifacts", [])
+    worktree_clean = evidence.payload.get("worktree_clean", True)
+    if not worktree_clean:
+        # Git has positively confirmed uncommitted changes under the backlog
+        # templates/ or queue/ directories; reject before trusting any
+        # failures/unresolved computed below since evidence read from a
+        # dirty working tree cannot be reproduced from the immutable
+        # base/HEAD SHAs the report is keyed by.
+        return NodeResult(
+            name=node.node_id,
+            status="insufficient_evidence",
+            token="INSUFFICIENT_EVIDENCE",
+            message=(
+                "ART-01 detected uncommitted changes under the backlog templates/ "
+                "or queue/ directories; section-marker evidence is not "
+                "reproducible from the immutable HEAD SHA and cannot be verified"
+            ),
+            details={
+                "artifact_count": len(artifacts),
+                "failure_count": 0,
+                "failures": [],
+                "unresolved_count": 0,
+                "unresolved": [],
+                "worktree_clean": False,
+            },
+            provenance={"artifact_count": len(artifacts)},
+        )
     failures = []
     unresolved = []
     for artifact in artifacts:

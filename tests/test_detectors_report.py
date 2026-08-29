@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
 from autoharness.detectors.contract import NodeResult
-from autoharness.detectors.report import emit_pre_review_report, report_path_for
+from autoharness.detectors.report import (
+    InvalidCommitShaError,
+    emit_pre_review_report,
+    report_path_for,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TEMP_ROOT = _REPO_ROOT / ".test-output"
@@ -200,6 +205,75 @@ class ReportTests(unittest.TestCase):
             self.assertTrue(emission.publication_failed)
             self.assertFalse(emission.wrote_new)
             self.assertIn("pre-review report publish unavailable", emission.message)
+
+    def test_head_sha_path_traversal_is_rejected(self) -> None:
+        # Copilot review finding (PR #420): `head_sha` becomes part of a
+        # filesystem path without validation in `compute_epoch_key`, so a
+        # direct SDK caller (not only the CLI, which already resolves refs
+        # through `git rev-parse`) could supply `../` traversal or an
+        # absolute-path-like string and redirect the report write outside
+        # `workspace`. Both public path helpers route through
+        # `compute_epoch_key`, so validating there contains both.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            for unsafe_head_sha in ("../../etc/passwd", "/absolute/escape", "b" * 40 + "/../evil"):
+                with self.assertRaises(InvalidCommitShaError):
+                    report_path_for(
+                        workspace,
+                        base_sha="a" * 40,
+                        head_sha=unsafe_head_sha,
+                        registry_version="registry-v1",
+                        schema_version="1.0.0",
+                        tool_versions={"python": "3.12.10"},
+                    )
+                with self.assertRaises(InvalidCommitShaError):
+                    emit_pre_review_report(
+                        [self._result()],
+                        workspace=workspace,
+                        base_sha="a" * 40,
+                        head_sha=unsafe_head_sha,
+                        registry_version="registry-v1",
+                        schema_version="1.0.0",
+                        tool_versions={"python": "3.12.10"},
+                        touches_reviewable_paths=True,
+                        produced_at="2026-08-29T00:00:00Z",
+                    )
+            # Confirm nothing escaped workspace: only the tempdir itself exists.
+            self.assertEqual(list(workspace.iterdir()), [])
+
+    def test_publish_refuses_symlinked_publication_directory_escape(self) -> None:
+        # Copilot review finding (PR #420): the writer follows existing
+        # directories without checking their resolved location. A target
+        # repository can make `.autoharness` (or `gates`) a symlink to an
+        # external directory, causing this report-only command to create
+        # the temp and final files outside `workspace`. Resolve and
+        # validate the publication directory against `workspace.resolve()`
+        # before creating or opening files, rejecting the symlink escape.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as outside_tmp, tempfile.TemporaryDirectory(
+            dir=_TEMP_ROOT
+        ) as workspace_tmp:
+            outside = Path(outside_tmp)
+            workspace = Path(workspace_tmp)
+            os.symlink(str(outside), str(workspace / ".autoharness"), target_is_directory=True)
+
+            emission = emit_pre_review_report(
+                [self._result()],
+                workspace=workspace,
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                registry_version="registry-v1",
+                schema_version="1.0.0",
+                tool_versions={"python": "3.12.10"},
+                touches_reviewable_paths=True,
+                produced_at="2026-08-29T00:00:00Z",
+            )
+            self.assertTrue(emission.publication_failed)
+            self.assertFalse(emission.wrote_new)
+            self.assertIn("resolves outside workspace", emission.message)
+            # Nothing must have been written into the symlink target.
+            self.assertEqual(list(outside.iterdir()), [])
 
 
 if __name__ == "__main__":
