@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import unittest
 from pathlib import Path
@@ -49,6 +50,33 @@ telemetry:
   emit_jsonl: true
 """
 
+DETECTOR_CONFIG = {
+    "detectors": [
+        {
+            "node_id": "det:D-ART/ART-01@1",
+            "applies_when": {"changed_paths_any": [".backlogit/**"]},
+            "producer": {
+                "kind": "pure",
+                "ref": "autoharness.detectors.art.section_markers:produce",
+                "tool_version_dims": ["python"],
+            },
+            "validator": {
+                "ref": "autoharness.detectors.art.section_markers:validate",
+                "consumes": ["det:D-ART/ART-01@1#evidence"],
+            },
+            "depends_on": [],
+            "severity": "medium",
+            "mode": "report_only",
+            "remediation": {
+                "class": "guided_fix",
+                "hint": "Restore required section markers.",
+                "target_refs": ["path:.backlogit/templates/task.md"],
+                "authority": "stage",
+            },
+        }
+    ]
+}
+
 
 class ValidationGatesSchemaTests(unittest.TestCase):
     def test_schema_validates_design_doc_section5_example_verbatim(self) -> None:
@@ -56,6 +84,28 @@ class ValidationGatesSchemaTests(unittest.TestCase):
         instance = yaml.safe_load(DESIGN_DOC_SECTION5)
         errors = sorted(validator.iter_errors(instance), key=str)
         self.assertEqual(errors, [], msg=f"unexpected schema errors: {[e.message for e in errors]}")
+
+    def test_schema_validates_detector_block_against_versioned_schema(self) -> None:
+        validator = _load_validator()
+        self.assertTrue(validator.is_valid(DETECTOR_CONFIG))
+
+    def test_schema_rejects_detector_mode_blocking(self) -> None:
+        validator = _load_validator()
+        instance = copy.deepcopy(DETECTOR_CONFIG)
+        instance["detectors"][0]["mode"] = "blocking"
+        self.assertFalse(validator.is_valid(instance))
+
+    def test_schema_rejects_unknown_detector_key(self) -> None:
+        validator = _load_validator()
+        instance = copy.deepcopy(DETECTOR_CONFIG)
+        instance["detectors"][0]["unexpected"] = True
+        self.assertFalse(validator.is_valid(instance))
+
+    def test_schema_rejects_malformed_detector_node_id(self) -> None:
+        validator = _load_validator()
+        instance = copy.deepcopy(DETECTOR_CONFIG)
+        instance["detectors"][0]["node_id"] = "detector-art-01"
+        self.assertFalse(validator.is_valid(instance))
 
     def test_schema_rejects_unknown_placeholder(self) -> None:
         validator = _load_validator()
@@ -91,6 +141,7 @@ class ValidationGatesSchemaTests(unittest.TestCase):
         # An empty document and a telemetry-only document must both validate.
         self.assertTrue(validator.is_valid({}))
         self.assertTrue(validator.is_valid({"telemetry": {"mode": "none"}}))
+        self.assertTrue(validator.is_valid({"detectors": []}))
         # Emptied (null) blocks are the kill-switch and must validate too.
         self.assertTrue(validator.is_valid({"lifecycle_hooks": None}))
         self.assertTrue(validator.is_valid({"telemetry": None}))
