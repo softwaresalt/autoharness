@@ -515,6 +515,7 @@ def _gate_pre_review_command(rest: list[str]) -> None:
 
     from autoharness.detectors.applicability import ApplicabilityContextError, build_applicability_context, context_failure_results
     from autoharness.detectors.assembler import assemble_detector_results
+    from autoharness.detectors.contract import status_exit_code
     from autoharness.detectors.registry import DetectorRegistryError, load_detector_registry_from_workspace
     from autoharness.detectors.report import emit_pre_review_report, resolve_tool_versions
     from autoharness.gates.discovery import resolve_commit_ref
@@ -559,7 +560,7 @@ def _gate_pre_review_command(rest: list[str]) -> None:
         touches_reviewable_paths = False
         assembly = None
 
-    if assembly is not None and assembly.invalid:
+    if assembly is not None and assembly.cycle_nodes:
         payload = _pre_review_payload(
             exit_code=2,
             results=(),
@@ -591,8 +592,15 @@ def _gate_pre_review_command(rest: list[str]) -> None:
         relative_report_path = str(emission.path.relative_to(workspace.resolve())).replace('\\', '/')
     except Exception:
         relative_report_path = str(emission.path).replace('\\', '/')
+    # Aggregate the CLI's own exit code from the canonical per-result
+    # status-to-exit-code mapping (`status_exit_code`) rather than hardcoding
+    # success: a detector that legitimately (or due to an SDK contract
+    # violation caught by the assembler) returns status "invalid" must still
+    # surface as a non-zero pre-review outcome, not a silently reported
+    # success.
+    overall_exit_code = 2 if any(status_exit_code(result.status) != 0 for result in results) else 0
     payload = _pre_review_payload(
-        exit_code=0,
+        exit_code=overall_exit_code,
         results=[result.to_dict() for result in results],
         report_path=relative_report_path if emission.path.exists() else None,
         message=emission.message or "pre-review analysis complete",
@@ -607,6 +615,8 @@ def _gate_pre_review_command(rest: list[str]) -> None:
     for index, result in enumerate(results):
         payload["results"][index]["provenance"] = emission.payload[index]["provenance"]
     print(json.dumps(payload, indent=2) if parsed["emit_json"] else _format_pre_review_payload(payload))
+    if overall_exit_code != 0:
+        sys.exit(overall_exit_code)
 
 
 def _parse_gate_size_args(args: list[str]) -> dict:

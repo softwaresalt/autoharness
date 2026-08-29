@@ -287,5 +287,62 @@ class PreReviewCliTests(unittest.TestCase):
             self.assertFalse((workspace / ".autoharness" / "gates" / "pre-review").exists())
 
 
+    def test_pre_review_exit_code_reflects_invalid_node_result_not_hardcoded_zero(self) -> None:
+        # A detector can legitimately return status "invalid"
+        # (`status_exit_code("invalid") == 2`); the CLI previously hard-coded
+        # `exit_code=0` for the success/report-emission path regardless of
+        # individual node statuses, silently reporting success. Patch the
+        # assembler boundary (rather than fabricating a real detector ref
+        # that returns "invalid") to exercise the CLI's own aggregation
+        # logic in isolation.
+        from unittest import mock
+
+        from autoharness.detectors.assembler import DetectorAssemblyResult
+        from autoharness.detectors.contract import NodeResult
+
+        config_text = textwrap.dedent(
+            """\
+            detectors:
+              - node_id: "det:D-ART/ART-01@1"
+                applies_when: { always: true }
+                producer:
+                  kind: "pure"
+                  ref: "autoharness.detectors.art.section_markers:produce"
+                validator:
+                  ref: "autoharness.detectors.art.section_markers:validate"
+                depends_on: []
+                severity: "medium"
+                mode: "report_only"
+                remediation:
+                  class: "guided_fix"
+                  authority: "stage"
+            """
+        )
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            self._write_common_workspace(workspace, config_text=config_text)
+            (workspace / ".backlogit" / "queue" / "149.006-T.md").write_text(self._valid_task(), encoding="utf-8")
+            base_sha = self._init_repo(workspace)
+
+            fake_result = NodeResult(
+                name="det:D-ART/ART-01@1", status="invalid", token="INVALID", message="contract violation"
+            )
+            fake_assembly = DetectorAssemblyResult(
+                results=(fake_result,), exit_code=2, cycle_nodes=(), evaluated_count=1, evaluation_order=("det:D-ART/ART-01@1",)
+            )
+            with chdir(workspace):
+                with mock.patch(
+                    "autoharness.detectors.assembler.assemble_detector_results", return_value=fake_assembly
+                ):
+                    out, err, code = _run("gate", "pre-review", "--base", base_sha, "--json")
+
+            self.assertEqual(err, "")
+            self.assertEqual(code, 2)
+            payload = json.loads(out)
+            self.assertEqual(payload["exit_code"], 2)
+            self.assertEqual(payload["results"][0]["status"], "invalid")
+
+
 if __name__ == "__main__":
     unittest.main()

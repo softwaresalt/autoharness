@@ -8,6 +8,7 @@ from typing import Any
 
 import yaml
 
+from autoharness.backlog_root import resolve_backlog_root
 from autoharness.detectors.contract import Evidence, NodeResult, NodeSpec
 
 _MARKER_RE = re.compile(r"<!--\s*(BEGIN|END):([a-z0-9-]+)\s*-->")
@@ -27,9 +28,9 @@ def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return data if isinstance(data, dict) else {}, text[match.end() :]
 
 
-def _load_template_sections(workspace: Path) -> dict[str, tuple[dict[str, Any], ...]]:
+def _load_template_sections(backlog_root: Path) -> dict[str, tuple[dict[str, Any], ...]]:
     templates: dict[str, tuple[dict[str, Any], ...]] = {}
-    for path in sorted((workspace / ".backlogit" / "templates").glob("*.md")):
+    for path in sorted((backlog_root / "templates").glob("*.md")):
         frontmatter, _body = _split_frontmatter(path.read_text(encoding="utf-8"))
         artifact_type = frontmatter.get("type")
         raw_sections = frontmatter.get("sections")
@@ -42,6 +43,7 @@ def _load_template_sections(workspace: Path) -> dict[str, tuple[dict[str, Any], 
             sections.append({"name": section["name"], "required": bool(section.get("required", False))})
         templates[artifact_type] = tuple(sections)
     return templates
+
 
 
 def _inspect_declared_sections(body: str, sections: tuple[dict[str, Any], ...]) -> dict[str, dict[str, Any]]:
@@ -99,9 +101,10 @@ def _inspect_declared_sections(body: str, sections: tuple[dict[str, Any], ...]) 
 
 def produce(node: NodeSpec, context: Any) -> Evidence:
     workspace = _workspace_from_context(context)
-    templates = _load_template_sections(workspace)
+    backlog_root = resolve_backlog_root(workspace)
+    templates = _load_template_sections(backlog_root)
     artifacts = []
-    for path in sorted((workspace / ".backlogit" / "queue").glob("*.md")):
+    for path in sorted((backlog_root / "queue").glob("*.md")):
         frontmatter, body = _split_frontmatter(path.read_text(encoding="utf-8"))
         artifact_type = frontmatter.get("artifact_type")
         type_resolved = isinstance(artifact_type, str) and artifact_type in templates

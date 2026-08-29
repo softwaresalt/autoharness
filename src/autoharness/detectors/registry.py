@@ -181,7 +181,19 @@ def load_detector_registry_from_workspace(
     if not config_path.exists():
         return DetectorRegistry()
     try:
-        config_data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+        config_text = config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise DetectorRegistryError(f"Invalid detector registry: config.yaml is unreadable: {exc}") from exc
+    try:
+        # Do NOT coerce with `or {}`: that would silently convert *any*
+        # falsey non-mapping YAML document (`[]`, `false`, `0`, `""`) into an
+        # empty registry before `load_detector_registry` ever gets a chance
+        # to reject it as malformed. Only a genuine YAML `null` document is
+        # an intentionally-empty config; `load_detector_registry` already
+        # handles `None` (zero nodes) and fails closed on every other
+        # non-mapping type -- pass the parsed value through unmodified so
+        # that single, already-tested fail-closed path is authoritative.
+        config_data = yaml.safe_load(config_text)
     except yaml.YAMLError as exc:
         raise DetectorRegistryError(f"Invalid detector registry: config.yaml is malformed YAML: {exc}") from exc
     return load_detector_registry(config_data, autoharness_home)

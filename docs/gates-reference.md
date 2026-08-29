@@ -257,8 +257,8 @@ schema version, or resolved tool versions change).
 
 | Code | Meaning |
 |---|---|
-| `0` | Registry loaded and evaluated (including when individual detector nodes report `failed` — pre-review is report-only and never blocks). |
-| `2` | Invalid detector registry (malformed config, unknown ref, cycle, disallowed `producer.kind`/`mode`), or an unresolvable/option-like `--base`/head ref. |
+| `0` | Registry loaded and evaluated (including when individual detector nodes report `failed` — pre-review is report-only and never blocks on a normal finding). |
+| `2` | Invalid detector registry (malformed config, unknown ref, cycle, disallowed `producer.kind`/`mode`), an unresolvable/option-like `--base`/head ref, or any evaluated node reporting `status: "invalid"` (a detector-implementation SDK contract violation — e.g. a validator returning something other than a `NodeResult` — distinct from a normal report-only `failed`/`insufficient_evidence` finding). |
 
 Codes `1` and `3` are never emitted by this command; any occurrence is a
 regression.

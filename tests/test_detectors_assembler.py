@@ -134,6 +134,46 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(downstream_view, {"det:D-ART/ART-03@1", "det:D-ART/ART-01@1"})
         self.assertNotIn("det:D-ART/ART-02@1", downstream_view)
 
+    def test_exit_code_reflects_a_node_result_status_of_invalid(self) -> None:
+        # `status_exit_code("invalid") == 2`, but the assembler previously
+        # hard-coded `exit_code=0` regardless of individual node statuses --
+        # a legitimately-returned `status="invalid"` result was silently
+        # reported as an overall success. The exit code must now be derived
+        # from the canonical per-result mapping.
+        invalid_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(
+                name=node.node_id, status="invalid", token="INVALID", message="bad input"
+            ),
+        )
+        result = assemble_detector_results((invalid_node,), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertEqual(result.exit_code, 2)
+        self.assertFalse(result.cycle_nodes)
+
+    def test_validator_returning_non_node_result_is_converted_to_invalid_not_crashed(self) -> None:
+        # The validator SDK contract requires a `NodeResult`. A detector
+        # implementation bug that instead returns `None` (or any other type)
+        # must never crash serialization/downstream dependency handling --
+        # it is converted to a synthesized `status="invalid"` NodeResult, and
+        # the overall exit code reflects that failure.
+        malformed_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: None,
+        )
+        downstream = self._node(
+            "det:D-ART/ART-02@1",
+            depends_on=("det:D-ART/ART-01@1",),
+        )
+        result = assemble_detector_results((malformed_node, downstream), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIsInstance(result.results[0], NodeResult)
+        self.assertIn("NoneType", result.results[0].message)
+        # The malformed result is still treated as blocking for downstream
+        # dependents, exactly like any other non-clean upstream status.
+        self.assertEqual(result.results[1].status, "blocked_upstream")
+        self.assertEqual(result.exit_code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

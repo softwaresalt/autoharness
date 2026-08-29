@@ -204,6 +204,71 @@ Body.
         self.assertEqual(result.status, "insufficient_evidence")
         self.assertEqual(result.details["unresolved_count"], 1)
 
+    def test_art_01_uses_shared_backlog_root_resolver_for_dot_backlog_default(self) -> None:
+        # backlogit now defaults to `.backlog/` (with `.backlogit` remaining
+        # supported); ART-01 must resolve the actual backlog root via the
+        # shared resolver rather than hardcoding `.backlogit`, or it would
+        # scan an absent tree and falsely report "passed" with zero
+        # artifacts in a `.backlog/`-only workspace.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            templates_dir = workspace / ".backlog" / "templates"
+            queue_dir = workspace / ".backlog" / "queue"
+            templates_dir.mkdir(parents=True, exist_ok=True)
+            queue_dir.mkdir(parents=True, exist_ok=True)
+            for name in ("task.md", "shipment.md"):
+                source = _REPO_ROOT / ".backlogit" / "templates" / name
+                (templates_dir / name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+            (queue_dir / "149.006-T.md").write_text(
+                """---
+artifact_type: task
+id: 149.006-T
+priority: medium
+status: queued
+title: Task
+---
+
+## Description
+
+<!-- BEGIN:description -->
+Valid body.
+<!-- END:description -->
+
+## Acceptance Criteria
+
+<!-- BEGIN:acceptance-criteria -->
+- one
+<!-- END:acceptance-criteria -->
+
+## Implementation Notes
+
+<!-- BEGIN:implementation-notes -->
+None.
+<!-- END:implementation-notes -->
+""",
+                encoding="utf-8",
+            )
+            evidence = produce(self._node(), types.SimpleNamespace(workspace=workspace))
+            result = validate(self._node(), {self._node().node_id: evidence}, types.SimpleNamespace(workspace=workspace))
+        self.assertEqual(result.status, "passed")
+        self.assertEqual(result.details["artifact_count"], 1)
+        self.assertEqual(result.details["failure_count"], 0)
+
+    def test_art_01_raises_when_no_backlog_root_is_present(self) -> None:
+        # Absent both `.backlog` and `.backlogit`, ART-01 must not silently
+        # report "passed" with zero artifacts (that would look identical to
+        # a clean, checked workspace) -- it must propagate the shared
+        # resolver's failure so the assembler converts it to
+        # `insufficient_evidence`.
+        from autoharness.backlog_root import BacklogUnavailableError
+
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            with self.assertRaises(BacklogUnavailableError):
+                produce(self._node(), types.SimpleNamespace(workspace=workspace))
+
 
 if __name__ == "__main__":
     unittest.main()

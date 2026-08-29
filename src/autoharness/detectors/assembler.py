@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import Any
 
 from autoharness.detectors.applicability import evaluate_node_applicability
-from autoharness.detectors.contract import Evidence, NodeResult, NodeSpec, topological_order_or_cycle
+from autoharness.detectors.contract import Evidence, NodeResult, NodeSpec, status_exit_code, topological_order_or_cycle
 
 _BLOCKING_UPSTREAM_STATUSES = frozenset({
     "failed",
@@ -91,6 +91,24 @@ def assemble_detector_results(
                     if consumed in evidence_map:
                         visible_evidence[consumed] = evidence_map[consumed]
                 result = node.validator.handler(node, MappingProxyType(visible_evidence), context)
+                if not isinstance(result, NodeResult):
+                    # The validator SDK contract requires a `NodeResult`. A
+                    # detector implementation that returns `None` or any other
+                    # type would otherwise crash later during serialization or
+                    # downstream dependency-status handling; treat this as a
+                    # hard SDK contract violation (status "invalid", the same
+                    # status a detector can legitimately return for its own
+                    # invalid-input findings) rather than letting it propagate
+                    # as an uncaught exception.
+                    result = NodeResult(
+                        name=node.node_id,
+                        status="invalid",
+                        token="INVALID",
+                        message=(
+                            f"validator for {node.node_id} returned {type(result).__name__!r} "
+                            "instead of a NodeResult"
+                        ),
+                    )
             except Exception as exc:
                 result = NodeResult(
                     name=node.node_id,
@@ -104,7 +122,7 @@ def assemble_detector_results(
 
     return DetectorAssemblyResult(
         results=tuple(results),
-        exit_code=0,
+        exit_code=2 if any(status_exit_code(result.status) != 0 for result in results) else 0,
         cycle_nodes=(),
         evaluated_count=evaluated_count,
         evaluation_order=ordered_ids,

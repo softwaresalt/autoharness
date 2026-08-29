@@ -89,6 +89,49 @@ class RegistryLoaderTests(unittest.TestCase):
             with self.assertRaises(DetectorRegistryError):
                 load_detector_registry_from_workspace(workspace, _REPO_ROOT)
 
+    def test_from_workspace_raises_detector_registry_error_on_falsey_non_mapping_yaml(self) -> None:
+        # `yaml.safe_load(...) or {}` would silently coerce any *falsey*
+        # non-mapping document (empty list, `false`, `0`, empty string) into
+        # an empty registry before `load_detector_registry` could reject it.
+        # Only a genuine YAML `null` document is intentionally empty.
+        for falsey_yaml in ("[]\n", "false\n", "0\n", '""\n'):
+            with self.subTest(falsey_yaml=falsey_yaml):
+                _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+                with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+                    workspace = Path(tmp)
+                    config_dir = workspace / ".autoharness"
+                    config_dir.mkdir(parents=True, exist_ok=True)
+                    (config_dir / "config.yaml").write_text(falsey_yaml, encoding="utf-8")
+                    with self.assertRaises(DetectorRegistryError):
+                        load_detector_registry_from_workspace(workspace, _REPO_ROOT)
+
+    def test_from_workspace_yields_zero_nodes_on_yaml_null(self) -> None:
+        # A genuine YAML `null` document (e.g. a fully empty/whitespace-only
+        # file) is the one legitimately-empty case and must still succeed.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            config_dir = workspace / ".autoharness"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "config.yaml").write_text("", encoding="utf-8")
+            registry = load_detector_registry_from_workspace(workspace, _REPO_ROOT)
+            self.assertEqual(registry.nodes, ())
+            self.assertEqual(registry.exit_code, 0)
+
+    def test_from_workspace_raises_detector_registry_error_on_undecodable_bytes(self) -> None:
+        # An unreadable/undecodable config.yaml (e.g. invalid UTF-8) must
+        # follow the same documented exit-2 `DetectorRegistryError` path as
+        # a malformed-YAML config, not escape as an uncaught exception that
+        # the CLI's `except DetectorRegistryError` would fail to catch.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            config_dir = workspace / ".autoharness"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "config.yaml").write_bytes(b"\xff\xfe\x00\x01not valid utf-8")
+            with self.assertRaises(DetectorRegistryError):
+                load_detector_registry_from_workspace(workspace, _REPO_ROOT)
+
     def test_valid_registry_loads_node_specs(self) -> None:
         registry = self._load(copy.deepcopy(VALID_CONFIG))
         self.assertEqual(registry.exit_code, 0)
