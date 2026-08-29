@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from autoharness.gates.config import GatesConfig
-from autoharness.gates.discovery import discover_modified_files
+from autoharness.gates.discovery import InvalidGitRefError, discover_modified_files, resolve_commit_ref
 from autoharness.gates.match import filter_matching
 from autoharness.gates.runner import GateResult, run_gate
 
@@ -74,8 +74,16 @@ def check(
     """Discover modified files then run gates. No gates ⇒ empty (passing) report."""
     if not config.enabled or not config.validation_gates:
         return GateCheckReport()
+
+    resolved_base = resolve_commit_ref(base, cwd=cwd)
+    if resolved_base is None:
+        raise InvalidGitRefError(f"Unable to resolve git ref safely: {base!r}")
+    resolved_head = resolve_commit_ref(head, cwd=cwd)
+    if resolved_head is None:
+        raise InvalidGitRefError(f"Unable to resolve git ref safely: {head!r}")
+
     discover_fn = discover or discover_modified_files
-    files = discover_fn(base, head, cwd=cwd)
+    files = discover_fn(resolved_base, resolved_head, cwd=cwd)
     return run_gates(
         config,
         files,

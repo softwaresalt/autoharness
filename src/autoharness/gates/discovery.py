@@ -8,6 +8,7 @@ unavailable or the working directory is not a git repository — it never raises
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 from pathlib import Path
 from typing import Callable
@@ -16,6 +17,13 @@ logger = logging.getLogger("autoharness.gates.discovery")
 
 # A runner takes an argv list + cwd and returns (returncode, stdout, stderr).
 Runner = Callable[[list[str], "Path | None"], "tuple[int, str, str]"]
+_FULL_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+
+
+class InvalidGitRefError(ValueError):
+    """Raised when a ref is unsafe or not a validated full commit SHA."""
+
+    exit_code = 2
 
 
 def _default_runner(argv: list[str], cwd: Path | None) -> tuple[int, str, str]:
@@ -26,6 +34,39 @@ def _default_runner(argv: list[str], cwd: Path | None) -> tuple[int, str, str]:
         text=True,
     )
     return proc.returncode, proc.stdout, proc.stderr
+
+
+def _is_full_sha(value: str) -> bool:
+    return bool(_FULL_SHA_PATTERN.fullmatch(value))
+
+
+def resolve_commit_ref(
+    ref: str,
+    *,
+    cwd: Path | None = None,
+    runner: Runner | None = None,
+) -> str | None:
+    """Resolve ``ref`` to a validated 40-char commit SHA, or ``None``.
+
+    Uses ``git rev-parse --verify --end-of-options <ref>^{commit}`` so an
+    option-like ref is never reinterpreted as a flag.
+    """
+    run = runner or _default_runner
+    argv = ["git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"]
+    try:
+        returncode, stdout, _stderr = run(argv, cwd)
+    except FileNotFoundError:
+        logger.warning("git executable not found; unable to resolve commit ref %r.", ref)
+        return None
+    except OSError as exc:  # pragma: no cover - defensive
+        logger.warning("git rev-parse failed to execute for %r (%s).", ref, exc)
+        return None
+
+    if returncode != 0:
+        return None
+
+    resolved = stdout.strip()
+    return resolved if _is_full_sha(resolved) else None
 
 
 def parse_diff_output(text: str) -> list[str]:
@@ -54,11 +95,15 @@ def discover_modified_files(
 ) -> list[str]:
     """Return repo-relative, forward-slash paths modified between base and head.
 
-    Returns an empty list (and logs a warning) when git is unavailable or the
-    directory is not a repository. Never raises.
+    ``base`` and ``head`` must already be validated full hex SHAs. Returns an
+    empty list (and logs a warning) when git is unavailable or the directory is
+    not a repository. Never raises for git-execution failures.
     """
+    if not _is_full_sha(base) or not _is_full_sha(head):
+        raise InvalidGitRefError("discover_modified_files requires validated 40-char hex SHAs")
+
     run = runner or _default_runner
-    argv = ["git", "diff", "--name-only", f"{base}...{head}"]
+    argv = ["git", "diff", "--name-only", "--end-of-options", f"{base}...{head}", "--"]
     try:
         returncode, stdout, stderr = run(argv, cwd)
     except FileNotFoundError:

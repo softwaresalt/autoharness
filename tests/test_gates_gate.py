@@ -8,15 +8,21 @@ no-match / all-pass exit semantics, and the Plan Review P2-2 requirement that
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from autoharness.gates import gate as gate_mod
 from autoharness.gates.config import GatePolicy, GatesConfig, LifecycleHooks, ValidationGate
+from autoharness.gates.discovery import InvalidGitRefError
 from autoharness.gates.runner import GateResult
 
 GATES_DIR = Path(__file__).resolve().parents[1] / "src" / "autoharness" / "gates"
 FORBIDDEN_IMPORTS = ("verify_workspace", "schema_contracts", "install", "tune")
+_BASE_SHA = "a" * 40
+_HEAD_SHA = "b" * 40
+_TEMP_ROOT = Path(__file__).resolve().parents[1] / ".test-output"
 
 
 def _config(*gates: ValidationGate) -> GatesConfig:
@@ -95,17 +101,43 @@ class GatePipelineTests(unittest.TestCase):
             captured["head"] = head
             return ["docs/x.md"]
 
-        report = gate_mod.check(
-            _config(_gate()),
-            base="main",
-            head="HEAD",
-            discover=fake_discover,
-            run_fn=_make_run_fn(set()),
-            case_sensitive=True,
-        )
-        self.assertEqual(captured["base"], "main")
+        def fake_resolve(ref: str, *, cwd=None, runner=None):
+            return {"main": _BASE_SHA, "HEAD": _HEAD_SHA}[ref]
+
+        with mock.patch.object(gate_mod, "resolve_commit_ref", side_effect=fake_resolve):
+            report = gate_mod.check(
+                _config(_gate()),
+                base="main",
+                head="HEAD",
+                discover=fake_discover,
+                run_fn=_make_run_fn(set()),
+                case_sensitive=True,
+            )
+        self.assertEqual(captured["base"], _BASE_SHA)
+        self.assertEqual(captured["head"], _HEAD_SHA)
         self.assertEqual(report.matched_files, ("docs/x.md",))
         self.assertFalse(report.blocked)
+
+    def test_check_rejects_invalid_base_without_discovery(self) -> None:
+        called = False
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            output_path = Path(tmp) / "would-not-exist.txt"
+
+            def fake_discover(base, head, *, cwd=None):
+                nonlocal called
+                called = True
+                return []
+
+            with self.assertRaises(InvalidGitRefError) as ctx:
+                gate_mod.check(
+                    _config(_gate()),
+                    base=f"--output={output_path}",
+                    discover=fake_discover,
+                )
+        self.assertEqual(ctx.exception.exit_code, 2)
+        self.assertFalse(called)
+        self.assertFalse(output_path.exists())
 
     def test_results_are_gate_result_instances(self) -> None:
         report = gate_mod.run_gates(
