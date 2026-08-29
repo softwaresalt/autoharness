@@ -174,6 +174,58 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(result.results[1].status, "blocked_upstream")
         self.assertEqual(result.exit_code, 2)
 
+    def test_producer_returning_non_evidence_is_converted_to_invalid_without_calling_validator(self) -> None:
+        # Copilot review finding (PR #420): the producer output was stored
+        # without enforcing the declared `Evidence` contract. A producer
+        # that returns `None`, another type, or `Evidence` for a different
+        # node must never reach the validator (where it could even yield a
+        # false `passed`) -- it must be converted to a synthesized
+        # `status="invalid"` NodeResult, exactly like malformed validator
+        # output is already handled.
+        validator_calls = []
+
+        def recording_validate(node, _evidence_map, _context):
+            validator_calls.append(node.node_id)
+            return NodeResult(name=node.node_id, status="passed")
+
+        malformed_node = self._node(
+            "det:D-ART/ART-01@1",
+            produce=lambda node, _context: None,
+            validate=recording_validate,
+        )
+        downstream = self._node(
+            "det:D-ART/ART-02@1",
+            depends_on=("det:D-ART/ART-01@1",),
+        )
+        result = assemble_detector_results((malformed_node, downstream), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIn("NoneType", result.results[0].message)
+        self.assertEqual(validator_calls, [], "the validator must never be called with untrustworthy evidence")
+        self.assertEqual(result.results[1].status, "blocked_upstream")
+        self.assertEqual(result.exit_code, 2)
+
+    def test_producer_returning_evidence_for_wrong_node_is_converted_to_invalid(self) -> None:
+        # A producer returning `Evidence` addressed to a *different* node_id
+        # (e.g. a copy-paste bug) must be rejected the same way as a
+        # completely wrong type -- the node_id mismatch is itself an SDK
+        # contract violation, not merely an unusual-but-valid payload.
+        validator_calls = []
+
+        def recording_validate(node, _evidence_map, _context):
+            validator_calls.append(node.node_id)
+            return NodeResult(name=node.node_id, status="passed")
+
+        mismatched_node = self._node(
+            "det:D-ART/ART-01@1",
+            produce=lambda node, _context: Evidence("det:D-ART/ART-99@1", {"node": "wrong"}),
+            validate=recording_validate,
+        )
+        result = assemble_detector_results((mismatched_node,), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIn("ART-99", result.results[0].message)
+        self.assertEqual(validator_calls, [])
+        self.assertEqual(result.exit_code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

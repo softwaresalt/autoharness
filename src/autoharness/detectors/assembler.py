@@ -76,39 +76,64 @@ def assemble_detector_results(
                 if node.producer.handler is None:
                     raise RuntimeError("producer handler is unavailable")
                 evidence = node.producer.handler(node, context)
-                evidence_map[node_id] = evidence
-                if node.validator.handler is None:
-                    raise RuntimeError("validator handler is unavailable")
-                # The validator always sees its own node's just-produced evidence,
-                # plus exactly the sibling evidence it declared via `consumes` (the
-                # registry loader enforces `consumes ⊆ depends_on`, so every
-                # declared sibling is guaranteed to already be in evidence_map with
-                # a non-blocking status by this point). Never expose the entire
-                # accumulated evidence_map: an undeclared sibling must not be
-                # silently visible just because it happens to sort earlier.
-                visible_evidence = {node_id: evidence}
-                for consumed in node.validator.consumes:
-                    if consumed in evidence_map:
-                        visible_evidence[consumed] = evidence_map[consumed]
-                result = node.validator.handler(node, MappingProxyType(visible_evidence), context)
-                if not isinstance(result, NodeResult):
-                    # The validator SDK contract requires a `NodeResult`. A
-                    # detector implementation that returns `None` or any other
-                    # type would otherwise crash later during serialization or
-                    # downstream dependency-status handling; treat this as a
-                    # hard SDK contract violation (status "invalid", the same
-                    # status a detector can legitimately return for its own
-                    # invalid-input findings) rather than letting it propagate
-                    # as an uncaught exception.
+                if not isinstance(evidence, Evidence) or evidence.node_id != node.node_id:
+                    # The producer SDK contract requires an `Evidence` for
+                    # this exact node. A producer that returns `None`,
+                    # another type, or `Evidence` addressed to a different
+                    # node could otherwise still reach a validator -- and
+                    # even yield a `passed` result -- despite an SDK
+                    # contract violation being silently misattributed.
+                    # Treat this as a hard SDK contract violation (status
+                    # "invalid"), the same status already synthesized below
+                    # for malformed validator output, without ever calling
+                    # the validator on untrustworthy evidence.
+                    if isinstance(evidence, Evidence):
+                        got_desc = f"Evidence for node {evidence.node_id!r}"
+                    else:
+                        got_desc = repr(type(evidence).__name__)
                     result = NodeResult(
                         name=node.node_id,
                         status="invalid",
                         token="INVALID",
                         message=(
-                            f"validator for {node.node_id} returned {type(result).__name__!r} "
-                            "instead of a NodeResult"
+                            f"producer for {node.node_id} returned {got_desc} "
+                            "instead of Evidence for this node"
                         ),
                     )
+                else:
+                    evidence_map[node_id] = evidence
+                    if node.validator.handler is None:
+                        raise RuntimeError("validator handler is unavailable")
+                    # The validator always sees its own node's just-produced evidence,
+                    # plus exactly the sibling evidence it declared via `consumes` (the
+                    # registry loader enforces `consumes ⊆ depends_on`, so every
+                    # declared sibling is guaranteed to already be in evidence_map with
+                    # a non-blocking status by this point). Never expose the entire
+                    # accumulated evidence_map: an undeclared sibling must not be
+                    # silently visible just because it happens to sort earlier.
+                    visible_evidence = {node_id: evidence}
+                    for consumed in node.validator.consumes:
+                        if consumed in evidence_map:
+                            visible_evidence[consumed] = evidence_map[consumed]
+                    result = node.validator.handler(node, MappingProxyType(visible_evidence), context)
+                    if not isinstance(result, NodeResult):
+                        # The validator SDK contract requires a `NodeResult`. A
+                        # detector implementation that returns `None` or any other
+                        # type would otherwise crash later during serialization or
+                        # downstream dependency-status handling; treat this as a
+                        # hard SDK contract violation (status "invalid", the same
+                        # status a detector can legitimately return for its own
+                        # invalid-input findings) rather than letting it propagate
+                        # as an uncaught exception.
+                        result = NodeResult(
+                            name=node.node_id,
+                            status="invalid",
+                            token="INVALID",
+                            message=(
+                                f"validator for {node.node_id} returned {type(result).__name__!r} "
+                                "instead of a NodeResult"
+                            ),
+                        )
             except Exception as exc:
                 result = NodeResult(
                     name=node.node_id,
