@@ -55,18 +55,24 @@ through branch protection via a normal PR + merge-commit.
 - One new deferred stash entry for Stage's next triage cycle: `B90A5BBF`
   (candidate: possible premature archival of `34D50F2D`).
 - Compact-context (P-020) invoked with `target: all`: `docs/memory/` currently
-  holds 98 files (~772 KB), exceeding advisory thresholds, but no release unit
-  was completed or shipped in this publication-only turn, so no completed-work
-  compaction candidate exists from this session. Broader historical backlog
-  compaction was treated as out of scope for this explicitly PUBLICATION ONLY
-  turn (operator instruction permitted a no-op outcome for this step).
-  Recorded status: **no-op / scan-only this session** — a real backlog-wide
-  compaction pass remains a good candidate for a future dedicated session.
+  holds 98 files (~772 KB) and `docs/plans/` holds 65 files (~642 KB), both
+  exceeding advisory thresholds. No release unit was completed or shipped in
+  this publication-only turn, so this session performed no compaction work
+  itself. However, this is **not** a clean scan-only no-op: existing stash
+  entry `91CE2B66` already tracks four eligible, still-uncompacted candidates
+  (three reviewed plans under `docs/plans/` plus `docs/memory/098-S-closure.md`,
+  now past its retention window) pending an unresolved deliberation scope
+  question. Recorded status: **`compaction: degraded`** — the bounded
+  per-merge invocation intentionally performed no compaction (out of scope for
+  this explicitly PUBLICATION ONLY turn) while a real, already-tracked backlog
+  remains open. See `91CE2B66`, not a new untracked note, for the compaction
+  backlog.
 
 ## Follow-ups
 
 - Stage should triage deferred stash entry `B90A5BBF` and decide whether
   `34D50F2D` needs reactivation from `.backlogit/archive/stash.jsonl`.
-- A future post-merge/maintenance session should run a full `compact-context`
-  pass over `docs/memory/` (98 files, ~772 KB) since it now exceeds the
-  advisory `max_files`/`max_size_kb` thresholds.
+- The compaction backlog tracked in stash entry `91CE2B66` (three reviewed
+  plans + `docs/memory/098-S-closure.md`) remains open pending its
+  `-hardening.md` scope deliberation; no new compaction-tracking entry was
+  created by this session.
