@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-29T11:24:14.3777827-07:00","actor":"backlogit","item_id":"031-DL","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"ec894bf3a7c4c1ad91b97191f5f8a94177419c9f","message":"Merge pull request #417 from softwaresalt/feat/156-s-s0-policy-registry-and-review-persona-layer-install-restore"}}
+{"timestamp":"2026-08-29T11:26:00.4885173-07:00","actor":"backlogit","item_id":"031-DL","event_type":"archived","delta":{"archive_path":".backlogit/archive/031-DL.md"}}
