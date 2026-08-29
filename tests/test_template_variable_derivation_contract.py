@@ -275,12 +275,31 @@ class CleanPairIntersectionTests(unittest.TestCase):
 # ratchet. T0a asserts the set of unresolved placeholders across the staged
 # tree EQUALS this checked-in expected set exactly (a NEW unresolved variable
 # fails immediately). T0b is the same set expressed as a ratchet: by the end
-# of 150-S's derivation work the set is EMPTY (amendment B5).
-# ---------------------------------------------------------------------------
-
-# Final state (142.005-T / AC3a/AC3b): every one of the original 62 variables
-# has been derived by 142.002-T through 142.005-T. The ratchet is now empty.
+# of 150-S's derivation work the set was EMPTY (amendment B5).
+#
+# 156-S/148-F (148.007-T, U7) registers the 13 review-persona artifacts in
+# `.autoharness/harness-manifest.yaml`, which makes `verify_workspace`'s
+# staging pass render `templates/agents/review/technology-reviewer.agent.md.tmpl`
+# and `concurrency-reviewer.agent.md.tmpl` for the first time. Per plan
+# decisions D8/D8-B, `LANGUAGE_SAFETY_CHECKS`/`LANGUAGE_IDIOM_CHECKS`/
+# `LANGUAGE_ERROR_HANDLING_CHECKS`/`LANGUAGE_PERFORMANCE_CHECKS` are
+# Stage-reviewed prose pinned verbatim by `_derive_template_variables` (see
+# the `_D8B_LANGUAGE_*` constants and their binding guard in
+# `src/autoharness/verify_workspace.py`, added in 148.008-T/U8 to close a
+# genuine staging-pass gap surfaced by local + Copilot review) for a
+# `python`-primary workspace, matching this repository's own install target.
+# The ratchet therefore stays EMPTY: these four placeholders resolve cleanly
+# in this workspace's own staging pass, satisfying the plan's zero-unresolved
+# DoD. RK-J's accepted residual is narrower than "these remain unresolved" --
+# it is that the D8-B pin lives as its own constants rather than as new
+# `_language_defaults` keys, so a NON-Python-primary workspace installing
+# `technology-reviewer.agent.md.tmpl` would still see these four placeholders
+# unresolved (out of S0 scope; a follow-up should add per-language
+# `_language_defaults` keys). That residual does not apply to this
+# repository's own ratchet, which reflects THIS workspace's actual staging
+# output.
 EXPECTED_UNRESOLVED_VARIABLES: frozenset[str] = frozenset()
+
 
 
 def _scan_unresolved_variable_names() -> set[str]:
@@ -307,17 +326,24 @@ class RatchetContractTests(unittest.TestCase):
         self.assertEqual(self.unresolved_names, set(EXPECTED_UNRESOLVED_VARIABLES))
 
     def test_t0b_ratchet_is_the_zero_assertion(self) -> None:
-        """Amendment B5: the final derivation task empties the expected set,
-        at which point T0b degenerates to the zero assertion."""
+        """Amendment B5 (150-S) emptied the expected set. 156-S/148.008-T
+        confirmed the D8-B pinned persona-check-list bindings
+        (`_D8B_LANGUAGE_*` in `src/autoharness/verify_workspace.py`) keep
+        this workspace's own staging pass fully resolved once the 13
+        review-persona artifacts are manifest-registered (U7): T0b remains
+        the degenerate zero case, not a reopened non-empty ratchet."""
         self.assertEqual(EXPECTED_UNRESOLVED_VARIABLES, frozenset())
-        self.assertEqual(self.unresolved_names, set())
+        self.assertEqual(self.unresolved_names, set(EXPECTED_UNRESOLVED_VARIABLES))
 
     def test_a_new_unresolved_variable_would_fail_immediately(self) -> None:
         """The ratchet is an EXACT set, not a count bound: any variable name
-        not in the (now-empty) expected set fails the equality assertion
-        above -- this test documents that guarantee by construction rather
-        than re-asserting it."""
-        self.assertEqual(len(EXPECTED_UNRESOLVED_VARIABLES), 0)
+        not in the (empty) expected set fails the equality assertion above --
+        this test documents that guarantee by construction rather than
+        re-asserting it, by confirming a clearly fabricated name is excluded
+        from the allow-list."""
+        self.assertNotIn(
+            "NOT_A_REAL_TEMPLATE_VARIABLE_XYZ", EXPECTED_UNRESOLVED_VARIABLES
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -2228,6 +2228,53 @@ def _language_defaults(language: str) -> dict[str, str]:
     return defaults
 
 
+# --- 156-S/336F3AB7 D8-B: pinned review-persona check-list bindings ---
+#
+# `{{LANGUAGE_SAFETY_CHECKS}}`, `{{LANGUAGE_IDIOM_CHECKS}}`,
+# `{{LANGUAGE_ERROR_HANDLING_CHECKS}}`, and `{{LANGUAGE_PERFORMANCE_CHECKS}}`
+# (`technology-reviewer.agent.md.tmpl`) are Stage-reviewed prose pinned
+# verbatim by the plan's D8-B section, NOT derived from `_language_defaults`
+# (RK-J: no code-derived source exists for these, and adding new
+# `_language_defaults` keys is explicitly out of S0 scope -- "would change
+# the resolver, blast radius beyond the persona layer"). They therefore live
+# here as their own narrowly-scoped constants rather than inside
+# `_language_defaults`, and are bound only for `primary_language == "python"`
+# (matching this pinned content's Python-specific wording and this
+# shipment's actual install target). A follow-up (RK-J residual) should add
+# per-language keys to `_language_defaults` so a future render derives these
+# deterministically for non-Python primary languages; until then, a
+# non-Python-primary workspace installing `technology-reviewer.agent.md.tmpl`
+# will see these four placeholders remain unresolved -- a known, accepted,
+# out-of-S0-scope residual, not a defect in this shipment's own install
+# target.
+_D8B_LANGUAGE_SAFETY_CHECKS = (
+    "* Prefer typed, explicit Python over dynamic shortcuts that hide failure modes.\n"
+    "* Silent failures are forbidden; every failure path must be explicit and observable.\n"
+    "* Prefer the standard library and existing project dependencies over new ones.\n"
+    "* Lint and format failures block the change until corrected."
+)
+_D8B_LANGUAGE_IDIOM_CHECKS = (
+    "* Use snake_case for modules, functions, and variables; PascalCase for classes.\n"
+    "* Use docstrings for public modules, classes, and functions.\n"
+    "* Prefer standard-library constructs over hand-rolled equivalents.\n"
+    "* Keep each module to a single responsibility."
+)
+_D8B_LANGUAGE_ERROR_HANDLING_CHECKS = (
+    "* Raise specific exceptions and handle them at clear boundaries.\n"
+    "* Use explicit exceptions with contextual messages; avoid bare `except` blocks.\n"
+    "* Do not swallow exceptions \u2014 a caught exception must be handled, re-raised, "
+    "or logged with context.\n"
+    "* Preserve the original error context when wrapping or re-raising."
+)
+_D8B_LANGUAGE_PERFORMANCE_CHECKS = (
+    "* Return minimal, targeted data; avoid bulk file reads or directory scans where a "
+    "structured query suffices.\n"
+    "* Prefer a structured query over directory scanning when both are available.\n"
+    "* Avoid repeated I/O or re-parsing inside loops; read once and reuse.\n"
+    "* Flag unbounded in-memory accumulation over workspace-sized inputs."
+)
+
+
 # --- 142-F: model_routing / role-route / escalation derivation helpers ---
 #
 # `ROLE_ROUTE_TIER_FALLBACK`, `_resolve_role_route_field`, and
@@ -2885,6 +2932,18 @@ def _derive_template_variables(
         variables.setdefault("CONCURRENCY_PATTERNS", language_defaults["concurrency_patterns"])
         variables.setdefault("ERROR_PATTERN", language_defaults["error_pattern"])
         variables.setdefault("DOC_COMMENT_STYLE", language_defaults["doc_comment_style"])
+        if primary_language.lower() == "python":
+            # 156-S/336F3AB7 D8-B: pinned, Python-specific, Stage-reviewed
+            # prose -- see the module-level constants' docstring above for
+            # why these are not `_language_defaults` keys.
+            variables.setdefault("LANGUAGE_SAFETY_CHECKS", _D8B_LANGUAGE_SAFETY_CHECKS)
+            variables.setdefault("LANGUAGE_IDIOM_CHECKS", _D8B_LANGUAGE_IDIOM_CHECKS)
+            variables.setdefault(
+                "LANGUAGE_ERROR_HANDLING_CHECKS", _D8B_LANGUAGE_ERROR_HANDLING_CHECKS
+            )
+            variables.setdefault(
+                "LANGUAGE_PERFORMANCE_CHECKS", _D8B_LANGUAGE_PERFORMANCE_CHECKS
+            )
     if languages.get("version"):
         language_version = str(languages["version"])
         variables.setdefault("LANGUAGE_VERSION", language_version)
@@ -4024,9 +4083,14 @@ def _resolve_policy_registry(
 ) -> Path | None:
     """Resolve the authoritative workflow-policy registry.
 
-    Prefers the installed registry (``.github/policies/workflow-policies.md`` in a
-    real target install), then falls back to the ``autoharness_home`` template
-    (the dogfood self-install never installs a policies mirror). Returns ``None``
+    Installed-first, template-fallback: prefers the installed registry
+    (``.github/policies/workflow-policies.md``) whenever it exists in the target
+    workspace -- including this dogfood self-install, which now installs a
+    policies mirror of its own (156-S/148.001-T, U1) -- and falls back to the
+    ``autoharness_home`` template only for a workspace that legitimately has no
+    installed mirror. The precedence order itself is unchanged; only the
+    superseded "the dogfood self-install never installs a policies mirror"
+    assumption is corrected (156-S/148.002-T, U2; 336F3AB7). Returns ``None``
     when neither is resolvable so reference validation is existence-gated rather
     than a false failure.
     """
