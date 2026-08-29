@@ -39,6 +39,8 @@ class DetectorContractTests(unittest.TestCase):
         self.assertNotIn("verdict", field_names)
         self.assertEqual(result.verdict, "passed")
         self.assertNotIn("verdict", result.to_dict())
+        with self.assertRaises(TypeError):
+            NodeResult(name="det:D-ART/ART-01@1", status="passed", verdict="failed")
 
     def test_status_vocabulary_and_exit_mapping_are_closed(self) -> None:
         self.assertEqual(

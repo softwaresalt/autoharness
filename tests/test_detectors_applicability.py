@@ -5,6 +5,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+from autoharness.backlog_root import BacklogUnavailableError
+
 from autoharness.detectors.applicability import (
     ApplicabilityContextError,
     build_applicability_context,
@@ -89,16 +91,24 @@ class ApplicabilityTests(unittest.TestCase):
 
     def test_context_failure_results_are_insufficient_evidence(self) -> None:
         node = self._node(ApplicabilitySpec(changed_paths_any=(".backlogit/**",)))
+
+        class _UnavailableReaders:
+            def list_shipments(self):
+                raise BacklogUnavailableError(Path(".backlogit"), "required backlog directory is unavailable")
+
+            def current_branch(self):
+                return "feat/157-s-s1-detector-sdk-evidence-node-contract-and-gate-pre-review-reader"
+
         with self.assertRaises(ApplicabilityContextError):
             build_applicability_context(
-                base="main",
-                head="HEAD",
-                resolve_ref=lambda ref, **_kwargs: None if ref == "main" else "b" * 40,
+                base="a" * 40,
+                head="b" * 40,
+                resolve_ref=lambda ref, **_kwargs: ref,
                 discover=lambda *args, **kwargs: [],
                 profile_loader=lambda _path: {"runtime_surfaces": {"cli": True}},
-                readers_factory=lambda _workspace: _FakeReaders((), {}),
+                readers_factory=lambda _workspace: _UnavailableReaders(),
             )
-        result = context_failure_results((node,), "base ref could not be resolved")[0]
+        result = context_failure_results((node,), "required backlog directory is unavailable")[0]
         self.assertEqual(result.status, "insufficient_evidence")
         self.assertNotEqual(result.status, "not_applicable")
 

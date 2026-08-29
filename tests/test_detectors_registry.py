@@ -68,6 +68,12 @@ class RegistryLoaderTests(unittest.TestCase):
                 load_detector_registry(config, _REPO_ROOT)
         import_module.assert_not_called()
 
+    def test_unimportable_in_namespace_ref_is_invalid(self) -> None:
+        config = copy.deepcopy(VALID_CONFIG)
+        with mock.patch("importlib.import_module", side_effect=ModuleNotFoundError("missing")):
+            with self.assertRaises(DetectorRegistryError):
+                load_detector_registry(config, _REPO_ROOT)
+
     def test_registry_rejects_duplicate_unknown_and_command_defects(self) -> None:
         duplicate = copy.deepcopy(VALID_CONFIG)
         duplicate["detectors"].append(copy.deepcopy(duplicate["detectors"][0]))
