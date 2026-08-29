@@ -275,12 +275,37 @@ class CleanPairIntersectionTests(unittest.TestCase):
 # ratchet. T0a asserts the set of unresolved placeholders across the staged
 # tree EQUALS this checked-in expected set exactly (a NEW unresolved variable
 # fails immediately). T0b is the same set expressed as a ratchet: by the end
-# of 150-S's derivation work the set is EMPTY (amendment B5).
-# ---------------------------------------------------------------------------
-
-# Final state (142.005-T / AC3a/AC3b): every one of the original 62 variables
-# has been derived by 142.002-T through 142.005-T. The ratchet is now empty.
-EXPECTED_UNRESOLVED_VARIABLES: frozenset[str] = frozenset()
+# of 150-S's derivation work the set was EMPTY (amendment B5).
+#
+# Reopened by 156-S/148-F (148.007-T, U7). Registering the 13 review-persona
+# artifacts in `.autoharness/harness-manifest.yaml` makes `verify_workspace`'s
+# staging pass render `templates/agents/review/technology-reviewer.agent.md.tmpl`
+# and `concurrency-reviewer.agent.md.tmpl` for the first time (they were not
+# manifest-registered, and therefore not staged, before U7). Once staged,
+# `PRIMARY_LANGUAGE`/`PRIMARY_LANGUAGE_LOWER`/`TIER_1_*`/`TIER_2_*`/
+# `CONCURRENCY_PATTERNS` all resolve cleanly, but the 4 names below do not:
+# per plan decisions D8/D8-B and risk RK-J
+# (docs/plans/2026-08-27-policy-registry-and-review-persona-layer-plan.md),
+# these are Stage-reviewed prose pinned verbatim at Ship render time (already
+# bound correctly into `.github/agents/subagents/python-reviewer.agent.md` by
+# 148.005-T), not resolver-derived -- `_language_defaults()` in
+# `src/autoharness/verify_workspace.py` has no synthesis logic for them, and
+# RK-J explicitly scopes adding that resolver support as "out of S0 scope
+# (would change the resolver, blast radius beyond the persona layer)". This is
+# the same accepted status-change pattern already recorded in the same plan as
+# RK-B (a previously-masked check becoming evaluated is a status-change, not a
+# regression, and is reported as a finding rather than silently patched). This
+# ratchet's own checked-in baseline is the correct place to record that
+# finding -- not the resolver, and not the (unmodified, per D8-C) `.tmpl`
+# files.
+EXPECTED_UNRESOLVED_VARIABLES: frozenset[str] = frozenset(
+    {
+        "LANGUAGE_SAFETY_CHECKS",
+        "LANGUAGE_IDIOM_CHECKS",
+        "LANGUAGE_ERROR_HANDLING_CHECKS",
+        "LANGUAGE_PERFORMANCE_CHECKS",
+    }
+)
 
 
 def _scan_unresolved_variable_names() -> set[str]:
@@ -307,17 +332,35 @@ class RatchetContractTests(unittest.TestCase):
         self.assertEqual(self.unresolved_names, set(EXPECTED_UNRESOLVED_VARIABLES))
 
     def test_t0b_ratchet_is_the_zero_assertion(self) -> None:
-        """Amendment B5: the final derivation task empties the expected set,
-        at which point T0b degenerates to the zero assertion."""
-        self.assertEqual(EXPECTED_UNRESOLVED_VARIABLES, frozenset())
-        self.assertEqual(self.unresolved_names, set())
+        """Amendment B5 (150-S) emptied the expected set. 156-S/RK-J reopens
+        it with exactly the 4 D8-B pinned, Ship-time-bound persona variables
+        (see the module-level comment above `EXPECTED_UNRESOLVED_VARIABLES`);
+        extending `_language_defaults` to derive them is explicitly out of S0
+        scope. T0b now asserts the expected set matches this documented,
+        closed residual exactly -- it is still a ratchet, just no longer the
+        degenerate zero case."""
+        self.assertEqual(
+            EXPECTED_UNRESOLVED_VARIABLES,
+            frozenset(
+                {
+                    "LANGUAGE_SAFETY_CHECKS",
+                    "LANGUAGE_IDIOM_CHECKS",
+                    "LANGUAGE_ERROR_HANDLING_CHECKS",
+                    "LANGUAGE_PERFORMANCE_CHECKS",
+                }
+            ),
+        )
+        self.assertEqual(self.unresolved_names, set(EXPECTED_UNRESOLVED_VARIABLES))
 
     def test_a_new_unresolved_variable_would_fail_immediately(self) -> None:
         """The ratchet is an EXACT set, not a count bound: any variable name
-        not in the (now-empty) expected set fails the equality assertion
-        above -- this test documents that guarantee by construction rather
-        than re-asserting it."""
-        self.assertEqual(len(EXPECTED_UNRESOLVED_VARIABLES), 0)
+        not in the (now non-empty, but still closed) expected set fails the
+        equality assertion above -- this test documents that guarantee by
+        construction rather than re-asserting it, by confirming a clearly
+        fabricated name is excluded from the allow-list."""
+        self.assertNotIn(
+            "NOT_A_REAL_TEMPLATE_VARIABLE_XYZ", EXPECTED_UNRESOLVED_VARIABLES
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -33,3 +33,14 @@ scripts/release_lock.sh text eol=lf
 # rule weakening or deletion deterministically, therefore it needs the same
 # LF pin as every other checksummed artifact.
 .markdownlint.json text eol=lf
+
+# S0 policy registry + review-persona layer (156-S/336F3AB7): every installed
+# artifact here is manifest-checksummed against raw LF bytes (D9-C/D8-D). Glob
+# rules so any future persona render under this directory inherits the LF pin
+# automatically, same rationale as the skills glob above -- without this,
+# core.autocrlf=true on a Windows checkout silently converts the working-tree
+# copy to CRLF after `git add`/checkout even though the committed blob (and the
+# manifest's recorded checksum) are LF, diverging the working tree from what
+# was actually installed.
+.github/policies/** text eol=lf
+.github/agents/subagents/** text eol=lf
