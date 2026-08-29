@@ -4,9 +4,9 @@ description: "Reviews architectural soundness — cohesion, coupling, module bou
 maturity: stable
 tools: read, search
 max_subagent_tier: 1
-reasoning_effort: "{{TIER_1_REASONING_EFFORT}}"
-model_provider: "{{TIER_1_PROVIDER}}"
-model_family: "{{TIER_1_FAMILY}}"
+reasoning_effort: ""
+model_provider: ""
+model_family: "gpt-5.6-luna"
 subagent_depth: 0
 ---
 
