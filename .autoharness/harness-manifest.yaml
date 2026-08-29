@@ -388,6 +388,11 @@ artifacts:
     template: "foundation/constitution.instructions.md.tmpl"
     checksum: "7258c8d81371eb9cde2111742492c6616e3815422727240f3e04be1aeb54c38d"
     note: "condensed constitution self-install variant (installed 067.006-T)"
+  - path: ".github/policies/workflow-policies.md"
+    primitive: 5
+    template: "policies/workflow-policies.md.tmpl"
+    checksum: "fcfa5c387f718f1064332ca5bfa6f9df5131e68cf0b3ea75b345c91be791aef7"
+    note: "installed 156-S/148.001-T (U1, 336F3AB7): closes the policy-registry install gap tracked by stash 336F3AB7 and previously reported dangling by the shipment-reconcile/plan-review/review skill notes at L255/L265/L275; render-only, no policy text authored (D1, template is SSOT). All 9 template placeholders bound from .autoharness/harness-manifest.yaml variables_used (authoritative over workspace-profile.yaml per D9-C): TEST_COMMAND=PYTHONPATH=src python -m unittest discover -s tests (Q5), BUILD_CHECK_COMMAND=python -m py_compile src/autoharness/cli.py (D9 — the compile check, distinct from the separate BUILD_COMMAND=pip install -e . which this render does not bind), DEFAULT_BRANCH=main, BACKLOG_TOOL_NAME=backlogit, BACKLOG_DIRECTORY=.backlogit, STATUS_DONE=done, FEATURE_SHIPMENTS=true, OP_SHIP_SHIPMENT_MCP=backlogit_ship_shipment, DATE=2026-08-29. Written LF-only (CRLF normalized to LF at render time from the CRLF-stored .tmpl source) and checksum computed with SHA-256 over the raw LF file bytes. The bare {{...}} ellipsis meta-token at template L359 (P-013.5 fail-closed-verification prose) is retained verbatim as intended literal content under the closed 1-token EXEMPT_POLICY_PROSE_META_TOKEN allow-list (D9-B); it is the only {{...}} match in the installed file. 27 P-0NN headings present (21 top-level ## P-0NN + 6 P-0NN.N subsections); P-001 through P-021 all resolvable."
 variables_used:
   PROJECT_NAME: "autoharness"
   PRIMARY_LANGUAGE: "Python"
