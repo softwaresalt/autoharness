@@ -116,22 +116,35 @@ def assemble_detector_results(
                         if consumed in evidence_map:
                             visible_evidence[consumed] = evidence_map[consumed]
                     result = node.validator.handler(node, MappingProxyType(visible_evidence), context)
-                    if not isinstance(result, NodeResult):
-                        # The validator SDK contract requires a `NodeResult`. A
-                        # detector implementation that returns `None` or any other
-                        # type would otherwise crash later during serialization or
-                        # downstream dependency-status handling; treat this as a
-                        # hard SDK contract violation (status "invalid", the same
-                        # status a detector can legitimately return for its own
-                        # invalid-input findings) rather than letting it propagate
-                        # as an uncaught exception.
+                    if not isinstance(result, NodeResult) or result.name != node.node_id:
+                        # The validator SDK contract requires a `NodeResult`
+                        # for this exact node. A detector implementation that
+                        # returns `None`/another type, or a `NodeResult`
+                        # addressed to a different node's `name` (e.g. a
+                        # copy-paste bug), would otherwise crash later during
+                        # serialization/downstream dependency-status handling
+                        # -- or worse, be recorded under the current
+                        # dependency key while serializing a different name,
+                        # yielding a misattributed report and allowing
+                        # downstream nodes to proceed on a bogus "clean"
+                        # status. Treat this as a hard SDK contract violation
+                        # (status "invalid", the same status a detector can
+                        # legitimately return for its own invalid-input
+                        # findings) -- symmetric with the producer's own
+                        # node_id check above -- rather than letting it
+                        # propagate as an uncaught exception or a silent
+                        # misattribution.
+                        if isinstance(result, NodeResult):
+                            got_desc = f"NodeResult for node {result.name!r}"
+                        else:
+                            got_desc = repr(type(result).__name__)
                         result = NodeResult(
                             name=node.node_id,
                             status="invalid",
                             token="INVALID",
                             message=(
-                                f"validator for {node.node_id} returned {type(result).__name__!r} "
-                                "instead of a NodeResult"
+                                f"validator for {node.node_id} returned {got_desc} "
+                                "instead of a NodeResult for this node"
                             ),
                         )
             except Exception as exc:

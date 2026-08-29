@@ -77,6 +77,23 @@ def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return data if isinstance(data, dict) else {}, text[match.end() :]
 
 
+class MalformedTemplateSectionsError(ValueError):
+    """Raised when a template's frontmatter declares a ``sections`` entry
+    that does not conform to the ``{name: str, required: bool}`` contract.
+
+    Previously, a malformed entry (e.g. a ``names:`` typo instead of
+    ``name:``, or a missing ``name``) was silently dropped from the loaded
+    template, and a non-boolean ``required`` value (e.g. the string
+    ``"false"``) was coerced via ``bool(...)`` -- which is Python-truthy for
+    any non-empty string. Both failure modes let a broken template contract
+    silently produce a *partial* one instead: a typo could remove a required
+    check entirely and every artifact of that type would then report
+    ``passed``. Fail evidence production outright instead, so the assembler
+    converts this into ``insufficient_evidence`` rather than trusting a
+    partial, misleading section contract.
+    """
+
+
 def _load_template_sections(backlog_root: Path) -> dict[str, tuple[dict[str, Any], ...]]:
     templates: dict[str, tuple[dict[str, Any], ...]] = {}
     for path in sorted((backlog_root / "templates").glob("*.md")):
@@ -88,8 +105,17 @@ def _load_template_sections(backlog_root: Path) -> dict[str, tuple[dict[str, Any
         sections = []
         for section in raw_sections:
             if not isinstance(section, dict) or not isinstance(section.get("name"), str):
-                continue
-            sections.append({"name": section["name"], "required": bool(section.get("required", False))})
+                raise MalformedTemplateSectionsError(
+                    f"{path}: template 'sections' entry is malformed (expected a "
+                    f"mapping with a string 'name'); got {section!r}"
+                )
+            required_raw = section.get("required", False)
+            if not isinstance(required_raw, bool):
+                raise MalformedTemplateSectionsError(
+                    f"{path}: template section {section['name']!r} has a "
+                    f"non-boolean 'required' value {required_raw!r}"
+                )
+            sections.append({"name": section["name"], "required": required_raw})
         templates[artifact_type] = tuple(sections)
     return templates
 

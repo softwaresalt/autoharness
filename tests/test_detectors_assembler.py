@@ -226,6 +226,29 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(validator_calls, [])
         self.assertEqual(result.exit_code, 2)
 
+    def test_validator_returning_wrong_node_name_is_converted_to_invalid(self) -> None:
+        # Copilot review finding (PR #420): the validator contract was
+        # checked only by type, not by node identity. A validator returning
+        # `NodeResult(name="another-node", status="passed")` would
+        # otherwise be recorded under the current dependency key while
+        # serializing a *different* name, yielding a misattributed report
+        # and letting downstream nodes proceed on a bogus clean status.
+        # Require `result.name == node.node_id`, symmetric with the
+        # producer's own node_id check.
+        wrong_name_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(name="det:D-ART/ART-99@1", status="passed"),
+        )
+        downstream = self._node(
+            "det:D-ART/ART-02@1",
+            depends_on=("det:D-ART/ART-01@1",),
+        )
+        result = assemble_detector_results((wrong_name_node, downstream), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIn("ART-99", result.results[0].message)
+        self.assertEqual(result.results[1].status, "blocked_upstream")
+        self.assertEqual(result.exit_code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

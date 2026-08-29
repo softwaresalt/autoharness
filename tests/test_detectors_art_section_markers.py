@@ -8,7 +8,7 @@ import types
 import unittest
 from pathlib import Path
 
-from autoharness.detectors.art.section_markers import produce, validate
+from autoharness.detectors.art.section_markers import MalformedTemplateSectionsError, produce, validate
 from autoharness.detectors.contract import (
     ApplicabilitySpec,
     NodeSpec,
@@ -398,6 +398,75 @@ None.
             result = validate(self._node(), {self._node().node_id: evidence}, context)
         self.assertEqual(result.status, "passed")
         self.assertTrue(evidence.payload["worktree_clean"])
+
+    def _write_malformed_template(self, workspace: Path, *, sections_yaml: str) -> None:
+        templates_dir = workspace / ".backlogit" / "templates"
+        queue_dir = workspace / ".backlogit" / "queue"
+        templates_dir.mkdir(parents=True, exist_ok=True)
+        queue_dir.mkdir(parents=True, exist_ok=True)
+        (templates_dir / "task.md").write_text(
+            f"""---
+name: task-template
+type: task
+description: "A discrete unit of work"
+sections:
+{sections_yaml}
+---
+# {{title}}
+""",
+            encoding="utf-8",
+        )
+        (queue_dir / "149.006-T.md").write_text(
+            """---
+artifact_type: task
+id: 149.006-T
+priority: medium
+status: queued
+title: Task
+---
+
+## Description
+
+<!-- BEGIN:description -->
+Body.
+<!-- END:description -->
+""",
+            encoding="utf-8",
+        )
+
+    def test_art_01_fails_evidence_production_on_malformed_section_name(self) -> None:
+        # Copilot review finding (PR #420): a malformed section declaration
+        # (e.g. a `names:` typo instead of `name:`) was previously silently
+        # dropped from the loaded template rather than failing loudly. That
+        # would let a typo remove a required check entirely, and every
+        # artifact of that type would then falsely report `passed`.
+        # Evidence production must instead fail outright so the assembler
+        # converts this into `insufficient_evidence`.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            self._write_malformed_template(
+                workspace,
+                sections_yaml="  - names: acceptance-criteria\n    required: true\n",
+            )
+            with self.assertRaises(MalformedTemplateSectionsError):
+                produce(self._node(), types.SimpleNamespace(workspace=workspace))
+
+    def test_art_01_fails_evidence_production_on_non_boolean_required(self) -> None:
+        # Copilot review finding (PR #420): a non-boolean `required` value
+        # (e.g. the YAML string `"false"`) was previously coerced via
+        # `bool(...)`, which is Python-truthy for any non-empty string --
+        # silently turning a *disabled* required-check declaration into an
+        # *enabled* one. Evidence production must instead fail outright.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            self._write_malformed_template(
+                workspace,
+                sections_yaml='  - name: acceptance-criteria\n    required: "false"\n',
+            )
+            with self.assertRaises(MalformedTemplateSectionsError):
+                produce(self._node(), types.SimpleNamespace(workspace=workspace))
 
 
 if __name__ == "__main__":
