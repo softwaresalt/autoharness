@@ -294,20 +294,29 @@ author-minted identifier** (A8).
   — a direct contradiction of `append-only, never overwritten` above. The protocol
   is **exclusive claim, then atomic publish**: serialize to a unique temp file in
   the target directory, `fsync`, then `os.link(tmp, final)` (atomic; raises
-  `FileExistsError` rather than clobbering), unlinking the temp in `finally`;
-  where hard links are unavailable, claim with
-  `os.open(final, O_CREAT|O_EXCL|O_WRONLY)`. In **both** paths `FileExistsError`
-  is **success** and the existing file is left byte-for-byte untouched.
+  `FileExistsError` rather than clobbering), unlinking the temp in `finally`.
+  `FileExistsError` is **success** and the existing file is left byte-for-byte
+  untouched.
+* **NO DIRECT-TO-FINAL FALLBACK (D-15, cycle-3 thread `PRRT_kwDORzpWpM6dVfzE`)**:
+  where atomic no-replace linking is unavailable, the emitter **fails without
+  publishing** and reports a non-fatal publication failure. Claiming the final
+  pathname with `os.open(final, O_CREAT|O_EXCL|O_WRONLY)` — the cycle-2 fallback —
+  is now **FORBIDDEN**, because it publishes the final pathname *before* the
+  payload is complete. Absence of a report is a **safe, self-healing** state
+  (the consumer computes `insufficient_evidence` and the next run retries
+  cleanly); a *partial* report at the final path is **not**.
 * **Payloads at one key are NOT byte-identical**: `provenance.produced_at` is
   wall-clock RFC3339. The cycle-1 justification that "content is deterministic per
   key" was **false** — determinism holds for the *key*, not the *payload* — which
   is precisely why no-clobber is load-bearing rather than cosmetic. A published
   report is always one whole payload from one writer.
-* **Torn-file containment**: on the link path a partial temp is never published,
-  so the final path is complete-or-absent. On the `O_EXCL` fallback a writer that
-  dies mid-write can leave a partial file, so the consumer rule is that an
-  **unparseable report is `insufficient_evidence`** — never evidence, never
-  repaired in place.
+* **Torn-file containment — complete-or-absent is UNCONDITIONAL (D-15)**: the
+  only publication path is `os.link` from a fully-written, fsynced temp, so the
+  final path is **always** complete-or-absent and no code path can leave a
+  partial file at the final pathname. The consumer rule that an **unparseable
+  report is `insufficient_evidence`** is retained as defence in depth against
+  *external* corruption — never evidence, never repaired in place — but it is no
+  longer load-bearing for the emitter's own failure modes.
 * `provenance`: `base_sha`, `head_sha`, `epoch_key`, `fingerprint`,
   `reviewed_sha` (nullable), `platform`, `tool_versions`, `produced_at`
   (RFC3339), and `touches_reviewable_paths: bool`.
@@ -350,7 +359,8 @@ author-minted identifier** (A8).
 
 ### U8b — Option-safe Git ref resolution (security)
 
-* **Domain**: code (security). **Files: 1** (`src/autoharness/gates/discovery.py`).
+* **Domain**: code (security). **Files: 2** (`src/autoharness/gates/discovery.py`,
+  `src/autoharness/gates/gate.py`).
 * **The vulnerability**: `discover_modified_files` builds
   `["git","diff","--name-only", f"{base}...{head}"]` (`gates/discovery.py:61`)
   with **no option terminator**. A `--base` of `--output=/tmp/x` yields the
@@ -380,11 +390,36 @@ author-minted identifier** (A8).
   exact pre-change argv at line 45. All four assertions fail under this contract,
   so the canonical Q5 gate goes red. That file is in **U8c**'s scope (tests
   domain — folding it here would breach U8b's width isolation), and U8b is not
-  complete while it is red. The only **production** caller,
-  `src/autoharness/gates/gate.py:77`, passes internally-derived refs and is
-  unaffected.
-* **Posture**: test-first. **No dependencies** — self-contained hardening of an
-  existing module, schedulable first. Lands together with U8c.
+  complete while it is red.
+* **PRODUCTION CALLERS *ARE* AFFECTED — cycle-2 claim RETRACTED (D-17, cycle-3
+  thread `PRRT_kwDORzpWpM6dVfzg`)**. The cycle-1/cycle-2 assertion that "the only
+  production caller, `gates/gate.py:77`, passes internally-derived refs and is
+  unaffected" is **FALSE on two counts**, verified against current `main`:
+  * `gate.py::check` declares **`head: str = "HEAD"`** (`gates/gate.py:65`) and
+    forwards `base`/`head` **unresolved** straight into `discover_fn(base, head,
+    cwd=cwd)` (`gates/gate.py:77`). `"HEAD"` is a *symbolic* ref, so every
+    `check(config, base_sha)` call that relies on the default head breaks under
+    U8b's hex-only contract.
+  * The shipped CLI path `autoharness gate check` reaches that default: `cli.py:290`
+    defaults `parsed["head"]` to `"HEAD"` and `cli.py:400-405` passes it through.
+    So the break is reachable from a **released command**, not just from
+    hypothetical library callers.
+* **Fix — resolve at the `check()` boundary, do NOT weaken discovery.** `check()`
+  resolves `base` and `head` through `resolve_commit_ref` **after** its
+  no-gates/disabled early return and **before** `discover_fn`, passing only
+  validated 40-hex SHAs onward; an unresolvable/unsafe ref is rejected there with
+  no `git diff` and no side effect. Retaining symbolic-ref tolerance inside
+  `discover_modified_files` remains **rejected** (it reopens the D-12 hole); the
+  ref→SHA conversion moves *up* to the boundary, exactly as D-12 intends.
+* **Early-return ordering is load-bearing**: `test_gates_gate.py:86` calls
+  `check(GatesConfig(enabled=False), base="main")` with a symbolic ref and must
+  keep returning an empty report **without** resolving, so resolution must sit
+  after the `not config.enabled or not config.validation_gates` guard.
+* **Posture**: test-first. **No dependencies** — self-contained hardening of two
+  existing modules in one domain, schedulable first. **Lands together with U8c**
+  (U8b is not complete while the Q5 gate is red on `test_gates_discovery.py` or
+  `test_gates_gate.py`). Cycle 3 raises **size S -> M** (Files 1 -> 2); complexity
+  stays **medium**.
 
 ### U9 — Tests: contract, registry, applicability
 
@@ -432,8 +467,17 @@ author-minted identifier** (A8).
   3. **Stale sibling rejection** — a sibling report at the same HEAD with a
      different fingerprint is retained as history and is **never** selected as
      the current fresh report.
-  4. **Concurrent / idempotent same-key writes** — two writers at the same key
-     yield exactly one well-formed, non-corrupt, non-duplicated report.
+  4. **Concurrent / idempotent same-key writes, and no-clobber (D-16)** — two
+     *real* concurrent writers at the same key yield exactly one well-formed,
+     non-corrupt, non-duplicated report, and **either** complete payload may win
+     the race. The race winner is **NOT** asserted. No-clobber is then proved
+     **deterministically** in a second, serialized phase: after the race settles,
+     record the published bytes and `st_mtime`, issue a **distinguishable**
+     third write at the same key (a payload whose `provenance.produced_at` — and
+     therefore whose bytes — differ from the published one), and assert that the
+     call **reports success** while the published **bytes and `st_mtime` are
+     both unchanged**. That is the assertion that fails on a last-writer-wins
+     emitter.
 * **Depends on U7.**
 
 ### U11 — Tests: `ART-01` retro-validation and CLI acceptance
@@ -457,8 +501,9 @@ author-minted identifier** (A8).
 
 ### U8c — Tests: option-safe ref resolution (security)
 
-* **Domain**: tests. **Files: 2** (`tests/test_gate_ref_safety.py` — new;
-  `tests/test_gates_discovery.py` — re-characterized).
+* **Domain**: tests. **Files: 3** (`tests/test_gate_ref_safety.py` — new;
+  `tests/test_gates_discovery.py` — re-characterized;
+  `tests/test_gates_gate.py` — re-characterized, cycle-3 D-17).
 * Scenarios (4):
   1. **Option-like refs are rejected** — `--output=<tmp>`, `--upload-pack=...`,
      and a leading-dash ref all resolve to `None`, produce the invalid-input
@@ -477,8 +522,24 @@ author-minted identifier** (A8).
   `discover_modified_files`. The two graceful-degradation tests still assert
   `[]` + warning (deliberately unchanged, asserted not assumed); the
   `parse_diff_output` tests are untouched (no ref surface).
-* **Depends on U8b.** Scenario count stays at 4 and Files stays within the max-3
-  budget, so the 2-hour rule still holds at size S.
+* **Plus `tests/test_gates_gate.py` reconciliation (D-17, cycle-3 thread
+  `PRRT_kwDORzpWpM6dVfzg`)** — bounded and enumerated, **two** edits and **one**
+  addition:
+  * `test_check_uses_injected_discover` (line ~90) currently asserts the injected
+    discover receives `captured["base"] == "main"`. Under D-17 `check()` resolves
+    first, so the assertion is re-characterized to pin that the injected discover
+    receives **validated 40-hex SHAs**, not the raw symbolic text.
+  * `test_check_no_gates_returns_empty_report` (line ~86) is asserted **unchanged**
+    — it must still return an empty report for a symbolic `base="main"` without
+    resolving, proving the early return precedes resolution.
+  * **One new assertion**: `check()` with an unresolvable/option-like `base`
+    rejects with the invalid-input class, invokes **no** `git diff`, and writes
+    **no** file.
+* **Depends on U8b.** Scenario count stays at 4; Files rises 2 -> 3, at the
+  ceiling of the max-3 budget. Because the file count and the reconciliation
+  surface both grew in cycle 3, **size is raised S -> M and complexity low ->
+  medium**; the 2-hour rule still holds because all three additions are
+  characterization edits against an existing suite, not new test design.
 
 ## Dependency Graph
 
@@ -521,6 +582,9 @@ so it is scheduled first and unblocks both `U4` and `U8`.
 | D-12 | **User-controlled Git refs are resolved with `git rev-parse --verify --end-of-options <ref>^{commit}` and validated to `^[0-9a-f]{40}$` before any use** | `discover_modified_files` interpolates `base` into `f"{base}...{head}"` with no option terminator (`gates/discovery.py:61`), so `--base=--output=/path` is parsed by `git diff` as its `--output` option and **writes a file**, breaking the gate's read-only guarantee. Resolving first and passing only a validated hex SHA removes the injection surface entirely; the `--end-of-options`/`--` backstop inside discovery is defence in depth. |
 | D-13 | **Report publication is a no-clobber exclusive claim plus atomic publish; `os.replace` is forbidden** | Cycle 1 offered `os.replace` *or* `O_EXCL` as interchangeable. They are not. `os.replace` is defined to replace an existing destination, so at the same epoch key it destroys immutable evidence -- a direct contradiction of the `append-only, never overwritten` clause in the same unit. The justification offered ("content is deterministic per key") is **false**: `provenance.produced_at` is wall-clock RFC3339, so two writers at one key produce different bytes, making `os.replace` a last-writer-wins overwrite rather than a benign idempotent write. Publication is now: temp file in the target dir -> `fsync` -> `os.link(tmp, final)` (atomic, raises `FileExistsError` instead of clobbering), with `os.open(final, O_CREAT|O_EXCL|O_WRONLY)` as the no-hardlink fallback; `FileExistsError` is **success** and the existing file is untouched. A published report becomes unreachable by any write path. |
 | D-14 | **The exit-2 (CLI boundary) and `insufficient_evidence` (FC1) outcomes belong to different layers and are never asserted for the same input** | U11 scenario 4 expected `insufficient_evidence` at exit 0 for an unresolvable `--base`, while U8/U8b/U8c require exit 2 with no report for exactly that input -- the two suites were mutually unsatisfiable. The boundary: **user-controlled ref text** is validated at the CLI and an unsafe/unresolvable value exits **2** before any discovery call or side effect (D-12); **FC1** is the applicability engine's fail-closed outcome when a context cannot be built from *already-validated* input (unreadable manifest, missing profile, internally-derived base that fails to resolve) and yields `insufficient_evidence` for every node, explicitly NOT `not_applicable` (D-7). The CLI path can never reach FC1 with bad user input because it exits first. |
+| D-15 | **There is NO direct-to-final publication fallback. Where atomic no-replace linking is unavailable, the emitter fails WITHOUT publishing** | D-13's `os.open(final, O_CREAT\|O_EXCL\|O_WRONLY)` fallback claims the **final pathname before the payload is written**. A writer that dies mid-write therefore leaves a *partial* file at the very path consumers read, and — because D-13 also makes `FileExistsError` mean **success** — every subsequent retry short-circuits as already-published and never repairs it. Since the report is append-only and may never be repaired in place, that epoch key is **permanently stranded at `insufficient_evidence`**: exactly the refresh deadlock D-11 was created to dissolve, reintroduced through the back door. The key only recovers if HEAD or the fingerprint changes, which is outside the writer's control. Failing without publication keeps the unit's own **complete-or-absent** contract unconditional, and absence is *self-healing* (the next run simply retries) whereas a partial file is *terminal*. |
+| D-16 | **U10c scenario 4 asserts no-clobber via an mtime+bytes-stable third write, NOT by pinning the race winner to the "first" writer** | The cycle-2 wording required the published bytes to equal the **first** writer's payload. No such writer is identifiable: with `os.link`, thread/process *start* order does not determine which claim the kernel accepts, so a **correct** no-clobber emitter fails that assertion nondeterministically — a flaky test that punishes correct implementations. The property actually under test is *no-clobber*, not *ordering*. Letting either complete payload win the race and then proving that a subsequent **distinguishable** same-key write leaves **bytes and `st_mtime` unchanged** tests exactly that property, deterministically and without a race. `provenance.produced_at` still supplies the distinguishability that makes an overwrite visible, which was the sound half of the cycle-2 correction and is retained. |
+| D-17 | **`gate.py::check` resolves `base`/`head` at the boundary; the cycle-2 "production callers are unaffected" claim is RETRACTED** | Verified against current `main`: `check()` declares `head: str = "HEAD"` (`gates/gate.py:65`) and forwards `base`/`head` unresolved into `discover_fn` (`gates/gate.py:77`), and the shipped `autoharness gate check` command reaches that default (`cli.py:290`, `cli.py:400-405`). Making discovery hex-only therefore breaks a **released command**, not merely hypothetical callers — so U8b could not have shipped as scoped. The fix resolves at `check()`, after its disabled/no-gates early return and before discovery, preserving D-12 (raw ref text still never reaches `git diff`) instead of weakening discovery back to symbolic-ref tolerance, which was considered and re-rejected. U8b gains `gates/gate.py` (Files 1->2, same code domain); the matching test re-characterization goes to U8c (Files 2->3), preserving width isolation. |
 
 ## Risks and Caveats
 
@@ -994,6 +1058,101 @@ enumerated, bounded, in-budget edit.
 Granularity, width isolation, and the 2-hour rule hold across all **15** units.
 No unit, file, dependency edge, or capability was added in cycle 2; `U8c` moves
 from Files 1 to Files 2, still inside the max-3 budget at size S.
+
+*(SUPERSEDED by the hosted review-fix cycle-3 markers at the end of this file.)*
+
+```text
+dispatch_mode: single-agent-declared-degradation
+```
+
+```text
+decision: PASS
+```
+
+## Plan Hardening — re-run (hosted review-fix cycle 3, 2026-08-28)
+
+Triggered by P-006: cycle 3 alters a **publication protocol** (U7), a
+**security-critical call boundary** (U8b/`gate.py`), and a **concurrency test
+contract** (U10c). All three are hardening signals, so `plan-harden` re-runs
+before `plan-review`.
+
+### Protected invariants — delta
+
+| # | Invariant | Status |
+|---|---|---|
+| INV-10 | A published report is unreachable by any write path | **STRENGTHENED.** Cycle 2 established this for `os.replace`. Cycle 3 (D-15) closes the remaining hole: the `O_EXCL`-onto-`final` fallback made the final pathname reachable by a *partial* write. The invariant now holds on every path because `os.link` from a fsynced temp is the **only** publication path. |
+| INV-12 | **NEW.** The final report pathname is complete-or-absent at all times | Previously conditional ("except on the `O_EXCL` fallback"). D-15 makes it unconditional by removing the only path that could violate it. Absence is a *recoverable* state; a partial file is *terminal* under append-only. |
+| INV-13 | **NEW.** No raw, unvalidated ref text reaches `git diff` from **any** caller, including shipped commands | D-12 asserted this but was enforced only at the CLI and inside discovery. `gate.py::check` sat between them forwarding `head="HEAD"` unresolved. D-17 closes that gap at the boundary. |
+| INV-14 | **NEW.** A test may not assert an outcome the implementation is not required to produce | D-16. U10c's "first writer wins" pinned a race outcome no correct emitter guarantees. Assertions must target the *specified property* (no-clobber), never an incidental scheduling artifact. |
+| INV-1, INV-2, INV-3, INV-11 | Law 1 / no read-back API / report-only exit 0 / layer separation | **UNCHANGED.** Cycle 3 touches no graph, no read-back surface, no exit mapping, and no layer assignment. |
+
+### Risky actions — delta
+
+| Action | Risk | Containment |
+|---|---|---|
+| Removing the `O_EXCL` fallback (D-15) | Platforms without hard-link support lose report publication entirely | **Accepted and bounded.** The report is *derived, non-authoritative* evidence with no blocking authority (INV-3), so its absence degrades to `insufficient_evidence` — an already-specified, self-healing outcome — and never blocks or falsely passes a gate. Publishing a *partial* report is strictly worse: it is terminal, silently poisons the epoch key, and cannot be repaired under append-only. NTFS and all mainstream POSIX filesystems support `os.link`; the fallback was for an unenumerated hypothetical. |
+| Adding `gates/gate.py` to U8b (D-17) | Scope creep into a shipped, pre-existing module on the gate critical path | **Bounded and enumerated.** One function (`check`), resolution inserted between the existing early return and the existing `discover_fn` call. No signature change, no new parameter, no behaviour change for `enabled=False`/no-gates. Files 1 -> 2, same `code` domain, within the max-3 budget; size raised S -> M honestly rather than hiding the growth. |
+| Adding `tests/test_gates_gate.py` to U8c (D-17) | A tests unit at the max-3 file ceiling exceeding the 2-hour rule | **Enumerated to two edits and one addition** (§U8c). All three are characterization edits against an existing suite, not new test design. Size raised S -> M and complexity low -> medium. Scenario count stays at 4. |
+| Loosening U10c's race assertion (D-16) | A weaker test that no longer catches last-writer-wins | **Net stronger, not weaker.** The removed assertion was *unreliable* (nondeterministic) and the retained one is *deterministic*: a serialized distinguishable third write proving bytes + `st_mtime` unchanged fails on exactly the emitter class the original assertion targeted, without a race. |
+
+### Rollback and monitoring — delta
+
+* **D-15**: revert is textual (restore the fallback bullet in U7/`149.007-T`). No
+  code has shipped. Monitoring: U10c must observe that a hard-link-unavailable
+  emitter reports failure and leaves **no file** at the final path.
+* **D-17**: `gates/gate.py` is a ~10-line insertion with a pure-function
+  resolver; revert is removal of that block. Monitoring: the Q5 suite is the
+  detector — `test_gates_gate.py` and `test_gates_discovery.py` both go red if
+  the boundary is removed while discovery stays hex-only.
+* **Co-landing constraint reaffirmed**: U8b and U8c must land together. Cycle 3
+  extends that to a **three-file** red surface (`test_gates_discovery.py`,
+  `test_gates_gate.py`, plus the new `test_gate_ref_safety.py`).
+
+## Plan Review — re-run (hosted review-fix cycle 3)
+
+### Dispatch capability (P-012)
+
+No reviewer-subagent dispatch tool is available in this invocation (no MCP
+surface; backlogit reached via registry-declared CLI fallback). Declared
+degradation, consistent with cycles 1 and 2: personas are applied as
+single-agent structured self-review, not parallel dispatch.
+
+```text
+dispatch_mode: single-agent-declared-degradation
+```
+
+### Persona findings (P0-P3)
+
+| Persona | Finding | Severity | Disposition |
+|---|---|---|---|
+| Security Reviewer | Does D-17 reintroduce the D-12 injection surface by letting `check()` accept symbolic refs? | P1 | **No.** `check()` accepts refs and *resolves* them; `discover_modified_files` remains hex-only with the `--end-of-options`/`--` backstop. Raw text still never reaches `git diff`. The conversion point moved *up*, which is what D-12 always specified for the CLI — D-17 applies the same rule to the library boundary that was silently exempt. |
+| Security Reviewer | Is the `enabled=False` early return a bypass of ref validation? | P2 | **No.** It returns before *any* discovery call, so no ref reaches git on that path. Validating there would be validation with nothing to protect. Pinned explicitly by the retained `test_check_no_gates_returns_empty_report`. |
+| Reliability Reviewer | D-15 removes publication on hard-link-less platforms — is silent evidence loss acceptable? | P1 | **Yes, and it is not silent.** The emitter surfaces a non-fatal publication failure; the consumer computes `insufficient_evidence`, which is a *specified* outcome (D6) with no blocking authority (INV-3). The alternative — a partial file at the final path — is terminal under append-only and strands the epoch key permanently, which is the D-11 deadlock class. Recoverable-and-loud beats terminal-and-silent. |
+| Test Architect | Does D-16 leave any window where last-writer-wins passes? | P1 | **No.** The serialized phase issues a distinguishable payload at an already-published key and asserts bytes **and** `st_mtime` unchanged. An `os.replace`/`os.rename` emitter changes both. The race phase still proves single-well-formed-report; only the *winner identity* — never specified, never guaranteed — is no longer asserted. |
+| Architecture Strategist | Unit count 15 -> 15, but two units grew. Scope creep? | P2 | **No.** No unit, capability, dependency edge, or file *family* was added. Two existing units gained one file each (U8b 1->2, U8c 2->3), both inside the plan's own max-3 budget, and both sizes were raised S -> M rather than absorbed silently. D-17 growth was **forced**: the cycle-2 scope was unshippable because it broke a released command. |
+| Python Reviewer | Is `st_mtime` granularity sufficient to detect an overwrite? | P2 | **Byte comparison is the primary assertion; `st_mtime` is corroborating.** A rewrite with differing `produced_at` changes the bytes regardless of clock granularity, so the test cannot pass a last-writer-wins emitter even if mtime resolution is coarse. |
+| Maintainability Reviewer | Three cycles of corrections to U7's write protocol — is the unit unstable? | P3 | **Converging, not oscillating.** Cycle 1 keyed the epoch (D-11), cycle 2 removed `os.replace` (D-13), cycle 3 removed the last non-atomic path (D-15). Each narrowed the publication surface; the protocol is now a single path with no alternatives, which is terminal by construction. |
+| Correctness Reviewer | Does the retracted "production callers unaffected" claim invalidate cycle-1/cycle-2 verdicts? | P2 | **No.** It invalidates one *supporting statement*, not the D-12 decision it supported. D-12's rationale (argument injection via `--output=`) is independently verified against `discovery.py:61` and unaffected. The retraction is recorded in-place in D-17 and in `149.012-T` so the false claim cannot be re-cited. |
+
+**No P0 findings.** All eight are P1/P2/P3 and dispositioned in place.
+
+### Verdict rationale
+
+Four findings, all **P1/P2**, no P0. Every one was a **contradiction between two
+artifacts of the already-authorized contract** — a fallback that contradicted
+its own unit's complete-or-absent clause; a test assertion that contradicted
+what the implementation is required to guarantee; and an invariant claim that
+contradicted the shipped source it described. All four therefore passed the
+P-021 C1 same-contract-surface test and **none was deferred**.
+
+Cycle 3 adds **no capability, no unit, no dependency edge, and no new file
+family**. Unit count holds at **15**; the 157-S manifest holds at **16 members**;
+total implementation tasks hold at **23** and PR members at **25**. Granularity,
+width isolation, and the 2-hour rule hold across all 15 units, with U8b and U8c
+re-sized S -> M so the growth is declared rather than absorbed.
+
+**Cycle budget: this is cycle 3 of 3 against the 149-F plan. The review-fix
+budget is now EXHAUSTED.** No in-scope finding remains open.
 
 ```text
 dispatch_mode: single-agent-declared-degradation
