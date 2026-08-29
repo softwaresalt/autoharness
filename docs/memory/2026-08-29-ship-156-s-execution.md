@@ -24,9 +24,13 @@ normal merge -> post-merge runtime verification, closure, and compaction.
    pinned persona-checklist variables never bound by the general
    variable-derivation function). Full account in
    `docs/compound/2026-08-29-156-s-148-f-d8b-ratchet-misdiagnosis-and-copilot-catch.md`
-   — flagged by Copilot's PR review, not caught by local review or the
-   original test suite. This is the single most important finding from this
-   session and is called out explicitly for operator visibility.
+   — the canonical unittest run's ratchet-contract test correctly failed on
+   these 4 unresolved variables during U8, but the initial remediation
+   incorrectly widened the accepted-unresolved baseline to tolerate them,
+   masking the underlying production defect; Copilot's PR review then caught
+   that the widening itself was wrong, prompting the real fix (binding the
+   variables). This is the single most important finding from this session
+   and is called out explicitly for operator visibility.
 4. Local review (Constitution Reviewer + Python Reviewer personas): 1 direct
    fix (bare-assert / regex-parsing cleanups in the new U8 test file) plus 1
    genuine out-of-scope P-021 finding (pre-existing P-007 policy-prose
