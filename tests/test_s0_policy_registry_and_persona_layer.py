@@ -460,7 +460,20 @@ class PlaceholderScanAllFourteenInstalledArtifactsTests(unittest.TestCase):
         """Membership in the allow-list alone is not sufficient (D8-D):
         confirm each surviving exempt token is textually inside a fenced
         ```json ... ``` block, i.e. it is intended literal output-schema
-        content and not merely un-substituted."""
+        content and not merely un-substituted.
+
+        A ``set(...)`` membership test alone is insufficient here (Copilot
+        PR #417 finding #3): if an exempt token appears both inside a fenced
+        block AND leaks into surrounding prose, ``set(...)`` dedupes the two
+        occurrences to one and the fenced copy alone would make a naive
+        "token is somewhere in fenced_text" assertion pass, silently masking
+        the prose leak. The correct check is the inverse and location-exact:
+        strip every fenced ```json``` block out of the content first, then
+        assert NONE of the exempt tokens remain findable in what is left
+        (the non-fenced remainder). This proves every occurrence of each
+        exempt token lives inside a fence, not merely that some occurrence
+        does.
+        """
         fence_re = re.compile(r"```json\n(.*?)```", re.DOTALL)
         for name in _ALL_13_PERSONAS:
             content = _read(_SUBAGENTS_DIR / f"{name}.agent.md")
@@ -468,16 +481,17 @@ class PlaceholderScanAllFourteenInstalledArtifactsTests(unittest.TestCase):
             exempt_present = all_matches & _EXEMPT_OUTPUT_SCHEMA_EXEMPLARS
             if not exempt_present:
                 continue
-            fenced_blocks = fence_re.findall(content)
-            fenced_text = "\n".join(fenced_blocks)
-            for token in exempt_present:
-                with self.subTest(persona=name, token=token):
-                    self.assertIn(
-                        token,
-                        fenced_text,
-                        f"{token} found in {name}.agent.md but not inside a fenced "
-                        "json output-schema block",
-                    )
+            non_fenced_content = fence_re.sub("", content)
+            non_fenced_matches = set(_PLACEHOLDER_RE.findall(non_fenced_content))
+            leaked = exempt_present & non_fenced_matches
+            with self.subTest(persona=name):
+                self.assertEqual(
+                    leaked,
+                    set(),
+                    f"exempt token(s) {leaked} found in {name}.agent.md outside "
+                    "of any fenced json output-schema block (a fenced copy "
+                    "elsewhere does not excuse a non-fenced leak)",
+                )
 
 
 class ManifestChecksumRoundTripTests(unittest.TestCase):
