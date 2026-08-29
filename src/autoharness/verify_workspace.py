@@ -4024,9 +4024,14 @@ def _resolve_policy_registry(
 ) -> Path | None:
     """Resolve the authoritative workflow-policy registry.
 
-    Prefers the installed registry (``.github/policies/workflow-policies.md`` in a
-    real target install), then falls back to the ``autoharness_home`` template
-    (the dogfood self-install never installs a policies mirror). Returns ``None``
+    Installed-first, template-fallback: prefers the installed registry
+    (``.github/policies/workflow-policies.md``) whenever it exists in the target
+    workspace -- including this dogfood self-install, which now installs a
+    policies mirror of its own (156-S/148.001-T, U1) -- and falls back to the
+    ``autoharness_home`` template only for a workspace that legitimately has no
+    installed mirror. The precedence order itself is unchanged; only the
+    superseded "the dogfood self-install never installs a policies mirror"
+    assumption is corrected (156-S/148.002-T, U2; 336F3AB7). Returns ``None``
     when neither is resolvable so reference validation is existence-gated rather
     than a false failure.
     """
