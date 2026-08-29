@@ -28,6 +28,7 @@ from __future__ import annotations
 import re
 import unittest
 from pathlib import Path
+from typing import cast
 
 from autoharness.verify_workspace import _language_defaults, _resolve_policy_registry
 
@@ -170,12 +171,33 @@ class Scenario2RouteResolutionTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        manifest_text = _read(_REPO_ROOT / ".autoharness" / "harness-manifest.yaml")
-        match = re.search(r'PRIMARY_LANGUAGE_LOWER:\s*"([^"]+)"', manifest_text)
-        assert match is not None, "PRIMARY_LANGUAGE_LOWER not found in harness-manifest.yaml"
-        cls.primary_language_lower = match.group(1)
+        # Parse via yaml.safe_load (review finding, Python Reviewer persona,
+        # 156-S) rather than hand-rolled regex over the raw manifest text --
+        # robust against semantically equivalent YAML rewrites (quoting, key
+        # order, spacing), matching ManifestChecksumRoundTripTests below.
+        import yaml
+
+        manifest_path = _REPO_ROOT / ".autoharness" / "harness-manifest.yaml"
+        with manifest_path.open(encoding="utf-8") as fh:
+            manifest = yaml.safe_load(fh)
+        variables = manifest.get("variables_used") or {}
+        primary_language_lower = variables.get("PRIMARY_LANGUAGE_LOWER")
+        # `assert` alone is stripped under `python -O`, silently disabling this
+        # guard (review finding, Python Reviewer persona, 156-S): use an
+        # explicit `raise` instead so the setup-time cross-check can never
+        # silently vanish, matching the "no silent failures" constitutional
+        # rule. `setUpClass` is a classmethod (no bound `self`), so
+        # `self.assertX` is not available here.
+        if primary_language_lower is None:
+            raise AssertionError("PRIMARY_LANGUAGE_LOWER not found in harness-manifest.yaml")
+        cls.primary_language_lower = primary_language_lower
         # Cross-check the hardcoded expectation against the live manifest value.
-        assert cls.primary_language_lower == cls._PRIMARY_LANGUAGE_LOWER
+        if cls.primary_language_lower != cls._PRIMARY_LANGUAGE_LOWER:
+            raise AssertionError(
+                "PRIMARY_LANGUAGE_LOWER manifest value "
+                f"{cls.primary_language_lower!r} diverged from the hardcoded "
+                f"expectation {cls._PRIMARY_LANGUAGE_LOWER!r}"
+            )
 
         cls.citations: set[str] = set()
         for skills_dir in ("skills", "agents"):
@@ -285,16 +307,23 @@ class Scenario3NamedReaderLawTwoTests(unittest.TestCase):
         self,
     ) -> None:
         self.assertTrue((_SUBAGENTS_DIR / "python-reviewer.agent.md").exists())
-        manifest_text = _read(_REPO_ROOT / ".autoharness" / "harness-manifest.yaml")
-        match = re.search(
-            r'path:\s*"\.github/agents/subagents/python-reviewer\.agent\.md"\s*\n'
-            r"\s*primitive:\s*\d+\s*\n"
-            r'\s*template:\s*"([^"]+)"',
-            manifest_text,
+        # Parse via yaml.safe_load and look up by path (review finding,
+        # Python Reviewer persona, 156-S) rather than hand-rolled regex over
+        # the raw manifest text -- robust against semantically equivalent
+        # YAML rewrites (quoting, key order, spacing), matching the approach
+        # already used by ManifestChecksumRoundTripTests below.
+        import yaml
+
+        manifest_path = _REPO_ROOT / ".autoharness" / "harness-manifest.yaml"
+        with manifest_path.open(encoding="utf-8") as fh:
+            manifest = yaml.safe_load(fh)
+        by_path = {entry["path"]: entry for entry in manifest["artifacts"]}
+        entry = by_path.get(".github/agents/subagents/python-reviewer.agent.md")
+        self.assertIsNotNone(entry, "python-reviewer.agent.md manifest entry not found")
+        entry = cast(dict, entry)
+        self.assertEqual(
+            entry.get("template"), "agents/review/technology-reviewer.agent.md.tmpl"
         )
-        self.assertIsNotNone(match, "python-reviewer.agent.md manifest entry not found")
-        assert match is not None
-        self.assertEqual(match.group(1), "agents/review/technology-reviewer.agent.md.tmpl")
 
 
 class Scenario4ResolutionPrecedenceTests(unittest.TestCase):
@@ -472,7 +501,7 @@ class ManifestChecksumRoundTripTests(unittest.TestCase):
         for path in new_paths:
             entry = by_path.get(path)
             self.assertIsNotNone(entry, f"manifest entry missing for {path}")
-            assert entry is not None
+            entry = cast(dict, entry)
             file_bytes = (_REPO_ROOT / path).read_bytes()
             self.assertNotIn(b"\r\n", file_bytes, f"{path} is not LF-only")
             actual = hashlib.sha256(file_bytes).hexdigest()
