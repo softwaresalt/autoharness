@@ -1,6 +1,6 @@
 ---
 title: Validation Gates Reference
-description: Deterministic pre-task-completion validation gates — configuration schema, gate policy, the autoharness gate check CLI contract, and the kill-switch rollback
+description: Deterministic pre-task-completion validation gates — configuration schema, gate policy, the autoharness gate check CLI contract, the optional detector registry and gate pre-review reader, and the kill-switch rollback
 doc_type: reference
 source: docs/gates-reference.md
 ---
@@ -187,6 +187,81 @@ never crashes.
 | `0` | All matched gates passed, or no gates configured, or no files matched (or all failures advisory). |
 | `1` | At least one matched file failed its gate (blocked). |
 | `2` | Invalid arguments or invalid gate configuration. |
+
+## Detector Registry & `autoharness gate pre-review` (S1)
+
+Alongside the `pattern` → `command` validation gates above, the same
+`.autoharness/config.yaml` may declare a top-level, optional **`detectors`**
+block: a registry of report-only, non-blocking "pre-review" nodes evaluated by
+`autoharness gate pre-review`, independent of the `pre_task_completion`
+enforcement path.
+
+### `detectors` schema block
+
+The `detectors` block is a JSON array of detector nodes validated against the
+same versioned [`validation-gates` JSON Schema (1.0.0)](../schemas/validation-gates/1.0.0.schema.json)
+used by `lifecycle_hooks` — runtime validation always resolves the **versioned**
+document (`schemas/validation-gates/1.0.0.schema.json`), never the pointer file
+directly; the pointer (`schemas/validation-gates.schema.json`) is kept
+structurally identical to the versioned schema (differing only in `$id`) so the
+two never drift.
+
+Each detector node declares:
+
+| Field | Required | Description |
+|---|---|---|
+| `node_id` | yes | `det:<domain>/<detector_id>@<version>` (e.g. `det:D-ART/ART-01@1`). |
+| `applies_when` | yes | Applicability predicate: `changed_paths_any`, `shipment_has_items_of_type`, `workspace_surfaces_any`, or `always`. |
+| `producer.kind` | yes | Evidence-producer kind. **Only `pure` is implemented in S1** — `command` is schema-declared for forward compatibility but is currently rejected at load time (`producer.kind 'command' is not implemented in S1`). |
+| `producer.ref` | yes | `module:callable` reference; must resolve inside the `autoharness.detectors` namespace. |
+| `validator.ref` | yes | `module:callable` reference for the evidence-to-`NodeResult` validator; same namespace constraint. |
+| `depends_on` | no | Other `node_id`s this node depends on (validated for existence; cycles are rejected). |
+| `severity` | yes | Detector severity classification. |
+| `mode` | yes | Must be `report_only` in S1 — any other value is rejected at load time. |
+| `remediation` | yes | `class`, `hint`, `target_refs`, `authority` guidance surfaced alongside a failing result. |
+
+A missing or absent `detectors` key is a valid, backward-compatible "zero
+detector nodes" configuration (exit 0, nothing evaluated). A **present but
+malformed** `detectors` block — non-mapping top-level YAML, invalid YAML
+syntax, or a value that fails schema validation — is a fail-closed
+`DetectorRegistryError` (exit 2), never a silent zero-nodes fallback.
+
+### The canonical detector result contract
+
+Every detector node produces exactly one `NodeResult` with a single canonical
+`status` field drawn from a closed set of named values (there is no separate
+`verdict` field in the emitted report — `status` is the sole source of truth).
+Detector evaluation is always **report-only**: even a `failed` status never
+blocks a build or a merge by itself; it is evidence for downstream human or
+gate consumers.
+
+### `autoharness gate pre-review`
+
+```bash
+autoharness gate pre-review --base <ref> [--json]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--base <ref>` | *required* | Git ref to diff against; head is always `HEAD`. Both refs must resolve to a full 40-hex-character SHA through the same option-injection-safe resolution used by `gate check` — an unresolvable or option-like `--base` exits 2 with no report written. |
+| `--json` | off | Emit the pre-review payload as JSON. |
+
+The command loads the workspace's `detectors` registry, evaluates each node's
+applicability against the changed-path/shipment/workspace-surface context, runs
+every applicable node's producer/validator pair, and emits an append-only,
+epoch-keyed report under **`.autoharness/gates/pre-review/{head_sha}-{fingerprint}.json`**
+(never overwritten — a new epoch key is derived whenever the registry version,
+schema version, or resolved tool versions change).
+
+**Exit codes**
+
+| Code | Meaning |
+|---|---|
+| `0` | Registry loaded and evaluated (including when individual detector nodes report `failed` — pre-review is report-only and never blocks). |
+| `2` | Invalid detector registry (malformed config, unknown ref, cycle, disallowed `producer.kind`/`mode`), or an unresolvable/option-like `--base`/head ref. |
+
+Codes `1` and `3` are never emitted by this command; any occurrence is a
+regression.
 
 ## Where the Harness Invokes Gates
 

@@ -130,6 +130,49 @@ class ApplicabilityTests(unittest.TestCase):
         self.assertEqual(result.status, "not_applicable")
         self.assertEqual(result.excluded_by, "changed_paths_any")
 
+    def test_missing_manifest_artifact_fails_closed_instead_of_silently_skipping(self) -> None:
+        shipment = ShipmentState(
+            "157-S", title="S1", live_status="active", manifest_item_ids=("149.001-T", "149.999-T")
+        )
+        artifacts = {"149.001-T": ArtifactState("149.001-T", artifact_type="task", live_status="active")}
+        with self.assertRaises(ApplicabilityContextError):
+            build_applicability_context(
+                base="main",
+                head="HEAD",
+                resolve_ref=lambda ref, **_kwargs: {"main": "a" * 40, "HEAD": "b" * 40}[ref],
+                discover=lambda *args, **kwargs: [],
+                profile_loader=lambda _path: {"runtime_surfaces": {"cli": True}},
+                readers_factory=lambda _workspace: _FakeReaders((shipment,), artifacts),
+            )
+
+    def test_real_load_workspace_profile_raises_on_malformed_yaml(self) -> None:
+        import tempfile
+
+        from autoharness.detectors.applicability import _load_workspace_profile
+
+        repo_root = Path(__file__).resolve().parents[1]
+        temp_root = repo_root / ".test-output"
+        temp_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=temp_root) as tmp:
+            profile_path = Path(tmp) / "workspace-profile.yaml"
+            profile_path.write_text("runtime_surfaces: [unterminated\n", encoding="utf-8")
+            with self.assertRaises(ApplicabilityContextError):
+                _load_workspace_profile(profile_path)
+
+    def test_context_threads_resolved_workspace_to_produce_callers(self) -> None:
+        shipment = ShipmentState("157-S", title="S1", live_status="active", manifest_item_ids=("149.001-T",))
+        artifacts = {"149.001-T": ArtifactState("149.001-T", artifact_type="task", live_status="active")}
+        context = build_applicability_context(
+            base="main",
+            head="HEAD",
+            cwd=Path("/some/resolved/workspace"),
+            resolve_ref=lambda ref, **_kwargs: {"main": "a" * 40, "HEAD": "b" * 40}[ref],
+            discover=lambda *args, **kwargs: [],
+            profile_loader=lambda _path: {"runtime_surfaces": {"cli": True}},
+            readers_factory=lambda _workspace: _FakeReaders((shipment,), artifacts),
+        )
+        self.assertEqual(context.workspace, str(Path("/some/resolved/workspace")))
+
 
 if __name__ == "__main__":
     unittest.main()

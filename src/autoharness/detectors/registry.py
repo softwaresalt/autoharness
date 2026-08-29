@@ -126,8 +126,12 @@ def _load_node(raw: dict[str, Any]) -> NodeSpec:
 
 
 def load_detector_registry(config_data: Any, autoharness_home: Path) -> DetectorRegistry:
-    if not isinstance(config_data, dict):
+    if config_data is None:
         return DetectorRegistry()
+    if not isinstance(config_data, dict):
+        raise DetectorRegistryError(
+            f"Invalid detector registry: top-level config must be a mapping, got {type(config_data).__name__}"
+        )
 
     _validate_config(config_data, autoharness_home)
     raw_nodes = config_data.get("detectors")
@@ -161,5 +165,8 @@ def load_detector_registry_from_workspace(
     config_path = workspace / ".autoharness" / "config.yaml"
     if not config_path.exists():
         return DetectorRegistry()
-    config_data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    try:
+        config_data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError as exc:
+        raise DetectorRegistryError(f"Invalid detector registry: config.yaml is malformed YAML: {exc}") from exc
     return load_detector_registry(config_data, autoharness_home)

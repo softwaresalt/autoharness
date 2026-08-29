@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import copy
+import tempfile
 import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
-from autoharness.detectors.registry import DetectorRegistryError, load_detector_registry
+from autoharness.detectors.registry import (
+    DetectorRegistryError,
+    load_detector_registry,
+    load_detector_registry_from_workspace,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_TEMP_ROOT = _REPO_ROOT / ".test-output"
 
 VALID_CONFIG = {
     "detectors": [
@@ -51,6 +57,37 @@ class RegistryLoaderTests(unittest.TestCase):
         registry = load_detector_registry({}, _REPO_ROOT)
         self.assertEqual(registry.nodes, ())
         self.assertEqual(registry.exit_code, 0)
+
+    def test_none_config_yields_zero_nodes(self) -> None:
+        registry = load_detector_registry(None, _REPO_ROOT)
+        self.assertEqual(registry.nodes, ())
+        self.assertEqual(registry.exit_code, 0)
+
+    def test_non_mapping_config_fails_closed(self) -> None:
+        for malformed in (["detectors"], "detectors", 42, True):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises(DetectorRegistryError):
+                    load_detector_registry(malformed, _REPO_ROOT)
+
+    def test_from_workspace_raises_detector_registry_error_on_malformed_yaml(self) -> None:
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            config_dir = workspace / ".autoharness"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "config.yaml").write_text("detectors: [unterminated\n", encoding="utf-8")
+            with self.assertRaises(DetectorRegistryError):
+                load_detector_registry_from_workspace(workspace, _REPO_ROOT)
+
+    def test_from_workspace_raises_detector_registry_error_on_non_mapping_yaml(self) -> None:
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            config_dir = workspace / ".autoharness"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "config.yaml").write_text("- just\n- a\n- list\n", encoding="utf-8")
+            with self.assertRaises(DetectorRegistryError):
+                load_detector_registry_from_workspace(workspace, _REPO_ROOT)
 
     def test_valid_registry_loads_node_specs(self) -> None:
         registry = self._load(copy.deepcopy(VALID_CONFIG))

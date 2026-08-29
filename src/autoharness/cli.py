@@ -395,6 +395,7 @@ def _gate_check_command(rest: list[str]) -> None:
 
     from autoharness.gates import gate as gate_mod
     from autoharness.gates.config import GatesConfigError
+    from autoharness.gates.discovery import InvalidGitRefError
 
     try:
         config = _load_gate_config(parsed["workspace"])
@@ -406,13 +407,17 @@ def _gate_check_command(rest: list[str]) -> None:
         print("No validation gates configured; nothing to check.")
         return
 
-    report = gate_mod.check(
-        config,
-        parsed["base"],
-        parsed["head"],
-        task_id=parsed["task"],
-        cwd=parsed["workspace"],
-    )
+    try:
+        report = gate_mod.check(
+            config,
+            parsed["base"],
+            parsed["head"],
+            task_id=parsed["task"],
+            cwd=parsed["workspace"],
+        )
+    except InvalidGitRefError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
 
     from autoharness.gates.feedback import build_correction_report, enforce
 

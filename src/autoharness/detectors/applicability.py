@@ -28,6 +28,7 @@ class ApplicabilityContext:
     shipment_item_types: frozenset[str]
     workspace_surfaces: frozenset[str]
     touches_reviewable_paths: bool
+    workspace: str = "."
 
 
 def _load_workspace_profile(path: Path) -> dict:
@@ -37,6 +38,8 @@ def _load_workspace_profile(path: Path) -> dict:
         raise ApplicabilityContextError("workspace profile is missing") from exc
     except OSError as exc:  # pragma: no cover - defensive
         raise ApplicabilityContextError("workspace profile is unreadable") from exc
+    except yaml.YAMLError as exc:
+        raise ApplicabilityContextError("workspace profile is malformed") from exc
     if not isinstance(data, dict):
         raise ApplicabilityContextError("workspace profile is malformed")
     return data
@@ -58,7 +61,9 @@ def _resolve_item_types(readers, shipment_id: str):
         for item_id in shipment.manifest_item_ids:
             artifact = readers.read_artifact(item_id)
             if artifact is None or not artifact.artifact_type:
-                continue
+                raise ApplicabilityContextError(
+                    f"shipment manifest item {item_id!r} could not be resolved to a typed artifact"
+                )
             item_types.add(artifact.artifact_type)
         return frozenset(item_types)
     raise ApplicabilityContextError("shipment manifest is unavailable")
@@ -112,6 +117,7 @@ def build_applicability_context(
         shipment_item_types=shipment_item_types,
         workspace_surfaces=workspace_surfaces,
         touches_reviewable_paths=touches_reviewable_paths,
+        workspace=str(workspace),
     )
 
 

@@ -471,5 +471,5 @@ Existing target workspace harnesses are not affected until you run the tuner aga
 - **[Primitives](primitives.md)** — Deep reference for the 10 irreducible harness primitives
 - **[Capability Packs](capability-packs.md)** — Overlay pattern and pack catalog
 - **[Backlog Integration](backlog-integration.md)** — Backlog tool setup and registry abstraction
-- **[Validation Gates](gates-reference.md)** — Deterministic pre-task-completion gates, the `autoharness gate check` contract, and the kill-switch rollback
+- **[Validation Gates](gates-reference.md)** — Deterministic pre-task-completion gates, the `autoharness gate check` contract, the optional detector registry and `autoharness gate pre-review` report-only pre-review reader, and the kill-switch rollback
 - **[Telemetry Reference](telemetry-reference.md)** — Execution Epoch schema, the `autoharness telemetry record` emission contract, repo-local SQLite/JSONL sinks, and the `telemetry.mode: none` kill-switch
