@@ -8,8 +8,9 @@ from typing import Callable
 
 import yaml
 
+from autoharness.backlog_root import BacklogUnavailableError
 from autoharness.detectors.contract import ApplicabilitySpec, NodeResult, NodeSpec
-from autoharness.gates.discovery import resolve_commit_ref
+from autoharness.gates.discovery import discover_modified_files, resolve_commit_ref
 from autoharness.gates.match import path_matches
 from autoharness.gates.topology import FilesystemTopologyReaders, _resolve_shipment_from_branch
 
@@ -42,8 +43,11 @@ def _load_workspace_profile(path: Path) -> dict:
 
 
 def _resolve_item_types(readers, shipment_id: str):
-    shipments = tuple(readers.list_shipments())
-    current_branch = readers.current_branch()
+    try:
+        shipments = tuple(readers.list_shipments())
+        current_branch = readers.current_branch()
+    except BacklogUnavailableError as exc:
+        raise ApplicabilityContextError(str(exc)) from exc
     resolved = _resolve_shipment_from_branch(current_branch, shipments)
     if resolved != shipment_id:
         raise ApplicabilityContextError("shipment manifest could not be resolved from the current branch")
@@ -66,7 +70,7 @@ def build_applicability_context(
     *,
     cwd: Path | None = None,
     resolve_ref: Callable[..., str | None] = resolve_commit_ref,
-    discover: Callable[..., list[str]],
+    discover: Callable[..., list[str]] = discover_modified_files,
     profile_loader: Callable[[Path], dict] = _load_workspace_profile,
     readers_factory: Callable[[Path], object] = FilesystemTopologyReaders,
 ) -> ApplicabilityContext:
@@ -78,9 +82,12 @@ def build_applicability_context(
     if head_sha is None:
         raise ApplicabilityContextError("head ref could not be resolved")
 
-    readers = readers_factory(workspace)
-    shipments = tuple(readers.list_shipments())
-    current_branch = readers.current_branch()
+    try:
+        readers = readers_factory(workspace)
+        shipments = tuple(readers.list_shipments())
+        current_branch = readers.current_branch()
+    except BacklogUnavailableError as exc:
+        raise ApplicabilityContextError(str(exc)) from exc
     shipment_id = _resolve_shipment_from_branch(current_branch, shipments)
     if shipment_id is None:
         raise ApplicabilityContextError("shipment manifest could not be resolved from the current branch")
