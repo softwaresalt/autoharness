@@ -288,11 +288,26 @@ author-minted identifier** (A8).
   not a comparison a consumer could forget to perform.
 * **Rerun at unchanged HEAD after a tool-version change** therefore writes a new
   fresh file under a new key, with **no overwrite and no data loss**.
-* **Concurrency / idempotence**: a same-key write is idempotent. Write to a
-  temp file in the target directory then `os.replace` onto the final path, or
-  create with `O_EXCL` and treat an existing same-key file as success — the
-  content for a given key is deterministic, so concurrent writers cannot produce
-  divergent or partially-written reports.
+* **Concurrency / idempotence — no-clobber publication (D-13)**: a same-key write
+  is idempotent, and `os.replace` is **NOT** an allowed strategy. It is defined to
+  replace an existing destination, so at the same key it destroys the prior report
+  — a direct contradiction of `append-only, never overwritten` above. The protocol
+  is **exclusive claim, then atomic publish**: serialize to a unique temp file in
+  the target directory, `fsync`, then `os.link(tmp, final)` (atomic; raises
+  `FileExistsError` rather than clobbering), unlinking the temp in `finally`;
+  where hard links are unavailable, claim with
+  `os.open(final, O_CREAT|O_EXCL|O_WRONLY)`. In **both** paths `FileExistsError`
+  is **success** and the existing file is left byte-for-byte untouched.
+* **Payloads at one key are NOT byte-identical**: `provenance.produced_at` is
+  wall-clock RFC3339. The cycle-1 justification that "content is deterministic per
+  key" was **false** — determinism holds for the *key*, not the *payload* — which
+  is precisely why no-clobber is load-bearing rather than cosmetic. A published
+  report is always one whole payload from one writer.
+* **Torn-file containment**: on the link path a partial temp is never published,
+  so the final path is complete-or-absent. On the `O_EXCL` fallback a writer that
+  dies mid-write can leave a partial file, so the consumer rule is that an
+  **unparseable report is `insufficient_evidence`** — never evidence, never
+  repaired in place.
 * `provenance`: `base_sha`, `head_sha`, `epoch_key`, `fingerprint`,
   `reviewed_sha` (nullable), `platform`, `tool_versions`, `produced_at`
   (RFC3339), and `touches_reviewable_paths: bool`.
@@ -353,8 +368,23 @@ author-minted identifier** (A8).
   in depth — the resolver is the primary control, this is the backstop.
 * Applies to **every** user-controlled ref, head as well as base.
 * **Read-only**: resolution performs no mutation and writes no file.
+* **Input-contract change is BREAKING for symbolic-ref callers, and is
+  characterized rather than assumed.** `discover_modified_files` no longer accepts
+  `main`/`HEAD`/branch/tag; callers pre-resolve. Symbolic-ref handling is not
+  removed from the system — it moves **up** into `resolve_commit_ref`, the single
+  place allowed to invoke `git rev-parse`. Retaining symbolic-ref compatibility
+  inside `discover_modified_files` was considered and **rejected**: it reopens the
+  hole D-12 closes by letting unvalidated ref text reach `git diff`.
+* **Blast radius on the existing suite**: `tests/test_gates_discovery.py` calls
+  `discover_modified_files("main", "HEAD", ...)` at lines 32/40/49 and pins the
+  exact pre-change argv at line 45. All four assertions fail under this contract,
+  so the canonical Q5 gate goes red. That file is in **U8c**'s scope (tests
+  domain — folding it here would breach U8b's width isolation), and U8b is not
+  complete while it is red. The only **production** caller,
+  `src/autoharness/gates/gate.py:77`, passes internally-derived refs and is
+  unaffected.
 * **Posture**: test-first. **No dependencies** — self-contained hardening of an
-  existing module, schedulable first.
+  existing module, schedulable first. Lands together with U8c.
 
 ### U9 — Tests: contract, registry, applicability
 
@@ -365,8 +395,11 @@ author-minted identifier** (A8).
   from `to_dict()`, any `verdict` property always equals `status`, and no
   constructor path can produce a contradictory pair**; registry rejects
   `mode: blocking` / duplicate / unknown ref -> `invalid`; absent
-  registry -> zero nodes, exit 0; **FC1 unresolvable base -> `insufficient_evidence`
-  (explicitly NOT `not_applicable`)** and FC2 records `excluded_by`.
+  registry -> zero nodes, exit 0; **FC1 (engine layer, D-14) — a context that
+  cannot be built from *already-validated* input -> `insufficient_evidence`
+  (explicitly NOT `not_applicable`)** and FC2 records `excluded_by`. FC1 is driven
+  against the engine directly; an unsafe/unresolvable **user** `--base` exits 2 at
+  the CLI and never reaches here.
 
 ### U10 — Tests: assembler and cycle detection
 
@@ -412,8 +445,11 @@ author-minted identifier** (A8).
   at least one historical defect from PR #234 / #185 / #183 / #189 / #202 /
   #123 / #213 (reconstructed as a fixture, no network); `gate pre-review --json`
   emits a schema-valid report and **exits 0 even when `ART-01` reports `failed`**;
-  `--base <ref>` is honored and an unresolvable base yields
-  `insufficient_evidence` at exit 0.
+  a valid `--base <ref>` is honored (resolved to a 40-hex SHA before discovery)
+  while an **unsafe or unresolvable** `--base` is rejected with the invalid-input
+  class — **exit 2, no `git diff`, no report** (D-12). `insufficient_evidence` is
+  **not** an expected outcome at this boundary; it is the applicability-engine
+  **FC1** outcome, asserted in U9 scenario 4.
 * **RK1 falsification gate**: if `ART-01` cannot re-detect **any** listed
   historical defect, that is the designed early exit — **halt and reconsider
   Option A (independent gates)** rather than shipping an unjustified SDK.
@@ -421,7 +457,8 @@ author-minted identifier** (A8).
 
 ### U8c — Tests: option-safe ref resolution (security)
 
-* **Domain**: tests. **Files: 1** (`tests/test_gate_ref_safety.py`).
+* **Domain**: tests. **Files: 2** (`tests/test_gate_ref_safety.py` — new;
+  `tests/test_gates_discovery.py` — re-characterized).
 * Scenarios (4):
   1. **Option-like refs are rejected** — `--output=<tmp>`, `--upload-pack=...`,
      and a leading-dash ref all resolve to `None`, produce the invalid-input
@@ -432,7 +469,16 @@ author-minted identifier** (A8).
      full 40-char hex SHA.
   4. **Full-SHA pass-through** — an already-full SHA resolves to itself, and
      `discover_modified_files` receives only validated hex SHAs.
-* **Depends on U8b.**
+* **Plus existing-suite reconciliation** (a mechanical update to an existing file,
+  not a fifth scenario): `tests/test_gates_discovery.py` is updated so the Q5 gate
+  passes under U8b's contract — the three call sites pass validated 40-hex SHAs,
+  the exact-argv assertion is updated to the option-safe argv, and one new
+  assertion pins the **rejection of a symbolic ref** passed directly to
+  `discover_modified_files`. The two graceful-degradation tests still assert
+  `[]` + warning (deliberately unchanged, asserted not assumed); the
+  `parse_diff_output` tests are untouched (no ref surface).
+* **Depends on U8b.** Scenario count stays at 4 and Files stays within the max-3
+  budget, so the 2-hour rule still holds at size S.
 
 ## Dependency Graph
 
@@ -473,6 +519,8 @@ so it is scheduled first and unblocks both `U4` and `U8`.
 | D-10 | **The `detectors` block is added to BOTH the pointer and the versioned schema in the same unit** | `resolve_validation_gates_schema_path()` returns `schemas/validation-gates/1.0.0.schema.json` **first** and only falls back to the pointer (`schema_contracts.py:511-532`), so a pointer-only edit leaves **runtime validation blind to `detectors`**. Independently, `test_pointer_schema_mirrors_versioned_schema_except_id` asserts full dict equality after popping `$id`, so a pointer-only edit **fails the existing suite**. The two files are one atomic contract. |
 | D-11 | **Epoch key is `<head_sha>-<fingerprint>`**, not `<head_sha>` alone | HEAD alone conflicts with the D6 freshness rule: change a `tool_version_dims` value and the sole persisted report is stale, while append-only-never-overwrite blocks a rerun from writing fresh evidence at that same HEAD — pinning consumers at `insufficient_evidence` until an unrelated commit moves HEAD. Folding a canonical fingerprint of all freshness dimensions into the key makes freshness and identity the *same* predicate: a new dimension set writes a **new** file under a **new** key. Immutability is strengthened, not weakened — nothing is ever mutated or replaced. |
 | D-12 | **User-controlled Git refs are resolved with `git rev-parse --verify --end-of-options <ref>^{commit}` and validated to `^[0-9a-f]{40}$` before any use** | `discover_modified_files` interpolates `base` into `f"{base}...{head}"` with no option terminator (`gates/discovery.py:61`), so `--base=--output=/path` is parsed by `git diff` as its `--output` option and **writes a file**, breaking the gate's read-only guarantee. Resolving first and passing only a validated hex SHA removes the injection surface entirely; the `--end-of-options`/`--` backstop inside discovery is defence in depth. |
+| D-13 | **Report publication is a no-clobber exclusive claim plus atomic publish; `os.replace` is forbidden** | Cycle 1 offered `os.replace` *or* `O_EXCL` as interchangeable. They are not. `os.replace` is defined to replace an existing destination, so at the same epoch key it destroys immutable evidence -- a direct contradiction of the `append-only, never overwritten` clause in the same unit. The justification offered ("content is deterministic per key") is **false**: `provenance.produced_at` is wall-clock RFC3339, so two writers at one key produce different bytes, making `os.replace` a last-writer-wins overwrite rather than a benign idempotent write. Publication is now: temp file in the target dir -> `fsync` -> `os.link(tmp, final)` (atomic, raises `FileExistsError` instead of clobbering), with `os.open(final, O_CREAT|O_EXCL|O_WRONLY)` as the no-hardlink fallback; `FileExistsError` is **success** and the existing file is untouched. A published report becomes unreachable by any write path. |
+| D-14 | **The exit-2 (CLI boundary) and `insufficient_evidence` (FC1) outcomes belong to different layers and are never asserted for the same input** | U11 scenario 4 expected `insufficient_evidence` at exit 0 for an unresolvable `--base`, while U8/U8b/U8c require exit 2 with no report for exactly that input -- the two suites were mutually unsatisfiable. The boundary: **user-controlled ref text** is validated at the CLI and an unsafe/unresolvable value exits **2** before any discovery call or side effect (D-12); **FC1** is the applicability engine's fail-closed outcome when a context cannot be built from *already-validated* input (unreadable manifest, missing profile, internally-derived base that fails to resolve) and yields `insufficient_evidence` for every node, explicitly NOT `not_applicable` (D-7). The CLI path can never reach FC1 with bad user input because it exits first. |
 
 ## Risks and Caveats
 
@@ -724,7 +772,9 @@ cannot be carried forward unexamined.
 | Changing the persisted-report filename convention | Orphaning any evidence already written under the old `<head_sha>.json` convention | **No migration and no backfill are required**: S1 has not shipped, so **no report has ever been written** by this code path. The convention is new-at-birth, not changed-in-flight. Nothing to migrate, nothing to delete |
 | Removing a field (`verdict`) from an unshipped contract | Would be breaking if consumers existed | **No consumer exists** — S1 is the first shipment to define `NodeResult`. Removing it *before* first ship is precisely why this must land now rather than after S2-S10 bind to it |
 | Adding `--end-of-options` inside `discover_modified_files` | Behaviour change to an **existing shipped** function used by other callers | `--end-of-options` only constrains *option parsing*; it cannot change the meaning of an already-valid ref. Existing callers pass internally-derived refs, so the observable diff output is unchanged. This is the one genuinely pre-existing surface touched, and U8c scenario 4 characterizes pass-through |
+| ^ **CORRECTED IN CYCLE 2 (thread `PRRT_kwDORzpWpM6dVQdY`) -- the row above is retained for lineage and is NOT the live containment.** | The containment understated the blast radius: it conflated *option parsing* (genuinely unchanged) with the *input contract* (genuinely changed). Asserting `base`/`head` are 40-hex SHAs rejects symbolic refs, and `tests/test_gates_discovery.py` passes `"main"`/`"HEAD"` at lines 32/40/49 and pins the exact old argv at line 45 -- four failing assertions, so the canonical Q5 gate goes red | **Live containment**: only the *production* caller (`gates/gate.py:77`) is unaffected. `tests/test_gates_discovery.py` is added to **U8c**'s scope (Files 1 -> 2) and re-characterized there; U8b is not complete while that suite is red; U8b and U8c land together |
 | Concurrent writes at the same epoch key | Torn or duplicated report file | Atomic `os.replace` (or `O_EXCL` treat-exists-as-success); content is deterministic per key; U10c scenario 4 asserts it |
+| ^ **CORRECTED IN CYCLE 2 (thread `PRRT_kwDORzpWpM6dVQec`) -- the row above is retained for lineage and is NOT the live containment.** | `os.replace` overwrites the prior report at the same key, contradicting append-only; and the "deterministic content" premise is false because `produced_at` varies | **Live containment (D-13)**: no-clobber exclusive claim (`os.link` / `O_EXCL`, `FileExistsError` == success) plus atomic publish; `os.replace` forbidden throughout; U10c scenario 4 now asserts the published bytes equal the **first** writer's payload, so last-writer-wins is a failing test |
 
 ### Rollback and monitoring — delta
 
@@ -776,6 +826,7 @@ dispatch_mode: single-agent-declared-degradation
 | Architecture Strategist | Unit count 11 -> 15. Is this scope creep? | P2 | **No.** No new capability was added; three splits (U8b, U10b/U10c, U8c) were forced by the plan's own granularity budget (max 3 files, max 4 test scenarios per unit). Absorbing 8 scenarios into U10 or 8 into U11 would have breached the 2-hour rule. |
 | Python Reviewer | `CheckResult.status` is an unconstrained `str` and consumers branch on `.status` (`gates/topology.py:172-180`) — a widened vocabulary on that one field is compatible. | — | PASS (verified in source, not assumed). |
 | Python Reviewer | Concurrent same-key writes need an explicit strategy or the report can tear. | P1 | **Addressed**: atomic `os.replace` or `O_EXCL`-treat-exists-as-success; deterministic content per key; U10c scenario 4. |
+| ^ **SUPERSEDED IN CYCLE 2 (thread `PRRT_kwDORzpWpM6dVQec`)** — the cycle-1 disposition above is retained for lineage and is **not** the live contract. | The `os.replace` half of that disposition contradicts append-only, and its "deterministic content per key" premise is false (`produced_at` is wall-clock). | **Live contract: D-13** — no-clobber exclusive claim (`os.link` / `O_EXCL`, `FileExistsError` == success), `os.replace` forbidden, and U10c scenario 4 now pins the published bytes to the first writer. |
 | Python Reviewer | `--end-of-options` requires Git >= 2.24. | P2 | Acceptable — already implied by the repo's `gh`/worktree usage. On an older Git, `rev-parse --verify` fails closed to the invalid-input class, which is the safe direction. |
 | Scope Boundary Auditor | Do the cycle-1 edits leak S2-S10 scope into S1? | — | PASS. No waiver surface, no incremental evaluation, no shipment attachment, no read-back consumer. The D-11 selection rule is specified for S8 but **not implemented** here. |
 | Scope Boundary Auditor | U2 now contains a test file — width-isolation breach? | P3 | Accepted. `tests/test_validation_gates_schema.py` is the **schema's own contract test** and already contains the parity assertion that the schema edit would break. Splitting them would ship a knowingly red suite mid-shipment. No detector runtime logic enters U2. |
@@ -802,6 +853,151 @@ scope.
 Q1's approved derived-report persistence exception is preserved unchanged, and
 derive-never-persist for the graph itself is untouched. Granularity, width
 isolation, and the 2-hour rule hold across all 15 units.
+
+```text
+decision: PASS
+```
+
+> **SUPERSEDED — the `dispatch_mode:` and `decision:` blocks immediately above
+> belong to the 2026-08-28 hosted review-fix **cycle 1** review and are retained
+> for lineage only. The authoritative markers for this plan are the
+> `dispatch_mode:` and `decision:` blocks at the END of this file (hosted
+> review-fix **cycle 2**, 2026-08-28).**
+
+---
+
+## Plan Hardening — re-run (hosted review-fix cycle 2, 2026-08-28)
+
+Re-run is **mandatory**, not discretionary. The cycle-2 corrections change a
+**persistence protocol** (U7, publication strategy), a **public CLI acceptance
+contract** (U11, `--base` exit class), and the **declared scope of an existing
+shipped test surface** (U8b/U8c, `tests/test_gates_discovery.py`). Each trips a
+P-006 hardening signal independently, so the cycle-1 hardening pass cannot be
+carried forward unexamined.
+
+**Reviewed HEAD**: `5c907b4fd75a02772388bd20f4d09d14950f046b`.
+**Trigger**: 5 unresolved Copilot review threads on PR #414.
+
+### Protected invariants — delta
+
+* **INV-1 (Law 1, flat report)** — UNCHANGED. D-13 changes *how* the file is
+  published, never its shape. The writer still has no edge access.
+* **INV-2 (Q1 boundary)** — UNCHANGED and re-verified. S1 still ships **no
+  read-back API**. D-13's consumer rule ("an unparseable report is
+  `insufficient_evidence`") is a written specification, not a production read
+  path; nothing in S1 reads a report back.
+* **INV-3 (report has no exit authority)** — UNCHANGED, and explicitly
+  re-confirmed against D-14: exit 2 is the pre-existing **invalid-input** class,
+  not a detector verdict escaping into the exit code. A `failed` detector still
+  exits 0.
+* **INV-4, INV-5, INV-6, INV-7** — UNCHANGED.
+* **INV-8 (epoch key)** — UNCHANGED as to the key; **strengthened** as to the
+  file: under D-13 a published report is now unreachable by any write path, so
+  "append-only" is enforced by the publication primitive rather than by a
+  convention an implementer could pick the wrong overload of.
+* **INV-9 (no unresolved user ref reaches `git`)** — UNCHANGED and now
+  **falsifiable end-to-end**: the U11 acceptance case no longer contradicts it.
+* **INV-10 (NEW, D-13)** — **a published report is immutable by construction.**
+  No code path opens a published report for writing; publication fails closed on
+  an existing destination and reports that failure as success.
+* **INV-11 (NEW, D-14)** — **exactly one outcome is correct per layer.** Unsafe
+  or unresolvable *user* ref text -> exit 2 at the CLI, no side effect. A context
+  that cannot be built from validated input -> `insufficient_evidence` at the
+  engine. No test asserts both for one input.
+
+### Risky actions — delta
+
+| Action | Risk | Containment |
+|---|---|---|
+| Forbidding `os.replace` and mandating a link/`O_EXCL` claim | `os.link` is unavailable on some filesystems, so a naive implementation could fail to publish at all | The `O_EXCL` path is a **specified fallback**, not an afterthought, and both paths treat `FileExistsError` as success. U10c scenario 4 exercises real concurrent writers, so a broken publish surfaces as a failing test rather than as missing evidence |
+| Relying on `O_EXCL` alone in the fallback path | A writer that dies mid-write leaves a partial file that a later reader could consume as evidence | Contained by specification, not by hope: an **unparseable report is `insufficient_evidence`**, never evidence, and is never repaired in place. The link path never publishes a partial file at all |
+| Adding an existing shipped test file to U8c's scope | Scope creep into an unrelated suite; or a unit that silently exceeds the 2-hour rule | Bounded and enumerated: **four** existing assertions are re-characterized plus **one** new rejection assertion, in **one** file. Files 1 -> 2 (max 3), scenarios stay at 4, size stays S. `parse_diff_output` tests and both graceful-degradation tests are explicitly out of scope and asserted unchanged |
+| Changing U11's expected exit class from 0 to 2 | Could be mistaken for weakening the report-only guarantee (RK3) | Explicitly **not** a weakening: exit 2 is the pre-existing invalid-input class already used for invalid registries, and U11 still asserts exit 0 while `ART-01` reports `failed`. The exit-code invariance sweep (only 0 and 2) is unchanged |
+
+### Rollback and monitoring — delta
+
+* Rollback is unchanged and remains cheap: no cycle-2 change adds a new file or a
+  new dependency edge. Every change is a contract tightening inside units that
+  have not yet been implemented.
+* **New monitoring trigger (D-13)**: if `os.replace`, `os.rename`, `shutil.move`,
+  or any `open(..., "w")` is ever observed on a path under
+  `.autoharness/gates/pre-review/`, INV-10 is violated and the append-only
+  guarantee is void.
+* **New monitoring trigger (D-14)**: if any test asserts `insufficient_evidence`
+  for an unsafe or unresolvable **user-supplied** `--base`, INV-11 has regressed
+  and U8/U8c are no longer satisfiable alongside U11.
+
+**Requires plan hardening: yes — re-run completed 2026-08-28 (cycle 2).**
+
+---
+
+## Plan Review — re-run (hosted review-fix cycle 2)
+
+**Reviewed**: 2026-08-28 · **Plan**: `docs/plans/2026-08-27-pre-review-detector-sdk-plan.md`
+**Trigger**: 5 unresolved Copilot review threads on PR #414 at HEAD
+`5c907b4fd75a02772388bd20f4d09d14950f046b`.
+
+### Dispatch capability (P-012)
+
+* `TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass`
+  — `.github/agents/subagents/` still does not exist (S0/GAP 2 has **not**
+  executed; `156-S` remains queued and unclaimed). Probed by direct path check.
+* `TOOL_DEGRADED: model-specific-review-routing — declared fallback: same-model rubric pass`
+* `TOOL_DEGRADED: backlogit-MCP — CLI fallback: `backlogit` (v1.10.1) used for
+  sync, doctor, and checkpoint operations`
+* `TOOL_DEGRADED: agent-intercom — operator visibility reduced` (dark mode,
+  `visibility=local`)
+* `ENGRAM_DEGRADED` / `GRAPHTOR_UNAVAILABLE` — file-based retrieval used. All
+  five findings were re-verified by **direct source read** (`gates/discovery.py`,
+  `tests/test_gates_discovery.py`, the shipment manifests, and the `031-DL`
+  source corpus) rather than by index lookup.
+
+Every selected persona was covered inline; no persona was dropped. Security Lens
+and Agent-Native Parity were triggered again because cycle 2 touches an
+argument-injection surface and a CLI acceptance contract.
+
+```text
+dispatch_mode: single-agent-declared-degradation
+```
+
+### Persona findings (P0-P3)
+
+| Persona | Finding | Sev | Disposition |
+|---|---|---|---|
+| Python Reviewer | `os.replace` was offered as an allowed publication strategy beside an `append-only, never overwritten` clause in the same unit. The two cannot both hold. | **P1** | **Fixed (D-13)**. `os.replace` removed from U7 and from the plan. Publication is an exclusive claim (`os.link`, `O_EXCL` fallback) plus atomic publish; `FileExistsError` is success. |
+| Python Reviewer | The premise justifying `os.replace` — "content is deterministic per key" — is false, because `provenance.produced_at` is wall-clock. | **P1** | **Fixed (D-13)**. The false premise is named and retracted in both the task and the plan. Determinism is asserted for the *key*, never for the *payload*. |
+| Python Reviewer | U10c scenario 4 asserted only "exactly one well-formed report", which an overwriting emitter also satisfies — the assertion could not have caught the defect. | **P1** | **Fixed**. Scenario 4 now pins the published bytes to the **first** writer's payload; last-writer-wins is a failing test. |
+| Security Lens Reviewer | U8b changes `discover_modified_files`' accepted inputs and argv, but no unit owned `tests/test_gates_discovery.py`, which pins the old argv at line 45 and passes symbolic refs at lines 32/40/49. The canonical Q5 gate would go red. | **P1** | **Fixed**. That file is added to **U8c** (tests domain, Files 1 -> 2); U8b is not complete while it is red; U8b/U8c land together. Symbolic-ref behaviour is now characterized explicitly rather than assumed. |
+| Security Lens Reviewer | Retaining symbolic-ref compatibility inside `discover_modified_files` would be the cheaper fix. | P2 | **Rejected, recorded.** It reopens the hole D-12 closes by letting unvalidated ref text reach `git diff`. Resolution moves up into `resolve_commit_ref`; the capability is preserved, its location is not. |
+| Constitution Reviewer | U11 acceptance expected `insufficient_evidence` at exit 0 for an unresolvable `--base`, while U8/U8b/U8c require exit 2 with no report for that same input. Mutually unsatisfiable. | **P1** | **Fixed (D-14)**. U11 now asserts the CLI boundary (exit 2, no side effect); FC1's `insufficient_evidence` is pinned to the **engine** layer in U4 and U9 and is driven against the engine directly. |
+| Constitution Reviewer | Law 1 / Law 2 posture unchanged by cycle 2; Q1's exception is neither widened nor re-argued. | — | PASS |
+| Architecture Strategist | Are D-13/D-14 new scope? | P2 | **No.** Both remove contradictions between artifacts of the already-authorized contract; no unit, file, dependency edge, or capability was added. Unit count stays **15**; the dependency graph is unchanged. |
+| Scope Boundary Auditor | `031-DL`'s problem frame said "Nine" while the adjacent list carried ten IDs. | P2 | **Fixed, and the reviewer's literal suggestion was not followed.** "Nine" is **correct** — it matches the decision artifact's "`D911A3B2` epic + eight features". The tenth ID `34AAF1C7` is a **retained living tracker**, not an imported entry; only its branch (a) is consumed, via S9. The list label now records that provenance instead of inflating the count, which would have contradicted the source arithmetic. |
+| Scope Boundary Auditor | Shipment member counts drifted: the PR description still published 19 tasks / 21 members after cycle 1 raised S1 from 11 to 15. | P2 | **Verified and handed off.** Authoritative counts from the manifests: `156-S` = 1 feature + 8 tasks = **9 members**; `157-S` = 1 feature + 15 tasks = **16 members**; total **23 implementation tasks, 25 members**. The PR body is Orchestrator-owned; Stage does not edit it (P-010). |
+| Agent-Native Parity Reviewer | Exit 2 for an unsafe `--base` is machine-legible and matches the existing invalid-registry class; `--json` parity unchanged. | — | PASS |
+| Learnings Researcher | `docs/compound/2026-08-21-ship-executable-set-must-wire-into-actual-loop-variable.md` — the "defined but not wired" class. Applies to the U8c reconciliation: a task that changes a contract without owning the tests that pin it presents as complete while the gate is red. | P2 | **Addressed** by the explicit "U8b MUST NOT be marked complete while that suite is red" clause plus the co-landing requirement. |
+
+### Verdict rationale
+
+Five findings, all **P1/P2**, no P0. Every one was a **contradiction between two
+artifacts of the already-authorized contract** rather than a request for new
+capability — which is why all five passed the P-021 C1 same-contract-surface
+test and none was deferred.
+
+The two P1 clusters are now enforced structurally rather than by prose: D-13
+makes a published report unreachable by any write path (INV-10) and gives U10c
+an assertion that can actually fail on an overwrite; D-14 assigns exactly one
+correct outcome per layer (INV-11) so U11 and U8/U8c are simultaneously
+satisfiable. The U8c scope addition converts a silent Q5-gate failure into an
+enumerated, bounded, in-budget edit.
+
+Granularity, width isolation, and the 2-hour rule hold across all **15** units.
+No unit, file, dependency edge, or capability was added in cycle 2; `U8c` moves
+from Files 1 to Files 2, still inside the max-3 budget at size S.
+
+```text
+dispatch_mode: single-agent-declared-degradation
+```
 
 ```text
 decision: PASS
