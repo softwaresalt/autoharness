@@ -26,6 +26,20 @@ class InvalidGitRefError(ValueError):
     exit_code = 2
 
 
+class GitDiffDiscoveryError(RuntimeError):
+    """Raised when a caller opts into fail-closed diff-discovery semantics.
+
+    ``discover_modified_files`` degrades gracefully (empty list + warning) by
+    default so existing callers (e.g. ``gates/gate.py``'s ``check()``) keep
+    their long-standing "no repo / unknown ref => no changes" behavior
+    unchanged. Callers that instead need to distinguish "diff genuinely could
+    not be computed" (e.g. unrelated histories with no merge-base for a
+    triple-dot diff) from "diff succeeded with zero changed files" — where a
+    silent empty list would misrepresent the former as the latter — pass
+    ``raise_on_failure=True`` to opt into this exception instead.
+    """
+
+
 def _default_runner(argv: list[str], cwd: Path | None) -> tuple[int, str, str]:
     proc = subprocess.run(
         argv,
@@ -92,12 +106,18 @@ def discover_modified_files(
     *,
     cwd: Path | None = None,
     runner: Runner | None = None,
+    raise_on_failure: bool = False,
 ) -> list[str]:
     """Return repo-relative, forward-slash paths modified between base and head.
 
-    ``base`` and ``head`` must already be validated full hex SHAs. Returns an
-    empty list (and logs a warning) when git is unavailable or the directory is
-    not a repository. Never raises for git-execution failures.
+    ``base`` and ``head`` must already be validated full hex SHAs. By default,
+    returns an empty list (and logs a warning) when git is unavailable, the
+    directory is not a repository, or the diff otherwise fails to execute
+    (e.g. unrelated histories with no merge-base for a triple-dot diff) —
+    this is the long-standing contract relied on by existing callers. Pass
+    ``raise_on_failure=True`` to instead raise :class:`GitDiffDiscoveryError`
+    on any of those failure conditions, for callers that must not conflate
+    "diff could not be computed" with "diff computed zero changes".
     """
     if not _is_full_sha(base) or not _is_full_sha(head):
         raise InvalidGitRefError("discover_modified_files requires validated 40-char hex SHAs")
@@ -106,11 +126,15 @@ def discover_modified_files(
     argv = ["git", "diff", "--name-only", "--end-of-options", f"{base}...{head}", "--"]
     try:
         returncode, stdout, stderr = run(argv, cwd)
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
         logger.warning("git executable not found; treating as no modified files discovered.")
+        if raise_on_failure:
+            raise GitDiffDiscoveryError("git executable not found") from exc
         return []
     except OSError as exc:  # pragma: no cover - defensive
         logger.warning("git diff failed to execute (%s); no modified files discovered.", exc)
+        if raise_on_failure:
+            raise GitDiffDiscoveryError(f"git diff failed to execute: {exc}") from exc
         return []
 
     if returncode != 0:
@@ -122,6 +146,10 @@ def discover_modified_files(
             returncode,
             stderr.strip(),
         )
+        if raise_on_failure:
+            raise GitDiffDiscoveryError(
+                f"git diff --name-only {base}...{head} exited {returncode}: {stderr.strip()}"
+            )
         return []
 
     return parse_diff_output(stdout)

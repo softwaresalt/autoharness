@@ -20,6 +20,7 @@ from autoharness.detectors.contract import (
     ProducerSpec,
     RemediationSpec,
     ValidatorSpec,
+    topological_order_or_cycle,
 )
 from autoharness.schema_contracts import VALIDATION_GATES_SCHEMA_VERSION, resolve_validation_gates_schema_path
 
@@ -152,6 +153,20 @@ def load_detector_registry(config_data: Any, autoharness_home: Path) -> Detector
                 raise DetectorRegistryError(
                     f"Detector {node.node_id} depends on unknown node {depends_on}"
                 )
+        for consumed in node.validator.consumes:
+            if consumed not in seen:
+                raise DetectorRegistryError(
+                    f"Detector {node.node_id} validator.consumes references unknown node {consumed}"
+                )
+            if consumed not in node.depends_on:
+                raise DetectorRegistryError(
+                    f"Detector {node.node_id} validator.consumes references {consumed}, "
+                    "which must also be declared in depends_on so upstream evidence is guaranteed "
+                    "to have been produced before this node's validator runs"
+                )
+    _order, cycle_nodes = topological_order_or_cycle(nodes)
+    if cycle_nodes:
+        raise DetectorRegistryError(f"Detector registry contains a dependency cycle: {' -> '.join(cycle_nodes)}")
     return DetectorRegistry(
         nodes=nodes,
         version=_canonical_registry_version(raw_nodes),

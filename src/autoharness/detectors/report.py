@@ -20,19 +20,32 @@ def _rfc3339_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _default_autoharness_version() -> str:
+    try:
+        from autoharness import __version__
+
+        return __version__
+    except Exception:  # pragma: no cover - defensive fallback
+        return ""
+
+
 def _canonical_json_bytes(payload: object) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def build_freshness_fingerprint(
     *,
+    base_sha: str,
     registry_version: str,
     schema_version: str,
     tool_versions: dict[str, str],
+    autoharness_version: str | None = None,
 ) -> str:
     payload = {
+        "base_sha": base_sha,
         "registry_version": registry_version,
         "schema_version": schema_version,
+        "autoharness_version": autoharness_version if autoharness_version is not None else _default_autoharness_version(),
         "tool_versions": {key: tool_versions[key] for key in sorted(tool_versions)},
     }
     return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()[:16]
@@ -41,14 +54,18 @@ def build_freshness_fingerprint(
 def compute_epoch_key(
     head_sha: str,
     *,
+    base_sha: str,
     registry_version: str,
     schema_version: str,
     tool_versions: dict[str, str],
+    autoharness_version: str | None = None,
 ) -> tuple[str, str]:
     fingerprint = build_freshness_fingerprint(
+        base_sha=base_sha,
         registry_version=registry_version,
         schema_version=schema_version,
         tool_versions=tool_versions,
+        autoharness_version=autoharness_version,
     )
     return f"{head_sha}-{fingerprint}", fingerprint
 
@@ -56,16 +73,20 @@ def compute_epoch_key(
 def report_path_for(
     workspace: Path,
     *,
+    base_sha: str,
     head_sha: str,
     registry_version: str,
     schema_version: str,
     tool_versions: dict[str, str],
+    autoharness_version: str | None = None,
 ) -> Path:
     epoch_key, _fingerprint = compute_epoch_key(
         head_sha,
+        base_sha=base_sha,
         registry_version=registry_version,
         schema_version=schema_version,
         tool_versions=tool_versions,
+        autoharness_version=autoharness_version,
     )
     return workspace / ".autoharness" / "gates" / "pre-review" / f"{epoch_key}.json"
 
@@ -120,13 +141,16 @@ def build_report_payload(
     touches_reviewable_paths: bool,
     produced_at: str | None = None,
     reviewed_sha: str | None = None,
+    autoharness_version: str | None = None,
 ) -> tuple[dict[str, object], ...]:
     timestamp = produced_at or _rfc3339_now()
     epoch_key, fingerprint = compute_epoch_key(
         head_sha,
+        base_sha=base_sha,
         registry_version=registry_version,
         schema_version=schema_version,
         tool_versions=tool_versions,
+        autoharness_version=autoharness_version,
     )
     payload = []
     for result in results:
@@ -171,15 +195,17 @@ def emit_pre_review_report(
     touches_reviewable_paths: bool,
     produced_at: str | None = None,
     reviewed_sha: str | None = None,
+    autoharness_version: str | None = None,
 ) -> ReportEmissionResult:
     epoch_key, fingerprint = compute_epoch_key(
         head_sha,
+        base_sha=base_sha,
         registry_version=registry_version,
         schema_version=schema_version,
         tool_versions=tool_versions,
+        autoharness_version=autoharness_version,
     )
     path = workspace / ".autoharness" / "gates" / "pre-review" / f"{epoch_key}.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = build_report_payload(
         tuple(results),
         base_sha=base_sha,
@@ -190,29 +216,33 @@ def emit_pre_review_report(
         touches_reviewable_paths=touches_reviewable_paths,
         produced_at=produced_at,
         reviewed_sha=reviewed_sha,
+        autoharness_version=autoharness_version,
     )
     payload_bytes = json.dumps(payload, indent=2, ensure_ascii=False).encode("utf-8")
     temp_path = path.parent / f".{epoch_key}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}.tmp"
-    with temp_path.open("xb") as handle:
-        handle.write(payload_bytes)
-        handle.flush()
-        os.fsync(handle.fileno())
     wrote_new = False
     publication_failed = False
     message = ""
     try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with temp_path.open("xb") as handle:
+            handle.write(payload_bytes)
+            handle.flush()
+            os.fsync(handle.fileno())
         try:
             os.link(temp_path, path)
             wrote_new = True
         except FileExistsError:
             wrote_new = False
-        except OSError as exc:
-            publication_failed = True
-            message = f"pre-review report publish unavailable: {exc}"
+    except OSError as exc:
+        publication_failed = True
+        message = f"pre-review report publish unavailable: {exc}"
     finally:
         try:
             temp_path.unlink()
-        except FileNotFoundError:
+        except OSError:
+            # Best-effort cleanup only; never mask the primary publication
+            # outcome (success, no-clobber, or publication_failed) computed above.
             pass
     return ReportEmissionResult(
         path=path,

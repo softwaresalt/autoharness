@@ -104,11 +104,13 @@ def produce(node: NodeSpec, context: Any) -> Evidence:
     for path in sorted((workspace / ".backlogit" / "queue").glob("*.md")):
         frontmatter, body = _split_frontmatter(path.read_text(encoding="utf-8"))
         artifact_type = frontmatter.get("artifact_type")
+        type_resolved = isinstance(artifact_type, str) and artifact_type in templates
         sections = templates.get(artifact_type, ()) if isinstance(artifact_type, str) else ()
         artifacts.append(
             {
                 "path": str(path.relative_to(workspace)).replace('\\', '/'),
                 "artifact_type": artifact_type,
+                "type_resolved": type_resolved,
                 "sections": _inspect_declared_sections(body, sections),
             }
         )
@@ -119,7 +121,19 @@ def validate(node: NodeSpec, evidence_map, _context: Any) -> NodeResult:
     evidence = evidence_map[node.node_id]
     artifacts = evidence.payload.get("artifacts", [])
     failures = []
+    unresolved = []
     for artifact in artifacts:
+        if not artifact.get("type_resolved", False):
+            # A missing/malformed `artifact_type`, or one with no matching
+            # template, means we never know which sections *should* be
+            # present. `_load_template_sections`/`sections=()` silently makes
+            # such an artifact look conformant (zero declared sections, zero
+            # issues) — that would be a false "passed", not a genuine
+            # verification. Report it separately so it can never be
+            # confused with an artifact that was actually checked and found
+            # clean.
+            unresolved.append({"path": artifact.get("path"), "artifact_type": artifact.get("artifact_type")})
+            continue
         section_failures = {
             name: info["issues"]
             for name, info in artifact.get("sections", {}).items()
@@ -144,6 +158,27 @@ def validate(node: NodeSpec, evidence_map, _context: Any) -> NodeResult:
                 "artifact_count": len(artifacts),
                 "failure_count": len(failures),
                 "failures": failures,
+                "unresolved_count": len(unresolved),
+                "unresolved": unresolved,
+            },
+            provenance={"artifact_count": len(artifacts)},
+        )
+    if unresolved:
+        unresolved_paths = ", ".join(str(item["path"]) for item in unresolved)
+        return NodeResult(
+            name=node.node_id,
+            status="insufficient_evidence",
+            token="INSUFFICIENT_EVIDENCE",
+            message=(
+                "ART-01 could not resolve a template for artifact_type on "
+                f"{unresolved_paths}; section conformance cannot be verified"
+            ),
+            details={
+                "artifact_count": len(artifacts),
+                "failure_count": 0,
+                "failures": [],
+                "unresolved_count": len(unresolved),
+                "unresolved": unresolved,
             },
             provenance={"artifact_count": len(artifacts)},
         )
@@ -152,6 +187,12 @@ def validate(node: NodeSpec, evidence_map, _context: Any) -> NodeResult:
         status="passed",
         token="PASSED",
         message="ART-01 section-marker conformance passed",
-        details={"artifact_count": len(artifacts), "failure_count": 0, "failures": []},
+        details={
+            "artifact_count": len(artifacts),
+            "failure_count": 0,
+            "failures": [],
+            "unresolved_count": 0,
+            "unresolved": [],
+        },
         provenance={"artifact_count": len(artifacts)},
     )

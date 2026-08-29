@@ -106,6 +106,50 @@ class NodeSpec:
             raise ValueError(f"unsupported detector mode: {self.mode!r}")
 
 
+def topological_order_or_cycle(
+    nodes: "tuple[NodeSpec, ...] | list[NodeSpec]",
+) -> "tuple[tuple[str, ...], tuple[str, ...]]":
+    """Return `(evaluation_order, ())` for an acyclic `depends_on` DAG, or
+    `((), cycle_node_ids)` when a cycle is detected. Shared by the registry
+    loader (fail-closed at load time) and the in-memory assembler (fail-closed
+    at evaluation time) so both consult exactly one cycle-detection
+    implementation."""
+    node_map = {node.node_id: node for node in nodes}
+    colors = {node_id: "white" for node_id in node_map}
+    stack: list[str] = []
+    order: list[str] = []
+
+    def visit(node_id: str) -> tuple[str, ...] | None:
+        colors[node_id] = "gray"
+        stack.append(node_id)
+        for dependency in sorted(node_map[node_id].depends_on):
+            if dependency not in node_map:
+                # Unknown-dependency defects are reported separately by callers
+                # (e.g. DetectorRegistryError); do not let a missing key crash
+                # cycle detection itself.
+                continue
+            color = colors.get(dependency)
+            if color == "gray":
+                start = stack.index(dependency)
+                return tuple(stack[start:])
+            if color == "white":
+                cycle = visit(dependency)
+                if cycle is not None:
+                    return cycle
+        stack.pop()
+        colors[node_id] = "black"
+        order.append(node_id)
+        return None
+
+    for node in sorted(node_map.values(), key=lambda node: node.node_id):
+        if colors[node.node_id] != "white":
+            continue
+        cycle = visit(node.node_id)
+        if cycle is not None:
+            return (), cycle
+    return tuple(order), ()
+
+
 @dataclass(frozen=True)
 class Evidence:
     node_id: str

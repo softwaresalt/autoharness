@@ -132,6 +132,45 @@ class RegistryLoaderTests(unittest.TestCase):
         with self.assertRaises(DetectorRegistryError):
             self._load(command)
 
+    def _two_node_config(self) -> dict:
+        first = copy.deepcopy(VALID_CONFIG["detectors"][0])
+        second = copy.deepcopy(VALID_CONFIG["detectors"][0])
+        second["node_id"] = "det:D-ART/ART-02@1"
+        return {"detectors": [first, second]}
+
+    def test_registry_rejects_dependency_cycle_at_load_time(self) -> None:
+        config = self._two_node_config()
+        config["detectors"][0]["depends_on"] = ["det:D-ART/ART-02@1"]
+        config["detectors"][1]["depends_on"] = ["det:D-ART/ART-01@1"]
+        with self.assertRaises(DetectorRegistryError) as ctx:
+            self._load(config)
+        self.assertIn("cycle", str(ctx.exception).lower())
+
+    def test_registry_rejects_consumes_reference_to_unknown_node(self) -> None:
+        config = self._two_node_config()
+        config["detectors"][0]["depends_on"] = ["det:D-ART/ART-02@1"]
+        config["detectors"][0]["validator"]["consumes"] = ["det:D-ART/ART-99@1"]
+        with self.assertRaises(DetectorRegistryError) as ctx:
+            self._load(config)
+        self.assertIn("consumes", str(ctx.exception).lower())
+
+    def test_registry_rejects_consumes_not_declared_as_a_dependency(self) -> None:
+        config = self._two_node_config()
+        # ART-01 declares it consumes ART-02's evidence but never depends_on it,
+        # so evaluation order would not guarantee ART-02 already ran.
+        config["detectors"][0]["validator"]["consumes"] = ["det:D-ART/ART-02@1"]
+        with self.assertRaises(DetectorRegistryError) as ctx:
+            self._load(config)
+        self.assertIn("depends_on", str(ctx.exception).lower())
+
+    def test_registry_accepts_consumes_that_is_a_subset_of_depends_on(self) -> None:
+        config = self._two_node_config()
+        config["detectors"][0]["depends_on"] = ["det:D-ART/ART-02@1"]
+        config["detectors"][0]["validator"]["consumes"] = ["det:D-ART/ART-02@1"]
+        registry = self._load(config)
+        self.assertEqual(registry.exit_code, 0)
+        self.assertEqual(len(registry.nodes), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,10 +62,11 @@ class ApplicabilityTests(unittest.TestCase):
             calls["resolve"] += 1
             return {"main": "a" * 40, "HEAD": "b" * 40}[ref]
 
-        def discover(base: str, head: str, *, cwd=None):
+        def discover(base: str, head: str, *, cwd=None, raise_on_failure=False):
             calls["discover"] += 1
             self.assertEqual(base, "a" * 40)
             self.assertEqual(head, "b" * 40)
+            self.assertTrue(raise_on_failure)
             return [".backlogit/queue/149.001-T.md"]
 
         def profile_loader(path: Path):
@@ -172,6 +173,50 @@ class ApplicabilityTests(unittest.TestCase):
             readers_factory=lambda _workspace: _FakeReaders((shipment,), artifacts),
         )
         self.assertEqual(context.workspace, str(Path("/some/resolved/workspace")))
+
+    def test_diff_discovery_failure_fails_closed_instead_of_silent_empty_list(self) -> None:
+        # A successful rev-parse for both refs does not guarantee the
+        # triple-dot diff between them can succeed (e.g. unrelated histories
+        # with no merge-base). `discover_modified_files` degrades that to an
+        # empty list by default; `build_applicability_context` must opt into
+        # `raise_on_failure=True` so this case fails closed to
+        # `ApplicabilityContextError` rather than silently becoming
+        # `modified_paths=()` (which would otherwise misreport as a false
+        # `not_applicable` downstream).
+        from autoharness.gates.discovery import GitDiffDiscoveryError
+
+        shipment = ShipmentState("157-S", title="S1", live_status="active", manifest_item_ids=("149.001-T",))
+        artifacts = {"149.001-T": ArtifactState("149.001-T", artifact_type="task", live_status="active")}
+
+        def failing_discover(base: str, head: str, *, cwd=None, raise_on_failure=False):
+            self.assertTrue(raise_on_failure)
+            raise GitDiffDiscoveryError("git diff --name-only exited 128: unrelated histories")
+
+        with self.assertRaises(ApplicabilityContextError):
+            build_applicability_context(
+                base="main",
+                head="HEAD",
+                resolve_ref=lambda ref, **_kwargs: {"main": "a" * 40, "HEAD": "b" * 40}[ref],
+                discover=failing_discover,
+                profile_loader=lambda _path: {"runtime_surfaces": {"cli": True}},
+                readers_factory=lambda _workspace: _FakeReaders((shipment,), artifacts),
+            )
+
+    def test_real_discover_modified_files_raises_git_diff_discovery_error_when_opted_in(self) -> None:
+        from autoharness.gates.discovery import GitDiffDiscoveryError, discover_modified_files
+
+        sha_a = "a" * 40
+        sha_b = "b" * 40
+
+        def failing_runner(_argv, _cwd):
+            return 128, "", "fatal: unrelated histories"
+
+        with self.assertRaises(GitDiffDiscoveryError):
+            discover_modified_files(sha_a, sha_b, runner=failing_runner, raise_on_failure=True)
+
+        # Default (opt-out) behavior is unchanged: existing callers such as
+        # `gates/gate.py`'s `check()` keep degrading to an empty list.
+        self.assertEqual(discover_modified_files(sha_a, sha_b, runner=failing_runner), [])
 
 
 if __name__ == "__main__":

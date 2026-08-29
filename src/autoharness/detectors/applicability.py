@@ -10,7 +10,7 @@ import yaml
 
 from autoharness.backlog_root import BacklogUnavailableError
 from autoharness.detectors.contract import ApplicabilitySpec, NodeResult, NodeSpec
-from autoharness.gates.discovery import discover_modified_files, resolve_commit_ref
+from autoharness.gates.discovery import GitDiffDiscoveryError, discover_modified_files, resolve_commit_ref
 from autoharness.gates.match import path_matches
 from autoharness.gates.topology import FilesystemTopologyReaders, _resolve_shipment_from_branch
 
@@ -106,7 +106,12 @@ def build_applicability_context(
         name for name, enabled in runtime_surfaces.items() if isinstance(enabled, bool) and enabled
     )
 
-    modified_paths = tuple(discover(base_sha, head_sha, cwd=workspace))
+    try:
+        modified_paths = tuple(discover(base_sha, head_sha, cwd=workspace, raise_on_failure=True))
+    except GitDiffDiscoveryError as exc:
+        raise ApplicabilityContextError(
+            f"modified files could not be discovered between {base_sha} and {head_sha}: {exc}"
+        ) from exc
     touches_reviewable_paths = any(not path.lower().endswith(".md") for path in modified_paths)
 
     return ApplicabilityContext(

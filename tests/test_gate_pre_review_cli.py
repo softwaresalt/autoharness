@@ -236,7 +236,12 @@ class PreReviewCliTests(unittest.TestCase):
             payload = json.loads(out)
             self.assertEqual(payload["results"], [])
             self.assertEqual(payload["evaluated_count"], 0)
-            self.assertEqual(payload["cycle_nodes"], ["det:D-ART/ART-01@1", "det:D-ART/ART-02@1"])
+            # Cycle detection now runs at registry *load* time (shared with the
+            # assembler via `topological_order_or_cycle`), fail-closed and before
+            # a DetectorRegistry is ever constructed, so the cycle path never
+            # reaches assembly and is reported via `message`, not `cycle_nodes`.
+            self.assertEqual(payload["cycle_nodes"], [])
+            self.assertIn("cycle", payload["message"].lower())
             self.assertFalse((workspace / ".autoharness" / "gates" / "pre-review").exists())
 
     def test_pre_review_rejects_option_like_base_with_no_report_side_effect(self) -> None:

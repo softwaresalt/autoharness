@@ -79,6 +79,7 @@ class ReportTests(unittest.TestCase):
             workspace = Path(tmp)
             old_path = report_path_for(
                 workspace,
+                base_sha="a" * 40,
                 head_sha="b" * 40,
                 registry_version="registry-v1",
                 schema_version="1.0.0",
@@ -86,6 +87,7 @@ class ReportTests(unittest.TestCase):
             )
             current_path = report_path_for(
                 workspace,
+                base_sha="a" * 40,
                 head_sha="c" * 40,
                 registry_version="registry-v1",
                 schema_version="1.0.0",
@@ -100,6 +102,7 @@ class ReportTests(unittest.TestCase):
             workspace = Path(tmp)
             old_path = report_path_for(
                 workspace,
+                base_sha="a" * 40,
                 head_sha="b" * 40,
                 registry_version="registry-v1",
                 schema_version="1.0.0",
@@ -107,6 +110,7 @@ class ReportTests(unittest.TestCase):
             )
             current_path = report_path_for(
                 workspace,
+                base_sha="a" * 40,
                 head_sha="b" * 40,
                 registry_version="registry-v1",
                 schema_version="1.0.0",
@@ -114,6 +118,88 @@ class ReportTests(unittest.TestCase):
             )
             self.assertNotEqual(old_path, current_path)
             self.assertFalse(current_path.exists())
+
+    def test_changed_base_sha_is_structurally_rejected_by_key_mismatch(self) -> None:
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            old_path = report_path_for(
+                workspace,
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                registry_version="registry-v1",
+                schema_version="1.0.0",
+                tool_versions={"python": "3.12.10"},
+            )
+            current_path = report_path_for(
+                workspace,
+                base_sha="d" * 40,
+                head_sha="b" * 40,
+                registry_version="registry-v1",
+                schema_version="1.0.0",
+                tool_versions={"python": "3.12.10"},
+            )
+            self.assertNotEqual(
+                old_path,
+                current_path,
+                "a different --base (changing modified_paths/applicability) must mint a fresh epoch key",
+            )
+            self.assertFalse(current_path.exists())
+
+    def test_changed_autoharness_version_is_structurally_rejected_by_key_mismatch(self) -> None:
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            old_path = report_path_for(
+                workspace,
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                registry_version="registry-v1",
+                schema_version="1.0.0",
+                tool_versions={"python": "3.12.10"},
+                autoharness_version="1.9.0",
+            )
+            current_path = report_path_for(
+                workspace,
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                registry_version="registry-v1",
+                schema_version="1.0.0",
+                tool_versions={"python": "3.12.10"},
+                autoharness_version="1.9.1",
+            )
+            self.assertNotEqual(
+                old_path,
+                current_path,
+                "an upgraded installed autoharness version must mint a fresh epoch key even at a fixed HEAD",
+            )
+            self.assertFalse(current_path.exists())
+
+    def test_publication_failure_is_reported_not_raised_on_temp_write_error(self) -> None:
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            # A file occupying the parent directory path makes mkdir(parents=True) raise
+            # NotADirectoryError/FileExistsError (both OSError subclasses) rather than the
+            # narrower FileExistsError previously handled only around os.link.
+            blocker = workspace / ".autoharness" / "gates"
+            blocker.parent.mkdir(parents=True, exist_ok=True)
+            blocker.write_text("not a directory", encoding="utf-8")
+
+            emission = emit_pre_review_report(
+                [self._result()],
+                workspace=workspace,
+                base_sha="a" * 40,
+                head_sha="b" * 40,
+                registry_version="registry-v1",
+                schema_version="1.0.0",
+                tool_versions={"python": "3.12.10"},
+                touches_reviewable_paths=True,
+                produced_at="2026-08-29T00:00:00Z",
+            )
+            self.assertTrue(emission.publication_failed)
+            self.assertFalse(emission.wrote_new)
+            self.assertIn("pre-review report publish unavailable", emission.message)
 
 
 if __name__ == "__main__":

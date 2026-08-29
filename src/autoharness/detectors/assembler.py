@@ -7,7 +7,7 @@ from types import MappingProxyType
 from typing import Any
 
 from autoharness.detectors.applicability import evaluate_node_applicability
-from autoharness.detectors.contract import Evidence, NodeResult, NodeSpec
+from autoharness.detectors.contract import Evidence, NodeResult, NodeSpec, topological_order_or_cycle
 
 _BLOCKING_UPSTREAM_STATUSES = frozenset({
     "failed",
@@ -33,42 +33,6 @@ class DetectorAssemblyResult:
         return self.exit_code == 2
 
 
-def _ordered_nodes(nodes: tuple[NodeSpec, ...] | list[NodeSpec]) -> list[NodeSpec]:
-    return sorted(nodes, key=lambda node: node.node_id)
-
-
-def _topological_order(nodes: tuple[NodeSpec, ...] | list[NodeSpec]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    node_map = {node.node_id: node for node in nodes}
-    colors = {node_id: "white" for node_id in node_map}
-    stack: list[str] = []
-    order: list[str] = []
-
-    def visit(node_id: str) -> tuple[str, ...] | None:
-        colors[node_id] = "gray"
-        stack.append(node_id)
-        for dependency in sorted(node_map[node_id].depends_on):
-            color = colors.get(dependency)
-            if color == "gray":
-                start = stack.index(dependency)
-                return tuple(stack[start:])
-            if color == "white":
-                cycle = visit(dependency)
-                if cycle is not None:
-                    return cycle
-        stack.pop()
-        colors[node_id] = "black"
-        order.append(node_id)
-        return None
-
-    for node in _ordered_nodes(tuple(node_map.values())):
-        if colors[node.node_id] != "white":
-            continue
-        cycle = visit(node.node_id)
-        if cycle is not None:
-            return (), cycle
-    return tuple(order), ()
-
-
 def _blocked_result(node: NodeSpec, blocked_by: str, status: str) -> NodeResult:
     return NodeResult(
         name=node.node_id,
@@ -83,7 +47,7 @@ def assemble_detector_results(
     nodes: tuple[NodeSpec, ...] | list[NodeSpec],
     context: Any,
 ) -> DetectorAssemblyResult:
-    ordered_ids, cycle_nodes = _topological_order(nodes)
+    ordered_ids, cycle_nodes = topological_order_or_cycle(nodes)
     if cycle_nodes:
         return DetectorAssemblyResult(exit_code=2, cycle_nodes=cycle_nodes)
 
@@ -115,7 +79,18 @@ def assemble_detector_results(
                 evidence_map[node_id] = evidence
                 if node.validator.handler is None:
                     raise RuntimeError("validator handler is unavailable")
-                result = node.validator.handler(node, MappingProxyType(dict(evidence_map)), context)
+                # The validator always sees its own node's just-produced evidence,
+                # plus exactly the sibling evidence it declared via `consumes` (the
+                # registry loader enforces `consumes ⊆ depends_on`, so every
+                # declared sibling is guaranteed to already be in evidence_map with
+                # a non-blocking status by this point). Never expose the entire
+                # accumulated evidence_map: an undeclared sibling must not be
+                # silently visible just because it happens to sort earlier.
+                visible_evidence = {node_id: evidence}
+                for consumed in node.validator.consumes:
+                    if consumed in evidence_map:
+                        visible_evidence[consumed] = evidence_map[consumed]
+                result = node.validator.handler(node, MappingProxyType(visible_evidence), context)
             except Exception as exc:
                 result = NodeResult(
                     name=node.node_id,

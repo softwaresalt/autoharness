@@ -28,19 +28,25 @@ class ReportEpochTests(unittest.TestCase):
 
     def test_fingerprint_is_deterministic_across_input_orderings(self) -> None:
         first = build_freshness_fingerprint(
+            base_sha="a" * 40,
             registry_version="registry-v1",
             schema_version="1.0.0",
             tool_versions={"python": "3.12.10", "git": "2.49.0"},
+            autoharness_version="1.9.0",
         )
         second = build_freshness_fingerprint(
+            base_sha="a" * 40,
             registry_version="registry-v1",
             schema_version="1.0.0",
             tool_versions={"git": "2.49.0", "python": "3.12.10"},
+            autoharness_version="1.9.0",
         )
         third = build_freshness_fingerprint(
+            base_sha="a" * 40,
             registry_version="registry-v1",
             schema_version="1.0.0",
             tool_versions={"git": "2.50.0", "python": "3.12.10"},
+            autoharness_version="1.9.0",
         )
         self.assertEqual(first, second)
         self.assertNotEqual(first, third)
@@ -92,6 +98,7 @@ class ReportEpochTests(unittest.TestCase):
             )
             current = report_path_for(
                 workspace,
+                base_sha="a" * 40,
                 head_sha="b" * 40,
                 registry_version="registry-v1",
                 schema_version="1.0.0",
@@ -139,6 +146,7 @@ class ReportEpochTests(unittest.TestCase):
             self.assertEqual(len(emissions), 2)
             published = report_path_for(
                 workspace,
+                base_sha="a" * 40,
                 head_sha="b" * 40,
                 registry_version="registry-v1",
                 schema_version="1.0.0",

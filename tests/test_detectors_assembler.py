@@ -23,6 +23,7 @@ class AssemblerTests(unittest.TestCase):
         node_id: str,
         *,
         depends_on=(),
+        consumes=(),
         produce=None,
         validate=None,
     ) -> NodeSpec:
@@ -38,11 +39,12 @@ class AssemblerTests(unittest.TestCase):
             version="1",
             applies_when=ApplicabilitySpec(always=True),
             producer=ProducerSpec(kind="pure", ref="autoharness.detectors.art.section_markers:produce", handler=produce),
-            validator=ValidatorSpec(ref="autoharness.detectors.art.section_markers:validate", handler=validate),
+            validator=ValidatorSpec(ref="autoharness.detectors.art.section_markers:validate", handler=validate, consumes=tuple(consumes)),
             depends_on=tuple(depends_on),
             severity="medium",
             remediation=RemediationSpec(class_name="guided_fix", authority="stage"),
         )
+
 
     def test_cycle_is_invalid_and_evaluates_zero_nodes(self) -> None:
         produced = []
@@ -100,6 +102,37 @@ class AssemblerTests(unittest.TestCase):
         )
         self.assertIn("det:D-ART/ART-03@1 unavailable", insufficient_result.results[0].message)
         self.assertEqual(downstream_produced, [])
+
+    def test_validator_evidence_view_is_restricted_to_self_and_declared_consumes(self) -> None:
+        # Three producers run: ART-01, ART-02 (both upstream, no relation to each
+        # other), and ART-03 which depends_on + consumes only ART-01. ART-03's
+        # validator must see its own evidence and ART-01's, but never ART-02's
+        # (Copilot-2: `consumes` must actually restrict the visible evidence map,
+        # not just be a schema-only hint while the full accumulated map leaks
+        # through).
+        seen_keys = []
+
+        def capturing_validate(node, evidence_map, _context):
+            seen_keys.append(frozenset(evidence_map.keys()))
+            return NodeResult(name=node.node_id, status="passed")
+
+        upstream_one = self._node("det:D-ART/ART-01@1")
+        upstream_two = self._node("det:D-ART/ART-02@1")
+        downstream = self._node(
+            "det:D-ART/ART-03@1",
+            depends_on=("det:D-ART/ART-01@1",),
+            consumes=("det:D-ART/ART-01@1",),
+            validate=capturing_validate,
+        )
+
+        result = assemble_detector_results(
+            (upstream_one, upstream_two, downstream), context=object()
+        )
+
+        self.assertEqual([item.status for item in result.results], ["passed", "passed", "passed"])
+        downstream_view = seen_keys[-1]
+        self.assertEqual(downstream_view, {"det:D-ART/ART-03@1", "det:D-ART/ART-01@1"})
+        self.assertNotIn("det:D-ART/ART-02@1", downstream_view)
 
 
 if __name__ == "__main__":
