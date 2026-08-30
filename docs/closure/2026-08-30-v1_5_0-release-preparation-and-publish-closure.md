@@ -174,8 +174,10 @@ go/no-go, satisfied at both tag attempts once all gates genuinely passed.
 
 ## Compaction Status (P-020)
 
-`pending` — will be finalized to `done` or `degraded` at the end of Ship's
-post-merge closure, after `compact-context` is invoked.
+`done` — `compact-context` invoked at post-merge closure; the just-closed
+release unit's session memory was compacted into
+`docs/memory/compacted/2026-08-30-158-s-compacted.md`, with the verbose
+original archived to `docs/archive/memory/2026-08-30/`.
 
 ## Releasability Evidence
 
