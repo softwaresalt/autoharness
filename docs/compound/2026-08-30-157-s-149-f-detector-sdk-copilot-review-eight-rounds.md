@@ -1,8 +1,11 @@
 ---
+type: compound-learning
 title: "157-S/149-F Detector SDK: eight Copilot review rounds, a third schema-mutation-in-place occurrence, and NodeResult payload-completeness gaps"
 date: 2026-08-30
 shipment: 157-S
 feature: 149-F
+source: docs/compound/2026-08-30-157-s-149-f-detector-sdk-copilot-review-eight-rounds.md
+doc_type: learning
 tags: [copilot-review, schema-versioning, sdk-boundary-validation, p-021]
 ---
 
