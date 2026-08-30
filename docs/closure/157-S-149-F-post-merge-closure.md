@@ -18,7 +18,7 @@ tasks:
     - 149.014-T
     - 149.015-T
 feature_pr: 420
-closure_pr: null
+closure_pr: 421
 merge_commit: f93afa0eee8d228ff4a7ac54cf3b2b3b4ec5eeb9
 merged_at: "2026-08-30T01:12:57Z"
 reviewed_head: f5e19bea37cdfe656f5e13e194e950608fe39ac4
