@@ -104,9 +104,12 @@ record.
   dry-run against the new `## 1.5.0 - 2026-08-30` heading (139-line
   non-empty notes file).
 - Confirmed the PyPI publish credential / OIDC trusted-publishing
-  configuration is declared in `release.yml` (`pypa/gh-action-pypi-publish`,
-  `id-token: write` permission) — will be re-confirmed as part of
-  `150.010-T` monitoring.
+  configuration declared in `release.yml` (`pypa/gh-action-pypi-publish`,
+  `id-token: write` permission) is genuinely functional — confirmed
+  end-to-end by the successful publish itself (attempt 2, run
+  `33333803838`): OIDC authentication succeeded and the distribution
+  actually uploaded to PyPI. This is a completed gate, not an outstanding
+  one.
 
 ## Post-Deploy Checks (executed — see 150.010-T evidence doc)
 

@@ -13,17 +13,27 @@ Shipment `158-S` / feature `150-F`, task `150.010-T`.
 ## Attempt 1 (FAILED, safely rolled back — no version burned)
 
 - Tag `v1.5.0` pushed on merge commit `8922b62e4c548daaa0dc0c1c56be2c8817862af9`.
-- `release.yml` run [`33329970485`](https://github.com/softwaresalt/autoharness/actions/runs/33329970485):
+- `release.yml` run [`33329970485`](https://github.com/softwaresalt/autoharness/actions/runs/33329970485)
+  (exact per-step conclusions confirmed via the GitHub Actions jobs API,
+  not inferred from the failing log excerpt alone):
   1. Validate tag matches pyproject version — PASS
   2. Extract changelog for this version — PASS (non-empty notes)
-  3. `uv build` — PASS
-  4. `uvx twine check dist/*` (Validate built distributions) — **FAIL**:
-     `InvalidDistribution: Invalid distribution metadata: '2.5' is not a
-     valid metadata version`
-  5. (not reached) Check PyPI pre-publish state
-  6. (not reached) Publish distribution to PyPI
-  7. (not reached) Smoke test published package from PyPI
-  8. (not reached) Create or update GitHub Release
+  3. Build wheel and sdist (`uv build`) — PASS
+  4. Validate built distributions (`uvx twine check dist/*`) — **PASS**
+  5. Check PyPI pre-publish state — **PASS**
+  6. Publish distribution to PyPI — **FAIL**: the pinned
+     `pypa/gh-action-pypi-publish` action runs its own internal
+     distribution validation before uploading, and that internal check
+     failed with `InvalidDistribution: Invalid distribution metadata:
+     '2.5' is not a valid metadata version`. The standalone "Validate
+     built distributions" step (step 4, using whatever `twine` version
+     `uvx` resolves fresh) had already passed — it did not catch this,
+     because it resolves the *latest* twine (which already understands
+     Metadata-Version 2.5), while the pinned action's *bundled* twine
+     does not. This is exactly the toolchain-version-skew explained in
+     `docs/compound/2026-08-30-unpinned-hatchling-metadata-version-vs-pinned-publish-action.md`.
+  7. (not reached, `skipped`) Smoke test published package from PyPI
+  8. (not reached, `skipped`) Create or update GitHub Release
 
   Root cause: `hatchling` 1.32.0 defaults to `Metadata-Version: 2.5` (PEP
   794); the pinned `pypa/gh-action-pypi-publish` action bundles
@@ -31,9 +41,11 @@ Shipment `158-S` / feature `150-F`, task `150.010-T`.
 
 - **Rollback determination (per the release plan's rollback protocol)**:
   immediately probed `https://pypi.org/pypi/autoharness/1.5.0/json` —
-  returned **404**. Failure occurred **before** the PyPI publish step
-  (confirmed both by the workflow step ordering and the probe) — this is
-  the SAFE, no-version-burned path.
+  returned **404**. Failure occurred **at** the PyPI publish step but
+  strictly **before** any file was actually uploaded (the action's
+  internal validation runs before the upload call, and the 404 probe
+  independently confirms nothing reached PyPI) — this is the SAFE,
+  no-version-burned path.
 - **Action taken**: deleted the `v1.5.0` tag (`git push origin --delete
   v1.5.0` + `git tag -d v1.5.0`). Fixed the root cause (pinned
   `core-metadata-version = "2.4"` in `pyproject.toml`, PR #426 — merged as

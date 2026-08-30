@@ -56,9 +56,14 @@ action runs.
 ratified September 2025) the **unconditional default** for every wheel/
 sdist build — no `pyproject.toml` field is required to trigger it. The
 `v1.5.0` tag push triggered `release.yml`, which built the distributions
-with whatever `hatchling` was current that day, then failed at
-"Validate built distributions" (`uvx twine check` **inside the pinned
-action's own container**):
+with whatever `hatchling` was current that day. The workflow's own
+standalone "Validate built distributions" step (`uvx twine check dist/*`,
+which resolves the *latest* `twine` fresh) **passed** — that version of
+`twine` already understands Metadata-Version 2.5. The failure surfaced one
+step later, at "Publish distribution to PyPI": the pinned
+`pypa/gh-action-pypi-publish` action runs its own internal distribution
+validation (using its *bundled*, older `twine`) before uploading, and that
+internal check failed:
 
 ```text
 ERROR    InvalidDistribution: Invalid distribution metadata: '2.5' is not a
