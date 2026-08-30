@@ -926,6 +926,29 @@ if __name__ == '__main__':
     unittest.main()
 
 
+def _clear_ambient_github_head_ref() -> None:
+    """Clear any ambient ``GITHUB_HEAD_REF`` value before wrapping it with
+    ``patched_environ()``.
+
+    GitHub Actions sets ``GITHUB_HEAD_REF`` to the empty string (present,
+    not absent) on ``push``-triggered CI runs -- as opposed to
+    ``pull_request``-triggered runs, where it is genuinely set to the PR's
+    source branch name, or a bare local shell, where it is typically unset
+    entirely. ``patched_environ()``'s A5 entry-guard (144.002-T, BINDING)
+    deliberately fails closed rather than attempt an unsafe empty-string
+    restore for any key whose CURRENT ambient value is already ``""`` --
+    see ``tests/_env_patch.py``. Tests that manage ``GITHUB_HEAD_REF`` via
+    ``patched_environ()`` must therefore first ensure any ambient value is
+    fully cleared, exactly the same established convention already used
+    elsewhere in this file for the identical root cause (commit
+    ``8c4c35ad``, for ``GITHUB_EVENT_PATH``/``GITHUB_HEAD_REF`` leakage from
+    a live ``pull_request``-triggered CI run).
+    """
+    import os as _os
+
+    _os.environ.pop('GITHUB_HEAD_REF', None)
+
+
 class BranchOwnershipTests(unittest.TestCase):
     def test_matching_target_branch_passes(self) -> None:
         readers = _FakeReaders(
@@ -1023,6 +1046,7 @@ class BranchOwnershipTests(unittest.TestCase):
         topology-check entrypoint (Gate C) permanently non-functional for its
         stated purpose."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_HEAD_REF='feat/116-s-topology-gate-c-remote-ci-validation-backstop',
         ):
@@ -1041,6 +1065,7 @@ class BranchOwnershipTests(unittest.TestCase):
         instead (e.g. `main` for a push to the default branch), disambiguated
         from a tag push via `GITHUB_REF_TYPE == 'branch'`."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='', default_branch='main')
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_REF_NAME='main', GITHUB_REF_TYPE='branch', GITHUB_HEAD_REF=None,
         ):
@@ -1060,6 +1085,7 @@ class BranchOwnershipTests(unittest.TestCase):
         convention) as a non-branch merge-ref and fail closed. Disambiguation
         must use `GITHUB_REF_TYPE`, not a substring check on the name."""
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_REF_NAME='feat/114-s',
             GITHUB_REF_TYPE='branch',
@@ -1081,6 +1107,7 @@ class BranchOwnershipTests(unittest.TestCase):
         (detached HEAD, unresolvable) rather than treating a tag as ownership
         evidence."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_REF_NAME='v1.2.3', GITHUB_REF_TYPE='tag', GITHUB_HEAD_REF=None,
         ):
@@ -1099,6 +1126,7 @@ class BranchOwnershipTests(unittest.TestCase):
         resolves a usable branch name (e.g. a CI platform this fallback does
         not recognize, or genuinely malformed environment)."""
         readers = _FakeReaders(shipments=(_shipment('116-S', 'active'),), branch='')
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_HEAD_REF=None, GITHUB_REF_NAME=None, GITHUB_REF_TYPE=None,
         ):
@@ -1118,6 +1146,7 @@ class BranchOwnershipTests(unittest.TestCase):
         before even if a `GITHUB_HEAD_REF`-shaped variable happens to be set
         in the environment (e.g. a local shell that inherited it)."""
         readers = _FakeReaders(shipments=(_shipment('114-S', 'queued'),), branch='')
+        _clear_ambient_github_head_ref()
         with patched_environ(GITHUB_HEAD_REF='feat/114-s'):
             result = evaluate(
                 TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
@@ -1147,6 +1176,7 @@ class BranchOwnershipTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             event_path = Path(tmp) / 'event.json'
             event_path.write_text('{"repository": {"default_branch": "master"}}', encoding='utf-8')
+            _clear_ambient_github_head_ref()
             with patched_environ(
                 GITHUB_REF_NAME='master',
                 GITHUB_REF_TYPE='branch',
@@ -1173,6 +1203,7 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='main',
             default_branch='main',
         )
+        _clear_ambient_github_head_ref()
         with patched_environ(GITHUB_EVENT_PATH=None, GITHUB_HEAD_REF=None):
             result = evaluate(
                 TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
@@ -1203,6 +1234,7 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='',  # actions/checkout always leaves CI on detached HEAD
             default_branch='main',
         )
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_HEAD_REF='main',
             GITHUB_EVENT_PATH=None,
@@ -1228,6 +1260,7 @@ class BranchOwnershipTests(unittest.TestCase):
             branch='',
             default_branch='main',
         )
+        _clear_ambient_github_head_ref()
         with patched_environ(
             GITHUB_REF_NAME='main',
             GITHUB_REF_TYPE='branch',
