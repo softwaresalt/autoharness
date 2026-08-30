@@ -24,7 +24,7 @@ from autoharness.telemetry.sqlite_sink import write_epoch
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _GITIGNORE = _REPO_ROOT / ".gitignore"
 _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
-_SCHEMA_PATH = _REPO_ROOT / "schemas" / "validation-gates" / "1.0.0.schema.json"
+_SCHEMA_PATH = _REPO_ROOT / "schemas" / "validation-gates" / "1.1.0.schema.json"
 
 
 def _check_ignore_failure_message(rel: str, returncode: int, stderr: str) -> str:

@@ -84,6 +84,32 @@ ai_tools:
     exe_path: "copilot"
     args: []
 
+
+detectors:
+  - node_id: "det:D-ART/ART-01@1"
+    applies_when:
+      changed_paths_any:
+        - ".backlog/**"
+        - ".backlogit/**"
+    producer:
+      kind: "pure"
+      ref: "autoharness.detectors.art.section_markers:produce"
+      tool_version_dims:
+        - "python"
+    validator:
+      ref: "autoharness.detectors.art.section_markers:validate"
+      consumes: []
+    depends_on: []
+    severity: "medium"
+    mode: "report_only"
+    remediation:
+      class: "guided_fix"
+      hint: "Restore the required backlogit section markers."
+      target_refs:
+        - "path:.backlogit/templates/task.md"
+        - "path:.backlogit/templates/shipment.md"
+      authority: "stage"
+
 sidecars: ["backlogit", "engram", "graphtor-docs"]
 
 overrides: {}

@@ -7,7 +7,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from autoharness.gates.discovery import discover_modified_files, parse_diff_output
+from autoharness.gates.discovery import InvalidGitRefError, discover_modified_files, parse_diff_output
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_TEMP_ROOT = _REPO_ROOT / ".test-output"
+_BASE_SHA = "a" * 40
+_HEAD_SHA = "b" * 40
 
 
 class DiscoveryTests(unittest.TestCase):
@@ -27,9 +32,10 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(parse_diff_output(out), ["docs/nested/a.md", "src/x.py"])
 
     def test_degrades_gracefully_when_not_a_repo(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
             with self.assertLogs("autoharness.gates.discovery", level=logging.WARNING):
-                result = discover_modified_files("main", "HEAD", cwd=Path(tmp))
+                result = discover_modified_files(_BASE_SHA, _HEAD_SHA, cwd=Path(tmp))
             self.assertEqual(result, [])
 
     def test_degrades_gracefully_when_git_missing(self) -> None:
@@ -37,18 +43,33 @@ class DiscoveryTests(unittest.TestCase):
             raise FileNotFoundError("git")
 
         with self.assertLogs("autoharness.gates.discovery", level=logging.WARNING):
-            result = discover_modified_files("main", "HEAD", runner=missing_git)
+            result = discover_modified_files(_BASE_SHA, _HEAD_SHA, runner=missing_git)
         self.assertEqual(result, [])
 
     def test_uses_injected_runner_and_normalizes(self) -> None:
         def fake(argv: list[str], cwd: Path | None) -> tuple[int, str, str]:
-            self.assertEqual(argv, ["git", "diff", "--name-only", "main...HEAD"])
+            self.assertEqual(
+                argv,
+                ["git", "diff", "--name-only", "--end-of-options", f"{_BASE_SHA}...{_HEAD_SHA}", "--"],
+            )
             return 0, "src\\a.py\ndocs/b.md\n", ""
 
         self.assertEqual(
-            discover_modified_files("main", "HEAD", runner=fake),
+            discover_modified_files(_BASE_SHA, _HEAD_SHA, runner=fake),
             ["src/a.py", "docs/b.md"],
         )
+
+    def test_rejects_symbolic_ref_directly(self) -> None:
+        called = False
+
+        def fake(argv: list[str], cwd: Path | None) -> tuple[int, str, str]:
+            nonlocal called
+            called = True
+            return 0, "", ""
+
+        with self.assertRaises(InvalidGitRefError):
+            discover_modified_files("main", _HEAD_SHA, runner=fake)
+        self.assertFalse(called)
 
 
 if __name__ == "__main__":

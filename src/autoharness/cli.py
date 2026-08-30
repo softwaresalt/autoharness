@@ -167,6 +167,7 @@ autoharness gate — deterministic lifecycle gates
 
 Subcommands:
   check   Run deterministic validation gates on modified files (pre_task_completion).
+  pre-review  Run detector-based pre-review analysis on the current diff.
   size    Estimate a task's T-shirt size and write it back (pre_execution).
   copilot-review  Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved.
   pipeline-topology  Deterministic shipment/worktree topology gate.
@@ -176,6 +177,7 @@ Subcommands:
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
                          [--workspace <path>] [--json] [--force] [--no-count]
+  autoharness gate pre-review --base <ref> [--json]
   autoharness gate size <task_id> [--dry-run] [--strict] [--workspace <path>]
                         [--json] [--backlogit <path>]
   autoharness gate copilot-review <pr> --repo <owner/name>
@@ -186,6 +188,10 @@ Usage:
                         [--phase pre_claim|post_claim|lifecycle|ambient]
                         [--json] [--force]
   autoharness gate dag-readiness [--workspace <path>] [--json]
+
+pre-review options:
+  --base <ref>        Git ref to diff against (the task branch base). Required.
+  --json              Emit the detector report payload as JSON.
 
 check options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
@@ -277,8 +283,9 @@ Exit codes:
   1  at least one matched file failed its gate (blocked), unless advisory; or
      copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
      or pipeline-topology BLOCK.
-  2  invalid arguments or invalid gate configuration; or pipeline-topology
-     invalid mode/phase/target configuration.
+  2  invalid arguments or invalid gate configuration; invalid pre-review
+     detector input/registry; or pipeline-topology invalid
+     mode/phase/target configuration.
   3  sizing write-back configuration failure, only when --strict is given.
 """
 
@@ -357,6 +364,8 @@ def _gate_command(args: list[str]) -> None:
     subcommand = args[0]
     if subcommand == "check":
         _gate_check_command(args[1:])
+    elif subcommand == "pre-review":
+        _gate_pre_review_command(args[1:])
     elif subcommand == "size":
         _gate_size_command(args[1:])
     elif subcommand == "copilot-review":
@@ -386,6 +395,7 @@ def _gate_check_command(rest: list[str]) -> None:
 
     from autoharness.gates import gate as gate_mod
     from autoharness.gates.config import GatesConfigError
+    from autoharness.gates.discovery import InvalidGitRefError
 
     try:
         config = _load_gate_config(parsed["workspace"])
@@ -397,13 +407,17 @@ def _gate_check_command(rest: list[str]) -> None:
         print("No validation gates configured; nothing to check.")
         return
 
-    report = gate_mod.check(
-        config,
-        parsed["base"],
-        parsed["head"],
-        task_id=parsed["task"],
-        cwd=parsed["workspace"],
-    )
+    try:
+        report = gate_mod.check(
+            config,
+            parsed["base"],
+            parsed["head"],
+            task_id=parsed["task"],
+            cwd=parsed["workspace"],
+        )
+    except InvalidGitRefError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
 
     from autoharness.gates.feedback import build_correction_report, enforce
 
@@ -419,6 +433,190 @@ def _gate_check_command(rest: list[str]) -> None:
 
     if outcome.exit_code != 0:
         sys.exit(outcome.exit_code)
+
+
+def _parse_gate_pre_review_args(args: list[str]) -> dict:
+    parsed: dict = {"base": None, "emit_json": False}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--base":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --base")
+            parsed["base"] = args[index]
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown gate pre-review argument: {arg}")
+        index += 1
+    if parsed["base"] is None:
+        raise ValueError("gate pre-review requires --base <ref>")
+    return parsed
+
+
+def _pre_review_payload(
+    *,
+    exit_code: int,
+    results: list[dict] | tuple[dict, ...],
+    report_path: str | None = None,
+    message: str = "",
+    base_sha: str | None = None,
+    head_sha: str | None = None,
+    epoch_key: str | None = None,
+    fingerprint: str | None = None,
+    evaluated_count: int = 0,
+    cycle_nodes: list[str] | tuple[str, ...] = (),
+    publication_failed: bool = False,
+) -> dict:
+    return {
+        "status": "invalid" if exit_code == 2 else "ok",
+        "exit_code": exit_code,
+        "message": message,
+        "report_path": report_path,
+        "base_sha": base_sha,
+        "head_sha": head_sha,
+        "epoch_key": epoch_key,
+        "fingerprint": fingerprint,
+        "evaluated_count": evaluated_count,
+        "cycle_nodes": list(cycle_nodes),
+        "publication_failed": publication_failed,
+        "results": list(results),
+    }
+
+
+def _format_pre_review_payload(payload: dict) -> str:
+    status = "INVALID" if payload["exit_code"] == 2 else "PASS"
+    lines = [f"Pre-review gate — {status}"]
+    if payload.get("message"):
+        lines.append(f"  {payload['message']}")
+    lines.append(f"  evaluated: {payload['evaluated_count']}")
+    if payload.get("report_path"):
+        lines.append(f"  report: {payload['report_path']}")
+    if payload.get("cycle_nodes"):
+        lines.append(f"  cycle: {', '.join(payload['cycle_nodes'])}")
+    for result in payload.get("results", []):
+        lines.append(f"  {result['name']}: {result['status']}")
+    return "\n".join(lines)
+
+
+def _gate_pre_review_command(rest: list[str]) -> None:
+    """Run detector-based pre-review analysis over the current diff."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_pre_review_args(rest)
+    except ValueError as exc:
+        payload = _pre_review_payload(exit_code=2, results=(), message=str(exc))
+        print(json.dumps(payload, indent=2) if "--json" in rest else _format_pre_review_payload(payload))
+        sys.exit(2)
+
+    from autoharness.detectors.applicability import ApplicabilityContextError, build_applicability_context, context_failure_results
+    from autoharness.detectors.assembler import assemble_detector_results
+    from autoharness.detectors.contract import status_exit_code
+    from autoharness.detectors.registry import DetectorRegistryError, load_detector_registry_from_workspace
+    from autoharness.detectors.report import emit_pre_review_report, resolve_tool_versions
+    from autoharness.gates.discovery import resolve_commit_ref
+
+    workspace = Path('.')
+    try:
+        registry = load_detector_registry_from_workspace(workspace, _home())
+    except DetectorRegistryError as exc:
+        payload = _pre_review_payload(exit_code=2, results=(), message=str(exc))
+        print(json.dumps(payload, indent=2) if parsed["emit_json"] else _format_pre_review_payload(payload))
+        sys.exit(2)
+
+    resolved_base = resolve_commit_ref(parsed["base"], cwd=workspace)
+    resolved_head = resolve_commit_ref("HEAD", cwd=workspace)
+    if resolved_base is None or resolved_head is None:
+        payload = _pre_review_payload(
+            exit_code=2,
+            results=(),
+            message="pre-review requires a safely resolvable --base and HEAD ref",
+        )
+        print(json.dumps(payload, indent=2) if parsed["emit_json"] else _format_pre_review_payload(payload))
+        sys.exit(2)
+
+    if registry.nodes:
+        try:
+            context = build_applicability_context(resolved_base, resolved_head, cwd=workspace)
+            assembly = assemble_detector_results(registry.nodes, context)
+            results = assembly.results
+            evaluated_count = assembly.evaluated_count
+            cycle_nodes = assembly.cycle_nodes
+            touches_reviewable_paths = context.touches_reviewable_paths
+        except ApplicabilityContextError as exc:
+            results = context_failure_results(registry.nodes, str(exc))
+            evaluated_count = 0
+            cycle_nodes = ()
+            touches_reviewable_paths = False
+            assembly = None
+    else:
+        results = ()
+        evaluated_count = 0
+        cycle_nodes = ()
+        touches_reviewable_paths = False
+        assembly = None
+
+    if assembly is not None and assembly.cycle_nodes:
+        payload = _pre_review_payload(
+            exit_code=2,
+            results=(),
+            message="detector registry cycle detected",
+            base_sha=resolved_base,
+            head_sha=resolved_head,
+            evaluated_count=assembly.evaluated_count,
+            cycle_nodes=assembly.cycle_nodes,
+        )
+        print(json.dumps(payload, indent=2) if parsed["emit_json"] else _format_pre_review_payload(payload))
+        sys.exit(2)
+
+    tool_versions = resolve_tool_versions(
+        dim
+        for node in registry.nodes
+        for dim in node.producer.tool_version_dims
+    )
+    emission = emit_pre_review_report(
+        results,
+        workspace=workspace,
+        base_sha=resolved_base,
+        head_sha=resolved_head,
+        registry_version=registry.version,
+        schema_version=registry.schema_version,
+        tool_versions=tool_versions,
+        touches_reviewable_paths=touches_reviewable_paths,
+    )
+    try:
+        relative_report_path = str(emission.path.relative_to(workspace.resolve())).replace('\\', '/')
+    except Exception:
+        relative_report_path = str(emission.path).replace('\\', '/')
+    # Aggregate the CLI's own exit code from the canonical per-result
+    # status-to-exit-code mapping (`status_exit_code`) rather than hardcoding
+    # success: a detector that legitimately (or due to an SDK contract
+    # violation caught by the assembler) returns status "invalid" must still
+    # surface as a non-zero pre-review outcome, not a silently reported
+    # success.
+    overall_exit_code = 2 if any(status_exit_code(result.status) != 0 for result in results) else 0
+    payload = _pre_review_payload(
+        exit_code=overall_exit_code,
+        results=[result.to_dict() for result in results],
+        report_path=relative_report_path if emission.path.exists() else None,
+        message=emission.message or "pre-review analysis complete",
+        base_sha=resolved_base,
+        head_sha=resolved_head,
+        epoch_key=emission.epoch_key,
+        fingerprint=emission.fingerprint,
+        evaluated_count=evaluated_count,
+        cycle_nodes=cycle_nodes,
+        publication_failed=emission.publication_failed,
+    )
+    for index, result in enumerate(results):
+        payload["results"][index]["provenance"] = emission.payload[index]["provenance"]
+    print(json.dumps(payload, indent=2) if parsed["emit_json"] else _format_pre_review_payload(payload))
+    if overall_exit_code != 0:
+        sys.exit(overall_exit_code)
 
 
 def _parse_gate_size_args(args: list[str]) -> dict:

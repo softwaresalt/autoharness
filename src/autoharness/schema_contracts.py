@@ -510,7 +510,7 @@ def plan_schema_contract_migrations(
 
 
 VALIDATION_GATES_SCHEMA_DIR = "validation-gates"
-VALIDATION_GATES_SCHEMA_VERSION = "1.0.0"
+VALIDATION_GATES_SCHEMA_VERSION = "1.1.0"
 
 
 def resolve_validation_gates_schema_path(autoharness_home: Path) -> Path | None:
