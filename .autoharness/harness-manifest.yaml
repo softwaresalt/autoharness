@@ -176,8 +176,8 @@ artifacts:
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
-    checksum: "24657cadf459b6808933da1d15fe2968fbd1076fc21b1cb69c30fe553d2a9eed"
-    note: "pre-existing, source-controlled global artifact"
+    checksum: "e38f2fb9cf7ddce1a2efc329f40198266e569acaed372cf293a7f33da40d76e2"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 158-S/150.002-T (v1.5.0 release blocker T2): the manifest recorded checksum was never refreshed after the file's content last changed in c37ad959 (2026-08-15), causing verify_workspace checksum_scan to falsely report this file as user-modified. Confirmed via git diff against HEAD (no local edit) and pure-LF byte content -- this is genuine committed content drift, not a masked local modification (PA-3). Refreshed checksum is the LF-normalized SHA-256 of the current committed content."
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
