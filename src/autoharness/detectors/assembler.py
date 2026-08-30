@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
@@ -41,6 +42,14 @@ def _blocked_result(node: NodeSpec, blocked_by: str, status: str) -> NodeResult:
         message=f"blocked by upstream {blocked_by} ({status})",
         details={"blocked_by": blocked_by, "blocked_status": status},
     )
+
+
+def _is_json_serializable(value: Any) -> bool:
+    try:
+        json.dumps(value)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def assemble_detector_results(
@@ -165,6 +174,29 @@ def assemble_detector_results(
                             message=(
                                 f"validator for {node.node_id} returned {got_desc} "
                                 "instead of a NodeResult for this node"
+                            ),
+                        )
+                    elif not _is_json_serializable(result.details) or not _is_json_serializable(result.provenance):
+                        # The report emitter (`emit_pre_review_report`)
+                        # serializes every result's `details`/`provenance` via
+                        # `json.dumps`. A validator returning a structurally
+                        # valid `NodeResult` whose `details`/`provenance`
+                        # contains a non-JSON value (e.g. a `Path` or `set`)
+                        # would otherwise pass this SDK boundary silently, only
+                        # to raise an uncaught `TypeError` later during report
+                        # emission -- bypassing both this boundary's own
+                        # `invalid`-result handling and the report's
+                        # `publication_failed` path. Validate JSON
+                        # serializability here, at the same SDK boundary as
+                        # the other contract checks, and convert to `invalid`
+                        # before the malformed payload can reach emission.
+                        result = NodeResult(
+                            name=node.node_id,
+                            status="invalid",
+                            token="INVALID",
+                            message=(
+                                f"validator for {node.node_id} returned a NodeResult whose "
+                                "details/provenance is not JSON-serializable"
                             ),
                         )
             except Exception as exc:

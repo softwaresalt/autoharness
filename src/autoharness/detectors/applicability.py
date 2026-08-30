@@ -59,7 +59,19 @@ def _resolve_item_types(readers, shipment_id: str):
             continue
         item_types: set[str] = set()
         for item_id in shipment.manifest_item_ids:
-            artifact = readers.read_artifact(item_id)
+            # `read_artifact` can itself raise `BacklogUnavailableError` for
+            # an unreadable/malformed artifact record or an unsafe/invalid
+            # artifact id shape (see `_artifact_from_paths`), exactly like
+            # `list_shipments()`/`current_branch()` above. The CLI only
+            # translates `ApplicabilityContextError` into a per-node
+            # `insufficient_evidence` result (FC1); an escaping
+            # `BacklogUnavailableError` here would instead crash the whole
+            # `gate pre-review` invocation on a single malformed manifest
+            # item. Apply the same translation.
+            try:
+                artifact = readers.read_artifact(item_id)
+            except BacklogUnavailableError as exc:
+                raise ApplicabilityContextError(str(exc)) from exc
             if artifact is None or not artifact.artifact_type:
                 raise ApplicabilityContextError(
                     f"shipment manifest item {item_id!r} could not be resolved to a typed artifact"

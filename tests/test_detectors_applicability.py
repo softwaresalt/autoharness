@@ -146,6 +146,42 @@ class ApplicabilityTests(unittest.TestCase):
                 readers_factory=lambda _workspace: _FakeReaders((shipment,), artifacts),
             )
 
+    def test_read_artifact_raising_backlog_unavailable_is_translated_to_applicability_context_error(self) -> None:
+        # Copilot review finding (PR #420): `read_artifact()` can itself
+        # raise `BacklogUnavailableError` for an unreadable/malformed
+        # artifact record or an unsafe artifact id shape (see
+        # `_artifact_from_paths`), exactly like `list_shipments()`/
+        # `current_branch()`. The CLI only translates
+        # `ApplicabilityContextError` into a per-node `insufficient_evidence`
+        # result (FC1); an escaping `BacklogUnavailableError` here would
+        # instead crash the whole `gate pre-review` invocation on a single
+        # malformed manifest item.
+        shipment = ShipmentState(
+            "157-S", title="S1", live_status="active", manifest_item_ids=("149.001-T",)
+        )
+
+        class _RaisingArtifactReaders:
+            def list_shipments(self):
+                return (shipment,)
+
+            def current_branch(self):
+                return "feat/157-s-s1-detector-sdk-evidence-node-contract-and-gate-pre-review-reader"
+
+            def read_artifact(self, artifact_id: str):
+                raise BacklogUnavailableError(
+                    Path(".backlogit"), f"artifact record is unreadable: {artifact_id!r}"
+                )
+
+        with self.assertRaises(ApplicabilityContextError):
+            build_applicability_context(
+                base="main",
+                head="HEAD",
+                resolve_ref=lambda ref, **_kwargs: {"main": "a" * 40, "HEAD": "b" * 40}[ref],
+                discover=lambda *args, **kwargs: [],
+                profile_loader=lambda _path: {"runtime_surfaces": {"cli": True}},
+                readers_factory=lambda _workspace: _RaisingArtifactReaders(),
+            )
+
     def test_real_load_workspace_profile_raises_on_malformed_yaml(self) -> None:
         import tempfile
 

@@ -274,6 +274,43 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(result.results[1].status, "blocked_upstream")
         self.assertEqual(result.exit_code, 2)
 
+    def test_validator_returning_non_json_serializable_details_is_converted_to_invalid(self) -> None:
+        # Copilot review finding (PR #420, round 7): a validator may return
+        # a structurally valid `NodeResult` whose `details`/`provenance`
+        # contains a non-JSON value (e.g. a `Path`). This must never pass
+        # the SDK boundary silently -- `emit_pre_review_report()` would
+        # otherwise raise an uncaught `TypeError` from `json.dumps` later,
+        # bypassing both the assembler's own `invalid`-result handling and
+        # the report's `publication_failed` path.
+        import pathlib
+
+        non_serializable_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(
+                name=node.node_id,
+                status="passed",
+                details={"offending_path": pathlib.Path("some/path")},
+            ),
+        )
+        result = assemble_detector_results((non_serializable_node,), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIn("json-serializable", result.results[0].message.lower())
+        self.assertEqual(result.exit_code, 2)
+
+    def test_validator_returning_non_json_serializable_provenance_is_converted_to_invalid(self) -> None:
+        non_serializable_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(
+                name=node.node_id,
+                status="passed",
+                provenance={"tags": {"a", "b"}},
+            ),
+        )
+        result = assemble_detector_results((non_serializable_node,), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIn("json-serializable", result.results[0].message.lower())
+        self.assertEqual(result.exit_code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()
