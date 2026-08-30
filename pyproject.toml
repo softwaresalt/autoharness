@@ -31,6 +31,16 @@ Repository = "https://github.com/softwaresalt/autoharness"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/autoharness"]
+# Pin core-metadata-version to 2.4: hatchling 1.32.0 defaults to 2.5 (PEP 794,
+# ratified September 2025), but the pinned pypa/gh-action-pypi-publish action
+# used by release.yml bundles twine < 7.0.0 (packaging < 26.0), which does not
+# yet recognize Metadata-Version 2.5 and raises
+# "InvalidDistribution: Invalid distribution metadata: '2.5' is not a valid
+# metadata version". 2.4 is fully supported by every current PyPI toolchain.
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
 
 [tool.hatch.build.targets.wheel.force-include]
 "templates" = "src/autoharness/data/templates"
