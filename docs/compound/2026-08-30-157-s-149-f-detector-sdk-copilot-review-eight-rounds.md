@@ -31,9 +31,18 @@ a `REVIEW_TIMEOUT` was observed with an *empty* `unresolved_thread_ids`
 list, and the very next retry (still within the same round) surfaced 2 new
 threads. **Do not treat a timeout with zero listed threads as a "clean"
 signal** -- it means the review had not finished analyzing, not that it
-finished and found nothing. Always retry with a longer wait until a
-genuine `SATISFIED`/`UNRESOLVED_THREADS` verdict (not `REVIEW_TIMEOUT`) is
-observed before concluding a round is complete.
+finished and found nothing.
+
+**This retry guidance is bounded, not unbounded**: retry with a longer wait
+only within the remaining budget of the same-operation circuit breaker in
+`.github/instructions/circuit-breaker.instructions.md` (three failures of
+the identical `copilot-review` gate invocation for the same HEAD). Do not
+retry past that budget -- once exhausted, halt and escalate (or, per the
+Ship pipeline's Fix-CI stop condition, present the PR with the outstanding
+`REVIEW_TIMEOUT`/pending state for operator intervention) rather than
+issuing a further attempt. Within that bound, prefer a genuine
+`SATISFIED`/`UNRESOLVED_THREADS` verdict (not `REVIEW_TIMEOUT`) before
+concluding a round is complete.
 
 ## 2. Schema-mutation-in-place is a *recurring* bug class -- this is the third occurrence
 
