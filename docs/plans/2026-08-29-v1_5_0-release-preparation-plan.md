@@ -38,11 +38,31 @@ evidence in the Stage session summary and the two linked deliberations.
 
 ## Preconditions (Ship MUST verify before starting)
 
-1. `main` == `origin/main` == `484da671`; worktree clean; **exactly one
-   worktree** (P-016).
+1. **`main` == `origin/main`, worktree clean, exactly one worktree (P-016).**
+   `484da671` is the **planning baseline** (the commit this plan was authored
+   against) — it is **not** an execution precondition. By the time Ship starts,
+   `main` will necessarily have advanced past it, because publishing this
+   staging shipment merges its own PR into `main`. Ship must therefore execute
+   from the **current synchronized `origin/main` HEAD** and must **not** require
+   equality with `484da671`. Re-confirm at start that the evidence this plan
+   relies on still holds at that newer HEAD (see "Baseline re-verification"
+   below).
 2. No queued/active shipment other than this one.
 3. `uv`, `python 3.12`, `markdownlint` all present. **Absence of `markdownlint`
    is a STOP condition, not a skip** (per the `D1A46B8C` deliberation).
+
+**Baseline re-verification (cheap, run once at start).** Because execution
+begins from a `main` newer than the planning baseline, re-confirm the three
+facts this plan's tasks depend on, and re-plan only if one has changed:
+
+* `pyproject.toml` version is still `1.4.11` (i.e. no one else bumped it).
+* The `force-include` list in `pyproject.toml` L35–L45 still has the ten
+  mappings enumerated in T6 — derive the list at run time rather than trusting
+  the copy in this plan.
+* The two blocker conditions are still present (stale `workspace-discovery`
+  checksum; circuit-breaker checkpoint format missing an H1 and carrying
+  unquoted frontmatter values). If either was fixed independently, close the
+  corresponding task as already-satisfied rather than re-applying the change.
 
 ## Work breakdown
 
@@ -201,10 +221,15 @@ mask failures with a trailing `|| true`.
 * `verify-workspace` / template / schema checks; confirm **no new** checksum
   drift beyond the two entries deliberately re-recorded in T1/T2.
 
-### T8 — PR readiness
+### T8 — PR readiness and merge
 
 * Single PR from a single branch (P-016: **no parallel worktrees**).
 * All CI green; the changelog section and version surfaces consistent.
+* **Merge the PR to `main`** — this unit owns the "merge-ready → merged"
+  transition. Requires **explicit operator approval**. Record the **merge commit
+  SHA**; T9 tags that commit. Without this step nothing owned the transition and
+  the shipment dead-ended at T8→T9 with T9 unblocked but unable to start.
+* Everything through here is reversible (a merge can be reverted).
 
 ### T9 — Post-merge annotated tag `v1.5.0`
 

@@ -94,20 +94,49 @@ Plan review: `dispatch_mode: same-model-declared-degradation`,
 
 ## Stash reconciliation
 
-41 active → **38 active**. Archived (non-destructively, each with a forward
-reference): `8CB31EFB`, `1BDBD08B`, `1CD4E96F`, `8AC574F1`. Appended
-disposition records to `B698F01B`, `D1A46B8C`, `B57F9E24` (all remain active).
-Created `5CBA0A85` to preserve `8AC574F1`'s residual open question
-(fail-closed agent→skill dangling cross-reference check for verify-harness).
+**Final state: 41 active** (unchanged in count from the 41 at session start, by
+coincidence of four archives and four additions).
+
+Sequence: 41 at start → archived 4 (`8CB31EFB`, `1BDBD08B`, `1CD4E96F`,
+`8AC574F1`), non-destructively and each with a forward reference → **37** →
+created `5CBA0A85` (preserving `8AC574F1`'s residual open question: fail-closed
+agent→skill dangling cross-reference check for verify-harness) → **38**, which
+was the count at the original reconciliation.
+
+Three entries were added after that point and this record accounts for them:
+
+* `6A2D62DD` (spike, medium) — range-deterministic sizing + one-session-per-cycle
+  lifecycle *(operator intake)* → **39**
+* `2E67938C` (feature, high) — Stage must integrate/enforce backlogit
+  size/complexity metadata *(operator intake)* → **40**
+* `8E10B13B` (bug, high) — `release.yml` pre-publish PyPI probe fails open
+  *(P-021 C2 capture from PR #422 review)* → **41**
+
+Disposition records were appended to `B698F01B`, `D1A46B8C`, and `B57F9E24`
+(all remain active).
 
 P-021 C5 duplicate scan run unconditionally over all consumed entries: **CLEAN**.
 
 ## Next steps (Ship)
 
-Claim `158-S`. Execute `150.001-T` → `150.010-T` in dependency order. Hard
-conditions: single worktree/branch/PR; markdown gate is fail-closed (halt if
-`markdownlint` absent); clean `dist/` before building; `150.009-T` (tag push)
-requires explicit operator approval and is the irreversible boundary; on
-publish failure, determine which side of the PyPI publish step failed before
-any rollback — after publish, `1.5.0` is permanently burned and remediation
-ships as `1.5.1`.
+Claim `158-S`. Execute `150.001-T` → `150.010-T` in dependency order — the chain
+is now **fully ordered from a single root** (`150.001-T`), so "in order" is
+enforced by the graph rather than only stated in prose.
+
+Hard conditions:
+
+* **Execute from the current synchronized `origin/main` HEAD, not `484da671`.**
+  That commit is the *planning* baseline only; merging the staging PR necessarily
+  advances `main` past it. Run the plan's "Baseline re-verification" checks at start.
+* Single worktree / branch / PR (P-016).
+* Markdown gate is fail-closed — halt if `markdownlint` is absent.
+* Clean `dist/` before building; verify **all ten** `force-include` destinations,
+  not just `templates`.
+* `150.008-T` owns the merge to `main` (operator-approved) and records the merge
+  commit SHA that `150.009-T` tags.
+* `150.009-T` (tag push) requires explicit operator approval, must assert `1.5.0`
+  is **absent from PyPI** (fail closed if ambiguous), and is the irreversible
+  boundary.
+* On publish failure, **probe PyPI to determine actual upload state** — do not
+  infer it from the failed step number. After a confirmed publish, `1.5.0` is
+  permanently burned and remediation ships as `1.5.1`.
