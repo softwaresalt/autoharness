@@ -113,6 +113,17 @@ source: "150-F / 158-S"
 
 ## Next steps
 
+**Historical note**: this section captured the state as of when this
+memory was originally written, before `compact-context` ran. By the time
+this document was archived (as part of that same `compact-context`
+invocation), the actual sequence had already completed: `compact-context`
+(P-020) ran first, producing this archival and
+`docs/memory/compacted/2026-08-30-158-s-compacted.md`; the post-merge
+closure PR (`post-merge/150-f-v1-5-0-release-preparation-and-publish`)
+was opened afterward, already carrying the compacted memory rather than
+needing it as a future step. The original (now-stale) text is preserved
+below for historical accuracy of what was known at write time:
+
 Post-merge closure PR (this branch, `post-merge/150-f-v1-5-0-release-preparation-and-publish`)
 needs: local review, §1.9 readiness gate, operator approval, merge. Then
 mandatory `compact-context` invocation (P-020), closure index resync, and
