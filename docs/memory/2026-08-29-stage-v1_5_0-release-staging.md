@@ -128,7 +128,11 @@ Hard conditions:
 * **Execute from the current synchronized `origin/main` HEAD, not `484da671`.**
   That commit is the *planning* baseline only; merging the staging PR necessarily
   advances `main` past it. Run the plan's "Baseline re-verification" checks at start.
-* Single worktree / branch / PR (P-016).
+* Single **implementation** worktree / branch / PR (P-016 forbids *parallel*
+  worktrees). This does **not** forbid Ship's mandatory **post-merge closure
+  branch/PR** (`_ship.agent.md` L624–L645, NON-NEGOTIABLE): that branch is cut
+  from `main` *after* the implementation PR merges, so it is sequential, never
+  concurrent.
 * Markdown gate is fail-closed — halt if `markdownlint` is absent.
 * Clean `dist/` before building; verify **all ten** `force-include` destinations,
   not just `templates`.

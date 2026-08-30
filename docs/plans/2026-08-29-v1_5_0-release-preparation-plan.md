@@ -95,8 +95,23 @@ refresh).
 
 * Add an H1 (`# Circuit Breaker - {operation}`) between the frontmatter and
   `## Failure Chain` in the prescribed checkpoint format.
-* Double-quote the four free-form frontmatter values (`agent`, `skill`,
-  `operation`, `identity`).
+* **Emit the four free-form frontmatter values (`agent`, `skill`, `operation`,
+  `identity`) as properly escaped YAML scalars — naive double-quoting is NOT
+  sufficient.** Wrapping raw prose in `"` fixes colon-space and space-hash but
+  still breaks on an embedded `"` or backslash. Verified empirically: of five
+  representative values, naive quoting yields `PARSE-FAIL` on *embedded double
+  quote*, *embedded backslash*, and *trailing backslash*, while JSON-style
+  escaping handles all five. This is not hypothetical here — the template's own
+  placeholder at L331 is `skill: {skill name or "direct"}`, so naive wrapping
+  produces `skill: ""direct""`, which does not parse.
+  Prescribe a **JSON string literal** (YAML 1.2 double-quoted scalars share
+  JSON's escape rules, so `json.dumps`-style output is always valid YAML), and
+  say so explicitly in the instruction rather than showing bare quotes.
+* **Add regression cases** covering all four hazard classes — embedded `"`,
+  embedded/trailing backslash, colon-space, and space-hash — asserting the
+  emitted frontmatter both **parses** and **round-trips to the original value**
+  (a value that parses but decodes differently is the silent-truncation mode
+  already demonstrated in the wild).
 * **Paired edit**: `templates/instructions/circuit-breaker.instructions.md.tmpl`
   **and** `.github/instructions/circuit-breaker.instructions.md`.
 * Refresh the manifest checksum for the installed file (LF-normalized, computed
@@ -223,13 +238,26 @@ mask failures with a trailing `|| true`.
 
 ### T8 — PR readiness and merge
 
-* Single PR from a single branch (P-016: **no parallel worktrees**).
+* **One implementation PR from one implementation branch** (P-016: no *parallel*
+  worktrees). This constrains the implementation phase only — it does **not**
+  forbid the mandatory post-merge closure branch/PR described below.
 * All CI green; the changelog section and version surfaces consistent.
 * **Merge the PR to `main`** — this unit owns the "merge-ready → merged"
   transition. Requires **explicit operator approval**. Record the **merge commit
   SHA**; T9 tags that commit. Without this step nothing owned the transition and
   the shipment dead-ended at T8→T9 with T9 unblocked but unable to start.
 * Everything through here is reversible (a merge can be reverted).
+
+**Post-merge closure is expected and permitted (not a scope violation).** After
+T8 merges — and after T9/T10 produce tag and publish evidence — Ship runs its own
+**Post-Merge Branch Protocol** (`.github/agents/_ship.agent.md` L624–L645), which
+is **NON-NEGOTIABLE and has no local-record bypass**: closure commits (backlog
+archival, knowledge graduation, doc updates, compound refresh, compact-context)
+MUST NOT land on `main`; they go on a `post-merge/{feature_slug}` branch merged
+via a separate closure PR with its own operator approval. That branch is created
+**from `main` after the implementation PR has merged**, so it is **sequential,
+never parallel**, and therefore does not violate P-016. This plan's
+one-branch/one-PR rule must not be read as forbidding it.
 
 ### T9 — Post-merge annotated tag `v1.5.0`
 
@@ -328,8 +356,14 @@ anyway because the blast radius is elevated.
 * **INV-1** — Tag version, `pyproject.toml` version, and the changelog section
   heading must denote the identical version `1.5.0`. Enforced independently by
   `release.yml` L39 and L67; Ship must assert it *before* pushing.
-* **INV-2** — Exactly one worktree, one branch, one PR for the entire release
-  (P-016).
+* **INV-2** — Exactly one **active implementation** worktree, branch, and PR for
+  the release (P-016 forbids *parallel* worktrees). This does **not** forbid the
+  **sequential post-merge closure branch/PR** mandated by
+  `.github/agents/_ship.agent.md` L624–L645, which is created from `main` only
+  *after* the implementation PR has merged and is therefore never concurrent
+  with it. Reading INV-2 as "one branch for the whole release, full stop" would
+  force Ship to choose between this plan and a NON-NEGOTIABLE protocol; that
+  reading is wrong.
 * **INV-3** — Every one of the six version surfaces moves together. **Actual
   enforcement boundary**: `tests/test_verify_workspace.py:147–164`
   (`test_distribution_and_plugin_versions_stay_in_sync`) already compares
