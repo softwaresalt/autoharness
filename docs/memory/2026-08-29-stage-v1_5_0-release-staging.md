@@ -53,11 +53,25 @@ deliberation `56803680`), `47971057`, and the pre-review-evidence epic
 
 ## Key evidence that changed decisions
 
-1. **Packaging boundary.** `pyproject.toml` wheel = `packages =
-   ["src/autoharness"]` plus force-include `templates` →
-   `src/autoharness/data/templates`. So `templates/` ships; `.github/skills/`,
-   `docs/`, `scripts/`, `.githooks/`, and CI do **not**. This single fact
-   decided four of the six dispositions.
+1. **Packaging boundary** *(corrected post-review — the original entry here was
+   wrong; see PR #422 threads)*. The wheel is `packages = ["src/autoharness"]`
+   plus **ten** `force-include` mappings (`pyproject.toml` L35–L45):
+   `templates`, `schemas`, `.github/agents`, **`.github/skills`**,
+   `.github/instructions`, `.github/prompts`,
+   `.github/copilot-instructions.md`, `.github/copilot-review-instructions.md`,
+   **`docs`**, and `AGENTS.md`. The original claim that `.github/skills/` and
+   `docs/` "do not ship" was **false** — both ship. Genuinely absent from the
+   wheel are `.github/workflows/`, `.githooks/`, `scripts/`, and `tests/`
+   (the `.github` inclusions are specific subdirectories plus two named files,
+   not `.github` wholesale).
+
+   **Effect on dispositions: none flip, but two rationales change direction.**
+   `1CD4E96F` becomes *stronger*, not weaker — `.github/skills/workspace-discovery/SKILL.md`
+   ships, so its stale checksum is user-facing, not merely dogfood. Likewise the
+   circuit-breaker fix covers a shipped installed mirror as well as the
+   template. `D1A46B8C` and `B698F01B` are unaffected: `scripts/`,
+   `.githooks/`, `.github/workflows/`, and `tests/` are all still outside the
+   wheel. **Do not reuse the original templates-only boundary as evidence.**
 2. **`D1A46B8C` inversion.** The addendum implied a shipped install/tune
    contract break. The pre-commit script *templates* exist and ship — the gap is
    only in this repo's own `scripts/`. Dogfood drift, not a product defect.

@@ -162,9 +162,29 @@ version exactly equals `pyproject.toml`'s version.
   environment — not the source tree
 * Verify `autoharness version` outputs **exactly** `1.5.0`
 * Verify `autoharness home` resolves
-* Verify **bundled data**: `src/autoharness/data/templates` is present in the
-  wheel and populated (this is the `force-include` surface — the most likely
-  packaging regression)
+* Verify **bundled data — every declared `force-include` destination**, not just
+  templates. `pyproject.toml` L35–L45 publishes **ten** mappings; a wheel can
+  omit an entire shipped artifact family and still pass a templates-only check.
+  Confirm each destination below is present in the wheel, that every directory
+  is **non-empty**, and that each is readable from the isolated install:
+
+  | Source | Wheel destination |
+  |---|---|
+  | `templates` | `autoharness/data/templates` |
+  | `schemas` | `autoharness/data/schemas` |
+  | `.github/agents` | `autoharness/data/.github/agents` |
+  | `.github/skills` | `autoharness/data/.github/skills` |
+  | `.github/instructions` | `autoharness/data/.github/instructions` |
+  | `.github/prompts` | `autoharness/data/.github/prompts` |
+  | `.github/copilot-instructions.md` | `autoharness/data/.github/copilot-instructions.md` |
+  | `.github/copilot-review-instructions.md` | `autoharness/data/.github/copilot-review-instructions.md` |
+  | `docs` | `autoharness/data/docs` |
+  | `AGENTS.md` | `autoharness/data/AGENTS.md` |
+
+  Prefer deriving this list **from `pyproject.toml` at run time** rather than
+  hard-coding it, so a future force-include addition cannot silently escape the
+  gate. This whole surface is invisible to the test suite, which runs from the
+  source tree via `pythonpath = ["src"]`.
 
 **Learning applied** (`docs/compound/2026-08-08-shell-pipeline-exit-status-masking-in-version-probes.md`):
 assert on **exact string equality** of the version output and on the command's
@@ -192,6 +212,15 @@ mask failures with a trailing `|| true`.
 * Annotated tag `v1.5.0` on the merge commit; push the tag to trigger `release.yml`.
 * Pre-push assertion: tag name minus `v` **exactly equals** `pyproject.toml`
   version, and a `## 1.5.0` changelog section exists.
+* **Pre-push assertion — `1.5.0` MUST be ABSENT from PyPI.** Probe
+  `https://pypi.org/pypi/autoharness/1.5.0/json` and require a `404`. If it
+  returns `200`, **STOP** — do not tag. If the probe is unreachable or
+  ambiguous, **fail closed** and stop. This assertion lives here, at the last
+  reversible human-gated moment, precisely because the workflow does **not**
+  enforce it: `release.yml` L102–L106 prints and exits 0, and L112 uses
+  `skip-existing: true`, so an unattended run would smoke-test the pre-existing
+  package and publish a GitHub Release around artifacts this build did not
+  produce. Workflow hardening is deferred to stash `8E10B13B`.
 
 ### T10 — Publish monitoring, smoke evidence, and rollback
 
@@ -212,8 +241,8 @@ mask failures with a trailing `|| true`.
 | Tag/pyproject version mismatch | **STOP** before pushing the tag; `release.yml` will reject it anyway. |
 | No `## 1.5.0` changelog section | **STOP**; `release.yml` L67 aborts the release. |
 | `release.yml` fails **before** the PyPI publish step | Safe. Delete the tag (`git push --delete origin v1.5.0`), fix, re-tag. No version is burned. |
-| `release.yml` fails **at or after** the PyPI publish step | **PyPI is immutable — 1.5.0 is permanently consumed. Do NOT retry the same version.** Do not delete the tag. Escalate to the operator. Any remediation ships as **1.5.1**. |
-| PyPI reports 1.5.0 already exists at pre-publish | **STOP** and escalate — indicates the version was already burned. |
+| `release.yml` fails **at or after** the PyPI publish step | **Do not infer the outcome from the step number.** The publish step can fail on authentication/OIDC *before* any file reaches PyPI. **Probe PyPI first** (`https://pypi.org/pypi/autoharness/1.5.0/json`) to determine whether `1.5.0` actually exists. If **absent**: treat as the safe pre-upload path above. If **present**: the version is permanently consumed — do NOT retry `1.5.0`, do NOT delete the tag, escalate; remediation ships as **1.5.1**. If the probe is **ambiguous or unreachable**: **fail closed** — assume consumed, escalate, do not re-tag `1.5.0`. |
+| `1.5.0` already exists on PyPI at pre-publish | **STOP and escalate.** ⚠️ **Not enforced by the workflow** — `release.yml` L102–L106 only *prints* that the version exists and exits 0, and L112 publishes with `skip-existing: true`. The unattended run would then smoke-test the **pre-existing** package (which passes) and create/update a GitHub Release around artifacts this build did not produce. Because the workflow is unattended there is no point at which Ship can interrupt it. **This must therefore be asserted before the tag is pushed (T9), not monitored during T10.** Workflow hardening is deferred to stash `8E10B13B`. |
 | Published smoke test fails after a successful publish | Do **not** yank reflexively. Capture evidence, escalate to the operator, prepare 1.5.1. |
 
 **Irreversibility notice**: everything through T8 is reversible; **T9 (tag
@@ -276,10 +305,15 @@ anyway because the blast radius is elevated.
   `release.yml` L39 and L67; Ship must assert it *before* pushing.
 * **INV-2** — Exactly one worktree, one branch, one PR for the entire release
   (P-016).
-* **INV-3** — Every one of the six version surfaces moves together. A partial
-  bump is a silent defect: `release.yml` only validates `pyproject.toml`, so
-  `plugin.json` / `marketplace.json` (**both** occurrences) / `__init__.py`
-  fallback / `uv.lock` can drift **undetected by CI**.
+* **INV-3** — Every one of the six version surfaces moves together. **Actual
+  enforcement boundary**: `tests/test_verify_workspace.py:147–164`
+  (`test_distribution_and_plugin_versions_stay_in_sync`) already compares
+  `pyproject.toml` against the `__init__.py` fallback, `plugin.json`, and
+  **both** `marketplace.json` fields — so five of the six loci **are** guarded
+  by the test suite, which is a real CI gate. **Only `uv.lock` is unguarded**
+  and can drift undetected. Ship must therefore not read a failure in those
+  five as "invisible to CI" (it will surface as a test failure), and must treat
+  `uv.lock` as the one surface needing manual confirmation.
 * **INV-4** — No published versioned schema mirror under `schemas/` is mutated
   in place by this release. Confirm `git diff` touches no
   `schemas/**/<version>.schema.json` file.

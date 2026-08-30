@@ -79,10 +79,18 @@ never rendered the two templates into its own `scripts/`.
 
 This is **dogfood-workspace drift, not a product defect.**
 
-**Blast-radius boundary.** `.github/workflows/`, `.githooks/`, and `scripts/`
-are **not** included in the wheel (`packages = ["src/autoharness"]` plus the
-`templates` force-include only). No part of claims 1–3 reaches the published
-artifact.
+**Blast-radius boundary.** The wheel is `packages = ["src/autoharness"]` plus
+**ten** `force-include` mappings (`pyproject.toml` L35–L45): `templates`,
+`schemas`, `.github/agents`, `.github/skills`, `.github/instructions`,
+`.github/prompts`, `.github/copilot-instructions.md`,
+`.github/copilot-review-instructions.md`, `docs`, and `AGENTS.md`. **None of
+those ten mappings covers `.github/workflows/`, `.githooks/`, or `scripts/`** —
+note in particular that the `.github` inclusions are specific subdirectories and
+two named files, not `.github` wholesale. Those three paths are therefore not in
+the wheel, and no part of claims 1–3 reaches the published artifact. (The
+conclusion is unchanged from the original analysis; the stated reason is
+corrected here — the earlier "templates force-include only" phrasing understated
+the package boundary and must not be reused as evidence.)
 
 ## Options evaluated
 
