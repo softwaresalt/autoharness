@@ -249,6 +249,31 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(result.results[1].status, "blocked_upstream")
         self.assertEqual(result.exit_code, 2)
 
+    def test_validator_returning_waived_is_converted_to_invalid(self) -> None:
+        # Copilot review finding (PR #420, round 6): `status="waived"` is a
+        # reserved status -- waiver authority belongs exclusively to the
+        # audited waiver engine planned for S10, which does not exist yet.
+        # A detector implementation directly returning
+        # `NodeResult(status="waived")` must never be accepted as a
+        # legitimate result in S1; it is converted to `status="invalid"`,
+        # symmetric with the type/identity checks above, and downstream
+        # nodes must see it as blocking exactly like any other non-clean
+        # upstream status.
+        waiving_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(name=node.node_id, status="waived"),
+        )
+        downstream = self._node(
+            "det:D-ART/ART-02@1",
+            depends_on=("det:D-ART/ART-01@1",),
+        )
+        result = assemble_detector_results((waiving_node, downstream), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertIn("waived", result.results[0].message.lower())
+        self.assertIn("S10", result.results[0].message)
+        self.assertEqual(result.results[1].status, "blocked_upstream")
+        self.assertEqual(result.exit_code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -89,6 +89,7 @@ detectors:
   - node_id: "det:D-ART/ART-01@1"
     applies_when:
       changed_paths_any:
+        - ".backlog/**"
         - ".backlogit/**"
     producer:
       kind: "pure"

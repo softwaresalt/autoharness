@@ -26,6 +26,22 @@ from autoharness.schema_contracts import VALIDATION_GATES_SCHEMA_VERSION, resolv
 
 _ALLOWED_REF_PREFIX = "autoharness.detectors"
 
+# D3 evidence-reference syntax (design doc §D3): `validator.consumes` entries
+# may be written as `<node_id>#evidence` to explicitly document that the
+# validator consumes the named node's produced `Evidence` record (self or
+# sibling). The suffix is optional sugar: a bare `<node_id>` remains valid
+# and is the pre-existing convention already exercised by the loader tests.
+# Normalize it away here so every downstream comparison (membership in
+# `seen`, `depends_on`) -- and the assembler's `evidence_map` lookup, which
+# is keyed by bare `node_id` -- consults exactly one canonical form.
+_EVIDENCE_REF_SUFFIX = "#evidence"
+
+
+def _normalize_evidence_ref(ref: str) -> str:
+    if ref.endswith(_EVIDENCE_REF_SUFFIX):
+        return ref[: -len(_EVIDENCE_REF_SUFFIX)]
+    return ref
+
 
 class DetectorRegistryError(ValueError):
     exit_code = 2
@@ -111,7 +127,9 @@ def _load_node(raw: dict[str, Any]) -> NodeSpec:
         ),
         validator=ValidatorSpec(
             ref=str(validator_raw["ref"]),
-            consumes=tuple(validator_raw.get("consumes", ()) or ()),
+            consumes=tuple(
+                _normalize_evidence_ref(str(entry)) for entry in (validator_raw.get("consumes", ()) or ())
+            ),
             handler=_resolve_callable(str(validator_raw["ref"])),
         ),
         depends_on=tuple(raw.get("depends_on", ()) or ()),
@@ -158,7 +176,15 @@ def load_detector_registry(config_data: Any, autoharness_home: Path) -> Detector
                 raise DetectorRegistryError(
                     f"Detector {node.node_id} validator.consumes references unknown node {consumed}"
                 )
-            if consumed not in node.depends_on:
+            # A node consuming its own just-produced evidence (the D3
+            # self-evidence case, e.g. `consumes: ["<self-node_id>#evidence"]`)
+            # is always available regardless of `depends_on`: the assembler
+            # guarantees every node's validator sees its own node's evidence
+            # unconditionally, before `consumes` is even considered. Only a
+            # *sibling* reference needs the depends_on declaration, since only
+            # that guarantees evaluation-order safety for someone else's
+            # evidence.
+            if consumed != node.node_id and consumed not in node.depends_on:
                 raise DetectorRegistryError(
                     f"Detector {node.node_id} validator.consumes references {consumed}, "
                     "which must also be declared in depends_on so upstream evidence is guaranteed "

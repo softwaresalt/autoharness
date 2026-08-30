@@ -214,6 +214,77 @@ class RegistryLoaderTests(unittest.TestCase):
         self.assertEqual(registry.exit_code, 0)
         self.assertEqual(len(registry.nodes), 2)
 
+    def test_registry_normalizes_evidence_suffix_on_sibling_consumes(self) -> None:
+        # D3 evidence-reference syntax (design doc): `<node_id>#evidence` is
+        # accepted sugar for the bare `<node_id>` form already exercised
+        # above. The suffix must be stripped consistently so the same
+        # depends_on-subset rule applies regardless of which form is used.
+        config = self._two_node_config()
+        config["detectors"][0]["depends_on"] = ["det:D-ART/ART-02@1"]
+        config["detectors"][0]["validator"]["consumes"] = ["det:D-ART/ART-02@1#evidence"]
+        registry = self._load(config)
+        self.assertEqual(registry.exit_code, 0)
+        self.assertEqual(registry.nodes[0].validator.consumes, ("det:D-ART/ART-02@1",))
+
+    def test_registry_accepts_self_evidence_reference_without_depends_on(self) -> None:
+        # The schema example (tests/test_validation_gates_schema.py) declares
+        # `consumes: ["det:D-ART/ART-01@1#evidence"]` on the SAME node with
+        # `depends_on: []` -- a self-reference to the node's own
+        # just-produced evidence, which the assembler always supplies
+        # unconditionally. This must load successfully rather than raising
+        # "unknown node" (missing suffix normalization) or "must also be
+        # declared in depends_on" (a node can never depend on itself).
+        config = copy.deepcopy(VALID_CONFIG)
+        config["detectors"][0]["validator"]["consumes"] = ["det:D-ART/ART-01@1#evidence"]
+        registry = self._load(config)
+        self.assertEqual(registry.exit_code, 0)
+        self.assertEqual(registry.nodes[0].validator.consumes, ("det:D-ART/ART-01@1",))
+
+    def test_registry_rejects_sibling_evidence_reference_missing_from_depends_on(self) -> None:
+        # A sibling `#evidence` reference still needs the depends_on
+        # declaration for evaluation-order safety -- only the self-reference
+        # case above is exempt.
+        config = self._two_node_config()
+        config["detectors"][0]["validator"]["consumes"] = ["det:D-ART/ART-02@1#evidence"]
+        with self.assertRaises(DetectorRegistryError) as ctx:
+            self._load(config)
+        self.assertIn("depends_on", str(ctx.exception).lower())
+
+    def test_schema_example_self_evidence_consumes_loads_via_full_config_validation(self) -> None:
+        # End-to-end coverage of the exact schema-validated example from
+        # tests/test_validation_gates_schema.py's DETECTOR_CONFIG, which
+        # previously failed registry loading with "unknown node" despite
+        # being schema-valid.
+        config = {
+            "detectors": [
+                {
+                    "node_id": "det:D-ART/ART-01@1",
+                    "applies_when": {"changed_paths_any": [".backlogit/**"]},
+                    "producer": {
+                        "kind": "pure",
+                        "ref": "autoharness.detectors.stub:produce",
+                        "tool_version_dims": ["python"],
+                    },
+                    "validator": {
+                        "ref": "autoharness.detectors.stub:validate",
+                        "consumes": ["det:D-ART/ART-01@1#evidence"],
+                    },
+                    "depends_on": [],
+                    "severity": "medium",
+                    "mode": "report_only",
+                    "remediation": {
+                        "class": "guided_fix",
+                        "hint": "Restore required section markers.",
+                        "target_refs": ["path:.backlogit/templates/task.md"],
+                        "authority": "stage",
+                    },
+                }
+            ]
+        }
+        registry = self._load(config)
+        self.assertEqual(registry.exit_code, 0)
+        self.assertEqual(len(registry.nodes), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

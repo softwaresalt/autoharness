@@ -116,7 +116,27 @@ def assemble_detector_results(
                         if consumed in evidence_map:
                             visible_evidence[consumed] = evidence_map[consumed]
                     result = node.validator.handler(node, MappingProxyType(visible_evidence), context)
-                    if not isinstance(result, NodeResult) or result.name != node.node_id:
+                    if isinstance(result, NodeResult) and result.name == node.node_id and result.status == "waived":
+                        # `waived` is a reserved status in the S1 contract: waiver
+                        # authority belongs exclusively to the audited waiver
+                        # engine planned for S10, which does not exist yet. A
+                        # detector implementation returning `status="waived"`
+                        # directly would let it mint an unaudited waiver -- treat
+                        # this as a hard SDK contract violation (status
+                        # "invalid"), symmetric with the type/identity checks
+                        # below, rather than letting an unreachable-in-S1 status
+                        # silently pass through as a legitimate result.
+                        result = NodeResult(
+                            name=node.node_id,
+                            status="invalid",
+                            token="INVALID",
+                            message=(
+                                f"validator for {node.node_id} returned status 'waived', but waiver "
+                                "authority is reserved for the S10 audited waiver engine and 'waived' "
+                                "must remain unreachable until that engine exists"
+                            ),
+                        )
+                    elif not isinstance(result, NodeResult) or result.name != node.node_id:
                         # The validator SDK contract requires a `NodeResult`
                         # for this exact node. A detector implementation that
                         # returns `None`/another type, or a `NodeResult`
