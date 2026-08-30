@@ -27,9 +27,22 @@ See:
 from __future__ import annotations
 
 import json
+import re
 import unittest
+from pathlib import Path
 
 import yaml
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_INSTALLED_INSTRUCTION = (
+    _REPO_ROOT / ".github" / "instructions" / "circuit-breaker.instructions.md"
+)
+_TEMPLATE_INSTRUCTION = (
+    _REPO_ROOT
+    / "templates"
+    / "instructions"
+    / "circuit-breaker.instructions.md.tmpl"
+)
 
 # The five representative hazard values used throughout the instruction's
 # worked table. Four are named "hazard classes" in the task/instruction;
@@ -249,6 +262,121 @@ class CircuitBreakerCheckpointYamlSafetyTests(unittest.TestCase):
         )
         with self.assertRaises(yaml.YAMLError):
             _parse_frontmatter(block)
+
+
+class CircuitBreakerInstructionContentBindingTests(unittest.TestCase):
+    """Binds this regression suite to the actual prescribed-format content in
+    the circuit-breaker instruction (and its paired template), so this test
+    module cannot stay green if the documented fix it exercises is reverted.
+
+    Copilot review finding (PR #423): the hazard-class tests above prove the
+    JSON-string-literal encoding technique is YAML-safe in the abstract, but
+    never read either changed instruction file -- reverting the template and
+    installed mirror to bare unquoted placeholders, or dropping the new H1
+    line, would leave this 'regression guard' green. These tests close that
+    gap by asserting the H1 line and the four JSON-literal field
+    prescriptions are actually present in both artifacts.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.installed_text = _INSTALLED_INSTRUCTION.read_text(encoding="utf-8")
+        cls.template_text = _TEMPLATE_INSTRUCTION.read_text(encoding="utf-8")
+
+    def test_prescribed_checkpoint_format_includes_h1_before_failure_chain(
+        self,
+    ) -> None:
+        """The prescribed checkpoint format block must contain an H1 line
+        (fixing MD041 for a checkpoint file written mid-failure-state)
+        between the frontmatter's closing '---' and '## Failure Chain'."""
+        h1_pattern = re.compile(
+            r"^---\s*$.*?^# Circuit Breaker - \{operation\}\s*$.*?"
+            r"^## Failure Chain\s*$",
+            re.MULTILINE | re.DOTALL,
+        )
+        for source, text in (
+            ("installed", self.installed_text),
+            ("template", self.template_text),
+        ):
+            with self.subTest(source=source):
+                self.assertRegex(
+                    text,
+                    h1_pattern,
+                    f"{source} circuit-breaker instruction is missing the "
+                    "'# Circuit Breaker - {operation}' H1 line between the "
+                    "checkpoint frontmatter and '## Failure Chain'",
+                )
+
+    def test_prescribed_checkpoint_format_requires_json_string_literals(
+        self,
+    ) -> None:
+        """The prescribed checkpoint format must instruct JSON-string-literal
+        encoding (not naive double-quoting) for the four free-form
+        frontmatter fields, and must show at least one concrete escaped
+        example demonstrating the required behavior."""
+        required_field_markers = (
+            'agent: {JSON string literal, e.g. "Ship"}',
+            'skill: {JSON string literal, e.g. "direct" or "read \\"config\\" file"}',
+            'operation: {JSON string literal, e.g. "uv build"}',
+            "identity: {JSON string literal, e.g."
+            ' "provisional-fingerprint-1"}',
+        )
+        for source, text in (
+            ("installed", self.installed_text),
+            ("template", self.template_text),
+        ):
+            with self.subTest(source=source):
+                self.assertIn(
+                    "JSON string literal",
+                    text,
+                    f"{source} circuit-breaker instruction no longer "
+                    "prescribes JSON-string-literal encoding for the "
+                    "free-form frontmatter fields",
+                )
+                self.assertIn(
+                    "never as a bare value wrapped\nin naive double quotes",
+                    text,
+                    f"{source} circuit-breaker instruction no longer "
+                    "rejects naive double-quoting as insufficient",
+                )
+                for marker in required_field_markers:
+                    self.assertIn(
+                        marker,
+                        text,
+                        f"{source} circuit-breaker instruction is missing "
+                        f"the concrete JSON-string-literal example {marker!r} "
+                        "for a free-form checkpoint field",
+                    )
+
+    def test_regression_cases_table_is_present_in_both_artifacts(self) -> None:
+        """The Frontmatter YAML-Safety Regression Cases table (all five
+        hazard rows) must be present in both the installed instruction and
+        its paired template, not just documented in this test module."""
+        required_row_markers = (
+            "Embedded double quote",
+            "Embedded backslash",
+            "Trailing backslash",
+            "Colon-space",
+            "Space-hash",
+        )
+        for source, text in (
+            ("installed", self.installed_text),
+            ("template", self.template_text),
+        ):
+            with self.subTest(source=source):
+                self.assertIn(
+                    "Frontmatter YAML-Safety Regression Cases",
+                    text,
+                    f"{source} circuit-breaker instruction is missing the "
+                    "Frontmatter YAML-Safety Regression Cases section",
+                )
+                for marker in required_row_markers:
+                    self.assertIn(
+                        marker,
+                        text,
+                        f"{source} circuit-breaker instruction's regression "
+                        f"table is missing the {marker!r} row",
+                    )
 
 
 if __name__ == "__main__":
