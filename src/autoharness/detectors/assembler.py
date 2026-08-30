@@ -52,6 +52,32 @@ def _is_json_serializable(value: Any) -> bool:
     return True
 
 
+def _has_malformed_result_payload(result: NodeResult) -> bool:
+    """Return ``True`` when ``result``'s SDK-contract fields cannot be
+    safely consumed by every downstream consumer of a ``NodeResult``.
+
+    A prior check here only ran ``result.details``/``result.provenance``
+    through ``json.dumps`` in isolation. That is necessary but not
+    sufficient: ``detectors/report.py``'s ``_merged_provenance`` calls
+    ``dict(result.provenance)`` on every result, and a JSON-serializable but
+    non-mapping value (e.g. a plain ``list`` such as ``["x"]``) passes
+    ``json.dumps`` yet still raises there (``dict()`` requires either a
+    mapping or an iterable of key/value pairs). ``details``/``provenance``
+    are also typed as ``dict[str, Any]`` on ``NodeResult`` itself, but that
+    type hint is not runtime-enforced -- a detector can still construct one
+    with any object. Likewise, ``message``/``token`` are typed ``str``/``str
+    | None`` but are not runtime-checked either, so a non-JSON-serializable
+    object assigned to either would still reach ``json.dumps(payload)`` in
+    ``emit_pre_review_report`` uncaught. Check both facets: the two fields
+    consumed as mappings must actually be ``dict`` instances, and the
+    complete ``to_dict()`` payload -- covering every field, not only
+    ``details``/``provenance`` -- must round-trip through ``json.dumps``.
+    """
+    if not isinstance(result.details, dict) or not isinstance(result.provenance, dict):
+        return True
+    return not _is_json_serializable(result.to_dict())
+
+
 def assemble_detector_results(
     nodes: tuple[NodeSpec, ...] | list[NodeSpec],
     context: Any,
@@ -176,27 +202,31 @@ def assemble_detector_results(
                                 "instead of a NodeResult for this node"
                             ),
                         )
-                    elif not _is_json_serializable(result.details) or not _is_json_serializable(result.provenance):
+                    elif _has_malformed_result_payload(result):
                         # The report emitter (`emit_pre_review_report`)
-                        # serializes every result's `details`/`provenance` via
-                        # `json.dumps`. A validator returning a structurally
-                        # valid `NodeResult` whose `details`/`provenance`
-                        # contains a non-JSON value (e.g. a `Path` or `set`)
-                        # would otherwise pass this SDK boundary silently, only
-                        # to raise an uncaught `TypeError` later during report
+                        # serializes every result's complete payload via
+                        # `json.dumps`, and `report.py`'s `_merged_provenance`
+                        # additionally calls `dict(result.provenance)` on
+                        # every result. A validator returning a structurally
+                        # valid `NodeResult` whose `details`/`provenance` is
+                        # not an actual mapping (e.g. a `list`), or whose
+                        # `details`/`provenance`/`message`/`token` contains a
+                        # non-JSON value (e.g. a `Path` or `set`), would
+                        # otherwise pass this SDK boundary silently, only to
+                        # raise an uncaught exception later during report
                         # emission -- bypassing both this boundary's own
                         # `invalid`-result handling and the report's
-                        # `publication_failed` path. Validate JSON
-                        # serializability here, at the same SDK boundary as
-                        # the other contract checks, and convert to `invalid`
+                        # `publication_failed` path. Validate the full
+                        # payload shape here, at the same SDK boundary as the
+                        # other contract checks, and convert to `invalid`
                         # before the malformed payload can reach emission.
                         result = NodeResult(
                             name=node.node_id,
                             status="invalid",
                             token="INVALID",
                             message=(
-                                f"validator for {node.node_id} returned a NodeResult whose "
-                                "details/provenance is not JSON-serializable"
+                                f"validator for {node.node_id} returned a NodeResult with a "
+                                "malformed or non-JSON-serializable details/provenance/message/token payload"
                             ),
                         )
             except Exception as exc:

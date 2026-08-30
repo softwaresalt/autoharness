@@ -6,18 +6,8 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "lifecycle_hooks": {
-      "$ref": "#/definitions/lifecycle_hooks"
-    },
-    "telemetry": {
-      "$ref": "#/definitions/telemetry"
-    },
-    "detectors": {
-      "type": "array",
-      "items": {
-        "$ref": "#/definitions/detector_node"
-      }
-    }
+    "lifecycle_hooks": { "$ref": "#/definitions/lifecycle_hooks" },
+    "telemetry": { "$ref": "#/definitions/telemetry" }
   },
   "definitions": {
     "interpolated_command": {
@@ -34,17 +24,11 @@
     },
     "enforcement": {
       "type": "string",
-      "enum": [
-        "absolute",
-        "advisory"
-      ],
+      "enum": ["absolute", "advisory"],
       "description": "absolute = hard stop the agent cannot bypass (default). advisory = failing gates warn but do not block."
     },
     "lifecycle_hooks": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": ["object", "null"],
       "additionalProperties": false,
       "description": "Deterministic lifecycle hooks. Entirely optional; an absent, null, or empty block disables gating (kill-switch).",
       "properties": {
@@ -54,10 +38,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "name",
-              "action"
-            ],
+            "required": ["name", "action"],
             "properties": {
               "name": {
                 "type": "string",
@@ -68,12 +49,8 @@
                 "type": "string",
                 "description": "Optional condition expression. Defaults to always-run when omitted."
               },
-              "action": {
-                "$ref": "#/definitions/action"
-              },
-              "write_back": {
-                "$ref": "#/definitions/interpolated_command"
-              }
+              "action": { "$ref": "#/definitions/action" },
+              "write_back": { "$ref": "#/definitions/interpolated_command" }
             }
           }
         },
@@ -82,15 +59,10 @@
           "additionalProperties": false,
           "description": "Gate policy and validation gates evaluated before a task may transition to a completed state.",
           "properties": {
-            "enforcement": {
-              "$ref": "#/definitions/enforcement"
-            },
+            "enforcement": { "$ref": "#/definitions/enforcement" },
             "on_repeated_failure": {
               "type": "string",
-              "enum": [
-                "block",
-                "escalate"
-              ],
+              "enum": ["block", "escalate"],
               "description": "block = force the task to blocked and requeue after max_gate_failures (default). escalate = route to a heavier model tier first, then block."
             },
             "max_gate_failures": {
@@ -104,28 +76,20 @@
               "items": {
                 "type": "object",
                 "additionalProperties": false,
-                "required": [
-                  "pattern",
-                  "command",
-                  "timeout_seconds"
-                ],
+                "required": ["pattern", "command", "timeout_seconds"],
                 "properties": {
                   "pattern": {
                     "type": "string",
                     "minLength": 1,
                     "description": "Doublestar glob over forward-slash-normalized, repo-relative paths."
                   },
-                  "command": {
-                    "$ref": "#/definitions/interpolated_command"
-                  },
+                  "command": { "$ref": "#/definitions/interpolated_command" },
                   "timeout_seconds": {
                     "type": "integer",
                     "minimum": 1,
                     "description": "Hard per-file timeout in seconds. The subprocess is killed when exceeded."
                   },
-                  "enforcement": {
-                    "$ref": "#/definitions/enforcement"
-                  }
+                  "enforcement": { "$ref": "#/definitions/enforcement" }
                 }
               }
             }
@@ -134,19 +98,13 @@
       }
     },
     "telemetry": {
-      "type": [
-        "object",
-        "null"
-      ],
+      "type": ["object", "null"],
       "additionalProperties": false,
       "description": "Optional telemetry configuration. Phase 1 does not build the telemetry sink; these keys are reserved and validated for forward compatibility. May be null/absent.",
       "properties": {
         "mode": {
           "type": "string",
-          "enum": [
-            "sqlite",
-            "none"
-          ],
+          "enum": ["sqlite", "none"],
           "description": "Telemetry sink mode. Defaults to none."
         },
         "database_path": {
@@ -156,184 +114,6 @@
         "emit_jsonl": {
           "type": "boolean",
           "description": "Whether to emit JSONL telemetry (Phase 2). Defaults to false."
-        }
-      }
-    },
-    "detector_node_id": {
-      "type": "string",
-      "pattern": "^det:[A-Z0-9-]+/[A-Z0-9-]+@[0-9]+$",
-      "description": "Detector node identifier in the D1 contract form det:<domain>/<detector-id>@<version>."
-    },
-    "detector_ref": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$",
-      "description": "Importable detector callable reference in module:function form."
-    },
-    "detector_applies_when": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "changed_paths_any": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "shipment_has_items_of_type": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "workspace_surfaces_any": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "always": {
-          "type": "boolean"
-        }
-      }
-    },
-    "detector_producer": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "kind",
-        "ref"
-      ],
-      "properties": {
-        "kind": {
-          "type": "string",
-          "enum": [
-            "pure",
-            "ast",
-            "coverage",
-            "api",
-            "command"
-          ]
-        },
-        "ref": {
-          "$ref": "#/definitions/detector_ref"
-        },
-        "tool_version_dims": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "detector_validator": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "ref"
-      ],
-      "properties": {
-        "ref": {
-          "$ref": "#/definitions/detector_ref"
-        },
-        "consumes": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        }
-      }
-    },
-    "detector_remediation": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "class",
-        "authority"
-      ],
-      "properties": {
-        "class": {
-          "type": "string",
-          "enum": [
-            "auto_fix_safe",
-            "guided_fix",
-            "regenerate",
-            "require_plan_revision",
-            "require_human_review",
-            "policy_halt"
-          ]
-        },
-        "hint": {
-          "type": "string"
-        },
-        "target_refs": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "authority": {
-          "type": "string",
-          "enum": [
-            "none",
-            "ship",
-            "stage",
-            "operator"
-          ]
-        }
-      }
-    },
-    "detector_node": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "node_id",
-        "applies_when",
-        "producer",
-        "validator",
-        "severity",
-        "mode",
-        "remediation"
-      ],
-      "properties": {
-        "node_id": {
-          "$ref": "#/definitions/detector_node_id"
-        },
-        "applies_when": {
-          "$ref": "#/definitions/detector_applies_when"
-        },
-        "producer": {
-          "$ref": "#/definitions/detector_producer"
-        },
-        "validator": {
-          "$ref": "#/definitions/detector_validator"
-        },
-        "depends_on": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/detector_node_id"
-          }
-        },
-        "severity": {
-          "type": "string",
-          "enum": [
-            "critical",
-            "high",
-            "medium",
-            "low"
-          ]
-        },
-        "mode": {
-          "const": "report_only"
-        },
-        "remediation": {
-          "$ref": "#/definitions/detector_remediation"
         }
       }
     }

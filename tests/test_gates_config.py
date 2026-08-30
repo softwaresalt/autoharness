@@ -14,7 +14,7 @@ from autoharness.schema_contracts import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_SCHEMA_PATH = _REPO_ROOT / "schemas" / "validation-gates" / "1.0.0.schema.json"
+_SCHEMA_PATH = _REPO_ROOT / "schemas" / "validation-gates" / "1.1.0.schema.json"
 _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 
 PRESENT_CONFIG = """

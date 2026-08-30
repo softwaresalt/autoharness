@@ -28,7 +28,7 @@ the [Kill-Switch Rollback](#kill-switch-rollback) below.
 
 Gates are configured under a `lifecycle_hooks` block in the workspace
 `.autoharness/config.yaml`. The block is validated against the versioned
-[`validation-gates` JSON Schema](../schemas/validation-gates/1.0.0.schema.json).
+[`validation-gates` JSON Schema](../schemas/validation-gates/1.1.0.schema.json).
 The **entire block is optional**; every field within it that is not marked
 required has a documented default.
 
@@ -199,12 +199,14 @@ enforcement path.
 ### `detectors` schema block
 
 The `detectors` block is a JSON array of detector nodes validated against the
-same versioned [`validation-gates` JSON Schema (1.0.0)](../schemas/validation-gates/1.0.0.schema.json)
+same versioned [`validation-gates` JSON Schema (1.1.0)](../schemas/validation-gates/1.1.0.schema.json)
 used by `lifecycle_hooks` — runtime validation always resolves the **versioned**
-document (`schemas/validation-gates/1.0.0.schema.json`), never the pointer file
+document (`schemas/validation-gates/1.1.0.schema.json`), never the pointer file
 directly; the pointer (`schemas/validation-gates.schema.json`) is kept
 structurally identical to the versioned schema (differing only in `$id`) so the
-two never drift.
+two never drift. The prior `1.0.0.schema.json` mirror (published in 052-S,
+before the `detectors` block existed) remains published unchanged as an
+immutable historical snapshot; the `detectors` block first appears in `1.1.0`.
 
 Each detector node declares:
 
@@ -313,5 +315,5 @@ intentional exception: they are committed session memory under
 * [Deterministic Gates, Telemetry & Evaluation Engine — design document](design-docs/autoharness-evals-gates-design.md)
 * [Gate policy deliberation](decisions/2026-06-30-gate-policy-deliberation.md)
 * [Validation-gates config schema deliberation](decisions/2026-06-30-validation-gates-config-schema-deliberation.md)
-* [`validation-gates` JSON Schema (1.0.0)](../schemas/validation-gates/1.0.0.schema.json)
+* [`validation-gates` JSON Schema (1.1.0)](../schemas/validation-gates/1.1.0.schema.json)
 * [Circuit Breaker instructions](../.github/instructions/circuit-breaker.instructions.md)

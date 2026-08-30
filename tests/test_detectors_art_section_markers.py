@@ -399,6 +399,64 @@ None.
         self.assertEqual(result.status, "passed")
         self.assertTrue(evidence.payload["worktree_clean"])
 
+    def test_art_01_rejects_working_tree_deletion_of_relevant_directory_when_head_sha_is_supplied(self) -> None:
+        # Copilot review finding (PR #420, round 8): filtering the git-status
+        # pathspecs by `path.exists()` misses a staged or unstaged deletion
+        # of an entire `templates/`/`queue/` directory. Once the directory is
+        # gone from disk, the old code would drop it from the pathspec list
+        # entirely, so git status was never asked about it -- production
+        # would see zero templates/artifacts and could still publish
+        # `passed`/`artifact_count: 0` for a HEAD whose files were removed
+        # only in the working tree. The fix always passes both pathspecs
+        # regardless of current existence, so a working-tree-only deletion
+        # is still positively detected as dirty.
+        _TEMP_ROOT.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=_TEMP_ROOT) as tmp:
+            workspace = Path(tmp)
+            self._write_workspace(
+                workspace,
+                task_body="""---
+artifact_type: task
+id: 149.006-T
+priority: medium
+status: queued
+title: Task
+---
+
+## Description
+
+<!-- BEGIN:description -->
+Valid body.
+<!-- END:description -->
+
+## Acceptance Criteria
+
+<!-- BEGIN:acceptance-criteria -->
+- one
+<!-- END:acceptance-criteria -->
+
+## Implementation Notes
+
+<!-- BEGIN:implementation-notes -->
+None.
+<!-- END:implementation-notes -->
+""",
+            )
+            self._init_git_repo(workspace)
+            self._git_commit_all(workspace, "initial commit")
+            head_sha = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=str(workspace), check=True, capture_output=True, text=True
+            ).stdout.strip()
+            # Remove the entire templates/ directory from the working tree
+            # only (never staged, never committed) -- the exact scenario
+            # the finding describes.
+            import shutil
+
+            shutil.rmtree(workspace / ".backlogit" / "templates")
+            context = types.SimpleNamespace(workspace=workspace, head_sha=head_sha)
+            evidence = produce(self._node(), context)
+        self.assertFalse(evidence.payload["worktree_clean"])
+
     def _write_malformed_template(self, workspace: Path, *, sections_yaml: str) -> None:
         templates_dir = workspace / ".backlogit" / "templates"
         queue_dir = workspace / ".backlogit" / "queue"

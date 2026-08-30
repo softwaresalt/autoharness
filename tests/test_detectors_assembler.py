@@ -311,6 +311,48 @@ class AssemblerTests(unittest.TestCase):
         self.assertIn("json-serializable", result.results[0].message.lower())
         self.assertEqual(result.exit_code, 2)
 
+    def test_validator_returning_list_typed_provenance_is_converted_to_invalid(self) -> None:
+        # Copilot review finding (PR #420, round 8): the round-7 check only
+        # ran `details`/`provenance` through `json.dumps` in isolation. A
+        # plain `list` such as `["x"]` IS JSON-serializable, so that narrower
+        # check let it through -- but `detectors/report.py`'s
+        # `_merged_provenance` calls `dict(result.provenance)` on every
+        # result, which raises on a non-mapping value. `provenance` must
+        # actually be a mapping, not merely JSON-serializable.
+        list_provenance_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(
+                name=node.node_id,
+                status="passed",
+                provenance=["x"],
+            ),
+        )
+        result = assemble_detector_results((list_provenance_node,), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertEqual(result.exit_code, 2)
+
+    def test_validator_returning_non_json_serializable_message_is_converted_to_invalid(self) -> None:
+        # Copilot review finding (PR #420, round 8): `message`/`token` are
+        # typed `str`/`str | None` on `NodeResult` but that type hint is not
+        # runtime-enforced. A non-JSON-serializable `message` would bypass
+        # the round-7 details/provenance-only check yet still crash
+        # `emit_pre_review_report`'s `json.dumps(payload)` later. The full
+        # `to_dict()` payload -- not only details/provenance -- must be
+        # verified to round-trip through `json.dumps`.
+        import pathlib
+
+        non_serializable_message_node = self._node(
+            "det:D-ART/ART-01@1",
+            validate=lambda node, _evidence_map, _context: NodeResult(
+                name=node.node_id,
+                status="passed",
+                message=pathlib.Path("some/path"),
+            ),
+        )
+        result = assemble_detector_results((non_serializable_message_node,), context=object())
+        self.assertEqual(result.results[0].status, "invalid")
+        self.assertEqual(result.exit_code, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

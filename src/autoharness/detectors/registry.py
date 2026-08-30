@@ -98,8 +98,20 @@ def _load_node(raw: dict[str, Any]) -> NodeSpec:
         raise DetectorRegistryError(f"Invalid detector node_id: {node_id!r}")
 
     producer_raw = dict(raw["producer"])
-    if producer_raw.get("kind") == "command":
+    producer_kind = producer_raw.get("kind")
+    if producer_kind == "command":
         raise DetectorRegistryError("producer.kind 'command' is not implemented in S1")
+    if producer_kind in {"ast", "coverage", "api"} and not producer_raw.get("tool_version_dims"):
+        # Copilot review finding (PR #420, round 8): the D3 epoch fingerprint
+        # relies on `tool_version_dims` to detect stale-evidence reuse for
+        # these tool-driven producer kinds. The schema's `if/then` constraint
+        # already enforces this at config-load time via `_validate_config`,
+        # but this is a defense-in-depth backstop for any caller that
+        # constructs a node from raw data without going through schema
+        # validation first.
+        raise DetectorRegistryError(
+            f"producer.kind {producer_kind!r} requires a non-empty tool_version_dims"
+        )
     mode = str(raw.get("mode", "report_only"))
     if mode != "report_only":
         raise DetectorRegistryError("detector mode must be report_only in S1")

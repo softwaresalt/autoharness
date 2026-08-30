@@ -175,6 +175,31 @@ class RegistryLoaderTests(unittest.TestCase):
         with self.assertRaises(DetectorRegistryError):
             self._load(command)
 
+    def test_registry_rejects_ast_coverage_api_producer_kinds_missing_tool_version_dims(self) -> None:
+        # Copilot review finding (PR #420, round 8): the D3 contract requires
+        # `tool_version_dims` for producer kinds `ast`/`coverage`/`api`
+        # (stale-evidence reuse risk in the epoch fingerprint). This is
+        # enforced twice: at the schema level (via the `if/then` constraint
+        # exercised in `tests/test_validation_gates_schema.py`) and here as a
+        # defense-in-depth backstop directly in the loader.
+        for kind in ("ast", "coverage", "api"):
+            missing = copy.deepcopy(VALID_CONFIG)
+            missing["detectors"][0]["producer"]["kind"] = kind
+            del missing["detectors"][0]["producer"]["tool_version_dims"]
+            with self.subTest(kind=kind):
+                with self.assertRaises(DetectorRegistryError) as ctx:
+                    self._load(missing)
+                self.assertIn("tool_version_dims", str(ctx.exception))
+
+    def test_registry_accepts_ast_coverage_api_producer_kinds_with_tool_version_dims(self) -> None:
+        for kind in ("ast", "coverage", "api"):
+            present = copy.deepcopy(VALID_CONFIG)
+            present["detectors"][0]["producer"]["kind"] = kind
+            present["detectors"][0]["producer"]["tool_version_dims"] = ["python"]
+            with self.subTest(kind=kind):
+                registry = self._load(present)
+                self.assertEqual(registry.exit_code, 0)
+
     def _two_node_config(self) -> dict:
         first = copy.deepcopy(VALID_CONFIG["detectors"][0])
         second = copy.deepcopy(VALID_CONFIG["detectors"][0])

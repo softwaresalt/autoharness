@@ -50,9 +50,15 @@ def _relevant_worktree_clean(workspace: Path, backlog_root: Path, head_sha: str 
         return True
     templates_dir = backlog_root / "templates"
     queue_dir = backlog_root / "queue"
-    paths = [str(path) for path in (templates_dir, queue_dir) if path.exists()]
-    if not paths:
-        return True
+    # Do NOT filter these pathspecs by `.exists()`: a directory that was
+    # entirely removed in the working tree (staged or unstaged) no longer
+    # exists on disk, but git must still be asked about it so it can report
+    # the deletion. Filtering by existence silently drops exactly the
+    # pathspec whose absence git needs to explain, letting an emptied
+    # `paths` list short-circuit to a false "clean" verdict while the
+    # producer publishes `passed`/`artifact_count: 0` for a HEAD whose files
+    # were removed only in the working tree.
+    paths = [str(templates_dir), str(queue_dir)]
     try:
         proc = subprocess.run(
             ["git", "status", "--porcelain", "--untracked-files=all", "--", *paths],
