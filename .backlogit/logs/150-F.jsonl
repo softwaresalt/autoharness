@@ -1,1 +1,4 @@
 {"timestamp":"2026-08-30T01:29:10.5158046-07:00","actor":"backlogit","item_id":"150-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-08-30T13:41:59.4409934-07:00","actor":"backlogit","item_id":"150-F","event_type":"status_changed","delta":{"_shipment_operation":"158-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-08-30T13:42:17.0008087-07:00","actor":"backlogit","item_id":"150-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"8b79de94e6705f4e950257073b263369a7e258a7","message":"chore(158-S): v1.5.0 release preparation and publish (#423)"}}
+{"timestamp":"2026-08-30T13:44:35.5476512-07:00","actor":"backlogit","item_id":"150-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/150-F.md"}}

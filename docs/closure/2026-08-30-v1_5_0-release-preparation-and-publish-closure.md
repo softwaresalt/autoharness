@@ -8,10 +8,10 @@ source: "150-F / 158-S"
 
 # Operational Closure — v1.5.0 Release Preparation and Publish
 
-Shipment `158-S` / feature `150-F`. Mode: `pre-merge` (initial). This
+Shipment `158-S` / feature `150-F`. Mode: `post-deploy` (final). This
 artifact is the canonical releasability evidence record for the v1.5.0
-release and will be updated at `post-merge` (after PR #423 merges) and
-again after `150.009-T`/`150.010-T` (tag push, publish monitoring).
+release, covering pre-merge, post-merge, tag, and publish-monitoring
+phases in full.
 
 ## Summary of the Change
 
@@ -23,29 +23,55 @@ integrity, quality gates) — both PASS.
 
 ## CI Status and Unresolved Review Items
 
-- CI: all checks green (`detect code changes`, `pipeline-topology
-  (ambient)`, `test`, `ci gate`) on PR #423 at HEAD
-  `3f6172a53845a8f47abd4d53ea3ccc01a2896d6f`.
-- Copilot review (P-018): `SATISFIED` — 1 Copilot-authored thread raised
-  and resolved (test-coverage gap; fixed and thread resolved).
-- Local review: `READY_WITH_FOLLOWUPS` — 0 P0/P1, 3 P2 fixed, 2 P3 accepted
-  as residual risk (see PR #423 Local Review Readiness block for detail).
-- No unresolved review items remain.
+- PR #423 (main implementation): CI green, Copilot review `SATISFIED`
+  (1 thread raised and resolved), local review `READY_WITH_FOLLOWUPS`.
+  Merged as `8b79de94e6705f4e950257073b263369a7e258a7`.
+- PR #425 (post-merge hotfix, P-021 stash `E738A7D1`): fixed 10
+  pre-existing `tests/test_gates_topology.py` tests that only ever ran in
+  `pull_request`-triggered CI, surfaced by `158-S` being the first
+  push-triggered CI run to actually execute the `test` job in a while. CI
+  green, Copilot review `SATISFIED` (no findings). Merged as
+  `8922b62e4c548daaa0dc0c1c56be2c8817862af9`.
+- PR #426 (PyPI publish-compatibility fix): pinned
+  `core-metadata-version = "2.4"` after the first `v1.5.0` tag attempt
+  failed at publish time (hatchling 1.32.0's Metadata-Version 2.5 vs. the
+  pinned publish action's older twine). CI green, Copilot review
+  `SATISFIED` (1 thread raised — missing regression-test coverage — fixed
+  and resolved). Merged as `ca3232a8969b321f085eb4958d5e2f8f47259d2c`.
+- Main confirmed green (push-triggered CI, all 4 checks) **after PR #425
+  and after PR #426**. Main was **NOT** green immediately after PR #423's
+  own merge: the push-triggered CI run at that merge commit
+  (`33306603406`) concluded `failure` — the same 10
+  `tests/test_gates_topology.py` topology-test failures PR #425 fixed
+  (the `GITHUB_HEAD_REF` push-context gap). Main went green only after
+  PR #425 merged, and remained green after PR #426.
+- No unresolved review items remain across all three PRs.
 
 ## Runtime Verification Report
 
 `docs/closure/2026-08-30-v1_5_0-release-preparation-runtime-verification.md`
 — Verdict: **PASS**. CLI surface (`autoharness --help`, `autoharness
 version`, `autoharness home`) verified both from the source tree and from
-an isolated packaged-wheel install.
+an isolated packaged-wheel install, and again from the actual published
+PyPI package (see the publish-evidence closure doc below).
+
+## Publish Monitoring and Evidence
+
+`docs/closure/2026-08-30-v1_5_0-release-monitoring-and-publish-evidence.md`
+— full monitoring signal log for both the failed first tag attempt (safely
+rolled back, no version burned) and the successful second attempt,
+published-package smoke evidence, and the PyPI project page / GitHub
+Release URLs.
 
 ## Risky Actions
 
-- **PA-1** (push annotated tag `v1.5.0`) — CRITICAL — not yet executed;
-  gated on explicit operator go/no-go per `150.009-T`. `ActionResult`:
-  pending.
+- **PA-1** (push annotated tag `v1.5.0`) — CRITICAL — **executed twice**:
+  attempt 1 on `8922b62e` (safely rolled back pre-upload after a confirmed
+  PyPI 404 probe, no version burned); attempt 2 on the corrected commit
+  `ca3232a8` (succeeded). `ActionResult`: **complete**.
 - **PA-2** (PyPI publish, automated by `release.yml`) — CRITICAL —
-  irreversible; implied by PA-1. `ActionResult`: pending.
+  irreversible; succeeded on attempt 2. `1.5.0` is now permanently
+  consumed on PyPI. `ActionResult`: **complete**.
 - **PA-3** (re-record two manifest checksums) — MEDIUM — executed and
   verified (`150.001-T`, `150.002-T`); each checksum change was justified
   against committed content before rewriting. `ActionResult`: complete.
@@ -83,17 +109,21 @@ record.
   dry-run against the new `## 1.5.0 - 2026-08-30` heading (139-line
   non-empty notes file).
 - Confirmed the PyPI publish credential / OIDC trusted-publishing
-  configuration is declared in `release.yml` (`pypa/gh-action-pypi-publish`,
-  `id-token: write` permission) — will be re-confirmed as part of
-  `150.010-T` monitoring.
+  configuration declared in `release.yml` (`pypa/gh-action-pypi-publish`,
+  `id-token: write` permission) is genuinely functional — confirmed
+  end-to-end by the successful publish itself (attempt 2, run
+  `33333803838`): OIDC authentication succeeded and the distribution
+  actually uploaded to PyPI. This is a completed gate, not an outstanding
+  one.
 
-## Post-Deploy Checks (deferred to `150.010-T`)
+## Post-Deploy Checks (executed — see 150.010-T evidence doc)
 
 - `uv tool run --isolated --no-config --from "autoharness==1.5.0"
-  autoharness version` → must equal exactly `1.5.0`.
+  autoharness version` → **`1.5.0`** exactly, exit 0. ✅
 - `uv tool run --isolated --no-config --from "autoharness==1.5.0"
-  autoharness home` → must resolve.
-- GitHub Release created/updated with non-empty notes.
+  autoharness home` → resolved. ✅
+- GitHub Release created with non-empty notes:
+  <https://github.com/softwaresalt/autoharness/releases/tag/v1.5.0> ✅
 
 ## Healthy Signals
 
@@ -139,28 +169,37 @@ creates misleading history).
 ## Validation Window
 
 Up to 280 seconds of PyPI CDN propagation (per `release.yml` L127), plus
-the workflow's own build/publish duration. Slow propagation is not a
-failure and must not trigger rollback before the window elapses.
+the workflow's own build/publish duration. Actual propagation was
+immediate — the published-package smoke test succeeded on first probe,
+and the full `release.yml` run completed in 1m32s.
 
 ## Owner
 
-Ship (this session) monitors through `150.010-T`; the operator owns the
-PA-1 tag-push go/no-go decision and any post-publish escalation.
+Ship (this session) executed and monitored through `150.010-T`; the
+operator's upfront authorization ("create/push the annotated v1.5.0 tag
+only after all irreversible-boundary gates pass") served as the PA-1
+go/no-go, satisfied at both tag attempts once all gates genuinely passed.
 
 ## Compaction Status (P-020)
 
-`pending` — will be finalized to `done` or `degraded` during Ship's
-post-merge closure, after `compact-context` is invoked.
+`done` — `compact-context` invoked at post-merge closure; the just-closed
+release unit's session memory was compacted into
+`docs/memory/compacted/2026-08-30-158-s-compacted.md`, with the verbose
+original archived to `docs/archive/memory/2026-08-30/`.
 
 ## Releasability Evidence
 
 Per `runtime_validation.releasability` (`required: false`,
 `status_when_satisfied: "READY"`, `required_evidence: []`):
 
-**Status: READY** (pre-merge). All required pre-merge evidence is present:
-CI green, Copilot review satisfied, local review readiness
-`READY_WITH_FOLLOWUPS` with documented residual risk, runtime verification
-`PASS`, both dry runs `PASS`, no unresolved review items. The irreversible
-tag-push/publish step (`150.009-T`/`150.010-T`) remains gated on explicit
-operator approval and is tracked as the next phase of this same closure
-record, not a blocker to the merge itself.
+**Status: READY (final).** `autoharness` v1.5.0 is published to PyPI
+(<https://pypi.org/project/autoharness/1.5.0/>), the GitHub Release is
+live (<https://github.com/softwaresalt/autoharness/releases/tag/v1.5.0>),
+the published-package smoke test passed, and main is confirmed green
+after all three merges (PR #423, #425, #426). All required evidence for
+this release is satisfied; no conditions remain outstanding. The one
+emergent finding outside `158-S`'s original scope (the `GITHUB_HEAD_REF`
+push-context test fix, PR #425) is captured as P-021 stash entry
+`E738A7D1` for Stage's retrospective review — it does not block this
+release's releasability status.
+
