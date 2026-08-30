@@ -323,17 +323,32 @@ Each circuit breaker checkpoint in `{{DOCS_MEMORY}}/` follows this structure.
 Keep captured output within the explicit limits above and redacted; include
 summaries or links to ignored bounded artifacts rather than full raw output.
 
+**YAML-safe scalar encoding (REQUIRED).** The four free-form frontmatter
+values below — `agent`, `skill`, `operation`, and `identity` — MUST be
+emitted as **JSON string literals** (the exact output of a JSON string
+encoder, e.g. Python's `json.dumps(value)`), never as a bare value wrapped
+in naive double quotes. YAML 1.2 double-quoted scalars share JSON's escape
+rules, so a JSON-encoded string is always valid YAML — but naive
+double-quoting is NOT equivalent and fails on an embedded double quote, an
+embedded backslash, or a trailing backslash. For example, if `skill` is the
+plain text `direct`, its JSON string literal is `"direct"`; if `skill` is
+`read "config" file`, the JSON string literal is `"read \"config\" file"` —
+never `""read "config" file""`. Always compute the JSON string literal; do
+not copy an example's bare-quote appearance literally.
+
 ```markdown
 ---
 type: circuit-breaker
 timestamp: {ISO 8601}
-agent: {agent name}
-skill: {skill name or "direct"}
+agent: {JSON string literal, e.g. "Ship"}
+skill: {JSON string literal, e.g. "direct" or "read \"config\" file"}
 breaker_type: {universal | skill-managed | session-stall}
-operation: {brief description}
+operation: {JSON string literal, e.g. "uv build"}
 attempts: {count}
-identity: {provisional fingerprint or concrete identity}
+identity: {JSON string literal, e.g. "provisional-fingerprint-1"}
 ---
+
+# Circuit Breaker - {operation}
 
 ## Failure Chain
 
@@ -362,3 +377,30 @@ identity: {provisional fingerprint or concrete identity}
 - Resolution: Circuit breaker triggered. Awaiting operator guidance.
 - Suggested next steps: {if any}
 ```
+
+### Frontmatter YAML-Safety Regression Cases
+
+Each case below MUST be verified against a YAML 1.2 parser (e.g. Python's
+`yaml.safe_load`): the encoded frontmatter value MUST (i) **parse** without
+error and (ii) **round-trip** — the parsed field value MUST equal the
+original raw value byte-for-byte. A value that parses but decodes to a
+different string (silent truncation) is a REGRESSION FAILURE, not a pass;
+this is the failure mode already observed in the wild for the space-hash
+case, and a parse-only assertion does not catch it.
+
+| Hazard class | Raw value | JSON string literal | Bare/unquoted (currently shipping) | Naive bare-double-quote | JSON-escaped |
+|---|---|---|---|---|---|
+| Embedded double quote | `say "hi"` | `"say \"hi\""` | parses, round-trips | PARSE-FAIL | parses, round-trips |
+| Embedded backslash | `C:\path\file` | `"C:\\path\\file"` | parses, round-trips | PARSE-FAIL | parses, round-trips |
+| Trailing backslash | `ends\` | `"ends\\"` | parses, round-trips | PARSE-FAIL | parses, round-trips |
+| Colon-space | `key: value` | `"key: value"` | PARSE-FAIL | parses, round-trips | parses, round-trips |
+| Space-hash | `note #1` | `"note #1"` | parses, silently truncates to `note` | parses, round-trips | parses, round-trips |
+
+All four hazard classes (embedded double quote, embedded/trailing backslash,
+colon-space, space-hash) MUST be covered by regression evidence before this
+checkpoint format is considered hardened. Only the JSON-escaped form both
+parses and round-trips across every row; the currently-shipping bare/unquoted
+form fails two of five (parse-fail on colon-space, silent truncation on
+space-hash — the exact failure already observed in the wild), and naive
+bare-double-quoting alone still fails three of five (embedded quote,
+embedded backslash, trailing backslash).
