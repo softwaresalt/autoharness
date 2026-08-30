@@ -83,7 +83,16 @@ def _build_frontmatter(field: str, encoded_value: str) -> str:
     )
 
 
-def _parse_frontmatter(block: str) -> dict:
+def _parse_frontmatter(block: str) -> dict[str, object]:
+    """Parse a full checkpoint frontmatter block (including the leading and
+    trailing ``---`` delimiters) and return the decoded mapping.
+
+    Uses ``str.split("---\\n", 2)`` rather than a more defensive
+    ``partition``-based scan because none of the fixed frontmatter fields or
+    hazard values used in this module contain the literal delimiter
+    sequence ``"---\\n"``; if a future hazard value introduced that
+    sequence, this helper would need to be hardened accordingly.
+    """
     inner = block.split("---\n", 2)[1]
     return yaml.safe_load(inner)
 
@@ -93,6 +102,8 @@ class CircuitBreakerCheckpointYamlSafetyTests(unittest.TestCase):
     four hazard classes, across all four free-form frontmatter fields."""
 
     def test_json_escaped_values_parse_and_round_trip_for_every_field(self) -> None:
+        """The prescribed encoding (JSON string literal) parses and
+        round-trips for every hazard class, on every free-form field."""
         for field in _FREE_FORM_FIELDS:
             for hazard_name, raw_value in _HAZARD_VALUES.items():
                 with self.subTest(field=field, hazard=hazard_name):
@@ -144,6 +155,58 @@ class CircuitBreakerCheckpointYamlSafetyTests(unittest.TestCase):
                     "trailing_backslash",
                 ):
                     self.assertIn(required, failures)
+                # The table's PASS claim for colon-space and space-hash under
+                # naive bare-double-quoting must also be positively covered
+                # -- otherwise a future PyYAML change that broke naive
+                # quoting for these two rows would not be caught, since the
+                # test above only requires *at least one* failure to be
+                # present, not specifically the *right* ones.
+                for should_pass in ("colon_space", "space_hash"):
+                    self.assertNotIn(
+                        should_pass,
+                        failures,
+                        f"expected naive bare-double-quoting to PASS "
+                        f"(parse and round-trip) for hazard class "
+                        f"{should_pass!r} on field {field!r}, per the "
+                        f"regression-cases table",
+                    )
+
+    def test_bare_unquoted_quote_and_backslash_hazards_parse_and_round_trip(
+        self,
+    ) -> None:
+        """The table's PASS claim for the bare/unquoted (currently shipping)
+        encoding of the three quote/backslash hazard classes: these values
+        contain no YAML-significant characters at the start of a plain
+        scalar, so they parse and round-trip even though the checkpoint
+        format is not yet hardened. This is the complement of
+        test_bare_unquoted_space_hash_silently_truncates and
+        test_bare_unquoted_colon_space_fails_to_parse, which cover the two
+        hazard classes where the bare/unquoted encoding does NOT pass."""
+        for hazard_name in (
+            "embedded_double_quote",
+            "embedded_backslash",
+            "trailing_backslash",
+        ):
+            raw_value = _HAZARD_VALUES[hazard_name]
+            block = (
+                "---\n"
+                "type: circuit-breaker\n"
+                "timestamp: 2026-08-30T00:00:00Z\n"
+                f"agent: {raw_value}\n"
+                "breaker_type: universal\n"
+                "operation: probe\n"
+                "attempts: 1\n"
+                'identity: "probe"\n'
+                "---\n"
+            )
+            with self.subTest(hazard=hazard_name):
+                parsed = _parse_frontmatter(block)
+                self.assertEqual(
+                    parsed.get("agent"),
+                    raw_value,
+                    f"expected the bare-unquoted encoding of {hazard_name!r} "
+                    f"to parse and round-trip per the regression-cases table",
+                )
 
     def test_bare_unquoted_space_hash_silently_truncates(self) -> None:
         """The exact failure already observed in the wild: an unquoted

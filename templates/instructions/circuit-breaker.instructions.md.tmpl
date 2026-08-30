@@ -380,10 +380,13 @@ identity: {JSON string literal, e.g. "provisional-fingerprint-1"}
 
 ### Frontmatter YAML-Safety Regression Cases
 
-Each case below MUST be verified against a YAML 1.2 parser (e.g. Python's
-`yaml.safe_load`): the encoded frontmatter value MUST (i) **parse** without
-error and (ii) **round-trip** — the parsed field value MUST equal the
-original raw value byte-for-byte. A value that parses but decodes to a
+Each case below MUST be verified against a YAML parser (e.g. Python's
+`yaml.safe_load`, which implements YAML 1.1 scalar-scanning rules; the
+double-quoted-scalar escape semantics and the plain-scalar `#`/`: ` hazards
+exercised here behave identically under YAML 1.1 and YAML 1.2, so this is
+not a 1.2-specific claim): the encoded frontmatter value MUST (i) **parse**
+without error and (ii) **round-trip** — the parsed field value MUST equal
+the original raw value byte-for-byte. A value that parses but decodes to a
 different string (silent truncation) is a REGRESSION FAILURE, not a pass;
 this is the failure mode already observed in the wild for the space-hash
 case, and a parse-only assertion does not catch it.
@@ -398,9 +401,11 @@ case, and a parse-only assertion does not catch it.
 
 All four hazard classes (embedded double quote, embedded/trailing backslash,
 colon-space, space-hash) MUST be covered by regression evidence before this
-checkpoint format is considered hardened. Only the JSON-escaped form both
-parses and round-trips across every row; the currently-shipping bare/unquoted
-form fails two of five (parse-fail on colon-space, silent truncation on
-space-hash — the exact failure already observed in the wild), and naive
-bare-double-quoting alone still fails three of five (embedded quote,
-embedded backslash, trailing backslash).
+checkpoint format is considered hardened -- the table above has five rows
+because embedded backslash and trailing backslash are two concrete test
+values of the same backslash-escaping hazard class. Only the JSON-escaped
+form both parses and round-trips across every row; the currently-shipping
+bare/unquoted form fails two of five (parse-fail on colon-space, silent
+truncation on space-hash -- the exact failure already observed in the wild),
+and naive bare-double-quoting alone still fails three of five (embedded
+quote, embedded backslash, trailing backslash).
