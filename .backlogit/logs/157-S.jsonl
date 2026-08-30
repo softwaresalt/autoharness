@@ -4,3 +4,8 @@
 {"timestamp":"2026-08-28T01:49:00.3576857-07:00","actor":"backlogit","item_id":"157-S","event_type":"shipment_item_added","delta":{"item_id":"149.014-T"}}
 {"timestamp":"2026-08-28T01:49:07.7678832-07:00","actor":"backlogit","item_id":"157-S","event_type":"shipment_item_added","delta":{"item_id":"149.015-T"}}
 {"timestamp":"2026-08-29T12:12:42.3289599-07:00","actor":"backlogit","item_id":"157-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-08-29T18:15:01.226503-07:00","actor":"backlogit","item_id":"157-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"157-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-08-29T18:15:05.3902301-07:00","actor":"backlogit","item_id":"157-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"157-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-08-29T18:17:32.3970914-07:00","actor":"backlogit","item_id":"157-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"157-S","status":"shipped"}}
+{"timestamp":"2026-08-29T18:17:40.3803289-07:00","actor":"backlogit","item_id":"157-S","event_type":"commit_tracked","delta":{"author":"","commit_sha":"f93afa0eee8d228ff4a7ac54cf3b2b3b4ec5eeb9","message":""}}
+{"timestamp":"2026-08-29T18:22:48.2652441-07:00","actor":"backlogit","item_id":"157-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/157-S.md"}}
