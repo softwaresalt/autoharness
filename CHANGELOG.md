@@ -1,9 +1,23 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 - 2026-08-30
+
+### Added
+
+- Added an opt-in, disabled-by-default Copilot CLI output-compression experiment, with benchmark/evidence plumbing and a follow-up hardening pass for fail-safe passthrough and honest benchmark reporting. (088-F / 093-S; 089-F / 094-S)
+- Added multi-model review-routing improvements, including anchor-review route defaults, plurality-confidence handling, and normalized reviewer persona install paths under `.github/agents/subagents/`. (091-F / 096-S)
+- Added deterministic telemetry event journaling/execution epochs, plus backlogit telemetry evidence mapping onto the shared `ToolTelemetryEvent` / `ExecutionEpoch` contract with a distinct task-level `complexity` dimension. (084-F / 107-S; 108-F / 113-S)
+- Added a structural-navigation benchmark suite with scenario corpus loading, isolated telemetry capture, correctness scoring, A/B delta reporting, and reproducibility controls. (085-F / 111-S)
+- Added first-class task `size` and `complexity` planning metadata, with fail-closed validation and granularity-gate enforcement across Stage/harvest flows. (107-F / 112-S)
+- Added `autoharness gate pipeline-topology` in staged A/B/C rollout form, covering local lifecycle checks, hook/install integration, and remote CI backstop use, plus read-only DAG readiness / critical-path reporting. (109-F / 114-S; 109-F / 115-S; 109-F / 116-S; 110-F / 117-S)
+- Added read-only shipment-record status diagnostics, operator-confirmed crash-resumption / prune-on-restore rules, and a deterministic `next_eligible` resumption advisory. (112-F / 118-S; 111-F / 119-S; 115-F / 123-S)
+- Added a canonical CheckpointV1 payload contract for backlog checkpoints, including `schema_version: 1`, official write paths, required top-level resume metadata, and `context`-nested domain payloads. (130-F / 139-S)
+- Added installation/restore of the policy registry plus the review-persona layer into generated workspaces, backed by end-to-end verification. (148-F / 156-S)
+- Added a report-only pre-review detector SDK: detector registry/schema, applicability engine, DAG assembly, append-only reporting, `autoharness gate pre-review`, and the first ART-01 detector. (149-F / 157-S)
 
 ### Changed
 
+- The backlog storage-root contract is now `.backlog`-first (`BACKLOGIT_WORKSPACE_DIR` -> `.backlog` -> `.backlogit`) for new/default lookup, while existing `.backlogit` workspaces remain fully supported and are **not** expected to self-migrate. (126-F / 135-S; 129-F / 138-S)
 - **F02FD596**: Added a nested per-role escalation hierarchy for P-013.6
   telemetry-driven auto-escalation. `model_routing.stage.escalation` and
   `model_routing.ship.escalation` now take precedence over the legacy flat
@@ -50,7 +64,6 @@
   documentation update only; the flat/legacy `claude-opus-4.8` string remains
   a valid, unrestricted `model_family` value for any workspace that chooses
   it — no schema enum or install default forces this specific family.
-
 - **P-021**: Added a new "Bounded Fix-Cycle Scope Containment and Deferred
   Expansion Capture" policy to the workflow policy registry
   (`workflow-policies.md.tmpl`, Amendment Log `1.20.0`). C1 defines a narrow
@@ -101,6 +114,31 @@
   P-013.4 were reframed from "declared `model_tier`" to config-resolved tier,
   `verify-workspace` now validates only `max_subagent_tier`, and the doc-review
   frontmatter check recommends `max_subagent_tier` instead of `model_tier`.
+- Reverted the Python supervisor architecture in favor of self-contained start scripts, superseding earlier Plan-1 supervisor/`autoharness run`-style contract assumptions. (127-F / 136-S)
+- Expanded operator-facing capability-pack documentation and runtime detection: Engram tool-surface guidance was corrected, capability-pack runtime availability became bounded/detectable, and cross-pack telemetry/evidence mapping was documented. (099-F / 104-S; 114-F / 122-S; 082-F / 120-S)
+- `verify-workspace` now derives and composes template variables to match the install-harness contract, including role-aware routing values, shell-safe quoting for generated args, and fail-closed unresolved-variable behavior; the dogfood workspace now verifies at 0 unresolved / 0 blockers / 0 warnings. (142-F / 150-S)
+- Introduced an explicit paired-edit maintenance contract for intentional template <-> dogfood divergence, so the allowed divergent pair set is pinned and verified rather than drifting silently. (137-F / 145-S)
+- The cascade-close contract now matches real backlog behavior: pre-archived manifest members are handled explicitly, Ship derives an executable set that skips pre-archived superseded tasks, and the postcondition uses `allowed_ids` / `required_ids` semantics instead of raw manifest-equality assumptions. (132-F / 141-S; 139-F / 147-S; 147-F / 155-S)
+- Compound/history documentation became stricter and clearer: `docs/compound` entries now require self-referential `source` semantics and standard docline fields, and the large P-020 history compaction pass repaired live status claims, dangling refs, operator-decision restoration, and supersession markers in historical docs. (140-F / 148-S; 146-F / 154-S; PR #411 / no shipment)
+
+### Fixed
+
+- Hardened the telemetry subsystem with idempotent disabled summaries, better provenance visibility, reusable JSONL scanning, Ship-lifecycle freshness coverage, and monotonic derived-size accounting. (092-F / 097-S)
+- Fixed invocation-time model-routing enforcement and the escalation contract so verifier/template checks stay in sync, including the additive `resolved_escalation_route` payload field. (104-F / 108-S; 106-F / 110-S; PR #348 / no shipment)
+- Fixed dark-factory multi-shipment sequencing and Ship claim integrity so queued-with-active-work anomalies fail closed instead of silently proceeding. (101-F / 105-S; 102-F / 106-S)
+- Fixed the topology gate's predecessor logic and closure gating: the directional predecessor predicate no longer suppresses the target's own numeric fallback incorrectly, and releasability/closure completeness checks are enforced correctly. (131-F / 140-S; 109-F / 114-S; 109-F / 115-S)
+- Fixed startup-script contract migration detection so `start.ps1` / `start.sh` are evaluated against the current thin-shim contract, ambiguous customized scripts surface for manual review, and preserved custom tails are summarized safely instead of being serialized raw into JSON reports. (125-F / 134-S)
+- Fixed spike/docline and compound-frontmatter conformance end-to-end: valid spike `docline` nesting, restored workspace-wide docline lint traversal, required `source`/`doc_type` coverage in `docs/compound`, and stronger `source`-value validation. (128-F / 137-S; 138-F / 146-S; 136-F / 144-S; 140-F / 148-S; 146-F / 154-S)
+- Removed accidentally committed root JSON outputs and added a tracked-root allowlist guard so stray `verify-workspace --format json` artifacts do not reappear in the repository root. (133-F / 142-S)
+- Fixed Windows-local canonical test execution by containing destructive ambient `GIT_CONFIG_*` environment mutations; the supported Windows full-suite path now runs green, and a related topology `_run_git` failure path no longer launders infrastructure errors into misleading gate diagnoses. (144-F / 152-S)
+- Hardened the circuit-breaker checkpoint format: an H1 heading now separates the frontmatter from the failure-chain body (fixing MD041), and the four free-form frontmatter values (`agent`, `skill`, `operation`, `identity`) are now prescribed as JSON string literals instead of naive double-quoting, fixing silent truncation and parse failures on embedded quotes, backslashes, colon-space, and space-hash. (150-F / 158-S)
+- Refreshed a stale `harness-manifest.yaml` checksum for `workspace-discovery/SKILL.md` that had not been updated since the file's content last changed, which was causing `verify_workspace` to falsely report the file as user-modified. (150-F / 158-S)
+
+### Deprecated
+
+- The legacy flat `model_routing.escalation` key is retained only as a compatibility fallback; per-role `model_routing.stage.escalation` / `.ship.escalation` is the forward path. (113-F / 121-S)
+- Legacy dot-prefixed Stage/Ship dogfood agent filenames/handles are compatibility aliases only; `_stage.agent.md`, `_ship.agent.md`, `_Stage`, and `_Ship` are the canonical names. (113-F / 121-S)
+- Ship's post-merge source-stash retirement should now use stash-archive semantics; `backlogit_stash_remove` is no longer the prescribed cleanup route for that path. (137-F / 145-S)
 
 ## 1.4.11 - 2026-07-08
 
