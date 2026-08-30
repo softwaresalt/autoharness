@@ -163,6 +163,72 @@ class VerifyWorkspaceTests(unittest.TestCase):
         self.assertEqual(len(marketplace_manifest["plugins"]), 1)
         self.assertEqual(marketplace_manifest["plugins"][0]["version"], expected_version)
 
+    def test_pyproject_pins_core_metadata_version_for_pypi_publish_compatibility(
+        self,
+    ) -> None:
+        """Copilot review finding (PR #426): this release-critical
+        compatibility constraint was not covered by any existing test, so
+        removing or changing either pin would silently recreate the
+        v1.5.0 PyPI publish failure while the suite stayed green.
+
+        hatchling >= 1.30.0 (specifically 1.32.0+, absent an explicit
+        override) defaults to Metadata-Version 2.5 (PEP 794), but the
+        pypa/gh-action-pypi-publish action SHA pinned in release.yml
+        bundles twine < 7.0.0 / packaging < 26.0, which does not recognize
+        Metadata-Version 2.5 and raises 'InvalidDistribution: Invalid
+        distribution metadata: ...is not a valid metadata version' at
+        publish time -- confirmed live on the actual v1.5.0 tag push.
+        Both the wheel and sdist targets must independently pin
+        core-metadata-version = "2.4" (there is no single inherited
+        setting -- hatchling reads target-specific config)."""
+        repo_root = Path(__file__).resolve().parents[1]
+        pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
+
+        wheel_section_match = re.search(
+            r"^\[tool\.hatch\.build\.targets\.wheel\]\n(.*?)(?=^\[)",
+            pyproject_text,
+            re.MULTILINE | re.DOTALL,
+        )
+        sdist_section_match = re.search(
+            r"^\[tool\.hatch\.build\.targets\.sdist\]\n(.*?)(?=^\[)",
+            pyproject_text,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(
+            wheel_section_match,
+            "expected a [tool.hatch.build.targets.wheel] section in pyproject.toml",
+        )
+        self.assertIsNotNone(
+            sdist_section_match,
+            "expected a [tool.hatch.build.targets.sdist] section in pyproject.toml",
+        )
+
+        for label, match in (
+            ("wheel", wheel_section_match),
+            ("sdist", sdist_section_match),
+        ):
+            with self.subTest(target=label):
+                pin_match = re.search(
+                    r'^core-metadata-version\s*=\s*"([^"]+)"$',
+                    match.group(1),
+                    re.MULTILINE,
+                )
+                self.assertIsNotNone(
+                    pin_match,
+                    f"expected a core-metadata-version pin in the "
+                    f"[tool.hatch.build.targets.{label}] section",
+                )
+                self.assertEqual(
+                    pin_match.group(1),
+                    "2.4",
+                    f"[tool.hatch.build.targets.{label}]'s core-metadata-version "
+                    f"must stay pinned to 2.4 -- bumping it (or removing the "
+                    f"pin, which lets hatchling's newer default apply) would "
+                    f"recreate the PyPI publish failure until the pinned "
+                    f"pypa/gh-action-pypi-publish action is upgraded to a "
+                    f"twine>=7.0.0-bundled release",
+                )
+
     def test_release_workflow_publishes_to_pypi(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         release_workflow = (repo_root / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
