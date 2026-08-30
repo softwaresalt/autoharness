@@ -224,9 +224,27 @@ this closure).
 
 ## Compaction (P-020)
 
-`compact-context --target all` invoked as part of this closure (see this
-branch's compaction commit for the specific consolidation outcome).
-`compaction_status: done` above reflects that outcome.
+`compact-context --target all` invoked as part of this closure. Per the
+skill's mandatory-invocation/threshold-gated-selection contract, the bounded
+Tier-1 consolidation candidate was this release unit's own just-closed
+pre-execution planning memory:
+
+- Compacted `docs/archive/memory/2026-08-28-stage-157s-pr414-review-fix-cycle-1.md`
+  and `docs/archive/memory/2026-08-28-stage-157s-pr414-review-fix-cycle-2.md`
+  (both superseded by the final execution record) into
+  `docs/memory/compacted/2026-08-30-157-s-compacted.md`. Verbose originals
+  moved to `docs/archive/memory/` (never deleted).
+- `docs/memory/2026-08-30-ship-157-s-execution.md` (this session's own
+  execution summary) was preserved uncompacted as the authoritative final
+  record, consistent with the 156-S convention.
+- `docs/memory/` file count: 43 -> 41 after this pass (still 1 file above the
+  40-file manual-trigger threshold; total size ~467 KB, under the 500 KB
+  threshold). No active-task checkpoints were touched. The residual
+  above-threshold file count is noted for a future dedicated compaction pass
+  and is not, by itself, a P-020 gap for this closure -- the mandate is
+  invocation plus a bounded per-merge consolidation, both satisfied here.
+
+`compaction_status: done` above reflects this actually-executed outcome.
 
 ### Note on self-referential closure fields
 
