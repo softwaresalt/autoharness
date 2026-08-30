@@ -44,8 +44,11 @@ terminal and closure-complete before 157-S was claimed.
   ids, two-set gate clean.
 - Closure doc: `docs/closure/157-S-149-F-post-merge-closure.md`
   (`closure_status: READY`).
-- Compound learning:
-  `docs/compound/2026-08-30-157-s-149-f-detector-sdk-copilot-review-eight-rounds.md`.
+- Compound learning (split into 3 single-root-cause entries per Copilot
+  review feedback on the closure PR):
+  `docs/compound/2026-08-30-157-s-copilot-review-timeout-not-a-clean-signal.md`,
+  `docs/compound/2026-08-30-157-s-149-f-schema-mutation-in-place-third-occurrence.md`,
+  `docs/compound/2026-08-30-157-s-149-f-sdk-boundary-payload-completeness.md`.
 - Post-merge closure branch:
   `post-merge/149-f-s1-detector-sdk-evidence-node-contract-and-gate-pre-review-reader`.
 
