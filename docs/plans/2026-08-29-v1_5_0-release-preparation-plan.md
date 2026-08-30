@@ -46,6 +46,27 @@ evidence in the Stage session summary and the two linked deliberations.
 
 ## Work breakdown
 
+**Plan unit → backlog item mapping** (authoritative; the backlog is the
+execution source of truth). Unit `T3` was **split into two tasks at harvest**
+(`150.003-T` / `150.004-T`) because a single changelog unit sized `L`, exceeding
+the 2-hour rule. This plan was updated to match, so plan units and backlog tasks
+now correspond 1:1.
+
+| Plan unit | Backlog task | Size / Complexity |
+|---|---|---|
+| T1 | `150.001-T` | S / low |
+| T2 | `150.002-T` | XS / trivial |
+| T3 | `150.003-T` | M / medium |
+| T4 | `150.004-T` | M / low |
+| T5 | `150.005-T` | S / low |
+| T6 | `150.006-T` | M / medium |
+| T7 | `150.007-T` | M / medium |
+| T8 | `150.008-T` | S / low |
+| T9 | `150.009-T` | XS / low |
+| T10 | `150.010-T` | M / medium |
+
+Covering feature `150-F`; shipment `158-S` (queued, 11 items).
+
 ### T1 — Circuit-breaker checkpoint format hardening (blocker)
 
 Consumes stash `8CB31EFB` + `1BDBD08B` (the latter explicitly recommends
@@ -82,21 +103,32 @@ byte-identical to HEAD (last changed `c37ad959`, 2026-08-15).
 "user-modified" when it is not. Running a release whose own verification step
 emits a false drift signal makes every other drift result untrustworthy.
 
-### T3 — Curated CHANGELOG `1.5.0` section
+### T3 — Curate user-facing change inventory (changelog, curation half)
 
-* Author a **curated, user-facing** `## 1.5.0 - {date}` section grouped by theme
-  (Added / Changed / Fixed / Deprecated), written for users of the tool.
+* Produce a structured, grouped inventory of user-facing changes shipped since
+  `v1.4.11`, grouped by theme (Added / Changed / Fixed / Deprecated).
 * **Source basis: the 34 closure records in `docs/closure/`** (shipments
   `134-S`→`157-S` / features `125-F`→`149-F`, plus 10 thematic closure
   summaries) — **not** 241 raw PR lines.
-* Fold the existing `## Unreleased` content (L3–L104) into the new section and
-  leave `## Unreleased` empty or removed.
+* Account for every closure record: included, or explicitly marked
+  internal-only with a reason.
+* Map the existing `## Unreleased` content (L3–L104) into the inventory
+  (PA-5: moved, never dropped).
+
+### T4 — Author CHANGELOG `1.5.0` section (changelog, authoring half)
+
+* Write the `## 1.5.0 - {date}` section from the T3 inventory, with a concrete
+  date (no placeholder).
+* Fold the existing `## Unreleased` content into it; leave `## Unreleased`
+  empty or removed.
 * **Hard constraint**: `release.yml` L47–L67 extracts the section by exact
   version match via `awk` and **fails the release if no section for `1.5.0`
   exists**. The heading must be literally `## 1.5.0 - YYYY-MM-DD`, matching the
   existing `## 1.4.11 - 2026-07-08` shape.
+* **Locally dry-run that `awk` extraction** against `CHANGELOG.md` and confirm
+  non-empty notes — the cheapest way to de-risk a release-workflow abort.
 
-### T4 — Synchronized version bump to 1.5.0
+### T5 — Synchronized version bump to 1.5.0
 
 Update **all six** version surfaces across five files:
 
@@ -112,7 +144,7 @@ Update **all six** version surfaces across five files:
 *Hard constraint*: `release.yml` L26–L45 **fails the release** unless the tag
 version exactly equals `pyproject.toml`'s version.
 
-### T5 — Release dry run A: build and package integrity
+### T6 — Release dry run A: build and package integrity
 
 * **Clean `dist/` first.** `dist/` currently contains **stale `1.4.11`
   artifacts** (`autoharness-1.4.11-py3-none-any.whl`,
@@ -139,7 +171,7 @@ assert on **exact string equality** of the version output and on the command's
 **own exit status**. Do **not** infer success from non-empty output, and do not
 mask failures with a trailing `|| true`.
 
-### T6 — Release dry run B: quality gates
+### T7 — Release dry run B: quality gates
 
 * Full existing test suite (`PYTHONPATH=src python -m unittest discover -s tests`)
   — the canonical gate; the last recorded closure measured **2,018 passing**.
@@ -149,19 +181,19 @@ mask failures with a trailing `|| true`.
 * `verify-workspace` / template / schema checks; confirm **no new** checksum
   drift beyond the two entries deliberately re-recorded in T1/T2.
 
-### T7 — PR readiness
+### T8 — PR readiness
 
 * Single PR from a single branch (P-016: **no parallel worktrees**).
 * All CI green; the changelog section and version surfaces consistent.
 
-### T8 — Post-merge annotated tag `v1.5.0`
+### T9 — Post-merge annotated tag `v1.5.0`
 
 * **Only after merge to `main`.**
 * Annotated tag `v1.5.0` on the merge commit; push the tag to trigger `release.yml`.
 * Pre-push assertion: tag name minus `v` **exactly equals** `pyproject.toml`
   version, and a `## 1.5.0` changelog section exists.
 
-### T9 — Publish monitoring, smoke evidence, and rollback
+### T10 — Publish monitoring, smoke evidence, and rollback
 
 * Monitor `release.yml`: version validation → changelog extraction → `uv build`
   → `twine check` → PyPI pre-publish state → publish → PyPI smoke → GitHub Release.
@@ -174,7 +206,7 @@ mask failures with a trailing `|| true`.
 
 | Condition | Action |
 |---|---|
-| Any dry-run gate (T5/T6) fails | **STOP.** Do not open the PR. Fix and re-run the full gate set from the start. |
+| Any dry-run gate (T6/T7) fails | **STOP.** Do not open the PR. Fix and re-run the full gate set from the start. |
 | `markdownlint` binary absent | **STOP.** Fail closed; never skip (this is the exact inverse of the `pre-push.sh` fail-open defect). |
 | CI red on the PR | **STOP.** Do not merge, do not tag. |
 | Tag/pyproject version mismatch | **STOP** before pushing the tag; `release.yml` will reject it anyway. |
@@ -184,8 +216,8 @@ mask failures with a trailing `|| true`.
 | PyPI reports 1.5.0 already exists at pre-publish | **STOP** and escalate — indicates the version was already burned. |
 | Published smoke test fails after a successful publish | Do **not** yank reflexively. Capture evidence, escalate to the operator, prepare 1.5.1. |
 
-**Irreversibility notice**: everything through T7 is reversible; **T8 (tag
-push) arms an irreversible publish.** Ship must treat the T7→T8 boundary as the
+**Irreversibility notice**: everything through T8 is reversible; **T9 (tag
+push) arms an irreversible publish.** Ship must treat the T8→T9 boundary as the
 point of no return and re-confirm all gates before crossing it.
 
 ## Out of scope (explicitly NOT in this release)
@@ -203,6 +235,13 @@ Recorded so scope cannot drift during execution:
   `8CB5A9B9`)
 * capability-pack runtime installer (`47971057`)
 * any multi-repo / WSL / external-tool-integration work
+* **`6A2D62DD`** (spike, medium) — range-deterministic shipment sizing and
+  one-session-per-cycle lifecycle. Captured mid-staging; capture-only.
+* **`2E67938C`** (feature, high) — Stage must integrate/enforce backlogit's
+  size/complexity metadata. Captured mid-staging; capture-only. **High priority
+  does not make it release scope** — it must not drift into this release.
+* **`5CBA0A85`** (feature, medium) — fail-closed agent→skill dangling
+  cross-reference check for verify-harness.
 
 ## Requires plan hardening
 
@@ -223,10 +262,10 @@ anyway because the blast radius is elevated.
 
 | Learning | Applied to |
 |---|---|
-| `2026-08-08-shell-pipeline-exit-status-masking-in-version-probes.md` | T5 — version probes must assert **exact string equality** and the command's **own exit status**; no `\|\| true`, no "non-empty output means success" |
+| `2026-08-08-shell-pipeline-exit-status-masking-in-version-probes.md` | T6 — version probes must assert **exact string equality** and the command's **own exit status**; no `\|\| true`, no "non-empty output means success" |
 | `2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md` | New invariant INV-4 — a release must never mutate a published versioned schema mirror in place |
 | `2026-08-18-lifecycle-gate-must-precede-safe-close-mutation.md` | Gate ordering — **all** gates must pass *before* the terminal, irreversible mutation (here: the tag push) |
-| `097-S-canonical-unittest-gate.md` | T6 — the stdlib unittest suite is the canonical gate; do not substitute a narrower run |
+| `097-S-canonical-unittest-gate.md` | T7 — the stdlib unittest suite is the canonical gate; do not substitute a narrower run |
 | `2026-08-16-multiple-implementation-worktrees-blocks-topology-gate-globally.md` | P-016 — single worktree for the whole release; a second worktree breaks the topology gate globally |
 | `2026-05-06-p012-tool-availability-gate-and-dispatch.md` | Preconditions — probe `uv` / `python` / `markdownlint` up front rather than discovering absence mid-release |
 
@@ -252,11 +291,11 @@ anyway because the blast radius is elevated.
 
 | ID | Action | ActionRisk | Approval | Notes |
 |---|---|---|---|---|
-| **PA-1** | Push annotated tag `v1.5.0` (T8) | **CRITICAL** | **Operator approval required** | Arms the unattended publish workflow. This is the point of no return. |
-| **PA-2** | PyPI publish (T9, automated by `release.yml`) | **CRITICAL** | Implied by PA-1 | **Irreversible.** PyPI never permits re-uploading a consumed version. |
+| **PA-1** | Push annotated tag `v1.5.0` (T9) | **CRITICAL** | **Operator approval required** | Arms the unattended publish workflow. This is the point of no return. |
+| **PA-2** | PyPI publish (T10, automated by `release.yml`) | **CRITICAL** | Implied by PA-1 | **Irreversible.** PyPI never permits re-uploading a consumed version. |
 | **PA-3** | Re-record manifest checksums (T1, T2) | **MEDIUM** | No | A checksum re-record can *mask* real drift. Each must be justified against committed content before rewriting (INV-5). |
-| **PA-4** | Regenerate `uv.lock` (T4) | **MEDIUM** | No | `uv lock` may opportunistically bump **unrelated dependencies**. See mitigation below. |
-| **PA-5** | Fold/remove `## Unreleased` (T3) | **MEDIUM** | No | Mis-folding silently drops already-written release notes. Content must be *moved*, never deleted. |
+| **PA-4** | Regenerate `uv.lock` (T5) | **MEDIUM** | No | `uv lock` may opportunistically bump **unrelated dependencies**. See mitigation below. |
+| **PA-5** | Fold/remove `## Unreleased` (T4) | **MEDIUM** | No | Mis-folding silently drops already-written release notes. Content must be *moved*, never deleted. |
 | **PA-6** | Paired template/installed edit (T1) | **MEDIUM** | No | Editing only one side creates template↔dogfood divergence, the exact class `1CD4E96F` documents. |
 
 ### Added operational detail
@@ -271,7 +310,7 @@ package's version, hash, or resolution marker changes, **revert and escalate** �
 a dependency bump is not in this release's scope and would silently widen the
 blast radius of a "version bump" task.
 
-**T5 bundled-data verification depth.** Do not merely assert the wheel exists.
+**T6 bundled-data verification depth.** Do not merely assert the wheel exists.
 Inspect the wheel's contents and confirm `autoharness/data/templates/` is
 present **and non-empty**, then confirm from the *isolated install* that
 `autoharness home` resolves and templates are readable. The `force-include`
@@ -279,7 +318,7 @@ mapping (`templates` → `src/autoharness/data/templates`) is the single most
 likely packaging regression and is invisible to the test suite, which runs from
 the source tree via `pythonpath = ["src"]`.
 
-**T5 version assertion (learning-driven).** Assert
+**T6 version assertion (learning-driven).** Assert
 `autoharness version` output `== "1.5.0"` exactly **and** that the command
 exited zero. Additionally confirm the installed distribution metadata reports
 `1.5.0`, since `__init__.py` prefers `importlib.metadata.version()` and only
@@ -289,7 +328,7 @@ falls back to the literal — a stale fallback would otherwise stay hidden.
 network unavailable for `uvx twine check`), Ship records `TOOL_UNAVAILABLE` and
 **halts**. It must not substitute a weaker check or proceed on partial evidence.
 
-**Monitoring signals (T9).** Watch, in order: tag-version validation → changelog
+**Monitoring signals (T10).** Watch, in order: tag-version validation → changelog
 extraction (non-empty notes file) → `uv build` → `twine check` → PyPI
 pre-publish state probe → publish → PyPI JSON probe → isolated smoke → GitHub
 Release creation. Record the conclusion of each.
@@ -299,7 +338,7 @@ seconds** (`release.yml` L127). Ship must allow the full window before declaring
 failure — a slow PyPI CDN propagation is *not* a publish failure and must not
 trigger rollback.
 
-**Owner.** Ship executes T1–T9. The operator owns the PA-1 approval decision and
+**Owner.** Ship executes T1–T10. The operator owns the PA-1 approval decision and
 any post-publish escalation.
 
 **Rollback coupling.** The rollback table distinguishes pre-publish (safe:
@@ -346,6 +385,13 @@ entries, learnings applied, monitoring signals, validation window, owner, and
 rollback coupling. `strict-safety` is not enabled, so explicit action
 classification was optional; it was supplied regardless.
 
+**Renumbering note**: this review was conducted against a 9-unit breakdown in
+which the changelog was a single unit `T3`. At harvest that unit sized `L` and
+was split into two tasks (`150.003-T` / `150.004-T`), so the plan was renumbered
+to 10 units for 1:1 backlog correspondence. Unit references in this review
+section were updated accordingly. The split changed granularity only — no
+scope, gate, or finding was added or removed by it, so the PASS verdict stands.
+
 ### Persona coverage
 
 | Persona | Mode | Findings |
@@ -363,21 +409,21 @@ classification was optional; it was supplied regardless.
 **P1-1 (Python Reviewer) — stale `dist/` artifacts would invalidate the entire
 dry run.** `dist/` was verified this session to contain
 `autoharness-1.4.11-py3-none-any.whl` and `autoharness-1.4.11.tar.gz`. As
-originally written, T5 ran `uvx twine check dist/*` and installed "the built
+originally written, T6 ran `uvx twine check dist/*` and installed "the built
 wheel" without cleaning `dist/` or pinning the filename. Consequences: `twine
 check` would validate the stale 1.4.11 artifacts and report a misleading PASS,
 and an isolated install from a `dist/*.whl` glob could install **1.4.11** while
 the operator believed 1.5.0 had been verified — defeating the purpose of the
 gate immediately before an irreversible publish.
 
-**Resolution applied**: T5 now requires cleaning `dist/` before `uv build`,
+**Resolution applied**: T6 now requires cleaning `dist/` before `uv build`,
 asserting that exactly two freshly-built `1.5.0` artifacts exist, failing if any
 non-`1.5.0` artifact remains, and installing the **explicitly named** `1.5.0`
 wheel rather than a glob.
 
 ### Cycle 2 — decision: PASS
 
-P1-1 verified resolved in the revised T5. No P0 or P1 findings remain.
+P1-1 verified resolved in the revised T6. No P0 or P1 findings remain.
 
 ### Remaining findings (P2 — advisory, accepted)
 
@@ -387,8 +433,8 @@ P1-1 verified resolved in the revised T5. No P0 or P1 findings remain.
   severity at P2. Positive note: the publish action is SHA-pinned
   (`pypa/gh-action-pypi-publish@cef2210…`), which is correct supply-chain
   practice. *Accepted*: Ship should confirm the publish credential is configured
-  when reviewing `release.yml` at T9, but this does not block harvest.
-* **P2-2 (Constitution)** — T9 may require deleting a remote tag during
+  when reviewing `release.yml` at T10, but this does not block harvest.
+* **P2-2 (Constitution)** — T10 may require deleting a remote tag during
   rollback, a destructive git operation. *Accepted with condition*: tag deletion
   is permitted **only** on the documented pre-publish path and requires operator
   confirmation; it is explicitly forbidden after a successful publish (already
@@ -417,9 +463,9 @@ P1-1 verified resolved in the revised T5. No P0 or P1 findings remain.
 
 ### Runtime verification and operational closure
 
-Both present and adequate: T5/T6 supply build, package-integrity,
+Both present and adequate: T6/T7 supply build, package-integrity,
 isolated-install, test-suite, markdown, and workspace/template/schema
-verification; T9 supplies monitoring signals, published-package smoke evidence,
+verification; T10 supplies monitoring signals, published-package smoke evidence,
 a 280-second validation window, an owner, and a pre-/post-publish rollback
 split.
 
