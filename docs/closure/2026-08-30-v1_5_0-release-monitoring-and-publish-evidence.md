@@ -93,7 +93,7 @@ budget — no propagation delay was observed.
 
 | Event | Decision | Outcome |
 |---|---|---|
-| Attempt 1 `twine check` failure | Probe PyPI first (404 confirmed) → SAFE pre-upload path | Tag deleted, no version burned |
+| Attempt 1 `Publish distribution to PyPI` internal-validation failure | Probe PyPI first (404 confirmed) → SAFE pre-upload path | Tag deleted, no version burned |
 | Root cause fix | Pin `core-metadata-version = "2.4"` (PR #426) | Merged, main green |
 | Attempt 2 | Re-tag on corrected commit after full re-verification | Full success: published, smoke-tested, GitHub Release created |
 
