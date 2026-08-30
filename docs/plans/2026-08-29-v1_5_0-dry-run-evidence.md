@@ -57,4 +57,57 @@ access and is unaffected.
 
 ## Dry Run B (150.007-T): quality gates
 
-See update appended by `150.007-T`.
+**Evidence SHA**: `299b8228ec09808924ba897649a737fec4d8e61f`
+
+1. **Full existing test suite**: `PYTHONPATH=src uv run --no-sync python -m
+   unittest discover -s tests` -> `Ran 2022 tests ... OK (skipped=20)`.
+   (2022 vs the 2018 reference in the last recorded closure is a modest
+   increase, expected: this shipment added one new test file,
+   `tests/test_circuit_breaker_checkpoint_yaml_safety.py`, with 4 tests,
+   for `150.001-T`'s regression cases; no tests were skipped or lost.)
+   `--no-sync` was required because native Windows `uv` cannot resolve/
+   rebuild the editable install without reaching `files.pythonhosted.org`
+   (see the environment note above); `--no-sync` runs against the
+   already-installed venv, which is unaffected since only version strings
+   and documentation/template content changed, not import-time behavior.
+2. **Markdown quality gate** (per the `D1A46B8C` resolved policy, Option B):
+   confirmed the `markdownlint` binary is present (`0.49.1`) -- absence
+   would have been a HALT, not a skip. Ran `markdownlint "**/*.md"` over
+   the full repository (respecting `.markdownlintignore`) -> zero output,
+   exit 0, **zero violations**.
+3. **verify-workspace / template / schema checks**:
+   - Ran `autoharness verify-workspace --workspace .` -> `blockers: []`,
+     `strict_schema_blockers: []`.
+   - **INV-5 checksum drift audit**: `checksum_scan` reports 12 `user-modified`
+     entries (of 72 tracked artifacts). All 12 are **pre-existing baseline
+     drift, confirmed unrelated to this release**: `git diff` against every
+     one of these 12 paths, across the entire `158-S` session (from the
+     `chore/158-s-...` branch point through this dry run), is **empty** --
+     none of them were touched by `150.001-T` through `150.006-T`. The only
+     two checksum changes made during this release are the ones this
+     shipment deliberately re-recorded (`150.001-T`'s
+     `.github/instructions/circuit-breaker.instructions.md` and
+     `150.002-T`'s `.github/skills/workspace-discovery/SKILL.md`), and both
+     now report `unchanged`. The 12 pre-existing entries are:
+     `.autoharness/workspace-profile.yaml`, `.autoharness/config.yaml`,
+     `.autoharness/backlog-registry.yaml`, `start.sh`, `start.ps1`,
+     `.github/agents/auto-mergeinstall.agent.md`,
+     `.github/agents/auto-tune.agent.md`,
+     `.github/instructions/github-pr-automation.instructions.md`,
+     `.github/instructions/copilot-code-review.instructions.md`,
+     `.github/instructions/capability-pack-enforcement.instructions.md`,
+     `.github/prompts/feature-flow-dark.prompt.md`, and
+     `.github/instructions/role-enforcement.instructions.md`. These are
+     genuine pre-existing findings in the baseline workspace (most plausibly
+     legitimate workspace-specific customization drift from the generic
+     installed default, consistent with the several `.autoharness/*.yaml`
+     and `start.*` entries already known to differ from a fresh-install
+     baseline), not a STOP condition under INV-5, which scopes to drift
+     *introduced by this release*.
+   - Template validity: no unresolved `{{...}}` placeholders were reported;
+     YAML frontmatter parses; cross-references resolve (`blockers: []`).
+   - **INV-4**: confirmed via `git diff --stat schemas/` (this session) that
+     no `schemas/**/<version>.schema.json` mirror was modified.
+
+**Result: PASS.**
+
