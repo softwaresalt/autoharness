@@ -38,8 +38,13 @@ integrity, quality gates) — both PASS.
   pinned publish action's older twine). CI green, Copilot review
   `SATISFIED` (1 thread raised — missing regression-test coverage — fixed
   and resolved). Merged as `ca3232a8969b321f085eb4958d5e2f8f47259d2c`.
-- Main confirmed green (push-triggered CI, all 4 checks) after each of the
-  three merges above.
+- Main confirmed green (push-triggered CI, all 4 checks) **after PR #425
+  and after PR #426**. Main was **NOT** green immediately after PR #423's
+  own merge: the push-triggered CI run at that merge commit
+  (`33306603406`) concluded `failure` — the same 10
+  `tests/test_gates_topology.py` topology-test failures PR #425 fixed
+  (the `GITHUB_HEAD_REF` push-context gap). Main went green only after
+  PR #425 merged, and remained green after PR #426.
 - No unresolved review items remain across all three PRs.
 
 ## Runtime Verification Report
