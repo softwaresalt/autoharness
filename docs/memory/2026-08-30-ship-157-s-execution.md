@@ -55,8 +55,12 @@ terminal and closure-complete before 157-S was claimed.
 ## Operational notes for future sessions
 
 1. **`REVIEW_TIMEOUT` with an empty thread list is not a clean signal** --
-   retry with a longer wait until a genuine `SATISFIED`/`UNRESOLVED_THREADS`
-   verdict is observed. See compound learning doc for detail.
+   retry with a longer wait to obtain a genuine `SATISFIED`/`UNRESOLVED_THREADS`
+   verdict, but only within the remaining budget of the same-operation circuit
+   breaker (`.github/instructions/circuit-breaker.instructions.md`, 3 failures
+   of the identical gate invocation for the same HEAD); once that budget is
+   exhausted, halt and escalate rather than retrying further. See compound
+   learning doc for detail.
 2. **Schema mirror files under `schemas/{contract}/{version}.schema.json`
    are immutable once they have commits predating the current shipment** --
    check `git log main -- <path>` before editing any schema file. Third
