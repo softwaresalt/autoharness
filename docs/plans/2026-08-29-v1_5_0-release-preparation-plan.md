@@ -226,6 +226,10 @@ assert on **exact string equality** of the version output and on the command's
 **own exit status**. Do **not** infer success from non-empty output, and do not
 mask failures with a trailing `|| true`.
 
+**Record the evidence SHA.** Capture the exact commit SHA this dry run was
+executed against. T9 requires the evidence to be bound to the merge commit and
+re-runs on mismatch.
+
 ### T7 — Release dry run B: quality gates
 
 * Full existing test suite (`PYTHONPATH=src python -m unittest discover -s tests`)
@@ -235,6 +239,10 @@ mask failures with a trailing `|| true`.
   violations. If the binary is missing, **HALT** — do not skip.
 * `verify-workspace` / template / schema checks; confirm **no new** checksum
   drift beyond the two entries deliberately re-recorded in T1/T2.
+
+**Record the evidence SHA.** Capture the exact commit SHA these gates were
+executed against. T9 requires the evidence to be bound to the merge commit and
+re-runs on mismatch.
 
 ### T8 — PR readiness and merge
 
@@ -265,6 +273,20 @@ one-branch/one-PR rule must not be read as forbidding it.
 * Annotated tag `v1.5.0` on the merge commit; push the tag to trigger `release.yml`.
 * Pre-push assertion: tag name minus `v` **exactly equals** `pyproject.toml`
   version, and a `## 1.5.0` changelog section exists.
+* **Pre-push assertion — dry-run evidence MUST be bound to the exact merge
+  commit.** T6/T7 run *before* the PR, but T8 permits review-fix pushes and the
+  merge commit may also incorporate a newer base, so an earlier PASS can attest
+  a tree that is **not** the one being tagged. Before tagging, either:
+  1. **re-run dry run A and dry run B against the exact merge commit SHA**, or
+  2. confirm the recorded evidence SHA from T6/T7 **equals** the merge commit
+     SHA — and **re-run on any mismatch**.
+
+  These are the release's **unique** package-integrity and markdown/verification
+  gates: CI does not perform the wheel `force-include` destination checks, the
+  isolated-install probes, or the fail-closed markdown gate. Skipping the
+  re-bind can therefore tag a tree whose packaged templates/docs passed only
+  CI's narrower checks, and the publish that follows is irreversible.
+  **STOP if either dry run fails on the merge commit — do not tag.**
 * **Pre-push assertion — `1.5.0` MUST be ABSENT from PyPI.** Probe
   `https://pypi.org/pypi/autoharness/1.5.0/json` and require a `404`. If it
   returns `200`, **STOP** — do not tag. If the probe is unreachable or
