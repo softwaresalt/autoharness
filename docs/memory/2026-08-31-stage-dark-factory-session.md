@@ -88,6 +88,83 @@ enabling condition; **no new stash entry, no scope expansion.** Owned by `165-S`
 4. **One erroneous dependency was created and removed.** `155.001-T → 155.002-T`
    had no basis; removed via `backlogit dep remove` and re-verified empty.
 
+## Review-fix cycle 1 (2026-08-31, after independent local review blocked `4d029e55`)
+
+An independent local review (Constitution, Correctness, Architecture, Scope
+Boundary, Security Lens, Template Integrity, Schema-CLI-Docs Coupling) BLOCKED the
+publication diff. 13 P1 blockers and 10 coupled P2s were fixed in-place under
+P-021 C1 — all concerned correctness/completeness of the artifacts this run had
+just produced, so none was deferrable.
+
+### Corrections that overturned a cycle-0 conclusion
+
+Five cycle-0 conclusions were **factually wrong** and were reversed on measurement,
+not on argument:
+
+1. **`01340569` (SHIP-9)** — cycle 0 asserted `.gitignore` contained
+   `.backlogit/checkpoints/` and that five files were tracked. Both false:
+   `git check-ignore` exits 1 (no rule exists) and **19** files are tracked. The
+   "lying ignore rule" defect does not exist. Direction reversed from
+   *untrack via `git rm --cached`* to **keep tracked, change nothing**.
+2. **`F0ADCC03` (SHIP-4)** — cycle 0 said the template hardcodes
+   `python.instructions.md`. It does not; it uses `{{PRIMARY_LANGUAGE_LOWER}}`,
+   and the install mapping is documented at `install-harness/SKILL.md:1057`. The
+   real defect is a co-installation gap; strategy fixed as Decision F.
+3. **SHIP-3 ownership** — cycle 0 made the recorded `agent` the primary
+   authorisation input. `AGENT_NAME` is a caller-controlled env var defaulting to
+   `unknown` (`acquire_lock.ps1:38`, `acquire_lock.sh:32`). Reframed as an
+   anti-accident identity (O1) with a real capability token added (O2) and the
+   advisory bound stated so no adversarial claim survives (O3).
+4. **SHIP-4 leaf-executor** — the exception was called "machine-checkable" while
+   being prose nothing read. Replaced by a bounded static verifier (H-b) with its
+   document-layer-only limitation recorded (H-d).
+5. **`queue_position`** — believed to be an ordering authority; it is a
+   dependency-filtered partial projection. See the portfolio's *Queue ordering
+   authority* section. Cycle 0's note in this memory ("the `blocks` chain is the
+   authoritative ordering") was right; the metadata did not reflect it, and now
+   does.
+
+### Structural changes
+
+* **9 new tasks**: `151.006-T`, `153.004-T`, `153.005-T`, `154.004-T`,
+  `155.004-T`, `155.005-T`, `155.007-T`, `155.008-T`, `156.003-T`.
+* **1 task re-scoped, ID preserved**: `155.003-T` (ten-file repair + guard →
+  guard only).
+* **1 task archived**: `155.006-T`, a duplicate created then superseded during the
+  split; archived non-destructively with a successor pointer.
+* **20 `blocks` edges added**, including four de-risking prerequisites
+  (`151.006→151.003`, `153.004→153.001/153.002`, `155.005→155.002`,
+  `156.003→156.002`), three TDD red-first edges (`151.004→151.001/151.002`,
+  `152.002→152.001`, `158.002→158.001`), and the genuine cross-shipment artifact
+  dependency `155.003-T → 159.003-T`.
+* **`queue_position` removed from all 54 in-scope items**; dependency edges are
+  now the sole ordering authority.
+* **All nine plans** gained the harvest-mandated `dispatch_mode:` /
+  `decision:` machine markers under a `## Plan Review` section, with truthful
+  values (`single-agent-declared-degradation` / `PASS`).
+* **Checkpoint corrected** via official create+resolve; zero active checkpoints.
+
+### A gate caught a real defect during this cycle
+
+After the splits, `163-S`'s `size_composition` reported `unsized: 1` — the
+archived `155.006-T` retained `parent_id: 155-F` and was still counted in the
+rollup despite not being in the item manifest. This is **exactly** the defect
+class SHIP-8's `158.002-T` proposes to gate on (`unsized > 0`), observed live.
+The stale parent link was removed and the rollup is now truthful. Recorded in the
+archived record itself as evidence for `158.002-T`.
+
+### Residual, carried forward
+
+* **Deferred scope (P-021)** captured in-plan, not silently broadened: `DSE-S3-1`
+  and `DSE-S3-2` (SHIP-3), `DSE-S4-1`/`-2`/`-3` (SHIP-4), `DSE-S5-1`/`-2`/`-3`
+  (SHIP-5), `DSE-S8-1`/`-2` (SHIP-8). Each carries an explicit residual-risk
+  statement.
+* **`docs/decisions/2026-08-30-pip-install-autoharness-version-ceiling-spike.md`**
+  is a pre-existing artifact outside the fixed 48-ID scope that was included in
+  commit `214347b2`. Not deleted (destructive, unauthorized), history not
+  rewritten; recorded as a provenance-clarity residual in the portfolio's
+  *Residual scope note*.
+
 ## Next cursor
 
 * **Next shipment**: `159-S` (SHIP-1). Nothing blocks it.

@@ -26,7 +26,28 @@ templates were pre-existing content rather than the authorized change.
 | `BA035180` | **Security reviewer suppresses findings not tied to the feature's declared purpose.** A concrete vulnerability introduced by the diff can be filtered out *before it is ever reported to the coordinator for disposition*. | `templates/agents/review/security-reviewer.agent.md.tmpl`; PR #417 Copilot review, HEAD `3450837f` |
 | `C0EA1175` | **P-007's violation-remediation step instructs an automatic `git restore .backlogit/archive/` with no approval or safety-mode gate**, conflicting with Constitution Principle VII's destructive-command approval rule — `git restore` overwrites working-tree state. | `templates/policies/workflow-policies.md.tmpl`; Constitution Reviewer, local review `156-S`/`336F3AB7`, HEAD `b0c2f98a` |
 | `701073F9` | **Constitution reviewer's checklist stops at Principle IX**, omitting Principle X (Agent Context Efficiency) and the NON-NEGOTIABLE Principle XI (Merge Commit History Preservation), both defined at `.github/instructions/constitution.instructions.md:76-86`. | `templates/agents/review/constitution-reviewer.agent.md.tmpl`; PR #417, HEAD `3450837f` |
-| `F0ADCC03` | **Python reviewer cites a style guide that was never rendered.** It references the workspace's `python.instructions.md`, but only `templates/instructions/technology-python.instructions.md.tmpl` exists — no `.github/instructions/python.instructions.md` has ever been installed. Dangling cross-reference. | `templates/agents/review/technology-reviewer.agent.md.tmpl`; PR #417, HEAD `8b7dae51` |
+| `F0ADCC03` | **A rendered reviewer cites a style guide that was never installed.** `.github/agents/subagents/python-reviewer.agent.md:68` references the workspace's `python.instructions.md`; `.github/instructions/python.instructions.md` does not exist. Dangling cross-reference **in the rendered artifact**. | `templates/agents/review/technology-reviewer.agent.md.tmpl` L56 → `.github/agents/subagents/python-reviewer.agent.md` L68; PR #417, HEAD `8b7dae51` |
+
+**Corrected characterisation of `F0ADCC03` (review-fix cycle 1).** The original
+statement of this defect was wrong in a way that would have produced the wrong
+fix, and is corrected here on direct evidence:
+
+* The **template is not defective**. `templates/agents/review/technology-reviewer.agent.md.tmpl:56`
+  reads ``Reference the workspace's `{{PRIMARY_LANGUAGE_LOWER}}.instructions.md` as the
+  authoritative style guide`` — a generic placeholder, not a hard-coded `python.instructions.md`.
+* The **template → installed-name mapping is documented and correct**, not assumed.
+  `.github/skills/install-harness/SKILL.md:1057` states that technology instructions install
+  as `{language}.instructions.md` from the language variant template
+  (`technology-python.instructions.md.tmpl` → `python.instructions.md`). The earlier plan text
+  treated this mapping as an unverified assumption; it is a documented install contract, and
+  this cycle verified it at that line.
+* The **actual defect is a co-installation gap**: this workspace installed the technology
+  *reviewer* for `PRIMARY_LANGUAGE=Python` without installing the matching technology
+  *instruction*, so the rendered reference dangles. Nothing about the reference text is wrong.
+* The defect is a **class, not an instance**. The identical shape exists at
+  `.github/agents/subagents/agent-native-parity-reviewer.agent.md:57`, which references
+  `mcp-server.instructions.md` (template present at `templates/instructions/mcp-server.instructions.md.tmpl`,
+  installed file absent). See §Deferred scope.
 | `7628C291` | **The leaf-executor rule is contradicted by two shipped skills.** `harness-architecture.instructions.md` L163 and `role-enforcement.instructions.md` L81 forbid skills from spawning subagents; `templates/skills/review/SKILL.md.tmpl` L33-35 declares its own *Subagent Depth Constraint* and L159 spawns five always-on personas. | Direct verification |
 
 ## Direction
@@ -69,24 +90,138 @@ amendment.
 * **H4 (binding).** Every template edited here has an installed dogfood mirror
   under `.github/`. Template and mirror must move together, and manifest
   checksums must be refreshed in the same shipment, or `verify-harness` breaks.
-* **H5.** `F0ADCC03` may be resolved either by installing the instruction file as
-  its own tracked install unit or by repointing the reference. Installing is
-  preferred — the template exists and a Python style guide is genuinely useful —
-  but installing adds a new tracked artifact, so the install-unit registration
-  and the manifest entry are part of the task, not an afterthought.
+* **H5 — SUPERSEDED by the explicit decision in §Decision F: `F0ADCC03` reference
+  strategy.** The earlier "install it or repoint it, installing preferred" wording
+  left the strategy unchosen and therefore unharvestable. It is decided below.
+
+## Decision F — `F0ADCC03` install path and reference strategy (binding)
+
+The three candidate strategies, and why two are rejected:
+
+| Strategy | Verdict |
+|---|---|
+| **(a) Install `python.instructions.md` into this repository** | **Rejected.** It treats one instance of a class defect. It also adds a tracked artifact that requires install-unit registration and a manifest entry for a consumer that only exists because of a rendering accident, and it would not stop the next reviewer/instruction pair from dangling. |
+| **(b) Repoint the reference to `technology-python.instructions.md`** | **Rejected — it would be factually wrong.** `technology-python.instructions.md` is a *template* filename. The installed filename is `python.instructions.md` per `.github/skills/install-harness/SKILL.md:1057`. Repointing would create a reference that resolves in **no** workspace. |
+| **(c) Co-installation invariant + graceful reference** | **ADOPTED.** |
+
+**Decision F (binding).** Adopt (c), in two parts:
+
+* **F1 — install-harness co-installation invariant.** `.github/skills/install-harness/SKILL.md`
+  step 1057 is amended to state, as a MUST: when `technology-reviewer.agent.md.tmpl` is
+  rendered for `PRIMARY_LANGUAGE = L`, the matching `{L}.instructions.md` MUST be installed in
+  the same composition (from `technology-{L}.instructions.md.tmpl`, or from the generic
+  `technology.instructions.md.tmpl` skeleton when no variant exists). If neither template
+  resolves, the reviewer MUST NOT be installed for `L`. This closes the class, not the instance.
+* **F2 — graceful reference text.** `templates/agents/review/technology-reviewer.agent.md.tmpl:56`
+  keeps the `{{PRIMARY_LANGUAGE_LOWER}}.instructions.md` placeholder — it is correct — and gains
+  an explicit fallback clause so a composition that legitimately ships no language instruction
+  degrades to the generic coding-discipline guidance instead of citing a file that is not there.
+
+**Explicitly NOT part of Decision F:** no `python.instructions.md` is created in this
+repository by this shipment. This repository installs no `technology.instructions.md` of any
+language today, and F1 makes that state *consistent* (the reviewer degrades) rather than
+*broken* (the reviewer dangles). Whether this repository should additionally install a Python
+instruction file is a composition choice for a later run, recorded in §Deferred scope.
+
+**Propagation.** F1 and F2 are carried into task 4's acceptance criteria verbatim; harvested
+task `154.004-T` restates both and is gated on them.
+
+## Decision G — P-007 destructive-restore approval artifact (binding)
+
+Plan review finding 2 gated the P-007 `git restore` remediation behind "explicit operator
+approval" without naming what that approval *is*. An unnamed approval is unverifiable, so the
+gate would have been prose that any agent could self-satisfy. Named concretely:
+
+* **G1 — the approval signal.** The executing agent MUST verify an
+  **`APPROVAL: P-007-ARCHIVE-RESTORE`** record for the current shipment, carrying the shipment
+  ID, the exact archive paths to be restored, and an operator actor identity. It is recorded
+  through the backlog tool's existing comment operation
+  (`backlogit_append_comment` / `backlogit append-comment`) on the shipment item — an existing,
+  tool-owned, auditable surface. **No new approval store, file format, or CLI is introduced.**
+* **G2 — verification is a read, not an inference.** The agent MUST read the comment back and
+  match the shipment ID and the archive paths. Absence, mismatch, or an unreadable backlog tool
+  is a **refusal**, never a pass.
+* **G3 — dark-mode behaviour is fail-closed.** In dark-factory/AFK mode no operator is present
+  to record G1, so `git restore` **never runs**. The ungated path is unchanged and mandatory:
+  detect the violation, halt, record it through P-005 telemetry with the exact remediation
+  command, and leave the working tree untouched. A dark-mode run therefore always reports and
+  never restores — which is the Principle VII-conformant outcome, not a degradation.
+* **G4 — no admin authority is invented.** G1 is an *operator-recorded* approval that the agent
+  reads. The agent cannot create it, cannot mark it satisfied on its own behalf, and gains no
+  new authority from this plan.
+* **G5 — deterministic negative test (mandatory acceptance).** Task 2 ships a test that drives
+  the P-007 remediation path with **no** `APPROVAL: P-007-ARCHIVE-RESTORE` record present and
+  asserts that (i) no `git restore` is issued, (ii) the violation is recorded, and (iii) the
+  exit is a refusal. A second case supplies an approval whose shipment ID does **not** match and
+  asserts the same refusal. Approval-absent refusal must be observed failing before the gate
+  exists (red-before-green), per **H7**.
+
+* **H6 (binding).** Every task in this shipment enters safety mode
+  `careful` (`.github/skills/safety-modes` equivalent; the skill is template-only in this
+  workspace, so the mode is entered as an explicit declared posture rather than by skill
+  invocation). Task 2 additionally enters `freeze-scope` bounded to
+  `templates/policies/workflow-policies.md.tmpl` and its `.github/policies/` mirror, because it
+  edits policy text that governs other agents' destructive behaviour.
+* **H7 (binding) — contract tests for new behaviour.** Tasks 2, 3 and 4 each introduce new
+  *behaviour* (an approval gate, a depth-constraint property, a co-installation invariant), so
+  each ships a contract test demonstrated **red before green**. A test written after the change
+  and never observed failing does not satisfy this.
+
+## Decision H — the leaf-executor exception is a *bounded verifier*, not a claim (binding)
+
+Plan review finding 3 resolved the maintenance-trap objection by asserting the exception could
+be stated as "a machine-checkable condition". That was **overclaimed**: as written it was
+self-declared prose, and nothing read it. Prose that calls itself machine-checkable is worse
+than prose that admits it is prose, because it stops anyone from building the check. Corrected:
+
+* **H-a — the exception is stated as a property with a fixed, checkable form.** A skill
+  qualifies for the one-hop review-family exception iff its `SKILL.md` contains a
+  `## Subagent Depth Constraint` section whose body states (i) a maximum depth of 1 hop and
+  (ii) that spawned subagents are leaf executors that MUST NOT spawn further subagents.
+  Current members (`plan-review`, `review`) are listed as **examples**, never as the definition.
+* **H-b — a bounded verifier makes it real (mandatory acceptance on task 3).** Extend the
+  **existing** `tests/` suite with one test that, over `.github/skills/*/SKILL.md` and
+  `templates/skills/*/SKILL.md.tmpl`, asserts exactly three properties:
+  1. **Undeclared spawning is detected.** Any skill whose text spawns a subagent (the documented
+     spawn forms) **without** a conforming `## Subagent Depth Constraint` section is a FAILURE.
+     This is the detector the original wording promised and did not deliver.
+  2. **Constraint form is valid.** A `## Subagent Depth Constraint` section that does not state
+     both the depth bound and the leaf-executor clause is a FAILURE (malformed constraint).
+  3. **Depth is valid.** A declared depth other than 1 is a FAILURE. Depth > 1 is exactly the
+     unbounded-nesting outcome **H3** forbids.
+* **H-c — bounded by construction; this is not a new runtime framework.** The verifier is a
+  single test in the existing `unittest` suite. It performs **static text inspection of
+  `SKILL.md` files only**. It introduces **no** runtime interception, **no** spawn-time
+  enforcement, **no** new CLI surface, **no** new package, and **no** agent-runtime hook. It
+  cannot observe actual runtime spawning and does not claim to.
+* **H-d — the residual governance limitation is recorded, not hidden.** The verifier checks
+  *declarations in skill text*. An agent that spawns a subagent at runtime **without** it being
+  visible in `SKILL.md` text is **not detected**. The exception is therefore enforced at the
+  **document layer only**. Task 3's acceptance requires this limitation to be written into the
+  amended instruction text itself, so the next reader is not misled the way this plan's first
+  draft was. Runtime enforcement is out of scope and is recorded in §Deferred scope.
 
 ## Tasks
 
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
 | 1 | Remove the purpose-based finding-suppression rule from the security-reviewer persona | S | medium | `templates/agents/review/security-reviewer.agent.md.tmpl` + mirror |
-| 2 | Gate the P-007 `git restore` remediation behind explicit operator approval, and complete the constitution-reviewer principle checklist | M | medium | `templates/policies/workflow-policies.md.tmpl`, `templates/agents/review/constitution-reviewer.agent.md.tmpl` + mirrors |
-| 3 | Resolve the leaf-executor contradiction with a bounded one-hop review-family exception, and close the python-reviewer dangling reference | M | medium | `templates/instructions/harness-architecture.instructions.md.tmpl`, `templates/instructions/role-enforcement.instructions.md.tmpl`, `templates/instructions/technology-python.instructions.md.tmpl` + mirrors + manifest |
+| 2 | Gate the P-007 `git restore` remediation behind the named `APPROVAL: P-007-ARCHIVE-RESTORE` signal, and complete the constitution-reviewer principle checklist | M | medium | `templates/policies/workflow-policies.md.tmpl`, `templates/agents/review/constitution-reviewer.agent.md.tmpl` + mirrors, `tests/` |
+| 3 | Resolve the leaf-executor contradiction with a bounded one-hop review-family exception **and ship the bounded depth-constraint verifier** | M | medium | `templates/instructions/harness-architecture.instructions.md.tmpl`, `templates/instructions/role-enforcement.instructions.md.tmpl` + mirrors, `tests/` |
+| 4 | Close the technology-reviewer → language-instruction dangling reference via the Decision F co-installation invariant | S | low | `.github/skills/install-harness/SKILL.md`, `templates/agents/review/technology-reviewer.agent.md.tmpl` + mirror, `tests/` |
 
-Tasks 2 and 3 each pair two defects that share a review surface and a mirror/
-checksum refresh, keeping each task inside the 2-hour rule while avoiding three
-separate checksum churns. Task 1 is isolated because it is the only one with
-security-persona semantics and warrants its own security review.
+**Split recorded (review-fix cycle 1).** The original task 3 bundled the
+architecture-rule amendment with the dangling-reference fix. Plan review finding 4
+accepted that bundling on manifest-churn grounds; that trade is **reversed** here.
+The two halves have different blast radii — one amends a governance rule that
+constrains every skill in the harness, the other corrects one install contract —
+and bundling them makes the governance amendment **unrevertable without also
+reverting the reference fix**. Revertability outranks one extra checksum refresh
+on a change of this class. They are now tasks 3 and 4, sequenced 3→4 so the
+manifest refresh in 4 lands last.
+
+Tasks 2, 3 and 4 each ship the contract test **H7** requires. Task 1 remains
+isolated because it is the only one with security-persona semantics.
 
 ## Non-goals
 
@@ -96,6 +231,21 @@ security-persona semantics and warrants its own security review.
 * No general relaxation of the leaf-executor rule (**H3**).
 * No change to P-013.5 model inheritance.
 * No new review persona.
+* **No runtime spawn enforcement.** The **H-b** verifier is static text inspection only
+  (**H-c**, **H-d**).
+* **No new `python.instructions.md` in this repository** (**Decision F**).
+
+## Deferred scope (P-021, captured not silently broadened)
+
+Three items surfaced during review-fix cycle 1 that require **new product capability** rather
+than completion of this staged contract. Each is captured with its residual risk; none is
+built here.
+
+| Ref | Capture | Residual risk if never built |
+|---|---|---|
+| DSE-S4-1 | `.github/agents/subagents/agent-native-parity-reviewer.agent.md:57` references `mcp-server.instructions.md`, which is not installed — the same class as `F0ADCC03`. Decision F's co-installation invariant covers the *technology-reviewer* pair only; a general agent→instruction reference check is a new detector. | **Medium.** One rendered reviewer continues to cite a non-existent style guide. Behaviour degrades silently (the reviewer proceeds without the guide); it does not fail closed. Bounded to one subagent, and the parallel agent→**skill** check landing in SHIP-5 task 2 establishes the detector shape a later run can extend. |
+| DSE-S4-2 | Runtime enforcement of the subagent depth constraint. **H-b** enforces at the document layer only (**H-d**). A spawn that never appears in `SKILL.md` text is undetectable by any static check. | **Medium-low.** Depth violations remain possible at runtime and are caught only by review. Accepted deliberately: a runtime interception layer is an unbounded new framework and is exactly what **H-c** refuses to start here. |
+| DSE-S4-3 | A parity check between `constitution.instructions.md`'s principle list and the constitution-reviewer's checklist (carried forward from plan review finding 6). Owned by portfolio unit **S3** (D-PAR). | **Low.** The two can drift again. Task 2 resyncs them now; S3 owns the detector. |
 
 ## Verification
 
@@ -117,3 +267,49 @@ a render check confirming no unresolved `{{...}}` in any regenerated artifact.
 
 **Verdict: PASS.** 3 P1 raised, all 3 resolved. Zero unresolved P0/P1. Two
 review-fix cycles of three.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+This run operates in dark-factory mode with `agent-intercom` unavailable and no reviewer
+subagent dispatch surface probed available; every selected persona was covered inline against
+the Persona Rubric Adapter and all findings were normalized to the P0–P3 scale. No persona was
+skipped. This is a **declared** degradation, recorded before the gate decision, not a silent
+fallback.
+
+**Plan hardening (P-006): required — `yes`. Satisfied.** Hardening constraints **H1**–**H7**
+plus Decisions **F**, **G**, and **H** are present and binding, and every one is propagated
+into a task acceptance criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Security | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Constitution | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Architecture | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Correctness | inline persona pass | 1 P3 (cycle 0), 1 P1 (cycle 1) |
+| Maintainability | inline persona pass | 1 P2 (cycle 0) |
+| Template integrity | inline persona pass | 1 P2 (cycle 0) |
+| Schema/CLI/docs coupling | inline persona pass | 1 P2 (cycle 0) |
+| Scope boundary | inline persona pass | 1 P2 (cycle 1) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 8 | Correctness | **P1** | The plan asserted the reference fix "assumes `technology-python.instructions.md` reaches `python.instructions.md`" without ever verifying it, and mis-stated the template as hard-coding `python.instructions.md`. Both would have produced the wrong fix. | **Resolved.** Verified at `.github/skills/install-harness/SKILL.md:1057` (documented mapping) and `templates/agents/review/technology-reviewer.agent.md.tmpl:56` (generic `{{PRIMARY_LANGUAGE_LOWER}}` placeholder). The defect is restated as a co-installation gap and the strategy is fixed by **Decision F**, propagated into task 4. |
+| 9 | Security | **P1** | "Explicit operator approval" for the P-007 `git restore` named no artifact, so the gate was self-satisfiable prose. | **Resolved by Decision G.** The signal is a named `APPROVAL: P-007-ARCHIVE-RESTORE` comment on the shipment, read back and matched (**G1**/**G2**), with a mandatory deterministic negative test (**G5**) and fail-closed dark-mode behaviour (**G3**). No admin authority is created (**G4**). |
+| 10 | Architecture | **P1** | The leaf-executor exception was called "machine-checkable" while being self-declared prose that nothing read. | **Resolved by Decision H.** A bounded static verifier (**H-b**) detects undeclared spawning, malformed constraint form, and invalid depth. Its limits are stated explicitly (**H-c**/**H-d**) so no machine-enforcement claim survives beyond what the test actually does. |
+| 11 | Constitution | **P1** | The plan carried no explicit safety-mode declaration despite editing policy text that governs other agents' destructive behaviour. | **Resolved by H6**: `careful` for every task; `freeze-scope` on the policy surface for task 2. |
+| 12 | Maintainability | P2 | Bundling the architecture-rule amendment with the dangling-reference fix makes the governance amendment unrevertable on its own. | **Resolved.** Cycle 0's finding 4 is reversed; tasks 3 and 4 are now separate, sequenced 3→4. |
+| 13 | Scope boundary | P2 | `mcp-server.instructions.md` is the same defect class and could pull a general reference checker into this shipment. | **Resolved.** Captured as **DSE-S4-1** with residual risk. Decision F is bounded to the technology-reviewer pair. Not built here. |
+
+**Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved; 2 P2 raised, both
+dispositioned. Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of
+three consumed.

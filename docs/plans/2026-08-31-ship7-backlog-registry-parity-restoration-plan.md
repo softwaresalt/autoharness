@@ -115,6 +115,31 @@ Triggered: the registry is the resolution substrate for every generated agent.
 * **H6.** Per D3's recorded non-goal, **do not** add new `stash` / `queue` /
   `checkpoints` feature flags to the backlog-md registry. That is a schema change
   and is out of this fixed scope.
+* **H7 (binding) — SHIP-6 coupling, counterpart to SHIP-6's H6.** SHIP-6's
+  fail-closed tool-scoped binding check resolves against **registry tool names
+  only** and is forbidden from reading feature flags. This shipment must not
+  invalidate that bound: it may add, correct, and explicitly declare **feature
+  flags** and **operation mappings** freely, but it must **not add, rename, or
+  remove a registry tool name**. `backlogit`, `backlog-md`, and `manual` are the
+  fixed set. **H6** already forbids the schema change that would be the usual way
+  to breach this; **H7** states the invariant SHIP-6 depends on so a future editor
+  cannot break it by accident. File sets and `docs/` sets between the two
+  shipments are disjoint (analysed in SHIP-6 **H6**), so no `blocks` edge is
+  required in either direction.
+* **H8 (binding) — the sizing flag this workspace is missing is in scope here.**
+  Measured during review-fix cycle 1: `.autoharness/backlog-registry.yaml`'s
+  `features:` block declares 15 keys and **no `sizing` key at all**, while
+  `backlogit_update_item` does accept `size`, `size_source`,
+  `size_ruleset_version`, and `complexity`. That is exactly the installed↔template
+  drift class this shipment exists to close, and it is the blocker SHIP-8 records
+  as **DSE-S8-2**. Task 1's additive-delta verification (**H2**) must therefore
+  explicitly confirm that `features.sizing: true` is present after regeneration,
+  and task 2's parity test must cover it. **H4**'s SHIP-7 → SHIP-8 ordering is
+  what makes SHIP-8's gate non-inert.
+* **H9 (binding) — safety mode.** Every task enters `careful`. Task 1
+  additionally enters `freeze-scope` bounded to `.autoharness/backlog-registry.yaml`,
+  because the registry is the resolution substrate for every generated agent and
+  **H2** requires any non-additive delta to halt rather than be absorbed.
 
 ## Tasks
 
@@ -153,5 +178,46 @@ resolution only — no install performed).
 | 6 | Correctness | P2 | Task 3 cannot be end-to-end verified without installing backlog-md. | Bounded to **name resolution and declaration correctness**, verified against the vendored `references/backlog-md/package.json`. No install, no runtime test. Recorded as an explicit limitation of the task. |
 | 7 | Scope | P3 | The registry-drift discovery could be read as new scope. | Folded into `2E67938C`'s existing text as its enabling condition; no new stash ID, no work outside the fixed 48. Recorded in the portfolio deliberation §"A material discovery". |
 
-**Verdict: PASS.** 1 P0 and 3 P1 raised; all four resolved before harvest. Zero
-unresolved P0/P1. Two review-fix cycles of three.
+**Verdict (cycle 0): PASS.** 1 P0 and 3 P1 raised; all four resolved before harvest.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+Every selected persona was covered inline against the Persona Rubric Adapter and normalized to
+the P0–P3 scale; no persona was skipped. Declared, not silent.
+
+**Plan hardening (P-006): required — `yes`. Satisfied.** **H1**–**H9** are binding
+and each is propagated into a task acceptance criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Correctness | inline persona pass | cycle 0 findings retained above |
+| Security | inline persona pass | cycle 0 findings retained above |
+| Schema/CLI/docs coupling | inline persona pass | cycle 0 findings retained above, 1 P1 (cycle 1) |
+| Architecture | inline persona pass | 1 P1 (cycle 1) |
+| Constitution | inline persona pass | 1 P1 (cycle 1) |
+| Template integrity | inline persona pass | cycle 0 findings retained above |
+| Maintainability | inline persona pass | cycle 0 findings retained above |
+| Scope boundary | inline persona pass | 1 P2 (cycle 1) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| A | Schema/CLI/docs coupling | **P1** | The installed registry declares **no `sizing` feature key**, yet SHIP-8's fail-closed gate keys on `features.sizing` being advertised. Without this shipment enabling it, SHIP-8's gate would ship inert in the very workspace that authored it. | **Resolved by H8.** The missing key is measured and named; task 1's additive-delta verification must confirm `features.sizing: true` after regeneration and task 2's parity test must cover it. The existing **H4** SHIP-7 → SHIP-8 `blocks` edge makes the ordering real. |
+| B | Architecture | **P1** | SHIP-6's fail-closed binding check depends on the registry **tool-name set** being stable, and SHIP-7 is the shipment that edits registries — an unstated invariant one editor away from breaking. | **Resolved by H7**, the explicit counterpart to SHIP-6's **H6**: feature flags and operation mappings may change freely; the tool-name set (`backlogit`, `backlog-md`, `manual`) is fixed. Disjoint file/docs sets confirmed; no `blocks` edge needed in either direction. |
+| C | Constitution | **P1** | No safety mode declared on a shipment that regenerates the resolution substrate for every generated agent. | **Resolved by H9**: `careful` on all tasks, plus `freeze-scope` on `.autoharness/backlog-registry.yaml` for task 1. |
+| D | Scope boundary | P2 | **H8** could be read as licence to add whatever feature flags SHIP-8 wants. | Bounded: **H8** names exactly one key (`sizing`), justified by measured installed↔template drift, and **H6** still forbids new backlog-md flags. Any other missing key surfaced by regeneration is reported under **H2**'s halt-for-review rule, not silently added. |
+
+**Verdict: PASS.** Cycle 1: 3 P1 raised, all 3 resolved; 1 P2 dispositioned.
+Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.
+
+**Cycle 0 verdict (preserved):** PASS — 1 P0 and 3 P1 raised; all four resolved
+before harvest. Zero unresolved P0/P1.

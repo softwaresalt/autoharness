@@ -85,13 +85,70 @@ carrying the rule. Two constraints are nonetheless recorded as binding.
   `size_source: agent` and a non-empty `size_ruleset_version`; then a separate
   update setting `complexity`. These seams are mutually exclusive and cannot be
   combined with each other or with any other field update.
+* **H3 (binding) — TDD sequencing: the red test lands FIRST.** Cycle 0 ordered
+  task 1 (the harvest gate) ahead of task 2 (which carries the regression tests
+  for *both* gates), so the tests for task 1's behaviour would have been authored
+  against an already-conforming implementation. Corrected execution order,
+  matching the queued task order:
+  1. **Task 2's test half first** (`158.002-T`, part A): write the negative tests —
+     harvest a task with no `complexity` **must halt**; assemble a shipment with
+     `unsized > 0` **must fail**; a `backlog-md`-shaped registry without
+     `features.sizing` **must complete with a reported degradation**. **Observe and
+     record them red.**
+  2. **Task 1** (`158.001-T`): the harvest-gate change turns the first and third
+     red.
+  3. **Task 2's implementation half** (`158.002-T`, part B): the
+     shipment-assembly `size_composition` budget check turns the second red green.
+* **H4 (binding) — de-risking prerequisite for task 2 (two-axis gate).** Task 2
+  is `complexity: high`, which forces a split or an explicit de-risking step
+  regardless of size. The `high` sits entirely in one unverified assumption: that
+  the shipment `size_composition` rollup **actually reports `unsized`** and can be
+  read back after assembly. **Verified during this review-fix cycle** —
+  `backlogit_list_shipments` returns, for every shipment in this run's own
+  portfolio, a `size_composition` object of the shape
+  `{"histogram":{...},"unsized":0,"members":[...],"ruleset_version":null}`. The
+  read-back gate is therefore buildable as specified, and `ruleset_version` is
+  observed **null at the shipment level** even though every member task carries
+  `size_ruleset_version: autoharness-stage-2h-v1`.
+
+  Two consequences, both binding on task 2:
+  * The budget check reads **`unsized`** and the **`histogram`**, which are
+    populated and trustworthy. It **must not** gate on the shipment-level
+    `ruleset_version`, which is observed null and would fail every shipment.
+  * The shipment-level `ruleset_version: null` against populated per-task
+    `size_ruleset_version` values is a **rollup-provenance gap**. It is recorded
+    as deferred scope (**DSE-S8-1**), not fixed here — **N1** forbids schema
+    change.
+
+  With the assumption resolved, task 2 drops to `complexity: medium`.
+* **H5 (binding) — safety mode.** Every task enters `careful`. Task 1
+  additionally enters `freeze-scope` bounded to `templates/skills/harvest/SKILL.md.tmpl`
+  and `templates/agents/_stage.agent.md.tmpl` plus their mirrors, because it edits
+  the decomposition contract every future Stage run reads.
 
 ## Tasks
 
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
 | 1 | Make the harvest sizing gate fail closed when the registry advertises sizing, with explicit reported degradation when it does not | M | medium | `templates/skills/harvest/SKILL.md.tmpl`, `templates/agents/_stage.agent.md.tmpl` + mirrors |
-| 2 | Add a shipment-assembly size-composition budget check and a regression test for both gates | M | high | `templates/agents/_stage.agent.md.tmpl`, `tests/` |
+| 2 | Add a shipment-assembly size-composition budget check and a regression test for both gates | M | medium | `templates/agents/_stage.agent.md.tmpl`, `tests/` |
+
+Task 2's complexity is **`medium`, reduced from `high` in review-fix cycle 1**:
+its single source of uncertainty — whether the shipment `size_composition` rollup
+reports a readable `unsized` count — was resolved by direct measurement during
+that cycle (**H4**). Execution is ordered test-half → task 1 → implementation-half
+per **H5**… see **H3**.
+
+**Registry note (measured, cycle 1).** `.autoharness/backlog-registry.yaml`'s
+`features:` block advertises `shipments: true`, `queue: true`, `dependencies: true`
+and 12 others, but declares **no `sizing` key at all** — while
+`backlogit_update_item` does expose `size`, `size_source`, `size_ruleset_version`,
+and `complexity` params. Task 1's fail-closed branch keys on
+`features.sizing` being *advertised*; against this registry that key is **absent**,
+so this very workspace would take the degrade-and-report path despite the tool
+supporting sizing. Task 1's acceptance must therefore state explicitly which of
+the two is authoritative — the advertised flag or the declared `update_task`
+params — and must not assume they agree. Recorded as **DSE-S8-2**.
 
 ## Non-goals
 
@@ -109,6 +166,15 @@ carrying the rule. Two constraints are nonetheless recorded as binding.
   explicitly a non-goal of portfolio unit S2 as well, and the two must not
   disagree.
 * **N5.** No retroactive validation of the 612 existing tasks (**H1**).
+* **N6.** No gate on the shipment-level `size_composition.ruleset_version`, which
+  is observed null (**H4**).
+
+## Deferred scope (P-021, captured not silently broadened)
+
+| Ref | Capture | Residual risk if never built |
+|---|---|---|
+| DSE-S8-1 | Shipment-level `size_composition.ruleset_version` is `null` on every shipment measured, while member tasks carry `size_ruleset_version: autoharness-stage-2h-v1`. Propagating per-task ruleset provenance into the rollup is a **backlogit-side** change and is forbidden here by **N1**. | **Low.** Provenance survives on each task; only the aggregate view loses it. The budget check reads `unsized`/`histogram` instead (**H4**), so no gate depends on the null field. |
+| DSE-S8-2 | This workspace's registry advertises no `features.sizing` key although `backlogit_update_item` accepts the sizing params. Reconciling the registry's advertised feature set with the tool's real capability surface is **SHIP-7's** registry-parity charter, not SHIP-8's. | **Medium, and bounded by an explicit acceptance requirement.** Left unreconciled, this workspace takes the degrade-and-report path and the fail-closed gate never fires here — the gate would be present but inert locally. Task 1's acceptance forces the authority question to be answered and written down rather than assumed, and the SHIP-7 → SHIP-8 `blocks` edge already sequences the parity work first. |
 
 ## Verification
 
@@ -132,3 +198,43 @@ reported degradation rather than a halt.
 
 **Verdict: PASS.** 3 P1 raised, all 3 resolved. Zero unresolved P0/P1. Two
 review-fix cycles of three.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+Every selected persona was covered inline against the Persona Rubric Adapter and normalized to
+the P0–P3 scale; no persona was skipped. Declared, not silent.
+
+**Plan hardening (P-006): required — `no`.** Not triggered (Stage/harvest template
+text plus tests; no schema, no CLI distribution surface). Constraints **H1**–**H5**
+are recorded as binding regardless, and each is propagated into a task acceptance
+criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Correctness | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Scope boundary / Maintainability | inline persona pass | 1 P1 + 1 P3 (cycle 0), 1 P1 (cycle 1) |
+| Architecture | inline persona pass | 1 P1 (cycle 0) |
+| Constitution | inline persona pass | 1 P2 (cycle 0), 1 P1 (cycle 1) |
+| Schema/CLI/docs coupling | inline persona pass | 1 P2 (cycle 0), 1 P1 (cycle 1) |
+| Security | inline persona pass | 1 P3 (cycle 0) |
+| Template integrity | inline persona pass | — (no finding) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 8 | Correctness | **P1** | Task 1 (the gate) was ordered ahead of task 2 (which carries the regression tests for *both* gates), so task 1's tests could never be observed red. | **Resolved by H3.** Order is now task 2's test half → task 1 → task 2's implementation half, with the red results recorded before each fix. |
+| 9 | Maintainability | **P1** | Task 2 was `M`/`high`, tripping the complexity axis with neither split nor de-risking step. | **Resolved by H4.** The single source of uncertainty — whether `size_composition` reports a readable `unsized` — was resolved by direct measurement in this cycle. Task 2 drops to `medium`, and two binding consequences (read `unsized`/`histogram`, never gate on the null `ruleset_version`) are recorded. |
+| 10 | Schema/CLI/docs coupling | **P1** | The plan's fail-closed branch keys on `features.sizing`, but this workspace's registry declares **no `sizing` key** while the MCP tool does accept sizing params. The gate would be inert exactly where it was authored. | **Resolved.** Measured and recorded in the Registry note; task 1's acceptance must declare which surface is authoritative rather than assume agreement, and the reconciliation is routed to SHIP-7 as **DSE-S8-2** behind the existing `blocks` edge. |
+| 11 | Constitution | **P1** | No safety mode declared on a shipment that rewrites the decomposition contract every future Stage run reads. | **Resolved by H5**: `careful` on all tasks, plus `freeze-scope` on the harvest/Stage template surfaces for task 1. |
+
+**Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved. Cumulative: **zero
+unresolved P0/P1**. Two review-fix cycles of three consumed.

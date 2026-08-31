@@ -87,7 +87,7 @@ the fixed scope was triaged, mutated, or promoted.
 
 ## Step 1 precedence check — deferred-scope-expansion entries (P-021 C2/C5/C6)
 
-Fourteen entries carry the literal `DEFERRED SCOPE EXPANSION` marker as their
+Fifteen entries carry the literal `DEFERRED SCOPE EXPANSION` marker as their
 first field: `D1A46B8C`, `D00CB293`, `74C62374`, `3B67029C`, `57A43F55`,
 `01340569`, `11BCE865`, `99E4CF94`, `B90A5BBF`, `C0EA1175`, `701073F9`,
 `BA035180`, `F0ADCC03`, `8E10B13B`, `E738A7D1`. Per the precedence rule these are
@@ -467,4 +467,134 @@ an authorized change is being made; there is no authorized change here to defer
 * `docs/decisions/2026-08-31-v1_5_0-guardrail-template-contract-mismatch-spike.md` (`053E2BD2`)
 * `docs/decisions/2026-08-30-pip-install-autoharness-version-ceiling-spike.md`
 * `docs/decisions/2026-08-25-machine-produced-structure-determinism-and-the-surviving-dag-partition.md` (`029-DL`)
-* `.github/instructions/workflow-policies.md` — P-001, P-006, P-010, P-012, P-016, P-021
+* `.github/policies/workflow-policies.md` — P-001, P-006, P-007, P-010, P-012, P-016, P-019, P-021
+  (corrected in review-fix cycle 1: the path is `.github/policies/`, not
+  `.github/instructions/`; the latter does not exist and the reference dangled)
+
+## Review-fix cycle 1 — corrections to this artifact (2026-08-31)
+
+This section records corrections applied to this decision record after an
+independent local review blocked the publication diff at HEAD `4d029e55`. The
+original text is corrected in place where it was factually wrong; nothing is
+silently rewritten without being named here.
+
+| # | Correction | Evidence |
+|---|---|---|
+| C1 | **"Fourteen entries carry the literal `DEFERRED SCOPE EXPANSION` marker" → fifteen.** The enumerated list always contained fifteen IDs; the word was wrong, not the list. | Count of the enumerated IDs in §"Step 1 precedence check". |
+| C2 | **Dangling reference `.github/instructions/workflow-policies.md` → `.github/policies/workflow-policies.md`.** | `.github/instructions/` contains 18 files, none named `workflow-policies.md`; the file exists at `.github/policies/workflow-policies.md` with template `templates/policies/workflow-policies.md.tmpl`. |
+| C3 | **Dark-mode activation, scope, and cursor record added** (§"Dark-mode activation and authority record" below) so P-017 audit evidence survives in a committed artifact rather than only in a checkpoint. | — |
+| C4 | **Pre-existing artifact inadvertently published** recorded (§"Residual scope note" below). | — |
+| C5 | **Queue ordering authority changed** (§"Queue ordering authority" below). | — |
+| C6 | **Checkpoint `progress.tasks_completed` corrected** (§"Checkpoint correction" below). | — |
+
+## Queue ordering authority (corrects the inconsistent queue metadata)
+
+The reviewed diff carried inconsistent queue metadata: `155.001-T` at position 36
+while its siblings sat at 23–24; no position at all on `151.004-T`, `151.005-T`,
+`153.003-T`, or on eight of the nine shipments; and feature/task order drift.
+
+Repair was **attempted first as option (a)** — renumber everything monotonically
+with `backlogit queue move`. That attempt **failed for a structural reason worth
+recording**, and the failure is the finding:
+
+> `backlogit queue move` operates on the *default active queue view*, which
+> **respects dependency constraints**. Once the cycle-1 `blocks` edges were added,
+> every dependency-blocked task left that view and returned
+> `Error: move in queue: item <id> not found in queue view`. Shipments are not in
+> the view either. The partial run left **duplicate positions** (14, 15, 19, 23,
+> 26 and 30 each appearing twice) and fresh gaps — strictly worse than the input.
+
+`queue_position` is therefore **a derived, partial, eligibility-scoped projection,
+not a complete ordering authority**. It cannot be made complete and monotonic
+across a hierarchy that contains blocked tasks and shipments, and no
+`create`/`update` operation can even set or clear it — `queue move` is the only
+writer, and it cannot reach the items that need it.
+
+**Adopted: option (b) — dependency edges are the sole ordering authority.**
+`queue_position` was removed from all 54 in-scope items (38 carried one). Ordering
+is now fully expressed by, and only by:
+
+| Level | Authority |
+|---|---|
+| Between shipments | the `blocks` chain `159-S → 160-S → … → 167-S` |
+| Within a shipment | `blocks` edges between tasks (18 edges, enumerated in the session memory) |
+| Membership | the shipment `items` manifest, verified against `size_composition.members` |
+
+This is complete (every item's position is derivable), monotonic by construction
+(the graph is acyclic — backlogit rejects cycles at insert), and verifiable
+item-by-item. Out-of-scope items (`080-F`, `081-F`, both blocked on operator
+input) were not touched.
+
+## Checkpoint correction
+
+`.backlogit/checkpoints/checkpoint-20260831-223851.json` listed **27 queued Ship
+implementation tasks** under `progress.tasks_completed`. None of them is
+completed; all are queued and unstarted, and Ship has not begun `159-S`.
+
+**Repair method — official operations only, no hand-editing.** Checkpoints are
+tool-owned and the erroneous record is `status: resolved` and therefore immutable.
+The erroneous file was **not edited**. Instead a corrective checkpoint was created
+through `backlogit checkpoint create` (schema `V1`, all domain data under
+`context`) and written as `status: resolved`, recording: the corrected checkpoint's
+filename, the full list of 27 IDs erroneously marked complete, their true status,
+an **empty** `progress.tasks_completed`, and an explicit 36-item
+`progress.tasks_remaining`. Created as `checkpoint-20260831-233625.json`.
+
+**Why recovery cannot misread either record.** Stage's crash-resumption protocol
+enumerates checkpoints and partitions to those whose `status` is `active`. Both
+the erroneous and the corrective record are `resolved`, and
+`backlogit checkpoint list --status active` returns `total: 0`. No recovery path
+can restore either record or interpret a queued task as completed.
+
+## Dark-mode activation and authority record (P-017 audit evidence)
+
+Committed here so the authority under which this run operated is recoverable from
+the repository itself, independently of any checkpoint file.
+
+| Field | Value |
+|---|---|
+| `run_mode` | `DARK_MODE_ACTIVE` |
+| `dark_mode_activated_at` | `2026-08-31T21:47:45Z` |
+| `scope_mode` | fixed scope, no expansion |
+| `scope` | exactly 48 source IDs (43 stash + 5 queue), each triaged exactly once |
+| `shipment_order` | `159-S → 160-S → 161-S → 162-S → 163-S → 164-S → 165-S → 166-S → 167-S` |
+| `last_completed` | `null` |
+| `next` | `159-S` |
+| `merge_preauthorized` | `true` |
+| `admin_authority` | `false` |
+| `destructive_command_preauthorized` | `false` |
+| `intercom` | `DEGRADED` (no broadcasts; local `DARK_MODE` phase records emitted instead) |
+| `graphtor-docs` | `UNAVAILABLE` (fell back to local `docs/` + repository reads) |
+| `engram` | `OK` |
+| `backlogit` | `OK` |
+
+**Authority bounds, stated explicitly.** `merge_preauthorized: true` authorizes
+merging PRs produced from this fixed scope. It does **not** authorize
+administrative actions, and it does **not** authorize executing destructive
+commands — `admin_authority: false` and
+`destructive_command_preauthorized: false` are independent and both hold. Review-fix
+cycle 1 relied on this distinction twice: SHIP-9's `git rm --cached` was removed
+from scope, and SHIP-4's P-007 `git restore` was gated behind a named,
+operator-recorded approval that fails closed when absent.
+
+## Residual scope note — pre-existing artifact inadvertently published
+
+`docs/decisions/2026-08-30-pip-install-autoharness-version-ceiling-spike.md`
+(published in commit `214347b2` of this Stage series) is a **pre-existing
+investigation artifact dated 2026-08-30**, authored before this run's dark-mode
+activation at `2026-08-31T21:47:45Z`. It is **outside the fixed 48-ID scope** —
+it appears in no `source_stash_ids` or `source_queue_ids` entry above — and was
+included in the Stage publication commit rather than being produced by it.
+
+**Disposition for this cycle: recorded, no action.**
+
+* It is **not deleted.** Deletion is a destructive operation and is not
+  preauthorized by merge approval (see the authority record above). Removing it
+  would require distinct explicit operator approval.
+* History is **not rewritten.** The commit stands; the correction is recorded
+  forward, consistent with **H1** in SHIP-9.
+* **Residual risk: low.** The artifact is a genuine, self-consistent spike record
+  that is useful on its own terms. The risk is one of *provenance clarity* only —
+  a future reader could mistake it for output of this run's fixed scope. This note
+  is the mitigation, and the publication summary carries it too.
+* **No further action in this cycle**, by explicit operator instruction.

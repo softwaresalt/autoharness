@@ -96,17 +96,71 @@ families.
 * **H4.** No schema change, no registry-file change, no change to which tools are
   supported. This shipment changes only how a template *expresses* a tool-scoped
   branch.
+* **H5 (binding) — de-risking prerequisite for task 2 (two-axis gate).** Task 2
+  is `complexity: high`, which forces a split or an explicit de-risking step
+  regardless of size. Splitting is rejected: **H3**'s whole-corpus render-parity
+  property is the riskiest part of the change and must be proven by the same task
+  that introduces the block construct — a split would let the construct land
+  without its parity evidence. The de-risking step is therefore adopted as a
+  **blocking prerequisite** (task 2a below); task 2 may not begin before it is
+  recorded.
+* **H6 (binding) — SHIP-6/SHIP-7 coupling is bounded, and the bound is checked.**
+  SHIP-6 and SHIP-7 both concern the registry, from opposite sides, and the
+  interaction was not analysed in cycle 0. Analysed here:
+  * **File sets are disjoint.** SHIP-6 changes the *renderer* and skill templates
+    (**H4** forbids touching any registry file). SHIP-7 changes registry files
+    (`.autoharness/backlog-registry.yaml`,
+    `templates/backlog/registries/backlog-md.registry.yaml`) and never the
+    renderer. **No file is edited by both.** There is no merge-collision risk.
+  * **Docs sets are disjoint.** SHIP-6 touches no `docs/` file. SHIP-7 tasks 2
+    and 3 write the resolver-default documentation and the backlog-md capability
+    declaration. No shared document.
+  * **There is nonetheless a real semantic coupling.** **H1** makes rendering
+    **error** when a block declares a tool "the registry set does not contain".
+    *What that set contains* is exactly what SHIP-7 normalizes — SHIP-7 task 3
+    corrects the backlog-md registry's command and **declares
+    `features.shipments: false` explicitly** (**H5** there), converting an
+    absent key into a present one.
+  * **Ordering is currently SHIP-6 (164-S) → SHIP-7 (165-S)**, i.e. the
+    fail-closed binding check lands **before** the registry set it validates
+    against is normalized.
+  * **Resolution: bound the check to tool *identity*, not to feature keys.**
+    Task 2's binding validation resolves a block's declared tool against the set
+    of **registry tool names** only (`backlogit`, `backlog-md`, `manual`), which
+    SHIP-7 does not change. It **must not** read or validate feature flags. With
+    that bound, SHIP-6 is order-independent of SHIP-7 and no new `blocks` edge is
+    required. Task 2's acceptance states this restriction explicitly.
+* **H7 (binding) — safety mode.** Every task enters `careful`. Task 2
+  additionally enters `freeze-scope` bounded to the renderer plus the templates
+  its parity test covers, because a renderer change is corpus-wide by nature and
+  **H3** demands byte-identical output everywhere it was not intended to change.
+
+## De-risking prerequisite — task 2a (blocking, `S` / `low`)
+
+The `high` complexity in task 2 sits in one unanswered question: **what construct
+does the renderer actually offer today**, and is option (B)'s installer-resolved
+conditional block an extension of an existing mechanism or a new one? Option (B)
+was selected on design merit without that being established, and the answer
+changes the work materially.
+
+Task 2a answers it with no production edits, recording: the renderer's current
+substitution mechanism and whether any block/conditional construct already exists;
+the complete inventory of templates containing tool-scoped branches (the corpus
+**H3**'s parity test must cover); the set of registry tool names the binding check
+will resolve against (**H6**); and a byte-identical baseline render of the current
+corpus for **H3** to diff against. Task 2 consumes all four.
 
 ## Tasks
 
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
 | 1 | Omit unconfigured quality gates from rendered output instead of interpolating sentinel strings | M | medium | template rendering + `templates/skills/fix-ci/SKILL.md.tmpl` and peers |
-| 2 | Resolve tool-scoped template branches against the branch's declared tool, with fail-closed binding and a whole-corpus render-parity test | M | high | `src/autoharness/` renderer, affected skill templates, `tests/` |
+| 2a | **De-risking prerequisite (H5)**: record the renderer's current construct set, the tool-scoped-branch template inventory, the registry tool-name set, and a baseline corpus render | S | low | `docs/` (recorded findings + baseline only; no production edits) |
+| 2 | Resolve tool-scoped template branches against the branch's declared tool, with fail-closed binding and a whole-corpus render-parity test | M | medium | `src/autoharness/` renderer, affected skill templates, `tests/` |
 
-Two tasks, not three: the render tests for both classes are the acceptance
-evidence for their own task and do not constitute separable work. Task 2 carries
-the corpus-parity test because **H3** is its own riskiest property.
+Task 2 drops from `complexity: high` to `medium` once 2a's four answers exist.
+2a **blocks** 2. The render tests for both classes remain the acceptance evidence
+for their own task and are not separable work.
 
 ## Non-goals
 
@@ -137,5 +191,45 @@ for templates with no tool-scoped block (**H3**).
 | 6 | Scope | P2 | Task 2 could grow into fixing every tool-scoped branch in the corpus. | Bounded: fix the **mechanism**, and convert only the branches that currently render wrong. A branch that renders correctly today is left alone. |
 | 7 | Security | P3 | A new renderer construct could enable injection from template content. | Resolution is pure lookup against a fixed registry-derived table with no expression evaluation (**H4**). No `eval`, no shell, no path resolution from template content. |
 
-**Verdict: PASS.** 3 P1 raised, all 3 resolved. Zero unresolved P0/P1. Two
-review-fix cycles of three.
+**Verdict (cycle 0): PASS.** 3 P1 raised, all 3 resolved. Zero unresolved P0/P1.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+Every selected persona was covered inline against the Persona Rubric Adapter and normalized to
+the P0–P3 scale; no persona was skipped. Declared, not silent.
+
+**Plan hardening (P-006): required — `yes`. Satisfied.** **H1**–**H7** are binding
+and each is propagated into a task acceptance criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Template integrity | inline persona pass | cycle 0 findings retained above |
+| Correctness | inline persona pass | cycle 0 findings retained above |
+| Architecture | inline persona pass | cycle 0 findings retained above, 1 P1 (cycle 1) |
+| Maintainability | inline persona pass | 1 P1 (cycle 1) |
+| Scope boundary | inline persona pass | 1 P2 (cycle 1) |
+| Constitution | inline persona pass | 1 P1 (cycle 1) |
+| Security | inline persona pass | — (no finding) |
+| Schema/CLI/docs coupling | inline persona pass | 1 P1 (cycle 1) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| A | Maintainability | **P1** | Task 2 was `M`/`high`, tripping the complexity axis with neither split nor de-risking step. | **Resolved by H5** with blocking prerequisite **task 2a**. Splitting is rejected on stated grounds (**H3**'s parity evidence must accompany the construct); 2a answers the four unknowns and task 2 drops to `medium`. |
+| B | Schema/CLI/docs coupling | **P1** | SHIP-6's **H1** fail-closed binding validates a block's tool against "the registry set", which is precisely what SHIP-7 normalizes — yet SHIP-6 (164-S) is ordered **before** SHIP-7 (165-S) and the interaction was never analysed. | **Resolved by H6.** File and docs sets are shown disjoint (no collision). The semantic coupling is removed by **bounding the check to registry tool *names*** — which SHIP-7 does not change — and explicitly forbidding it from reading feature flags. SHIP-6 becomes order-independent; no new `blocks` edge needed. |
+| C | Architecture | **P1** | Option (B) was selected without establishing whether the renderer has any block construct today, so the chosen design might be an extension or a from-scratch mechanism. | **Resolved.** Task 2a's first recorded answer is exactly this. Selection of (B) stands on its stated merits; its *cost* is now measured before implementation rather than discovered during it. |
+| D | Constitution | **P1** | No safety mode declared on a corpus-wide renderer change. | **Resolved by H7**: `careful` on all tasks, plus `freeze-scope` on the renderer and parity corpus for task 2. |
+| E | Scope boundary | P2 | Task 2a could expand into a renderer redesign proposal. | Bounded by enumeration: 2a records four specific artifacts and makes **no production edit**. Anything further is a P-021 capture. |
+
+**Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved; 1 P2 dispositioned.
+Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.
+Cycle 0's verdict line is preserved verbatim at the head of this section.

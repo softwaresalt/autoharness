@@ -68,6 +68,47 @@ says only the operator may break a lock. Warning-only would leave the guarantee
 broken while appearing fixed. An automatic age override would let an agent break
 a foreign lock without operator involvement, contradicting the same sentence.
 
+**(ii-a) What "ownership" actually means — corrected in review-fix cycle 1
+(binding).** Cycle 0 resolved finding 4 by making the recorded `agent` identity
+the *primary* authorisation input. That was **wrong as a security claim** and is
+withdrawn. The evidence:
+`templates/skills/file-lock/scripts/acquire_lock.ps1:38` reads
+`$agentName = if ($env:AGENT_NAME) { $env:AGENT_NAME } else { "unknown" }` and
+`acquire_lock.sh:32` reads `AGENT_NAME="${AGENT_NAME:-unknown}"`. `AGENT_NAME` is
+a **caller-controlled environment variable with a default**. Any process may set
+it to any value, including another agent's. It is not an identity; it is a label
+the caller chose.
+
+Therefore, restated honestly:
+
+* **O1 — `agent` is an anti-accident / courtesy identity, not a security
+  identity.** Its purpose is to make a *mistaken* cross-agent release visible and
+  diagnosable, and to name a human-meaningful owner in the refusal message. It
+  carries **no** authorisation weight against a caller that wants to bypass it.
+* **O2 — the structurally stronger mechanism: an acquisition token
+  (ADOPTED, in scope).** `acquire` generates a high-entropy random token, writes
+  **only its digest** into the lock file (`owner_digest`), and returns the token
+  itself to the caller on stdout. `release` requires the caller to present the
+  token (`-Token` / `--token`, or `LOCK_TOKEN`) and releases only when the digest
+  matches. This is a **capability** check — possession of a secret established at
+  acquire time — rather than a self-asserted label, so it does not collapse under
+  a spoofed `AGENT_NAME`. It needs no new infrastructure: one random value, one
+  digest, one argument. Storing the digest rather than the token is what makes it
+  stronger than `agent`; reading the lock file no longer yields the credential.
+* **O3 — the honest bound, stated so no adversarial claim survives.** These are
+  **advisory** locks: an ordinary file in a workspace the caller can write. A
+  local process with write access can delete the lock file directly and never
+  invoke `release` at all. **No script-level mechanism can prevent that, and this
+  plan does not claim to.** What O2 buys is precise and limited: breaking another
+  agent's lock stops being *trivially and accidentally possible through the
+  supplied tooling* and becomes *a deliberate bypass of it*. That is a real
+  integrity improvement against accident, confusion, and buggy automation. It is
+  **not** a defence against a hostile local process, and the shipped documentation
+  must say so in those words (**H6**).
+* **O4 — `pid` remains corroborating evidence only**, used in the staleness report,
+  never as authorisation. `pid` reuse on Windows makes it unsound as an authority
+  (cycle 0 finding 4's one correct half, retained).
+
 **(iii) Exit code on refusal.** **Decision: non-zero.** A release that declines
 to break a foreign lock has not achieved the caller's intent, and the caller must
 be able to detect that. Exit 0 would make the refusal indistinguishable from
@@ -95,27 +136,106 @@ Triggered: security-sensitive, and a wrong containment fix is worse than none.
   comparison (`Path.relative_to`-equivalent semantics on each platform).
 * **H5.** PowerShell and POSIX variants must implement *identical* semantics.
   Divergence between the two is itself the defect class of finding 6.
+* **H6 (binding) — the CLI contract change drags its documentation with it.**
+  Cycle 0 declared "no change to `concurrency.instructions.md`" and named no skill
+  surface. That was **wrong**: this shipment changes the scripts' *published CLI
+  contract*, and that contract is documented, verbatim, in surfaces this plan
+  omitted. Verified:
+  * `templates/skills/file-lock/SKILL.md.tmpl:43-44,58-59` publishes the exact
+    invocation signatures (`scripts/acquire_lock.ps1 <filepath>`), which gain
+    `--workspace-root`, `--token` and `--force`.
+  * `templates/skills/file-lock/SKILL.md.tmpl:27-30` publishes the exit-code
+    contract, and **L30 directly contradicts the new behaviour**: it states
+    *"On `release` failure: lock file not found (already released), exit code 0
+    with warning."* Decision (iii) makes refusal non-zero. Shipping the scripts
+    without this edit leaves the documentation asserting the opposite of the code.
+  * `.github/skills/file-lock/SKILL.md` is the installed dogfood mirror of the
+    above and must move in the same shipment (paired-edit contract).
+  * `templates/instructions/concurrency.instructions.md.tmpl` and its mirror
+    `.github/instructions/concurrency.instructions.md` carry the operator-only
+    lock-breaking rule and the 1-hour staleness heuristic that decision (ii) now
+    *implements*. The policy prose stays correct in intent, but it must gain the
+    token mechanism (**O2**), the explicit advisory-not-adversarial bound
+    (**O3**), and the `--force` operator procedure, or agents will follow prose
+    that no longer matches the tool.
+  * `.autoharness/harness-manifest.yaml` checksums cover every file above.
+
+  All six surfaces land **in the same shipment** as the script changes. **H3**'s
+  no-partial-state rule extends to them: shipped scripts whose published contract
+  is documented wrong are the same fail-open shape this shipment removes.
+* **H7 (binding) — honest documentation of the guarantee.** The `O3` bound must
+  appear in `concurrency.instructions.md` and the file-lock `SKILL.md` in plain
+  words: these are advisory locks; the token defends against accident and
+  confusion, not against a hostile local process that can delete the lock file
+  directly. No text in any shipped surface may claim or imply an adversarial
+  security guarantee.
+* **H8 (binding) — safety mode.** Every task in this shipment enters `careful`.
+  Tasks 1 and 2 additionally enter `freeze-scope` bounded to
+  `templates/skills/file-lock/scripts/`, because they rewrite path-resolution and
+  deletion logic where an over-broad edit is the risk.
+* **H9 (binding) — de-risking prerequisite for tasks 1 and 2 (two-axis gate).**
+  Both tasks are `complexity: high`, which forces a split or an explicit
+  de-risking step regardless of size. Splitting is rejected: **H3** forbids
+  shipping containment without ownership, and splitting either task along its
+  platform seam would violate **H5**. The de-risking step is therefore adopted and
+  is a **hard prerequisite**, not advice — task 0 below. Neither task 1 nor task 2
+  may begin before task 0's matrix is recorded.
+
+## De-risking prerequisite — task 0 (blocking, `S` / `low`)
+
+The `high` complexity in tasks 1 and 2 is concentrated in one place: *what the two
+platforms' path-resolution primitives actually do* on the six escape cases, which
+is an empirical question that has not been answered. Answer it first, on the
+current scripts, and the remaining work is mechanical.
+
+Task 0 produces a recorded behaviour matrix — no production edits — covering, on
+**both** Windows and POSIX: an absolute path outside the root; a `../` traversal;
+a directory symlink/junction pointing outside; a sibling directory whose name
+shares the root's prefix (`/repo` vs `/repo-evil`); a root-level target that
+exists; a root-level target that is missing; and a nested-git-checkout root where
+`git rev-parse --show-toplevel` resolves to the parent (finding 2). For each cell
+it records the observed behaviour of the resolution primitive and the intended
+post-fix behaviour. Tasks 1 and 2 consume the matrix as their test vectors.
 
 ## Tasks
 
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
+| 0 | **De-risking prerequisite (H9)**: record the two-platform path-resolution and lock-path behaviour matrix for the seven escape cases | S | low | `docs/` (recorded matrix only; no production edits) |
 | 1 | Enforce workspace-root containment and symlink-escape prevention in both acquire scripts | M | high | `templates/skills/file-lock/scripts/acquire_lock.{ps1,sh}` |
-| 2 | Enforce lock-ownership verification and consistent lock-path computation in both release scripts | M | high | `templates/skills/file-lock/scripts/release_lock.{ps1,sh}` |
+| 2 | Enforce token-based lock-ownership verification and consistent lock-path computation in both release scripts | M | high | `templates/skills/file-lock/scripts/{acquire,release}_lock.{ps1,sh}` |
 | 3 | Re-copy hardened scripts to `scripts/`, refresh manifest checksums, and add a template↔installed parity test | S | medium | `scripts/**`, `.autoharness/harness-manifest.yaml`, `tests/` |
+| 4 | Update the file-lock skill and concurrency instruction contracts (template + dogfood) to the new CLI, exit codes, token model, and honest guarantee | M | medium | `templates/skills/file-lock/SKILL.md.tmpl`, `.github/skills/file-lock/SKILL.md`, `templates/instructions/concurrency.instructions.md.tmpl`, `.github/instructions/concurrency.instructions.md`, `.autoharness/harness-manifest.yaml` |
 
 Task 1 covers findings 1, 2, 3. Task 2 covers findings 4, 5, 6 — 6 travels with
 4/5 because the root-level path defect is a *release-side lock-path* bug and
-fixing ownership requires reading the lock at the correct path first.
+fixing ownership requires reading the lock at the correct path first. Task 2 also
+touches the acquire scripts because **O2**'s token is *generated* at acquire time;
+it is sequenced after task 1 so the two do not collide on those files. Task 4 is
+the **H6** documentation-contract task and is sequenced last so it documents the
+contract as actually shipped. Task 0 blocks 1 and 2 (**H9**).
 
 ## Non-goals
 
 * No redesign of the acquire race handling — `FileMode::CreateNew` is correct.
-* No new lock-file format field. `agent` and `pid` are already recorded; this
-  work reads what is already written.
-* No change to `concurrency.instructions.md`. The policy is correct; the scripts
-  are what disagree with it.
+* No new lock-file format field **beyond `owner_digest`**, which **O2** requires.
+  `agent` and `pid` are already recorded and their meaning is unchanged (**O1**,
+  **O4**).
+* **No change to the *intent* of `concurrency.instructions.md`.** The policy is
+  correct; the scripts are what disagree with it. Its *text* is nonetheless
+  updated to document the token mechanism, the `--force` procedure, and the
+  **O3** bound (**H6**, **H7**) — the earlier blanket "no change" was a scope
+  error, corrected in cycle 1.
 * No automatic stale-lock reaping.
+* **No claim of adversarial security.** These are advisory locks (**O3**).
+* No cross-machine, network, or kernel-level locking.
+
+## Deferred scope (P-021, captured not silently broadened)
+
+| Ref | Capture | Residual risk if never built |
+|---|---|---|
+| DSE-S3-1 | A tamper-evident or OS-enforced lock (mandatory file locking, a lock daemon, or an OS-level advisory lock held by a live handle). This is the only class of mechanism that would defend against a hostile local process, and it is a genuinely new product capability well beyond a script hardening. | **Accepted, low.** The residual exposure is a local process that *deliberately* bypasses the supplied tooling. The threat model here is concurrent cooperating agents, not a local adversary; **O3** and **H7** ensure no shipped text claims otherwise, so nobody relies on a guarantee that is not there. |
+| DSE-S3-2 | A shared cross-platform path-containment utility for the whole harness (carried forward from cycle 0 finding 7). | **Low.** Four scripts each carry their own containment logic and could drift. **H5** plus task 3's parity test bound the drift to something a test detects. |
 
 ## Verification
 
@@ -140,3 +260,43 @@ root's prefix, root-level file present, root-level file missing.
 
 **Verdict: PASS.** 1 P0 and 3 P1 raised; all four resolved before harvest. Zero
 unresolved P0/P1. Two review-fix cycles of three.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+Every selected persona was covered inline against the Persona Rubric Adapter and normalized to
+the P0–P3 scale; no persona was skipped. Declared, not silent.
+
+**Plan hardening (P-006): required — `yes`. Satisfied.** **H1**–**H9** and **O1**–**O4** are
+binding and each is propagated into a task acceptance criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Security | inline persona pass | 1 P0 + 2 P1 (cycle 0), 1 P1 (cycle 1) |
+| Correctness | inline persona pass | 1 P1 (cycle 0) |
+| Template integrity | inline persona pass | 1 P2 (cycle 0) |
+| Maintainability | inline persona pass | 1 P2 (cycle 0) |
+| Scope boundary | inline persona pass | 1 P2 (cycle 0), 1 P1 (cycle 1) |
+| Constitution | inline persona pass | 1 P3 (cycle 0), 1 P1 (cycle 1) |
+| Schema/CLI/docs coupling | inline persona pass | 1 P1 (cycle 1) |
+| Architecture | inline persona pass | 1 P2 (cycle 1) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 9 | Security | **P1** | Cycle 0's finding-4 resolution made the recorded `agent` value the primary authorisation input. `AGENT_NAME` is a caller-controlled env var with an `unknown` default (`acquire_lock.ps1:38`, `acquire_lock.sh:32`), so this treated a spoofable label as a security identity and would have shipped a false guarantee. | **Resolved by O1–O4.** `agent` is reframed as an anti-accident/courtesy identity with no authorisation weight (**O1**). A structurally stronger acquisition-token capability is adopted **within this contract** — digest stored in the lock file, token returned to the caller (**O2**). The advisory bound is stated explicitly so no adversarial claim survives (**O3**), and `pid` is corroborating only (**O4**). |
+| 10 | Schema/CLI/docs coupling | **P1** | The shipment changes the scripts' published CLI signature and exit-code contract while declaring the documenting surfaces out of scope. `templates/skills/file-lock/SKILL.md.tmpl:30` would be left asserting *the opposite* of the shipped release semantics. | **Resolved by H6.** Six coupled surfaces (skill template + dogfood, concurrency instruction template + dogfood, manifest checksums) are pulled into the shipment as task 4, sequenced last, under **H3**'s no-partial-state rule. |
+| 11 | Constitution | **P1** | Tasks rewriting deletion and path-resolution logic carried no explicit safety-mode declaration. | **Resolved by H8**: `careful` for all tasks; `freeze-scope` on `scripts/` for tasks 1 and 2. |
+| 12 | Correctness / Maintainability | **P1** | Tasks 1 and 2 are `M`/`high`, tripping the complexity axis of the two-axis gate with no split and no de-risking step. | **Resolved by H9.** Splitting is unavailable (**H3** forbids containment-without-ownership; a platform split violates **H5**), so a blocking de-risking prerequisite is adopted: **task 0** records the two-platform behaviour matrix for the seven escape cases before either task begins, and its matrix supplies their test vectors. |
+| 13 | Architecture | P2 | Task 2 now also edits the acquire scripts (token generation), creating a same-file collision risk with task 1. | Sequenced 1→2 explicitly, and recorded in the task table's note. Same mitigation shape as SHIP-1's **H5**. |
+
+**Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved; 1 P2 dispositioned.
+Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.

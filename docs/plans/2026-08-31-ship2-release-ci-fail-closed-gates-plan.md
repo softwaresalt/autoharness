@@ -107,6 +107,26 @@ Triggered: CI workflow control flow on the irreversible publish path.
   or any secret handling.
 * **H4 (binding, from R4 below).** The regression test must not perform network
   I/O. It exercises the probe logic against injected responses.
+* **H5 (binding) — TDD sequencing: the red test lands FIRST.** Task 2's detail
+  already demands "**Red before green**: the 200 case must be demonstrated failing
+  against the pre-fix workflow content", but cycle 0 ordered task 1 (the fix)
+  ahead of task 2 (the test), which makes that impossible to honour. Corrected
+  execution order, matching the queued task order:
+  1. **Task 2 first** (`152.002-T`): extract the probe body into an importable
+     helper and write the three cases. The 200-response case **MUST be observed
+     failing** against the current fail-open `else:` branch. **Record the observed
+     red result.**
+  2. **Task 1 second** (`152.001-T`): replace the `else:` branch with the
+     fail-closed exit. Task 2's 200 case turns green.
+  3. **Task 3 last** (`152.003-T`): independent of both.
+
+  The extraction in step 1 is behaviour-preserving, so the red result is a genuine
+  observation of the defect and not an artefact of the refactor.
+* **H6 (binding) — safety mode.** Every task enters `careful`. Task 1
+  additionally enters `freeze-scope` bounded to the pre-publish probe step of
+  `.github/workflows/release.yml` — it edits the irreversible publish path, where
+  an over-broad edit is the risk, and **H3** already forbids touching the pinned
+  action SHA, trigger, permissions, or secrets.
 
 ## Tasks
 
@@ -175,3 +195,40 @@ YAML/workflow parse on `release.yml`; markdownlint on changed docs.
 
 **Verdict: PASS.** 1 P0 and 2 P1 raised; all three resolved before harvest. Zero
 unresolved P0/P1. Two review-fix cycles of three.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+Every selected persona was covered inline against the Persona Rubric Adapter and normalized to
+the P0–P3 scale; no persona was skipped. Declared, not silent.
+
+**Plan hardening (P-006): required — `yes`. Satisfied.** **H1**–**H6** are binding
+and each is propagated into a task acceptance criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Security | inline persona pass | 1 P0 (cycle 0) |
+| Correctness | inline persona pass | 2 P1 (cycle 0), 1 P1 (cycle 1) |
+| Maintainability | inline persona pass | 1 P2 (cycle 0) |
+| Scope boundary | inline persona pass | 1 P2 (cycle 0) |
+| Architecture | inline persona pass | 1 P2 (cycle 0) |
+| Constitution | inline persona pass | 1 P3 (cycle 0), 1 P1 (cycle 1) |
+| Template integrity | inline persona pass | — (no template surface) |
+| Schema/CLI/docs coupling | inline persona pass | — (no finding) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 8 | Correctness | **P1** | Task 2's detail mandates red-before-green on the 200-response case, but the task order put the fix (task 1) ahead of the test (task 2), making the required red observation impossible. | **Resolved by H5.** Execution order is now 2 → 1 → 3, matching the queued order, with the red result on the 200 case explicitly recorded before task 1 begins. |
+| 9 | Constitution | **P1** | No safety mode declared on a shipment that edits the irreversible release/publish path. | **Resolved by H6**: `careful` on all tasks, plus `freeze-scope` bounded to the pre-publish probe step for task 1. |
+
+**Verdict: PASS.** Cycle 1: 2 P1 raised, both resolved. Cumulative: **zero
+unresolved P0/P1**. Two review-fix cycles of three consumed.

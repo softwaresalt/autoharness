@@ -107,6 +107,28 @@ dogfood mirror.
   valid; backward compatible.
 * **H5.** Task 4 touches `tests/test_verify_workspace.py`, as does task 3. They
   are sequenced 3→4 to avoid a same-file collision inside one shipment.
+* **H6 (binding) — TDD sequencing: the red test lands FIRST.** **H3** requires the
+  render-aware test to be observed failing on exactly the two named assertions
+  *before* they are fixed. Cycle 0's task numbering contradicted that by placing
+  the two fixes (tasks 1 and 2) ahead of the harness and sweep (3a/3b). Corrected
+  execution order, which is the order the harvested tasks are queued in:
+  1. **3a — render harness** (`151.003-T`). No assertion outcome depends on it yet.
+  2. **3b — assertion sweep** (`151.004-T`). Run it here: it **MUST fail** on
+     `closure_source_artifact_cleanup` and `ship_release_closure_sequence`, and on
+     nothing else. **Record the observed red result.** A sweep that does not go red
+     at this point is not measuring the templates and the shipment halts.
+  3. **1 — defect 1 template fix** (`151.001-T`). 3b's first failure turns green.
+  4. **2 — defect 2 verifier/mirror fix** (`151.002-T`). 3b's second failure turns
+     green.
+  5. **4 — comment correction** (`151.005-T`). Independent; last.
+
+  Task 3b's charter is unchanged — it **detects**, it does not remediate (cycle 0
+  finding 4). Any *third* assertion it reveals red is a P-021 capture and is
+  **not** fixed here; the shipment records it and proceeds.
+* **H7 (binding) — safety mode.** Every task enters `careful`. Task 3b
+  additionally enters `freeze-scope` bounded to `tests/`, because a sweep that
+  reveals unrelated failures is precisely where scope creep starts (cycle 0
+  finding 4).
 
 ## Tasks
 
@@ -130,14 +152,39 @@ gate:
 
 ### Task 1 detail
 
-Add a `{{FEATURE_...}}`-gated **Source artifact cleanup** subsection to the
-closure-artifact MUST-include list at Step 2 (currently lines 65-84 of the
-124-line template). It must name `custom_fields.source_stash_id` and
-`custom_fields.source_deliberation_id` and require the archived-and-skipped ID
-record, matching the producer contract at `_ship.agent.md.tmpl:856-859`. Mirror
-into `.github/skills/operational-closure/SKILL.md`. Acceptance: the three tokens
-are present in both files and `closure_source_artifact_cleanup` passes against
-the rendered template, not only against the installed copy.
+Add a **Source artifact cleanup** subsection to the closure-artifact MUST-include
+list at Step 2 (currently lines 65-84 of the 124-line template). It must name
+`custom_fields.source_stash_id` and `custom_fields.source_deliberation_id` and
+require the archived-and-skipped ID record, matching the producer contract at
+`_ship.agent.md.tmpl:856-859`. Mirror into
+`.github/skills/operational-closure/SKILL.md`.
+
+**Placeholder specification (corrected in review-fix cycle 1 — binding).** Cycle 0
+described this as a "`{{FEATURE_...}}`-gated" subsection. **`{{FEATURE_...}}` is
+not a real placeholder family — no such variable exists in any autoharness
+template or in the install-harness variable tables**, so that instruction was
+unimplementable as written and would have produced an unresolved `{{...}}` in
+every render. Specified concretely:
+
+* The **only** placeholder this subsection may introduce is **`{{BACKLOG_DIRECTORY}}`**,
+  the real variable documented at `.github/skills/install-harness/SKILL.md:205`
+  (source `backlog_tool.directory`; resolves to `.backlogit` for a backlogit
+  composition and `backlog` for a `backlog-md` composition).
+* `{{BACKLOG_DIRECTORY}}` **always resolves** — every composition declares a backlog
+  directory, including the `manual` one. It therefore introduces **no** conditional
+  gating and **no** unresolved-variable risk, which is exactly what cycle 0's
+  finding 1 was worried about.
+* The subsection is written as **unconditional prose**. `source_stash_id` and
+  `source_deliberation_id` are `custom_fields` names in the closure artifact, not
+  variables, and are written literally.
+* The template already uses `{{DOCS_CLOSURE}}`; no new placeholder beyond
+  `{{BACKLOG_DIRECTORY}}` may be introduced by this task.
+
+Acceptance: the three tokens (`Source artifact cleanup`, `source_stash_id`,
+`source_deliberation_id`) are present in both files;
+`closure_source_artifact_cleanup` passes against the **rendered** template, not
+only against the installed copy; and a render under **both** the backlogit and the
+non-backlogit variable sets leaves **no unresolved `{{`** anywhere in the output.
 
 ### Task 2 detail
 
@@ -160,6 +207,29 @@ do not relax the guard, do not touch `.mcp.json`, and do not delete
 (`git ls-files` returns empty) and is therefore not expressible as a repository
 change at all.
 
+## Non-goals
+
+Added in review-fix cycle 1 for structural parity with the other eight plans; these
+restate and consolidate the exclusions already recorded in §Scope and §Hardening,
+and add the cycle-1 ones.
+
+* No relaxation of the `closure_source_artifact_cleanup` verifier assertion —
+  defect 1 is fixed **template-side** (§Direction), because four documentation
+  surfaces already describe the intended contract.
+* No change to the `_ship.agent.md` template wording for defect 2 — the newer
+  prose is better; the **verifier** moves to meet it.
+* **No `{{FEATURE_...}}` or any other new placeholder.** The only placeholder task 1
+  may introduce is `{{BACKLOG_DIRECTORY}}` (Task 1 detail).
+* No schema, manifest topology, registry, or agent-behaviour change (**H4**).
+* No remediation by task 3b — it **detects** only. A third assertion it reveals red
+  is a P-021 capture, explicitly not fixed here.
+* No fix for the two operator-reported failures that are not recoverable from this
+  repository, and no bundling of the four wording-brittle-but-satisfiable
+  assertions (§Scope, per `053E2BD2`).
+* No change to any assertion, no relaxation of the `.mcp.json` `env` guard, no edit
+  to `.mcp.json`, and no deletion of `src/autoharness/supervise/` (Task 4 detail).
+* No answer to any reserved `B698F01B` question.
+
 ## Verification
 
 `PYTHONPATH=src python -m unittest discover -s tests` (the authoritative gate,
@@ -180,3 +250,41 @@ named assertions.
 
 **Verdict: PASS.** 2 P1 raised, 2 resolved. Zero unresolved P0/P1. One review-fix
 cycle of three.
+
+## Plan Review
+
+```text
+dispatch_mode: single-agent-declared-degradation
+decision: PASS
+```
+
+`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent persona pass.`
+Every selected persona was covered inline against the Persona Rubric Adapter and normalized to
+the P0–P3 scale; no persona was skipped. Declared, not silent.
+
+**Plan hardening (P-006): required — `yes`. Satisfied.** **H1**–**H7** are binding
+and each is propagated into a task acceptance criterion.
+
+### Persona coverage
+
+| Persona | Mode | Findings |
+|---|---|---|
+| Template integrity | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Correctness | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Schema/CLI/docs coupling | inline persona pass | 1 P2 (cycle 0) |
+| Scope boundary | inline persona pass | 1 P2 (cycle 0) |
+| Maintainability | inline persona pass | 1 P2 (cycle 0) |
+| Security | inline persona pass | 1 P3 (cycle 0) |
+| Constitution | inline persona pass | 1 P3 (cycle 0), 1 P1 (cycle 1) |
+| Architecture | inline persona pass | — (no finding) |
+
+### Review-fix cycle 1 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 8 | Template integrity | **P1** | Task 1 specified a "`{{FEATURE_...}}`-gated" subsection. No `{{FEATURE_...}}` placeholder family exists in any template or in the install-harness variable tables, so the instruction was unimplementable and would have emitted an unresolved `{{...}}` in every render — the exact failure cycle-0 finding 1 tried to prevent. | **Resolved.** The task now names the single real placeholder **`{{BACKLOG_DIRECTORY}}`** (`install-harness/SKILL.md:205`), notes that it always resolves so no conditional gating is introduced, and forbids any other new placeholder. The no-unresolved-`{{` acceptance under both variable sets is retained. |
+| 9 | Correctness | **P1** | **H3** demands red-before-green, but the task order placed both fixes ahead of the test that must observe them failing. Executed as numbered, the sweep would have been authored against an already-fixed tree and proved nothing. | **Resolved by H6.** Execution order is now 3a → 3b (**record the red**) → 1 → 2 → 4, matching the queued task order, with an explicit halt if 3b does not go red on exactly the two named assertions. |
+| 10 | Constitution | **P1** | No safety mode declared for a shipment whose sweep task deliberately runs 71 assertions across the whole template corpus. | **Resolved by H7**: `careful` on all tasks, plus `freeze-scope` on `tests/` for the sweep task. |
+
+**Verdict: PASS.** Cycle 1: 3 P1 raised, all 3 resolved. Cumulative: **zero
+unresolved P0/P1**. Two review-fix cycles of three consumed.
