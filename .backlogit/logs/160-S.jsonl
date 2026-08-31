@@ -1,0 +1,1 @@
+{"timestamp":"2026-08-31T15:20:07.9649945-07:00","actor":"backlogit","item_id":"160-S","event_type":"shipment_created","delta":{"items":["152-F","152.001-T","152.002-T","152.003-T"],"title":"SHIP-2 — Release and CI pipeline fail-closed gates"}}
