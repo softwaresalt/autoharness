@@ -136,10 +136,35 @@ Triggered: the registry is the resolution substrate for every generated agent.
   explicitly confirm that `features.sizing: true` is present after regeneration,
   and task 2's parity test must cover it. **H4**'s SHIP-7 → SHIP-8 ordering is
   what makes SHIP-8's gate non-inert.
-* **H9 (binding) — safety mode.** Every task enters `careful`. Task 1
-  additionally enters `freeze-scope` bounded to `.autoharness/backlog-registry.yaml`,
-  because the registry is the resolution substrate for every generated agent and
-  **H2** requires any non-additive delta to halt rather than be absorbed.
+* **H9 (binding) — safety mode.** Every task enters `careful`, and this is
+  propagated into each executable task's own body, not merely declared here
+  (propagation performed in review-fix cycle 2). Task 1 additionally enters
+  `freeze-scope` bounded to `.autoharness/backlog-registry.yaml` **and its
+  `.autoharness/harness-manifest.yaml` checksum entry**, because the registry is
+  the resolution substrate for every generated agent and **H2** requires any
+  non-additive delta to halt rather than be absorbed.
+* **H10 (binding, added cycle 2) — manifest checksum coupling is part of the
+  regeneration, not a follow-up.** `.autoharness/backlog-registry.yaml` is a
+  **manifest-tracked artifact**. Regenerating it changes its content and therefore
+  its checksum, so a regeneration that does not refresh
+  `.autoharness/harness-manifest.yaml` leaves the workspace in a state where
+  **every subsequent `verify-harness` run fails** on manifest integrity. This is a
+  current **P0** blocker on task 1, not a hygiene nicety. Required, in strict order,
+  **within the same unit of work**:
+  1. Regenerate the registry from template (**H1**), after the **H2** additive-only
+     diff gate has passed.
+  2. **Refresh** the recorded checksum for `.autoharness/backlog-registry.yaml`
+     through the harness's own manifest-refresh path — never by hand-computing and
+     pasting a digest.
+  3. **Verify the coupling** by re-reading the manifest entry and confirming it
+     matches the regenerated file on disk.
+  4. Run `verify-harness` and confirm it passes.
+
+  The before/after checksum pair is recorded as evidence so the refresh is
+  auditable rather than asserted. **Splitting the checksum refresh into a later
+  task is forbidden** — the two are one atomic change. The same coupling applies to
+  SHIP-3 task 3 and SHIP-5's `155.004-T`; it is called out as P0 here because this
+  regeneration is unconditional.
 
 ## Tasks
 
@@ -217,7 +242,19 @@ and each is propagated into a task acceptance criterion.
 | D | Scope boundary | P2 | **H8** could be read as licence to add whatever feature flags SHIP-8 wants. | Bounded: **H8** names exactly one key (`sizing`), justified by measured installed↔template drift, and **H6** still forbids new backlog-md flags. Any other missing key surfaced by regeneration is reported under **H2**'s halt-for-review rule, not silently added. |
 
 **Verdict: PASS.** Cycle 1: 3 P1 raised, all 3 resolved; 1 P2 dispositioned.
-Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.
+Cumulative: **zero unresolved P0/P1**.
 
 **Cycle 0 verdict (preserved):** PASS — 1 P0 and 3 P1 raised; all four resolved
 before harvest. Zero unresolved P0/P1.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| E | Schema/CLI/docs coupling | **P0** | **Task 1 regenerates a manifest-tracked artifact without refreshing its manifest checksum.** `.autoharness/backlog-registry.yaml` is tracked in `.autoharness/harness-manifest.yaml`; regenerating it necessarily changes its checksum. Neither the plan nor the executable task required the refresh, so the shipment as written would leave the workspace failing **every** subsequent `verify-harness` run on manifest integrity — while SHIP-7 is itself a prerequisite of SHIP-8. A current P0 blocker. | **Resolved by H10.** The refresh is made part of the regeneration, in strict order — regenerate → refresh through the harness's own path → **verify the coupling by read-back** → `verify-harness` passes — with the before/after checksum pair recorded as evidence and splitting it into a later task explicitly forbidden. Propagated into `157.001-T` as mandatory acceptance, and the same coupling is made explicit in SHIP-3's `153.003-T`. |
+| F | Correctness | P2 | `157.002-T`'s parity test was ordered after task 1 only in narrative. With no encoded edge it could have been executed against the **truncated** registry — i.e. authored against the very drift it exists to detect. | **Resolved.** `157.002-T` is now encoded as blocked by `157.001-T`, and the task body states why. Verified present in the dependency graph and acyclic. |
+| G | Constitution | P2 | **H9** declared `careful` for every task, but none of the three executable tasks carried a safety-mode line in its own body. | **Resolved.** All three tasks now declare their safety mode inline; task 1's `freeze-scope` is extended to cover its manifest checksum entry, matching **H10**. |
+
+**Verdict: PASS.** Cycle 2: 1 P0 and 2 P2 raised, all 3 resolved. Cumulative:
+**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
+review is the final independent disposition cycle.

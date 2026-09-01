@@ -95,6 +95,48 @@ Therefore, restated honestly:
   a spoofed `AGENT_NAME`. It needs no new infrastructure: one random value, one
   digest, one argument. Storing the digest rather than the token is what makes it
   stronger than `agent`; reading the lock file no longer yields the credential.
+
+  **Token contract, PINNED in review-fix cycle 2 (TC1–TC6, all binding).** Cycle 1
+  said only "high-entropy random token" and "digest". That is not an implementable
+  cross-platform contract: it permits the PowerShell and POSIX variants to pick
+  different — and possibly weak — primitives, and a non-CSPRNG token silently
+  destroys the capability property the whole mechanism rests on.
+
+  * **TC1 — CSPRNG only, minimum 128 bits.** At least 128 bits (16 bytes) of
+    entropy from a cryptographically secure source. PowerShell:
+    `System.Security.Cryptography.RandomNumberGenerator`. POSIX: `/dev/urandom` or
+    `openssl rand`. **Forbidden on both:** `Get-Random`, `$RANDOM`, `awk rand()`,
+    date/time- or pid-derived values, and any non-CSPRNG PRNG.
+  * **TC2 — encoding.** Lowercase hex (or unpadded base64url), fixed length,
+    identical on both platforms, so the token is a single shell-safe word.
+  * **TC3 — digest: SHA-256 or equivalent-or-stronger.** `owner_digest` is
+    SHA-256 (or a stronger SHA-2/SHA-3 member) of the token's canonical encoded
+    form, hex-lowercase. **MD5 and SHA-1 are forbidden.** POSIX uses `sha256sum`
+    with a documented `shasum -a 256` fallback; if neither exists the script
+    **fails closed** with a named remedy rather than downgrading the digest or
+    storing the token in plaintext.
+  * **TC4 — identical cross-platform semantics** (extends **H5**): a token
+    acquired under one variant must verify under the other, so canonical encoding,
+    trailing-newline handling, and case are specified exactly and covered by a
+    cross-variant vector in task 0's matrix.
+  * **TC5 — exposure and safe handling, documented rather than assumed.** The
+    token is a short-lived secret returned on **stdout** so the caller can capture
+    it. The shipped documentation must state, and the scripts must honour:
+    (a) stdout capture means the token can land in CI logs, transcripts, shell
+    history, and agent conversation logs if the caller echoes it — callers must
+    capture rather than print, and the scripts must never re-echo the token in any
+    status, verbose, or error output; (b) the token is never written to the lock
+    file, to any log the scripts create, or to telemetry — only the digest is
+    persisted; (c) `LOCK_TOKEN` is visible to child processes and, on some systems,
+    to same-user processes, so both `--token` and the env var are supported and
+    their exposure difference is stated; (d) refusal and staleness messages print
+    lock path, `agent`, `pid` and age but **never** the token or `owner_digest`;
+    (e) these exposure paths are acceptable **only because** this is an
+    anti-accident capability for an *advisory* lock (**O3**) — leakage degrades
+    the anti-accident property without creating an adversarial exposure that did
+    not already exist.
+  * **TC6 — no new lock-file field beyond `owner_digest`**, and no change to the
+    acquire race handling.
 * **O3 — the honest bound, stated so no adversarial claim survives.** These are
   **advisory** locks: an ordinary file in a workspace the caller can write. A
   local process with write access can delete the lock file directly and never
@@ -210,10 +252,19 @@ post-fix behaviour. Tasks 1 and 2 consume the matrix as their test vectors.
 Task 1 covers findings 1, 2, 3. Task 2 covers findings 4, 5, 6 — 6 travels with
 4/5 because the root-level path defect is a *release-side lock-path* bug and
 fixing ownership requires reading the lock at the correct path first. Task 2 also
-touches the acquire scripts because **O2**'s token is *generated* at acquire time;
-it is sequenced after task 1 so the two do not collide on those files. Task 4 is
-the **H6** documentation-contract task and is sequenced last so it documents the
-contract as actually shipped. Task 0 blocks 1 and 2 (**H9**).
+touches the acquire scripts because **O2**'s token is *generated* at acquire time.
+
+**Task 1 → task 2 is a MACHINE dependency, corrected in review-fix cycle 2.**
+Cycle 1 expressed this sequencing only as prose ("sequenced 1→2 explicitly, and
+recorded in the task table's note"). Prose does not sequence anything a scheduler
+reads: both tasks edit `acquire_lock.ps1` and `acquire_lock.sh`, so without an
+encoded edge they could be picked up concurrently or out of order and collide on
+the same files. `153.002-T` is now encoded as blocked by **both** `153.004-T` (the
+behaviour matrix, **H9**, which supplies its test vectors) **and** `153.001-T` (the
+acquire-script containment rewrite). Task 4 is the **H6** documentation-contract
+task and is sequenced last so it documents the contract as actually shipped —
+including the **TC5** exposure and safe-handling guidance verbatim. Task 0 blocks
+1 and 2 (**H9**).
 
 ## Non-goals
 
@@ -244,6 +295,15 @@ contract as actually shipped. Task 0 blocks 1 and 2 (**H9**).
 containment cases on both platforms: absolute path outside root, `../` traversal,
 symlinked directory pointing outside, sibling directory whose name shares the
 root's prefix, root-level file present, root-level file missing.
+
+**Token contract verification (TC1–TC6, added cycle 2).** Assert the CSPRNG source
+and the 128-bit minimum on both platforms; assert the forbidden primitives
+(`Get-Random`, `$RANDOM`, `awk rand()`, time/pid-derived values) appear in neither
+script; assert the digest is SHA-256-or-stronger and that MD5/SHA-1 appear nowhere;
+assert the no-SHA-256-utility path **fails closed** rather than downgrading; assert
+a token acquired under one variant verifies under the other (**TC4**); and assert
+that no emitted message, log line, or telemetry record contains the token or
+`owner_digest` (**TC5b**, **TC5d**).
 
 ## Plan review — multi-persona adversarial gate
 
@@ -296,7 +356,20 @@ binding and each is propagated into a task acceptance criterion.
 | 10 | Schema/CLI/docs coupling | **P1** | The shipment changes the scripts' published CLI signature and exit-code contract while declaring the documenting surfaces out of scope. `templates/skills/file-lock/SKILL.md.tmpl:30` would be left asserting *the opposite* of the shipped release semantics. | **Resolved by H6.** Six coupled surfaces (skill template + dogfood, concurrency instruction template + dogfood, manifest checksums) are pulled into the shipment as task 4, sequenced last, under **H3**'s no-partial-state rule. |
 | 11 | Constitution | **P1** | Tasks rewriting deletion and path-resolution logic carried no explicit safety-mode declaration. | **Resolved by H8**: `careful` for all tasks; `freeze-scope` on `scripts/` for tasks 1 and 2. |
 | 12 | Correctness / Maintainability | **P1** | Tasks 1 and 2 are `M`/`high`, tripping the complexity axis of the two-axis gate with no split and no de-risking step. | **Resolved by H9.** Splitting is unavailable (**H3** forbids containment-without-ownership; a platform split violates **H5**), so a blocking de-risking prerequisite is adopted: **task 0** records the two-platform behaviour matrix for the seven escape cases before either task begins, and its matrix supplies their test vectors. |
-| 13 | Architecture | P2 | Task 2 now also edits the acquire scripts (token generation), creating a same-file collision risk with task 1. | Sequenced 1→2 explicitly, and recorded in the task table's note. Same mitigation shape as SHIP-1's **H5**. |
+| 13 | Architecture | P2 | Task 2 now also edits the acquire scripts (token generation), creating a same-file collision risk with task 1. | Sequenced 1→2 explicitly, and recorded in the task table's note. Same mitigation shape as SHIP-1's **H5**. **Superseded in cycle 2 by finding 15 — prose sequencing was insufficient and the edge is now machine-encoded.** |
 
 **Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved; 1 P2 dispositioned.
-Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.
+Cumulative: **zero unresolved P0/P1**.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 14 | Security | **P1** | **O2's token contract was unimplementable as specified.** "High-entropy random token" and "digest" name no primitive, no entropy floor, and no digest algorithm, so the PowerShell and POSIX variants could legally ship different and possibly weak choices — `Get-Random`/`$RANDOM` are the obvious reach on each platform and are *not* CSPRNGs. A guessable token silently voids the capability property the entire ownership model rests on, while the shipped documentation would still claim the stronger guarantee. | **Resolved by TC1–TC4/TC6.** CSPRNG-only with a **128-bit minimum**, named per-platform sources, an explicit forbidden-primitive list, fixed identical encoding, **SHA-256-or-stronger** digest with MD5/SHA-1 forbidden and a fail-closed path when no SHA-256 utility exists, and a cross-variant interoperability vector. Each is mandatory acceptance on `153.002-T` with a named assertion. |
+| 15 | Correctness | **P1** | The task 1 → task 2 ordering that prevents a same-file collision on the acquire scripts existed **only as prose**. Nothing in the machine graph stopped `153.002-T` from being scheduled first or concurrently, and cycle 1's own finding 13 resolution ("sequenced explicitly … recorded in the task table's note") is exactly the comment-not-edge shape this portfolio rejects elsewhere. | **Resolved.** `153.002-T` is now encoded as blocked by **both** `153.004-T` and `153.001-T`. Verified present in the dependency graph and confirmed acyclic. |
+| 16 | Security | P2 | The token is returned on **stdout**, but no plan text addressed where that stdout goes. In CI and agent transcripts an uncaptured or echoed token lands in logs, and `LOCK_TOKEN` is readable by child processes — neither exposure was documented, so implementers would have had to invent handling rules. | **Resolved by TC5.** Exposure paths are enumerated, the scripts are forbidden from re-echoing the token or printing `owner_digest` in any message, the env-var-versus-argument exposure difference is stated so callers can choose, and the documentation must record that these paths are tolerable only under the **O3** advisory bound. Task 4 carries the guidance verbatim. |
+| 17 | Constitution | P2 | **H8** declared `careful` for every task, but `153.001-T` and `153.003-T` carried no safety-mode line in their own bodies — the mode existed only in the plan. | **Resolved.** Both tasks now declare their safety mode inline; `153.001-T` carries `careful` + `freeze-scope` bounded to `templates/skills/file-lock/scripts/`, matching **H8**. |
+
+**Verdict: PASS.** Cycle 2: 2 P1 and 2 P2 raised, all 4 resolved. Cumulative:
+**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
+review is the final independent disposition cycle.

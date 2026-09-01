@@ -380,11 +380,32 @@ bug→review→feature→task→spike:
 | 8 | **SHIP-8** Stage sizing enforcement | composability | Bounds shipment/session growth. Depends on 7. |
 | 9 | **SHIP-9** traceability hygiene | documentation | Policy #4: features outrank documentation, and this is documentation/traceability. Last. |
 
-Dependency edges are genuine, not decorative: **7 → 8** is the only hard
-prerequisite (SHIP-8 cannot fail closed on a flag SHIP-7 has not yet installed).
-The remaining edges are sequencing edges expressing the priority order under
-P-001 single-release-unit discipline, which is what the operator asked to be
-encoded.
+Dependency edges are genuine, not decorative — and they are of **two distinct
+kinds**, which review-fix cycle 2 corrects this section for having conflated.
+
+**Genuine content dependencies (two, not one).** These are real artifact
+dependencies: the dependent shipment consumes something the prerequisite produces,
+and reordering them would break the work rather than merely reorder it.
+
+| Edge | Why it is a content dependency | Where it is encoded |
+|---|---|---|
+| **SHIP-7 → SHIP-8** | SHIP-8's fail-closed harvest gate arms on the **advertised** `features.sizing` flag, which SHIP-7 is what installs. Run before SHIP-7, SHIP-8's gate is present but permanently inert. | Shipment-level `blocks`: `166-S` blocked by `165-S`. No task-level edge exists or is needed. |
+| **SHIP-5 → SHIP-9** | SHIP-9's `159.003-T` acceptance **requires the strengthened frontmatter truncation guard** that SHIP-5's `155.003-T` delivers (SHIP-5 plan **H4** / SHIP-9 plan **H4**). It is a consumed artifact, not an ordering preference. | Task-level `blocks`: `159.003-T` blocked by `155.003-T` — a genuine **cross-shipment** task edge, encoded despite the shipments being non-adjacent in the chain. |
+
+Cycle 0 and cycle 1 both stated that "**7 → 8** is the only hard prerequisite."
+**That was wrong**: the SHIP-5 → SHIP-9 artifact dependency was already encoded as
+a real cross-shipment task edge and described as such in both plans, so the durable
+audit text understated the graph it was meant to describe.
+
+**Priority-only chain edges (the remaining seven).** The shipment chain
+`159-S → 160-S → … → 167-S` expresses the **priority order** under P-001
+single-release-unit discipline, which is what the operator asked to be encoded.
+Apart from `165-S → 166-S`, which coincides with the SHIP-7 → SHIP-8 content
+dependency above, these edges are **sequencing, not consumption**: no shipment in
+the chain reads an artifact the previous one produces. They are real constraints on
+execution order, but they encode a *decision about priority*, not a *fact about
+artifacts* — and a future re-prioritisation may revise them without breaking any
+work, whereas revising either content dependency would.
 
 ## Plan-hardening triggers (P-006)
 
@@ -425,10 +446,17 @@ Zero unresolved P0/P1. Two review-fix cycles used of three.
 
 ## Genuine out-of-scope observations (P-021 capture candidates, NOT acted on)
 
-Recorded here for visibility only. **None of these were captured as new stash
-entries and none are part of this run.** Capture is Ship's C2 duty at the moment
-an authorized change is being made; there is no authorized change here to defer
-*from*.
+Recorded here for visibility only. **The observations numbered 1–3 below were not
+captured as new stash entries and are not part of this run.** Capture is Ship's C2
+duty at the moment an authorized change is being made; there was no authorized
+change to defer *from* when they were recorded.
+
+> **Review-fix cycle 2 addendum.** Cycle 2 *was* an authorized change, and its
+> review surfaced three genuine out-of-scope findings. Those **were** captured as
+> `DEFERRED SCOPE EXPANSION` stash entries with full C2 provenance and provisional
+> priority, and were deliberately **not fixed** in this cycle per explicit operator
+> instruction. They are listed as items 4–6 and are **not** part of
+> `DARK_MODE_SCOPE`.
 
 1. `docs/decisions/2026-08-30-pip-install-autoharness-version-ceiling-spike.md`
    (untracked, part of this run's inherited artifacts) concludes with
@@ -446,6 +474,30 @@ an authorized change is being made; there is no authorized change here to defer
    **not recoverable from this repository** and lists the exact target-workspace
    evidence needed. SHIP-1 fixes the two that are provable here and does not guess
    the other two.
+4. **`477D37BD` (captured cycle 2, `bug`, provisional priority `low`)** —
+   Template Integrity flagged a `LEGACY_ESCALATION_*` vs `ESCALATION_*` placeholder
+   mismatch in `templates/harness-config.yaml.tmpl`. **Pre-existing and out of
+   diff.** A read-only verification recorded in the entry indicates the split is
+   *intentional and documented* (`install-harness/SKILL.md:435-446` and `:1597`
+   define the collapsed prose-only family and the raw storage family separately,
+   and the separation exists to prevent the PR #316 flat+nested ambiguity bug), so
+   the likely disposition is a mechanical guard plus point-of-use signposting
+   rather than a correction. Deferred, not fixed, per explicit operator
+   instruction.
+5. **`2FA67AAC` (captured cycle 2, `bug`, provisional priority `medium`)** —
+   AGENTS.md's "Quality Gates" block cites 6 of the 21 policies in the
+   authoritative workflow-policies set. **Pre-existing and out of diff.** Priority
+   is `medium` rather than `low` because the gap **widens when SHIP-5 lands**:
+   P-019 is absent from AGENTS.md and `155.004-T` amends it, and P-021 — the
+   governing policy for deferred capture itself — is absent too. Deferred, not
+   fixed, per explicit operator instruction.
+6. **`39A4DDEB` (captured cycle 2, `feature`, provisional priority `low`)** —
+   backlogit exposes no shipment-membership reordering operation, so the requested
+   stable-sort of `163-S` cannot be done through official operations. **External,
+   backlogit-owned.** The substantive half of that review finding — manifest order
+   being *readable as* an execution order — was closed in this document without a
+   tool change (see §"Queue ordering authority"); only the cosmetic sort and the
+   missing capability are deferred.
 
 ## Next-cursor handoff
 
@@ -487,6 +539,25 @@ silently rewritten without being named here.
 | C5 | **Queue ordering authority changed** (§"Queue ordering authority" below). | — |
 | C6 | **Checkpoint `progress.tasks_completed` corrected** (§"Checkpoint correction" below). | — |
 
+## Review-fix cycle 2 — corrections to this artifact (2026-08-31)
+
+A second independent local review blocked the publication diff at HEAD `99a3729d`.
+Corrections applied to this record, each named rather than silently rewritten:
+
+| # | Correction | Evidence |
+|---|---|---|
+| D1 | **Hard-dependency language corrected.** "**7 → 8** is the only hard prerequisite" was **wrong**. SHIP-5 → SHIP-9 is equally a genuine *content* dependency (`159.003-T` consumes the guard `155.003-T` delivers) and was already encoded as a cross-shipment task edge. Both are now distinguished from the seven priority-only chain edges in §"Priority ordering". | `159.003-T` `dependencies: [155.003-T]`; SHIP-5 plan **H4** and SHIP-9 plan **H4**. |
+| D2 | **Task-edge count corrected 18 → 23**, re-derived from the queue files rather than carried forward, with the three cycle-2 additions itemised. The 18 was already stale at cycle 1 (the graph held 20) and contradicted the session memory's own "20 `blocks` edges added". | Enumeration of `dependencies:` blocks across all 37 task files. |
+| D3 | **P-017 audit evidence completed** with the fields review found missing: fixed 48-ID scope, ordered shipment list, cursor (`last_completed: null`, `next: 159-S`), the five stop conditions, `visibility: intercom unavailable / local session`, the degraded-behaviour consequences, and **merge authorization provenance** (operator request `2026-08-31T14:47:45.808-07:00`, activation `2026-08-31T21:47:45Z`), with `merge_preauthorized: true` and `admin_authority: false` stated explicitly. | §"Dark-mode activation and authority record". |
+| D4 | **Shipment `items` recorded as a set, not an ordering**, with the tool-capability gap that prevents a stable sort recorded rather than papered over, and the misleading order-implies-execution reading removed. | §"Queue ordering authority"; `backlogit shipment --help` exposes no reorder operation. |
+| D5 | **Two out-of-scope Template Integrity findings captured as `DEFERRED SCOPE EXPANSION` stash entries** with full C2 provenance and provisional priority, and deliberately **not fixed** in this cycle per explicit operator instruction. | §"Genuine out-of-scope observations" and the stash entries themselves. |
+
+**Nine plans and 37 tasks were revised this cycle**; each plan carries its own
+"Review-fix cycle 2" findings table and verdict. Three review-fix cycles of three
+are now consumed, so the next review is the **final independent disposition
+cycle** — this record does not claim publication readiness beyond fitness for that
+review.
+
 ## Queue ordering authority (corrects the inconsistent queue metadata)
 
 The reviewed diff carried inconsistent queue metadata: `155.001-T` at position 36
@@ -516,9 +587,38 @@ is now fully expressed by, and only by:
 
 | Level | Authority |
 |---|---|
-| Between shipments | the `blocks` chain `159-S → 160-S → … → 167-S` |
-| Within a shipment | `blocks` edges between tasks (18 edges, enumerated in the session memory) |
+| Between shipments | the `blocks` chain `159-S → 160-S → … → 167-S` (8 shipment-level edges) |
+| Within and across shipments | `blocks` edges between tasks — **23 edges** as of review-fix cycle 2, enumerated in the session memory |
 | Membership | the shipment `items` manifest, verified against `size_composition.members` |
+
+**Task-edge count corrected in review-fix cycle 2: 18 → 23.** The figure of 18 was
+already stale when written — the graph carried 20 task edges at cycle 1, and the
+session memory's own note ("20 `blocks` edges added") disagreed with this section.
+Cycle 2 adds three more, each named below, and the count is now re-derived from the
+queue files rather than carried forward:
+
+| Added in | Edge | Why |
+|---|---|---|
+| cycle 2 | `153.002-T` blocked by `153.001-T` | Both tasks edit the **acquire** scripts (SHIP-3 **O2**'s token is generated at acquire time). Cycle 1 sequenced them in prose only, which constrains no scheduler. |
+| cycle 2 | `158.003-T` blocked by `158.001-T` | Created by the SHIP-8 split that repaired the impossible dependency model; encodes implementation → assembly. |
+| cycle 2 | `157.002-T` blocked by `157.001-T` | The registry parity test must run against the **regenerated** registry, not the truncated one it exists to detect. |
+
+**Verification performed this cycle.** All 37 tasks were topologically sorted from
+the queue files: 37 nodes, 37 visited, **acyclic**, with no edge referencing a
+non-existent prerequisite. `unsized` is **0** across every shipment.
+
+**Shipment `items` is a SET, not an ordering (recorded cycle 2).** Review asked for
+`163-S`'s membership to be stable-sorted. It is **not sorted**, and this is recorded
+rather than silently left: backlogit exposes **no reordering operation**.
+`shipment add` is idempotent for an existing member, and `shipment return-blocked`
+is the only removal path — it mutates item status to `blocked` and would require a
+status round-trip to undo, which is a worse outcome than an unsorted list. Rewriting
+the manifest by hand was rejected under the Data Ownership Rule. The manifest
+ordering therefore carries **no meaning**, and nothing reads it as an ordering:
+per the authority table above, execution order is derived **solely** from the
+`blocks` edges. The missing tool operation is captured as a deferred-scope-expansion
+entry; the misleading *claim* that manifest order implied execution order is what
+has been corrected, which is the substantive half of the finding.
 
 This is complete (every item's position is derivable), monotonic by construction
 (the graph is acyclic — backlogit rejects cycles at insert), and verifiable
@@ -554,16 +654,21 @@ the repository itself, independently of any checkpoint file.
 | Field | Value |
 |---|---|
 | `run_mode` | `DARK_MODE_ACTIVE` |
+| `merge_authorization_provenance` | operator request recorded at **`2026-08-31T14:47:45.808-07:00`**; dark-mode activation derived from it at **`2026-08-31T21:47:45Z`** (the same instant expressed in UTC). The authority for this run originates in that single operator request; no authority was self-granted, inferred, or carried over from a prior session. |
 | `dark_mode_activated_at` | `2026-08-31T21:47:45Z` |
 | `scope_mode` | fixed scope, no expansion |
-| `scope` | exactly 48 source IDs (43 stash + 5 queue), each triaged exactly once |
-| `shipment_order` | `159-S → 160-S → 161-S → 162-S → 163-S → 164-S → 165-S → 166-S → 167-S` |
-| `last_completed` | `null` |
-| `next` | `159-S` |
-| `merge_preauthorized` | `true` |
-| `admin_authority` | `false` |
+| `scope` | exactly **48** source IDs — **43 stash + 5 queue** — each triaged exactly once (full disposition table above; coverage check re-verified this cycle) |
+| `shipment_order` | `159-S → 160-S → 161-S → 162-S → 163-S → 164-S → 165-S → 166-S → 167-S` (ordered, 9 shipments, chain unchanged since harvest) |
+| `cursor.last_completed` | `null` — no shipment has been claimed, started, or completed; Ship has not begun `159-S` |
+| `cursor.next` | `159-S` (SHIP-1) — nothing blocks it |
+| `cursor.next_after_portfolio` | `C327A8DE` / portfolio unit **S2** (`D-ART`), the named next Stage cursor once this portfolio is discharged |
+| `stop_conditions` | **(1)** tasks attempted per session ≤ 20 → halt, checkpoint, exit; **(2)** 3 consecutive failures → escalate per P-013.6, then halt and prompt the operator; **(3)** 3 review-fix cycles per plan → accept remaining findings and move on; **(4)** an architecture decision that cannot safely be inferred from this repository → recorded halt, never a guess (this is what left `080-F` and `081-F` blocked); **(5)** any request for a destructive operation → halt, since `destructive_command_preauthorized: false`. |
+| `visibility` | **`intercom unavailable / local session`** — the intercom capability pack is not reachable in this run, so there are no broadcasts and no remote operator-visible phase records. Visibility is limited to the local session transcript plus the committed artifacts in this repository, which is precisely why this record exists in a committed decision document rather than only in a checkpoint. |
+| `degraded_behavior` | With intercom unavailable: **no** approval broadcast, **no** remote phase reporting, and **no** operator confirmation channel. The run therefore (a) proceeds only with non-destructive, in-scope work; (b) treats every operator-approval-requiring action as **refused**, not deferred — this is the general rule SHIP-4's Decision G3/G4 now encodes; (c) emits local `DARK_MODE` phase records in place of broadcasts; and (d) records every choice that would otherwise have been broadcast in the committed artifacts. `graphtor-docs` is `UNAVAILABLE`, so documentation questions fell back to local `docs/` and repository reads. `engram` and `backlogit` are `OK`. |
+| `merge_preauthorized` | **`true`** |
+| `admin_authority` | **`false`** |
 | `destructive_command_preauthorized` | `false` |
-| `intercom` | `DEGRADED` (no broadcasts; local `DARK_MODE` phase records emitted instead) |
+| `intercom` | `UNAVAILABLE / DEGRADED` (no broadcasts; local `DARK_MODE` phase records emitted instead) |
 | `graphtor-docs` | `UNAVAILABLE` (fell back to local `docs/` + repository reads) |
 | `engram` | `OK` |
 | `backlogit` | `OK` |

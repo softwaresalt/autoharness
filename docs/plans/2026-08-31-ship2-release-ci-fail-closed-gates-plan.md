@@ -231,4 +231,17 @@ and each is propagated into a task acceptance criterion.
 | 9 | Constitution | **P1** | No safety mode declared on a shipment that edits the irreversible release/publish path. | **Resolved by H6**: `careful` on all tasks, plus `freeze-scope` bounded to the pre-publish probe step for task 1. |
 
 **Verdict: PASS.** Cycle 1: 2 P1 raised, both resolved. Cumulative: **zero
-unresolved P0/P1**. Two review-fix cycles of three consumed.
+unresolved P0/P1**.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 10 | Constitution | P2 | **H6** declared `careful` for every task and `freeze-scope` for task 1, but **none of the three executable tasks carried a safety-mode line in its own body**. A safety mode that exists only in a plan is not a safety mode the executing agent reads — and task 1 edits the irreversible publish path, which review flagged as high/production-impact. | **Resolved.** All three tasks now declare their safety mode inline: `152.001-T` carries `careful` + `freeze-scope` bounded to the pre-publish probe step of `.github/workflows/release.yml`, restating **H3**'s prohibitions (pinned action SHA, trigger, permissions, secrets, `skip-existing`) as an enforced bound; `152.002-T` and `152.003-T` carry `careful` with their behaviour-preserving and `tests/`-only bounds stated. **H6** is read as requiring propagation into each executable task, not merely declaration here. |
+
+No other cycle-2 finding was raised against this shipment; its plan content is
+unchanged apart from this record.
+
+**Verdict: PASS.** Cycle 2: 1 P2 raised, resolved. Cumulative: **zero unresolved
+P0/P1**. Three review-fix cycles of three consumed; the next review is the final
+independent disposition cycle.

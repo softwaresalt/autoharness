@@ -267,4 +267,17 @@ binding regardless, and each is propagated into a task acceptance criterion.
 | 11 | Architecture | P2 | Task 3's Part A/Part B pairing was justified as "both tracking/tree-state operations". After the correction Part B mutates no tree state, so that rationale is void. | **Resolved.** The rationale is replaced honestly: Part B is retained only because it is a short record-only decision with no surface of its own, and it is explicitly bounded to writing the decision down. |
 
 **Verdict: PASS.** Cycle 1: 2 P1 raised, both resolved; 2 P2 dispositioned.
-Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.
+Cumulative: **zero unresolved P0/P1**.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 12 | Constitution | P2 | **H5** declared `careful` for every task and `investigate-first` for task 1, but `159.001-T` and `159.002-T` carried no safety-mode line in their own bodies. Task 1's entire charter is to *decide an archival disposition on evidence before any stash mutation* — precisely the case where the posture must be readable by the executing agent, not just by a plan reader. | **Resolved.** `159.001-T` now declares `careful` + `investigate-first` inline, restating that no stash entry is mutated until the candidate (c) evidence is recorded, that ambiguity leaves the archival standing, and that reactivation is additive with no destructive command (this run holds `destructive_command_preauthorized: false`). `159.002-T` declares `careful` with **H1**'s correct-forward-only bound restated as an enforced scope. |
+| 13 | Schema/CLI/docs coupling | P2 | **H4**'s SHIP-5 → SHIP-9 artifact dependency was correctly encoded as a task edge, but the **portfolio decision record** still described SHIP-7 → SHIP-8 as "the only hard prerequisite", contradicting this plan. | **Resolved in the decision record**, not here: §"Priority ordering" now distinguishes **two** genuine content dependencies (SHIP-7 → SHIP-8 at shipment level, SHIP-5 → SHIP-9 at task level via `159.003-T` blocked by `155.003-T`) from the seven priority-only chain edges. This plan's **H4** was already correct and is unchanged. |
+
+No other cycle-2 finding was raised against this shipment.
+
+**Verdict: PASS.** Cycle 2: 2 P2 raised, both resolved. Cumulative: **zero
+unresolved P0/P1**. Three review-fix cycles of three consumed; the next review is
+the final independent disposition cycle.

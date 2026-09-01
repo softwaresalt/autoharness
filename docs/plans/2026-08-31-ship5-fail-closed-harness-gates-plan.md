@@ -81,10 +81,32 @@ Triggered: changes CI composition and hook semantics for every contributor.
   the hook starts failing while CI still has no markdownlint job, the only
   enforcement lives on developer machines — strictly worse than today for anyone
   who cannot install it.
-* **H3 (binding).** The CI job must lint the **same glob with the same config**
-  as the hook (`**/*.md` with `.markdownlint.json`). Two gates with different
-  scopes produce green-locally/red-in-CI, which trains contributors to ignore the
-  local gate.
+* **H3 (binding) — SUPERSEDED AND REVISED in review-fix cycle 2 by S1 below.**
+  Cycle 1's H3 read: "The CI job must lint the **same glob with the same config**
+  as the hook (`**/*.md` with `.markdownlint.json`)." That was **internally
+  contradictory** with plan review finding 1, which requires the CI job to be
+  scoped to **changed files** while the repository-wide violation count is
+  non-zero. Both cannot hold, and the contradiction reproduces the exact
+  green-locally/red-in-CI failure H3 existed to prevent, only inverted. The
+  *intent* — one enforcement scope, no carrier-specific divergence — is correct and
+  is preserved; the *specification* is replaced.
+
+* **S1 (binding) — one single shared lint scope for CI and hooks.** Binding on
+  **both** carriers, and on the generated hook templates in **H6**:
+  1. **Selector.** Lint the set of Markdown files **changed relative to the
+     merge-base with the default branch**, filtered to `*.md`.
+  2. **Config.** `.markdownlint.json`, identical for both, no per-carrier
+     overrides.
+  3. **Version.** One pinned `markdownlint-cli` version, identical for both; no
+     unpinned global installs (finding 7).
+  4. **Equivalence.** The CI PR job and the generated/local pre-push hook derive
+     their file set from that same selector definition, so a file that lints clean
+     locally cannot fail in CI or vice versa. Acceptance asserts the equivalence
+     directly — a check demonstrating both resolve the **same** file set for the
+     **same** change, with the same config path and pinned version.
+  5. **Repository-wide promotion is simultaneous.** The `**/*.md` run is added to
+     **both** carriers at once, and only once the recorded violation count reaches
+     zero. It is never enabled on one carrier alone.
 * **H4 (binding).** The new `verify-harness` check must be *additive and
   fail-closed for the check itself*: if the agent set or skill set cannot be
   enumerated, the check must fail rather than pass vacuously. A cross-reference
@@ -129,9 +151,36 @@ Triggered: changes CI composition and hook semantics for every contributor.
   warns and skips (**H7** preserved), and (iii) no unresolved `{{...}}` remains in
   either render. Editing the checked-in `.githooks/` copy without this is the
   drift the whole shipment exists to remove.
-* **H9 (binding) — safety mode.** Every task enters `careful`. The task carrying
-  the P-019 amendment additionally enters `freeze-scope` bounded to the P-019
+* **H9 (binding) — safety mode.** Every task enters `careful`, and this is
+  propagated into each executable task's own body, not merely declared here
+  (propagation performed in review-fix cycle 2). The task carrying the P-019
+  amendment (`155.004-T`) additionally enters `freeze-scope` bounded to the P-019
   section, since the policy governs every contributor's push.
+* **H11 (binding, added cycle 2) — tune-harness template/dogfood drift guidance
+  for the P-019 carve-out.** The **H7** carve-out creates an **intentional,
+  expected** divergence: between the general warn-and-skip default and the
+  required-gate branch, and between a freshly generated hook and an older installed
+  one. Without explicit guidance, `tune-harness` and any template-vs-dogfood parity
+  check will classify that intentional divergence as **drift** — and either raise a
+  false positive or, far worse, "repair" it by regenerating the fail-open form and
+  **silently undoing this entire shipment**. Required:
+  1. Record the carve-out **explicitly as an intentional, expected difference** in
+     the tune-harness drift guidance and in the template-authoring/drift
+     documentation governing the pre-push generator templates, naming P-019's
+     required-gate carve-out as the reason.
+  2. State the **classification rule** plainly: a required-gate fail-on-missing
+     branch present in generated output is **conformant, not drift**; a generated
+     hook in which a required gate has **reverted to warn-and-skip** *is* drift and
+     must be reported.
+  3. Do **not** suppress drift detection wholesale for these files. Narrow the
+     carve-out to the required-gate branch only, so genuine regressions in the
+     surrounding generator text are still caught.
+
+  **Assertion/test expectation (mandatory acceptance on `155.004-T`), both
+  directions:** a **positive** case asserting a rendered hook containing the
+  required-gate fail-on-missing branch is **not** classified as drift, and a
+  **negative** case asserting a rendered hook whose required gate has been reverted
+  to warn-and-skip **is** classified as drift and reported.
 * **H10 (binding) — pack-awareness de-risking for the `verify-harness` check.**
   See §Decision P below. This is a **blocking prerequisite**, not advice.
 
@@ -304,4 +353,16 @@ acceptance criterion.
 | 13 | Constitution | **P1** | No safety mode declared on a shipment that changes push semantics for every contributor and amends a published policy. | **Resolved by H9**: `careful` on all tasks; `freeze-scope` on the P-019 section for task 1b. |
 
 **Verdict: PASS.** Cycle 1: 5 P1 raised, all 5 resolved. Cumulative: **zero
-unresolved P0/P1**. Two review-fix cycles of three consumed.
+unresolved P0/P1**.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 14 | Correctness | **P1** | **H3 and finding 1 contradicted each other.** H3 required CI to lint "the same glob (`**/*.md`) with the same config as the hook"; finding 1 (P0) required the CI job to be scoped to **changed files** until the repository lints clean. Implemented as written, the hook would lint the whole tree while CI linted a subset — a file could fail locally and pass in CI, which is the same trust-destroying divergence H3 was written to prevent. No single scope was ever defined. | **Resolved by S1**, which supersedes and replaces H3 with **one shared scope definition binding on both carriers**: changed files relative to the merge-base with the default branch, one `.markdownlint.json`, one pinned `markdownlint-cli` version, with the repository-wide `**/*.md` promotion applied to **both** carriers simultaneously and only at zero violations. Acceptance asserts the equivalence directly rather than assuming it. Propagated into `155.001-T`, and into `155.004-T`, `155.007-T` and `155.008-T` which consume the same selector. |
+| 15 | Template integrity | **P1** | **The P-019 required-gate carve-out would be misclassified as template/dogfood drift.** The carve-out deliberately makes generated hook output differ from the general warn-and-skip default. `tune-harness` and the parity checks have no way to know that difference is intentional, so they would either raise a false positive or regenerate the fail-open form — **silently reverting this shipment's entire purpose** on the next tune. | **Resolved by H11.** The carve-out is recorded as an intentional, expected difference in the tune-harness drift guidance and the generator-template authoring docs, with an explicit classification rule (required-gate fail-on-missing = conformant; required gate reverted to warn-and-skip = drift, report it), narrowed to the required-gate branch so genuine regressions are still caught. Two mandatory assertions on `155.004-T` cover both directions. |
+| 16 | Constitution | P2 | **H9** declared `careful` for every task, but `155.001-T` carried no safety-mode line in its own body despite editing CI composition and push semantics for every contributor. | **Resolved.** `155.001-T` now declares `careful` inline with its scope bound stated; **H9** is amended to require propagation into each executable task, not merely declaration in the plan. |
+
+**Verdict: PASS.** Cycle 2: 2 P1 and 1 P2 raised, all 3 resolved. Cumulative:
+**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
+review is the final independent disposition cycle.

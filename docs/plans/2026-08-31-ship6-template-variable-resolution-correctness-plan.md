@@ -126,10 +126,41 @@ families.
     against is normalized.
   * **Resolution: bound the check to tool *identity*, not to feature keys.**
     Task 2's binding validation resolves a block's declared tool against the set
-    of **registry tool names** only (`backlogit`, `backlog-md`, `manual`), which
-    SHIP-7 does not change. It **must not** read or validate feature flags. With
-    that bound, SHIP-6 is order-independent of SHIP-7 and no new `blocks` edge is
-    required. Task 2's acceptance states this restriction explicitly.
+    of **registry tool names**, which SHIP-7 does not change. It **must not** read
+    or validate feature flags. With that bound, SHIP-6 is order-independent of
+    SHIP-7 and no new `blocks` edge is required. Task 2's acceptance states this
+    restriction explicitly.
+* **H6a/H6b/H6c (binding, PROMOTED IN CYCLE 2 from de-risking note to executable
+  acceptance).** Cycle 1 recorded the tool-name bound as analysis. Analysis does
+  not constrain an implementer, so the three operative requirements are now stated
+  as binding constraints and each is propagated into `156.002-T`'s acceptance with
+  a named assertion:
+  * **H6a — registry tool names are DERIVED DYNAMICALLY AT CHECK TIME, never
+    hardcoded.** The valid-tool-name set is derived at check time from the
+    installed backlog registry set (each registry's declared `tool_name`). It must
+    **not** be a hardcoded literal list, constant, enum, default, or baked-in
+    fallback anywhere in the renderer, the templates, or the tests — **not even
+    `backlogit, backlog-md, manual` as a convenience default**. The names cited in
+    this plan's analysis are *illustrative observations of the current set*, never
+    the contract; hardcoding them would silently reject a validly installed fourth
+    registry and would reintroduce exactly the static-assumption class this
+    shipment exists to remove. **Assert it:** add a synthetic registry with a new
+    `tool_name` and assert a block declaring that tool resolves successfully with
+    no renderer, template, or test edit.
+  * **H6b — feature-flag binding is FORBIDDEN.** The validation binds to tool
+    identity only and must not read, resolve against, or branch on any registry
+    feature flag (`features.*`). This is precisely what keeps SHIP-6
+    order-independent of SHIP-7. **Assert it:** mutate a registry's feature flags
+    and assert tool-scoped block resolution is byte-identical before and after.
+  * **H6c — FAIL CLOSED on nested conditional blocks.** Exactly one level of
+    tool-scoped block is supported. A tool-scoped block inside another
+    tool-scoped block, or inside any other conditional construct, is a **hard
+    render error** naming the file and the offending nesting — never silently
+    flattened, never resolved against the innermost or outermost tool, never
+    partially rendered. Nesting is ambiguous by construction, and an ambiguous
+    resolution is the very defect class this task removes. **Assert it:** a
+    negative test with a deliberately nested block asserting a non-zero, named
+    render error.
 * **H7 (binding) — safety mode.** Every task enters `careful`. Task 2
   additionally enters `freeze-scope` bounded to the renderer plus the templates
   its parity test covers, because a renderer change is corpus-wide by nature and
@@ -231,5 +262,17 @@ and each is propagated into a task acceptance criterion.
 | E | Scope boundary | P2 | Task 2a could expand into a renderer redesign proposal. | Bounded by enumeration: 2a records four specific artifacts and makes **no production edit**. Anything further is a P-021 capture. |
 
 **Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved; 1 P2 dispositioned.
-Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of three consumed.
+Cumulative: **zero unresolved P0/P1**.
 Cycle 0's verdict line is preserved verbatim at the head of this section.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| F | Architecture | **P1** | **The registry tool-name set was written as a hardcoded triple** (`backlogit`, `backlog-md`, `manual`) inside the H6 resolution, and lived only in de-risking analysis rather than in task acceptance. An implementer reading it would reasonably bake that literal list into the renderer — which would then **silently reject a validly installed fourth registry**, reintroducing the static-assumption class this shipment exists to remove, and would make the fail-closed binding check itself a source of false rejections. | **Resolved by H6a**, promoted to a binding constraint and into `156.002-T`'s acceptance: the tool-name set is **derived dynamically at check time** from the installed registry set, with hardcoded lists/constants/enums/defaults forbidden in renderer, templates and tests alike, and a named assertion (a synthetic registry with a new `tool_name` must resolve with no code, template, or test edit). |
+| G | Schema/CLI/docs coupling | **P1** | The "must not read feature flags" bound — the entire basis of SHIP-6's claimed order-independence from SHIP-7 — existed only as prose in the H6 analysis and was **not** an acceptance criterion on the executable task. Nothing would have caught an implementation that resolved a block against `features.*`. | **Resolved by H6b**, now binding and asserted: mutating a registry's feature flags must leave tool-scoped block resolution byte-identical. Order-independence is now a tested property rather than a design intention. |
+| H | Correctness | **P1** | The "no nesting beyond one level" bound was stated as a *scope limit on the new construct*, not as a **runtime behaviour**. It said what the renderer would not support, but never what it must **do** when a template nevertheless contains a nested block — leaving silent flattening or innermost/outermost resolution as permissible outcomes, both of which are ambiguous resolutions of exactly the kind this shipment removes. | **Resolved by H6c**: a nested tool-scoped block is a **hard render error** naming the file and the nesting — never flattened, never partially rendered, never resolved against either enclosing tool. Covered by a named negative test asserting a non-zero, named error. |
+
+**Verdict: PASS.** Cycle 2: 3 P1 raised, all 3 resolved. Cumulative: **zero
+unresolved P0/P1**. Three review-fix cycles of three consumed; the next review is
+the final independent disposition cycle.

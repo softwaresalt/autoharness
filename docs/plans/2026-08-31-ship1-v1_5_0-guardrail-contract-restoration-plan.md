@@ -111,40 +111,68 @@ dogfood mirror.
   render-aware test to be observed failing on exactly the two named assertions
   *before* they are fixed. Cycle 0's task numbering contradicted that by placing
   the two fixes (tasks 1 and 2) ahead of the harness and sweep (3a/3b). Corrected
-  execution order, which is the order the harvested tasks are queued in:
-  1. **3a — render harness** (`151.003-T`). No assertion outcome depends on it yet.
-  2. **3b — assertion sweep** (`151.004-T`). Run it here: it **MUST fail** on
+  execution order, which is the order the harvested tasks are queued in and the
+  order the `blocks` edges encode:
+  1. **0 — de-risking prerequisite** (`151.006-T`). Enumerate the verifier
+     assertion table and resolve every assertion path to its source-of-truth.
+     Recorded findings only; no production edits. **Blocks 3a** — added in
+     review-fix cycle 1 to satisfy the two-axis gate on 3a's `M`/`high`, but
+     omitted from this table until review-fix cycle 2.
+  2. **3a — render harness** (`151.003-T`). No assertion outcome depends on it yet.
+     Consumes all four of `151.006-T`'s deliverables.
+  3. **3b — assertion sweep** (`151.004-T`). Run it here: it **MUST fail** on
      `closure_source_artifact_cleanup` and `ship_release_closure_sequence`, and on
      nothing else. **Record the observed red result.** A sweep that does not go red
      at this point is not measuring the templates and the shipment halts.
-  3. **1 — defect 1 template fix** (`151.001-T`). 3b's first failure turns green.
-  4. **2 — defect 2 verifier/mirror fix** (`151.002-T`). 3b's second failure turns
+  4. **1 — defect 1 template fix** (`151.001-T`). 3b's first failure turns green.
+  5. **2 — defect 2 verifier/mirror fix** (`151.002-T`). 3b's second failure turns
      green.
-  5. **4 — comment correction** (`151.005-T`). Independent; last.
+  6. **4 — comment correction** (`151.005-T`). Independent; last.
 
   Task 3b's charter is unchanged — it **detects**, it does not remediate (cycle 0
   finding 4). Any *third* assertion it reveals red is a P-021 capture and is
   **not** fixed here; the shipment records it and proceeds.
-* **H7 (binding) — safety mode.** Every task enters `careful`. Task 3b
-  additionally enters `freeze-scope` bounded to `tests/`, because a sweep that
-  reveals unrelated failures is precisely where scope creep starts (cycle 0
-  finding 4).
+* **H7 (binding) — safety mode.** Every task enters `careful`, and this is
+  propagated into each executable task's own body, not merely declared here
+  (propagation performed in review-fix cycle 2). Task 3b (`151.004-T`) additionally
+  enters `freeze-scope` bounded to `tests/`, because a sweep that reveals unrelated
+  failures is precisely where scope creep starts (cycle 0 finding 4). Task 3a
+  (`151.003-T`) enters the same `freeze-scope` bound for the same reason — it
+  renders the entire template corpus and must write only test-harness code. Task 4
+  (`151.005-T`) enters `freeze-scope` bounded to the `.mcp.json` guard comment block,
+  because its stale citation is bait for an out-of-scope cleanup. Task 0
+  (`151.006-T`) enters `careful` + `investigate-first`.
 
 ## Tasks
 
-| # | Title | Size | Complexity | Surface |
-|---|---|---|---|---|
-| 1 | Define the `Source artifact cleanup` section in the operational-closure skill template | M | medium | `templates/skills/operational-closure/SKILL.md.tmpl` + dogfood mirror |
-| 2 | Reconcile the `ship_release_closure_sequence` assertion token with the current agent-template wording | S | medium | `src/autoharness/verify_workspace.py` + `.github/agents/_ship.agent.md` |
-| 3 | Add a render-aware template↔verifier contract test over all table-driven assertions | L → split into 3a/3b | high | `tests/` |
-| 4 | Correct the stale `autoharness.supervise.bootstrap` citation in the `.mcp.json` guard comment | XS | trivial | `tests/test_verify_workspace.py` |
+| # | ID | Title | Size | Complexity | Surface |
+|---|---|---|---|---|---|
+| 0 | `151.006-T` | **De-risking prerequisite (two-axis gate)**: enumerate the verifier assertion table and resolve every assertion path to its source-of-truth | S | low | `docs/` (recorded findings only; no production edits) |
+| 3a | `151.003-T` | Build the render-aware template resolution harness for verifier assertions | M | high | `tests/` |
+| 3b | `151.004-T` | Add the table-driven assertion sweep test over rendered templates | M | medium | `tests/` |
+| 1 | `151.001-T` | Define the `Source artifact cleanup` section in the operational-closure skill template | M | medium | `templates/skills/operational-closure/SKILL.md.tmpl` + dogfood mirror |
+| 2 | `151.002-T` | Reconcile the `ship_release_closure_sequence` assertion token with the current agent-template wording | S | medium | `src/autoharness/verify_workspace.py` + `.github/agents/_ship.agent.md` |
+| 4 | `151.005-T` | Correct the stale `autoharness.supervise.bootstrap` citation in the `.mcp.json` guard comment | XS | trivial | `tests/test_verify_workspace.py` |
 
-Task 3 is split because `L` + `high` trips both axes of the two-axis granularity
-gate:
+**The table is listed in EXECUTION order, not ID order** (**H6**), and that order is
+the one the `blocks` edges encode:
+`151.006-T` → `151.003-T` → `151.004-T` → {`151.001-T`, `151.002-T`, `151.005-T`}.
+The three post-sweep tasks are each blocked by `151.004-T`; `151.005-T` is
+additionally sequenced last to avoid a same-file collision with the sweep (**H5**).
+
+**Task 0 (`151.006-T`) was added in review-fix cycle 1 and omitted from this table
+until review-fix cycle 2.** It is not optional: task 3a is `M`/`high`, which trips
+the complexity axis of the two-axis granularity gate and forces either a split or an
+explicit de-risking step. A further split of 3a was rejected (it would separate the
+renderer from the variable tables it must reuse, which **H2** forbids), so the
+de-risking step is the gate-satisfying half and 3a **may not begin** before it is
+recorded.
+
+The original task 3 was split into 3a/3b because `L` + `high` trips **both** axes:
 
 * **3a — render harness**: render `templates/**/*.tmpl` with the verifier's own
   variable tables and resolve every assertion `path` to its source-of-truth.
-  Size `M`, complexity `high`.
+  Size `M`, complexity `high` — de-risked by task 0.
 * **3b — assertion sweep**: assert all table-driven assertions
   (`PACK_ASSERTIONS`, `FOUNDATION_ASSERTIONS`, `DARK_FACTORY_ASSERTIONS`) hold
   against the rendered output, with no exemption list. Size `M`, complexity
@@ -269,13 +297,13 @@ and each is propagated into a task acceptance criterion.
 
 | Persona | Mode | Findings |
 |---|---|---|
-| Template integrity | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
-| Correctness | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1) |
+| Template integrity | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1), 1 P1 (cycle 2) |
+| Correctness | inline persona pass | 1 P1 (cycle 0), 1 P1 (cycle 1), 1 P1 (cycle 2) |
 | Schema/CLI/docs coupling | inline persona pass | 1 P2 (cycle 0) |
 | Scope boundary | inline persona pass | 1 P2 (cycle 0) |
 | Maintainability | inline persona pass | 1 P2 (cycle 0) |
 | Security | inline persona pass | 1 P3 (cycle 0) |
-| Constitution | inline persona pass | 1 P3 (cycle 0), 1 P1 (cycle 1) |
+| Constitution | inline persona pass | 1 P3 (cycle 0), 1 P1 (cycle 1), 1 P2 (cycle 2) |
 | Architecture | inline persona pass | — (no finding) |
 
 ### Review-fix cycle 1 — findings on the revised plan
@@ -287,4 +315,16 @@ and each is propagated into a task acceptance criterion.
 | 10 | Constitution | **P1** | No safety mode declared for a shipment whose sweep task deliberately runs 71 assertions across the whole template corpus. | **Resolved by H7**: `careful` on all tasks, plus `freeze-scope` on `tests/` for the sweep task. |
 
 **Verdict: PASS.** Cycle 1: 3 P1 raised, all 3 resolved. Cumulative: **zero
-unresolved P0/P1**. Two review-fix cycles of three consumed.
+unresolved P0/P1**.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 11 | Correctness | **P1** | The Tasks table and the **H6** execution order both **omitted `151.006-T`**, the de-risking prerequisite that cycle 1 itself created and encoded as `151.003-T`'s blocker. A reader following the plan's own execution order would begin at 3a and hit an unsatisfied `blocks` edge; the plan and the machine graph disagreed. | **Resolved.** `151.006-T` is added to the Tasks table as task 0 and is step 1 of the **H6** order. The table is now explicitly ordered by execution rather than ID, and the encoded edge chain (`151.006-T` → `151.003-T` → `151.004-T` → the three fixes) is written out so plan and graph can be checked against each other. |
+| 12 | Template integrity | **P1** | The executable task `151.001-T` still described a **"backlogit-gated"** `Source artifact cleanup` subsection, contradicting cycle 1's binding Placeholder specification in this plan, which requires **unconditional prose** using only `{{BACKLOG_DIRECTORY}}`. The reviewed plan and the executable task disagreed, and the executable task is what Ship reads. | **Resolved.** `151.001-T` is rewritten to match this plan exactly: unconditional prose, no tool gate, `{{BACKLOG_DIRECTORY}}` as the only newly introduced placeholder in that exact spelling with no shorthand, `{{FEATURE_...}}` explicitly forbidden with a zero-occurrence acceptance check, and `source_stash_id`/`source_deliberation_id` written literally as `custom_fields` names rather than as variables. |
+| 13 | Constitution | P2 | **H7** declared `careful` for every task, but not one of the five executable tasks carried a safety-mode declaration in its own body. A safety mode that lives only in a plan is not a safety mode the executing agent reads. | **Resolved.** All five tasks now carry an explicit safety-mode line, with `freeze-scope` bounds named per task (3a and 3b to `tests/`; task 4 to the `.mcp.json` guard comment block). **H7** is amended to say the propagation is required, not merely the declaration. |
+
+**Verdict: PASS.** Cycle 2: 2 P1 and 1 P2 raised, all 3 resolved. Cumulative:
+**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
+review is the final independent disposition cycle.

@@ -126,35 +126,69 @@ instruction file is a composition choice for a later run, recorded in §Deferred
 **Propagation.** F1 and F2 are carried into task 4's acceptance criteria verbatim; harvested
 task `154.004-T` restates both and is gated on them.
 
-## Decision G — P-007 destructive-restore approval artifact (binding)
+## Decision G — P-007 destructive-restore authorization (binding, REVISED in cycle 2)
 
 Plan review finding 2 gated the P-007 `git restore` remediation behind "explicit operator
 approval" without naming what that approval *is*. An unnamed approval is unverifiable, so the
-gate would have been prose that any agent could self-satisfy. Named concretely:
+gate would have been prose that any agent could self-satisfy. Cycle 1 named a **backlogit
+comment** as the approval artifact.
 
-* **G1 — the approval signal.** The executing agent MUST verify an
-  **`APPROVAL: P-007-ARCHIVE-RESTORE`** record for the current shipment, carrying the shipment
-  ID, the exact archive paths to be restored, and an operator actor identity. It is recorded
-  through the backlog tool's existing comment operation
-  (`backlogit_append_comment` / `backlogit append-comment`) on the shipment item — an existing,
-  tool-owned, auditable surface. **No new approval store, file format, or CLI is introduced.**
-* **G2 — verification is a read, not an inference.** The agent MUST read the comment back and
-  match the shipment ID and the archive paths. Absence, mismatch, or an unreadable backlog tool
-  is a **refusal**, never a pass.
-* **G3 — dark-mode behaviour is fail-closed.** In dark-factory/AFK mode no operator is present
-  to record G1, so `git restore` **never runs**. The ungated path is unchanged and mandatory:
-  detect the violation, halt, record it through P-005 telemetry with the exact remediation
-  command, and leave the working tree untouched. A dark-mode run therefore always reports and
-  never restores — which is the Principle VII-conformant outcome, not a degradation.
-* **G4 — no admin authority is invented.** G1 is an *operator-recorded* approval that the agent
-  reads. The agent cannot create it, cannot mark it satisfied on its own behalf, and gains no
-  new authority from this plan.
-* **G5 — deterministic negative test (mandatory acceptance).** Task 2 ships a test that drives
-  the P-007 remediation path with **no** `APPROVAL: P-007-ARCHIVE-RESTORE` record present and
-  asserts that (i) no `git restore` is issued, (ii) the violation is recorded, and (iii) the
-  exit is a refusal. A second case supplies an approval whose shipment ID does **not** match and
-  asserts the same refusal. Approval-absent refusal must be observed failing before the gate
-  exists (red-before-green), per **H7**.
+**That is withdrawn as the authorization source.** `backlogit_append_comment` /
+`backlogit append-comment` is an operation **the executing agent itself can call**. An agent
+could write `APPROVAL: P-007-ARCHIVE-RESTORE …` onto the shipment and then read its own writing
+back as authorization. A gate whose token the gated party can mint is not a gate — it is the
+same self-satisfiable shape cycle 0 was trying to remove, relocated one layer down. The
+tool-owned, auditable properties cycle 1 relied on are real, but they establish
+**non-repudiation of a record**, not **independence of an authority**.
+
+* **G1 — the authorization source is a direct runtime operator approval.** Authorization is a
+  **live approval result** obtained at the moment of the request over an **independent operator
+  channel the executing agent cannot synthesize**: the intercom approval/clearance operation, an
+  interactive operator ask/confirm prompt, or the operator session channel. The defining
+  property is **non-synthesizability** — the approving act originates outside the agent's own
+  writable surface, and the agent has no operation that produces the affirmative result on its
+  own behalf.
+* **G2 — the backlog comment is evidence only, never authority.** *After* a G1 result is
+  obtained, the agent SHOULD record an `APPROVAL: P-007-ARCHIVE-RESTORE` comment on the shipment
+  item carrying the shipment ID, the exact archive paths, the operator actor identity, the
+  approval timestamp, and **the channel the approval came over**. That record exists for audit
+  and traceability. It MUST NOT be read back as authorization, MUST NOT substitute for a live G1
+  result, and MUST NOT cache, shorten, or pre-satisfy any future approval — each remediation
+  attempt requires its own fresh G1.
+* **G3 — no independent channel means halt, do not restore.** When no independent approval
+  channel is available — intercom degraded or unreachable, no interactive operator session,
+  ask/confirm unavailable, or the channel present but unanswered — the agent **halts and does
+  not restore**. Absence of a channel is never implicit approval and never a fallback to the
+  comment path. The ungated path is unchanged and mandatory: detect the violation, halt, record
+  it through P-005 telemetry with the exact remediation command for a human to run, and leave
+  the working tree untouched.
+* **G4 — dark-mode behaviour is fail-closed (preserved).** In dark-factory/AFK mode no operator
+  is present to give a G1 approval, so `git restore` **never runs**. A dark-mode run always
+  reports and never restores — the Principle VII-conformant outcome, not a degradation, and the
+  answer to cycle-0 finding 2's AFK-stall objection. Cycle 2 *strengthens* this: G3 makes "no
+  channel" a halt in **all** modes, so dark mode becomes the specific case of a general rule
+  rather than a special exception.
+* **G5 — verification is a read of a live result, not an inference.** The agent must match the
+  approval result to the current shipment ID and the exact archive paths. Mismatch, absence,
+  ambiguity, timeout, or an unreadable channel is a **refusal**, never a pass.
+* **G6 — no admin authority is invented.** G1 is an operator-performed act the agent merely
+  receives. The agent cannot create it, cannot mark it satisfied on its own behalf, and gains no
+  new authority. Merge preauthorization does not imply destructive-command preauthorization.
+* **G7 — deterministic negative tests (mandatory acceptance, four cases).** Task 2 ships tests
+  driving the P-007 remediation path, each observed red before the gate exists (**H7**):
+  (i) **no approval of any kind** — assert no `git restore` is issued, the violation is
+  recorded, and the exit is a refusal; (ii) **approval with a non-matching shipment ID** —
+  assert the same refusal; (iii) **self-authored-comment coverage (the defect this revision
+  closes)** — a well-formed, fully-matching `APPROVAL: P-007-ARCHIVE-RESTORE` comment authored
+  by the executing agent itself, with **no** live G1 approval — assert the remediation **still
+  refuses**, no `git restore` is issued, and the refusal explicitly states that a backlog
+  comment is evidence only and not an authorization source; (iv) **no independent channel
+  available** with any combination of comments present — assert halt without restore per
+  G3/G4.
+* **G8 — the refusal message** names the missing authorization channel and the exact command a
+  human can run themselves, so a legitimate operator is never stranded without a remedy.
+* **G9 — no new approval store, file format, or CLI is introduced.** G1 uses approval channels
+  the harness already has; G2 uses the existing tool-owned comment surface for audit only.
 
 * **H6 (binding).** Every task in this shipment enters safety mode
   `careful` (`.github/skills/safety-modes` equivalent; the skill is template-only in this
@@ -304,12 +338,22 @@ into a task acceptance criterion.
 | # | Persona | Sev | Finding | Resolution |
 |---|---|---|---|---|
 | 8 | Correctness | **P1** | The plan asserted the reference fix "assumes `technology-python.instructions.md` reaches `python.instructions.md`" without ever verifying it, and mis-stated the template as hard-coding `python.instructions.md`. Both would have produced the wrong fix. | **Resolved.** Verified at `.github/skills/install-harness/SKILL.md:1057` (documented mapping) and `templates/agents/review/technology-reviewer.agent.md.tmpl:56` (generic `{{PRIMARY_LANGUAGE_LOWER}}` placeholder). The defect is restated as a co-installation gap and the strategy is fixed by **Decision F**, propagated into task 4. |
-| 9 | Security | **P1** | "Explicit operator approval" for the P-007 `git restore` named no artifact, so the gate was self-satisfiable prose. | **Resolved by Decision G.** The signal is a named `APPROVAL: P-007-ARCHIVE-RESTORE` comment on the shipment, read back and matched (**G1**/**G2**), with a mandatory deterministic negative test (**G5**) and fail-closed dark-mode behaviour (**G3**). No admin authority is created (**G4**). |
+| 9 | Security | **P1** | "Explicit operator approval" for the P-007 `git restore` named no artifact, so the gate was self-satisfiable prose. | **Partially resolved by Decision G (cycle 1)**, and **fully resolved in cycle 2 by finding 14** — the named artifact chosen in cycle 1 was itself agent-authorable, so the self-satisfiability was relocated rather than removed. |
 | 10 | Architecture | **P1** | The leaf-executor exception was called "machine-checkable" while being self-declared prose that nothing read. | **Resolved by Decision H.** A bounded static verifier (**H-b**) detects undeclared spawning, malformed constraint form, and invalid depth. Its limits are stated explicitly (**H-c**/**H-d**) so no machine-enforcement claim survives beyond what the test actually does. |
 | 11 | Constitution | **P1** | The plan carried no explicit safety-mode declaration despite editing policy text that governs other agents' destructive behaviour. | **Resolved by H6**: `careful` for every task; `freeze-scope` on the policy surface for task 2. |
 | 12 | Maintainability | P2 | Bundling the architecture-rule amendment with the dangling-reference fix makes the governance amendment unrevertable on its own. | **Resolved.** Cycle 0's finding 4 is reversed; tasks 3 and 4 are now separate, sequenced 3→4. |
 | 13 | Scope boundary | P2 | `mcp-server.instructions.md` is the same defect class and could pull a general reference checker into this shipment. | **Resolved.** Captured as **DSE-S4-1** with residual risk. Decision F is bounded to the technology-reviewer pair. Not built here. |
 
 **Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved; 2 P2 raised, both
-dispositioned. Cumulative: **zero unresolved P0/P1**. Two review-fix cycles of
-three consumed.
+dispositioned. Cumulative: **zero unresolved P0/P1**.
+
+### Review-fix cycle 2 — findings on the revised plan
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 14 | Security | **P1** | **The Decision G approval artifact was authorable by the gated party.** G1 designated a backlogit comment written via `backlogit_append_comment` as the authorization signal — but that is an operation the executing agent can call. The agent could write a perfectly well-formed, shipment-matching `APPROVAL: P-007-ARCHIVE-RESTORE` comment and then satisfy G2 by reading its own writing. The gate was therefore still self-satisfiable; cycle 1 moved the defect one layer down rather than closing it. Being tool-owned and auditable gives **non-repudiation of a record**, which is not **independence of an authority**. | **Resolved by G1–G9.** The authorization source is now a **direct runtime operator approval** — a live result over an intercom/ask/operator-session channel the agent **cannot synthesize** — and the backlog comment is demoted to **evidence only**, explicitly forbidden from being read back as authorization or from caching a future approval. **G3** makes an unavailable channel a **halt without restore** in all modes, never an implicit approval and never a fallback to the comment path. **G7(iii)** adds the specific **self-authored-comment negative test**: a fully-matching agent-written comment with no live approval must still refuse, and the refusal must say why. **G4** preserves the dark/AFK fail-closed behaviour verbatim, now as a special case of the general G3 rule rather than a standalone exception. **G6** re-affirms that no admin authority is created. |
+| 15 | Constitution | P2 | Cycle 1's G3 justified dark-mode no-restore by the *absence of an operator to record a comment*. With the comment demoted to evidence, that justification no longer carries the conclusion on its own. | **Resolved.** G4's dark-mode rule is re-derived from **G3**: no independent approval channel exists in AFK mode, therefore no G1 result can exist, therefore no restore. The conclusion is unchanged and now rests on a stronger premise. |
+
+**Verdict: PASS.** Cycle 2: 1 P1 and 1 P2 raised, both resolved. Cumulative:
+**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
+review is the final independent disposition cycle.
