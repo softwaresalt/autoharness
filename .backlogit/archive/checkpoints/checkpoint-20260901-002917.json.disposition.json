@@ -1,0 +1,7 @@
+{
+  "filename": "checkpoint-20260901-002917.json",
+  "disposition": "quarantined",
+  "reason": "Written by Stage review-fix cycle 2 from a malformed state_dump (missing closing brace truncated the JSON at the progress object). Unparseable and untrustworthy. Superseded by checkpoint-20260901-003013.json, which carries the same intended content, validated before submission. Quarantined via the tool-prescribed remediation rather than hand-edited or deleted.",
+  "operator": "REDMOND\\dewilliams",
+  "disposition_at": "2026-09-01T00:30:32.1509409Z"
+}
