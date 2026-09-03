@@ -1,0 +1,7 @@
+{
+  "filename": "checkpoint-20260903-162547.json",
+  "disposition": "quarantined",
+  "reason": "Operator-approved quarantine: malformed V1 envelope with zero-valued required fields; resolved state is preserved in docs/memory/2026-09-03-stage-review-fix-cycle-4.md",
+  "operator": "REDMOND\\dewilliams",
+  "disposition_at": "2026-09-03T22:36:42.1939895Z"
+}

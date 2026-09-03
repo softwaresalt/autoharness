@@ -328,11 +328,19 @@ records, no payload-internal bookkeeping, and no development artefacts appear in
 the target workspace. Skill and docs references resolve to the workspace, not
 into the payload.
 
-### AC6 — Upgrade and parity
+### AC6 — Parity and distribution-member removal
 
 Trimmed-payload workspace state must match the baseline inventory for the
-equivalent operation; upgrade from the prior release must leave no orphaned
-files; `--home` and `--version` behave identically across channels.
+equivalent operation; every member the baseline distribution shipped that the
+manifest no longer declares must be **absent from the built distribution's own
+member inventory**; `--home` and `--version` behave identically across channels.
+
+**This criterion asserts nothing about an installed workspace.** A member's
+absence from a distribution proves only that the distribution no longer carries
+it. It does **not** prove that a prior install's copy of that member is removed
+during upgrade — that is installer behaviour, observable only by performing a
+real installed upgrade, which this shipment does not perform. Installed-upgrade
+execution and orphan cleanup are deferred **in full** to `60C207F1`.
 
 ### AC6a — Python channel resolution
 
@@ -415,31 +423,25 @@ in each observation record; a mismatch is a T16 failure.
 * Every ledger case must be collectable by `uv run python -m pytest --collect-only`.
 * Every owner edge must join to a live task ID.
 
-### Runner contract — both governing documents, no policy change
+### Runner contract
 
 Every case this shipment authors is written as a `unittest.TestCase` method, so
-**both** runners collect it. That single authoring convention satisfies two
-documents that name different commands, without amending either:
+**both** runners collect it. That is an authoring convention only. It does not
+reconcile the two governing documents, and this plan no longer claims that it
+does:
 
 * **P-004** (`.github/policies/workflow-policies.md`) states its red-phase
-  precondition literally as `PYTHONPATH=src python -m unittest discover -s tests`
-  exiting non-zero. Red evidence taken before the toolchain lands uses that exact
-  command.
+  precondition literally as `python -m py_compile src/autoharness/cli.py` exiting
+  0 **and** `PYTHONPATH=src python -m unittest discover -s tests` exiting non-zero
+  with expected failure markers **for every test function**.
 * **The Constitution** names `pytest`. T0 declares and locks a pinned `pytest`
   and moves CI's authoritative gate to `uv run python -m pytest`, which collects
   unittest-compatible cases unchanged.
 
-Two commands run, at two different levels, and neither displaces the other:
+**The cycle-11 reconciliation of P-004 is withdrawn** — see *Harness-ready gate*
+below for the measured reason. This plan defers to P-002 and P-004 as written and
+reinterprets neither.
 
-* **P-004's gate confirmation is always the literal unittest command.** P-004's
-  precondition is whole-suite and gate-scoped — `PYTHONPATH=src python -m unittest
-  discover -s tests` must exit non-zero with expected failure markers before the
-  `harness-ready` label. That confirmation is taken with that exact command at
-  **every** red-phase gate in this shipment, before and after T0. It costs
-  nothing to honour: `unittest` is stdlib, so the command needs no lock, no
-  dependency group and no network, and every case here is a `unittest.TestCase`
-  method, so `discover` sees all of them. This plan does not amend, narrow or
-  reinterpret that precondition.
 * **Per-case observation records use the canonical runner once it is locked.**
   `uv run python -m pytest` is the authoritative invocation for the recorded
   ledger observations (AC2b-CI), with **exactly one pre-lock exception**: case
@@ -450,6 +452,53 @@ class location, fixed when the case is authored, and T16 verifies every node ID
 against a **terminal** `--collect-only` run at the end of the shipment — by
 which time pytest is locked. No runner field, no schema change, and no policy
 expansion is introduced for this.
+
+### Harness-ready gate — P-002 and P-004, deferred to exactly as written
+
+**Ownership.** P-004 names the **harness-architect skill** as the producer of the
+red phase, and P-002 names `ship` as its consumer. Therefore:
+
+The **harness-architect** authors T0's red static contract case (#47) and every
+other RED-FIRST case, and confirms the red phase. The `harness-ready` label is
+applied **only after** the current policy's own evidence is produced — not on this
+plan's authority. **Ship does not author red harness tests and does not claim any
+task in this shipment before it carries `harness-ready`** (P-002 precondition);
+the task-decomposition table describes deliverables, it does not grant a claim.
+This plan states the two policies and defers to them. It does **not** reinterpret,
+narrow, or locally satisfy either one.
+
+**Measured impracticability of P-004 on this workspace.** Recorded as fact, not
+as an argument for an exemption:
+
+1. `tests/` currently contains **106 test files with 2,025 test functions**.
+2. `.github/workflows/ci.yml` line 112 runs P-004's exact command,
+   `PYTHONPATH=src python -m unittest discover -s tests`, as the repository's
+   authoritative required test gate — so on the default branch that command
+   **exits 0**.
+3. P-004 requires that same command to exit **non-zero with expected failure
+   markers for every test function** before `harness-ready`.
+4. (2) and (3) cannot both hold. Satisfying P-004 literally would require all
+   2,025 pre-existing test functions to fail, i.e. deliberately breaking the
+   shipped suite.
+
+A second, independent obstruction applies regardless of the 2,025: a
+CHARACTERIZATION case **passes by construction**, so any suite containing one can
+never satisfy "every test function fails". **A mixed RED/CHARACTERIZATION suite
+therefore does not, and cannot, satisfy P-004's "every function red" precondition
+— any claim in this shipment that it does is withdrawn.**
+
+**Consequence — Ship halts; nothing is bypassed.** This is a current-policy
+defect, not a plan defect, and this plan does not resolve it. Per P-002's
+violation action, Ship **halts and suggests running the harness-architect** rather
+than claiming the task; the gate stays **fail-closed**. Resolving it is separate
+policy work, captured as `76EBDE6D`. Until that entry is dispositioned this
+shipment cannot pass the gate — that is the honest state.
+
+**Sequencing of CHARACTERIZATION authoring.** Because a characterization case
+cannot be red, T3b's 4 cases and the 10 characterization cases in T9–T13 are
+authored **outside the red-harness gate** — after `harness-ready` is applied to the
+RED-FIRST harness, never inside the suite whose red phase is being confirmed. The
+DAG already orders them after T3a; this states why that order is binding.
 
 ### Case ledger — 47 cases
 
@@ -487,7 +536,7 @@ owner are the same task).
 | 26 | `test_no_engine_records_in_target_workspace` | AC5 | C | T9 | T7 / T8 | T7←T9; T8←T9 |
 | 27 | `test_skill_docs_refs_resolve_to_workspace_not_payload` | AC5, AC2d, R2 | R | T9 | T5 | T5←T9 |
 | 28 | `test_verify_workspace_parity_trimmed_vs_baseline` | AC6 | C | T10 | T7 / T8 | T7←T10; T8←T10 |
-| 29 | `test_upgrade_from_1_5_0_leaves_no_orphans` | AC6, R3, V3 | R | T10 | T7 / T8 | T7←T10; T8←T10 |
+| 29 | `test_trimmed_distribution_omits_removed_baseline_members` | AC6, R3, V3 | R | T10 | T7 / T8 | T7←T10; T8←T10 |
 | 30 | `test_home_and_version_behave_identically` | AC6, I1, I2 | C | T10 | T7 / T8 | T7←T10; T8←T10 |
 | 31 | `test_data_dir_resolution_pip_install` | AC6a, R4 | C | T11 | T7 | T7←T11 |
 | 32 | `test_data_dir_resolution_clone_editable` | AC6a, R4 | C | T11 | T7 | T7←T11 |
@@ -563,7 +612,8 @@ this table; producers do not restate field lists.
 | `test_node_id` | The full pytest node ID. Must contain `::` |
 | `declared_class` | `RED-FIRST` or `CHARACTERIZATION`, matching the ledger |
 | `author_task` | Authoring task ID, matching the ledger |
-| `owner_task` | Owning task ID, matching the ledger |
+| `owner_tasks` | **Array.** The owning task IDs for the case, as a canonically sorted, duplicate-free list of task IDs (e.g. `["160.006-T", "160.007-T"]`). Must equal the ledger's owner set for the case exactly. A bare string is rejected; a one-owner case uses a one-element array |
+| `artifact_subject` | Enum: `static` \| `wheel` \| `plugin`. The artifact universe this record asserts over |
 | `observation_phase` | `baseline` or `post-change` |
 | `expected_outcome` | The outcome the class contract requires for this phase |
 | `exit_status` | Strict integer. A boolean is rejected |
@@ -578,28 +628,59 @@ this table; producers do not restate field lists.
 single field serves both; `case_name` is the ledger join key and `test_node_id`
 is the collection identity.
 
+**`owner_tasks` replaces the singular `owner_task`.** Six ledger cases carry two
+owners; a singular field could not represent them without dropping an owner or
+emitting a second record differing in no other field. The singular form must not
+return.
+
+**Subject mapping — a total function of the case's owner set**, so it is never
+self-asserted and cannot drift from the ledger:
+
+| Owner set (T-labels) | `artifact_subject` |
+|---|---|
+| `{T0}`, `{T2b}`, `{T4}`, `{T5}`, `{T6}`, `{T14}` | `static` — repository source, config and workflow files, and generator output to scratch |
+| `{T7}` | `wheel` |
+| `{T8}` | `plugin` |
+| `{T7, T8}` | **both** — one record for `wheel` and one for `plugin` |
+
+**Cardinality.** Exactly one observation record exists per
+`(case_name, observation_phase, artifact_subject)` triple. That triple is the
+record's primary key; a duplicate triple is a T16 failure.
+
+**Coverage — 106 record slots.** Every case has two phases (RED-FIRST: baseline
+red then post-change green; CHARACTERIZATION: baseline green then post-change
+green). 41 single-subject cases give 2 slots each (82); the 6 dual-subject cases
+give 4 each (24) — **106**, cross-checked by the identity **record slots = owner
+assignments x 2 = 53 x 2**. Missing, duplicate and surplus slots all fail. The
+**case count is unchanged at 47**; slots count records, not cases.
+
 **Provenance protocol.** Commit first. Then capture `git rev-parse HEAD` and
 `git status --porcelain=v1` into the head of the raw log, before the command
 runs. Then run the case. A recorded observation requires a clean, committed
 tree.
 
-**Artifact identity — always phase-selected.** `artifact_ref` validation is
-**always** selected by `observation_phase`. There is **no** unconditional
-baseline check anywhere in the contract:
+**Artifact identity — always selected by phase *and* subject.** `artifact_ref`
+validation is selected by the `(observation_phase, artifact_subject)` pair. There
+is **no** unconditional baseline check anywhere in the contract:
 
-| `observation_phase` | Artifact assertion (wheel) | Artifact assertion (plugin) | Static contract assertion |
+| `observation_phase` | `artifact_subject: wheel` | `artifact_subject: plugin` | `artifact_subject: static` |
 |---|---|---|---|
 | `baseline` | T2a baseline **wheel** inventory (E1) | T2a baseline **plugin** inventory (E1) | T2a baseline commit SHA (E2) |
 | `post-change` | Current **trimmed wheel** inventory | Current **trimmed plugin** inventory | The observation's own `source_commit` |
 
+Because `artifact_subject` is on the record, the row is selected without
+inference: a dual-subject case's two records at one phase validate against two
+different identity sources, and neither is compared to the other.
+
 A `post-change` artifact digest is **never** required to equal the baseline
 digest. Requiring equality would make the plan's own trimming goal unachievable.
 
-The static-contract column exists for case #47, which builds nothing and asserts
-over repository source files only. It is **not** an exemption: that case is still
-phase-selected and still validated — its identity source is a source tree rather
-than an archive, because inventing an artifact digest for a case that produces no
-artifact would be a fabricated value.
+The `static` column covers every case whose owner set maps to `static` — case #47
+plus the manifest, schema, classifier, generator and release-workflow cases, which
+build no distribution artifact. It is **not** an exemption: such a case is still
+phase-and-subject selected and still validated, with a source tree as its identity
+source, because inventing an artifact digest for a case that produces none would
+be a fabricated value.
 
 **T16 validates:**
 
@@ -609,9 +690,16 @@ artifact would be a fabricated value.
 3. `source_commit` re-derives to the captured value and `worktree_status` is
    empty — a dirty tree is rejected;
 4. `evidence_sha256` and `evidence_bytes` match the raw log bytes;
-5. `artifact_ref` validates against the phase-appropriate identity source above;
+5. `artifact_ref` validates against the identity source selected by the record's
+   `(observation_phase, artifact_subject)` pair;
 6. RED-FIRST ordering: the red test commit precedes the red observation and the
-   green implementation commit precedes the green observation.
+   green implementation commit precedes the green observation;
+7. `owner_tasks` equals the ledger owner set for the case, canonically sorted and
+   duplicate-free;
+8. `artifact_subject` equals the value the subject mapping assigns to that owner
+   set;
+9. slot coverage: all **106** `(case_name, observation_phase, artifact_subject)`
+   triples are present exactly once — no missing slot, no duplicate, no surplus.
 
 **Log bounds — one rule, fail closed.** Each raw log is at most 256 KiB **and**
 at most 2,000 lines. **A log exceeding either limit is rejected.** There is no
@@ -638,10 +726,12 @@ shipment. No binaries.
 | Release gate logs (Gate A, Gate B) | T14 |
 | Updated docs and this plan | T15 |
 
-The upgrade-orphan guarantee (V3) is delivered in its **local-artifact /
-`RECORD`** form only. It consumes T2a's recorded facts. It is not, and does not
-claim to be, a real installed-upgrade execution, a network fetch, or a hermetic
-rebuild.
+V3 is a **distribution-member-removal** guarantee over the built artifact's own
+member inventory. It consumes T2a's recorded facts. **It makes no installed-orphan
+claim**: a member's absence from a distribution does not prove that a prior
+install's copy of it is removed during upgrade. Real installed-upgrade execution,
+a network fetch, and a hermetic rebuild are all outside this shipment and are
+deferred in full to `60C207F1`.
 
 ## Security
 
@@ -812,6 +902,7 @@ T0 precedes every task that authors or executes a pytest case, and precedes T14.
 | `00C2B1F9` | Payload size budget enforcement thresholds | low | Deferred |
 | `F73A04A2` | Per-channel payload diff reporting | low | Deferred |
 | `0B83AC8F` | T3a (`160.005-T`) execution-planning split review — 22-case sizing against the 2-hour bound | medium | Deferred — **current residual risk**, not closed |
+| `76EBDE6D` | P-004 red-phase precondition is unsatisfiable on this workspace — policy work | high | Deferred — **blocks the `harness-ready` gate**, not closed |
 
 `60C207F1` is an open residual risk. This plan delivers the narrowed
 local-artifact / `RECORD` upgrade guarantee (V3) and makes no claim of real
@@ -912,7 +1003,7 @@ it is not restated here.
 |---|---|
 | **V1** | Assertions are made against the built artifact, not against source |
 | **V2** | The publish toolchain is not verifiable locally; both `core-metadata-version = "2.4"` pins are asserted instead (I4) |
-| **V3** | The upgrade orphan scan is delivered in **local-artifact / `RECORD` form only** |
+| **V3** | Distribution-member removal is asserted over the built artifact's own member inventory (wheel `RECORD`, plugin payload inventory). **No installed-orphan claim is made**; installed upgrade and orphan cleanup are deferred in full to `60C207F1` |
 | **V4** | A negative allow-list test asserts the allow-list cannot silently grow |
 | **V5** | Install parity is asserted across channels |
 | **V6** | A verified class-transition ledger records every write class transition |
@@ -946,6 +1037,11 @@ it is not restated here.
   RED-FIRST harness on which 34 ordering paths and every downstream green
   transition depend, so an incomplete red harness silently weakens the whole
   evidence contract.
+* **`76EBDE6D` — P-004's red-phase precondition is unsatisfiable here, and the
+  `harness-ready` gate is therefore currently unpassable.** Measured under
+  *Harness-ready gate*. Ship halts at the gate per P-002 rather than bypassing it.
+  This is a current-policy defect requiring separate policy work; this shipment
+  neither resolves it nor works around it.
 * `99818C6D` — the sdist channel remains ungated.
 * The publish toolchain's emitted metadata cannot be verified before publish;
   V2's pin assertions are the compensating control.
@@ -959,16 +1055,29 @@ residual risk, and neither is closed.
 ## Plan review
 
 Current verdict: **PASS** — zero current P0 and zero current P1 findings
-(cycle-11 fresh multi-persona review over the changed backlog and docs
+(cycle-12 fresh multi-persona review over the changed backlog and docs
 artifacts: architecture, security, test/QA, release/ops,
 simplicity/maintainability, policy).
+
+Publication readiness: **READY_WITH_FOLLOWUPS**, carrying `76EBDE6D`
+(harness-ready gate — blocking at execution, not at publication), `0B83AC8F`
+and `60C207F1`.
 
 Scope of the current review: the canonical plan (this document), the 19 task
 records, `160-F`, and `168-S`. Missing future implementation artifacts and
 currently unchanged CI or release files are **not** findings — queued plan
 readiness is not implementation completion.
 
-Open P2 (tracked, non-blocking): `backlogit shipment get 168-S` derives
+Open P2 (tracked, non-blocking), 1 — plan length. The canonical plan is
+1,088 lines against a <1,000-line concision target. The overrun is entirely
+cycle-12 contract text that the operator required (the harness-ready gate, and
+the `artifact_subject` / `owner_tasks` cardinality model). A duplicate-definition
+sweep confirms **one statement per subject** for every load-bearing definition
+(scratch root, AC11 selection, aggregate digest, `install_root`, no-auto-delete),
+so the remaining length is content, not redundancy. Trimming further would
+remove contract, not narrative.
+
+Open P2 (tracked, non-blocking), 2: `backlogit shipment get 168-S` derives
 `size_composition` by resolving `160-F` into every child with `parent_id: 160-F`,
 including the archived, retired `160.019-T`. The derived rollup therefore reads
 `M:12, S:8` over 20 members while the **live 19-task histogram is `M:11, S:8`**.

@@ -41,6 +41,7 @@ artifact for the plan's review lineage.
 | 9 | `docs/memory/2026-09-03-stage-review-fix-cycle-9.md` |
 | 10 | `docs/memory/2026-09-03-stage-review-fix-cycle-10.md` |
 | 11 | `docs/memory/2026-09-03-stage-review-fix-cycle-11.md` |
+| 12 | `docs/memory/2026-09-03-stage-review-fix-cycle-12.md` |
 
 ## Cycle summaries
 
@@ -297,3 +298,43 @@ artifact.
 | "AC2d single-occurrence rule" cited as live authority (`160.008-T`, `160.010-T`) | 11 | Withdrawn in cycle 6; the no-local-re-listing requirement survives on AC2d predicate P2 |
 | "THE CASE NAME IS RETAINED" / "the name is historical" rationale | 11 | Current case name only: `test_target_workspace_prefix_derivation_is_centralized` |
 | Generic "gitignored temporary path" | 11 | The single contained root `dist/.autoharness-scratch/<run-id>/` |
+
+## Cycle 12 - bounded final corrections after independent review of `b3156cb5`
+
+Scope: Stage/backlog/docs only. No new task, channel, case, schema, engine or
+dependency. One P-021 stash capture authorized and used (`76EBDE6D`).
+Verdict: **PASS** - zero current P0/P1 across six personas.
+Readiness: **READY_WITH_FOLLOWUPS** (`76EBDE6D`, `0B83AC8F`, `60C207F1`).
+
+| # | Correction | Disposition |
+|---|---|---|
+| 1 | P-002/P-004 harness-ready gate | Cycle-11 reconciliation withdrawn; harness-architect authors and confirms T0's red case; Ship must not claim before `harness-ready`; Ship halts per P-002 violation action; gate stays fail-closed; captured `76EBDE6D` |
+| 2 | T10 installed-orphan claim | Narrowed to distribution-member removal; AC6/V3 renamed; case 29 renamed atomically across plan, ledger and 3 task records; count unchanged |
+| 3 | Evidence subject and cardinality | `owner_task` -> `owner_tasks` (sorted unique array); `artifact_subject` enum `static\|wheel\|plugin`; subject mapping as a total function of the owner set; primary key `(case_name, observation_phase, artifact_subject)`; 106 record slots |
+| 4 | T16 producer count | Seven -> **eight**, adding T0/`observations/T0.json` |
+| 5 | Duplicate unconditional-baseline paragraph | Deleted from `160.017-T`; selection is `(observation_phase, artifact_subject)` pair-selected everywhere |
+| 6 | Release Gate A/B assertion | Verified already correct in `160.005-T`; no edit |
+| 7 | Generic scratch wording | Verified zero live occurrences; all hits are withdrawal text |
+| 8 | Producer write scopes | Dual-destination clause inserted into all eight producers; zero surviving "only JSON" clauses |
+| 9 | T10 baseline side | Install-output inventory wording deleted; wheel `RECORD`/member inventory only |
+| 10 | `160.001-T` corrupted fragment | Orphaned `ely a recorded column` tail removed; sentence restored |
+| 11 | Stale rename narratives | Deleted from `160.018-T`; `160.003-T`/`160.004-T` verified already corrected in cycle 11 |
+| 12 | Log bounds | Verified fail-closed; no `truncated` field |
+| 13 | Approvals, captures, follow-up IDs | Verified: T0/T7/T8/T14 approval parity, six captures, all deferred IDs intact |
+| 14 | Absent queued implementation | Not treated as a finding; archived-child rollup caveat remains P2 |
+| 15 | Full recomputation and fresh review | All metrics reconcile; DAG plan<->frontmatter exact 51/51 |
+
+### Clauses withdrawn in cycle 12 (must not return)
+
+| Withdrawn clause | Where it lived | Why it was false |
+|---|---|---|
+| P-004's gate confirmation "costs nothing to honour" / "is taken at every red-phase gate" | plan Runner contract, `160.020-T` | `tests/` holds 106 files / 2,025 test functions and `ci.yml` line 112 runs P-004's exact command as the required gate, so it exits 0 on the default branch while P-004 requires non-zero for every test function |
+| "BOTH ARE SATISFIED WITHOUT AMENDING EITHER" | `160.020-T` | Same measurement; the unittest-compatible authoring convention is necessary but not sufficient for P-004's red gate |
+| A mixed RED/CHARACTERIZATION whole-suite run satisfies "every function red" | plan, `160.020-T` | A characterization case passes by construction, so the claim fails independently of the 2,025 pre-existing tests |
+| `test_upgrade_from_1_5_0_leaves_no_orphans` and every "no installed orphans" claim | plan ledger, `160.012-T`, `160.006-T`, `160.007-T` | `RECORD` is an inventory of what a distribution *contains*; member absence is silent on whether a prior install's copy is deleted during upgrade. Deferred in full to `60C207F1` |
+| Singular `owner_task` | plan evidence table, `160.017-T` | Six cases carry two owners and could not be represented without dropping an owner |
+| "seven authoring tasks" and its seven-entry path list | `160.017-T` | T0 has authored ledger case 47 since cycle 11; T16 would have read seven inputs then failed case 47 for having no record |
+| Duplicate unconditional baseline-`artifact_ref` paragraph | `160.017-T` | Contradicted the phase-and-subject-selected rule stated in the same record |
+| "the ONLY authorized write ... is its observation record" | `160.005-T`, `160.016-T` and six other producers | Contradicted the bounded raw-log directory those same producers are required to write |
+| T10 baseline side "READ FROM 160.001-T's RECORDED INSTALL INVENTORY" | `160.012-T` | Compared target-workspace destination paths to wheel archive-member paths - two different universes |
+| "the case NAME is retained deliberately ... historical rather than descriptive" | `160.018-T` | The case was renamed atomically in cycle 9; the rationale survived three cycles past the fact it described |
