@@ -1048,9 +1048,10 @@ it is not restated here.
 
 ### Publication readiness
 
-**`READY_WITH_FOLLOWUPS`**, carrying `0B83AC8F` (T3a sizing) and `60C207F1`
-(offline installed upgrade). Not `READY`: both carry a concrete ID and a stated
-residual risk, and neither is closed.
+**`READY_WITH_FOLLOWUPS`**, carrying `76EBDE6D` (harness-ready gate —
+blocking at execution, not at publication), `0B83AC8F` (T3a sizing), and
+`60C207F1` (offline installed upgrade). Not `READY`: all three carry a
+concrete ID and a stated residual risk, and none is closed.
 
 ## Plan review
 
@@ -1069,7 +1070,7 @@ currently unchanged CI or release files are **not** findings — queued plan
 readiness is not implementation completion.
 
 Open P2 (tracked, non-blocking), 1 — plan length. The canonical plan is
-1,088 lines against a <1,000-line concision target. The overrun is entirely
+1,089 lines against a <1,000-line concision target. The overrun is entirely
 cycle-12 contract text that the operator required (the harness-ready gate, and
 the `artifact_subject` / `owner_tasks` cardinality model). A duplicate-definition
 sweep confirms **one statement per subject** for every load-bearing definition
