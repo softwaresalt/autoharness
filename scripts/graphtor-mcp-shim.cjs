@@ -219,6 +219,20 @@ function handleChildTermination(reason) {
   // forever for either a response or transport EOF.
   clientLines.close();
   process.stdin.destroy();
+
+  // The wrapped child process itself may still be alive at this point --
+  // e.g. it closed only its own stdin read end (or otherwise caused a
+  // child.stdin write error) without ever exiting. If left running, its
+  // still-open stdout/stderr pipes keep this proxy's own event loop alive
+  // indefinitely, hanging the client even though every outstanding request
+  // has already been answered above. Forcibly terminate it so the proxy
+  // itself can exit promptly instead of merely waiting on the child to
+  // eventually die on its own (or never). child.kill() is a safe no-op
+  // when the process has already exited -- e.g. when this function is
+  // invoked from the `close` handler below, where there is nothing left to
+  // terminate.
+  child.stdin.destroy();
+  child.kill();
 }
 
 child.on('error', (error) => {

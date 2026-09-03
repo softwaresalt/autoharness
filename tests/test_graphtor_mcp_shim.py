@@ -92,11 +92,18 @@ the mode selected by argv[1]:
                          cause an immediate broken-pipe write error on
                          every platform) without exiting the process
                          itself, so no ChildProcess `exit`/`close` event
-                         fires for several seconds. Any write the shim
-                         performs to this process's stdin therefore fails
-                         immediately on the write side (broken pipe/EPIPE),
-                         isolating that failure mode from the
-                         already-covered child-process-exited case above.
+                         fires until it eventually times out on its own.
+                         Any write the shim performs to this process's
+                         stdin therefore fails immediately on the write
+                         side (broken pipe/EPIPE), isolating that failure
+                         mode from the already-covered child-process-exited
+                         case above. The idle period is deliberately much
+                         longer than any test's own assertion/teardown
+                         window, so a test asserting prompt shim
+                         termination is proof the *shim* actively
+                         terminated this still-alive child, not merely
+                         proof that the child eventually exited on its own
+                         within the test's timeout.
 """
 import json
 import os
@@ -108,7 +115,7 @@ mode = sys.argv[1] if len(sys.argv) > 1 else "normal"
 if mode == "close-stdin-only":
     os.close(0)
     os.close(1)
-    time.sleep(5)
+    time.sleep(60)
     sys.exit(0)
 
 
@@ -404,24 +411,24 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
     def test_child_stdin_write_error_fails_requests_without_crashing(
         self,
     ) -> None:
-        # Regression for PR #429 Copilot review round 5: writeToChild()
-        # writes directly to child.stdin, but only the ChildProcess-level
-        # `error`/`close` events were handled -- an EPIPE (or similar)
-        # emitted on the child.stdin Writable stream itself was previously
-        # unhandled. Node treats an unhandled stream `error` as fatal and
-        # would crash the whole proxy process before
-        # handleChildTermination() ever ran, instead of synthesizing the
-        # promised JSON-RPC error responses.
+        # Regression for PR #429 Copilot review round 5 (databaseId
+        # 3921483205): writeToChild() writes directly to child.stdin, but
+        # only the ChildProcess-level `error`/`close` events were handled
+        # -- an EPIPE (or similar) emitted on the child.stdin Writable
+        # stream itself was previously unhandled. Node treats an unhandled
+        # stream `error` as fatal and would crash the whole proxy process
+        # before handleChildTermination() ever ran, instead of
+        # synthesizing the promised JSON-RPC error responses.
         #
         # This is deliberately a different code path than
         # test_child_exit_before_initialize_response_fails_initialize_and_terminates
         # above: that test's fake server exits, which fires the
         # ChildProcess `close` event (already handled before this fix).
         # This test's fake server instead closes only its own stdin read
-        # end while remaining alive (no exit, so no `close`/`exit` event
-        # fires on the ChildProcess), isolating the failure to the
-        # child.stdin stream's own `error` event -- exactly the event this
-        # fix adds a listener for.
+        # end while remaining alive for a long time (see `close-stdin-only`
+        # mode above), isolating the failure to the child.stdin stream's
+        # own `error` event -- exactly the event this fix adds a listener
+        # for.
         proc = self._spawn("close-stdin-only")
         messages = self._start_reader(proc)
 
@@ -453,21 +460,30 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
             f"unhandled child.stdin EPIPE crash); messages seen: {seen!r}",
         )
 
-        # As above: the proxy must terminate on its own without an
-        # externally-supplied EOF, and wait() returning at all (rather than
-        # raising TimeoutExpired) is the only meaningful assertion --
-        # crucially, it must return normally rather than the process having
-        # already died from an uncaught exception before this point (which
-        # would have already made the assertions above fail, since no
-        # error responses would have been written).
+        # Regression for PR #429 Copilot review round 5 (databaseId
+        # 3921825559): the child.stdin error handler must not merely close
+        # the proxy's own client-facing input -- the wrapped child in this
+        # scenario is still alive (its fake-server fixture deliberately
+        # idles for 60s, far longer than this assertion's own timeout), so
+        # its still-open stdout/stderr pipes would otherwise keep this
+        # proxy's own event loop (and therefore the process) alive for the
+        # remainder of that idle period. A short timeout here -- far
+        # shorter than the fixture's 60s idle window -- is the whole point
+        # of the assertion: it can only pass if the shim *actively*
+        # terminated the still-live child (e.g. via child.kill()) rather
+        # than merely waiting on it to eventually exit on its own.
         try:
-            proc.wait(timeout=10)
+            proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=5)
             self.fail(
-                "shim process never terminated on its own after a write to "
-                "the child's stdin failed"
+                "shim process did not terminate promptly after a "
+                "child.stdin write error -- the wrapped child was still "
+                "alive (idling for 60s in this fixture) and the shim must "
+                "actively terminate it rather than waiting on it to exit "
+                "on its own, or the proxy hangs indefinitely against a "
+                "real server that closes stdin without exiting"
             )
 
 
