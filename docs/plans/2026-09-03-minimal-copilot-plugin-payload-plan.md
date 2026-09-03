@@ -89,7 +89,7 @@ occurs.
 | `.autoharness/payload-manifest.yaml` (new) | Declarative manifest — sole source of payload paths |
 | `schemas/payload-manifest.schema.json` + `schemas/payload-manifest/1.0.0.schema.json` | Manifest schema, live and versioned |
 | `build_support/**` | Classifier, resolver, generator, size reporter |
-| `tests/**` | 46-case harness (see ledger) |
+| `tests/**` | 47-case harness (see ledger) |
 | `pyproject.toml` | Build tables (T7); `[dependency-groups]` test dependency (T0) |
 | `uv.lock` | Pinned test toolchain (T0) |
 | `.github/workflows/ci.yml` | Test invocation and toolchain preflight (T0) |
@@ -409,15 +409,53 @@ in each observation record; a mismatch is a T16 failure.
 
 * Author-before-owner ordering is machine-checked over the dependency DAG: for
   every RED-FIRST case, the authoring task must precede every owning task.
-  There are **34** such ordering paths.
+  There are **34** such ordering paths. Case 47 adds none: its author and its
+  owner are the same task, and a task cannot need to precede itself.
 * Case names are unique across the ledger.
 * Every ledger case must be collectable by `uv run python -m pytest --collect-only`.
 * Every owner edge must join to a live task ID.
 
-### Case ledger — 46 cases
+### Runner contract — both governing documents, no policy change
 
-Counts: **46 unique cases** = **32 RED-FIRST** + **14 CHARACTERIZATION**.
-Owner edges: **52** (six cases carry two owners).
+Every case this shipment authors is written as a `unittest.TestCase` method, so
+**both** runners collect it. That single authoring convention satisfies two
+documents that name different commands, without amending either:
+
+* **P-004** (`.github/policies/workflow-policies.md`) states its red-phase
+  precondition literally as `PYTHONPATH=src python -m unittest discover -s tests`
+  exiting non-zero. Red evidence taken before the toolchain lands uses that exact
+  command.
+* **The Constitution** names `pytest`. T0 declares and locks a pinned `pytest`
+  and moves CI's authoritative gate to `uv run python -m pytest`, which collects
+  unittest-compatible cases unchanged.
+
+Two commands run, at two different levels, and neither displaces the other:
+
+* **P-004's gate confirmation is always the literal unittest command.** P-004's
+  precondition is whole-suite and gate-scoped — `PYTHONPATH=src python -m unittest
+  discover -s tests` must exit non-zero with expected failure markers before the
+  `harness-ready` label. That confirmation is taken with that exact command at
+  **every** red-phase gate in this shipment, before and after T0. It costs
+  nothing to honour: `unittest` is stdlib, so the command needs no lock, no
+  dependency group and no network, and every case here is a `unittest.TestCase`
+  method, so `discover` sees all of them. This plan does not amend, narrow or
+  reinterpret that precondition.
+* **Per-case observation records use the canonical runner once it is locked.**
+  `uv run python -m pytest` is the authoritative invocation for the recorded
+  ledger observations (AC2b-CI), with **exactly one pre-lock exception**: case
+  47's own red, which is taken under the P-004 unittest command because pytest is
+  not yet locked when it runs. Its raw log records that command verbatim, so it
+  cannot be mistaken for a pytest run. `test_node_id` is a property of a case's file and
+class location, fixed when the case is authored, and T16 verifies every node ID
+against a **terminal** `--collect-only` run at the end of the shipment — by
+which time pytest is locked. No runner field, no schema change, and no policy
+expansion is introduced for this.
+
+### Case ledger — 47 cases
+
+Counts: **47 unique cases** = **33 RED-FIRST** + **14 CHARACTERIZATION**.
+Owner assignments: **53** (six cases carry two owners; case 47's author and
+owner are the same task).
 
 | # | Case name | Asserts | Class | Author | Owner | Machine-checked dependency |
 |---|---|---|---|---|---|---|
@@ -467,12 +505,13 @@ Owner edges: **52** (six cases carry two owners).
 | 44 | `test_version_resolves_on_plugin_install_without_cli` | AC10 | R | T13 | T8 | T8←T13 |
 | 45 | `test_release_workflow_runs_payload_gate_before_publish` | AC2b | R | T3a | T14 | T14←T3a |
 | 46 | `test_release_gate_covers_all_declared_channels` | AC2b, AC1 | R | T3a | T14 | T14←T3a |
+| 47 | `test_ci_invokes_the_locked_canonical_test_runner` | AC2b-CI | R | T0 | T0 | none — author and owner are the same task |
 
-**Per-author (R/C).** T3a 22/0 · T3b 0/4 · T9 1/2 · T10 1/2 · T11 5/3 ·
-T12 1/3 · T13 2/0. Totals 32 R, 14 C.
+**Per-author (R/C).** T0 1/0 · T3a 22/0 · T3b 0/4 · T9 1/2 · T10 1/2 ·
+T11 5/3 · T12 1/3 · T13 2/0. Totals 33 R, 14 C.
 
-**Per-owner edges.** T2b 2 · T4 4 · T5 5 · T6 4 · T7 16 · T8 19 · T14 2 =
-**52**. The six two-owner cases are #25, #26, #28, #29, #30, #43.
+**Per-owner edges.** T0 1 · T2b 2 · T4 4 · T5 5 · T6 4 · T7 16 · T8 19 ·
+T14 2 = **53**. The six two-owner cases are #25, #26, #28, #29, #30, #43. Case #47 is the only case whose author and owner are the same task.
 
 Case 24 is the AC2d case. Its name states the derivation property the plan
 actually asserts; it carries no occurrence semantics.
@@ -484,7 +523,7 @@ consumes as input, and it uses **no** OS temporary directory.
 
 | Record | Content |
 |---|---|
-| **E1** | Member inventories per artifact, plus an aggregate digest |
+| **E1** | Member inventories per artifact, plus an aggregate digest. For the wheel this is the distribution's own `RECORD` / archive-member inventory — **not** an installed-workspace or `site-packages` listing |
 | **E2** | Full 40-character SHA of the baseline commit — authoritative over branch name or `HEAD` |
 | **E3** | The deterministic rebuild recipe and environment dimensions, recorded as **T2a's own reproducibility record only** |
 | **E4** | Observation provenance for each recorded fact |
@@ -497,6 +536,22 @@ ASCII unit separator, forward slashes in paths, encoded UTF-8.
 No binary artifact is committed. T10 consumes T2a's **recorded facts**; it does
 not rebuild the baseline.
 
+**Like-for-like comparison (T10).** T10's orphan verdict is a set difference
+between **two wheel `RECORD` member-path sets**: the baseline side from T2a's
+normalized E1 wheel inventory, the trimmed side from the actual built wheel's own
+`RECORD`. Comparing a generated workspace path listing against `site-packages`
+paths is prohibited — the two are different path universes, so nearly every path
+would differ even when nothing moved, producing a phantom orphan set
+indistinguishable from a real regression.
+
+Allowed metadata differences, excluded from the verdict (**closed list** — a
+difference not named here is a real difference and must be reported): the
+`RECORD` row for `RECORD` itself; `.dist-info/WHEEL` generator and tag lines;
+`.dist-info/METADATA` version-derived fields; the `.dist-info` directory name's
+version component; `*.pyc` and `__pycache__` members.
+
+Real offline installed-upgrade execution remains deferred as `60C207F1`.
+
 ### Evidence-verification contract for 160.017-T
 
 There is exactly one canonical evidence record shape. Producers **reference**
@@ -504,7 +559,7 @@ this table; producers do not restate field lists.
 
 | Field | Definition |
 |---|---|
-| `case_name` | The logical case key — one of the 46 ledger names. Bare identifier: must contain neither `::` nor `/` |
+| `case_name` | The logical case key — one of the 47 ledger names. Bare identifier: must contain neither `::` nor `/` |
 | `test_node_id` | The full pytest node ID. Must contain `::` |
 | `declared_class` | `RED-FIRST` or `CHARACTERIZATION`, matching the ledger |
 | `author_task` | Authoring task ID, matching the ledger |
@@ -528,16 +583,23 @@ is the collection identity.
 runs. Then run the case. A recorded observation requires a clean, committed
 tree.
 
-**Artifact identity — two sources, phase-selected.** `artifact_ref` is validated
-against the source appropriate to `observation_phase`:
+**Artifact identity — always phase-selected.** `artifact_ref` validation is
+**always** selected by `observation_phase`. There is **no** unconditional
+baseline check anywhere in the contract:
 
-| `observation_phase` | Identity source |
-|---|---|
-| `baseline` | The T2a baseline artifact inventory (E1) |
-| `post-change` | The current trimmed artifact inventory produced by the run under test |
+| `observation_phase` | Artifact assertion (wheel) | Artifact assertion (plugin) | Static contract assertion |
+|---|---|---|---|
+| `baseline` | T2a baseline **wheel** inventory (E1) | T2a baseline **plugin** inventory (E1) | T2a baseline commit SHA (E2) |
+| `post-change` | Current **trimmed wheel** inventory | Current **trimmed plugin** inventory | The observation's own `source_commit` |
 
 A `post-change` artifact digest is **never** required to equal the baseline
 digest. Requiring equality would make the plan's own trimming goal unachievable.
+
+The static-contract column exists for case #47, which builds nothing and asserts
+over repository source files only. It is **not** an exemption: that case is still
+phase-selected and still validated — its identity source is a source tree rather
+than an archive, because inventing an artifact digest for a case that produces no
+artifact would be a fabricated value.
 
 **T16 validates:**
 
@@ -551,8 +613,15 @@ digest. Requiring equality would make the plan's own trimming goal unachievable.
 6. RED-FIRST ordering: the red test commit precedes the red observation and the
    green implementation commit precedes the green observation.
 
-**Log bounds.** Each raw log is at most 256 KiB **and** at most 2,000 lines. At
-most 3 logs per case. At most 200 files per shipment. No binaries.
+**Log bounds — one rule, fail closed.** Each raw log is at most 256 KiB **and**
+at most 2,000 lines. **A log exceeding either limit is rejected.** There is no
+truncation path, no `truncated` field, and no pre-truncation counts — those
+would be three extension fields that nothing else consumes, self-reported by the
+producer whose output the bound exists to constrain. A producer that cannot fit
+an observation inside the bound **halts and reports**; it does not truncate.
+When T16 rejects an over-bound log it cites the path, digest, byte size and line
+count **only**, never the content. At most 3 logs per case. At most 200 files per
+shipment. No binaries.
 
 ### Mandatory durable outputs
 
@@ -610,7 +679,7 @@ tasks — 20 manifest entries.
 
 | T# | Task ID | Scope |
 |---|---|---|
-| T0 | `160.020-T` | Test-toolchain alignment: pinned pytest dependency, `uv.lock`, CI invocation |
+| T0 | `160.020-T` | Test-toolchain alignment: pinned pytest dependency, `uv.lock`, CI invocation, plus case #47 |
 | T1 | `160.002-T` | Plugin source-strategy spike and decision record |
 | T2a | `160.001-T` | Baseline inventories, aggregate digests, reproducibility record |
 | T2b | `160.018-T` | Manifest schema — live file, versioned mirror, contract registration |
@@ -638,8 +707,44 @@ tasks — 20 manifest entries.
 3. Replace the existing `unittest` invocation with `uv run python -m pytest` as
    the authoritative test command.
 
-T0 owns only the `pyproject.toml` test-dependency region, `uv.lock`, and
-`ci.yml`. It authors **no** payload behaviour test.
+T0 owns only the `pyproject.toml` test-dependency region, `uv.lock`, `ci.yml`,
+and the single case-#47 test file.
+
+### T0 — red-first before implementation
+
+T0 is **not** exempt from the class contract. It authors ledger case #47,
+`test_ci_invokes_the_locked_canonical_test_runner` — a static contract test that
+reads `pyproject.toml`, `uv.lock` and `ci.yml` and asserts the pinned pytest
+declaration, the locked `pytest` node, the `uv run python -m pytest` invocation,
+the pinned setup-uv step, and the fail-closed preflight. It builds nothing.
+
+Binding order inside T0: author the case → **commit** → observe it **red** under
+P-004's `PYTHONPATH=src python -m unittest discover -s tests` on the committed
+pre-change tree → apply the three deliverables → **commit** → observe it **green**
+under `uv run python -m pytest`. T0 authors and owns this one case and **no**
+payload behaviour test of any kind.
+
+### Tracked-write approval — T0, T7, T8, T14
+
+Every tracked write whose bytes change is class `OVERWRITE`, and **a tracked
+`OVERWRITE` requires external, fresh, live operator approval regardless of which
+task performs it and regardless of whether a generator was involved.**
+
+What is generator-scoped is the AC3e *classification machinery* (Layer 1). The
+Layer-2 *approval obligation* is not. Exempting an authored edit would make
+"author it by hand" a silent bypass of the control Principle VII imposes — a
+strictly worse outcome than running the generator.
+
+So T0 (`pyproject.toml`, `uv.lock`, `ci.yml`) and T14 (`release.yml`) follow the
+same four steps as T7 and T8: compute and record the reviewed OVERWRITE/REMOVE
+partition; obtain fresh live approval out-of-band over that exact partition;
+apply the exact reviewed diff, re-verify the resulting bytes and **halt on any
+divergence**; append the reviewed-partition record to the same pre-change byte
+record. **Recorded bytes never authorize** (R-2). T16 verifies all four records.
+
+This approval binds at **implementation** time, when Ship executes these tasks.
+It is not a gate on Stage publication of the backlog records, which mutate no
+tracked source, config or workflow file.
 
 ### Pre-change captures (exactly six)
 
@@ -706,6 +811,7 @@ T0 precedes every task that authors or executes a pytest case, and precedes T14.
 | `60C207F1` | Real offline end-to-end installed-upgrade execution | high | Deferred — **current residual risk**, not closed |
 | `00C2B1F9` | Payload size budget enforcement thresholds | low | Deferred |
 | `F73A04A2` | Per-channel payload diff reporting | low | Deferred |
+| `0B83AC8F` | T3a (`160.005-T`) execution-planning split review — 22-case sizing against the 2-hour bound | medium | Deferred — **current residual risk**, not closed |
 
 `60C207F1` is an open residual risk. This plan delivers the narrowed
 local-artifact / `RECORD` upgrade guarantee (V3) and makes no claim of real
@@ -764,7 +870,7 @@ contract violation.
 | `schemas/payload-manifest.schema.json` and `schemas/payload-manifest/1.0.0.schema.json` | T2b |
 | `src/autoharness/schema_contracts.py` (registration entry only) | T2b only (narrow, explicit exception) |
 | `build_support/**` | T5, T6 |
-| `tests/**` | T3a, T3b, T9, T10, T11, T12, T13, T16 (**not** T2b, **not** T6) |
+| `tests/**` | T0 (case #47 file only), T3a, T3b, T9, T10, T11, T12, T13, T16 (**not** T2b, **not** T6) |
 | `pyproject.toml` — build tables | T7 |
 | `pyproject.toml` — `[dependency-groups]` | T0 |
 | `uv.lock` | T0 only |
@@ -780,9 +886,10 @@ contract violation.
 
 ### Checkpoints
 
-An operator checkpoint is required before: the first schema write (T2b), the
-first `pyproject.toml` build-table write (T7), the first `release.yml` write
-(T14), and any `OVERWRITE` or `REMOVE` class write.
+An operator checkpoint is required before: the first `ci.yml` / `uv.lock` /
+`[dependency-groups]` write (T0), the first schema write (T2b), the first
+`pyproject.toml` build-table write (T7), the first `release.yml` write (T14),
+and any `OVERWRITE` or `REMOVE` class write.
 
 ### Principle VII — two-layer approval
 
@@ -792,8 +899,9 @@ no approval input of any kind. Because it cannot be told "approved", its refusal
 is unforgeable.
 
 **Layer 2 — approval.** Approval is an external agent-protocol gate operating on
-the reviewed diff. T7 and T8 apply exactly the reviewed diff, re-verified
-byte-for-byte before application, and halt on any divergence.
+the reviewed diff. **T0, T7, T8 and T14** — every task that performs a tracked
+write — apply exactly the reviewed diff, re-verify byte-for-byte, and halt on any
+divergence. Layer 2 is not generator-scoped; see *Tracked-write approval*.
 
 Principle VII rule 9 refers to the single ephemeral root defined once in AC3e;
 it is not restated here.
@@ -814,9 +922,9 @@ it is not restated here.
 | Action | Control |
 |---|---|
 | Modifying `release.yml` | Structural assertions in Gate A; operator checkpoint |
-| Modifying `ci.yml` | Exactly three enumerated changes; pre-change capture |
+| Modifying `ci.yml` | Exactly three enumerated changes; pre-change capture; reviewed OVERWRITE partition with fresh live approval |
 | Regenerating `plugin-payload/**` | Idempotence case #13; generated-root exclusion |
-| Any tracked overwrite or removal | Two-layer approval; fresh live operator approval |
+| Any tracked overwrite or removal | Two-layer approval; fresh live operator approval over the exact reviewed partition; re-verify applied bytes and halt on divergence (T0, T7, T8, T14) |
 | Scratch cleanup | Separate destructive-approval operation; never automatic |
 
 ### Residual risk
@@ -824,15 +932,36 @@ it is not restated here.
 * **`60C207F1` — offline installed-upgrade execution is deferred and open.**
   V3's guarantee is narrowed to the local-artifact / `RECORD` form. This is a
   live residual risk carried into execution, not a closed item.
+* **`0B83AC8F` — T3a's 22-case size is unconfirmed against the 2-hour bound.**
+  T3a authors 22 RED-FIRST cases and records 22 red observations under the full
+  provenance protocol. That is a lot of work, it sits at the top of the M band,
+  and it may exceed the bound that forces a split. It is not "a few scenarios".
+  Splitting it is separate execution-planning work — a split boundary must be
+  chosen, the author column re-derived for 22 rows, a DAG node and its edges
+  added, and the ordering paths recomputed — so it is captured rather than done
+  in place. **Disposition required before or during execution:** measure the real
+  authoring cost on the first few cases and split if it exceeds the bound, or
+  record a measured confirmation that it fits. **Residual risk if neither
+  happens:** an over-bound task degrades agent reliability, and T3a is the
+  RED-FIRST harness on which 34 ordering paths and every downstream green
+  transition depend, so an incomplete red harness silently weakens the whole
+  evidence contract.
 * `99818C6D` — the sdist channel remains ungated.
 * The publish toolchain's emitted metadata cannot be verified before publish;
   V2's pin assertions are the compensating control.
 
+### Publication readiness
+
+**`READY_WITH_FOLLOWUPS`**, carrying `0B83AC8F` (T3a sizing) and `60C207F1`
+(offline installed upgrade). Not `READY`: both carry a concrete ID and a stated
+residual risk, and neither is closed.
+
 ## Plan review
 
 Current verdict: **PASS** — zero current P0 and zero current P1 findings
-(cycle-10 fresh multi-persona review: architecture, security, test/QA,
-release/ops, simplicity/maintainability, policy).
+(cycle-11 fresh multi-persona review over the changed backlog and docs
+artifacts: architecture, security, test/QA, release/ops,
+simplicity/maintainability, policy).
 
 Scope of the current review: the canonical plan (this document), the 19 task
 records, `160-F`, and `168-S`. Missing future implementation artifacts and
@@ -842,7 +971,7 @@ readiness is not implementation completion.
 Open P2 (tracked, non-blocking): `backlogit shipment get 168-S` derives
 `size_composition` by resolving `160-F` into every child with `parent_id: 160-F`,
 including the archived, retired `160.019-T`. The derived rollup therefore reads
-`M:11, S:9` over 20 members while the **live 19-task histogram is `M:10, S:9`**.
+`M:12, S:8` over 20 members while the **live 19-task histogram is `M:11, S:8`**.
 The 20-entry manifest itself is correct and does not contain `160.019-T`. This
 is a backlogit rollup behaviour, not a plan or manifest defect.
 

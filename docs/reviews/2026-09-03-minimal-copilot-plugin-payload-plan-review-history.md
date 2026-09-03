@@ -40,6 +40,7 @@ artifact for the plan's review lineage.
 | 5–8 | Folded into the cycle-9 record; no separate memory files were written |
 | 9 | `docs/memory/2026-09-03-stage-review-fix-cycle-9.md` |
 | 10 | `docs/memory/2026-09-03-stage-review-fix-cycle-10.md` |
+| 11 | `docs/memory/2026-09-03-stage-review-fix-cycle-11.md` |
 
 ## Cycle summaries
 
@@ -216,6 +217,56 @@ histogram is `M:10, S:9`**. The 20-entry manifest itself is correct and does not
 contain `160.019-T`. This is backlogit rollup behaviour, not a plan, manifest,
 or task defect. Never quote `M:11, S:9` as the live task histogram.
 
+### Cycle 11 — dual-phase runner contract and stale-clause corrections
+
+Cycle 10 left the plan concise but carried nine correctness defects into the
+independent review, plus one unresolved policy conflict: **P-004 states its
+red-phase precondition literally as `PYTHONPATH=src python -m unittest discover
+-s tests`, while the Constitution names `pytest`.** Cycle 9 had added the pytest
+toolchain task (T0) without reconciling the two documents, and T0 itself claimed
+to author no test at all.
+
+**Resolution — minimal dual-phase contract, no policy expansion.** Every case
+this shipment authors is a `unittest.TestCase` method, so both runners collect
+it. P-004's gate confirmation is whole-suite and gate-scoped and is always taken
+with its exact unittest command (stdlib — no lock, no dependency group, no
+network needed), before and after T0. Per-case ledger observations use
+`uv run python -m pytest` once locked, with exactly one pre-lock exception:
+T0's own red. `test_node_id` needed no runner field, because a node ID is a
+property of a case's file and class location, fixed at authoring time and
+verified by T16 against a terminal `--collect-only` run.
+
+**Corrections applied in cycle 11:**
+
+| # | Correction |
+|---|---|
+| 1 | `160.017-T` terminal rejection list: the unconditional baseline-E1 rejection deleted. `artifact_ref` validation is now **always** phase-and-kind selected across five sub-cases (baseline/post-change x wheel/plugin, plus static contract) |
+| 2 | `160.005-T`'s release-workflow case widened to the six-part predicate already carried by `160.015-T`: both gates, Gate A before build, Gate B after build and before publish, and no `dist` mutation between Gate B and publish. One case, wider predicate, no new row |
+| 3 | Generic "gitignored temporary path" replaced in `160.002-T`, `160.008-T`, `160.009-T`, `160.010-T`, `160.013-T` with the single contained root `dist/.autoharness-scratch/<run-id>/` plus canonical containment, pre-matching exclusion, and no-auto-delete |
+| 4 | T10 inventory normalization: T2a's E1 wheel side is the distribution's own `RECORD` / archive-member inventory, **not** an installed-workspace listing. `160.012-T`'s U1/U4 rewritten as a `RECORD`-to-`RECORD` set difference with a **closed** allowed-metadata-difference list. The withdrawn install-output-vs-`RECORD` comparison produced a phantom orphan set indistinguishable from a real regression |
+| 5 | Forward correction appended to the `160-F` feature log recording the cycle-10 state (live S9/M10, derived S9/M11) as superseded by the cycle-11 state (live **S8/M11**, derived **S8/M12**). Append-only history was not altered |
+| 6 | T16 log bounds reduced to one executable rule: **fail closed** on any log over 256 KiB or 2,000 lines. The truncation path, the `truncated` field and the pre-truncation counts were deleted from `160.017-T` **and from all seven producer records**, which had still instructed producers to truncate while T16 rejected the result |
+| 7 | Tracked-write approval parity: T0 and T14 now carry the same external fresh-live-approval-over-the-reviewed-partition obligation as T7 and T8. AC3e's *classification machinery* is generator-scoped; the Layer-2 *approval obligation* is not — otherwise "author it by hand" silently bypasses Principle VII |
+| 8 | T0 red-first: `160.020-T` authors and owns ledger case 47, `test_ci_invokes_the_locked_canonical_test_runner`, observed red under P-004's unittest command on the committed pre-change tree and green under the canonical runner. The "authors no test" and "authors no case" claims were withdrawn. Ledger 46 -> **47**, RED-FIRST 32 -> **33**, owner assignments 52 -> **53**, ordering paths unchanged at **34** (author and owner are the same task). `160.020-T` resized S -> **M** |
+| 9 | Stale AC2d single-occurrence authority deleted from `160.008-T` and `160.010-T`; stale case-name-retained rationale deleted from `160.003-T` and `160.004-T` |
+| 10 | T3a's 22-case M sizing captured as deferred stash entry `0B83AC8F` with a named disposition and stated residual risk. Splitting requires choosing a boundary, re-deriving the author column for 22 rows, adding a DAG node and edges, and recomputing ordering paths — that is separate execution-planning work, forbidden by this cycle's no-new-task constraint. Publication readiness is **`READY_WITH_FOLLOWUPS`**. The old rationale understating 22 cases as "a few scenarios" was corrected explicitly |
+| 11 | Canonical evidence table re-verified: every required field present exactly once, phase-specific identity sources defined for both artifact kinds and for the static-contract case; producer-local FORMAT lists re-verified absent |
+| 12 | Full recomputation and cross-check. Two arithmetic defects found in the plan's own rollups and fixed: the per-author line still read 32 R and omitted T0, and the per-owner itemization summed to 52 while claiming 53. The plan's Open-P2 block still quoted the cycle-10 rollup figures. A dangling cross-reference to a withdrawn plan section name was repointed. Three further live stale "46" figures were corrected in `160.005-T`, `160.017-T` and `160.020-T`. P-004's gate scope was clarified as whole-suite in both the plan and `160.020-T`, and T0's first `ci.yml` / `uv.lock` write was added to the checkpoint list |
+| 13 | Fresh changed-artifact multi-persona review re-run |
+
+**Verdict:** PASS, zero current P0/P1 across all six personas.
+
+**Plan size:** 850 -> 979 lines, 41,014 -> 49,734 bytes. Still under the
+sub-1,000-line target; the growth is the runner contract, the T0 red-first
+contract, the tracked-write approval section, and the like-for-like comparison
+block — all current contract, no history.
+
+**Open P2 carried forward:** `0B83AC8F` (T3a sizing), `60C207F1` (offline
+installed upgrade), and the `168-S` rollup anomaly, whose current figures are
+derived **`M:12, S:8`** over 20 members against a live 19-task histogram of
+**`M:11, S:8`**.
+
+
 ## Withdrawn clause index
 
 Quick resolution for readers who encounter superseded wording in an older
@@ -237,3 +288,12 @@ artifact.
 | Plugin `install_root` = "the plugin payload root declared in `generated_output_roots`" | 10 | `plugin.install_root` = `""` (payload root) |
 | `artifact_ref` checked against the T2a baseline inventory unconditionally | 10 | Phase-selected: `baseline` -> T2a E1; `post-change` -> current trimmed inventory |
 | "CI has drifted from the mandate, which 160.015-T (T14) corrects" | 9, 10 | `160.020-T` (T0) corrects it; T14 owns `release.yml` only |
+| "This task authors no test" / "authors no case" (`160.020-T`) | 11 | T0 authors and owns ledger case 47; red under P-004 unittest, green under the canonical runner |
+| "NO AC3e PARTITION RECORD" exemption for T0 | 11 | T0, T7, T8 and T14 all record a reviewed OVERWRITE/REMOVE partition and obtain fresh live approval |
+| Log truncation path, `truncated` field, pre-truncation counts | 11 | One rule, fail closed: a log over 256 KiB or 2,000 lines is rejected; producers halt and report |
+| `artifact_ref` unconditional baseline-E1 rejection (terminal list) | 11 | Always phase-and-kind selected, including a source-tree identity for the static-contract case |
+| Baseline install-output listing compared against the trimmed wheel `RECORD` | 11 | `RECORD`-to-`RECORD` set difference with a closed allowed-metadata-difference list |
+| Single-gate release-workflow predicate in `160.005-T` | 11 | Six-part predicate matching `160.015-T`: both gates, ordering, and no `dist` mutation between Gate B and publish |
+| "AC2d single-occurrence rule" cited as live authority (`160.008-T`, `160.010-T`) | 11 | Withdrawn in cycle 6; the no-local-re-listing requirement survives on AC2d predicate P2 |
+| "THE CASE NAME IS RETAINED" / "the name is historical" rationale | 11 | Current case name only: `test_target_workspace_prefix_derivation_is_centralized` |
+| Generic "gitignored temporary path" | 11 | The single contained root `dist/.autoharness-scratch/<run-id>/` |
