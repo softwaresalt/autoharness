@@ -96,10 +96,17 @@ function sendInitialized() {
 }
 
 function flushQueuedClientMessages() {
-  if (!initializeResponseSeen || queuedClientMessages.length === 0) {
+  if (!initializeResponseSeen) {
     return;
   }
 
+  // Always synthesize `notifications/initialized` once the response has been
+  // seen, even when nothing else is queued -- e.g. a client that sends only
+  // `initialize` followed immediately by its own `notifications/initialized`
+  // and then waits idly for further server-initiated interaction has an
+  // empty queue at this point, but the server still must be told the
+  // handshake completed. `sendInitialized()` is itself idempotent, so this
+  // is safe to call on every server line observed after the response.
   sendInitialized();
   for (const line of queuedClientMessages.splice(0)) {
     writeToChild(line);
