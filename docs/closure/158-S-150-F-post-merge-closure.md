@@ -56,12 +56,15 @@ evidence.
   (parents `964f7aeaa5b6accfd9bee235aa11b561f43ad794` and
   `4353a7484458aeca04055d3ef5126eccb7a661b8` -- two parents, P-009
   merge-commit strategy preserved).
-- Two in-scope post-merge follow-up PRs also merged to `main` before
+- Two additional post-merge follow-up PRs also merged to `main` before
   closure: #425 (`fix: clear ambient GITHUB_HEAD_REF before
   patched_environ() in topology tests`, merge commit
-  `8922b62e4c548daaa0dc0c1c56be2c8817862af9`) and #426 (`fix: pin
-  core-metadata-version to 2.4 to fix v1.5.0 PyPI publish failure`, merge
-  commit `ca3232a8969b321f085eb4958d5e2f8f47259d2c`).
+  `8922b62e4c548daaa0dc0c1c56be2c8817862af9`) -- an emergent finding
+  outside `158-S`'s original manifest scope, captured as P-021 stash
+  entry `E738A7D1` for Stage's retrospective review (see Stash
+  Disposition below) -- and #426 (`fix: pin core-metadata-version to
+  2.4 to fix v1.5.0 PyPI publish failure`, an in-scope publish-compatibility
+  fix, merge commit `ca3232a8969b321f085eb4958d5e2f8f47259d2c`).
 - Post-merge closure PR #427 (`chore: post-merge closure for 150-F -- v1.5.0
   release preparation and publish`) merged with merge commit
   `2661c1c82f82a22224c2f7df9309fe17f0745cf6` (parents
