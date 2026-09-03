@@ -116,6 +116,8 @@ default; the payload silently re-bloats. This is exactly how the current state
 arose.
 
 **Option 2 — Explicit allowlist manifest, single source of truth, both channels.**
+*(Historical label — this option was authored when the channel set was believed to
+be two. See the scope amendment under §Decision: current scope is three channels.)*
 A declarative payload manifest enumerates what ships; everything else is excluded
 by default. Fails closed. Requires a manifest, wiring into both `pyproject.toml`
 and the plugin source, and a test that asserts composition.
@@ -132,13 +134,31 @@ which is the largest single problem.
 ## Decision
 
 **Adopt Option 2 — an explicit, allowlist-based payload manifest as the single
-source of truth for both distribution channels, enforced by an automated
-composition test.**
+source of truth for all three distribution channels — wheel, sdist, and
+plugin — enforced by an automated composition test.**
+
+> **Scope amendment (plan review-fix cycle 2, finding 3; language corrected in
+> extended review-fix cycle 4, finding 11).** This decision was **originally
+> framed over two channels** (Copilot CLI plugin and Python wheel), and the
+> *Options considered* section above, the *Channel A* / *Channel B* evidence
+> sections, and Option 2's own "both channels" label are **preserved verbatim as
+> the historical record of that framing**. They are **not** current scope. The
+> **sdist** was subsequently identified as a *third, separate, and
+> disclosure-critical* channel: its `pyproject.toml` target declares no payload
+> table, so hatchling's default sweep packages the working tree wholesale,
+> including `.backlogit/`. Trimming the wheel while leaving the sdist untrimmed
+> would have left the largest disclosure open through a channel `pip download`
+> reaches by default. The **current authoritative channel set is therefore three:
+> wheel, sdist, plugin**, and the manifest is the single source of truth for all
+> three. Where this amendment and any earlier two-channel phrasing in this
+> document disagree about **current** scope, this amendment governs; the earlier
+> phrasing remains accurate only about the moment it was written.
 
 Rationale against the operator's prioritization rules:
 
-* *Simplicity supersedes complexity* — one declarative manifest replaces two
-  divergent implicit inclusion rules (`source: "."`, `force-include`).
+* *Simplicity supersedes complexity* — one declarative manifest replaces three
+  divergent implicit inclusion rules (`source: "."`, wheel `force-include`, and
+  the sdist's undeclared default sweep).
 * *Composability and interoperability supersede feature delivery* — this is a
   packaging refactor that makes install/update/verify behave consistently across
   the pip, clone, and plugin channels.
