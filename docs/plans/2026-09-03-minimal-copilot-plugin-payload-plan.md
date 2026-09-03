@@ -94,10 +94,23 @@ artifact they trim — contradicting the plan's own minimalism goal.
 ### AC1 — Manifest is the single source of truth
 
 * `.autoharness/payload-manifest.yaml` exists, validates against
-  `schemas/payload-manifest.schema.json`, and declares `include`, `exclude`, and
-  per-channel (`wheel`, `plugin`) overlays.
-* Neither `pyproject.toml` nor `marketplace.json` contains a payload path that is
-  not derivable from the manifest.
+  `schemas/payload-manifest.schema.json`, and declares `include`, `exclude`,
+  `target_workspace_paths`, `generated_output_roots`, and per-channel overlays for
+  the **closed three-channel set `{wheel, sdist, plugin}`** *(corrected in
+  review-fix cycle 3, finding 4 — cycle 2 added the sdist channel everywhere
+  except this criterion, which still read "`wheel`, `plugin`"; a criterion naming
+  two of three channels cannot accept a three-channel manifest)*.
+* The channel enum is **closed** and identical in every surface that names it:
+  this criterion, AC2b, AC2c, AC3, AC3b, AC11, the schema (`T2b`), the manifest
+  (`T4`), the resolver (`T5`), the generation command (`T6`), and the release gate
+  (`T14`). `all` means **wheel, sdist and plugin** — never a subset. The closure is
+  machine-checked by `test_manifest_validates_against_schema` (the schema's channel
+  enum is closed, so a fourth or missing channel fails validation) and by
+  `test_release_gate_covers_all_three_channels` (the gate's resolved channel set
+  must equal the full three), so the set cannot drift back to two in one surface.
+* Neither `pyproject.toml` (wheel target **or** sdist target) nor
+  `marketplace.json` contains a payload path that is not derivable from the
+  manifest.
 
 ### AC2 — Allowlist semantics, fail closed
 
@@ -256,10 +269,75 @@ a trim.
 * If neither branch (a) nor a tracked generated tree is acceptable, `T1`
   **halts to the operator** with the evidence and the alternatives; it does not
   invent a mechanism.
-* `plugin-payload/**` is classified in AC11: **excluded** from the wheel and sdist
-  channels (it is a derived duplicate of payload content, not source), and it is
-  the plugin channel's payload root. The manifest excludes it from itself so
-  generation cannot recurse.
+* `plugin-payload/**` is classified in AC11 under the **generated-output-root**
+  semantics defined in **AC3d**: it is **excluded from the classifier's input
+  domain** in *every* channel — including the plugin channel — while remaining the
+  directory the plugin payload is materialized **into** and the directory
+  `marketplace.json`'s `source` publishes. Input and output are different roles and
+  the manifest states them with different keys.
+
+### AC3d — Generated output roots are excluded from classifier input, not from publication
+
+*Added in review-fix cycle 3 (finding 9).* Cycle 2 classified `plugin-payload/**`
+as **"INCLUDE in the plugin channel"**. That is a **recursion defect**, not a
+wording nit: the plugin channel's generator *materializes into that same tree*, so
+an `include` rule naming it makes the generator's own output part of its next
+run's input. The second run resolves `plugin-payload/**` as source and writes it
+**inside** `plugin-payload/`, producing `plugin-payload/plugin-payload/...`; the
+third run nests again. `generate --check` then reports drift that regenerating
+cannot clear, because every regeneration deepens the tree — **permanent drift**
+that fails the release gate on every subsequent run. Prose saying "excluded from
+itself so generation cannot recurse" contradicted the same row's `include`
+disposition; the manifest must express the distinction structurally, not
+narratively.
+
+The manifest therefore declares **two different things with two different keys**:
+
+* **Source classification (`include` / `exclude` / per-channel overlays).** These
+  rules classify **tracked source paths** — the classifier's **input domain**.
+  `plugin-payload/**` is **never** an `include` rule in any channel.
+* **Generated output roots (`generated_output_roots`).** A closed list naming, per
+  channel, the directory the resolved payload is **materialized into**.
+  `plugin-payload/` is the **plugin channel's** output root. This key declares an
+  **output destination**, never an input classification.
+
+Binding semantics:
+
+1. **Input self-exclusion (fail-closed against recursion).** Before any
+   classification runs, every path under a declared `generated_output_roots` entry
+   is **removed from the tracked-path enumeration**. It is therefore neither
+   "classified" nor "unclassified", so **AC2's unclassified-path build failure is
+   not triggered by generated content** and the generator can never read its own
+   output. This removal is unconditional and applies to **all three channels**, so
+   the wheel and sdist cannot pick the tree up either — it is a derived duplicate
+   of payload content, not source.
+2. **Output-root emptiness is not a payload.** The plugin channel's payload is the
+   resolved **source** file set. The output root is where that set is written. A
+   channel whose resolved source set is empty produces an empty output root; it
+   does not fall back to "ship the output root's existing contents".
+3. **Publication is unchanged.** `plugin-payload/` remains **tracked and
+   committed**, and `marketplace.json`'s `source` points at it, so the strategy
+   stays publishable from a plain repository checkout (AC3c). Excluding a directory
+   from *classifier input* has no effect on whether it is *published* — those are
+   independent properties, and conflating them is what produced the cycle-2 row.
+4. **Required assertions** (green owners in parentheses):
+   * `test_generated_output_root_excluded_from_classifier_inputs` — no path under
+     any declared output root appears in **any** channel's resolved input set, and
+     the AC2 unclassified-path check does not flag generated content (**T5**).
+   * `test_plugin_generation_is_idempotent` — running `generate --channel plugin`
+     twice against a scratch target yields a **byte-identical** tree and an
+     identical resolved input set on both runs (**T6**).
+   * `test_plugin_payload_tree_is_self_excluded_and_flat` — the committed tree
+     contains **no** nested directory named `plugin-payload`, and
+     `generate --channel plugin --check` reports **no drift** immediately after a
+     regeneration (**T8**). This is the assertion that would have failed on the
+     cycle-2 classification, and it is what proves the drift is not permanent.
+5. **Prohibited:** adding `plugin-payload/**` (or any declared output root) to an
+   `include` rule in any channel; relying on ordering between rules to "win" the
+   exclusion; or implementing the exclusion inside the generator instead of the
+   resolver, which would leave every other consumer of the resolver — the AC2
+   classification check, the size report, `--check` — still seeing the output tree
+   as input.
 
 ### AC4 — Runtime payload is complete
 
@@ -406,7 +484,10 @@ Because the plugin channel excludes `src/` and `pyproject.toml`, source (3) is t
 ### AC11 — Complete path classification (closes AC2 against this plan itself)
 
 AC2 fails the build on any unclassified tracked path. The manifest must therefore
-classify **every** tracked path, including these previously unenumerated ones:
+classify **every** tracked path in the classifier's **input domain**, including
+these previously unenumerated ones. The input domain is the tracked-path set
+**minus** every path under a declared `generated_output_roots` entry (**AC3d**);
+generated output is neither classified nor unclassified, so it never trips AC2.
 
 | Path | Disposition | Reason |
 |---|---|---|
@@ -421,7 +502,7 @@ classify **every** tracked path, including these previously unenumerated ones:
 | `.github/copilot/**` | Classify explicitly at implementation time | Unresolved at plan time |
 | `.copilot/**`, `dist/**`, `.worktrees/**` | Exclude | Untracked/build output |
 | `build_support/**` | **Exclude** | Build-time only; created by T5/T6. Shipping it would put the packaging rules inside the artifact they trim (P1-6) |
-| `plugin-payload/**` | **Exclude** from wheel and sdist; **is** the plugin channel payload root | Tracked generated tree created only under spike branch (b) (AC3c). Excluded from itself so generation cannot recurse, and excluded from the Python channels because it is a derived duplicate of payload content, not source |
+| `plugin-payload/**` | **Generated output root (AC3d)** — removed from the classifier's **input domain** in **all three** channels; **not** an `include` rule anywhere; **is** the plugin channel's materialization target and the published `source` | Tracked generated tree created only under spike branch (b) (AC3c). Declared in `generated_output_roots`, not in `include`/`exclude`, so the generator can never read its own output and cannot nest (`plugin-payload/plugin-payload/…`). Being removed from the input domain means AC2's unclassified-path failure is not triggered by generated content. Being **tracked** is what keeps `source` consumer-fetchable |
 | `dist/plugin/**` | **Exclude** — and **prohibited as a `source` target** | Covered by the `dist/**` rule. `dist/.gitignore` is `*`, so nothing here is tracked or consumer-fetchable; AC3c forbids pointing `marketplace.json`'s `source` at it. Retained as an explicit row so the prohibition is visible where the classification lives |
 | `.autoharness/payload-manifest.yaml` | **Exclude (by name)** | Covered by the `.autoharness/**` rule, but classified explicitly so the manifest's own exclusion is intentional rather than incidental |
 | `schemas/payload-manifest/**` | **Include** | New versioned-mirror directory created by T2. Already covered by the existing `schemas/**` include (payload boundary line 188), but classified explicitly for the same reason as the rows above: it is a path this shipment creates, so its disposition must be intentional, not incidental |
@@ -483,9 +564,13 @@ by prose:
    completes at **red**. `T3b` authors only CHARACTERIZATION cases and completes
    at **green-on-baseline**. Neither can complete by doing the other's job.
 2. **Authoring precedes implementation by edge.** Every authoring task
-   (`T3a`, `T3b`, `T9`–`T13`) **blocks** every implementing task (`T7`, `T7b`,
-   `T8`, `T14`). No implementation can start until the observation that gives it
-   meaning has been recorded.
+   (`T3a`, `T3b`, `T9`–`T13`) **blocks** every implementing task that owns one of
+   its cases' green transitions — `T7`, `T7b`, `T8`, `T14`, and (added in
+   review-fix cycle 3, finding 5) **`T5`**, which owns the green for `T9`'s
+   `test_skill_docs_refs_resolve_to_workspace_not_payload`. No implementation can
+   start until the observation that gives it meaning has been recorded. The rule
+   is *author-before-owner for every case*, not *author-before-a-fixed-list*; the
+   fixed list is what let the `T9 → T5` pair go unencoded through two cycles.
 3. **Verification families author before they verify.** `T9`–`T13` are re-scoped
    from *write tests after the change* to *author and observe against the baseline
    build*, then hand their cases to the terminal ledger for the post-change
@@ -498,59 +583,124 @@ by prose:
    fails the shipment. A declared class with no recorded transition is a failure,
    not a pass.
 
-### Case table
+### Case table (canonical, bijective — rewritten in review-fix cycle 3, finding 5)
 
-`Authored by` is the task that writes the case and records the first observation.
-`Green/preservation owner` is the task whose change must produce the second
-observation.
+This table is the **single authoritative case ledger**. Every row is reproduced in
+its authoring task record and in its green/preservation owner's record, with the
+**same test name, same class, same author, same owner, and same observed initial
+state**; any divergence is a plan/queue drift defect, not a documentation nit.
 
-| Test | Asserts | Class | Authored by | Green/preservation owner |
-|---|---|---|---|---|
-| `test_manifest_validates_against_schema` | AC1 | RED-FIRST | T3a | T4 |
-| `test_schema_live_and_versioned_mirror_agree` | AC1 | RED-FIRST | T3a | T2b |
-| `test_payload_manifest_contract_registered` | AC1 | RED-FIRST | T3a | T2b |
-| `test_every_tracked_path_is_classified` | AC11 | RED-FIRST | T3a | T4 |
-| `test_start_scripts_and_workspace_config_excluded` | AC11 | RED-FIRST | T3a | T4 |
-| `test_manifest_is_sole_source_of_payload_paths` | AC1 | RED-FIRST | T3a | T5 |
-| `test_unclassified_tracked_path_fails_build` | AC2, AC8 | RED-FIRST | T3a | T5 |
-| `test_payload_size_reported` | AC8 | RED-FIRST | T3a | T5 |
-| `test_generate_emits_expected_tables_to_a_scratch_target` | AC2c | RED-FIRST | T3a | T6 |
-| `test_generate_is_byte_deterministic_and_cross_platform` | AC2c | RED-FIRST | T3a | T6 |
-| `test_only_one_generation_path_exists` | AC2c | RED-FIRST | T3a | T6 |
-| `test_wheel_generated_table_matches_manifest` | AC2c | RED-FIRST | T3a | T7 |
-| `test_docs_root_guides_only` | AC4 | RED-FIRST | T3a | T7 |
-| `test_wheel_excludes_backlogit_explicitly` | AC3 | **CHARACTERIZATION** | T3b | T7 |
-| `test_wheel_excludes_dev_directories` | AC3 | **CHARACTERIZATION** | T3b | T7 |
-| `test_wheel_contains_required_runtime_set` | AC4 | **CHARACTERIZATION** | T3b | T7 |
-| `test_core_metadata_version_pins_preserved` | I4, V2 | **CHARACTERIZATION** | T3b | T7 / T7b |
-| `test_sdist_generated_table_matches_manifest` | AC2c, AC3b | RED-FIRST | T3a | T7b |
-| `test_sdist_excludes_backlogit_explicitly` | AC3b | RED-FIRST | T3a | T7b |
-| `test_sdist_excludes_dev_directories` | AC3b | RED-FIRST | T3a | T7b |
-| `test_sdist_byte_size_and_disclosure_reported` | AC3b, AC8 | RED-FIRST | T3a | T7b |
-| `test_sdist_contains_required_runtime_set` | AC3b, AC4 | **CHARACTERIZATION** | T3b | T7b |
-| `test_sdist_includes_build_definition` | AC3b, AC11 | **CHARACTERIZATION** | T3b | T7b |
-| `test_plugin_generated_declaration_matches_manifest` | AC2c | RED-FIRST | T3a | T8 |
-| `test_plugin_payload_excludes_dev_directories` | AC3 | RED-FIRST | T3a | T8 |
-| `test_plugin_source_path_is_tracked_and_fetchable` | AC3c | RED-FIRST | T3a | T8 |
-| `test_install_emits_only_generated_output` | AC5, I3 | **CHARACTERIZATION** | T9 | T7 / T7b / T8 |
-| `test_skill_docs_refs_resolve_to_workspace_not_payload` | AC5, AC2d, R2 | RED-FIRST | T9 | T5 |
-| `test_no_engine_records_in_target_workspace` | AC5 | RED-FIRST | T9 | T7 / T8 |
-| `test_verify_workspace_parity_trimmed_vs_baseline` | AC6 | **CHARACTERIZATION** | T10 | T7 / T7b / T8 |
-| `test_upgrade_from_1_5_0_leaves_no_orphans` | AC6, R3 | RED-FIRST | T10 | T7 / T7b / T8 |
-| `test_data_dir_resolution_pip_install` | AC6a, R4 | **CHARACTERIZATION** | T11 | T7 / T7b |
-| `test_data_dir_resolution_clone_editable` | AC6a, R4 | **CHARACTERIZATION** | T11 | T7 / T7b |
-| `test_python_channel_needs_no_plugin_root_artifact` | AC6a (A1) | **CHARACTERIZATION** | T11 | T7 / T7b |
-| `test_plugin_root_resolves_templates_and_schemas` | AC6b | RED-FIRST | T11 | T8 |
-| `test_plugin_payload_has_no_python_distribution` | AC6b (B2) | RED-FIRST | T11 | T8 |
-| `test_channel_resolver_contracts_are_disjoint` | AC6a, AC6b | RED-FIRST | T11 | T8 |
-| `test_register_phase_all_environments_python_channel` | AC7 | **CHARACTERIZATION** | T12 | T7 / T7b |
-| `test_plugin_only_register_copilot_cli_succeeds` | AC7 | **CHARACTERIZATION** | T12 | T8 |
-| `test_plugin_only_unsupported_targets_fail_the_same_way_as_baseline` | AC7 | **CHARACTERIZATION** | T12 | T8 |
-| `test_plugin_channel_excludes_python_cli_by_design` | AC7 | RED-FIRST | T12 | T8 |
-| `test_gate4_crossrefs_intact_in_built_payload` | AC9, AC2d | RED-FIRST | T13 | T7 / T7b / T8 |
-| `test_version_resolves_on_plugin_install_without_cli` | AC10 | RED-FIRST | T13 | T8 |
-| `test_release_workflow_runs_payload_gate_before_publish` | AC2b | RED-FIRST | T3a | T14 |
-| `test_release_gate_covers_all_three_channels` | AC2b, AC3b | RED-FIRST | T3a | T14 |
+* **Authored by** — the task that writes the case and records the **first**
+  observation.
+* **Observed initial state** — what the first observation *is*, and why. A
+  RED-FIRST row states the concrete failure mode (import error, missing artifact,
+  or assertion failure); a CHARACTERIZATION row states why the case is green on the
+  untrimmed baseline. A row with no stated initial state is unverifiable by `T16`.
+* **Green / preservation owner** — the task whose change must produce the **second**
+  observation.
+* **Machine dependency** — the encoded edge that forces the author to run before
+  the owner. Every RED-FIRST row must name one.
+
+| Test | Asserts | Class | Authored by | Observed initial state | Green / preservation owner | Machine dependency |
+|---|---|---|---|---|---|---|
+| `test_manifest_validates_against_schema` | AC1 | RED-FIRST | T3a | **red** — neither the manifest nor the `1.0.0` schema exists (missing artifact) | T4 | T4 ← T3a; T4 ← T2b |
+| `test_schema_live_and_versioned_mirror_agree` | AC1 | RED-FIRST | T3a | **red** — neither schema file exists (missing artifact) | T2b | T2b ← T3a |
+| `test_payload_manifest_contract_registered` | AC1 | RED-FIRST | T3a | **red** — `payload-manifest` absent from `SCHEMA_CONTRACTS` | T2b | T2b ← T3a |
+| `test_every_tracked_path_is_classified` | AC11, AC3d | RED-FIRST | T3a | **red** — no manifest, so no path is classified | T4 | T4 ← T3a |
+| `test_start_scripts_and_workspace_config_excluded` | AC11 | RED-FIRST | T3a | **red** — no manifest | T4 | T4 ← T3a |
+| `test_manifest_is_sole_source_of_payload_paths` | AC1 | RED-FIRST | T3a | **red** — `build_support.payload` is not importable | T5 | T5 ← T3a |
+| `test_unclassified_tracked_path_fails_build` | AC2, AC8 | RED-FIRST | T3a | **red** — no fail-closed guard exists; a synthetic unclassified path is silently accepted (V4) | T5 | T5 ← T3a |
+| `test_payload_size_reported` | AC8 | RED-FIRST | T3a | **red** — no per-channel file-count/byte-size report exists | T5 | T5 ← T3a |
+| `test_generated_output_root_excluded_from_classifier_inputs` | AC3d, AC2 | RED-FIRST | T3a | **red** — neither the resolver nor the `generated_output_roots` key exists | T5 | T5 ← T3a |
+| `test_generate_emits_expected_tables_to_a_scratch_target` | AC2c | RED-FIRST | T3a | **red** — the generation command does not exist | T6 | T6 ← T5 ← T3a |
+| `test_generate_is_byte_deterministic_and_cross_platform` | AC2c | RED-FIRST | T3a | **red** — the generation command does not exist | T6 | T6 ← T5 ← T3a |
+| `test_only_one_generation_path_exists` | AC2c | RED-FIRST | T3a | **red** — the generation command does not exist | T6 | T6 ← T5 ← T3a |
+| `test_plugin_generation_is_idempotent` | AC2c, AC3d | RED-FIRST | T3a | **red** — the generation command does not exist | T6 | T6 ← T5 ← T3a |
+| `test_wheel_generated_table_matches_manifest` | AC2c | RED-FIRST | T3a | **red** — the committed wheel table is hand-authored, not manifest-derived | T7 | T7 ← T3a |
+| `test_docs_root_guides_only` | AC4 | RED-FIRST | T3a | **red** — the wheel currently ships all 642 `docs/` files | T7 | T7 ← T3a |
+| `test_wheel_excludes_backlogit_explicitly` | AC3 | **CHARACTERIZATION** | T3b | **green on baseline** — `force-include` already lists only the runtime set, so `.backlogit/` is already absent | T7 | T7 ← … ← T3b |
+| `test_wheel_excludes_dev_directories` | AC3 | **CHARACTERIZATION** | T3b | **green on baseline** — `tests/`, `experiments/`, `references/` are already absent from the wheel | T7 | T7 ← … ← T3b |
+| `test_wheel_contains_required_runtime_set` | AC4 | **CHARACTERIZATION** | T3b | **green on baseline** — the runtime set is already force-included | T7 | T7 ← … ← T3b |
+| `test_core_metadata_version_pins_preserved` | I4, V2 | **CHARACTERIZATION** | T3b | **green on baseline** — both `core-metadata-version = "2.4"` pins already exist | T7 (wheel pin) / T7b (sdist pin) | T7 ← … ← T3b; T7b ← T7 |
+| `test_sdist_generated_table_matches_manifest` | AC2c, AC3b | RED-FIRST | T3a | **red** — the sdist target declares no table at all | T7b | T7b ← T7 ← T3a |
+| `test_sdist_excludes_backlogit_explicitly` | AC3b | RED-FIRST | T3a | **red** — the default sweep packages `.backlogit/` | T7b | T7b ← T7 ← T3a |
+| `test_sdist_excludes_dev_directories` | AC3b | RED-FIRST | T3a | **red** — the default sweep packages `tests/`, `experiments/`, `references/` | T7b | T7b ← T7 ← T3a |
+| `test_sdist_byte_size_and_disclosure_reported` | AC3b, AC8 | RED-FIRST | T3a | **red** — no per-channel disclosure report exists | T7b | T7b ← T7 ← T3a |
+| `test_sdist_contains_required_runtime_set` | AC3b, AC4 | **CHARACTERIZATION** | T3b | **green on baseline** — the default sweep already contains the runtime set | T7b | T7b ← T7 ← … ← T3b |
+| `test_sdist_includes_build_definition` | AC3b, AC11 | **CHARACTERIZATION** | T3b | **green on baseline** — `pyproject.toml` is in the default sweep | T7b | T7b ← T7 ← … ← T3b |
+| `test_plugin_generated_declaration_matches_manifest` | AC2c | RED-FIRST | T3a | **red** — `marketplace.json` declares `source: "."`, derived from nothing | T8 | T8 ← T3a |
+| `test_plugin_payload_excludes_dev_directories` | AC3 | RED-FIRST | T3a | **red** — `source: "."` ships the entire repository | T8 | T8 ← T3a |
+| `test_plugin_source_path_is_tracked_and_fetchable` | AC3c | RED-FIRST | T3a | **red** — no branch decision and no tracked payload root exist yet | T8 | T8 ← T3a; T8 ← T1 |
+| `test_plugin_payload_tree_is_self_excluded_and_flat` | AC3d, AC3c | RED-FIRST | T3a | **red** — the tracked tree does not exist (missing artifact) | T8 | T8 ← T3a |
+| `test_install_emits_only_generated_output` | AC5, I3 | **CHARACTERIZATION** | T9 | **green on baseline** — `/install-harness` already emits only generated output; byte-identity is measured against the `T2a` baseline inventory | T7 / T7b / T8 | T7 ← T9; T8 ← T9; T7b ← T7 |
+| `test_no_engine_records_in_target_workspace` | AC5 | **CHARACTERIZATION** | T9 | **green on baseline** — the installer generates and never copies engine records, so the scratch workspace is already clean *(reclassified from RED-FIRST in cycle 3: it is baseline-true, and demanding red here would require breaking a correct installer)* | T7 / T7b / T8 | T7 ← T9; T8 ← T9 |
+| `test_skill_docs_refs_resolve_to_workspace_not_payload` | AC5, AC2d, R2 | RED-FIRST | T9 | **red** — `build_support.payload.classify_target_workspace_path` is not importable; the case targets the expected-absent interface deliberately rather than waiting for it | T5 | **T5 ← T9** *(edge added in cycle 3, finding 5 — the author must precede the green owner)* |
+| `test_verify_workspace_parity_trimmed_vs_baseline` | AC6 | **CHARACTERIZATION** | T10 | **green on baseline** — parity of the baseline finding set with itself, as a set difference | T7 / T7b / T8 | T7 ← T10; T8 ← T10 |
+| `test_upgrade_from_1_5_0_leaves_no_orphans` | AC6, R3, V3 | RED-FIRST | T10 | **red** — the trimmed build to upgrade *to* does not exist (missing artifact); orphans are created *by* trimming, so there is nothing to observe green on the baseline | T7 / T7b / T8 | T7 ← T10; T8 ← T10 |
+| `test_home_and_version_behave_identically` | AC6, I1, I2 | **CHARACTERIZATION** | T10 | **green on baseline** — `autoharness home` / `version` behave as recorded by `T2a` *(named in cycle 3; it was an unnamed assertion and therefore invisible to the ledger)* | T7 / T7b / T8 | T7 ← T10; T8 ← T10 |
+| `test_data_dir_resolution_pip_install` | AC6a, R4 | **CHARACTERIZATION** | T11 | **green on baseline** — `_DATA_DIR` already resolves from the installed wheel | T7 / T7b | T7 ← T11; T7b ← T7 |
+| `test_data_dir_resolution_clone_editable` | AC6a, R4 | **CHARACTERIZATION** | T11 | **green on baseline** — the clone/editable fallback already resolves | T7 / T7b | T7 ← T11; T7b ← T7 |
+| `test_python_channel_needs_no_plugin_root_artifact` | AC6a (A1) | **CHARACTERIZATION** | T11 | **green on baseline** — Python-channel resolution already succeeds with plugin-root artifacts absent | T7 / T7b | T7 ← T11; T7b ← T7 |
+| `test_plugin_root_resolves_templates_and_schemas` | AC6b | RED-FIRST | T11 | **red** — no plugin-root resolver and no trimmed plugin root exist | T8 | T8 ← T11 |
+| `test_plugin_version_resolves_from_plugin_manifest` | AC6b, AC10 | RED-FIRST | T11 | **red** — the baseline plugin payload is the whole repository, so version resolves from `pyproject.toml`/`__init__.py`; the manifest-only path is unexercised and the assertion fails *(added in cycle 3, finding 5 — the case existed in `160.013-T` but was absent from this ledger)* | T8 | T8 ← T11 |
+| `test_plugin_channel_resolution_imports_no_python_package` | AC6b (B1) | RED-FIRST | T11 | **red** — the baseline plugin payload contains `src/`, so the no-import path cannot be exercised *(named in cycle 3; previously an unnamed "negative assertion B1")* | T8 | T8 ← T11 |
+| `test_plugin_payload_has_no_python_distribution` | AC6b (B2) | RED-FIRST | T11 | **red** — the baseline plugin payload contains `src/` and `pyproject.toml` | T8 | T8 ← T11 |
+| `test_channel_resolver_contracts_are_disjoint` | AC6a, AC6b | RED-FIRST | T11 | **red** — the AC6b resolver does not exist, so disjointness is unassertable | T8 | T8 ← T11 |
+| `test_register_phase_all_environments_python_channel` | AC7 | **CHARACTERIZATION** | T12 | **green on baseline** — all four Python-channel registration targets already succeed | T7 / T7b | T7 ← T12; T7b ← T7 |
+| `test_plugin_only_register_copilot_cli_succeeds` | AC7 | **CHARACTERIZATION** | T12 | **green on baseline** — the one supported plugin-channel cell already succeeds | T8 | T8 ← T12 |
+| `test_plugin_only_unsupported_targets_fail_the_same_way_as_baseline` | AC7 | **CHARACTERIZATION** | T12 | **green on baseline** — the four limitations are pre-existing and documented; the case compares the baseline against its own recorded failure modes | T8 | T8 ← T12 |
+| `test_plugin_channel_excludes_python_cli_by_design` | AC7 | RED-FIRST | T12 | **red** — `source: "."` means `src/` and `pyproject.toml` **are** in the baseline plugin payload, so the "unsupported for the declared reason" assertion fails | T8 | T8 ← T12 |
+| `test_gate4_crossrefs_intact_in_built_payload` | AC9, AC2d | RED-FIRST | T13 | **red** — the *trimmed* built payload does not exist (missing artifact); additionally `classify_target_workspace_path` is not importable until `T5`. The case is scoped to the trimmed artifact precisely so it is not vacuously green against an untrimmed payload that contains everything | T7 / T7b / T8 | T7 ← T13; T8 ← T13 |
+| `test_version_resolves_on_plugin_install_without_cli` | AC10 | RED-FIRST | T13 | **red** — there is no trimmed plugin payload to install from (missing artifact) | T8 | T8 ← T13 |
+| `test_release_workflow_runs_payload_gate_before_publish` | AC2b | RED-FIRST | T3a | **red** — `release.yml` contains no payload-composition gate step | T14 | T14 ← T3a |
+| `test_release_gate_covers_all_three_channels` | AC2b, AC3b | RED-FIRST | T3a | **red** — no gate step exists, so no channel argument resolves | T14 | T14 ← T3a |
+
+**Ledger totals: 51 cases — 35 RED-FIRST, 16 CHARACTERIZATION.** Authorship,
+with the per-author class split spelled out so a miscount in either direction is
+mechanically detectable:
+
+| Author | RED-FIRST | CHARACTERIZATION | Total |
+|---|---|---|---|
+| `T3a` (`160.005-T`) | 25 | 0 | 25 |
+| `T3b` (`160.016-T`) | 0 | 6 | 6 |
+| `T9` (`160.008-T`) | 1 | 2 | 3 |
+| `T10` (`160.012-T`) | 1 | 2 | 3 |
+| `T11` (`160.013-T`) | 5 | 3 | 8 |
+| `T12` (`160.009-T`) | 1 | 3 | 4 |
+| `T13` (`160.010-T`) | 2 | 0 | 2 |
+| **Total** | **35** | **16** | **51** |
+
+Every case has
+exactly one class, exactly one author, at least one green/preservation owner, a
+stated observed initial state, and — for every RED-FIRST case — an encoded edge
+placing its author before its owner. `T16` verifies all 51 pairs.
+
+**Cycle-3 reconciliation notes (finding 5).** Four kinds of divergence between this
+table and the `160.*` task bodies were closed, in the direction the substance
+requires rather than by making one side copy the other:
+
+* **Cases that existed only in a task record** are now in the ledger:
+  `test_plugin_version_resolves_from_plugin_manifest`,
+  `test_plugin_channel_resolution_imports_no_python_package` (was "negative
+  assertion B1"), and `test_home_and_version_behave_identically` (was an unnamed
+  bullet). An unnamed assertion cannot be verified by the transition ledger, so it
+  was effectively unowned.
+* **Whole-family class labels are withdrawn.** `160.008-T`, `160.009-T`,
+  `160.010-T`, `160.012-T` and `160.013-T` each declared a single class "for this
+  family". Four of the five families are genuinely **mixed**, so the family label
+  contradicted the per-case truth. Class is declared **per case** and nowhere else.
+* **Two cases were reclassified on the merits.**
+  `test_no_engine_records_in_target_workspace` is **CHARACTERIZATION** (it is
+  baseline-true; the plan previously said RED-FIRST).
+  `test_gate4_crossrefs_intact_in_built_payload` is **RED-FIRST** scoped to the
+  *trimmed* artifact (the task record previously said CHARACTERIZATION, which
+  would have made it vacuous against an untrimmed payload containing everything).
+* **One missing edge was added.** `test_skill_docs_refs_resolve_to_workspace_not_payload`
+  is authored by `T9` with green owned by `T5`, but no edge forced `T9` before
+  `T5`. The edge **`T5` ← `T9`** is now encoded. `T9` authors the case against the
+  **expected-absent** `classify_target_workspace_path` interface — an import-error
+  red — rather than deferring authorship until `T5` has implemented it, which is
+  what created the ordering gap.
 
 **Why `test_generated_tables_match_manifest` no longer exists as a single case
 (review-fix cycle 2, finding 2).** Cycle 1 made `T6` the green owner of a case
@@ -584,7 +734,12 @@ Baseline capture (pre-change **wheel and sdist** inventories, `verify-workspace`
 registration failure modes) is a prerequisite of every CHARACTERIZATION case and
 of the parity, upgrade, and registration families, and is produced by `T2a`. A
 baseline that exists only in a transcript cannot be asserted against; it is
-recorded durably. CHARACTERIZATION cases are observed green **against that
+recorded durably, in the two destinations authorized by H2 (cycle 3, finding 6):
+the narrative record in `docs/audits/2026-09-03-ship10-payload-evidence/` and the
+machine-readable inventories and finding sets in
+`tests/fixtures/payload-baseline/**`. The split is deliberate — `T16` and the
+characterization families **diff** the fixtures, and a prose document is not
+diffable. CHARACTERIZATION cases are observed green **against that
 baseline build**, which is what makes their first observation meaningful rather
 than vacuous.
 
@@ -729,7 +884,7 @@ Encoded as backlogit `blocks` dependency edges, not narrative ordering. A backlo
 | `160.016-T` (T3b) | `160.001-T` |
 | `160.018-T` (T2b) | `160.005-T` |
 | `160.003-T` (T4) | `160.005-T`, `160.018-T` |
-| `160.004-T` (T5) | `160.005-T`, `160.003-T` |
+| `160.004-T` (T5) | `160.005-T`, `160.003-T`, `160.008-T` |
 | `160.014-T` (T6) | `160.004-T` |
 | `160.008-T` (T9) | `160.001-T`, `160.005-T`, `160.016-T` |
 | `160.012-T` (T10) | `160.001-T`, `160.005-T`, `160.016-T` |
@@ -744,6 +899,19 @@ Encoded as backlogit `blocks` dependency edges, not narrative ordering. A backlo
 | `160.011-T` (T15) | `160.017-T`, plus the retained cycle-1 edges `160.008-T`, `160.012-T`, `160.013-T`, `160.009-T`, `160.010-T`, `160.015-T` |
 
 The graph is acyclic with two roots (`T1`, `T2a`) and a single sink (`T15`).
+A valid topological order is: `T1`, `T2a`, `T3a`, `T3b`, `T2b`, `T9`, `T10`,
+`T11`, `T12`, `T13`, `T4`, `T5`, `T6`, `T7`, `T7b`, `T8`, `T14`, `T16`, `T15`
+(19 nodes, every edge respected).
+
+**Edge added in review-fix cycle 3 (finding 5).** `160.004-T` (T5) is now blocked
+by `160.008-T` (T9). `T9` authors
+`test_skill_docs_refs_resolve_to_workspace_not_payload`, whose green owner is
+`T5` — but through cycles 1 and 2 no edge forced `T9` first, so `T5` could have
+implemented `classify_target_workspace_path` before the case that must observe it
+red ever existed. The addition does not create a cycle: `T9`'s only ancestors are
+`T2a`, `T3a`, and `T3b`, and `T5` is not among them. Note the consequence for
+execution order — the five verification families now run **before** `T4`/`T5`, not
+after; the topological order above reflects this.
 
 **On `T15`'s retained edges.** Those six are *transitively implied* by
 `160.017-T` (T16), which is blocked by `T14`, which is blocked by `T7`/`T7b`/`T8`,
@@ -769,7 +937,8 @@ that omits real edges is how plan/queue drift starts.
   green-on-baseline observation requires the baseline build to exist. It blocks
   the five verification families and, transitively, every wiring task — so no
   invariant can be broken before it has been pinned.
-* `T9`–`T13` are blocked by `T2a`, `T3a`, and `T3b` and **block** `T7` and `T8`.
+* `T9`–`T13` are blocked by `T2a`, `T3a`, and `T3b` and **block** `T7` and `T8`;
+  `T9` additionally blocks `T5` (cycle 3, finding 5).
   Cycle 1 had them running *after* the wiring, which meant the install, upgrade,
   resolver, registration, and integrity families were written against the finished
   change and could never have been red. The edges now make that impossible
@@ -789,14 +958,18 @@ for plugin sources. T1 must determine which holds:
 * **(a)** the marketplace source supports a native exclusion/allowlist mechanism →
   wire it directly in `T8`; or
 * **(b)** it does not → `T8` builds a **tracked, committed** payload tree at
-  `plugin-payload/` from the manifest and repoints `source` at it (AC3c); or
+  `plugin-payload/` from the manifest and repoints `source` at it (AC3c). That
+  tree is declared in the manifest's `generated_output_roots`, **not** in any
+  channel's `include` rules, so it is removed from the classifier's input domain
+  and the generator can never consume its own output (**AC3d**, cycle-3 finding 9);
+  or
 * **(c)** neither is acceptable → `T1` **halts to the operator** with the evidence
   and the alternatives.
 
 Branch (b) may **not** point `source` at `dist/plugin/` or any other gitignored or
 untracked path — `dist/.gitignore` is `*`, so a consumer checkout has no such
-directory and the install simply fails (finding 5). `T8` must not begin until `T1`
-resolves this.
+directory and the install simply fails (*review-fix cycle 1, finding 5*). `T8`
+must not begin until `T1` resolves this.
 
 **Width isolation.** `T7` (wheel packaging), `T7b` (sdist packaging), `T8` (plugin
 channel), and `T14` (CI workflow) are separate tasks with separate blast radii;
@@ -819,12 +992,33 @@ understated both (finding 16).
   as a false positive with the evidence above.* Consumed stash entries are
   **archived**, not left in the active stash, so an active-stash-only search
   necessarily misses them.
+* **The archived harvest annotation is intentionally left uncorrected.**
+  `E9E5E6CC` records the harvest scope as `160.001-T..160.011-T` — true when
+  written, incomplete now that the feature carries nineteen tasks. It is an
+  **archived** record and therefore immutable by design; rewriting it would erase
+  the historical fact that the harvest produced eleven tasks and would make the
+  archive an unreliable witness for every other entry in it.
+* **Forward correction (authoritative for the current task set).** The join
+  between the archived annotation and today's scope is the **`SOURCE-TRACEABILITY
+  FORWARD CORRECTION` comment on feature `160-F`** *(review-fix cycle 3, finding
+  11; `.backlogit/logs/160-F.jsonl`, actor `stage`, the sixth event)*. It
+  **enumerates** the full chain
+  `E9E5E6CC → 160-F → 160.001-T … 160.019-T → 168-S` member by member rather
+  than as a range, records the provenance of each of the eight tasks added after
+  harvest, and supersedes the cycle-2 repair comment, which expressed scope as a
+  range. A range silently asserts the interval is dense: had any ID in it been
+  absent or retired, the range would still have read as correct. Where that
+  comment and any earlier statement disagree about the **current** task set, the
+  comment governs; where they disagree about what was true **at harvest time**,
+  the archived annotation governs.
 * **`AB387F16`** — a **pre-persistence temporary working ID**, superseded by
   `E9E5E6CC` before any stash record was written. It has **no** durable stash
   entry and must not be given one; fabricating a record to satisfy a lookup would
   manufacture false provenance. It survives only as the superseded-ID note on
-  `160-F`, which is the correct and complete disposition.
-* Feature: `160-F` (records the source-stash linkage and the superseded temporary ID)
+  `160-F` and in the forward-correction comment, which is the correct and
+  complete disposition.
+* Feature: `160-F` (records the source-stash linkage, the superseded temporary ID,
+  and the forward-correction comment above)
 * Deliberation: `docs/decisions/2026-09-03-minimal-copilot-plugin-payload-deliberation.md`
 * Hardening: `## Plan Hardening` section below (appended in place per skill contract)
 * Review: `## Plan Review` section below (appended in place per skill contract)
@@ -933,7 +1127,39 @@ its own safety mode)*:
 | `.github/plugin/marketplace.json` | T8 | Payload/`source` declaration only |
 | `plugin-payload/**` | T8 | Tracked generated payload tree; branch (b) only (AC3c) |
 | `.github/workflows/release.yml` | T14 | The one added gate step only |
+| `docs/spikes/2026-09-03-ship10-plugin-channel-mechanism.md` | T1 | Whole file (new). **Added in cycle 3, finding 6** — `T1` is a *blocking spike* whose branch (a)/(b)/(c) determination gates `T8`; that determination must be durable and reviewable, and the existing `docs/spikes/` convention is its home |
+| `docs/audits/2026-09-03-ship10-payload-evidence/**` | T2a, T7, T7b, T8, T14, T16 | **The single bounded evidence surface. Added in cycle 3, finding 6.** One directory, one date-stamped name, one shipment. It holds exactly four kinds of artifact and nothing else: (1) `T2a`'s durable baseline characterization record; (2) the `Rollback` checkpoint's pre-change byte records for `T7`/`T7b`/`T8`/`T14`; (3) `T16`'s transition ledger; (4) the observation logs those three cite. No new store, no new tool, no new convention — `docs/audits/` already exists in this workspace |
+| `tests/fixtures/payload-baseline/**` | **T2a only** | **Added in cycle 3, finding 6.** The machine-readable half of the `T2a` baseline — wheel/sdist/plugin inventories and finding sets that `T3b` and `T9`–`T13` load as fixtures and that `T16` diffs against. `T2a` is *not* otherwise authorized under `tests/**`; this row extends it to fixture data only and grants no test-authoring rights |
 | `docs/installation.md`, `README.md`, `CHANGELOG.md` | T15 | The three documents named in T15 |
+
+**Every mandatory durable output is now authorized** *(cycle 3, finding 6)*. Cycle
+2's table authorized the *code* surfaces but not the *evidence* surfaces, while the
+plan simultaneously made several evidence artifacts non-deferrable acceptance
+conditions — the same class of self-contradiction cycle 2 fixed for
+`schema_contracts.py`. The concrete gap: `T2a` is required to produce a **durable**
+baseline characterization that `T3b`, `T9`–`T13` and `T16` all consume, yet it had
+no writable destination anywhere in the table, so under `freeze-scope` it could
+not legally write its own deliverable. The audit below is exhaustive:
+
+| Mandatory durable output | Producer | Authorized destination |
+|---|---|---|
+| Branch (a)/(b)/(c) spike determination + evidence | T1 | `docs/spikes/2026-09-03-ship10-plugin-channel-mechanism.md` |
+| Baseline characterization — narrative record | T2a | `docs/audits/2026-09-03-ship10-payload-evidence/` |
+| Baseline characterization — machine-readable inventories/finding sets | T2a | `tests/fixtures/payload-baseline/**` |
+| Pre-change bytes of `pyproject.toml` (wheel target) | T7 | `docs/audits/2026-09-03-ship10-payload-evidence/` |
+| Pre-change bytes of `pyproject.toml` (sdist target) | T7b | `docs/audits/2026-09-03-ship10-payload-evidence/` |
+| Pre-change bytes of `marketplace.json` | T8 | `docs/audits/2026-09-03-ship10-payload-evidence/` |
+| Pre-change bytes of `release.yml` | T14 | `docs/audits/2026-09-03-ship10-payload-evidence/` |
+| Transition ledger — all 51 cases, class vs. observed transition | T16 | `docs/audits/2026-09-03-ship10-payload-evidence/` |
+
+Two deliberate choices: the baseline is **split** across a prose record and a
+fixture tree because its two consumers differ (a human reviewer reads the record;
+`T16` and the characterization families diff the fixtures, and a prose document is
+not diffable); and all four pre-change byte records plus the ledger share **one**
+directory rather than getting a store each, because five stores for five artifacts
+of the same shipment is the kind of proliferation that makes evidence
+unfindable. `docs/spikes/`, `docs/audits/`, and `tests/fixtures/` all already
+exist — this adds no convention.
 
 Anything outside that table is out of bounds. If a supported behaviour fails, the
 fix belongs to the task that owns the surface, never to the task that observed it.
@@ -951,7 +1177,7 @@ registration; it does not carry a licence to edit `src/`.
 | Checkpoint | Applies to | Rule |
 |---|---|---|
 | **No-publish** | Every task | No `twine upload`, no `gh release create`, no `copilot plugin publish`, no marketplace push, no dispatch of `release.yml`'s publish path. Publication is Ship/Orchestrator scope (CP2). Recording a version in `CHANGELOG.md` is not publication. |
-| **Rollback** | T7, T7b, T8, T14 | Before the task lands, record the exact pre-change bytes of the file it mutates (`pyproject.toml`, `marketplace.json`, `release.yml`) into a durable **evidence artifact**. That record is evidence, never authorization. Recovery is a **forward revert commit** (Rollback R-1). **A destructive restore or overwrite requires fresh live operator approval over a channel the agent cannot synthesize (R-3); with no channel available the agent halts and does not restore (R-4).** *Corrected in cycle 2, finding 11 — cycle 1 prescribed "a single-file restore" as the standard path, pre-authorizing a destructive overwrite that Constitution Principle VII requires an operator to approve.* |
+| **Rollback** | T7, T7b, T8, T14 | Before the task lands, record the exact pre-change bytes of the file it mutates (`pyproject.toml`, `marketplace.json`, `release.yml`) into `docs/audits/2026-09-03-ship10-payload-evidence/` (the destination authorized in the writable-surface table, cycle 3 finding 6). That record is evidence, never authorization. Recovery is a **forward revert commit** (Rollback R-1). **A destructive restore or overwrite requires fresh live operator approval over a channel the agent cannot synthesize (R-3); with no channel available the agent halts and does not restore (R-4).** *Corrected in cycle 2, finding 11 — cycle 1 prescribed "a single-file restore" as the standard path, pre-authorizing a destructive overwrite that Constitution Principle VII requires an operator to approve.* |
 | **Destructive-operation** | T8 (branch (b)), all verification tasks | Generation into the tracked `plugin-payload/` tree writes **only** files the manifest resolves, **must never** delete, move, or overwrite a tracked file outside that tree, and **must never** remove a tracked file without R-3 approval. Asserted by running generation against a dirty working tree and verifying the tracked file set outside `plugin-payload/` is unchanged. Scratch workspaces and simulated environments live under gitignored temporary paths and must not mutate the developer's real workspace, `~/.autoharness/`, installed interpreter, VS Code settings, Claude/Codex config, or Copilot CLI plugin registry. |
 | **Published-artifact immutability** | T2a, T10 | v1.5.0 artifacts used as baselines are already published and must never be mutated or retracted (invariant I5). |
 | **Red-preservation** | T3a | T3a authors test files under `tests/` only. It must not author or modify the manifest, either schema file, `schema_contracts.py`, `build_support/`, `pyproject.toml`, `marketplace.json`, `plugin-payload/`, or `release.yml` — doing so would make its own cases green and destroy the red observation. |
@@ -1079,6 +1305,34 @@ cross-model routing was unavailable; degradation is declared, not silent.
 
 ### Cycle 1 findings
 
+> **HISTORICAL `T#` LABELS — READ THIS FIRST (review-fix cycle 3, finding 10).**
+> Everything in this subsection and in *§Review-fix cycle 1* below uses the
+> **cycle-1** `T#` labels, which later cycles superseded. They are preserved
+> verbatim as an audit trail and are **not** the current contract. The
+> authoritative current mapping is *§Task decomposition* and *§Prerequisite DAG*.
+> The complete cycle-1 → current translation is:
+>
+> | Cycle-1 label | Current label | Current task ID | Subject |
+> |---|---|---|---|
+> | `T1` | `T1` | `160.002-T` | plugin-mechanism spike |
+> | `T2` | `T2a` + `T2b` | `160.001-T` + `160.018-T` | baseline capture; schema publication |
+> | `T3` | `T3a` + `T3b` | `160.005-T` + `160.016-T` | RED-FIRST harness; CHARACTERIZATION harness |
+> | `T4` | `T4` | `160.003-T` | manifest authoring |
+> | `T5` | `T5` | `160.004-T` | resolver + classifier |
+> | `T6` | `T7` | `160.006-T` | **wheel** wiring |
+> | `T7` | `T8` | `160.007-T` | **plugin** wiring |
+> | *(none)* | `T6` | `160.014-T` | generation command *(added cycle 1, finding 7)* |
+> | *(none)* | `T7b` | `160.019-T` | **sdist** wiring *(added cycle 2, finding 3)* |
+> | *(none)* | `T14` | `160.015-T` | release-path gate *(added cycle 1, finding 7)* |
+> | *(none)* | `T16` | `160.017-T` | transition ledger *(added cycle 2, finding 1)* |
+> | `T9`–`T13` | `T9`–`T13` | `160.008/012/013/009/010-T` | verification families |
+> | `T15` | `T15` | `160.011-T` | docs + CHANGELOG |
+>
+> Two references below are **already correct under the current mapping** and are
+> not translations: "backlog follow-up on `T5` (`160.004-T`)" and "required
+> deliverable on `T15`". Every other `T5`/`T6`/`T7` occurrence in this subsection
+> is a cycle-1 label — read it through the table above.
+
 **P0-1 — Plugin-channel trimming mechanism is unverified.** *(Scope Boundary
 Auditor, Architecture Strategist)* The plan directs "constrain plugin payload to
 the manifest", but the only observed mechanism is `marketplace.json`'s
@@ -1184,15 +1438,15 @@ Three review-fix cycles remain available; one is used.
 **Gate after cycle 1: PASS — 15 tasks, DAG acyclic, safety mode declared and
 propagated, all channel contracts disjoint and asserted.**
 
-**T-number reconciliation notice (review-fix cycle 2, finding 14).** The cycle-1
-table above and the cycle-1 findings text use the **cycle-1** `T#` labels, which
-cycle 2 superseded. Cycle 1's `T2` is now `T2a` + `T2b`; its `T3` is now `T3a` +
-`T3b`; `T7b` and `T16` are new. Where the cycle-1 record above says `T2`, `T3`,
-`T5`, `T6`, or `T7`, read it against the **cycle-1** decomposition, which is
-preserved here as a historical record and is **not** the current contract. The
-authoritative mapping in both directions is the **§Task decomposition** table and
-the **§Prerequisite DAG**; every queued task record's `(Tn)` back-reference was
-re-verified against those two tables in cycle 2.
+**T-number reconciliation notice (review-fix cycle 2, finding 14; extended in
+cycle 3, finding 10).** The cycle-1 table above and the cycle-1 findings text use
+the **cycle-1** `T#` labels, which later cycles superseded. The complete
+cycle-1 → current translation table is at the head of *§Cycle 1 findings*; that
+table is the single place the mapping is stated. The cycle-1 record is preserved
+here as a historical audit trail and is **not** the current contract. The
+authoritative current mapping in both directions is the **§Task decomposition**
+table and the **§Prerequisite DAG**; every queued task record's `(Tn)`
+back-reference was re-verified against those two tables in cycle 3.
 
 ### Review-fix cycle 2 (Stage remediation of the current-head seven-persona re-review)
 
@@ -1207,7 +1461,7 @@ and a later reader does not have to reconstruct which findings were handled wher
 | **2 — `160.014-T` had no achievable committed completion state** | **Legitimate P0** | Confirmed: `T6` was green owner of `test_generated_tables_match_manifest`, which asserts the **committed** tables match — while `T6`'s own scope forbade committing into `pyproject.toml`/`marketplace.json` because those files belong to `T7`/`T8`. The case conflated a *generator* property with a *wiring* property and is split along that seam: `test_generate_emits_expected_tables_to_a_scratch_target` (green owned by `T6`, reachable entirely in scope, mutates no repository file) and `test_{wheel,sdist,plugin}_generated_table_matches_manifest` (green owned by `T7`/`T7b`/`T8`, each for the file it may edit). `T6`'s prohibition is unchanged; downstream gating is sharpened, since each channel's parity case now blocks on that channel's own wiring task. |
 | **3 — Python sdist omitted** | **Legitimate P0** | Confirmed and the most consequential finding. `[tool.hatch.build.targets.sdist]` declares **only** `core-metadata-version = "2.4"` — no `include`, no `exclude` — so hatchling's default sweep packages the entire project, and `release.yml`'s `uv build` → `dist/*` publishes it to PyPI **and** attaches it to the GitHub release. A wheel-only trim removes **nothing**: every withheld file still ships. Added **AC3b** (manifest-derived sdist table, named exclusion/inclusion cases, byte-size + disclosure reporting, I4 pin preservation on the sdist target, release-path coverage), added task **`T7b` (`160.019-T`)** decomposed out of `T7` on size and serialized after it by edge (same file), extended the generation command's channel enum to `{wheel\|sdist\|plugin\|all}`, and extended AC2b's gate to assert all three channels are covered. |
 | **4 — Freeze-scope allowlist incoherent** | **Legitimate P1** | Confirmed: H2's writable surface omitted `schemas/payload-manifest/1.0.0.schema.json` while AC1 made the versioned mirror mandatory, and forbade **all** `src/` edits while requiring `SCHEMA_CONTRACTS` registration as a non-deferrable criterion — so the plan's acceptance criteria were unexecutable under the plan's own safety mode. H2's writable surface is now an explicit **path → authorized task → bound** table naming both schema documents and narrowly authorizing `src/autoharness/schema_contracts.py` **for `T2b` only, registration entry only**, with an explicit statement of why the runtime-behaviour freeze and the contract-registry authorization are not in conflict. |
-| **5 — Plugin fallback branch (b) unpublishable** | **Legitimate P0** | Confirmed: `dist/.gitignore` contains `*`, so `source: "dist/plugin"` points at a path absent from any consumer checkout — an install failure, not a trim. Added **AC3c**: `source` must resolve to a consumer-fetchable path; branch (b) generates a **tracked, committed** `plugin-payload/` tree via the same generate-and-assert shape H1 already uses for the wheel table; pointing `source` at any gitignored/untracked path is prohibited, as is assuming unevidenced marketplace filtering behavior; and a branch **(c)** is added so `T1` halts to the operator rather than inventing a mechanism. `plugin-payload/**` is classified in AC11 and excluded from itself so generation cannot recurse. |
+| **5 — Plugin fallback branch (b) unpublishable** | **Legitimate P0** | Confirmed: `dist/.gitignore` contains `*`, so `source: "dist/plugin"` points at a path absent from any consumer checkout — an install failure, not a trim. Added **AC3c**: `source` must resolve to a consumer-fetchable path; branch (b) generates a **tracked, committed** `plugin-payload/` tree via the same generate-and-assert shape H1 already uses for the wheel table; pointing `source` at any gitignored/untracked path is prohibited, as is assuming unevidenced marketplace filtering behavior; and a branch **(c)** is added so `T1` halts to the operator rather than inventing a mechanism. `plugin-payload/**` is classified in AC11 and excluded from itself so generation cannot recurse. *(Superseded in cycle 3, finding 9: "classified in AC11 as a plugin **input**" was the defect — the tree is now an **`AC3d` generated output root**, removed from classifier inputs before classification in all three channels while remaining the published, tracked directory. See §AC3d.)* |
 | **11 — Destructive rollback self-authorized** | **Legitimate P1** | Confirmed: the H2 rollback checkpoint prescribed "a single-file restore" as the standard recovery path, pre-authorizing a destructive working-tree overwrite that Constitution Principle VII requires an operator to approve — at the moment (a failed release) when the tree most likely holds unrelated uncommitted work. Added **Rollback R-1…R-5**, adopting SHIP-4 Decision G's authorization contract verbatim so the harness carries one answer, not two: forward revert commits are the default; recorded pre-change bytes are **evidence, never authority**; any destructive restore needs a **fresh live non-synthesizable operator approval**; no channel means **halt, do not restore**; and read-only alternatives (`git show`, `git diff`, scratch materialization) cover the verify-don't-restore case. Added operator checkpoint **CP3**. |
 | **13 — Source traceability unauditable** | **Partially legitimate; one half a false positive** | `E9E5E6CC` **is** durable at HEAD in the official archive record `.backlogit/archive/stash.jsonl` (tracked, blob `aef5f126`), carrying its own forward reference to `160-F`/`168-S`. The reviewer's search missed it because consumed entries are **archived**, not retained in the active stash — recorded as a false positive with evidence. The legitimate half: the archived entry's `HARVESTED` annotation still read `160.001-T..160.011-T`, stale against the 19-task set; it is reconciled through the official stash-edit operation. `AB387F16` is a **pre-persistence temporary working ID** superseded before any record was written; it has no durable entry and is **not** given one, because fabricating a record to satisfy a lookup manufactures false provenance. Its correct and complete disposition is the superseded-ID note on `160-F`. §Traceability now states all of this explicitly. |
 | **14 — Stale ownership and numbering references** | **Legitimate P1** | Confirmed: `160.002-T` pointed generation at `160.004-T` (it is `160.014-T`) and the release gate at `160.006-T` (it is `160.015-T`); `160.007-T` repeated both errors. Corrected through official `backlogit update` operations, and every `(Tn)` back-reference re-verified against the rewritten decomposition table and DAG. The cycle-1 review record above is explicitly marked as historical with a mapping notice rather than silently rewritten, so the audit trail survives. |
@@ -1217,7 +1471,7 @@ and a later reader does not have to reconstruct which findings were handled wher
 | **6 — SHIP-2 C6 must fail closed** | **Legitimate P0 — remediated in SHIP-2** | Confirmed. The probe requests the *exact-version* endpoint `https://pypi.org/pypi/autoharness/{version}/json`, which names the version in the path, so a conforming PyPI can return only `404` or a `200` naming *that* version. A `200` naming a different version is a response the protocol does not permit — positive evidence of a cache, mirror, or interception anomaly, not evidence of absence. Cycle 1's "probe proceeds" discarded a *detected* anomaly, which is worse than the original fail-open `else:` branch. Fixed in `docs/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md` (new binding **H2b**, C6 row reversed) and in `152.002-T`, with a hermetic expectation asserting the helper **raises** and neither proceeds nor exits with C2's already-published code. **Discriminating power preserved**: C2 and C6 still differ *in kind*, so a "did the request succeed" probe still passes C2 and fails C6. |
 | **7 — SHIP-6 tool-name prohibition too broad** | **Legitimate P1 — remediated in SHIP-6** | Confirmed and narrow. The H6a-CLARIFICATION body was already correct; the defect was the trailing **ACCEPTANCE** line, "no hardcoded tool-name literal anywhere in renderer, template, or test fixtures", which contradicted **H1** (concrete tool-scoped block declarations are *required*) and the H6a synthetic-registry test (which needs a fixture carrying a concrete synthetic `tool_name`). The task's acceptance therefore forbade the artifacts its own binding requirements mandate and was unsatisfiable. `156.002-T` now prohibits exactly the **duplicated validation set** — zero authored occurrences of a hardcoded *list/set/enum/default* of valid names — and explicitly permits declarative identities, fixture values, and prose. The discriminator is the synthetic-registry test, not a grep. |
 | **8 — SHIP-7 enumerated fields miss future keys** | **Legitimate P1 — remediated in SHIP-7** | Confirmed. An enumerated surface table is a denylist wearing an allowlist's clothes: it omitted top-level `schema_version` (declared `1.0.0` in this workspace) and would omit every future template-owned key. Replaced with **H3a-RECURSIVE** in the SHIP-7 plan and in `157.002-T`: recursive value parity over **every leaf path in the parsed template document**, minus the closed, path-specific **H3b** override allow-list. Template-present/installed-absent is a failure; installed-only paths are INFO. Also resolved a cycle-1 self-contradiction — `directory` was listed *both* as value-equality and as override-eligible; it is **override-eligible** (this workspace uses the legacy `.backlogit` root). |
-| **9 — SHIP-8 undefined budget language** | **Legitimate P1 — remediated in SHIP-8** | Confirmed. The SHIP-8 plan had already withdrawn the aggregate budget in favour of the unsized-only predicate (`size_composition.unsized == 0`), but `158.003-T` still required failing "when the composition exceeds the declared budget" — a threshold that is declared nowhere, so an implementer would have had to *invent* a number and gate shipments on it. Removed, and all five plan-declared boundary cases **B1–B5** are now required by name, including the two fail-closed ones cycle 1 omitted: **B3** (empty histogram → pass) and **B4** (absent `unsized` → **fail closed**; a missing key is not zero). B3/B4 are the two directions a naive `if unsized:` truthiness check gets wrong. |
+| **9 — SHIP-8 undefined budget language** | **Legitimate P1 — remediated in SHIP-8** | Confirmed. The SHIP-8 plan had already withdrawn the aggregate budget in favour of the unsized-only predicate (`size_composition.unsized == 0`), but `158.003-T` still required failing "when the composition exceeds the declared budget" — a threshold that is declared nowhere, so an implementer would have had to *invent* a number and gate shipments on it. Removed, and all five plan-declared boundary cases **B1–B5** are now required by name, including the two fail-closed ones cycle 1 omitted: **B3** (empty histogram → pass) and **B4** (absent `unsized` → **fail closed**; a missing key is not zero). B3/B4 are the two directions a naive `if unsized:` truthiness check gets wrong. *(Extended in cycle 3, finding 3: the required boundary set is now **B1–B11**, adding malformed-value cases — `false`, `0.0`, `null`, string `"0"`, negative, and malformed histogram — because `unsized == 0` is `True` for `False` and `0.0` in Python, so the cycle-2 predicate still failed open on a bool. Validation now precedes the equality.)* |
 | **10 — SHIP-4 missing outcome matrix and stale approval text** | **Legitimate P1 (two parts) — remediated in SHIP-4** | Both confirmed, both narrow. (a) `154.004-T` had Conditions A/B/C in prose only, burying two distinguishable outcomes inside Condition A — one of them a **halt**. Added a binding five-row matrix **M1–M5** (language variant / generic fallback / neither-template fail-closed halt / reviewer-not-selected no-op / already-composed graceful reference), each a required test case with an asserted observable, and each with the distinguishing marker that stops one branch silently passing for another. (b) Decision G (G1–G9) was already fully correct and had demoted the `APPROVAL: P-007-ARCHIVE-RESTORE` comment to evidence-only, but the plan's Tasks-table row 2 and `154.002-T`'s **title** still read "gate … behind the named `APPROVAL: P-007-ARCHIVE-RESTORE` signal" — the exact self-satisfiable formulation finding 14 withdrew. **Titles are executed**, so both were rewritten to require Decision G1's fresh, live, non-synthesizable operator approval, and an explicit executable-text rule was added to the plan. |
 | **12 — SHIP-3 fixed-length vector matrix contradictory** | **Legitimate P1 — remediated in SHIP-3** | Confirmed. **TC2** declares the token encoding *fixed length*, so there is exactly one valid length and no distinct minimum-valid and maximum-valid token; **V-c** nonetheless demanded both. An author honouring both clauses would have had to invent a variable-length encoding (contradicting TC2 and reopening the shell-safety and truncation risks it closes) or record the same token twice under two labels. Replaced with **one canonical valid vector**, plus new **V-c2** one-short/one-long **invalid** boundary vectors whose expected observable is fail-closed (non-zero exit, named error, no lock, **no digest** — they are rejected before a digest exists), plus new **V-c3** cross-platform interoperability expectations, because a length check written with `.Length` over UTF-16 code units versus a byte-oriented POSIX check is exactly where the two implementations silently disagree. |
 
@@ -1235,10 +1489,76 @@ asked for is exactly the kind that gets silently reverted later.
 **Gate after cycle 2: PASS — 19 tasks; DAG acyclic and machine-encoded (2 roots
 `T1`/`T2a`, 1 sink `T15`, 19-node topological order verified); plan table ↔ queue
 ↔ shipment `168-S` bijection exact at 19/19/19; all 19 `Tn` back-references
-consistent in both directions; 45 test cases each carrying a declared class, an
+consistent in both directions; the cycle-2 case set (45 cases) each carrying a declared class, an
 author, and a real implementing green/preservation owner; all three publication
 channels (wheel, sdist, plugin) covered by manifest overlay, generation, wiring,
 and release gate; safety-mode allowlist coherent with acceptance criteria; and no
 destructive operation self-authorized.**
 
 Two review-fix cycles used of the three available; one remains.
+
+*Cycle-3 note: the `45 test cases` figure above is the **cycle-2** ledger size. Cycle 3's finding-5 reconciliation raised the canonical ledger to **51 cases (35 RED-FIRST, 16 CHARACTERIZATION)**; see §Case table, which is authoritative.*
+
+
+### Review-fix cycle 3 (Stage remediation of the final seven-persona review)
+
+The final seven-persona review of `67636bad` returned **BLOCKED** with fifteen
+findings. This is the **third and last** permitted fix cycle, so nothing in scope
+is deferred: every legitimate same-contract-surface P0/P1 finding and every
+tightly-coupled P2 consistency defect is remediated here, through official
+backlogit operations, with **no Git, source-implementation, PR, claim, or
+worktree action taken**.
+
+**Method note (finding 14).** Two prior cycles amended task records by
+**appending** `=== REVIEW-FIX CYCLE n AMENDMENTS ===` blocks. That is how the
+authoritative ledger and the executable records drifted: a reader met the
+superseded paragraph first and the correction second, and nothing said which
+won. Every task body touched in this cycle was **replaced wholesale** via
+`backlogit update --description`, so each record now carries exactly **one
+canonical statement per subject** and every append seam is gone. A repository-wide
+scan for `=== REVIEW-FIX`, `=== ORIGINAL TASK`, and `=== RE-SCOPE` markers across
+`.backlogit/queue/**` returns zero hits.
+
+| # | Finding | Verdict | Remediation |
+|---|---|---|---|
+| **1** | SHIP-2 `152.001-T` still said a mismatched-version `200` means PROCEED | **Legitimate P0** | Body replaced. New **BINDING H2b** paragraph makes a version mismatch a fail-closed re-raised transport/integrity error and names the cycle-1 "probe proceeds" rule **WITHDRAWN**, so the record carries one answer. C2/C6 discriminating power is restated and preserved: the two still differ *in kind*. `152.002-T` was re-read and already correct — no change, recorded so the no-op is not mistaken for an omission. |
+| **2** | SHIP-4 `154.004-T` M4 asserted `{L}.instructions.md` is globally absent when the technology reviewer is not selected | **Legitimate P1** | Confirmed: that assertion conflicts with unconditional primary-language instruction generation, so M4 would fail on a workspace that correctly installs the instruction for other reasons. M4's required outcome is rewritten to **"the F1 co-installation rule does not fire"**, observed through **install-unit / provenance attribution** — never through file presence or absence. Added **M4 SCOPE** and **M4 DISCRIMINATING POWER** paragraphs, and matching edits to the SHIP-4 plan's Decision F Condition B row and its Propagation block. Independently required primary-language instructions are no longer suppressed by M4. |
+| **3** | SHIP-8 unsized predicate still fails open on malformed values | **Legitimate P0** | Confirmed: `unsized == 0` is `True` for `False` **and** for `0.0` in Python, so the cycle-2 predicate passed a shipment whose `unsized` was a bool. `158.003-T` now requires **value validation before the equality** — `isinstance(x, int) and not isinstance(x, bool)`, non-negative, mapping-shaped histogram — with named type/range/shape errors. The plan's boundary table grows **B1–B5 → B1–B11**, adding `false`, `0.0`, `null`, string `"0"`, negative, and malformed-histogram cases, each fail-closed. `158.002-T` (the red half) now requires T2's red observation to cover **both** B2 (`unsized: 1`) and B6 (`unsized: false`) — B6 is the discriminator a fail-open implementation passes. |
+| **4** | SHIP-10 AC1 still named wheel + plugin only | **Legitimate P1** | AC1 and every closed-channel statement in the plan now read **wheel + sdist + plugin**. Eleven occurrences aligned. The channel enum is closed at three members plus the `all` aggregate in AC2c, in `160.014-T`, in `160.018-T`'s schema declaration, and in `160.004-T`'s resolver. |
+| **5** | Canonical case ledger and task records inconsistent, especially T9–T13 | **Legitimate P0** | The **§Case table** is rewritten as a bijective 51-row ledger carrying, per case: exact test name, class, author, **observed initial state with its concrete failure mode**, green/preservation owner, and the machine edge forcing author before owner. Five previously unnamed or unledgered cases are added — including **`test_plugin_version_resolves_from_plugin_manifest`**, which existed in `160.013-T` but in no ledger. Two cases are reclassified on the merits: `test_no_engine_records_in_target_workspace` → CHARACTERIZATION (baseline-true; demanding red would require breaking a correct installer), `test_gate4_crossrefs_intact_in_built_payload` → RED-FIRST scoped to the **trimmed** artifact (as CHARACTERIZATION it was vacuous against an untrimmed payload containing everything). Whole-family class labels are withdrawn — four of five families are genuinely mixed, so class is declared **per case** only. One missing edge is encoded: **`T5` ← `T9`**, because `T9` authors a case `T5` greens. `T9` authors it against the **expected-absent** `classify_target_workspace_path` interface (an import-error red) rather than waiting for `T5` to build it, which is what created the ordering gap. All nineteen task bodies were replaced to match the ledger row-for-row. |
+| **6** | `T2a`'s durable baseline had no H2-writable destination | **Legitimate P1** | Confirmed, and broader than reported: **six** mandatory durable outputs had no authorized destination. H2's writable-surface table gains **three** rows, deliberately few: `docs/spikes/2026-09-03-ship10-plugin-channel-mechanism.md` (T1's finding); **`docs/audits/2026-09-03-ship10-payload-evidence/**`** — one bounded evidence surface shared by T2a's baseline, T7/T7b/T8/T14's pre-change-byte captures, and T16's transition ledger; and `tests/fixtures/payload-baseline/**` for T2a **fixture data only**, added because the baseline inventory is consumed by tests. An eight-row **mandatory-durable-output audit table** now names every required artifact, its producing task, and its authorized path, so a later addition cannot quietly land without one. No new store was invented — existing `docs/`, `tests/` and closure conventions are reused. |
+| **7** | `T14` (`160.015-T`) still prescribed a single-file restore | **Legitimate P1** | Body replaced. Single-file restore is marked **WITHDRAWN**; the default and only pre-authorized recovery is a **forward revert commit** (R-1). Any destructive restore or overwrite requires **fresh live operator approval obtained in the session performing it over a channel the agent cannot synthesize** (R-3); with no channel available the agent **halts and does not restore** (R-4). Recorded pre-change bytes are **evidence, never authorization**. The same contract is now stated identically in `160.006-T`, `160.007-T`, and `160.019-T`, each naming its evidence destination. |
+| **8** | `T5` (`160.004-T`) carried a stale command set and a repository-wide prefix rule | **Legitimate P2, tightly coupled** | Superseded text removed rather than annotated. One authoritative command remains — `python -m build_support.payload generate --channel {wheel\|sdist\|plugin\|all}`, `all` meaning all three — and the AC2d single-occurrence rule is scoped to **executable and configuration surfaces** (`build_support/**`, `src/**`, `tests/**`, `pyproject.toml`, `marketplace.json`, `.github/workflows/**`, the manifest). A repository-wide rule was unsatisfiable: the plan, the deliberation, and the task records must all name the prefixes to be intelligible. |
+| **9** | Branch (b) recursive-output defect | **Legitimate P0** | Confirmed and load-bearing. Classifying `plugin-payload/**` as a plugin **input** while the generator materializes **into** that tree makes run two resolve `plugin-payload/**` as source and write it inside itself — `plugin-payload/plugin-payload/…`, deeper every run — and `generate --check` would then report drift that regenerating can **never** clear, failing the release gate permanently. New **§AC3d** defines `generated_output_roots` as a key **distinct from** `include`/`exclude`: paths beneath a declared output root are removed from the tracked-path enumeration **before** classification, in **all three** channels, and are therefore neither classified nor unclassified (so AC2 never fires on generated content). **Exclusion from classifier input is not exclusion from publication** — the tree stays tracked, committed, consumer-fetchable, and remains what `source` points at, preserving the accepted publishable-fallback decision. Self-exclusion lives in the **resolver**, not the generator, so every resolver consumer is protected. Three guard cases added: `test_generated_output_root_excluded_from_classifier_inputs` (green T5), `test_plugin_generation_is_idempotent` (green T6), `test_plugin_payload_tree_is_self_excluded_and_flat` (green T8). |
+| **10** | Stale `T#` and ownership references | **Legitimate P2, tightly coupled** | `160.012-T` said `(T2)` where it meant `(T2a)` — corrected. Spike and release-owner references re-verified across all nineteen records. The appended plan-review sections retain the **cycle-1** labels as an audit trail, but a complete **cycle-1 → current translation table** now sits at the head of §Cycle 1 findings, naming every label, its current label, its task ID, and its subject, plus an explicit note of the two references that are already correct under the current mapping and are not translations. All nineteen `(Tn)` back-references were re-verified mechanically in both directions. |
+| **11** | Archived stash `E9E5E6CC` traceability | **Legitimate P1 (as scoped)** | The archived entry is **not** hand-edited: it is immutable by design, and rewriting it would erase the historical fact that the harvest produced eleven tasks and make the archive an unreliable witness for every other entry. Instead a durable **forward correction** was appended to feature `160-F` through the official comment operation (`.backlogit/logs/160-F.jsonl`, actor `stage`), **enumerating** `E9E5E6CC → 160-F → 160.001-T … 160.019-T → 168-S` member by member rather than as a range — a range silently asserts density, so a retired ID inside it would still read as correct. `160-F`'s body and §Traceability both reference the correction. **`AB387F16` is not fabricated**: it is a pre-persistence temporary working ID that never had a durable record, and manufacturing one to satisfy a lookup would manufacture false provenance. |
+| **12** | P-021 capture completeness and a duplicate pair | **Legitimate P1** | `477D37BD`, `2FA67AAC`, `39A4DDEB`, and `75A78433` each now state **PR number, review-thread ID, task ID, feature ID, and shipment ID independently**, as a concrete value or an explicit `N/A` with its reason; `75A78433` also gained the missing `requires deliberation:` line (three separable decisions, the destructive migration among them, so it cannot be auto-authorized) and a `DISCOVERY-STATUS: CLEAN` record. Where an ID exists only as **coupling** rather than ownership (`2FA67AAC` → `155.004-T`/`155-F`/`163-S`; `39A4DDEB` → `155-F`/`163-S` as observed instances) it is recorded as such and **not** promoted into an owning field. Duplicate pair `9938CA1D` / `24374649` reconciled into the **earliest** entry `24374649` (08:51:58 vs 08:52:34), absorbing the duplicate's five source-ref fields and its residual-risk statement; `9938CA1D` was **archived** via the official `backlogit stash archive` operation, never destructively removed, because a duplicate is itself evidence that one expansion was captured through two intake paths. |
+| **13** | `160.009-T` support-matrix table missing its delimiter row | **Legitimate P2, tightly coupled** | Delimiter row `\|---\|---\|---\|` added; the table now renders as a table rather than as three run-together lines. |
+| **14** | Authoritative ledger and executable records had already drifted | **Legitimate P1 (maintainability)** | Addressed structurally rather than cosmetically — see the **Method note** above. Superseded paragraphs were **removed**, not annotated, wherever backlogit's whole-body replacement supported it. Where a *review-history* record had to stay (it is an audit trail, and rewriting history is the failure mode this finding warns about), the superseding cycle-3 statement is attached inline at the point of the stale claim, so no reader meets a superseded assertion without its correction. |
+| **15** | Re-evaluate all 19 tasks after correction | **Required, performed** | Results in §Cycle 3 deterministic verification below. |
+
+#### Cycle 3 deterministic verification
+
+Every check below was executed mechanically against the working tree, not asserted.
+
+| Check | Result |
+|---|---|
+| Task count | **19** tasks under `160-F` |
+| Plan ↔ queue ↔ shipment bijection | **19 / 19 / 19**; `168-S` manifest carries **20** members (feature + 19 tasks) |
+| `(Tn)` back-references | 19/19 present, **unique**, and consistent with §Task decomposition in both directions |
+| Size enum | all `S` or `M` — **zero** tasks at `L`/`XL`, so no task exceeds the 2-hour rule on the effort axis |
+| Complexity enum | all in `{trivial, low, medium, high}`; the two `high` tasks (`T1` spike, `T8` plugin wiring) are de-risked by the blocking spike edge `T8 ← T1` |
+| DAG acyclicity | **acyclic** — all 19 nodes topologically ordered; roots `T1`/`T2a`, sink `T15` |
+| Encoded edges ↔ documented DAG | exact match, including the retained `T15` edges and the new `T5 ← T9` |
+| Case-ledger bijection | plan **51** unique cases ↔ queue **51** unique cases; **zero** in one and not the other |
+| Class totals | **35 RED-FIRST / 16 CHARACTERIZATION**; per-author split verified against the ledger table row by row |
+| Author attribution | every case name present in its **authoring** task record — 51/51 |
+| Owner attribution | every case name present in **every** named green/preservation owner record — 51/51 (four Python-channel preservation cases were missing from `T7b` and were added) |
+| Observed initial state | **51/51** rows state a concrete initial state; **zero** missing RED observations |
+| RED-FIRST ordering | all **35** red cases have an encoded edge placing the author before every green owner |
+| Append seams | **zero** `=== REVIEW-FIX` / `=== ORIGINAL TASK` / `=== RE-SCOPE` markers remain in `.backlogit/queue/**` |
+| Preserved decisions | wheel + sdist + plugin closed channels ✔; tracked publishable plugin fallback with self-excluded generator input ✔; `167-S` blocked by `168-S` ✔; workspace-wide section-marker issue still separately captured ✔ |
+
+**Gate after cycle 3: PASS. No in-scope P0 or P1 finding remains open.** Three
+review-fix cycles used of the three available; the budget is exhausted, and this
+plan is harvest-complete and execution-ready for Ship.

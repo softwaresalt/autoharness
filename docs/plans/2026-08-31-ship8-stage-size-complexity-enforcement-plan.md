@@ -69,8 +69,13 @@ Convert the two-axis rule from documentation into a gate at three points:
   not be boundary-tested. It is **withdrawn**. This shipment enforces exactly one
   shipment-level predicate, and it is fully deterministic:
 
-  > **BUDGET PREDICATE (the whole of it):** `size_composition.unsized == 0`.
-  > Any other value fails the assembly. Nothing else about the composition is gated.
+  > **BUDGET PREDICATE (the whole of it):** `size_composition.unsized == 0`,
+  > evaluated **only after** `unsized` is validated as a **non-negative `int`,
+  > excluding `bool`**, and `histogram` is validated as a **mapping** (possibly
+  > empty). Any value failing validation **fails closed with a named type, range,
+  > or shape error** and is never coerced or defaulted; any validated value other
+  > than `0` fails the assembly. Nothing else about the composition is gated.
+  > Boundary cases **B1–B11** below are the exhaustive contract.
 
   Deciding an aggregate threshold is a **policy** decision, not a gate
   implementation, and is deferred through compliant P-021 capture `C754A19B`. The
@@ -258,22 +263,41 @@ that a shipment with `unsized == 0` and a **null** shipment-level `ruleset_versi
 the advertised `features.sizing` flag — not operation-parameter presence — is what
 arms the fail-closed branch.
 
-**Budget-predicate boundary cases (added in review-fix cycle 1, finding 14).** The
-assembly predicate is `unsized == 0` and nothing else, so its boundary is a single
-integer and must be tested exhaustively at that boundary:
+**Budget-predicate boundary cases (added in review-fix cycle 1, finding 14; extended
+with the type-validity band in review-fix cycle 3, finding 3).** The assembly
+predicate is `unsized == 0` and nothing else — but `unsized` is *read back from a
+tool*, so the predicate is only meaningful once the value has been proved to be a
+**well-formed non-negative integer**. `unsized` MUST be validated as `int`,
+**excluding `bool`** (`bool` is an `int` subclass in Python, so `False == 0` is
+`True` and an unvalidated equality check *passes* on `False`), and MUST be `>= 0`.
+Any value failing that validation is a **fail-closed** condition reported by name,
+never coerced, never defaulted, and never silently compared:
 
 | Case | `size_composition` | Expected |
 |---|---|---|
-| B1 | `unsized: 0`, non-empty `histogram` | **pass** |
-| B2 | `unsized: 1`, non-empty `histogram` | **fail**, naming the unsized member IDs |
-| B3 | `unsized: 0`, **empty** `histogram` (shipment with no task members) | **pass** — an empty shipment is not an unsized one; emptiness is a different defect and is not gated here |
+| B1 | `unsized: 0` (int), non-empty `histogram` | **pass** |
+| B2 | `unsized: 1` (int), non-empty `histogram` | **fail**, naming the unsized member IDs |
+| B3 | `unsized: 0` (int), **empty** `histogram` (shipment with no task members) | **pass** — an empty shipment is not an unsized one; emptiness is a different defect and is not gated here |
 | B4 | `unsized` field **absent** from the rollup | **fail closed** — an absent field is not zero; the gate must not read a missing key as passing |
-| B5 | `unsized: 0`, `ruleset_version: null` | **pass** (**H4**) |
+| B5 | `unsized: 0` (int), `ruleset_version: null` | **pass** (**H4**) |
+| B6 | `unsized: false` (bool) | **fail closed — named type error.** `bool` is an `int` subclass, so `False == 0` is `True`; an unvalidated predicate **passes** this and lets an un-analysed shipment through. This is the single most dangerous malformed value and must be rejected *before* the equality is evaluated. `unsized: true` is rejected by the same type check, not by `True == 1` |
+| B7 | `unsized: 0.0` (float) | **fail closed — named type error.** `0.0 == 0` is `True`, so a float passes an unvalidated predicate while proving nothing about an integer count |
+| B8 | `unsized: "0"` (string) | **fail closed — named type error.** Never coerce with `int()`; a producer emitting strings is a producer whose contract is not the one this gate reads |
+| B9 | `unsized: null` | **fail closed — named type error.** A null is an explicit "not computed", which is exactly when the gate knows least |
+| B10 | `unsized: -1` (negative int) | **fail closed — named range error.** A negative count is impossible; it indicates a broken rollup, and `-1 == 0` is `False` so a naive predicate fails it for the *wrong reason* and with an unusable message |
+| B11 | `histogram` **absent**, or present but **not a mapping** (list, string, null, scalar) | **fail closed — named shape error.** Distinct from **B3**: an *empty mapping* is a valid rollup of an empty shipment and passes; an *absent or malformed* `histogram` means the rollup could not be computed and must be refused. H4 requires the gate to read **both** `unsized` and `histogram`, so a gate that never validates `histogram` is not reading it |
 
 B3 and B4 are the two cases a naive `if unsized:` truthiness check gets wrong in
-opposite directions, which is why both are named rather than implied. **No test
-asserts an aggregate size/complexity threshold**, because no such threshold is
-declared or promised — see deferred capture `C754A19B`.
+opposite directions, which is why both are named rather than implied. B6–B11 are the
+cases a naive `unsized == 0` **equality** check gets wrong: B6/B7/B8 are values that
+compare equal (or coerce) to zero without *being* a non-negative integer count,
+B9/B10 are values whose rejection must be attributed correctly rather than
+accidentally, and B11 closes the `histogram` half of H4. Every fail-closed case
+(B4, B6–B11) MUST report the **specific** validation failure — type, range, or shape,
+naming the field and the observed value — because a generic "size composition
+invalid" message cannot distinguish a broken tool from an unsized shipment, and the
+operator remedies differ. **No test asserts an aggregate size/complexity threshold**,
+because no such threshold is declared or promised — see deferred capture `C754A19B`.
 
 All three of T1–T3 are authored and **observed red** in `158.002-T` before any
 implementation lands; T1/T3 turn green in `158.001-T`; T2 turns green in

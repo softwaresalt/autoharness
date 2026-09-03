@@ -114,7 +114,7 @@ one disposition.*
 | # | Condition | Disposition |
 |---|---|---|
 | **A** | `PRIMARY_LANGUAGE = L` is declared **and** the technology-reviewer is selected for the composition | **F1 co-installation.** Install `{L}.instructions.md` in the same composition. |
-| **B** | The technology-reviewer is **not** selected | Nothing to install and nothing to reference. Out of Decision F entirely. |
+| **B** | The technology-reviewer is **not** selected | **The F1 co-installation rule does not fire.** Nothing is installed *by Decision F* and nothing references a language instruction. Out of Decision F entirely. |
 | **C** | An **already-composed** workspace carries a technology-reviewer with no matching instruction file | **F2 graceful reference.** The rendered reviewer degrades to generic coding-discipline guidance. **This repository is Condition C.** |
 
 * **F1 — install-harness co-installation invariant (Condition A).**
@@ -158,6 +158,30 @@ Task 4's acceptance additionally requires a **negative assertion**: after re-ren
 reference to a non-existent `.github/instructions/python.instructions.md`, and
 `.github/instructions/python.instructions.md` is **still absent** — proving the fix
 was F2's graceful reference, not an accidental slide into rejected strategy (a).
+
+**Condition B is a statement about Decision F's rule, not about the workspace's file
+set (binding, review-fix cycle 3, finding 2).** When the technology-reviewer is not
+selected, the F1 co-installation rule **does not fire**. That is *not* the same as
+"no language instruction is installed":
+`.github/skills/install-harness/SKILL.md` **Step 2.2 item 1** installs
+`{language}.instructions.md` **unconditionally**, as part of the Instruction Layer,
+for every composition declaring a `PRIMARY_LANGUAGE` — with no dependence on
+reviewer selection. Decision F neither adds to nor suppresses that behaviour.
+
+Consequently, the Condition-B outcome row in `154.004-T`'s binding matrix (**M4**)
+is asserted by **install-unit / provenance attribution** — no install unit and no
+recorded event is attributed to F1, and no technology-reviewer artifact is rendered
+— and **never** by asserting that `{L}.instructions.md` is globally absent. The
+earlier absence wording is **withdrawn**: it would have failed a *correct*
+composition, and the only way to satisfy it would have been to suppress a file the
+Instruction Layer independently requires. M4 must be exercised in a configuration
+where `{L}.instructions.md` **is present** and the reviewer is **not** selected;
+that is the configuration in which an implementation firing F1 unconditionally is
+still caught, because it would record an F1 attribution.
+
+The absence assertion in Task 4's acceptance is **M5-scoped** — it is about *this
+already-composed repository*, where no composition runs and nothing installs the
+file. It is not a general composition-time rule and must not be read across to M4.
 
 ## Decision G — P-007 destructive-restore authorization (binding, REVISED in cycle 2)
 
