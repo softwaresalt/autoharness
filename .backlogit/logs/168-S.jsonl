@@ -1,0 +1,12 @@
+{"timestamp":"2026-09-03T01:28:27.8083327-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_created","delta":{"items":["160-F"],"title":"SHIP-10 — Minimal Copilot plugin installation payload"}}
+{"timestamp":"2026-09-03T01:28:52.1497858-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.002-T"}}
+{"timestamp":"2026-09-03T01:28:57.8573774-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.001-T"}}
+{"timestamp":"2026-09-03T01:29:03.4297469-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.003-T"}}
+{"timestamp":"2026-09-03T01:29:08.9935782-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.004-T"}}
+{"timestamp":"2026-09-03T01:29:14.4050056-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.005-T"}}
+{"timestamp":"2026-09-03T01:29:19.667449-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.006-T"}}
+{"timestamp":"2026-09-03T01:29:25.1558129-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.007-T"}}
+{"timestamp":"2026-09-03T01:29:31.0107493-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.008-T"}}
+{"timestamp":"2026-09-03T01:29:36.6958865-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.009-T"}}
+{"timestamp":"2026-09-03T01:29:42.0893288-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.010-T"}}
+{"timestamp":"2026-09-03T01:29:48.3131248-07:00","actor":"backlogit","item_id":"168-S","event_type":"shipment_item_added","delta":{"item_id":"160.011-T"}}
