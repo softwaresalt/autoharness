@@ -265,5 +265,23 @@ child.on('close', (code, signal) => {
     return;
   }
 
+  if (process.exitCode || initializeFailed) {
+    // A prior handler (child.on('error') or child.stdin.on('error')) may
+    // already have recorded this launch as failed, or
+    // handleChildTermination() above may have just set initializeFailed
+    // because the child exited before ever answering the client's
+    // `initialize` request. Either way this is still a failed MCP
+    // handshake, even when the child's own exit code happens to be 0 --
+    // e.g. it exited "cleanly" from its own perspective, or a race
+    // between a stdin-error-triggered child.kill() and the child's own
+    // independent exit reports code 0 despite the earlier failure.
+    // Preserve the existing nonzero exit code (defaulting to 2) instead
+    // of letting a clean/zero child exit code overwrite it: a supervisor
+    // watching this process's own exit code must be able to tell a
+    // failed MCP launch from a successful one.
+    process.exitCode = process.exitCode || 2;
+    return;
+  }
+
   process.exitCode = code ?? 0;
 });

@@ -34,7 +34,16 @@ review rounds 2, 3, and 4):
   ChildProcess-level ``error``/``close`` events covered by the previous
   case) still synthesizes the promised JSON-RPC error responses and
   terminates the proxy cleanly, instead of crashing the whole process on
-  an unhandled stream error.
+  an unhandled stream error;
+* a still-alive wrapped child (one that merely closed its own stdin
+  without exiting) is actively terminated by the proxy itself rather than
+  left running indefinitely, which would otherwise keep the proxy's own
+  event loop -- and therefore the whole process -- alive against its
+  still-open stdout/stderr pipes;
+* a child that exits with status code 0 *before* ever responding to
+  ``initialize`` is still a failed MCP handshake, and must not cause this
+  proxy's own process to report a false "success" (0) exit code to a
+  supervisor -- even though the child's own exit was "clean".
 """
 
 from __future__ import annotations
@@ -82,9 +91,18 @@ the mode selected by argv[1]:
                          test can assert on what the server *actually saw*
                          rather than what the shim decided to forward.
   init-error         -- initialize responds with a JSON-RPC error.
-  crash-before-init  -- the process exits before ever responding to
-                         initialize (but after having already read and
-                         consumed that request off stdin).
+  crash-before-init  -- the process exits (nonzero) before ever
+                         responding to initialize (but after having
+                         already read and consumed that request off
+                         stdin).
+  clean-exit-before-init -- identical to crash-before-init, except the
+                         process exits with status code 0 ("cleanly")
+                         instead of a nonzero code. This isolates a
+                         handshake failure from a child that happens to
+                         report success on its own way out, which is a
+                         meaningfully different case for the shim's own
+                         exit-code semantics than the already-covered
+                         nonzero-exit crash case above.
   close-stdin-only   -- the process force-closes the underlying OS file
                          descriptors for both its own stdin and stdout
                          immediately via os.close() (bypassing Python's io
@@ -138,6 +156,8 @@ for raw_line in sys.stdin:
     if method == "initialize":
         if mode == "crash-before-init":
             sys.exit(1)
+        if mode == "clean-exit-before-init":
+            sys.exit(0)
         time.sleep(0.3)
         if mode == "init-error":
             send(
@@ -486,6 +506,61 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
                 "real server that closes stdin without exiting"
             )
 
+    def test_clean_child_exit_before_initialize_reports_nonzero_exit_code(
+        self,
+    ) -> None:
+        # Regression for PR #429 Copilot review round 6 (databaseId
+        # 3921930385): the `close` handler unconditionally set
+        # `process.exitCode = code ?? 0`, so a child that exits with
+        # status 0 *before* ever responding to `initialize` -- a failed
+        # MCP handshake by any definition, and already covered above via
+        # the synthesized-error-response assertions -- would still cause
+        # this proxy's own process to report a false "success" (0) exit
+        # code. A supervisor that only checks this process's exit code
+        # (rather than parsing its stdout for synthesized JSON-RPC error
+        # responses) would incorrectly treat the failed launch as
+        # successful. This is deliberately a different fake-server mode
+        # (`clean-exit-before-init`) than
+        # test_child_exit_before_initialize_response_fails_initialize_and_terminates
+        # above, whose `crash-before-init` fixture exits with status 1 --
+        # already nonzero, so it could never have exposed this gap.
+        proc = self._spawn("clean-exit-before-init")
+        messages = self._start_reader(proc)
+
+        self._write(proc, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+
+        seen, satisfied = self._collect_all(
+            messages,
+            [lambda m: m.get("id") == 1 and "error" in m],
+        )
+        self.assertTrue(
+            satisfied[0],
+            "the initialize request never received a synthesized error "
+            "response after the child exited (status 0) before "
+            f"responding to it; messages seen: {seen!r}",
+        )
+
+        try:
+            returncode = proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+            self.fail(
+                "shim process never terminated on its own after the "
+                "wrapped server exited (status 0) before responding to "
+                "initialize"
+            )
+        else:
+            self.assertNotEqual(
+                returncode,
+                0,
+                "shim process reported a zero (success) exit code even "
+                "though the wrapped server exited before ever responding "
+                "to initialize -- a failed MCP handshake must not be "
+                f"reported as this proxy's own success; got: {returncode!r}",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
+
