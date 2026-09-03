@@ -227,6 +227,21 @@ child.on('error', (error) => {
   process.exitCode = 2;
 });
 
+child.stdin.on('error', (error) => {
+  // writeToChild() writes directly to child.stdin. If the wrapped server
+  // closes its input or exits while a write is pending -- including before
+  // the shim ever writes its first byte -- Node emits `error` (e.g. EPIPE)
+  // on the child.stdin Writable stream itself, separately from the
+  // ChildProcess-level `error`/`close` events handled above. Without this
+  // listener, Node treats it as an unhandled stream error and terminates
+  // the whole proxy process before handleChildTermination() can run,
+  // defeating the promised "every outstanding/queued request gets a
+  // synthesized JSON-RPC error instead of hanging or crashing" guarantee.
+  console.error(`Graphtor MCP server stdin write failed: ${error.message}`);
+  handleChildTermination(`Graphtor MCP server stdin write failed: ${error.message}`);
+  process.exitCode = 2;
+});
+
 child.on('close', (code, signal) => {
   handleChildTermination('Graphtor MCP server exited before responding.');
 

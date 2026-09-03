@@ -9,7 +9,7 @@ wrapped ("child") server actually observed and what the client actually
 received back.
 
 Regression coverage (158-S/150-F closure-repair follow-up, PR #429 Copilot
-review rounds 2 and 3):
+review rounds 2, 3, and 4):
 
 * an early ``notifications/initialized`` sent by the client with nothing
   else queued must still be flushed to the child once the child's
@@ -28,7 +28,13 @@ review rounds 2 and 3):
   itself (not merely for messages queued behind it -- that was a distinct,
   separately-flagged gap) AND the proxy actually terminates instead of
   merely setting ``process.exitCode`` while readline's read loop on stdin
-  keeps the event loop, and therefore the process, alive indefinitely.
+  keeps the event loop, and therefore the process, alive indefinitely;
+* the wrapped server's stdin write end failing (a broken-pipe/EPIPE-class
+  error on the child.stdin Writable stream itself, distinct from the
+  ChildProcess-level ``error``/``close`` events covered by the previous
+  case) still synthesizes the promised JSON-RPC error responses and
+  terminates the proxy cleanly, instead of crashing the whole process on
+  an unhandled stream error.
 """
 
 from __future__ import annotations
@@ -46,6 +52,17 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SHIM_SCRIPT = _REPO_ROOT / "scripts" / "graphtor-mcp-shim.cjs"
+
+# Resolve the *real* interpreter behind any venv launcher indirection.
+# ``sys.executable`` inside a Windows venv created by ``uv``/``venv`` can be
+# a small re-exec launcher stub rather than the actual CPython binary; the
+# fake server's ``close-stdin-only`` mode below depends on ``os.close(0)``
+# closing the literal OS pipe handle that this test process's spawned child
+# holds, which only happens reliably when the interpreter that runs the
+# fake server script *is* that process (no extra re-exec hop in between).
+# ``sys._base_executable`` (present since Python 3.11) points at that real
+# interpreter; fall back to ``sys.executable`` when it is unavailable.
+_PYTHON_INTERPRETER = getattr(sys, "_base_executable", None) or sys.executable
 
 _NODE = shutil.which("node")
 _BUN = shutil.which("bun")
@@ -66,13 +83,33 @@ the mode selected by argv[1]:
                          rather than what the shim decided to forward.
   init-error         -- initialize responds with a JSON-RPC error.
   crash-before-init  -- the process exits before ever responding to
-                         initialize.
+                         initialize (but after having already read and
+                         consumed that request off stdin).
+  close-stdin-only   -- the process force-closes the underlying OS file
+                         descriptors for both its own stdin and stdout
+                         immediately via os.close() (bypassing Python's io
+                         wrapper, whose own .close() does not reliably
+                         cause an immediate broken-pipe write error on
+                         every platform) without exiting the process
+                         itself, so no ChildProcess `exit`/`close` event
+                         fires for several seconds. Any write the shim
+                         performs to this process's stdin therefore fails
+                         immediately on the write side (broken pipe/EPIPE),
+                         isolating that failure mode from the
+                         already-covered child-process-exited case above.
 """
 import json
+import os
 import sys
 import time
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "normal"
+
+if mode == "close-stdin-only":
+    os.close(0)
+    os.close(1)
+    time.sleep(5)
+    sys.exit(0)
 
 
 def send(obj):
@@ -143,7 +180,7 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
         args = [
             _JS_RUNTIME,
             str(_SHIM_SCRIPT),
-            sys.executable,
+            _PYTHON_INTERPRETER,
             str(self._server_script),
             mode,
         ]
@@ -362,6 +399,75 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
                 "server exited before responding to initialize (stdin was "
                 "deliberately left open so termination could not be "
                 "attributed to an externally-supplied EOF)"
+            )
+
+    def test_child_stdin_write_error_fails_requests_without_crashing(
+        self,
+    ) -> None:
+        # Regression for PR #429 Copilot review round 5: writeToChild()
+        # writes directly to child.stdin, but only the ChildProcess-level
+        # `error`/`close` events were handled -- an EPIPE (or similar)
+        # emitted on the child.stdin Writable stream itself was previously
+        # unhandled. Node treats an unhandled stream `error` as fatal and
+        # would crash the whole proxy process before
+        # handleChildTermination() ever ran, instead of synthesizing the
+        # promised JSON-RPC error responses.
+        #
+        # This is deliberately a different code path than
+        # test_child_exit_before_initialize_response_fails_initialize_and_terminates
+        # above: that test's fake server exits, which fires the
+        # ChildProcess `close` event (already handled before this fix).
+        # This test's fake server instead closes only its own stdin read
+        # end while remaining alive (no exit, so no `close`/`exit` event
+        # fires on the ChildProcess), isolating the failure to the
+        # child.stdin stream's own `error` event -- exactly the event this
+        # fix adds a listener for.
+        proc = self._spawn("close-stdin-only")
+        messages = self._start_reader(proc)
+
+        # Give the fake server time to actually close its stdin read end
+        # before the first write is attempted, so the write reliably fails
+        # on the stdin stream itself rather than racing a still-open pipe.
+        time.sleep(0.3)
+
+        self._write(proc, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        self._write(proc, {"jsonrpc": "2.0", "id": 2, "method": "test/echo", "params": {}})
+
+        seen, satisfied = self._collect_all(
+            messages,
+            [
+                lambda m: m.get("id") == 1 and "error" in m,
+                lambda m: m.get("id") == 2 and "error" in m,
+            ],
+        )
+        self.assertTrue(
+            satisfied[0],
+            "the initialize request never received a synthesized error "
+            "response after a write to the child's stdin failed "
+            f"(possible unhandled child.stdin EPIPE crash); messages seen: {seen!r}",
+        )
+        self.assertTrue(
+            satisfied[1],
+            "queued request never received a synthesized error response "
+            "after a write to the child's stdin failed (possible "
+            f"unhandled child.stdin EPIPE crash); messages seen: {seen!r}",
+        )
+
+        # As above: the proxy must terminate on its own without an
+        # externally-supplied EOF, and wait() returning at all (rather than
+        # raising TimeoutExpired) is the only meaningful assertion --
+        # crucially, it must return normally rather than the process having
+        # already died from an uncaught exception before this point (which
+        # would have already made the assertions above fail, since no
+        # error responses would have been written).
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+            self.fail(
+                "shim process never terminated on its own after a write to "
+                "the child's stdin failed"
             )
 
 
