@@ -14,8 +14,9 @@
     },
     "graphtor-docs": {
       "type": "stdio",
-      "command": "graphtor-docs",
-      "args": ["serve"],
+      "command": "bun",
+      "args": ["scripts/graphtor-mcp-shim.cjs", "graphtor-docs", "serve", "--read-only"],
+      "x-graphtor-managed": true,
       "tools": ["*"]
     },
     "context7": {
