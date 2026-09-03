@@ -9,7 +9,7 @@ wrapped ("child") server actually observed and what the client actually
 received back.
 
 Regression coverage (158-S/150-F closure-repair follow-up, PR #429 Copilot
-review round 2):
+review rounds 2 and 3):
 
 * an early ``notifications/initialized`` sent by the client with nothing
   else queued must still be flushed to the child once the child's
@@ -24,7 +24,11 @@ review round 2):
   request to receive a synthesized JSON-RPC error response instead of
   hanging forever;
 * the child process exiting before it ever responds to ``initialize``
-  likewise fails every queued request with a synthesized error response.
+  synthesizes an error response for the outstanding ``initialize`` request
+  itself (not merely for messages queued behind it -- that was a distinct,
+  separately-flagged gap) AND the proxy actually terminates instead of
+  merely setting ``process.exitCode`` while readline's read loop on stdin
+  keeps the event loop, and therefore the process, alive indefinitely.
 """
 
 from __future__ import annotations
@@ -305,7 +309,9 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
             f"after initialize failed; messages seen: {seen!r}",
         )
 
-    def test_child_exit_before_initialize_response_fails_queued_request(self) -> None:
+    def test_child_exit_before_initialize_response_fails_initialize_and_terminates(
+        self,
+    ) -> None:
         proc = self._spawn("crash-before-init")
         messages = self._start_reader(proc)
 
@@ -314,13 +320,39 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
 
         seen, satisfied = self._collect_all(
             messages,
-            [lambda m: m.get("id") == 2 and "error" in m],
+            [
+                lambda m: m.get("id") == 1 and "error" in m,
+                lambda m: m.get("id") == 2 and "error" in m,
+            ],
         )
         self.assertTrue(
             satisfied[0],
+            "the outstanding initialize request itself never received a "
+            "synthesized error response after the child exited before "
+            f"responding to it; messages seen: {seen!r}",
+        )
+        self.assertTrue(
+            satisfied[1],
             "queued request never received a synthesized error response "
             f"after the child exited before responding to initialize; "
             f"messages seen: {seen!r}",
+        )
+
+        # The proxy must actually terminate once the wrapped server is gone
+        # -- merely assigning process.exitCode does not stop readline's read
+        # loop on stdin from keeping the event loop (and therefore the
+        # process) alive, which would otherwise leave the client waiting
+        # forever for either a response or transport EOF even after every
+        # outstanding request has been answered above.
+        try:
+            proc.stdin.close()
+        except Exception:
+            pass
+        exit_code = proc.wait(timeout=10)
+        self.assertIsNotNone(
+            exit_code,
+            "shim process never terminated after the wrapped server exited "
+            "before responding to initialize",
         )
 
 

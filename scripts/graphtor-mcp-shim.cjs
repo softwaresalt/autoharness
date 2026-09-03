@@ -198,16 +198,37 @@ serverLines.on('line', (line) => {
 
 child.stderr.pipe(process.stderr);
 
+function handleChildTermination(reason) {
+  if (initializeId !== undefined && !initializeResponseSeen && !initializeFailed) {
+    // The child is gone (or never started) before it ever answered the
+    // client's own `initialize` request -- as opposed to a message merely
+    // queued behind it. Without this, the client would wait forever for a
+    // response that will now never arrive.
+    initializeFailed = true;
+    emitErrorResponse(initializeId, reason);
+  }
+
+  if (queuedClientMessages.length > 0) {
+    failQueuedClientMessages(reason);
+  }
+
+  // There is nothing left to proxy. Stop reading further client input so
+  // the process can actually exit -- merely assigning process.exitCode does
+  // not terminate the proxy while readline's read loop on stdin keeps the
+  // event loop alive, which would otherwise leave the client waiting
+  // forever for either a response or transport EOF.
+  clientLines.close();
+  process.stdin.destroy();
+}
+
 child.on('error', (error) => {
   console.error(`Failed to launch Graphtor MCP server: ${error.message}`);
-  failQueuedClientMessages(`Graphtor MCP server failed to launch: ${error.message}`);
+  handleChildTermination(`Graphtor MCP server failed to launch: ${error.message}`);
   process.exitCode = 2;
 });
 
 child.on('close', (code, signal) => {
-  if (queuedClientMessages.length > 0) {
-    failQueuedClientMessages('Graphtor MCP server exited before responding.');
-  }
+  handleChildTermination('Graphtor MCP server exited before responding.');
 
   if (signal) {
     console.error(`Graphtor MCP server terminated by signal ${signal}`);

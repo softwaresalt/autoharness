@@ -25,26 +25,24 @@
 Set-Location -LiteralPath $PSScriptRoot
 
 # Load .env.local (gitignored per-developer overrides) if present. Each
-# KEY=VALUE line is always exported, overriding any value already present in
-# the process environment -- .env.local is the authoritative source for this
-# workspace's own overrides, so editing it and re-running this script takes
-# effect immediately, even within an already-running shell session that still
-# has a stale prior value set. A single pair of matching surrounding quotes is
-# stripped from the value.
+# KEY=VALUE line is exported only when that variable is not already set. A
+# single pair of matching surrounding quotes is stripped from the value.
 $envLocalPath = Join-Path $PSScriptRoot ".env.local"
 if (Test-Path -LiteralPath $envLocalPath -PathType Leaf) {
     Get-Content -LiteralPath $envLocalPath | ForEach-Object {
         if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$') {
             $name = $matches[1]
-            $value = $matches[2]
-            if ($value.Length -ge 2) {
-                $firstChar = $value[0]
-                $lastChar = $value[$value.Length - 1]
-                if ((($firstChar -eq '"') -or ($firstChar -eq "'")) -and ($lastChar -eq $firstChar)) {
-                    $value = $value.Substring(1, $value.Length - 2)
+            if ($null -eq [Environment]::GetEnvironmentVariable($name, "Process")) {
+                $value = $matches[2]
+                if ($value.Length -ge 2) {
+                    $firstChar = $value[0]
+                    $lastChar = $value[$value.Length - 1]
+                    if ((($firstChar -eq '"') -or ($firstChar -eq "'")) -and ($lastChar -eq $firstChar)) {
+                        $value = $value.Substring(1, $value.Length - 2)
+                    }
                 }
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
             }
-            [Environment]::SetEnvironmentVariable($name, $value, "Process")
         }
     }
 }
