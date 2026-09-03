@@ -25,27 +25,65 @@ Measured directly at `2661c1c8`:
 | `templates/backlog/registries/backlogit.registry.yaml` | 460 |
 | `.autoharness/backlog-registry.yaml` (installed) | **269** |
 
-A key-set comparison shows the installed registry is missing **22 declared
+A key-set comparison shows the installed registry is missing **23 declared
 operations**:
 
-`stash`, `stash_edit`, `stash_get`, `stash_archive`, `fetch_stash`,
-`harvest_stash`, `deliberate`, `add_link`, `remove_link`, `get_links`,
-`archive_item`, `adopt_item`, `get_metadata_catalog`, `get_wit_metadata`,
-`list_types`, `list_templates`, `get_version`, `export_command_map`,
-`merge_sync`, `telemetry_harvest`, `doctor`, `cleanup_checkpoints`
+`add_link`, `adopt_item`, `archive_item`, `cleanup_checkpoints`, `deliberate`,
+`doctor`, `export_command_map`, `fetch_stash`, `get_links`,
+`get_metadata_catalog`, `get_version`, `get_wit_metadata`, `harvest_stash`,
+`list_templates`, `list_types`, `merge_sync`, `remove_link`, `stash`,
+`stash_archive`, `stash_edit`, `stash_get`, **`stash_remove`**,
+`telemetry_harvest`
+
+*(Source declares 54 operations, installed declares 31; **installed-only = 0**,
+so nothing in the installed registry is at risk of being dropped by
+regeneration.)*
+
+**Count correction, cycle 5 (finding 6).** This inventory previously read
+**22** and omitted **`stash_remove`**. An inventory that is silently short by one
+is worse than none: it presents itself as exhaustive, so a regeneration reconciled
+against it would treat the extra operation as an unexplained surprise — or, if the
+implementer hand-filtered to match the list, would reproduce the very drift this
+shipment removes. The corrected delta above was recomputed mechanically by loading
+both YAML files and taking the key-set difference.
+
+**Deprecation disposition for `stash_remove` (explicit).** It is **deprecated in
+favour of `stash_archive`** — the live MCP tool surface states so directly
+(*"[Deprecated: use backlogit_stash_archive] Remove an active stash entry"*), and
+the CLI `remove` alias resolves to the same archive handler rather than a separate
+destructive delete. **The source registry template carries no deprecation marker
+for it**: its entry declares only `mcp_tool` and `params`, so the deprecation is
+visible on the tool surface and *not* in the artifact this shipment regenerates.
+That gap is recorded as a finding. **Parity includes it**: regeneration installs
+`stash_remove` with the other 22, because (i) **H1** forbids hand-merging and
+filtering one key out of a regenerated file *is* a hand-merge, (ii) a deliberate
+one-key divergence is new drift that differs from the old only in being
+intentional, and (iii) a deprecated-but-declared operation is harmless when
+present and merely unused, whereas suppressing it makes the installed file
+unreproducible from its own template. Excluding it would first require adding a
+machine-readable deprecation marker to the **template** and teaching regeneration
+to honour it — a different surface, captured under P-021 rather than done here.
+Consumer guidance recorded alongside the regeneration: agents SHOULD prefer
+`stash_archive`; `stash_remove` is present for registry parity only.
 
 plus the entire sizing field map (`size`, `complexity`, `size_source`,
 `size_ruleset_version` — absent from both `update_task.params` and
 `field_mapping`) and **seven feature flags**: `telemetry_harvest`, `stash`,
 `semantic_links`, `deliberation`, `discovery`, `lifecycle_hygiene`, and
-**`sizing: true`**.
+**`sizing: true`** *(source declares 22 features, installed 15; installed-only =
+0)*.
+
+**No unknown additive change is permitted.** Task 1's re-derived diff must
+reconcile **exactly** to 23 operations, 7 features, 0 installed-only keys, and the
+sizing field map. Any key present in the diff and not named here is an unknown
+additive change: halt, record it, and do not regenerate until it is accounted for.
 
 This is the mechanical cause of three symptoms that have been reported
 separately:
 
 1. **P-012 exposure.** The Step 0.0 tool-availability gate is registry-driven. An
    agent that honours the registry concludes that `stash_archive`, `deliberate`,
-   `archive_item` and eighteen other operations do not exist, and falls back to
+   `archive_item` and nineteen other operations do not exist, and falls back to
    ad-hoc filesystem work — the exact failure the gate exists to prevent.
 2. **`2E67938C` cannot be satisfied.** Its mandate is that Stage "actually USE"
    size and complexity "robustly and enforceably". The installed registry does
@@ -275,7 +313,7 @@ resolution only — no install performed).
 
 | # | Persona | Sev | Finding | Resolution |
 |---|---|---|---|---|
-| 1 | Correctness | **P0** | Regenerating the installed registry could **overwrite legitimate workspace-local customization** that was deliberately made and is not represented in the template. Blind regeneration would silently destroy it. | **Resolved.** **H2** is elevated to a hard precondition: task 1 must first produce and record a full key-level diff, classify every delta as additive / value-changed / removed, and **halt** on any value-changed or removed key rather than proceeding. Only a purely-additive delta may be applied automatically. The measured delta for this workspace is additive-only (22 operations, one field map, seven flags — all absent, none conflicting), but the task must re-derive that rather than trust this plan. |
+| 1 | Correctness | **P0** | Regenerating the installed registry could **overwrite legitimate workspace-local customization** that was deliberately made and is not represented in the template. Blind regeneration would silently destroy it. | **Resolved.** **H2** is elevated to a hard precondition: task 1 must first produce and record a full key-level diff, classify every delta as additive / value-changed / removed, and **halt** on any value-changed or removed key rather than proceeding. Only a purely-additive delta may be applied automatically. The measured delta for this workspace is additive-only (23 operations, one field map, seven flags — all absent, none conflicting, and zero installed-only keys), but the task must re-derive that rather than trust this plan, and must reconcile the re-derived diff exactly against the recorded inventory, halting on any unaccounted key. |
 | 2 | Security | **P1** | Enabling seven feature flags at once expands the operation surface agents will use, including `merge_sync`, `doctor` and `cleanup_checkpoints`, which mutate tool-managed state. | **Resolved.** The flags describe **tool capabilities**, not grants of authority; role boundaries (P-010) and destructive-command approval (Constitution VII) are unchanged and continue to govern who may call what. Task 1's acceptance explicitly records that no policy, role, or approval surface is modified. Additionally, restoring the declarations makes these operations *visible to the gate* rather than reached by ad-hoc fallback — a net reduction in exposure. |
 | 3 | Architecture | **P1** | If the installed registry drifted once, the **install/tune path that produces it** is the real defect, and regenerating is treating a symptom. | **Accepted, partially resolved.** Task 2's parity test converts the symptom into a **detected** condition, which is the honest available fix inside this scope. Diagnosing *why* the installer emitted a truncated registry is genuinely a different contract surface; it is captured as compliant P-021 deferred entry `CE441101` and explicitly not attempted here. The parity test guarantees the question cannot be forgotten, because the next drift fails a test instead of passing silently. |
 | 4 | Schema/CLI/docs coupling | **P1** | `features.sizing: true` becoming visible will change generated Stage agents' documented behaviour in **existing** installs on their next tune. | **Resolved.** That is the intended outcome of `2E67938C` and is exactly why **H4** sequences SHIP-7 before SHIP-8. Task 1's acceptance requires the compatibility matrix and the operating-model doc to state that sizing is advertised and what the enforcement consequence is, so the behaviour change is documented rather than discovered. |
@@ -335,6 +373,19 @@ before harvest. Zero unresolved P0/P1.
 | F | Correctness | P2 | `157.002-T`'s parity test was ordered after task 1 only in narrative. With no encoded edge it could have been executed against the **truncated** registry — i.e. authored against the very drift it exists to detect. | **Resolved.** `157.002-T` is now encoded as blocked by `157.001-T`, and the task body states why. Verified present in the dependency graph and acyclic. |
 | G | Constitution | P2 | **H9** declared `careful` for every task, but none of the three executable tasks carried a safety-mode line in its own body. | **Resolved.** All three tasks now declare their safety mode inline; task 1's `freeze-scope` is extended to cover its manifest checksum entry, matching **H10**. |
 
-**Verdict: PASS.** Cycle 2: 1 P0 and 2 P2 raised, all 3 resolved. Cumulative:
-**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
-review is the final independent disposition cycle.
+**Verdict after cycle 2: PASS — SUPERSEDED BY CYCLE 5.** *(Marked in place; the
+record is preserved as history but is no longer this plan's gate state.)*
+
+---
+
+## Plan Review — extended review-fix cycle 5
+
+*Reviewed at clean HEAD `1c50b0a8be6ca71dfeacf8cf15b6514b11d988da`. One finding
+raised against this shipment.*
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 5-6 | Correctness | **P1** | **The approved additive inventory was incomplete, and its incompleteness was silent.** `157.001-T` enumerated the operations to restore but **omitted the template operation `stash_remove`**. An approved-list restoration that silently drops a member does not restore parity — it *ratifies* a narrower registry while claiming parity, and the omission is invisible precisely because the list is the thing being trusted. | **Resolved by recomputing the delta mechanically and forbidding unknown additions.** Measured at HEAD: the source template (`templates/backlog/registries/backlogit.registry.yaml`, 460 lines) declares **54** operations and **22** features; the installed registry (`.autoharness/backlog-registry.yaml`, 269 lines) declares **31** and **15**. The exact delta is therefore **23 additive operations** (the previously-stated 22 **plus `stash_remove`**), **7 additive features**, and — checked in the other direction — **0 installed-only** operations or features, so nothing is being dropped. **Deprecation is dispositioned explicitly rather than assumed**: `stash_remove` is deprecated in favour of `stash_archive` (the live MCP tool description reads *"[Deprecated: use backlogit_stash_archive]"*), yet **the source template carries no deprecation marker for it** — recorded as a finding in its own right, since the template is the parity authority. Parity therefore **includes** `stash_remove`, so the installed registry matches its template exactly; suppressing it would create a new, undeclared divergence in the opposite direction. A **halt rule** is added: any additive operation or feature not on the recomputed list stops the task rather than being absorbed silently. The plan's operations list, count-correction paragraph, "nineteen other operations" wording and risk-table row are all updated in place. |
+
+**Verdict after cycle 5: PASS.** Cycle 5: 1 P1 raised, resolved. Cumulative:
+**zero unresolved P0/P1**.

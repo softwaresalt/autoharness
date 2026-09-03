@@ -1,1 +1,2 @@
 {"timestamp":"2026-09-03T01:26:57.5862025-07:00","actor":"agent","item_id":"160.001-T","event_type":"estimate_history","delta":{"actor":"agent","size":"S","size_ruleset_version":"ah-stage-sizing-v1","size_source":"agent"}}
+{"timestamp":"2026-09-03T14:07:37.865613-07:00","actor":"human","item_id":"160.001-T","event_type":"estimate_history","delta":{"actor":"human","size":"M","size_ruleset_version":"ah-stage-sizing-v1","size_source":"agent"}}

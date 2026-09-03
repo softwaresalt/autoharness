@@ -57,9 +57,18 @@ Convert the two-axis rule from documentation into a gate at three points:
   `complexity: high` forces a split or an explicit de-risking step (spike,
   further decomposition, or additional deliberation) regardless of `size`. Both
   triggers already exist in prose; they become checked conditions.
-* **Shipment-assembly-time, per shipment.** Read the shipment's
-  `size_composition` rollup back after assembly and fail the assembly if
-  `unsized > 0`.
+* **Shipment-assembly-time, per shipment.** State, as a fail-closed clause of the
+  Stage agent's *Step 5 — Shipment Assembly* instruction contract, that the
+  shipment's `size_composition` rollup is read back after assembly and the assembly
+  fails if `unsized > 0`.
+
+  **Seam correction (review-fix cycle 5, finding 7).** There is **no callable
+  assembly-gate runtime** in this product to inject a rollup into —
+  `ShipmentState` in `src/autoharness/gates/topology.py` carries no
+  `size_composition` field and `autoharness gate pipeline-topology` never reads
+  one. The enforcement surface is the **Stage instruction/template contract**, and
+  the verification is a **rendered-template static contract test**. See **H6**,
+  which is binding and carries the full B1–B11 disposition.
 
   **Scope narrowed in review-fix cycle 1 (Orchestrator local-review finding 14).**
   An earlier draft added "or if the composition exceeds the declared budget". There
@@ -155,13 +164,13 @@ carrying the rule. Two constraints are nonetheless recorded as binding.
   observed **null at the shipment level** even though every member task carries
   `size_ruleset_version: ah-stage-sizing-v1`.
 
-  Two consequences, both binding on **`158.003-T`** (the assembly task created by
-  the H3 split) and both mandatory acceptance there:
-  * The budget check reads **`unsized`** and the **`histogram`**, which are
+  Two consequences, both governing the **shipment-assembly clause set** delivered
+  by `158.003-T` and asserted by `158.002-T`'s tests:
+  * The clause set gates on **`unsized`** and the **`histogram`**, which are
     populated and trustworthy. It **must not** gate on the shipment-level
     `ruleset_version`, which is observed null and would fail every shipment. A
-    **positive test** must assert that a shipment with `unsized == 0` and a null
-    shipment-level `ruleset_version` **passes**.
+    **positive assertion** — authored by `158.002-T` — must confirm that a shipment
+    with `unsized == 0` and a null shipment-level `ruleset_version` **passes**.
   * The shipment-level `ruleset_version: null` against populated per-task
     `size_ruleset_version` values is a **rollup-provenance gap**. It is recorded
     as deferred scope (`FE098366`), not fixed here — **N1** forbids schema
@@ -175,14 +184,71 @@ carrying the rule. Two constraints are nonetheless recorded as binding.
   `templates/skills/harvest/SKILL.md.tmpl` and `templates/agents/_stage.agent.md.tmpl`
   plus their mirrors, because it edits the decomposition contract every future Stage
   run reads.
+* **H6 (binding) — the enforcement seam is the Stage instruction contract, and
+  the tests are static/renderer tests against it.** *(Added in review-fix cycle 5,
+  finding 7.)* Cycle 2's phrasing — "read the shipment's `size_composition` rollup
+  back after assembly and fail the assembly" — reads as though a **callable
+  runtime gate** existed to inject a rollup into. **It does not.** Measured:
+  `src/autoharness/gates/topology.py`'s `ShipmentState` dataclass carries
+  `shipment_id`, `title`, `live_status`, `archived_status`,
+  `archived_record_present`, `manifest_item_ids`, and `blocking_predecessor_ids`
+  — **no `size_composition`, no `unsized`, no `histogram`** — and
+  `autoharness gate pipeline-topology` never reads the rollup. Writing tests that
+  inject a rollup into that gate would be testing an interface that does not exist.
+
+  **The seam that actually exists is the one this shipment already edits:** the
+  **Stage agent instruction contract**, authored at
+  `templates/agents/_stage.agent.md.tmpl` and installed as
+  `.github/agents/_stage.agent.md`, whose *Step 5 — Shipment Assembly* section is
+  what every Stage run reads and obeys. Enforcement here is a **contract clause**,
+  and its verification is **static and deterministic**, in the shape this
+  repository already uses (`tests/test_circuit_breaker_policy_contract.py` renders
+  a template via `autoharness.verify_workspace._derive_template_variables` /
+  `_render_template` and asserts over the rendered text).
+
+  Binding consequences:
+
+  1. **`158.003-T` changes the product surface only** — the Stage agent template
+     and its mirror. It writes no test.
+  2. **The B1–B11 boundary cases become required, individually-assertable
+     fail-closed clauses of that Step 5 contract**, and every one of them survives
+     the move: `unsized` must be read as a **strict non-negative `int` with `bool`
+     rejected**; a `histogram` must be a **mapping, possibly empty** (an empty
+     mapping **passes**); an **absent** field is a named **shape error**, not a
+     default of `0`; a **negative** value is a named **range error**; **no value is
+     ever coerced or defaulted**; and the shipment-level `ruleset_version` is
+     **never** gated on (H4). Each clause must be present in the rendered
+     instruction in a form a static assertion can locate unambiguously.
+  3. **The verification is a rendered-template contract test**, not a mock of a
+     nonexistent engine: render `_stage.agent.md.tmpl`, assert each required
+     fail-closed clause is present and each prohibited coercion/default clause is
+     absent, and assert the template and its `.github/agents/` mirror do not
+     diverge. It is genuinely red before `158.003-T` lands, because the clauses do
+     not exist today.
+  4. **No new Python runtime gate is invented.** Extending `pipeline-topology`
+     (or adding a new gate module) to read `size_composition` is a **different
+     change** with a different blast radius — a CLI/gate surface rather than a
+     Stage instruction surface — and it is **not authorized by this shipment**. If
+     a future shipment wants deterministic machine enforcement, that is where it
+     belongs, and it should be deliberated on its own merits.
 
 ## Tasks
 
 | # | ID | Title | Size | Complexity | Surface |
 |---|---|---|---|---|---|
-| 1 | `158.002-T` | Author the red regression tests for both sizing gates and record them observed failing | S | low | `tests/` |
+| 1 | `158.002-T` | Author **all** red/static contract tests for both sizing gates — harvest-time and shipment-assembly — and record them observed failing | S | low | `tests/` (**sole test-authoring task**) |
 | 2 | `158.001-T` | Make the harvest sizing gate fail closed when the registry advertises sizing, with explicit reported degradation when it does not | M | medium | `templates/skills/harvest/SKILL.md.tmpl`, `templates/agents/_stage.agent.md.tmpl` + mirrors |
-| 3 | `158.003-T` | Implement the shipment-assembly size-composition budget check and turn the assembly test green | M | medium | `templates/agents/_stage.agent.md.tmpl`, `tests/` |
+| 3 | `158.003-T` | Author the Step 5 shipment-assembly `size_composition` fail-closed clauses (B1–B11) into the Stage agent template and its mirror, turning `158.002-T`'s assembly tests green | M | medium | `templates/agents/_stage.agent.md.tmpl` + `.github/agents/_stage.agent.md` mirror — **no `tests/`** |
+
+**Test-authoring authority belongs to `158.002-T` alone** *(corrected in review-fix
+cycle 5, finding 9)*. Cycle 2's table listed `tests/` on `158.003-T`'s surface as
+well, which let the green owner write the very tests that judge it — the
+self-certification defect Test-First exists to prevent, and a direct contradiction
+of the same table's own H3 note that `158.002-T` is "the red-test half only".
+`158.003-T` reaches green **exclusively** by changing the product instruction and
+template surfaces; if a required assertion is missing, the fix belongs to
+`158.002-T` and re-opens the red observation, it does not become a licence for
+`158.003-T` to author it.
 
 **Execution order is the table order**, and it is the machine-encoded order:
 `158.002-T` → `158.001-T` → `158.003-T` (**H3**). The table is listed in execution
@@ -303,13 +369,34 @@ All three of T1–T3 are authored and **observed red** in `158.002-T` before any
 implementation lands; T1/T3 turn green in `158.001-T`; T2 turns green in
 `158.003-T` (**H3**).
 
+**How B1–B11 are enforced and asserted (H6).** These eleven rows are the exhaustive
+contract, and they are unchanged. What changed in review-fix cycle 5 (finding 7) is
+**where they live and how they are checked**, because no callable assembly-gate
+runtime exists to feed a malformed rollup into:
+
+* **Enforcement surface** — each row becomes a **required, individually locatable
+  fail-closed clause** of *Step 5 — Shipment Assembly* in
+  `templates/agents/_stage.agent.md.tmpl` and its `.github/agents/_stage.agent.md`
+  mirror, authored by `158.003-T`.
+* **Verification** — `158.002-T` renders the template through the existing
+  `autoharness.verify_workspace._derive_template_variables` / `_render_template`
+  path (the harness `tests/test_circuit_breaker_policy_contract.py` already uses)
+  and asserts, per row, that the required clause is present with its named failure
+  kind (**type** for B6–B9, **range** for B10, **shape** for B4 and B11), that the
+  two **pass** rows (B1, B3, B5) are stated as passing, and that no coercion or
+  defaulting clause appears anywhere in the section. It additionally asserts the
+  template and mirror do not diverge.
+* **Genuinely red** — none of these clauses exists in the current Stage template,
+  so every assertion fails before `158.003-T` lands, and passes only because the
+  product surface changed. Nothing is stubbed and no engine is mocked.
+
 ## Plan review — multi-persona adversarial gate
 
 | # | Persona | Sev | Finding | Resolution |
 |---|---|---|---|---|
 | 1 | Correctness | **P1** | A fail-closed harvest gate can **strand a partially written task**: `create_item` succeeds, the `size` update succeeds, the `complexity` update fails, and the halt leaves a half-sized orphan in the backlog. | **Resolved.** Task 1's acceptance requires the gate to validate **both** enum values *before* the create call, so a rejection happens before any write. If a write nonetheless fails mid-sequence, the halt message must name the item ID and the exact remaining call, so the state is recoverable rather than mysterious. The three seams are ordered so that the item is never left in a state a subsequent run cannot complete idempotently. |
 | 2 | Scope/Maintainability | **P1** | This overlaps portfolio unit **S2**, whose `ART-03` detector checks exactly "`size` **and** `complexity` present". Building both is duplicated effort or, worse, two disagreeing rules. | **Resolved.** They are the **producer** and the **detector** of the same invariant and are deliberately complementary: SHIP-8 makes Stage *emit* conforming items; S2 *verifies* that anything in the backlog conforms, including items Stage did not produce. To guarantee they cannot disagree, this plan adopts S2's own constraints verbatim — enforce-on-new-only (**H1**), no auto-split (**N4**), no schema change (**N1**) — and records that S2 is the authority if they ever diverge. |
-| 3 | Architecture | **P1** | Enforcement lives in **template prose** read by an agent. Prose is not a machine gate, so this reproduces the `029-DL` failure it claims to fix. | **Accepted, honestly bounded.** Task 2's shipment-assembly check is a genuine machine check — it reads the `size_composition` rollup back from the tool and fails on `unsized > 0`, which no amount of agent goodwill can fake. The harvest-time gate is prose plus a regression test asserting the documented behaviour. This is a **partial** mechanisation and is labelled as such rather than overclaimed; full mechanisation of harvest-time validation is precisely what S2's `ART-03` delivers, and duplicating it here would violate finding 2's resolution. |
+| 3 | Architecture | **P1** | Enforcement lives in **template prose** read by an agent. Prose is not a machine gate, so this reproduces the `029-DL` failure it claims to fix. | **Accepted, and now bounded honestly — resolution CORRECTED in review-fix cycle 6, finding 22.** The withdrawn cycle-2 text claimed Task 2's shipment-assembly check is “a genuine machine check … which no amount of agent goodwill can fake”. **That claim is false and is withdrawn.** Per **H6** and cycle-3 finding 5-7, **there is no callable assembly-gate runtime in this product**: `autoharness gate pipeline-topology` never reads `size_composition`, and no Python code path in `src/**` evaluates the B1–B11 predicate. **NO PYTHON RUNTIME PREDICATE ENFORCES THE `bool`-VERSUS-`int` DISTINCTION** — or any other clause of the budget predicate — at shipment-assembly time. What B1–B11 actually are: **template/static enforcement only.** They are authored as prose clauses in the Stage agent template and asserted by **template-content tests** that check the clauses are present and correctly worded. A test that the template *says* `bool` must be rejected is not a program that *rejects* a `bool`. **Residual risk, recorded and accepted:** an agent that ignores or misreads the clause can assemble a shipment whose `unsized` is `false`, `0.0`, `"0"`, or negative, and **nothing in this product will stop it**; the defect surfaces only in review. This shipment **does not add a runtime gate** — doing so means building an assembly-gate seam, which cycle-3 finding 5-7 recorded as a **different contract surface** and out of scope here. The correct future home for a real predicate is that seam or S2's `ART-03`, not a bolt-on in this cycle. This entry must not be re-worded to imply runtime enforcement. |
 | 4 | Constitution | P2 | Halting a dark-factory session on a sizing violation could strand an AFK operator. | The halt is a **decomposition** halt, not a session halt: it rejects one malformed task and reports it. Other independent scoped items continue, consistent with this run's own operating rules. |
 | 5 | Schema/CLI/docs coupling | P2 | The `size_ruleset_version` value must be non-empty and meaningful; an arbitrary string makes provenance useless. | Task 1's acceptance requires a single declared ruleset identifier recorded in the harvest documentation, written with `size_source: agent`, and used consistently. |
 | 6 | Security | P3 | No security surface. | Confirmed: no credentials, no network, no path handling, no destructive command. |
@@ -367,6 +454,20 @@ unresolved P0/P1**.
 | 14 | Correctness | P2 | The H4 acceptance ("read `unsized`/`histogram`, never the null shipment-level `ruleset_version`") was attached to a task that no longer exists under that number after the split, and had no positive test. | **Resolved.** H4 is re-pointed at `158.003-T`, re-measured against `166-S` post-split (`{"histogram":{"M":2,"S":1},"unsized":0,"ruleset_version":null}`), and now requires a **positive** test asserting that `unsized == 0` with a null shipment-level `ruleset_version` **passes**. |
 | 15 | Maintainability | P2 | The plan described the SHIP-7 dependency as a "real blocks edge, not a comment" in language that read as though a *task*-level edge to a `157-*` task existed. It does not. | **Resolved.** The plan and both `158-*` task bodies now state explicitly that the SHIP-7 → SHIP-8 edge is **shipment-level** (`166-S` blocked by `165-S`) and that no `158-*` task declares a dependency on any `157-*` task. Both edges are real; they sit at different levels. |
 
-**Verdict: PASS.** Cycle 2: 2 P1 and 2 P2 raised, all 4 resolved. Cumulative:
-**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
-review is the final independent disposition cycle.
+**Verdict after cycle 2: PASS — SUPERSEDED BY CYCLE 5.** *(Marked in place; the
+record is preserved as history but is no longer this plan's gate state.)*
+
+---
+
+## Plan Review — extended review-fix cycle 5
+
+*Reviewed at clean HEAD `1c50b0a8be6ca71dfeacf8cf15b6514b11d988da`. Two findings
+raised against this shipment; both confirmed legitimate.*
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 5-7 | Correctness | **P0** | **There is no callable assembly-gate seam, so the tests could not be written as specified.** The plan required tests to **inject rollup values** into a shipment-assembly gate and observe it refuse. Measured at HEAD, no such runtime exists: `src/autoharness/gates/topology.py`'s `ShipmentState` carries `shipment_id`, `title`, `live_status`, `archived_status`, `archived_record_present`, `manifest_item_ids` and `blocking_predecessor_ids` — and **no `size_composition`** — and `size_composition` is itself **computed on read** by backlogit rather than being a value any caller can supply. The specified tests had nothing to call and nothing to inject into. | **Resolved by naming the seam that actually enforces the behaviour, in new binding hardening decision H6.** Enforcement of this shipment lives in the **Stage agent instruction/template contract**, not in Python: the product surfaces are `templates/agents/_stage.agent.md.tmpl` and its mirror `.github/agents/_stage.agent.md`, Step 5 (Shipment Assembly). `158.002-T` therefore authors **red static/rendered-template contract tests** against the *missing* fail-closed clause semantics, using the existing render harness (`verify_workspace._derive_template_variables` → `._render_template`, per `tests/test_circuit_breaker_policy_contract.py`), plus a **template↔mirror parity** assertion; `158.003-T` makes them pass by authoring the clauses into the correct templates and mirror. **No new Python runtime gate is invented** and `pipeline-topology` is not extended — that would be unauthorized scope. The **strict-int / no-bool malformed cases (B6–B9 TYPE, B10 RANGE, B4/B11 SHAPE)** are preserved **in the real seam**, expressed as clause contract rather than as injected values, and `158.003-T` carries an honest **PARTIAL mechanisation** label rather than implying runtime enforcement. |
+| 5-9 | Test-First | **P0** | **The task table granted `tests/` write authority to the green owner `158.003-T`.** A green owner that can edit the assertions judging it can reach green by weakening them — the self-certification defect Test-First exists to prevent — and it directly contradicted the same table's `H3` note that `158.002-T` owns the red half. | **Resolved.** `tests/` is removed from `158.003-T`'s surface in both the plan's task table and the task body, which now states the contradiction it closes. `158.003-T` changes **only** product instruction/template surfaces (`templates/agents/_stage.agent.md.tmpl` + `.github/agents/_stage.agent.md`). `158.002-T` retains **sole authorship of all 11 cases** (8 Class R + 3 Class C). Running the suite remains permitted and required; modifying it does not. |
+
+**Verdict after cycle 5: PASS.** Cycle 5: 2 P0 raised, both resolved. Cumulative:
+**zero unresolved P0/P1**.

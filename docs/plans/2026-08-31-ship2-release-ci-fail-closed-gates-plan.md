@@ -184,17 +184,73 @@ Triggered: CI workflow control flow on the irreversible publish path.
 
 ### Task 1 detail
 
-Replace the `else:` branch at L102-L106 with an explicit non-zero exit naming the
-version and the remedy. Keep the 404 path and the non-404 re-raise. Keep
-`skip-existing: true` at L112 unchanged and add a one-line comment recording that
-it is now defence in depth behind a fail-closed probe, so a future reader does
-not remove it as redundant.
+**The cycle-2 instruction to "replace the `else:` branch at L102-L106" is
+WITHDRAWN and must not be reintroduced** *(cycle 6, finding 9; this restates
+finding 5-3 as the live instruction rather than leaving the withdrawn text in
+place above its own correction)*. Task 2 is sequenced FIRST by **H5** and its
+whole deliverable is to EXTRACT the inline heredoc into an importable helper — so
+by the time task 1 runs, the `else:` branch at those line numbers **no longer
+exists at that location, and the line numbers themselves are stale**. A task
+instructing an implementer to edit a location its own prerequisite deleted is
+unexecutable.
+
+**The live instruction.** Task 1 edits the helper module extracted by task 2 —
+`build_support/pypi_probe.py` — replacing the present-version branch with the
+fail-closed outcome defined below. It does not edit an inline script and does not
+reference line numbers, which are not a stable address across the two tasks. Task
+1 also keeps `skip-existing: true` in `release.yml` unchanged and adds a one-line
+comment recording that it is now defence in depth behind a fail-closed probe, so a
+future reader does not remove it as redundant. That comment is task 1's **only**
+edit to `release.yml` beyond the invocation line task 2 already established.
 
 ### Task 2 detail
 
-Extract the probe body into an importable helper (or a test that executes the
-embedded script with injected `urlopen`), then assert the following cases. All are
-**hermetic** — injected responses only, no network (**H4**).
+**The helper is a named seam, not "a helper or maybe a test that execs the
+heredoc"** *(cycle 6, finding 9)*. The withdrawn parenthetical left the seam
+unspecified, which is why task 1 could not name a stable target. The concrete
+choice:
+
+* **Module:** `build_support/pypi_probe.py`. This sits alongside
+  `build_support/payload.py` (SHIP-10's generator), so both build/release-time
+  helpers live under one non-runtime root rather than each inventing a home.
+  `build_support/__init__.py` is shared between the two shipments — whichever
+  lands first creates it; the second must not recreate or rewrite it.
+* **Invocation from `release.yml`:** `python -m build_support.pypi_probe`,
+  reading the version from the `VERSION` environment variable the surrounding
+  step already sets. The multi-line `python - <<'PY'` heredoc is replaced by that
+  single line.
+* **Not shipped:** `build_support/**` is excluded from **both** distribution
+  channels. SHIP-10's manifest (`160.003-T`) carries that as an **explicit**
+  exclusion rule so the path is classified under its AC11 complete-classification
+  check rather than left unclassified, and so a future runtime import of it fails
+  the payload gate loudly.
+
+**Exception ordering is part of the contract.** `HTTPError` **is a subclass of**
+`URLError`, so `except URLError` placed first would swallow every 404 and every
+non-404 HTTP error and report them all as transport failures — silently defeating
+C1, C2 and C3. The helper therefore catches **`HTTPError` first, `URLError`
+second**, and a test asserts that ordering holds (a 404 must reach the C1 outcome,
+not the C3 outcome).
+
+**Typed outcome, named exceptions, and a thin CLI — no ambiguous "RAISE vs
+EXIT".** The outcome table below is stated in terms of the helper's return value
+and exceptions; the exit codes belong to the CLI wrapper, not to the helper.
+
+* The helper returns a `ProbeResult` with a `status` of `ABSENT` or `PRESENT`.
+* It raises `ProbeIntegrityError` for a response that is well-formed HTTP but
+  wrong (the C6 mismatched-version case), and `ProbeTransportError` for
+  `URLError` and other transport failures. Both derive from a common
+  `ProbeError`.
+* `python -m build_support.pypi_probe` is a **thin** mapping and contains no
+  probe logic: `ABSENT` → exit **0**; `PRESENT` → exit **2** (the fail-closed
+  outcome, distinct from an error); `ProbeIntegrityError` and
+  `ProbeTransportError` → exit **1**, message on stderr.
+* Tests assert against the **typed outcomes** (returns/raises), plus **one** case
+  per exit code asserting the CLI mapping. A test must never have to guess
+  whether a row means "raises" or "exits".
+
+Assert the following cases. All are **hermetic** — injected responses only, no
+network (**H4**).
 
 | # | Injected condition | Required outcome |
 |---|---|---|
@@ -309,6 +365,20 @@ unresolved P0/P1**.
 No other cycle-2 finding was raised against this shipment; its plan content is
 unchanged apart from this record.
 
-**Verdict: PASS.** Cycle 2: 1 P2 raised, resolved. Cumulative: **zero unresolved
-P0/P1**. Three review-fix cycles of three consumed; the next review is the final
-independent disposition cycle.
+**Verdict after cycle 2: PASS — SUPERSEDED BY CYCLE 5.** *(Marked in place; the
+record is preserved as history but is no longer this plan's gate state.)*
+
+---
+
+## Plan Review — extended review-fix cycle 5
+
+*Reviewed at clean HEAD `1c50b0a8be6ca71dfeacf8cf15b6514b11d988da` on branch
+`chore/stage-159-167-publication`, under the operator's extended
+autonomous-continuation instruction. One finding raised against this shipment.*
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 5-3 | Correctness | **P0** | **`152.001-T` targeted a code location its own prerequisite deletes.** The task instructed the implementer to "replace the `else:` branch at `.github/workflows/release.yml` L102–L106". `152.001-T` is **blocked by** `152.002-T`, whose *first* deliverable extracts the PyPI probe body out of the inline YAML heredoc into an **importable helper** that the workflow then calls. By the time `152.001-T` runs, that `else:` branch — and the line range naming it — **no longer exists**. The task was unexecutable as written, and an implementer following it literally would have re-inlined logic the prerequisite had just extracted. | **Resolved.** `152.001-T` is rewritten to modify and test **the extracted helper's contract** — the seam that actually exists after `152.002-T` — rather than a deleted inline branch. The withdrawn instruction is quoted and explicitly marked "MUST NOT be reintroduced" so the stale line range cannot be restored by a later reader. Workflow integration stays narrowly in the prerequisite `152.002-T`; `152.001-T`'s only workflow touch remains the single skip-existing inline comment. **H2/H2a/H2b** are unchanged, the R1–R3 remedies are preserved, and the **fail-closed C6** behaviour (an indeterminate probe result must fail the job, never publish) is carried onto the helper contract verbatim. |
+
+**Verdict after cycle 5: PASS.** Cycle 5: 1 P0 raised, resolved. Cumulative:
+**zero unresolved P0/P1**.

@@ -13,9 +13,18 @@ status: decided
 
 ## Problem
 
-Installing the autoharness Copilot CLI plugin delivers **essentially the entire
-development repository** to the consumer, when the plugin needs a small subset.
-The same over-inclusion is independently present in the Python wheel.
+Installing the autoharness Copilot CLI plugin delivers **the entire development
+repository** to the consumer, when the plugin needs a small subset. The Python
+wheel over-includes independently and differently: it already excludes
+`.backlogit/`, `tests/`, `experiments/` and `references/`, but force-includes all
+642 `docs/` files and omits two members of the runtime set
+(`.github/policies/**` and the skill-referenced `scripts/` subset).
+
+*(Precision added in plan review-fix cycle 5, finding 2. The whole-repository claim
+is true of the **plugin** channel, whose `source: "."` is literally the repository
+root; it was never true of the wheel, whose `force-include` table has always been
+an explicit allowlist. Stating it of both channels would have misclassified the
+wheel's baseline-true exclusion tests as red-first work.)*
 
 Stash `E9E5E6CC` (high, feature) asks for: the minimum runtime file set, packaged
 and installed as only that set, while preserving install, update, verification,
@@ -65,7 +74,21 @@ payload.
 
 ### Channel B — Python wheel
 
-`pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` maps:
+`pyproject.toml` `[tool.hatch.build.targets.wheel.force-include]` is an **explicit
+allowlist**, not a whole-repository sweep. It maps exactly: `templates`, `schemas`,
+`.github/agents`, `.github/skills`, `.github/instructions`, `.github/prompts`, both
+`copilot-*instructions.md` files, `docs`, and `AGENTS.md`. Two consequences follow
+directly from that list, and both matter to the plan's test classification:
+
+1. **`.backlogit/`, `tests/`, `experiments/` and `references/` are already absent
+   from the wheel.** The plugin channel's largest disclosure is not a wheel
+   problem. Tests asserting these exclusions are *characterization* of existing
+   correct behaviour.
+2. **`.github/policies/**` and the skill-referenced `scripts/` subset are already
+   missing**, so the wheel does **not** currently satisfy the runtime set the plan
+   requires. A test asserting the complete runtime set is *red* on the baseline.
+
+The over-inclusion defect is `docs`:
 
 ```toml
 "docs" = "src/autoharness/data/docs"
@@ -116,8 +139,6 @@ default; the payload silently re-bloats. This is exactly how the current state
 arose.
 
 **Option 2 — Explicit allowlist manifest, single source of truth, both channels.**
-*(Historical label — this option was authored when the channel set was believed to
-be two. See the scope amendment under §Decision: current scope is three channels.)*
 A declarative payload manifest enumerates what ships; everything else is excluded
 by default. Fails closed. Requires a manifest, wiring into both `pyproject.toml`
 and the plugin source, and a test that asserts composition.
@@ -134,31 +155,45 @@ which is the largest single problem.
 ## Decision
 
 **Adopt Option 2 — an explicit, allowlist-based payload manifest as the single
-source of truth for all three distribution channels — wheel, sdist, and
-plugin — enforced by an automated composition test.**
+source of truth for the two in-scope distribution channels — the **Copilot CLI
+plugin** and the **Python wheel** — enforced by an automated composition test.**
 
-> **Scope amendment (plan review-fix cycle 2, finding 3; language corrected in
-> extended review-fix cycle 4, finding 11).** This decision was **originally
-> framed over two channels** (Copilot CLI plugin and Python wheel), and the
-> *Options considered* section above, the *Channel A* / *Channel B* evidence
-> sections, and Option 2's own "both channels" label are **preserved verbatim as
-> the historical record of that framing**. They are **not** current scope. The
-> **sdist** was subsequently identified as a *third, separate, and
-> disclosure-critical* channel: its `pyproject.toml` target declares no payload
-> table, so hatchling's default sweep packages the working tree wholesale,
-> including `.backlogit/`. Trimming the wheel while leaving the sdist untrimmed
-> would have left the largest disclosure open through a channel `pip download`
-> reaches by default. The **current authoritative channel set is therefore three:
-> wheel, sdist, plugin**, and the manifest is the single source of truth for all
-> three. Where this amendment and any earlier two-channel phrasing in this
-> document disagree about **current** scope, this amendment governs; the earlier
-> phrasing remains accurate only about the moment it was written.
+> **Scope history and current boundary (restored in plan review-fix cycle 5,
+> finding 1).** This decision was originally framed over **two** channels, and
+> that is again its current scope. Plan review-fix cycle 2 (finding 3) amended it
+> to three by absorbing the **sdist**, which review had just discovered was
+> untrimmed; cycle 5 **withdraws that amendment** and de-scopes the sdist under
+> **P-021 C1**.
+>
+> The discrimination is on mechanism, not on convenience. The source request
+> `E9E5E6CC` is the **Copilot plugin installer payload**. The **wheel** is
+> genuinely coupled to it: both are governed by an explicit allowlist
+> (`force-include` / `source`), both were measured in this deliberation, both share
+> the `_DATA_DIR` → `templates/`/`schemas/` resolution contract, and both carry the
+> same `docs/` over-inclusion defect. The **sdist** shares none of that — it is a
+> different build target driven by hatchling's *default sweep* rather than by any
+> allowlist, producing a different artifact, with a different fragility (its only
+> declared key is the `core-metadata-version` pin). It was **discovered during plan
+> review**, not deliberated here, and absorbing a review discovery into a
+> deliberated scope is precisely what C1 prohibits.
+>
+> The sdist problem is **real, unfixed, and recorded** — deferred stash entry
+> **`99818C6D`** (kind `bug`, priority **high**) carries the full evidence: the
+> undeclared target, the `uv build` → `dist/*` publish path that ships it to PyPI
+> and attaches it to the GitHub release, the 2,110-file `.backlogit/` disclosure,
+> the six retired test cases, and the retired `160.019-T` task tombstone. Nothing
+> is discarded; it is moved from executable scope into a capture that must be
+> triaged on its own merits.
+>
+> The *Options considered* section above and the *Channel A* / *Channel B* evidence
+> sections are the original two-channel framing and are again **currently
+> accurate** rather than merely historical.
 
 Rationale against the operator's prioritization rules:
 
-* *Simplicity supersedes complexity* — one declarative manifest replaces three
-  divergent implicit inclusion rules (`source: "."`, wheel `force-include`, and
-  the sdist's undeclared default sweep).
+* *Simplicity supersedes complexity* — one declarative manifest replaces two
+  divergent implicit inclusion rules (`source: "."` and the wheel's
+  `force-include` table).
 * *Composability and interoperability supersede feature delivery* — this is a
   packaging refactor that makes install/update/verify behave consistently across
   the pip, clone, and plugin channels.
@@ -230,3 +265,8 @@ Final sequence:
 * Source stash: `E9E5E6CC` (supersedes temporary `AB387F16`)
 * Branch: `chore/stage-159-167-publication` @ `05f7f699`
 * Follow-on plan: `docs/plans/2026-09-03-minimal-copilot-plugin-payload-plan.md`
+* **Deferred out of this decision's scope:** `99818C6D` — trim the Python sdist
+  payload (kind `bug`, priority **high**). Discovered during plan review of the
+  follow-on plan, de-scoped under **P-021 C1** in review-fix cycle 5, and carrying
+  the full discovery evidence. The sdist remains untrimmed and disclosing until
+  that entry is triaged and built; this decision neither fixes nor regresses it.

@@ -57,8 +57,29 @@ are wrong and the fixes are additive or subtractive edits to prose. `7628C291` i
 an architecture decision, taken as **D4** in the portfolio deliberation and
 restated here as binding:
 
-> **Amend the two instruction templates to state a bounded, explicit one-hop
-> exception for the review family. Do not change skill behaviour.**
+> **Amend the leaf-executor rule to state a bounded, explicit one-hop exception
+> for the review family. Do not change skill behaviour.**
+
+**The amendment surface is asymmetric, and naming it "the two instruction
+templates" was wrong** *(corrected in review-fix cycle 5, finding 8)*. The two
+instructions that carry the rule do not have the same authoring shape in this
+repository, so a single symmetric instruction produces an unexecutable task:
+
+* **`role-enforcement`** has a template **and** an installed mirror. The
+  authoritative edit is to `templates/instructions/role-enforcement.instructions.md.tmpl`,
+  and the installed mirror `.github/instructions/role-enforcement.instructions.md`
+  is regenerated/updated to match.
+* **`harness-architecture`** has **no `.tmpl` source** in `templates/instructions/`.
+  It exists only as the installed `.github/instructions/harness-architecture.instructions.md`.
+  The edit is therefore **mirror-only**, and **no template may be invented for it**
+  as part of this shipment — creating a new template family is a different change
+  with a different blast radius, and inventing one to make a sentence symmetric is
+  exactly the kind of speculative surface this portfolio exists to remove.
+
+So the authoritative surface is **one template + its mirror, plus one mirror-only
+document — three files, not two templates.** The task table below and its
+explanatory note already encode this; this Direction section now agrees with them
+rather than contradicting them.
 
 Making the skills conform would delete the multi-persona adversarial review
 capability the whole pipeline depends on, to satisfy prose. The shipped skill
@@ -169,15 +190,39 @@ for every composition declaring a `PRIMARY_LANGUAGE` — with no dependence on
 reviewer selection. Decision F neither adds to nor suppresses that behaviour.
 
 Consequently, the Condition-B outcome row in `154.004-T`'s binding matrix (**M4**)
-is asserted by **install-unit / provenance attribution** — no install unit and no
-recorded event is attributed to F1, and no technology-reviewer artifact is rendered
-— and **never** by asserting that `{L}.instructions.md` is globally absent. The
-earlier absence wording is **withdrawn**: it would have failed a *correct*
-composition, and the only way to satisfy it would have been to suppress a file the
-Instruction Layer independently requires. M4 must be exercised in a configuration
-where `{L}.instructions.md` **is present** and the reviewer is **not** selected;
-that is the configuration in which an implementation firing F1 unconditionally is
-still caught, because it would record an F1 attribution.
+is asserted by **contract attribution** — `.github/skills/install-harness/SKILL.md`
+scopes the F1 rule explicitly to compositions that select the technology reviewer,
+and explicitly states that F1 neither requires nor suppresses the Instruction
+Layer's own unconditional install — and **never** by asserting that
+`{L}.instructions.md` is globally absent. The earlier absence wording is
+**withdrawn**: it would have failed a *correct* composition, and the only way to
+satisfy it would have been to suppress a file the Instruction Layer independently
+requires. A `SKILL.md` that states co-installation as an unconditional rule fails
+this row exactly as an unconditional implementation would have.
+
+**Attribution seam correction, cycle 5 (finding 4).** Cycle 3 specified M4's
+observable as **install-unit / provenance attribution** — "no install unit and no
+recorded event is attributed to F1". That is **withdrawn**: there is no callable
+composer to record install units. Measured at HEAD, `src/autoharness/` contains no
+installer, composer, or workspace-composition entry point; `/install-harness` is an
+**agent skill** (`.github/skills/install-harness/SKILL.md`) that an agent reads and
+obeys, not a program that can be invoked with a synthetic template set and observed
+to exit non-zero. The same applies to the M1–M3 observables phrased as
+"composition succeeds", "`{L}.instructions.md` is present in the composed
+workspace", "composition exits non-zero" and "no workspace is composed" — all
+withdrawn as execution contracts. Each matrix row is now asserted as either a
+**CONTRACT** assertion (the skill states the required rule, locatably and
+unambiguously), a **SET** assertion (the template set on disk actually has the
+properties the rule resolves over, with markers distinguishing the language variant
+from the generic skeleton), or a **RENDER** assertion (`_derive_template_variables`
++ `_render_template` output). M5 is the one row with a genuinely executable
+observable, and it is the row that closes `F0ADCC03`. M3's fail-closed halt is
+carried as **contract text only**, because no operation in Task 4's scope executes;
+if a callable composer is ever built, M3 becomes an executable case then, as a
+separately authorized change. **No composer, installer, or other new Python runtime
+is authorized by this shipment.** Contract attribution is honestly a weaker
+guarantee than an executed attribution check; it is the strongest one available on
+a text-only surface.
 
 The absence assertion in Task 4's acceptance is **M5-scoped** — it is about *this
 already-composed repository*, where no composition runs and nothing installs the
@@ -231,17 +276,48 @@ tool-owned, auditable properties cycle 1 relied on are real, but they establish
 * **G6 — no admin authority is invented.** G1 is an operator-performed act the agent merely
   receives. The agent cannot create it, cannot mark it satisfied on its own behalf, and gains no
   new authority. Merge preauthorization does not imply destructive-command preauthorization.
-* **G7 — deterministic negative tests (mandatory acceptance, four cases).** Task 2 ships tests
-  driving the P-007 remediation path, each observed red before the gate exists (**H7**):
-  (i) **no approval of any kind** — assert no `git restore` is issued, the violation is
-  recorded, and the exit is a refusal; (ii) **approval with a non-matching shipment ID** —
-  assert the same refusal; (iii) **self-authored-comment coverage (the defect this revision
-  closes)** — a well-formed, fully-matching `APPROVAL: P-007-ARCHIVE-RESTORE` comment authored
-  by the executing agent itself, with **no** live G1 approval — assert the remediation **still
-  refuses**, no `git restore` is issued, and the refusal explicitly states that a backlog
-  comment is evidence only and not an authorization source; (iv) **no independent channel
-  available** with any combination of comments present — assert halt without restore per
-  G3/G4.
+* **G7 — deterministic static contract cases (mandatory acceptance, four cases).**
+
+  **Seam correction, cycle 5 (finding 4).** Cycle 2 phrased these four cases as tests "driving
+  the P-007 remediation path" and asserting that "no `git restore` is issued" and "the exit is a
+  refusal". That framing is **withdrawn** and must not be reintroduced: it presumes a live
+  approval/remediation runtime this product does not have. Measured at HEAD, `src/autoharness/`
+  contains `cli`, `verify_workspace`, `backlog_root`, `schema_contracts`,
+  `startup_script_contract`, `detectors/`, `eval/`, `gates/` and `telemetry/` — there is no
+  approval broker, no P-007 remediation executor, and no code path that issues `git restore`.
+  P-007's remediation step is **policy prose that agents obey**, and the intercom approval
+  channel is an MCP surface outside this repository. A test asserting "no `git restore` is
+  issued" would have had to stand up a fake remediation engine and a fake approval channel and
+  then assert against its own fakes.
+
+  The four conditions are unchanged; only the observable moves from a fictional runtime effect
+  to **the policy text that governs it**, asserted over the rendered template with the existing
+  harness (`verify_workspace._derive_template_variables` + `_render_template`; worked examples
+  at `tests/test_circuit_breaker_policy_contract.py` and
+  `tests/test_scope_containment_policy_contract.py`). Each case is observed **red against the
+  unmodified policy text** before the amendment lands (**H7**):
+  (i) **no-approval condition** — assert the remediation step contains **no unconditional
+  `git restore` instruction**: every occurrence sits either inside an explicitly G1-gated branch
+  or in the refusal/report path as a command *for a human to run*, and the default path is
+  detect-halt-report-with-P-005-telemetry leaving the tree untouched;
+  (ii) **mismatch condition** — assert the text requires the approval result to match the current
+  shipment ID **and** the exact archive paths, and names mismatch/ambiguity/timeout/unreadable as
+  a refusal;
+  (iii) **self-authorization coverage (the defect this revision closes)** — assert the text
+  nowhere treats an agent-writable artifact (backlog comment, telemetry record, any
+  agent-callable operation) as an authorization source, **and** assert the affirmative G2 clause
+  is present stating the comment is evidence only. Both halves are required: the negative alone
+  passes vacuously on text that never mentions comments, and the affirmative alone does not
+  exclude a competing clause elsewhere;
+  (iv) **no-channel condition** — assert the text declares halt-without-restore whenever no
+  independent channel is available, in **all** modes, naming dark-factory/AFK as an instance of
+  that rule rather than an exception to it.
+
+  What this proves is exactly what is provable on this surface: **the policy contract itself is
+  non-synthesizable and carries no self-authorizing prose or commands.** That is the whole of
+  defect `C0EA1175`. No case asserts an exit code, process outcome, or filesystem effect,
+  because no operation in Task 2's scope executes, and **no new Python runtime, approval broker,
+  or remediation executor is authorized**.
 * **G8 — the refusal message** names the missing authorization channel and the exact command a
   human can run themselves, so a legitimate operator is never stranded without a remedy.
 * **G9 — no new approval store, file format, or CLI is introduced.** G1 uses approval channels
@@ -449,6 +525,20 @@ dispositioned. Cumulative: **zero unresolved P0/P1**.
 | 14 | Security | **P1** | **The Decision G approval artifact was authorable by the gated party.** G1 designated a backlogit comment written via `backlogit_append_comment` as the authorization signal — but that is an operation the executing agent can call. The agent could write a perfectly well-formed, shipment-matching `APPROVAL: P-007-ARCHIVE-RESTORE` comment and then satisfy G2 by reading its own writing. The gate was therefore still self-satisfiable; cycle 1 moved the defect one layer down rather than closing it. Being tool-owned and auditable gives **non-repudiation of a record**, which is not **independence of an authority**. | **Resolved by G1–G9.** The authorization source is now a **direct runtime operator approval** — a live result over an intercom/ask/operator-session channel the agent **cannot synthesize** — and the backlog comment is demoted to **evidence only**, explicitly forbidden from being read back as authorization or from caching a future approval. **G3** makes an unavailable channel a **halt without restore** in all modes, never an implicit approval and never a fallback to the comment path. **G7(iii)** adds the specific **self-authored-comment negative test**: a fully-matching agent-written comment with no live approval must still refuse, and the refusal must say why. **G4** preserves the dark/AFK fail-closed behaviour verbatim, now as a special case of the general G3 rule rather than a standalone exception. **G6** re-affirms that no admin authority is created. |
 | 15 | Constitution | P2 | Cycle 1's G3 justified dark-mode no-restore by the *absence of an operator to record a comment*. With the comment demoted to evidence, that justification no longer carries the conclusion on its own. | **Resolved.** G4's dark-mode rule is re-derived from **G3**: no independent approval channel exists in AFK mode, therefore no G1 result can exist, therefore no restore. The conclusion is unchanged and now rests on a stronger premise. |
 
-**Verdict: PASS.** Cycle 2: 1 P1 and 1 P2 raised, both resolved. Cumulative:
-**zero unresolved P0/P1**. Three review-fix cycles of three consumed; the next
-review is the final independent disposition cycle.
+**Verdict after cycle 2: PASS — SUPERSEDED BY CYCLE 5.** *(Marked in place; the
+record is preserved as history but is no longer this plan's gate state.)*
+
+---
+
+## Plan Review — extended review-fix cycle 5
+
+*Reviewed at clean HEAD `1c50b0a8be6ca71dfeacf8cf15b6514b11d988da`. Two findings
+raised against this shipment; both confirmed legitimate.*
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 5-4 | Correctness | **P0** | **`154.002-T` and `154.004-T` promised live executable behaviour against a runtime that does not exist.** `G7` required observing an approval gate *refuse* and a P-007 remediation *execute atomically*; `154.004-T`'s `M1`–`M5` matrix required observing a composer *select* and *attribute* generated artifacts. Measured at HEAD, `src/autoharness/` contains `cli`, `verify_workspace`, `backlog_root`, `schema_contracts`, `startup_script_contract`, `detectors/`, `eval/`, `gates/` and `telemetry/` — and **no approval broker, no P-007 remediation executor, no composer and no installer**. The acceptance criteria were unsatisfiable without first inventing an engine this shipment never authorized, and an implementer would have either built one (unauthorized scope) or written a test that asserts nothing. | **Resolved by aligning acceptance with the surfaces that actually exist.** Each task gains a **VERIFICATION SEAM** block recording the measured absence, so the withdrawal is evidenced rather than asserted. `G7` becomes **four static/rendered-template contract cases** over the existing harness (`verify_workspace._derive_template_variables` → `._render_template`, per the worked pattern in `tests/test_circuit_breaker_policy_contract.py`): (i) the approval policy is **non-synthesizable** — no clause permits the gated agent to author its own authorization; (ii) **no self-authorizing prose or command** appears in the rendered agent surface; (iii) the self-authored-comment refusal is stated as contract text; (iv) template and mirror are **byte-parity** on the clause set. `G9` is extended to forbid introducing a new runtime to satisfy these. `154.004-T`'s matrix gains an explicit **Kind** column — `CONTRACT` (mechanically verifiable clause text), `SET` (declared selection/provenance set), `RENDER` (executable through the existing render harness) — with `M5` the **sole** executable render row and `M3`'s halt semantics narrowed to contract text. **Atomic-failure semantics are retained only where an executable operation exists.** The `M1`–`M5` count is re-verified at **5 rows, 3 under Condition A**. |
+| 5-8 | Maintainability | **P1** | **The plan Direction still described two instruction templates**, contradicting the decided asymmetric shape. | **Resolved.** The Direction section is rewritten in place to the **asymmetric** form: the role-enforcement surface is a **template + mirror** pair, while the harness-architecture surface is a **mirror only**. Superseded wording was replaced, not annotated. |
+
+**Verdict after cycle 5: PASS.** Cycle 5: 1 P0 and 1 P1 raised, both resolved.
+Cumulative: **zero unresolved P0/P1**.

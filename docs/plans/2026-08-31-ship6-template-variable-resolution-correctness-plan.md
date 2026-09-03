@@ -125,8 +125,10 @@ families.
     fail-closed binding check lands **before** the registry set it validates
     against is normalized.
   * **Resolution: bound the check to tool *identity*, not to feature keys.**
-    Task 2's binding validation resolves a block's declared tool against the set
-    of **registry tool names**, which SHIP-7 does not change. It **must not** read
+    Task 2's binding validation resolves a block's declared tool against the
+    **accepted tool-name set** defined by H6a (registry-derived names plus the
+    built-in no-registry `manual` fallback), which SHIP-7 does not change. It
+    **must not** read
     or validate feature flags. With that bound, SHIP-6 is order-independent of
     SHIP-7 and no new `blocks` edge is required. Task 2's acceptance states this
     restriction explicitly.
@@ -135,18 +137,38 @@ families.
   not constrain an implementer, so the three operative requirements are now stated
   as binding constraints and each is propagated into `156.002-T`'s acceptance with
   a named assertion:
-  * **H6a — registry tool names are DERIVED DYNAMICALLY AT CHECK TIME, never
-    hardcoded.** The valid-tool-name set is derived at check time from the
-    installed backlog registry set (each registry's declared `tool_name`). It must
-    **not** be a hardcoded literal list, constant, enum, default, or baked-in
-    fallback anywhere in the renderer, the templates, or the tests — **not even
-    `backlogit, backlog-md, manual` as a convenience default**. The names cited in
-    this plan's analysis are *illustrative observations of the current set*, never
-    the contract; hardcoding them would silently reject a validly installed fourth
-    registry and would reintroduce exactly the static-assumption class this
-    shipment exists to remove. **Assert it:** add a synthetic registry with a new
-    `tool_name` and assert a block declaring that tool resolves successfully with
-    no renderer, template, or test edit.
+  * **H6a — the accepted tool-name set is DERIVED DYNAMICALLY AT CHECK TIME, never
+    hardcoded.** It is the union of **two sources with two different sources of
+    truth**, and both are read at check time:
+    * **Source A — registry-derived names**, from the declared `tool_name` of each
+      installed backlog registry (`templates/backlog/registries/*.registry.yaml`).
+      Measured at HEAD this set is exactly `{backlogit, backlog-md}` — those are
+      the only two registry files present.
+    * **Source B — the built-in no-registry fallback**, `manual`, whose source of
+      truth is the backlog tool enum in `schemas/workspace-profile.schema.json`
+      (`backlog.tool_name`) and `schemas/harness-config.schema.json`
+      (`backlog.tool`). The workspace-profile schema defines it verbatim: *"When
+      'manual', no registry is expected. The harness installs a minimal backlog
+      directory structure (queue/, archive/) without tool integration."*
+
+    **Correction, cycle 5 (finding 5).** This plan and `156.003-T` previously wrote
+    `backlogit, backlog-md, manual` as a single **registry-derived** triple. That is
+    **withdrawn**: `manual` is not registry-derived, there is no
+    `manual.registry.yaml`, and there is not meant to be one — a registry for a mode
+    whose definition is *no registry* is a contradiction. Modelling it inside
+    Source A would either block an implementer looking for a third registry file or,
+    worse, prompt them to fabricate one. The two sources are now modelled
+    explicitly and separately.
+
+    The union must **not** be a hardcoded literal list, constant, enum, default, or
+    baked-in fallback anywhere in the renderer, the templates, or the tests — **not
+    even `backlogit, backlog-md, manual` as a convenience default**. A third literal
+    copy would create a third place to update and a silent drift surface between the
+    schema, the registry directory, and the check. Any enum value that is neither a
+    registry `tool_name` nor the declared no-registry sentinel is a **fail-closed
+    error** naming the unknown value and both sources consulted. **Assert it:** add a
+    synthetic registry with a new `tool_name` and assert a block declaring that tool
+    resolves successfully with no renderer, template, or test edit.
 
     **H6a scope clarification — DECLARATION vs VALIDATION SET** *(added in
     review-fix cycle 1, Orchestrator local-review finding 12)*. H6a and **H1**
@@ -195,8 +217,12 @@ changes the work materially.
 Task 2a answers it with no production edits, recording: the renderer's current
 substitution mechanism and whether any block/conditional construct already exists;
 the complete inventory of templates containing tool-scoped branches (the corpus
-**H3**'s parity test must cover); the set of registry tool names the binding check
-will resolve against (**H6**); and a byte-identical baseline render of the current
+**H3**'s parity test must cover); the **accepted tool-name set** the binding check
+will resolve against — recorded as its **two distinct sources**, the registry-derived
+names (`templates/backlog/registries/*.registry.yaml` `tool_name`, measured
+`{backlogit, backlog-md}`) and the built-in no-registry `manual` fallback declared in
+the schema enums — together with the measured listings that establish each (**H6**,
+**H6a**); and a byte-identical baseline render of the current
 corpus for **H3** to diff against. Task 2 consumes all four.
 
 ## Tasks
@@ -204,7 +230,7 @@ corpus for **H3** to diff against. Task 2 consumes all four.
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
 | 1 | Omit unconfigured quality gates from rendered output instead of interpolating sentinel strings | M | medium | template rendering + `templates/skills/fix-ci/SKILL.md.tmpl` and peers |
-| 2a | **De-risking prerequisite (H5)**: record the renderer's current construct set, the tool-scoped-branch template inventory, the registry tool-name set, and a baseline corpus render | S | low | `docs/` (recorded findings + baseline only; no production edits) |
+| 2a | **De-risking prerequisite (H5)**: record the renderer's current construct set, the tool-scoped-branch template inventory, the accepted tool-name set (registry-derived names **plus** the built-in no-registry `manual` fallback, each with its own source of truth), and a baseline corpus render | S | low | `docs/` (recorded findings + baseline only; no production edits) |
 | 2 | Resolve tool-scoped template branches against the branch's declared tool, with fail-closed binding and a whole-corpus render-parity test | M | medium | `src/autoharness/` renderer, affected skill templates, `tests/` |
 
 Task 2 drops from `complexity: high` to `medium` once 2a's four answers exist.
@@ -291,6 +317,19 @@ Cycle 0's verdict line is preserved verbatim at the head of this section.
 | G | Schema/CLI/docs coupling | **P1** | The "must not read feature flags" bound — the entire basis of SHIP-6's claimed order-independence from SHIP-7 — existed only as prose in the H6 analysis and was **not** an acceptance criterion on the executable task. Nothing would have caught an implementation that resolved a block against `features.*`. | **Resolved by H6b**, now binding and asserted: mutating a registry's feature flags must leave tool-scoped block resolution byte-identical. Order-independence is now a tested property rather than a design intention. |
 | H | Correctness | **P1** | The "no nesting beyond one level" bound was stated as a *scope limit on the new construct*, not as a **runtime behaviour**. It said what the renderer would not support, but never what it must **do** when a template nevertheless contains a nested block — leaving silent flattening or innermost/outermost resolution as permissible outcomes, both of which are ambiguous resolutions of exactly the kind this shipment removes. | **Resolved by H6c**: a nested tool-scoped block is a **hard render error** naming the file and the nesting — never flattened, never partially rendered, never resolved against either enclosing tool. Covered by a named negative test asserting a non-zero, named error. |
 
-**Verdict: PASS.** Cycle 2: 3 P1 raised, all 3 resolved. Cumulative: **zero
-unresolved P0/P1**. Three review-fix cycles of three consumed; the next review is
-the final independent disposition cycle.
+**Verdict after cycle 2: PASS — SUPERSEDED BY CYCLE 5.** *(Marked in place; the
+record is preserved as history but is no longer this plan's gate state.)*
+
+---
+
+## Plan Review — extended review-fix cycle 5
+
+*Reviewed at clean HEAD `1c50b0a8be6ca71dfeacf8cf15b6514b11d988da`. One finding
+raised against this shipment.*
+
+| # | Persona | Sev | Finding | Resolution |
+|---|---|---|---|---|
+| 5-5 | Correctness | **P1** | **`manual` was carried inside the registry-derived tool-name set.** `H6a` correctly forbids a hardcoded list and requires deriving the set from the installed registries — but `manual` is **not registry-derived**. Measured at HEAD, `templates/backlog/registries/` contains exactly `backlogit.registry.yaml` and `backlog-md.registry.yaml`; **no `manual` registry exists**. Deriving a three-member set from a two-member directory is impossible, so an implementer had only two ways out, both defects: **fabricate** a `manual` registry (inventing a contract to satisfy a lookup), or **hardcode** `manual` alongside the derived pair (the exact duplicate validation set `H6a` forbids). | **Resolved by modelling the two sources explicitly rather than flattening them.** `156.003-T`'s deliverable (3) and title, and the plan's `H6a`, `H6` resolution sentence, Task-2a lead-in and task-table row, now state a **union of two named sources with two different kinds of truth**: **Source A — registry-derived**, enumerated dynamically from `templates/backlog/registries/*.registry.yaml`, currently `{backlogit, backlog-md}`, still with no hardcoded list; **Source B — built-in, no-registry**, exactly `{manual}`, whose source of truth is the **schema enums** (`schemas/workspace-profile.schema.json` `backlog.tool_name`, `schemas/harness-config.schema.json` `backlog.tool`), whose own documentation states *"When 'manual', no registry is expected…"*. A **divergence check** is recorded so the two sources cannot drift apart silently, and the task states explicitly that **no `manual` registry exists or is to be created**. No fabricated registry; no hardcoded duplicate set. |
+
+**Verdict after cycle 5: PASS.** Cycle 5: 1 P1 raised, resolved. Cumulative:
+**zero unresolved P0/P1**.
