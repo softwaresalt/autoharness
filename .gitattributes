@@ -17,6 +17,7 @@
 .github/instructions/circuit-breaker.instructions.md text eol=lf
 AGENTS.md text eol=lf
 start.ps1 text eol=lf
+start.sh text eol=lf
 
 # Every installed skill and concurrency-pack script is checksummed in the
 # manifest too. These are globs rather than a per-file list so that newly

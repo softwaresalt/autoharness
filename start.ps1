@@ -142,6 +142,29 @@ if ($enabledSidecars -contains "engram") {
     }
 }
 
+if ($enabledSidecars -contains "graphtor-docs") {
+    # This explicit sync step is required even though .mcp.json now routes
+    # graphtor-docs through scripts/graphtor-mcp-shim.cjs with `--read-only`:
+    # `serve --read-only` deliberately disables its own background sync path
+    # (even against a resolvable local source), so without this step the
+    # index would never refresh and an unpopulated ingestion workspace would
+    # stay empty for the whole interactive session.
+    $graphtorDocsCmd = Get-Command graphtor-docs -ErrorAction SilentlyContinue
+    if (-not $graphtorDocsCmd) {
+        $localGraphtorDocs = Join-Path $PSScriptRoot ".graphtor\bin\graphtor-docs.exe"
+        if (Test-Path -LiteralPath $localGraphtorDocs -PathType Leaf) {
+            $graphtorDocsCmd = [pscustomobject]@{ Source = $localGraphtorDocs }
+        }
+    }
+    if ($graphtorDocsCmd) {
+        try {
+            & $graphtorDocsCmd.Source sync
+        } catch {
+            Write-Warning "graphtor-docs sync failed (non-fatal): $_"
+        }
+    }
+}
+
 # ai_tools.copilot_cli.args from .autoharness/config.yaml -- extra arguments
 # always passed before the operator's own argv (e.g. ["--remote"]).
 $copilotArguments = @()

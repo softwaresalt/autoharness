@@ -343,17 +343,26 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
         # loop on stdin from keeping the event loop (and therefore the
         # process) alive, which would otherwise leave the client waiting
         # forever for either a response or transport EOF even after every
-        # outstanding request has been answered above.
+        # outstanding request has been answered above. Deliberately leave
+        # stdin OPEN here (never close it before wait()): closing it would
+        # itself supply the exact EOF that terminates readline's read loop,
+        # which would let even the old, process.exitCode-only implementation
+        # pass this check for the wrong reason. `wait()` either returns the
+        # exit code or raises `subprocess.TimeoutExpired` -- there is no
+        # third, falsy-but-non-exceptional outcome to assert on, so a
+        # successful return (of any value, including 0) is itself the proof
+        # of autonomous termination.
         try:
-            proc.stdin.close()
-        except Exception:
-            pass
-        exit_code = proc.wait(timeout=10)
-        self.assertIsNotNone(
-            exit_code,
-            "shim process never terminated after the wrapped server exited "
-            "before responding to initialize",
-        )
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+            self.fail(
+                "shim process never terminated on its own after the wrapped "
+                "server exited before responding to initialize (stdin was "
+                "deliberately left open so termination could not be "
+                "attributed to an externally-supplied EOF)"
+            )
 
 
 if __name__ == "__main__":

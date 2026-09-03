@@ -20,6 +20,10 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Anchor every child process to the workspace regardless of where this script
+# was invoked from (matches start.ps1.tmpl's Set-Location).
+cd "$script_dir"
+
 # Load .env.local (gitignored per-developer overrides) if present. Each
 # KEY=VALUE line is exported only when that variable is not already set. A
 # single pair of matching surrounding quotes is stripped from the value.
