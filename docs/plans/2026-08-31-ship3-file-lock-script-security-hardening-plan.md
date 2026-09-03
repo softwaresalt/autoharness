@@ -107,8 +107,17 @@ Therefore, restated honestly:
     `System.Security.Cryptography.RandomNumberGenerator`. POSIX: `/dev/urandom` or
     `openssl rand`. **Forbidden on both:** `Get-Random`, `$RANDOM`, `awk rand()`,
     date/time- or pid-derived values, and any non-CSPRNG PRNG.
-  * **TC2 — encoding.** Lowercase hex (or unpadded base64url), fixed length,
+  * **TC2 — encoding.** Lowercase hex (or unpadded base64url), **fixed length**,
     identical on both platforms, so the token is a single shell-safe word.
+    *(Clarified in review-fix cycle 2, finding 12.)* "Fixed length" means there is
+    exactly **one** valid character length, declared once in **V-a** and shared by
+    both implementations. It follows that there is no distinct minimum-valid and
+    maximum-valid token — the canonical vector in **V-c** is the only valid length,
+    and the length boundary is tested by the **rejection** vectors in **V-c2**
+    (one-short and one-long, both invalid, both fail-closed) rather than by a range
+    of accepted lengths. Any token whose length differs from the declared value is
+    rejected outright; it must never be padded, truncated, or prefix-matched into
+    validity.
   * **TC3 — digest: SHA-256 or equivalent-or-stronger.** `owner_digest` is
     SHA-256 (or a stronger SHA-2/SHA-3 member) of the token's canonical encoded
     form, hex-lowercase. **MD5 and SHA-1 are forbidden.** POSIX uses `sha256sum`
@@ -253,14 +262,20 @@ variant was written first proves nothing. Task 0 therefore also records:
 |---|---|
 | **V-a** | Token encoding canonicalization — alphabet, character length **and** bits of entropy (≥ 128), UTF-8 without BOM, case sensitivity, explicit absence of trailing newline/CR. Stated as **bytes**, because the CRLF/LF split between platforms is exactly where a silent mismatch lives. |
 | **V-b** | Digest canonicalization — the exact digest input (token bytes only, or token bytes plus a named separator/salt), the algorithm (SHA-256 or stronger; MD5/SHA-1 forbidden), and the output representation (hex vs base64, case, no trailing whitespace). `Get-FileHash` and `sha256sum` differ in default output case *and* in trailing-whitespace/filename-suffix handling; all three are pinned. |
-| **V-c** | At least **five frozen `(token → owner_digest)` constants**, written literally so both implementations test against the same external values. Adversarial cases required: all-lowercase-hex token; maximum-value character in the declared alphabet; minimum-length token; maximum-length token; and a pair differing **only in the last character**, which catches a truncating implementation. |
+| **V-c** | At least **five frozen `(token → owner_digest)` constants**, written literally so both implementations test against the same external values. Adversarial cases required: all-lowercase-hex token; maximum-value character in the declared alphabet; a pair differing **only in the last character**, which catches a truncating implementation; and — *(corrected in review-fix cycle 2, finding 12)* — **one canonical valid-length token** at the single length TC2 fixes, since TC2 declares the encoding **fixed length** and there is therefore no such thing as a distinct "minimum-length" and "maximum-length" *valid* token. The cycle-1 wording asked for both, which is unsatisfiable against a fixed-length encoding: any implementation satisfying TC2 has exactly one valid length, and an author trying to honour both clauses would have to either invent a variable-length encoding (contradicting TC2 and reopening the shell-word-safety and truncation risks TC2 exists to close) or record the same token twice under two labels. |
+| **V-c2** | *(added in review-fix cycle 2, finding 12)* **Length-boundary rejection vectors — invalid by construction.** Because the valid length is fixed, the boundary that actually needs testing is the **rejection** boundary, not a range of accepted lengths. Record two literal tokens that are well-formed in every respect *except* length: **one-character-short** and **one-character-long** relative to the canonical length. Both are **INVALID**, and the declared expected observable for each is the same as V-e's shape — **fail closed**: non-zero exit, named error, **no lock acquired**, and **no digest computed**. These catch the two real defects a fixed-length contract is exposed to: an implementation that pads or truncates a wrong-length token into the valid length (silently accepting an attacker-supplied short token), and one that validates a prefix and ignores trailing characters. A one-short token that is *accepted* is a security defect, not a formatting nit. |
+| **V-c3** | *(added in review-fix cycle 2, finding 12)* **Cross-platform interoperability expectation for the length boundary.** For the canonical valid token and for both invalid boundary tokens, the PowerShell and POSIX implementations must produce the **same verdict and the same observable**: identical accept/reject decision, identical digest for the accepted vector, and — for the two rejected vectors — a non-zero exit and no lock on **both** platforms. State this as a per-vector two-cell expectation matching **V-d**'s directionality, because a length check implemented with a platform-specific string primitive (`.Length` over UTF-16 code units versus a byte- or character-oriented POSIX check) is precisely where the two implementations silently disagree, and a single-platform boundary test cannot see it. |
 | **V-d** | A **two-cell** round-trip direction matrix — acquire-PowerShell/verify-POSIX and acquire-POSIX/verify-PowerShell recorded separately, because a one-directional check passes trivially when both sides share the same bug. |
 | **V-e** | The no-SHA-256-utility **fail-closed** expected observable per platform (non-zero exit, named error, **no** lock acquired), so task 2's fail-closed assertion has a declared expected value rather than an invented one. |
 
-Task 2 (`153.002-T`) MUST cite **V-a**–**V-e** by name as the source of every
+Task 2 (`153.002-T`) MUST cite **V-a**–**V-e** (including **V-c2** and **V-c3**,
+added in review-fix cycle 2) by name as the source of every
 **TC1**–**TC6** expected value and MUST NOT compute an expected digest from its own
 implementation. Task 0 remains record-only: the vectors are computed with standard
-platform utilities and written down, never baked into a script.
+platform utilities and written down, never baked into a script. **The two invalid
+boundary vectors in V-c2 have no digest at all** — they are rejected before a
+digest is computed, so what Task 0 records for them is the fail-closed observable
+(non-zero exit, named error, no lock), not a `(token → owner_digest)` pair.
 
 ## Tasks
 

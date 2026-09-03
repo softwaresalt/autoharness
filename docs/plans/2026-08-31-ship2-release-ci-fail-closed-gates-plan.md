@@ -110,9 +110,34 @@ Triggered: CI workflow control flow on the irreversible publish path.
   decoded body identifies **the requested version**. If the host differs, the body
   does not decode, or the body's shape is unexpected, the outcome is a **re-raised
   transport error** — never "present" and never "absent". If the body decodes
-  cleanly but names a *different* version, the outcome is **proceed**. Cases
-  **C4**, **C5**, and **C6** in task 2's table are the assertions for these three
-  branches; without them H2a is prose.
+  cleanly but names a *different* version, the outcome is **also a re-raised
+  transport/integrity error** — see H2b. Cases **C4**, **C5**, and **C6** in task
+  2's table are the assertions for these three branches; without them H2a is prose.
+* **H2b (binding) — a version mismatch is an INTEGRITY ANOMALY, not evidence of
+  absence.** *(Corrected in review-fix cycle 2, finding 6; this reverses the
+  cycle-1 disposition of C6.)* The probe requests the **exact-version endpoint**
+  `https://pypi.org/pypi/autoharness/{version}/json`. That URL names the version
+  in the path, so a conforming PyPI returns exactly two things: `404` when the
+  version does not exist, or `200` with a body identifying **that** version. A
+  `200` from that URL whose body names a *different* version is a response the
+  protocol does not permit. It is not weak evidence of absence — it is positive
+  evidence that **something between the requester and PyPI is not behaving as
+  PyPI**: a cache serving a stale or mismatched object, a mirror synthesising
+  responses, or an interception proxy. Treating it as "proceed" is precisely the
+  fail-open reasoning this shipment exists to remove, and it is *worse* than the
+  original `else:` branch, because here the anomaly has already been detected and
+  is then discarded. The required outcome is therefore **re-raise as a
+  transport/integrity error** — fail closed, publish does not proceed, and a
+  human reads the message. Absence is proved by **`404` and nothing else** (C1).
+  **Discriminating power is preserved.** The concern that C6 must remain
+  distinguishable from C2 is satisfied without proceeding: C2 and C6 still have
+  *different outcomes of different kinds* — C2 exits non-zero with an
+  "already published, bump and re-tag" message, while C6 raises a transport /
+  integrity error naming the mismatch. A probe that merely checks "did the request
+  succeed" still passes C2 and still fails C6, because such a probe would proceed
+  or report "present" rather than raising an integrity error. The body-versus-
+  request-success discrimination H2a demands is fully retained; only the *verdict*
+  for the anomalous branch changes, from a silent proceed to a fail-closed raise.
 
   **Evidence basis (traceability established in review-fix cycle 1, finding 19).**
   H2a's host clause and cases C4/C5 are not speculative hardening — they are
@@ -178,10 +203,17 @@ embedded script with injected `urlopen`), then assert the following cases. All a
 | **C3** | `URLError` (transport failure) | **Propagates.** Never treated as "not present". |
 | **C4** | *(added cycle 1, finding 15)* **Wrong-host redirect** — a 200 whose final resolved URL host is **not** `pypi.org` (e.g. a mirror or an interception proxy) | **Re-raised as a transport error.** Explicitly **not** "present". This is the case that would otherwise hard-fail a legitimate release, and H2's host assertion is unverified without it. Assert on the *final* response URL after redirects, not the requested URL. |
 | **C5** | *(added cycle 1, finding 15)* **Malformed JSON** — a 200 from `pypi.org` whose body is not decodable JSON, or is JSON of an unexpected shape | **Re-raised as a transport error.** H2 says "if the body cannot be parsed, treat it as a transport error"; without this case that clause is prose. Cover **both** shapes: undecodable bytes, and valid JSON lacking `info.version`. |
-| **C6** | *(added cycle 1, finding 15)* **Mismatched version** — a 200 from `pypi.org` whose body identifies a version **different** from the one requested | **Probe proceeds** (the requested version is not published). Asserts the probe keys on the *body's* version rather than on request success — the exact discrimination H2 demands and the one C2 alone cannot prove. |
+| **C6** | *(added cycle 1, finding 15; **outcome reversed in cycle 2, finding 6**)* **Mismatched version** — a 200 from `pypi.org` whose body identifies a version **different** from the one requested | **Re-raised as a transport/integrity error. Fails closed; publish does not proceed.** The probe requests the *exact-version* endpoint, so this response is one the protocol does not permit and is positive evidence of a cache, mirror, or interception anomaly — not evidence that the version is absent. Cycle 1 required "proceed" here, which discarded a detected anomaly and was a fail-open path in a fail-closed shipment. Absence is proved by **404 and nothing else** (C1). |
 
-**C2 and C6 together** are what make the H2 host+body assertion testable: a probe
-that merely checks "did the request succeed" passes C2 and **fails C6**.
+**C2 and C6 together** are still what make the H2a host+body assertion testable,
+and reversing C6's verdict does not weaken that. The two cases remain
+distinguishable because their outcomes differ **in kind**: C2 exits non-zero with
+an "already published — bump and re-tag" message, while C6 raises a
+transport/integrity error naming the mismatch. A probe that merely checks "did the
+request succeed" passes C2 and **fails C6**, exactly as before, because such a
+probe would proceed (or report "present") instead of raising an integrity error.
+Only the verdict for the anomalous branch changed — from a silent proceed to a
+fail-closed raise (**H2b**).
 
 **Red before green**: the C2 case must be demonstrated failing against the pre-fix
 workflow content. C4, C5, and C6 are also expected red pre-fix (the current `else:`

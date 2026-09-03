@@ -114,16 +114,56 @@ Triggered: the registry is the resolution substrate for every generated agent.
   and pass the standing parity test forever. The drift class this shipment exists
   to close would be detected on the first day and never again. The parity test
   therefore asserts **value equality**, not merely key presence, over the
-  **template-owned** surface:
+  **template-owned** surface.
 
-  | Surface | Comparison | Rationale |
+  **H3a-RECURSIVE (binding; replaces the enumerated surface table in review-fix
+  cycle 2, finding 8).** The comparison is **recursive over every leaf path in the
+  parsed template registry document**, not a list of selected surfaces. For every
+  leaf path present in the template, the installed registry must carry an **equal
+  value at the same path**, unless that exact path appears in **H3b**'s closed
+  override allow-list. *Default is assert; exemption is by explicit path only.*
+  An enumerated surface table is a **denylist wearing an allowlist's clothes** —
+  it protects what someone remembered on the day it was written, and every field
+  added to the registry template afterwards is unprotected, silently. The cycle-1
+  table omitted top-level **`schema_version`** (this workspace's registry declares
+  `1.0.0`), the one field whose silent divergence makes every other parity result
+  meaningless, because a v1 installed registry compared against a v2 template is
+  a comparison between two different contracts. It would equally omit any future
+  template-owned key. Under the recursive rule a new template-owned field is
+  protected **the moment it is added to the template**, with no test edit.
+
+  Walk semantics, precisely:
+
+  * The walk is **driven by the parsed template document**, so a path present in
+    the template and **absent** from the installed registry is a **failure**
+    (missing is not equal) — this is what catches a field silently dropped during
+    regeneration.
+  * It compares **parsed structure, never raw text**, so key ordering, quoting
+    style, comment placement, and YAML formatting cannot produce false failures.
+  * Every leaf at every depth is compared, including members of nested maps and
+    sequences.
+  * A path present **only** in the installed registry is reported **INFO** and
+    does not fail: the template is authoritative over what it owns, and it does
+    not own what it never declared.
+  * Interior-whitespace normalization applies to **`cli_command` values only**,
+    where it is a formatting artefact. It is **not** global — whitespace inside an
+    `mcp_tool` name or a status value *is* a difference.
+
+  The table below now records **consequences** of the recursive rule and the
+  reason each matters. It is **not** the definition of the covered surface and is
+  **not** a list to be maintained; a template path absent from it is still covered.
+
+  | Surface (consequence, not definition) | Comparison | Rationale |
   |---|---|---|
+  | `schema_version` (top level) | **Value equality** | *(Missing in cycle 1.)* A contract-version divergence invalidates every other parity result. |
   | `operations.*.mcp_tool` | **Value equality** | Names a real tool entry point. A wrong value fails at call time, in an agent run, not in CI. |
   | `operations.*.cli_command` | **Value equality** (after normalizing interior whitespace) | The declared CLI fallback P-012 degraded mode depends on. |
   | `operations.*.params` | **Value equality per key** | A wrong param mapping silently writes the wrong field. |
   | `field_mapping.*`, `status_values.*` | **Value equality** | Pure template-owned translation tables with no legitimate local meaning. |
-  | `features.*` | **Value equality**, plus **no `true` → `false` flip** | A flag is a capability claim; a silently downgraded flag disarms a gate. |
-  | `tool_name`, `tool_type`, `directory` | **Value equality** | Identity. **H7** already forbids changing tool names; this makes it testable. |
+  | `features.*` | **Value equality**, plus **no `true` → `false` flip** | A flag is a capability claim; a silently downgraded flag disarms a gate. Plain equality already fails a flip; the dedicated assertion makes the *diagnostic* name the real hazard. |
+  | `tool_name`, `tool_type` | **Value equality** | Identity. **H7** already forbids changing tool names; this makes it testable. |
+  | `directory` | **Override-eligible — NOT asserted** | *(Contradiction resolved in cycle 2.)* Cycle 1 listed `directory` here as value-equality **and** in **H3b** as override-eligible; the two clauses disagreed about the same field. It encodes where **this machine** keeps the backlog root — this workspace uses the legacy `.backlogit` root while new installs default to `.backlog` — which is exactly the machine-local class **H3b** exists for. It is exempt. |
+  | *any future template-owned path* | **Value equality** | Covered automatically by the recursive walk. This row is the difference between the rule and the list it replaced. |
 
 * **H3b (binding) — the permitted workspace-override list is explicit,
   enumerated, and closed.** Value equality is useless if "workspace customization"

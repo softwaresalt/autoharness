@@ -273,12 +273,26 @@ than prose that admits it is prose, because it stops anyone from building the ch
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
 | 1 | Remove the purpose-based finding-suppression rule from the security-reviewer persona | S | medium | `templates/agents/review/security-reviewer.agent.md.tmpl` + mirror |
-| 2 | Gate the P-007 `git restore` remediation behind the named `APPROVAL: P-007-ARCHIVE-RESTORE` signal, and complete the constitution-reviewer principle checklist | M | medium | `templates/policies/workflow-policies.md.tmpl`, `templates/agents/review/constitution-reviewer.agent.md.tmpl` + mirrors, `tests/` |
+| 2 | Gate the P-007 `git restore` remediation behind a **fresh, live, non-synthesizable operator approval (Decision G1)**, and complete the constitution-reviewer principle checklist | M | medium | `templates/policies/workflow-policies.md.tmpl`, `templates/agents/review/constitution-reviewer.agent.md.tmpl` + mirrors, `tests/` |
 | 3 | Resolve the leaf-executor contradiction with a bounded one-hop review-family exception **and ship the bounded depth-constraint verifier** | M | medium | `.github/instructions/harness-architecture.instructions.md` (direct — not template-backed, see below), `templates/instructions/role-enforcement.instructions.md.tmpl` + mirror, `tests/` |
 | 4 | Close the technology-reviewer → language-instruction dangling reference via the Decision F co-installation invariant | S | low | `.github/skills/install-harness/SKILL.md`, `templates/agents/review/technology-reviewer.agent.md.tmpl` + mirror, `tests/` |
 
-**Authoring-surface correction (review-fix cycle 1).** The two instruction
-artifacts amended by task 3 **do not share an authoring surface**, and the
+**Executable-text correction (review-fix cycle 2, finding 10).** Every piece of
+*executable* task text in this shipment — task titles, task record bodies, and
+any acceptance wording an agent reads as an instruction — must state the gate as
+**Decision G1's fresh, live, non-synthesizable operator approval**, and must not
+name a backlog comment as the thing being gated on. Cycle 1 correctly demoted the
+`APPROVAL: P-007-ARCHIVE-RESTORE` comment to **evidence only** in Decision G, but
+task 2's title still read "gate … behind the named `APPROVAL: P-007-ARCHIVE-RESTORE`
+signal", which is the exact self-satisfiable formulation finding 14 withdrew: the
+gated party can author that comment and then read its own writing. Because task
+titles are executed, a stale title is not a documentation nit — an implementer
+following it would build the self-approval hole back in. The comment remains
+**audit-only** everywhere: written *after* a G1 result is obtained, never before,
+and never as the thing consulted to authorize the restore. Decision G (G1–G9)
+above is the authority; where any other text disagrees with it, Decision G wins.
+
+
 original wording ("amend the two INSTRUCTION templates") wrongly implied they
 did. `role-enforcement.instructions.md` is template-backed — its manifest entry
 names `template: "instructions/role-enforcement.instructions.md.tmpl"` — so it
