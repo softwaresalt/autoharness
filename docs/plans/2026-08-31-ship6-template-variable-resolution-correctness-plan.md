@@ -147,6 +147,24 @@ families.
     shipment exists to remove. **Assert it:** add a synthetic registry with a new
     `tool_name` and assert a block declaring that tool resolves successfully with
     no renderer, template, or test edit.
+
+    **H6a scope clarification — DECLARATION vs VALIDATION SET** *(added in
+    review-fix cycle 1, Orchestrator local-review finding 12)*. H6a and **H1**
+    are not in conflict, and an implementer must not read H6a as forbidding H1's
+    requirement that a block identify its bound tool. The prohibition governs the
+    **validation set only** — the set of names a declaration is checked
+    *against*. It never governs the **declaration** itself.
+
+    | Construct | Names a tool? | Verdict |
+    |---|---|---|
+    | Tool-scoped block header (`When backlog-md is the installed backlog tool`) | Yes, exactly once | **Required.** This is the declarative identity being validated — the datum, not a duplicated assumption. |
+    | Renderer/test/fixture list of legal tool names | Yes, N times | **Forbidden.** A second copy of the tool-name universe; must be derived from the installed registry set at check time. |
+
+    Operative rule: **one** authored occurrence of a tool name per block header is
+    correct; **zero** authored occurrences of the valid-name *list* anywhere in
+    renderer, template, or test fixtures is required. The synthetic-registry
+    assertion above discriminates the two directly — a duplicated validation list
+    fails it, while a block header naming a tool cannot.
   * **H6b — feature-flag binding is FORBIDDEN.** The validation binds to tool
     identity only and must not read, resolve against, or branch on any registry
     feature flag (`features.*`). This is precisely what keeps SHIP-6

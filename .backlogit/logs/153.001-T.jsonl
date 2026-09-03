@@ -1,1 +1,2 @@
 {"timestamp":"2026-08-31T15:15:36.7325325-07:00","actor":"human","item_id":"153.001-T","event_type":"estimate_history","delta":{"actor":"human","size":"M","size_ruleset_version":"autoharness-stage-2h-v1","size_source":"agent"}}
+{"timestamp":"2026-09-03T02:08:09.809423-07:00","actor":"human","item_id":"153.001-T","event_type":"estimate_history","delta":{"actor":"human","size":"M","size_ruleset_version":"ah-stage-sizing-v1","size_source":"agent"}}

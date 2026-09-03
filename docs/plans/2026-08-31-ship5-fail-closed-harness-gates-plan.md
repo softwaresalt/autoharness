@@ -285,11 +285,19 @@ Sequenced 3a → 3b → 3c. Each obeys the width constraint — one concern per 
 
 ## Deferred scope (P-021, captured not silently broadened)
 
+**Ref column = backlogit stash entry ID.** Each row below is backed by a compliant
+P-021 C2 capture-only stash entry carrying the literal `DEFERRED SCOPE EXPANSION`
+token, the expansion statement, the C1 out-of-scope reasoning, per-field source
+refs, a `requires deliberation: true` flag, and kind + provisional priority. Read
+one with `backlogit stash get <id>`. These IDs replace the pseudo-IDs used in the
+first draft, which were in-plan labels with no backing stash record (a P-021 C2
+shortfall corrected in review-fix cycle 1).
+
 | Ref | Capture | Residual risk if never built |
 |---|---|---|
-| DSE-S5-1 | If **task 2a** finds that no declared, machine-readable pack-attribution source exists in this workspace, then *creating* one is a new product capability and is **out of scope**. 2a records the finding and 2b is re-scoped by the operator rather than inventing a source. | **Medium, and explicitly gated.** Without an attribution source the check cannot be built as specified. This is why 2a is a **blocking** prerequisite: the shipment discovers this before writing code, not after. **P2** forbids the tempting shortcut (a hardcoded list), so the failure mode is a recorded halt, not a rotting allowlist. |
-| DSE-S5-2 | Extending the resolver to agent→**instruction** edges (SHIP-4's DSE-S4-1 is the same class from the other side). | **Medium.** Two rendered subagents keep citing absent instruction files. 2b establishes the three-valued resolver shape that a later run extends. |
-| DSE-S5-3 | Driving the repository-wide markdownlint violation count to zero. Task 1's ordered acceptance scopes CI to changed files while the count is non-zero. | **Low.** Enforcement is real on changed files from day one; the repository-wide sweep is deferred until the count is measured and reduced. Recorded rather than assumed, per cycle-0 finding 1. |
+| 0F6B2B3B | If **task 2a** finds that no declared, machine-readable pack-attribution source exists in this workspace, then *creating* one is a new product capability and is **out of scope**. 2a records the finding and 2b is re-scoped by the operator rather than inventing a source. | **Medium, and explicitly gated.** Without an attribution source the check cannot be built as specified. This is why 2a is a **blocking** prerequisite: the shipment discovers this before writing code, not after. **P2** forbids the tempting shortcut (a hardcoded list), so the failure mode is a recorded halt, not a rotting allowlist. |
+| 9938CA1D | Extending the resolver to agent→**instruction** edges (SHIP-4's 24374649 is the same class from the other side). | **Medium.** Two rendered subagents keep citing absent instruction files. 2b establishes the three-valued resolver shape that a later run extends. |
+| 1747F703 | Driving the repository-wide markdownlint violation count to zero. Task 1's ordered acceptance scopes CI to changed files while the count is non-zero. | **Low.** Enforcement is real on changed files from day one; the repository-wide sweep is deferred until the count is measured and reduced. Recorded rather than assumed, per cycle-0 finding 1. |
 
 ## Verification
 

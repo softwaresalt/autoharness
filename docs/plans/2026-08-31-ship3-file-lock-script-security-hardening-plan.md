@@ -239,11 +239,34 @@ exists; a root-level target that is missing; and a nested-git-checkout root wher
 it records the observed behaviour of the resolution primitive and the intended
 post-fix behaviour. Tasks 1 and 2 consume the matrix as their test vectors.
 
+### Task 0 second deliverable — canonical token/digest interoperability vectors
+
+*Added in review-fix cycle 1 (Orchestrator local-review finding 16).* The
+path-resolution matrix alone does not supply what task 2 actually needs. **TC4**
+below requires that a token acquired under one platform variant **verifies under
+the other** — an interoperability claim between two *independent* implementations.
+Two implementations cannot be shown to agree without shared canonical vectors
+agreed **before either is written**; deriving the "expected" value from whichever
+variant was written first proves nothing. Task 0 therefore also records:
+
+| Vector | Content |
+|---|---|
+| **V-a** | Token encoding canonicalization — alphabet, character length **and** bits of entropy (≥ 128), UTF-8 without BOM, case sensitivity, explicit absence of trailing newline/CR. Stated as **bytes**, because the CRLF/LF split between platforms is exactly where a silent mismatch lives. |
+| **V-b** | Digest canonicalization — the exact digest input (token bytes only, or token bytes plus a named separator/salt), the algorithm (SHA-256 or stronger; MD5/SHA-1 forbidden), and the output representation (hex vs base64, case, no trailing whitespace). `Get-FileHash` and `sha256sum` differ in default output case *and* in trailing-whitespace/filename-suffix handling; all three are pinned. |
+| **V-c** | At least **five frozen `(token → owner_digest)` constants**, written literally so both implementations test against the same external values. Adversarial cases required: all-lowercase-hex token; maximum-value character in the declared alphabet; minimum-length token; maximum-length token; and a pair differing **only in the last character**, which catches a truncating implementation. |
+| **V-d** | A **two-cell** round-trip direction matrix — acquire-PowerShell/verify-POSIX and acquire-POSIX/verify-PowerShell recorded separately, because a one-directional check passes trivially when both sides share the same bug. |
+| **V-e** | The no-SHA-256-utility **fail-closed** expected observable per platform (non-zero exit, named error, **no** lock acquired), so task 2's fail-closed assertion has a declared expected value rather than an invented one. |
+
+Task 2 (`153.002-T`) MUST cite **V-a**–**V-e** by name as the source of every
+**TC1**–**TC6** expected value and MUST NOT compute an expected digest from its own
+implementation. Task 0 remains record-only: the vectors are computed with standard
+platform utilities and written down, never baked into a script.
+
 ## Tasks
 
 | # | Title | Size | Complexity | Surface |
 |---|---|---|---|---|
-| 0 | **De-risking prerequisite (H9)**: record the two-platform path-resolution and lock-path behaviour matrix for the seven escape cases | S | low | `docs/` (recorded matrix only; no production edits) |
+| 0 | **De-risking prerequisite (H9)**: record the two-platform path-resolution and lock-path behaviour matrix for the seven escape cases, **plus the canonical token/digest interoperability vectors V-a–V-e** | S | low | `docs/` (recorded matrix and vectors only; no production edits) |
 | 1 | Enforce workspace-root containment and symlink-escape prevention in both acquire scripts | M | high | `templates/skills/file-lock/scripts/acquire_lock.{ps1,sh}` |
 | 2 | Enforce token-based lock-ownership verification and consistent lock-path computation in both release scripts | M | high | `templates/skills/file-lock/scripts/{acquire,release}_lock.{ps1,sh}` |
 | 3 | Re-copy hardened scripts to `scripts/`, refresh manifest checksums, and add a template↔installed parity test | S | medium | `scripts/**`, `.autoharness/harness-manifest.yaml`, `tests/` |
@@ -283,10 +306,18 @@ including the **TC5** exposure and safe-handling guidance verbatim. Task 0 block
 
 ## Deferred scope (P-021, captured not silently broadened)
 
+**Ref column = backlogit stash entry ID.** Each row below is backed by a compliant
+P-021 C2 capture-only stash entry carrying the literal `DEFERRED SCOPE EXPANSION`
+token, the expansion statement, the C1 out-of-scope reasoning, per-field source
+refs, a `requires deliberation: true` flag, and kind + provisional priority. Read
+one with `backlogit stash get <id>`. These IDs replace the pseudo-IDs used in the
+first draft, which were in-plan labels with no backing stash record (a P-021 C2
+shortfall corrected in review-fix cycle 1).
+
 | Ref | Capture | Residual risk if never built |
 |---|---|---|
-| DSE-S3-1 | A tamper-evident or OS-enforced lock (mandatory file locking, a lock daemon, or an OS-level advisory lock held by a live handle). This is the only class of mechanism that would defend against a hostile local process, and it is a genuinely new product capability well beyond a script hardening. | **Accepted, low.** The residual exposure is a local process that *deliberately* bypasses the supplied tooling. The threat model here is concurrent cooperating agents, not a local adversary; **O3** and **H7** ensure no shipped text claims otherwise, so nobody relies on a guarantee that is not there. |
-| DSE-S3-2 | A shared cross-platform path-containment utility for the whole harness (carried forward from cycle 0 finding 7). | **Low.** Four scripts each carry their own containment logic and could drift. **H5** plus task 3's parity test bound the drift to something a test detects. |
+| 13F5EEF0 | A tamper-evident or OS-enforced lock (mandatory file locking, a lock daemon, or an OS-level advisory lock held by a live handle). This is the only class of mechanism that would defend against a hostile local process, and it is a genuinely new product capability well beyond a script hardening. | **Accepted, low.** The residual exposure is a local process that *deliberately* bypasses the supplied tooling. The threat model here is concurrent cooperating agents, not a local adversary; **O3** and **H7** ensure no shipped text claims otherwise, so nobody relies on a guarantee that is not there. |
+| A7AD3044 | A shared cross-platform path-containment utility for the whole harness (carried forward from cycle 0 finding 7). | **Low.** Four scripts each carry their own containment logic and could drift. **H5** plus task 3's parity test bound the drift to something a test detects. |
 
 ## Verification
 

@@ -9,8 +9,9 @@ docline:
   time_box: "1h"
   conclusion: "proceed"
   confidence: "high"
-  linked_parent_work_item: null
-  promoted_to: ["none"]
+  linked_parent_work_item: "152-F"
+  promoted_to:
+    - "docs/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md"
   tags:
     - "packaging"
     - "pypi"
@@ -18,6 +19,26 @@ docline:
     - "release-distribution"
     - "environment-diagnosis"
 ---
+
+## Downstream traceability (established in review-fix cycle 1)
+
+This spike concluded that **no repository or release fix is required** for the
+upgrade stall itself — all three causes are client-side. That conclusion stands
+unchanged.
+
+It nonetheless **materially informs SHIP-2** (`152-F`,
+`docs/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md`), because the
+environment failure modes it measured are exactly the failure modes SHIP-2's
+publish-probe must survive:
+
+| Finding here | Consumed by SHIP-2 as |
+|---|---|
+| **Cause 1** — pip resolves against a non-PyPI mirror that lacks the version | Hermetic case **C5** (malformed / non-conforming JSON body → re-raise as transport error) and **C6** (a `200` describing a *different* version → proceed). A mirror answering with a stale or differently-shaped index is the real-world source of both. |
+| **Cause 3** — TLS interception terminates `files.pythonhosted.org` while permitting `pypi.org` | Binding **H2a** (assert the probe's **final resolved URL host** is `pypi.org`) and hermetic case **C4** (wrong-host redirect → re-raise as a transport error, explicitly *not* "package already present"). Without this evidence the wrong-host case reads as hypothetical; it is measured behaviour on a real workstation. |
+
+Without that link, SHIP-2's C4/C5 cases would appear to be speculative hardening.
+They are not — they are derived from the interception and mirror-lag behaviour
+recorded below.
 
 ## Goal
 

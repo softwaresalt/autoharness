@@ -36,7 +36,11 @@ egress of internal context.
 * 9 covering features `151-F`–`159-F`.
 * 27 tasks, every one carrying both `size` and `complexity` written through the
   three-call seam (`create` → `size`+`size_source`+`size_ruleset_version` →
-  `complexity`), ruleset `autoharness-stage-2h-v1`.
+  `complexity`), ruleset `ah-stage-sizing-v1`. (Originally staged under the
+  non-canonical label `autoharness-stage-2h-v1`; normalized to the canonical
+  ruleset ID in review-fix cycle 1 via `backlogit update --size --size-source
+  --size-ruleset-version` on all 37 affected tasks. Canonical ID is fixed by
+  `docs/size-complexity-reference.md` §Provenance-completeness rule.)
 * 9 queued shipments `159-S`–`167-S`, chained by 8 `blocks` edges in priority
   order, all successors `queued`.
 * 5 intra-shipment task `blocks` edges.
@@ -156,9 +160,9 @@ archived record itself as evidence for `158.002-T`.
 
 ### Residual, carried forward
 
-* **Deferred scope (P-021)** captured in-plan, not silently broadened: `DSE-S3-1`
-  and `DSE-S3-2` (SHIP-3), `DSE-S4-1`/`-2`/`-3` (SHIP-4), `DSE-S5-1`/`-2`/`-3`
-  (SHIP-5), `DSE-S8-1`/`-2` (SHIP-8). Each carries an explicit residual-risk
+* **Deferred scope (P-021)** captured in-plan, not silently broadened: `13F5EEF0`
+  and `A7AD3044` (SHIP-3), `24374649`/`-2`/`-3` (SHIP-4), `0F6B2B3B`/`-2`/`-3`
+  (SHIP-5), `FE098366`/`-2` (SHIP-8). Each carries an explicit residual-risk
   statement.
 * **`docs/decisions/2026-08-30-pip-install-autoharness-version-ceiling-spike.md`**
   is a pre-existing artifact outside the fixed 48-ID scope that was included in

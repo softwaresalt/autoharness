@@ -105,6 +105,46 @@ Triggered: the registry is the resolution substrate for every generated agent.
   active tool's operations and feature keys and must **fail closed** if either
   file is unreadable or unparseable. A parity test that skips on a missing file
   is the same fail-open shape being removed.
+* **H3a (binding) — key-set containment is not enough; template-owned mappings
+  require VALUE equality.** *(Added in review-fix cycle 1, Orchestrator
+  local-review finding 13.)* **H2** halts on a value-changed key, but **H2 runs
+  once**, inside task 1's regeneration. **H3** as originally written compares only
+  key *sets*, so after task 1 completes, a later edit that silently changed
+  `mcp_tool: backlogit_create_item` to something else would keep every key present
+  and pass the standing parity test forever. The drift class this shipment exists
+  to close would be detected on the first day and never again. The parity test
+  therefore asserts **value equality**, not merely key presence, over the
+  **template-owned** surface:
+
+  | Surface | Comparison | Rationale |
+  |---|---|---|
+  | `operations.*.mcp_tool` | **Value equality** | Names a real tool entry point. A wrong value fails at call time, in an agent run, not in CI. |
+  | `operations.*.cli_command` | **Value equality** (after normalizing interior whitespace) | The declared CLI fallback P-012 degraded mode depends on. |
+  | `operations.*.params` | **Value equality per key** | A wrong param mapping silently writes the wrong field. |
+  | `field_mapping.*`, `status_values.*` | **Value equality** | Pure template-owned translation tables with no legitimate local meaning. |
+  | `features.*` | **Value equality**, plus **no `true` → `false` flip** | A flag is a capability claim; a silently downgraded flag disarms a gate. |
+  | `tool_name`, `tool_type`, `directory` | **Value equality** | Identity. **H7** already forbids changing tool names; this makes it testable. |
+
+* **H3b (binding) — the permitted workspace-override list is explicit,
+  enumerated, and closed.** Value equality is useless if "workspace customization"
+  is an open-ended excuse, and **H2**'s P0 concern (blind regeneration destroying
+  deliberate local customization) is real. The two are reconciled by an
+  **allow-list of override-eligible fields declared in the test itself**:
+
+  * **Override-eligible (installed MAY differ from template, test reports the
+    delta as INFO and passes):** `mcp_server.command`, `mcp_server.transport`,
+    `cli.binary`, and `directory` — the four fields that legitimately encode where
+    *this machine* finds the tool.
+  * **Not override-eligible (installed MUST equal template; any difference
+    FAILS):** everything else in the table above.
+  * A field is override-eligible **only** by appearing in that enumerated list. An
+    unlisted difference is a failure, never a tolerated customization — so
+    widening the exemption is a **visible edit to the allow-list** under review,
+    which is exactly the property **H2**'s halt-for-review rule wants and cannot
+    provide on its own after task 1 finishes.
+  * The test must assert the allow-list itself is **non-empty and closed** (a
+    fixture adding an unlisted differing field must FAIL), so an accidental
+    "allow everything" regression is caught.
 * **H4 (binding).** Enabling `features.sizing: true` in the installed registry
   changes Stage's own resolved behaviour. It must land **before** SHIP-8's
   fail-closed sizing enforcement, which is why SHIP-7 `blocks` SHIP-8.
@@ -132,7 +172,7 @@ Triggered: the registry is the resolution substrate for every generated agent.
   `backlogit_update_item` does accept `size`, `size_source`,
   `size_ruleset_version`, and `complexity`. That is exactly the installed↔template
   drift class this shipment exists to close, and it is the blocker SHIP-8 records
-  as **DSE-S8-2**. Task 1's additive-delta verification (**H2**) must therefore
+  as `D456616B`. Task 1's additive-delta verification (**H2**) must therefore
   explicitly confirm that `features.sizing: true` is present after regeneration,
   and task 2's parity test must cover it. **H4**'s SHIP-7 → SHIP-8 ordering is
   what makes SHIP-8's gate non-inert.
@@ -197,7 +237,7 @@ resolution only — no install performed).
 |---|---|---|---|---|
 | 1 | Correctness | **P0** | Regenerating the installed registry could **overwrite legitimate workspace-local customization** that was deliberately made and is not represented in the template. Blind regeneration would silently destroy it. | **Resolved.** **H2** is elevated to a hard precondition: task 1 must first produce and record a full key-level diff, classify every delta as additive / value-changed / removed, and **halt** on any value-changed or removed key rather than proceeding. Only a purely-additive delta may be applied automatically. The measured delta for this workspace is additive-only (22 operations, one field map, seven flags — all absent, none conflicting), but the task must re-derive that rather than trust this plan. |
 | 2 | Security | **P1** | Enabling seven feature flags at once expands the operation surface agents will use, including `merge_sync`, `doctor` and `cleanup_checkpoints`, which mutate tool-managed state. | **Resolved.** The flags describe **tool capabilities**, not grants of authority; role boundaries (P-010) and destructive-command approval (Constitution VII) are unchanged and continue to govern who may call what. Task 1's acceptance explicitly records that no policy, role, or approval surface is modified. Additionally, restoring the declarations makes these operations *visible to the gate* rather than reached by ad-hoc fallback — a net reduction in exposure. |
-| 3 | Architecture | **P1** | If the installed registry drifted once, the **install/tune path that produces it** is the real defect, and regenerating is treating a symptom. | **Accepted, partially resolved.** Task 2's parity test converts the symptom into a **detected** condition, which is the honest available fix inside this scope. Diagnosing *why* the installer emitted a truncated registry is genuinely a different contract surface; it is recorded as the leading P-021 capture candidate from this shipment and explicitly not attempted here. The parity test guarantees the question cannot be forgotten, because the next drift fails a test instead of passing silently. |
+| 3 | Architecture | **P1** | If the installed registry drifted once, the **install/tune path that produces it** is the real defect, and regenerating is treating a symptom. | **Accepted, partially resolved.** Task 2's parity test converts the symptom into a **detected** condition, which is the honest available fix inside this scope. Diagnosing *why* the installer emitted a truncated registry is genuinely a different contract surface; it is captured as compliant P-021 deferred entry `CE441101` and explicitly not attempted here. The parity test guarantees the question cannot be forgotten, because the next drift fails a test instead of passing silently. |
 | 4 | Schema/CLI/docs coupling | **P1** | `features.sizing: true` becoming visible will change generated Stage agents' documented behaviour in **existing** installs on their next tune. | **Resolved.** That is the intended outcome of `2E67938C` and is exactly why **H4** sequences SHIP-7 before SHIP-8. Task 1's acceptance requires the compatibility matrix and the operating-model doc to state that sizing is advertised and what the enforcement consequence is, so the behaviour change is documented rather than discovered. |
 | 5 | Maintainability | P2 | Task 3 bundles a backlog-md command fix with a capability declaration. | Accepted: one file, one tool, one decision (D3). Splitting produces two PRs touching the same registry. |
 | 6 | Correctness | P2 | Task 3 cannot be end-to-end verified without installing backlog-md. | Bounded to **name resolution and declaration correctness**, verified against the vendored `references/backlog-md/package.json`. No install, no runtime test. Recorded as an explicit limitation of the task. |

@@ -59,7 +59,23 @@ Convert the two-axis rule from documentation into a gate at three points:
   triggers already exist in prose; they become checked conditions.
 * **Shipment-assembly-time, per shipment.** Read the shipment's
   `size_composition` rollup back after assembly and fail the assembly if
-  `unsized > 0`, or if the composition exceeds the declared budget.
+  `unsized > 0`.
+
+  **Scope narrowed in review-fix cycle 1 (Orchestrator local-review finding 14).**
+  An earlier draft added "or if the composition exceeds the declared budget". There
+  is **no declared aggregate budget** anywhere in this workspace — no numeric
+  threshold, no histogram-to-effort mapping, no boundary tie-break rule — so that
+  clause promised a gate that could not be implemented deterministically and could
+  not be boundary-tested. It is **withdrawn**. This shipment enforces exactly one
+  shipment-level predicate, and it is fully deterministic:
+
+  > **BUDGET PREDICATE (the whole of it):** `size_composition.unsized == 0`.
+  > Any other value fails the assembly. Nothing else about the composition is gated.
+
+  Deciding an aggregate threshold is a **policy** decision, not a gate
+  implementation, and is deferred through compliant P-021 capture `C754A19B`. The
+  2-hour reliability constraint remains enforced **per task** by the two
+  harvest-time gates above, which is where it actually governs agent success rate.
 
 **Fail-closed when advertised; degrade loudly when not.** If the active registry
 advertises `features.sizing`, a missing or invalid value is a **halt**. If it
@@ -132,7 +148,7 @@ carrying the rule. Two constraints are nonetheless recorded as binding.
   `{"histogram":{"M":2,"S":1},"unsized":0,...,"ruleset_version":null}`. The
   read-back gate is therefore buildable as specified, and `ruleset_version` is
   observed **null at the shipment level** even though every member task carries
-  `size_ruleset_version: autoharness-stage-2h-v1`.
+  `size_ruleset_version: ah-stage-sizing-v1`.
 
   Two consequences, both binding on **`158.003-T`** (the assembly task created by
   the H3 split) and both mandatory acceptance there:
@@ -143,7 +159,7 @@ carrying the rule. Two constraints are nonetheless recorded as binding.
     shipment-level `ruleset_version` **passes**.
   * The shipment-level `ruleset_version: null` against populated per-task
     `size_ruleset_version` values is a **rollup-provenance gap**. It is recorded
-    as deferred scope (**DSE-S8-1**), not fixed here — **N1** forbids schema
+    as deferred scope (`FE098366`), not fixed here — **N1** forbids schema
     change.
 
   With the assumption resolved, the assembly work carries `complexity: medium`, and
@@ -193,7 +209,7 @@ consequence is that **this** workspace takes the degrade-and-report path until
 SHIP-7 regenerates the registry — the gate is present but correctly inert locally.
 That is the honest outcome, and it is sequenced away by the **shipment-level**
 `blocks` edge `166-S` blocked by `165-S`. `158.001-T` ships a test asserting **both**
-directions. Recorded as **DSE-S8-2**, now resolved rather than open.
+directions. Recorded as `D456616B`, now resolved rather than open.
 
 ## Non-goals
 
@@ -216,10 +232,19 @@ directions. Recorded as **DSE-S8-2**, now resolved rather than open.
 
 ## Deferred scope (P-021, captured not silently broadened)
 
+**Ref column = backlogit stash entry ID.** Each row below is backed by a compliant
+P-021 C2 capture-only stash entry carrying the literal `DEFERRED SCOPE EXPANSION`
+token, the expansion statement, the C1 out-of-scope reasoning, per-field source
+refs, a `requires deliberation: true` flag, and kind + provisional priority. Read
+one with `backlogit stash get <id>`. These IDs replace the pseudo-IDs used in the
+first draft, which were in-plan labels with no backing stash record (a P-021 C2
+shortfall corrected in review-fix cycle 1).
+
 | Ref | Capture | Residual risk if never built |
 |---|---|---|
-| DSE-S8-1 | Shipment-level `size_composition.ruleset_version` is `null` on every shipment measured, while member tasks carry `size_ruleset_version: autoharness-stage-2h-v1`. Propagating per-task ruleset provenance into the rollup is a **backlogit-side** change and is forbidden here by **N1**. | **Low.** Provenance survives on each task; only the aggregate view loses it. The budget check reads `unsized`/`histogram` instead (**H4**), so no gate depends on the null field. |
-| DSE-S8-2 | This workspace's registry advertises no `features.sizing` key although `backlogit_update_item` accepts the sizing params. Reconciling the registry's advertised feature set with the tool's real capability surface is **SHIP-7's** registry-parity charter, not SHIP-8's. | **Low, and now bounded by a decided rule rather than an open question.** Review-fix cycle 2 settled the authority question: the advertised flag is authoritative and parameter presence never arms the gate (see the Registry note). Left unreconciled, this workspace takes the degrade-and-report path and the gate is present but inert locally — a known, tested, reported state rather than a silent one. The SHIP-7 → SHIP-8 shipment-level `blocks` edge already sequences the parity work first. |
+| FE098366 | Shipment-level `size_composition.ruleset_version` is `null` on every shipment measured, while member tasks carry `size_ruleset_version: ah-stage-sizing-v1`. Propagating per-task ruleset provenance into the rollup is a **backlogit-side** change and is forbidden here by **N1**. | **Low.** Provenance survives on each task; only the aggregate view loses it. The budget check reads `unsized`/`histogram` instead (**H4**), so no gate depends on the null field. |
+| D456616B | This workspace's registry advertises no `features.sizing` key although `backlogit_update_item` accepts the sizing params. Reconciling the registry's advertised feature set with the tool's real capability surface is **SHIP-7's** registry-parity charter, not SHIP-8's. | **Low, and now bounded by a decided rule rather than an open question.** Review-fix cycle 2 settled the authority question: the advertised flag is authoritative and parameter presence never arms the gate (see the Registry note). Left unreconciled, this workspace takes the degrade-and-report path and the gate is present but inert locally — a known, tested, reported state rather than a silent one. The SHIP-7 → SHIP-8 shipment-level `blocks` edge already sequences the parity work first. |
+| C754A19B | **Aggregate shipment size/complexity budget** — the numeric threshold, the histogram-to-effort mapping, the boundary tie-break rule, and the boundary test vectors. Added in review-fix cycle 1 when the undefined "exceeds the declared budget" clause was withdrawn from §Direction. Deciding a threshold is a policy decision (C1 discrimination (c)), not a gate implementation. | **Medium.** An oversized shipment made entirely of correctly-sized tasks still passes assembly. Mitigated because the 2-hour rule is enforced **per task** by the two harvest-time gates, which is the constraint that governs agent reliability; shipment-level bloat remains a Stage planning-review concern rather than a machine gate. |
 
 ## Verification
 
@@ -232,6 +257,23 @@ that a shipment with `unsized == 0` and a **null** shipment-level `ruleset_versi
 **passes** the budget check (**H4**/**N6**); and a two-direction test confirming that
 the advertised `features.sizing` flag — not operation-parameter presence — is what
 arms the fail-closed branch.
+
+**Budget-predicate boundary cases (added in review-fix cycle 1, finding 14).** The
+assembly predicate is `unsized == 0` and nothing else, so its boundary is a single
+integer and must be tested exhaustively at that boundary:
+
+| Case | `size_composition` | Expected |
+|---|---|---|
+| B1 | `unsized: 0`, non-empty `histogram` | **pass** |
+| B2 | `unsized: 1`, non-empty `histogram` | **fail**, naming the unsized member IDs |
+| B3 | `unsized: 0`, **empty** `histogram` (shipment with no task members) | **pass** — an empty shipment is not an unsized one; emptiness is a different defect and is not gated here |
+| B4 | `unsized` field **absent** from the rollup | **fail closed** — an absent field is not zero; the gate must not read a missing key as passing |
+| B5 | `unsized: 0`, `ruleset_version: null` | **pass** (**H4**) |
+
+B3 and B4 are the two cases a naive `if unsized:` truthiness check gets wrong in
+opposite directions, which is why both are named rather than implied. **No test
+asserts an aggregate size/complexity threshold**, because no such threshold is
+declared or promised — see deferred capture `C754A19B`.
 
 All three of T1–T3 are authored and **observed red** in `158.002-T` before any
 implementation lands; T1/T3 turn green in `158.001-T`; T2 turns green in
@@ -286,7 +328,7 @@ criterion.
 |---|---|---|---|---|
 | 8 | Correctness | **P1** | Task 1 (the gate) was ordered ahead of task 2 (which carries the regression tests for *both* gates), so task 1's tests could never be observed red. | **Resolved by H3.** Order is now task 2's test half → task 1 → task 2's implementation half, with the red results recorded before each fix. |
 | 9 | Maintainability | **P1** | Task 2 was `M`/`high`, tripping the complexity axis with neither split nor de-risking step. | **Resolved by H4.** The single source of uncertainty — whether `size_composition` reports a readable `unsized` — was resolved by direct measurement in this cycle. Task 2 drops to `medium`, and two binding consequences (read `unsized`/`histogram`, never gate on the null `ruleset_version`) are recorded. |
-| 10 | Schema/CLI/docs coupling | **P1** | The plan's fail-closed branch keys on `features.sizing`, but this workspace's registry declares **no `sizing` key** while the MCP tool does accept sizing params. The gate would be inert exactly where it was authored. | **Resolved.** Measured and recorded in the Registry note; task 1's acceptance must declare which surface is authoritative rather than assume agreement, and the reconciliation is routed to SHIP-7 as **DSE-S8-2** behind the existing `blocks` edge. |
+| 10 | Schema/CLI/docs coupling | **P1** | The plan's fail-closed branch keys on `features.sizing`, but this workspace's registry declares **no `sizing` key** while the MCP tool does accept sizing params. The gate would be inert exactly where it was authored. | **Resolved.** Measured and recorded in the Registry note; task 1's acceptance must declare which surface is authoritative rather than assume agreement, and the reconciliation is routed to SHIP-7 as `D456616B` behind the existing `blocks` edge. |
 | 11 | Constitution | **P1** | No safety mode declared on a shipment that rewrites the decomposition contract every future Stage run reads. | **Resolved by H5**: `careful` on all tasks, plus `freeze-scope` on the harvest/Stage template surfaces for task 1. |
 
 **Verdict: PASS.** Cycle 1: 4 P1 raised, all 4 resolved. Cumulative: **zero
@@ -297,7 +339,7 @@ unresolved P0/P1**.
 | # | Persona | Sev | Finding | Resolution |
 |---|---|---|---|---|
 | 12 | Correctness | **P1** | **The dependency model was impossible.** `158.001-T` was encoded as blocked by the *whole* of `158.002-T`, while `158.002-T` owned both the red tests *and* the post-implementation assembly work. `158.001-T` could therefore never start: part B of its own prerequisite had to run after it. Cycle 1's "part A / part B" language described an ordering that no schedulable unit could express, because a `blocks` edge binds a whole task. | **Resolved by the H3 split.** `158.002-T` is re-scoped to the red-test half only; the assembly half becomes the new successor task `158.003-T`. Machine-encoded edges are now `158.001-T ← 158.002-T` and `158.003-T ← 158.001-T`, i.e. test → implementation → assembly. Verified acyclic and satisfiable by topological sort over all 37 tasks. |
-| 13 | Schema/CLI/docs coupling | **P1** | The authority question raised as finding 10 was *deferred to task acceptance* rather than decided, so two reviewers could still read the plan and disagree about whether parameter presence arms the gate. | **Resolved and decided in the plan.** The advertised `features.sizing` flag is the sole authoritative signal; operation-parameter presence never enables the gate. Recorded in the Registry note and propagated into `158.001-T`'s acceptance with a two-direction test. **DSE-S8-2** drops from Medium to Low residual risk. |
+| 13 | Schema/CLI/docs coupling | **P1** | The authority question raised as finding 10 was *deferred to task acceptance* rather than decided, so two reviewers could still read the plan and disagree about whether parameter presence arms the gate. | **Resolved and decided in the plan.** The advertised `features.sizing` flag is the sole authoritative signal; operation-parameter presence never enables the gate. Recorded in the Registry note and propagated into `158.001-T`'s acceptance with a two-direction test. `D456616B` drops from Medium to Low residual risk. |
 | 14 | Correctness | P2 | The H4 acceptance ("read `unsized`/`histogram`, never the null shipment-level `ruleset_version`") was attached to a task that no longer exists under that number after the split, and had no positive test. | **Resolved.** H4 is re-pointed at `158.003-T`, re-measured against `166-S` post-split (`{"histogram":{"M":2,"S":1},"unsized":0,"ruleset_version":null}`), and now requires a **positive** test asserting that `unsized == 0` with a null shipment-level `ruleset_version` **passes**. |
 | 15 | Maintainability | P2 | The plan described the SHIP-7 dependency as a "real blocks edge, not a comment" in language that read as though a *task*-level edge to a `157-*` task existed. It does not. | **Resolved.** The plan and both `158-*` task bodies now state explicitly that the SHIP-7 → SHIP-8 edge is **shipment-level** (`166-S` blocked by `165-S`) and that no `158-*` task declares a dependency on any `157-*` task. Both edges are real; they sit at different levels. |
 

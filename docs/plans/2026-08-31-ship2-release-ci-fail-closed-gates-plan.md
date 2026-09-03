@@ -103,6 +103,27 @@ Triggered: CI workflow control flow on the irreversible publish path.
   **not** be silently treated as "not present". The current code already
   re-raises non-404 `HTTPError`; the new code must not regress that, and must
   also not swallow `URLError`.
+* **H2a (binding) — "version present" means the BODY says so, from the RIGHT
+  HOST.** *(Made explicit in review-fix cycle 1, finding 15; previously carried
+  only in the plan-review finding-2 resolution.)* "Present" requires **all** of:
+  the final resolved response host is `pypi.org`; the body decodes as JSON; the
+  decoded body identifies **the requested version**. If the host differs, the body
+  does not decode, or the body's shape is unexpected, the outcome is a **re-raised
+  transport error** — never "present" and never "absent". If the body decodes
+  cleanly but names a *different* version, the outcome is **proceed**. Cases
+  **C4**, **C5**, and **C6** in task 2's table are the assertions for these three
+  branches; without them H2a is prose.
+
+  **Evidence basis (traceability established in review-fix cycle 1, finding 19).**
+  H2a's host clause and cases C4/C5 are not speculative hardening — they are
+  derived from measured behaviour recorded in
+  `docs/decisions/2026-08-30-pip-install-autoharness-version-ceiling-spike.md`.
+  That spike found, on a real workstation, (a) pip resolving against a **non-PyPI
+  mirror** that lacked the published version, and (b) a **TLS-intercepting proxy**
+  that terminates `files.pythonhosted.org` while permitting `pypi.org`. A probe
+  that trusts any `200` is exactly the probe those two conditions defeat. The
+  spike's own conclusion — that no repository or release fix is required for the
+  upgrade stall itself — is unchanged and is not in this shipment's scope.
 * **H3.** No change to the pinned publish action SHA, the trigger, permissions,
   or any secret handling.
 * **H4 (binding, from R4 below).** The regression test must not perform network
@@ -147,10 +168,24 @@ not remove it as redundant.
 ### Task 2 detail
 
 Extract the probe body into an importable helper (or a test that executes the
-embedded script with injected `urlopen`), then assert three cases: 404 →
-proceeds; 200 → non-zero exit with the version in the message; `URLError` →
-propagates. **Red before green**: the 200 case must be demonstrated failing
-against the pre-fix workflow content.
+embedded script with injected `urlopen`), then assert the following cases. All are
+**hermetic** — injected responses only, no network (**H4**).
+
+| # | Injected condition | Required outcome |
+|---|---|---|
+| **C1** | `HTTPError` 404 | Probe **proceeds**. |
+| **C2** | 200 from `pypi.org`, body identifies the requested version | Non-zero exit; message names the version **and** the remedy. |
+| **C3** | `URLError` (transport failure) | **Propagates.** Never treated as "not present". |
+| **C4** | *(added cycle 1, finding 15)* **Wrong-host redirect** — a 200 whose final resolved URL host is **not** `pypi.org` (e.g. a mirror or an interception proxy) | **Re-raised as a transport error.** Explicitly **not** "present". This is the case that would otherwise hard-fail a legitimate release, and H2's host assertion is unverified without it. Assert on the *final* response URL after redirects, not the requested URL. |
+| **C5** | *(added cycle 1, finding 15)* **Malformed JSON** — a 200 from `pypi.org` whose body is not decodable JSON, or is JSON of an unexpected shape | **Re-raised as a transport error.** H2 says "if the body cannot be parsed, treat it as a transport error"; without this case that clause is prose. Cover **both** shapes: undecodable bytes, and valid JSON lacking `info.version`. |
+| **C6** | *(added cycle 1, finding 15)* **Mismatched version** — a 200 from `pypi.org` whose body identifies a version **different** from the one requested | **Probe proceeds** (the requested version is not published). Asserts the probe keys on the *body's* version rather than on request success — the exact discrimination H2 demands and the one C2 alone cannot prove. |
+
+**C2 and C6 together** are what make the H2 host+body assertion testable: a probe
+that merely checks "did the request succeed" passes C2 and **fails C6**.
+
+**Red before green**: the C2 case must be demonstrated failing against the pre-fix
+workflow content. C4, C5, and C6 are also expected red pre-fix (the current `else:`
+branch is reached on any 2xx).
 
 ### Task 3 detail
 
@@ -185,7 +220,7 @@ YAML/workflow parse on `release.yml`; markdownlint on changed docs.
 
 | # | Persona | Sev | Finding | Resolution |
 |---|---|---|---|---|
-| 1 | Security | **P0** | If the probe hard-fails, a **legitimate re-run of a failed post-publish step** (e.g. the release-record step failed after a successful upload) can no longer complete, and an operator under pressure will disable the gate wholesale. | **Resolved.** The failure message must name the supported remedy explicitly: re-run only the *post-publish* jobs, or bump and re-tag. The gate is on the *pre-publish* step only; steps after publish are unaffected by it, so a post-publish re-run is served by re-running those steps, not by re-entering the publish path. Recorded as an acceptance criterion on task 1. |
+| 1 | Security | **P0** | If the probe hard-fails, a **legitimate re-run of a failed post-publish step** (e.g. the release-record step failed after a successful upload) can no longer complete, and an operator under pressure will disable the gate wholesale. | **Resolved — resolution CORRECTED in review-fix cycle 1 (Orchestrator local-review finding 15).** The cycle-0 resolution told the operator to "re-run only the post-publish jobs". **That path does not exist.** `.github/workflows/release.yml` declares exactly **one** job (`release`), and GitHub Actions cannot re-run an individual *step* — re-running the job re-enters the publish path and now correctly fails closed at the probe. The failure message must therefore name the remedies that are actually available in this workflow's structure, in order: **(R1)** bump the version and re-tag — the primary supported remedy, and the only one that re-enters this workflow legitimately; **(R2)** if the upload already succeeded and only a later step failed, complete the remaining post-publish work **out of band** (e.g. `gh release create <tag>` against the already-published artifacts) rather than re-running the job; **(R3)** never disable or bypass the gate. Recorded as an acceptance criterion on task 1. *If a future change genuinely wants an independently re-runnable post-publish job, that is a workflow **restructuring** — a different contract surface, and out of scope here.* |
 | 2 | Correctness | **P1** | The current code's `else:` branch is reached on **any** 2xx. A redirect or a cached mirror response could produce a false "already published" and hard-fail a legitimate release. | **Resolved.** H2 extended: the probe must assert the response is from `pypi.org` and that the decoded body identifies the requested version, not merely that the request succeeded. If the body cannot be parsed, treat it as a transport error and re-raise rather than as "present". |
 | 3 | Correctness | **P1** | `skip-existing: true` retained behind a fail-closed probe is now unreachable in the intended path, so it will look like dead configuration and be deleted by a future cleanup. | **Resolved.** Task 1 requires an inline comment stating it is deliberate defence in depth. Task 2 does not assert on it, so removing it will not break a test — hence the comment is the only surviving signal and is mandatory. |
 | 4 | Maintainability | P2 | A test that reaches PyPI over the network would be flaky and would make the suite non-hermetic. | **Resolved** as binding **H4**: injected responses only, no network. |
