@@ -1,0 +1,2 @@
+{"timestamp":"2026-08-31T15:20:14.5828852-07:00","actor":"backlogit","item_id":"166-S","event_type":"shipment_created","delta":{"items":["158-F","158.001-T","158.002-T"],"title":"SHIP-8 — Stage size/complexity decomposition enforcement"}}
+{"timestamp":"2026-08-31T17:00:46.9055971-07:00","actor":"backlogit","item_id":"166-S","event_type":"shipment_item_added","delta":{"item_id":"158.003-T"}}
