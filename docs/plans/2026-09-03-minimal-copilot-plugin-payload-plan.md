@@ -1049,20 +1049,22 @@ it is not restated here.
 ### Publication readiness
 
 **`READY_WITH_FOLLOWUPS`**, carrying `76EBDE6D` (harness-ready gate —
-blocking at execution, not at publication), `0B83AC8F` (T3a sizing), and
-`60C207F1` (offline installed upgrade). Not `READY`: all three carry a
-concrete ID and a stated residual risk, and none is closed.
+blocking at execution, not at publication), `0B83AC8F` (T3a sizing),
+`60C207F1` (offline installed upgrade), and `3CA122AC` (future safe-close
+blocker at `168-S` closure, not at publication or execution). Not `READY`:
+all four carry a concrete ID and a stated residual risk, and none is closed.
 
 ## Plan review
 
 Current verdict: **PASS** — zero current P0 and zero current P1 findings
 (cycle-12 fresh multi-persona review over the changed backlog and docs
 artifacts: architecture, security, test/QA, release/ops,
-simplicity/maintainability, policy).
+simplicity/maintainability, policy; plus a Ship-owned post-push Copilot review
+cycle over the pushed PR that corrected one mischaracterized closure risk).
 
 Publication readiness: **READY_WITH_FOLLOWUPS**, carrying `76EBDE6D`
-(harness-ready gate — blocking at execution, not at publication), `0B83AC8F`
-and `60C207F1`.
+(harness-ready gate — blocking at execution, not at publication), `0B83AC8F`,
+`60C207F1`, and `3CA122AC` (future safe-close blocker at `168-S` closure).
 
 Scope of the current review: the canonical plan (this document), the 19 task
 records, `160-F`, and `168-S`. Missing future implementation artifacts and
@@ -1070,20 +1072,38 @@ currently unchanged CI or release files are **not** findings — queued plan
 readiness is not implementation completion.
 
 Open P2 (tracked, non-blocking), 1 — plan length. The canonical plan is
-1,089 lines against a <1,000-line concision target. The overrun is entirely
+1,109 lines against a <1,000-line concision target. The overrun is
 cycle-12 contract text that the operator required (the harness-ready gate, and
-the `artifact_subject` / `owner_tasks` cardinality model). A duplicate-definition
+the `artifact_subject` / `owner_tasks` cardinality model), plus a small
+Ship review-fix correction (item 2 below) that replaced an incomplete
+classification with an accurate one. A duplicate-definition
 sweep confirms **one statement per subject** for every load-bearing definition
 (scratch root, AC11 selection, aggregate digest, `install_root`, no-auto-delete),
 so the remaining length is content, not redundancy. Trimming further would
 remove contract, not narrative.
 
-Open P2 (tracked, non-blocking), 2: `backlogit shipment get 168-S` derives
-`size_composition` by resolving `160-F` into every child with `parent_id: 160-F`,
-including the archived, retired `160.019-T`. The derived rollup therefore reads
-`M:12, S:8` over 20 members while the **live 19-task histogram is `M:11, S:8`**.
-The 20-entry manifest itself is correct and does not contain `160.019-T`. This
-is a backlogit rollup behaviour, not a plan or manifest defect.
+Open item (tracked, **blocking at eventual closure, not at publication**), 2 —
+corrected in Ship review-fix cycle 2 after a Copilot review finding proved the
+prior "rollup quirk" classification incomplete: `backlogit shipment get 168-S`
+derives `size_composition` by resolving `160-F` into every child with
+`parent_id: 160-F`, including the archived, retired `160.019-T`. The derived
+rollup therefore reads `M:12, S:8` over 20 members while the **live 19-task
+histogram is `M:11, S:8`**. The 20-entry manifest itself is correct and does
+not contain `160.019-T`, and the rollup arithmetic difference alone is
+cosmetic — **but** `160.019-T`'s retained `parent_id: 160-F` also makes it a
+member of `shipment-reconcile`'s safe-close **protected set** for `168-S`
+(`.github/skills/shipment-reconcile/SKILL.md` steps 2–3: every sibling
+sharing a manifest feature's hierarchy prefix, scanned across both `queue/`
+and `archive/`, is protected unless a verified-shipped/-done predecessor
+exclusion applies, which it does not here since `160.019-T`'s
+`archived_status` is `blocked`). Because `160.019-T` is already archived, the
+protected-set baseline gate will find it missing from `queue/` and **halt with
+`HALT — cascade detected, revert required`** when `168-S` is eventually
+safe-closed. This is deferred, not resolved, as `3CA122AC` — disposing it (via
+a backlog `parent_id` decision, a shipment-reconcile exemption, or otherwise)
+requires a planning/skill decision outside this publication PR's mechanical
+scope, and must happen before `168-S`'s closure step, not before its claim or
+execution.
 
 Full per-cycle history, findings, and dispositions:
 [`docs/reviews/2026-09-03-minimal-copilot-plugin-payload-plan-review-history.md`](../reviews/2026-09-03-minimal-copilot-plugin-payload-plan-review-history.md).

@@ -338,3 +338,49 @@ Readiness: **READY_WITH_FOLLOWUPS** (`76EBDE6D`, `0B83AC8F`, `60C207F1`).
 | "the ONLY authorized write ... is its observation record" | `160.005-T`, `160.016-T` and six other producers | Contradicted the bounded raw-log directory those same producers are required to write |
 | T10 baseline side "READ FROM 160.001-T's RECORDED INSTALL INVENTORY" | `160.012-T` | Compared target-workspace destination paths to wheel archive-member paths - two different universes |
 | "the case NAME is retained deliberately ... historical rather than descriptive" | `160.018-T` | The case was renamed atomically in cycle 9; the rationale survived three cycles past the fact it described |
+
+## Ship review-fix (post-push, PR #430) — one closure-blocker correction
+
+Scope: Ship-owned publication PR review-fix, not a Stage cycle. No new task,
+channel, case, schema, engine, or dependency. Two P-021 stash captures used
+directly here (`3CA122AC`, and separately `2940EA5F`/`F9FA90B1`/`445C1DFB`
+captured for out-of-scope findings from the same Copilot review round, not
+requiring a plan-text correction).
+
+A Copilot review pass over PR #430 (reviewed HEAD `f9211699`) found that the
+Cycle-10 and Cycle-12 "Open P2 — rollup" classification of the archived
+`160.019-T` / `160-F` `parent_id` relationship was **incomplete**: it is not
+merely a `backlogit shipment get` rollup cosmetic quirk, it also makes
+`160.019-T` a member of `shipment-reconcile`'s safe-close **protected set**
+for `168-S`, which will **halt** eventual closure with
+`HALT — cascade detected, revert required` because `160.019-T` is already
+archived and its `archived_status` (`blocked`) does not qualify for the
+sequence-aware predecessor exclusion. Verified by direct reading of
+`src/autoharness/gates/shipment_closure.py` and
+`.github/skills/shipment-reconcile/SKILL.md` steps 2–3.
+
+**Correction applied:** the plan's "Open item 2" (formerly "Open P2 2") and
+this file's historical Cycle-10/Cycle-12 entries are **not rewritten** —
+history is preserved as recorded at the time — but the plan's live
+"Plan review" section now states the corrected, complete classification and
+carries the new deferred entry `3CA122AC` in both "Publication readiness"
+statements. Disposing `3CA122AC` (a backlog `parent_id` decision, a
+shipment-reconcile exemption, or otherwise) is required before `168-S`'s
+**closure** step, not before its claim or execution, and remains Stage's
+planning decision to make.
+
+**Also captured from the same Copilot round (no plan-text change, deferred
+in full):**
+
+| ID | Finding | Why deferred |
+|---|---|---|
+| `2940EA5F` | `168-S`'s manifest `dependencies: [166-S]` does not itself encode the `76EBDE6D` task-claim-level blocker, so backlogit's shipment-eligibility model would report `168-S` eligible once `166-S` ships | Manifest dependency-graph design decision, Stage's planning-field territory |
+| `F9FA90B1` | SHIP-10's CI-runner migration to root `pytest` (160.015-T, 160.017-T, 160.020-T D3; plan Runner contract) conflicts with `docs/compound/097-S-canonical-unittest-gate.md` and P-004's hard-coded unittest command | CI-runner-migration architecture decision, Stage's planning domain, predates this Ship session |
+| `445C1DFB` | Resolved historical checkpoint `checkpoint-20260903-154713.json` omits the schema-required `resume_hint` field | Checkpoints are write-once through the official create operation; cannot be hand-corrected in place |
+
+A distinct, in-scope, non-deferred correction was also made this same
+review-fix cycle to `.backlogit/queue/159-F.md`'s summary, reconciling it
+with `159.003-T`'s already-corrected premise (no checkpoint ignore rule
+exists; nineteen files are tracked, not five) — this was a direct fix, not a
+capture, because the underlying fact was already fully decided in the task
+record.
