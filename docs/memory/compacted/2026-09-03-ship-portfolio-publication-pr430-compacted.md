@@ -27,7 +27,10 @@ API reply bodies.
 **Deferred entries captured this session:** `3CA122AC` (high, 168-S closure
 blocker), `2940EA5F` (medium, dependency-graph gap), `F9FA90B1` (high,
 pytest/unittest conflict), `445C1DFB` (low, checkpoint missing resume_hint),
-`7AD60E4F` (medium, 8 checkpoints with schema-nesting violation). Pre-existing
+`7AD60E4F` (medium, 7 checkpoints with schema-nesting violation, later found
+to affect 22 total — see `904C47BC`), `904C47BC` (medium, supplements
+`7AD60E4F` with the full 22-checkpoint scope, captured during closure review
+per the single-write invariant rather than editing `7AD60E4F`). Pre-existing
 open: `76EBDE6D`, `0B83AC8F`, `60C207F1`, `99818C6D`.
 
 **Next session:** 168-S not claimable until `76EBDE6D` + `F9FA90B1`

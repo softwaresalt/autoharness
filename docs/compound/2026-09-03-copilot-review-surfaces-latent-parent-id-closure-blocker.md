@@ -21,6 +21,8 @@ citations:
   - ".github/skills/shipment-reconcile/SKILL.md steps 2-3 (protected set, baseline integrity gate)"
   - "Deferred entry 3CA122AC (168-S future closure blocker)"
   - "Deferred entry 99818C6D (original 160.019-T retirement, sdist channel de-scope)"
+  - "Deferred entry 7AD60E4F (checkpoint schema-nesting defect, partial scope)"
+  - "Deferred entry 904C47BC (checkpoint schema-nesting defect, full 22-file scope, found during post-merge closure review)"
 source: docs/compound/2026-09-03-copilot-review-surfaces-latent-parent-id-closure-blocker.md
 doc_type: learning
 ---
@@ -103,4 +105,10 @@ quarantined, because the session's only standing operator authorization to
 quarantine covered one specific, unrelated checkpoint defect — a reminder
 that **discovering more instances of an already-authorized action does not
 extend that authorization to the new instances** without a fresh, explicit
-operator decision.
+operator decision. This same PR's own post-merge closure review then
+independently re-scanned every checkpoint and found the true scope was
+**22** resolved checkpoints with the identical defect, not 8 — a second
+reminder that **a P-021 capture's own file list should not be trusted as
+exhaustive without independently re-deriving it**, and that supplementing an
+incomplete capture is a NEW capture (`904C47BC`), never an edit to the
+original (`7AD60E4F`), per the single-write invariant.

@@ -57,15 +57,21 @@ unclaimed. No shipment execution occurred in this session.
      (`445C1DFB`), and this PR's own readiness-language inaccuracy calling
      shadow review "advisory" when P-018 makes it fail-closed once engaged
      (fixed directly).
-   - Round 2 found **eight** resolved historical checkpoints (dating back to
-     2026-08-23) with a schema context-nesting violation (`progress` hoisted
-     to the top level instead of nested under `context`). Captured as
-     `7AD60E4F` rather than quarantined directly — this session's only
-     standing operator approval to quarantine covered one specific, distinct
-     checkpoint defect, not these newly-discovered ones.
-   - Round 3's single new thread was the same round-2 defect on an eighth
+   - Round 2 found **seven** resolved historical checkpoints with a schema
+     context-nesting violation (`progress` hoisted to the top level instead
+     of nested under `context`). Captured as `7AD60E4F` rather than
+     quarantined directly — this session's only standing operator approval
+     to quarantine covered one specific, distinct checkpoint defect, not
+     these newly-discovered ones.
+   - Round 3's single new thread was the same defect on an **eighth**
      checkpoint the round-2 batch had missed; replied citing `7AD60E4F`
      directly (single-write capture invariant — no new entry).
+   - **Post-merge closure review found the true scope is larger still**: an
+     independent scan during this PR's own closure review found **22**
+     resolved historical checkpoints (dating back to 2026-08-23) with the
+     identical defect — 14 more than the 8 named across `7AD60E4F` and the
+     round-3 citation. Captured as a supplementary entry, `904C47BC`, per the
+     single-write invariant (`7AD60E4F` itself was not edited).
    - Final gate: `autoharness gate copilot-review 430 --repo
      softwaresalt/autoharness --enforcement auto` returned `SATISFIED`.
 7. **Merged** via `--merge` (merge commit, P-009 verified two-parent), no
@@ -85,7 +91,8 @@ unclaimed. No shipment execution occurred in this session.
 | `2940EA5F` | medium | `168-S` manifest dependency graph doesn't encode the claim-time blockers |
 | `F9FA90B1` | high | SHIP-10's pytest CI-runner migration conflicts with `097-S` canonical-unittest-gate + P-004 |
 | `445C1DFB` | low | One resolved checkpoint missing `resume_hint` |
-| `7AD60E4F` | medium | Eight resolved checkpoints with `progress`/`context` schema-nesting violation |
+| `7AD60E4F` | medium | Seven resolved checkpoints with `progress`/`context` schema-nesting violation (later found to be 22 total — see `904C47BC`) |
+| `904C47BC` | medium | Supplements `7AD60E4F`: full scope is 22 resolved checkpoints with the same defect, found during closure review |
 
 None of these block the merged publication. `76EBDE6D`, `0B83AC8F`,
 `60C207F1`, and `99818C6D` were pre-existing (captured by Stage before this
@@ -98,8 +105,8 @@ session) and remain open.
   execution).
 * Execution order for the published portfolio: `159-S -> 160-S -> 161-S ->
   162-S -> 163-S -> 164-S -> 165-S -> 166-S -> 168-S -> 167-S`.
-* `3CA122AC`, `2940EA5F`, `7AD60E4F`, and `445C1DFB` need Stage triage —
-  none block claiming or executing `159-S` through `166-S`.
+* `3CA122AC`, `2940EA5F`, `7AD60E4F`, `904C47BC`, and `445C1DFB` need Stage
+  triage — none block claiming or executing `159-S` through `166-S`.
 * This session ends at the clean, up-to-date `main` boundary after the
   post-merge closure PR merges (see closure PR for details). No shipment was
   claimed; no dark-mode activation occurred or is authorized.
