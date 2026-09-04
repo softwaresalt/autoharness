@@ -1,5 +1,5 @@
 ---
-title: "Hosted Copilot review, cross-checked against actual gate/skill code, surfaced a latent shipment-closure blocker that six local review personas missed"
+title: "Hosted Copilot review, cross-checked against actual gate/skill code, surfaced a latent shipment-closure blocker that seven local review personas missed"
 description: "PR #430 (a docs/backlog-only publication of 10 shipment manifests) passed a seven-persona local adversarial review with zero P0/P1, then Copilot's hosted review found that an archived, retired task's retained parent_id makes it a member of shipment-reconcile's safe-close protected set, which will halt 168-S's eventual closure. Verifying the claim against src/autoharness/gates/shipment_closure.py and the shipment-reconcile skill before acting distinguished a genuine future blocker from what the plan had mischaracterized as a cosmetic backlogit rollup quirk."
 problem_type: "latent-defect-discovery"
 category: "review-coverage-gap"
@@ -21,8 +21,8 @@ citations:
   - ".github/skills/shipment-reconcile/SKILL.md steps 2-3 (protected set, baseline integrity gate)"
   - "Deferred entry 3CA122AC (168-S future closure blocker)"
   - "Deferred entry 99818C6D (original 160.019-T retirement, sdist channel de-scope)"
-  - "Deferred entry 7AD60E4F (checkpoint schema-nesting defect, partial scope)"
-  - "Deferred entry 904C47BC (checkpoint schema-nesting defect, full 22-file scope, found during post-merge closure review)"
+  - "Deferred entry 7AD60E4F (checkpoint schema-nesting defect; correct citation for the full 22-file scope)"
+  - "Deferred entry 904C47BC (erroneous duplicate of 7AD60E4F, created in violation of the P-021 reuse rule; pending Stage reconciliation)"
 source: docs/compound/2026-09-03-copilot-review-surfaces-latent-parent-id-closure-blocker.md
 doc_type: learning
 ---
@@ -107,8 +107,25 @@ that **discovering more instances of an already-authorized action does not
 extend that authorization to the new instances** without a fresh, explicit
 operator decision. This same PR's own post-merge closure review then
 independently re-scanned every checkpoint and found the true scope was
-**22** resolved checkpoints with the identical defect, not 8 — a second
-reminder that **a P-021 capture's own file list should not be trusted as
-exhaustive without independently re-deriving it**, and that supplementing an
-incomplete capture is a NEW capture (`904C47BC`), never an edit to the
-original (`7AD60E4F`), per the single-write invariant.
+**22** resolved checkpoints with the identical defect, not 8 — a reminder
+that **a P-021 capture's own file list should not be trusted as exhaustive
+without independently re-deriving it.**
+
+**Self-correction, found by this same closure PR's own Copilot review:** the
+first pass at recording that 22-file finding created a second stash entry
+(`904C47BC`) rather than reusing `7AD60E4F`. That was itself a P-021
+violation: the discovery/reuse procedure requires that a **positively
+confirmed match on the same expansion and the same contract surface** be
+reused by citation, never duplicated — the single-write invariant forbids
+*both* editing the original entry *and* creating a second entry for the same
+expansion. The correct action, once `7AD60E4F` was confirmed to already
+describe this exact expansion (the checkpoint `progress`/`context`
+schema-nesting defect), was to cite `7AD60E4F` and record the fuller 22-file
+evidence in the citing record (this document, the session memory, and the
+closure PR body) — never to mint a new ID. `904C47BC` now exists as an
+erroneously-created duplicate; reconciling it (Stage's stash-triage
+responsibility, not Ship's) is expected to merge it back into `7AD60E4F`
+rather than treat it as independent. **Lesson: verifying "is this the same
+expansion" is not enough — the very next step must be to reuse, not
+re-capture, and a second self-check immediately after typing `stash add`
+(not after a reviewer catches it) would have caught this before it shipped.**

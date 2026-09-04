@@ -70,8 +70,14 @@ unclaimed. No shipment execution occurred in this session.
      independent scan during this PR's own closure review found **22**
      resolved historical checkpoints (dating back to 2026-08-23) with the
      identical defect — 14 more than the 8 named across `7AD60E4F` and the
-     round-3 citation. Captured as a supplementary entry, `904C47BC`, per the
-     single-write invariant (`7AD60E4F` itself was not edited).
+     round-3 citation. **Correction (found by the closure PR's own Copilot
+     review): the first pass mis-handled this** by minting a second stash
+     entry (`904C47BC`) instead of reusing `7AD60E4F` — a P-021 violation,
+     since a positively-confirmed same-expansion/same-contract-surface match
+     must be reused by citation, never duplicated. `7AD60E4F` is the correct
+     entry to cite for the full 22-file scope; `904C47BC` is an erroneous
+     duplicate pending Stage's stash-triage reconciliation (Ship cannot
+     archive/merge stash entries itself).
    - Final gate: `autoharness gate copilot-review 430 --repo
      softwaresalt/autoharness --enforcement auto` returned `SATISFIED`.
 7. **Merged** via `--merge` (merge commit, P-009 verified two-parent), no
@@ -80,8 +86,10 @@ unclaimed. No shipment execution occurred in this session.
 8. **Post-merge closure**: returned to `main`, pulled, synced the backlogit
    index, confirmed all 10 manifests present on `main` and checkpoint
    enumeration still anomaly-free (29 checkpoints, all resolved/stage), wrote
-   this memory file and the compound learning above, and is running
-   `compact-context` before opening the closure PR.
+   this memory file and the compound learning above, and ran
+   `compact-context` before opening the closure PR. **The closure PR's own
+   Copilot review then caught the `904C47BC` duplicate-entry mistake above**,
+   corrected in the closure PR's own review-fix commit.
 
 ## P-021 deferred entries captured this session
 
@@ -91,8 +99,8 @@ unclaimed. No shipment execution occurred in this session.
 | `2940EA5F` | medium | `168-S` manifest dependency graph doesn't encode the claim-time blockers |
 | `F9FA90B1` | high | SHIP-10's pytest CI-runner migration conflicts with `097-S` canonical-unittest-gate + P-004 |
 | `445C1DFB` | low | One resolved checkpoint missing `resume_hint` |
-| `7AD60E4F` | medium | Seven resolved checkpoints with `progress`/`context` schema-nesting violation (later found to be 22 total — see `904C47BC`) |
-| `904C47BC` | medium | Supplements `7AD60E4F`: full scope is 22 resolved checkpoints with the same defect, found during closure review |
+| `7AD60E4F` | medium | **Authoritative entry** — 22 resolved checkpoints with `progress`/`context` schema-nesting violation (7 named at capture; full 22-file scope confirmed during closure review and cited here) |
+| `904C47BC` | medium | **Erroneous duplicate of `7AD60E4F`** created against the P-021 reuse rule; do not treat as independent — pending Stage reconciliation/merge |
 
 None of these block the merged publication. `76EBDE6D`, `0B83AC8F`,
 `60C207F1`, and `99818C6D` were pre-existing (captured by Stage before this
@@ -105,8 +113,10 @@ session) and remain open.
   execution).
 * Execution order for the published portfolio: `159-S -> 160-S -> 161-S ->
   162-S -> 163-S -> 164-S -> 165-S -> 166-S -> 168-S -> 167-S`.
-* `3CA122AC`, `2940EA5F`, `7AD60E4F`, `904C47BC`, and `445C1DFB` need Stage
-  triage — none block claiming or executing `159-S` through `166-S`.
+* `3CA122AC`, `2940EA5F`, `7AD60E4F`, and `445C1DFB` need Stage triage — none
+  block claiming or executing `159-S` through `166-S`. Stage's triage of
+  `7AD60E4F` should also reconcile the erroneous `904C47BC` duplicate (merge
+  its 22-file evidence into `7AD60E4F` and archive `904C47BC`).
 * This session ends at the clean, up-to-date `main` boundary after the
   post-merge closure PR merges (see closure PR for details). No shipment was
   claimed; no dark-mode activation occurred or is authorized.
