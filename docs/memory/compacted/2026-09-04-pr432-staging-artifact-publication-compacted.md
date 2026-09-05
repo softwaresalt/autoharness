@@ -21,8 +21,11 @@ stowaway into the still-queued `159-S` manifest. `159-S` was intentionally
 ## Reconciliation
 
 * Ship's only checkpoint was already `resolved`; Stage's active checkpoint
-  (`159-S`, `publication-blocked`) left untouched per P-001.
-* No active backlog items found; workspace clean for next claim.
+  (`159-S`, `publication-blocked`) left untouched per P-001 — correct
+  non-mutation, but the checkpoint itself is stale (recorded work complete;
+  owner-side cleanup deferred as `8F2BC28D`), not a clean idle state.
+* No active backlog items found; workspace otherwise clean for next claim,
+  modulo the stale Stage checkpoint above (`8F2BC28D` tracks its resolution).
 
 ## Failed approaches / notes
 

@@ -66,9 +66,16 @@ All re-checks performed against current HEAD before merge, per P-014/P-018:
 * One `stage`-owned checkpoint is `active`
   (`checkpoint-20260904-220151.json`, phase `publication-blocked`,
   `shipment_id: 159-S`) — **not touched**, per P-001 cross-role checkpoint
-  separation. This is the correct, expected state: Stage's stowaway-disposition
-  work is recorded there and 159-S remains queued for a future Ship session
-  to claim independently.
+  separation. Ship's non-mutation of this cross-role checkpoint is the
+  correct, expected behavior under P-001. The checkpoint's own state is
+  **not** intentional steady state, however: its recorded work (the
+  `151.007-T` stowaway disposition) is already complete, so per PR #432's
+  accepted review finding this checkpoint is **stale** and its owner-side
+  resolution is tracked as deferred entry `8F2BC28D` (Stage-owned cleanup,
+  not yet actioned). Future recovery sessions must distinguish these two
+  facts — Ship correctly declined to touch another role's checkpoint, but
+  the checkpoint itself remains an unresolved lifecycle defect — and must
+  not treat the stale `active` status as intentional.
 
 ## Backlog State Confirmed Unchanged
 
@@ -88,6 +95,7 @@ staging-artifact publication` for operator approval before merge.
 ## Outcome
 
 PR #432 lifecycle complete. `159-S` untouched (queued). Compact-context
-invoked per P-020 (see compacted summary). Closure index resync pending as
-part of this same closure branch's work. Control returns to the Orchestrator
-after this closure PR's own lifecycle concludes.
+invoked per P-020 (see compacted summary). Closure index resync completed
+as part of this same closure branch's work (`backlogit sync` re-run,
+`CLOSURE_INDEX_SYNC_OK`, 1,128 artifacts indexed). Control returns to the
+Orchestrator after this closure PR's own lifecycle concludes.
