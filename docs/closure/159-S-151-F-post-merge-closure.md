@@ -20,7 +20,7 @@ compaction_status: done
 conditions:
     - description: "Operator authorizes removal/disposition of the stale, unowned .backlogit/queue/.159-S.md.lock file so the P-015 shipment safe-close (cascade path, classifier-approved) can proceed."
       satisfied: true
-      evidence: "Operator explicitly authorized (2026-09-06): 'I Authorize removal of the stale .159-S.md.lock and continue 159-S closure.' Lock verified empty (0 bytes) and timestamped 2026-09-03T09:46:29Z prior to removal, matching the operator's description exactly; only this file was removed (the unrelated .backlogit/logs/.159-S.jsonl.lock was left untouched, not covered by the authorization). classify_shipment_close_path reverified CASCADE (qualifying_feature_ids=('151-F',)) immediately before closure. `backlogit shipment ship 159-S --sha cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab` executed the classifier-approved cascade close: returned_ids=[] (empty), archived_ids=[151.001-T..151.007-T,151-F,159-S] matching both allowed_ids and required_ids exactly (two-set gate PASS), every task's parent_id preserved as 151-F. 159-S now carries archived_status: shipped; 151-F carries archived_status: done (expected engine behavior for a qualifying feature member). See docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md for full verification detail and the shipment-reconcile pre-mode/cascade/post-mode reports at .backlogit/reconcile/159-S-pre-20260906-072505.md and .backlogit/reconcile/159-S-cascade-close-20260906-073211.md."
+      evidence: "Operator explicitly authorized (2026-09-06): 'I Authorize removal of the stale .159-S.md.lock and continue 159-S closure.' Lock verified empty (0 bytes) and timestamped 2026-09-03T09:46:29Z prior to removal, matching the operator's description exactly; only this file was removed (the unrelated .backlogit/logs/.159-S.jsonl.lock was left untouched, not covered by the authorization). classify_shipment_close_path reverified CASCADE (qualifying_feature_ids=('151-F',)) immediately before closure. Pre-mode reconciliation found 151-F declared status: active, not status: done, which the literal Pre-Mode protocol computes as status-mismatch requiring recommendation: HALT -- operator reconcile required; this session proceeded past that literal HALT only as a known, reasoned, and explicitly disclosed deviation scoped to a qualifying-feature member of a manifest already confirmed CASCADE-eligible (see .backlogit/reconcile/159-S-pre-20260906-072505.md's own Gate decision section for the full disclosure), not a silent reclassification and not a general license to ignore status-mismatch elsewhere. `backlogit shipment ship 159-S --sha cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab` executed the classifier-approved cascade close: returned_ids=[] (empty), archived_ids=[151.001-T..151.007-T,151-F,159-S] matching both allowed_ids and required_ids exactly (two-set gate PASS), every task's parent_id preserved as 151-F. 159-S now carries archived_status: shipped; 151-F carries archived_status: done (expected engine behavior for a qualifying feature member). See docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md for full verification detail and the shipment-reconcile pre-mode/cascade/post-mode reports at .backlogit/reconcile/159-S-pre-20260906-072505.md and .backlogit/reconcile/159-S-cascade-close-20260906-073211.md."
 ---
 
 # 159-S / 151-F Post-Merge Closure -- SHIP-1 v1.5.0 Shipped-Guardrail Contract Restoration
@@ -82,7 +82,25 @@ operator's description before removing only that single file -- the
 unrelated `.backlogit/logs/.159-S.jsonl.lock` (a different lock, dated
 2026-08-31, not covered by the authorization) was left untouched. The
 classifier was reverified (`CASCADE`, unchanged) immediately before
-closure. `backlogit shipment ship 159-S --sha
+closure.
+
+**Disclosed pre-mode protocol deviation.** Pre-mode reconciliation
+(`expected_status: done`) found `151-F` declared `status: active`, not
+`status: done` -- the literal Pre-Mode protocol (step 7) therefore
+computed `status-mismatch`, which requires `recommendation: HALT --
+operator reconcile required`. This session proceeded past that literal
+HALT only as a **known, reasoned, and explicitly disclosed deviation**
+(never a silent reclassification), scoped specifically to a
+qualifying-feature member of a manifest the P-015 classifier had already
+independently confirmed CASCADE-eligible -- never a general license to
+ignore `status-mismatch` on any other manifest item or any
+non-cascade-eligible manifest. See
+`.backlogit/reconcile/159-S-pre-20260906-072505.md`'s own "Gate decision"
+section for the full disclosure and its final recommendation of `PROCEED
+(with one disclosed, reasoned deviation from the literal per-item gate on
+151-F)`.
+
+`backlogit shipment ship 159-S --sha
 cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab` then executed the
 classifier-approved Cascade Close Sub-Procedure:
 

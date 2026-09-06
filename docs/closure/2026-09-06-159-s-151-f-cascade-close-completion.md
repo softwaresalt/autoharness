@@ -56,16 +56,33 @@ was touched under this authorization.
    session's commit `1b758a16` while still declaring `status: done`, not
    `status: archived` -- expected/tolerated per the Cascade Close
    Sub-Procedure's pre-archived-member rule); no orphans; shipment record
-   status `active` -> `record-consistent`. Recommendation: `PROCEED`. Report:
-   `.backlogit/reconcile/159-S-pre-20260906-072505.md`.
+   status `active` -> `record-consistent`. **`151-F` itself declared
+   `status: active`, not `status: done`; the literal Pre-Mode protocol
+   (step 7) therefore computed `status-mismatch`, which requires
+   `recommendation: HALT -- operator reconcile required`.** This session
+   proceeded past that literal HALT as a **known, reasoned, and explicitly
+   disclosed deviation** -- not a silent reclassification -- specific to a
+   qualifying-feature member of a manifest the P-015 classifier had already
+   confirmed CASCADE-eligible; it is not a general license to ignore
+   `status-mismatch` on any other manifest item or any non-cascade-eligible
+   manifest. Final recommendation: `PROCEED (with one disclosed, reasoned
+   deviation from the literal per-item gate on 151-F)`. Report:
+   `.backlogit/reconcile/159-S-pre-20260906-072505.md` (see its own "Gate
+   decision" section for the full disclosure).
 6. Reverified `classify_shipment_close_path` -- unchanged `CASCADE`
    verdict, qualifying feature `151-F`.
 7. Captured the pre-close declared-status + `parent_id` snapshot for all 9
    `allowed_ids` members (7 tasks, `151-F`, `159-S`) before invoking the
    cascade operation. All 7 tasks declared `status: done` (not `archived`)
    despite residing in `.backlogit/archive/`; `151-F` declared `status:
-   active`, no `parent_id` (root); no linked deliberation declared on
-   `151-F`.
+   active`, no `parent_id` (root); linked-deliberation scan for 151-F
+   across all three engine-defined sources
+   (`custom_fields.source_deliberation_id`: absent; description text and
+   `references`, both scanned with the engine's
+   `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` pattern: no matches) validated an
+   empty linked-deliberation set (`{}`) — see
+   `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md` for the
+   full per-source detail.
 8. Invoked `backlogit shipment ship 159-S --sha
    cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab --message "Merge pull request
    #435" --author "Derek Williams
