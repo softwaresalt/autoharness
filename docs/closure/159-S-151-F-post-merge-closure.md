@@ -47,11 +47,12 @@ used by `autoharness gate pipeline-topology`'s `closure_complete()` reader
 ## Authoritative Evidence (referenced, not duplicated)
 
 - `docs/closure/2026-09-06-159-s-151-f-closure.md` -- operational-closure
-  narrative: CI status, affected runtime surface, risky-action record (none),
-  deployment path (merge-only), pre/post-deploy checks, healthy/failure
-  signals, monitoring plan, rollback trigger/procedure, validation window,
-  owner, and the open lock-disposition condition. Releasability verdict:
-  **READY_WITH_CONDITIONS**.
+  narrative: CI status, affected runtime surface, risky-action record
+  (scoped lock removal + cascade archival, operator-authorized), deployment
+  path (merge-only), pre/post-deploy checks, healthy/failure signals,
+  monitoring plan, rollback trigger/procedure, validation window, owner,
+  and the now-resolved lock-disposition condition. Releasability verdict:
+  **READY**.
 - `docs/closure/2026-09-06-159-s-151-f-runtime-verification.md` -- runtime
   validator evidence for the `cli` surface. Verdict: **PASS**.
 - `docs/memory/compacted/2026-09-06-159s-151f-compacted.md` -- compacted
@@ -104,9 +105,10 @@ Full verification detail, the pre-close declared-status/parent_id snapshot,
 and the two-set gate computation are recorded in
 `docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md` and in the
 `shipment-reconcile` pre-mode/cascade-close/post-mode reports at
-`.backlogit/reconcile/159-S-pre-20260906-072505.md` and
-`.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`. `159-S` and
-`151-F` are now fully archived; no further backlog bookkeeping action is
+`.backlogit/reconcile/159-S-pre-20260906-072505.md`,
+`.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`, and
+`.backlogit/reconcile/159-S-post-20260906-073300.md`. `159-S` and `151-F`
+are now fully archived; no further backlog bookkeeping action is
 outstanding for this shipment.
 
 ## Stash Disposition (P-021)

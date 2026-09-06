@@ -91,7 +91,8 @@ was touched under this authorization.
 10. Ran post-mode: archive file present for the shipment itself and for
     every manifest member; `git status --short -- ".backlogit/archive/"`
     showed only modifications/additions attributable to this closure, no
-    unexpected deletions. Gate decision: `PROCEED`.
+    unexpected deletions. Gate decision: `PROCEED`. Report:
+    `.backlogit/reconcile/159-S-post-20260906-073300.md`.
 11. Released the shipment-record lock
     (`scripts/release_lock.ps1 .backlogit\queue\159-S.md`).
 12. Ran `backlogit sync` -- re-indexed 1129 artifacts, `CLOSURE_INDEX_SYNC_OK`.
