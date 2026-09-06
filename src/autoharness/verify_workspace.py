@@ -570,7 +570,7 @@ FOUNDATION_ASSERTIONS = [
             "Release Closure Completion Gate (P-001, NON-NEGOTIABLE)",
             "post-merge release closure",
             "Treat the shipment as still active for P-001 purposes",
-            "another top-level release unit may not begin yet",
+            "do not allow another top-level release unit to begin yet",
         ],
     },
     {

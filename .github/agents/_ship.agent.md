@@ -604,7 +604,7 @@ A merged PR does not complete the top-level release unit by itself. For P-001 pu
 
 1. Complete the post-merge closure workflow before declaring the shipment closed.
 2. When the shipment carries release obligations, complete any required tag, publish, release-record, or post-merge closure branch/PR steps.
-3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE`. Treat the shipment as still active for P-001 purposes, and another top-level release unit may not begin yet.
+3. If any required post-merge release closure remains open, halt with `RELEASE_CLOSURE_INCOMPLETE`. Treat the shipment as still active for P-001 purposes, and do not allow another top-level release unit to begin yet.
 
 #### Post-Merge Closure PR Local Review Gate (P-014, NON-NEGOTIABLE)
 
