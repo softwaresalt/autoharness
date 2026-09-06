@@ -2,3 +2,8 @@
 {"timestamp":"2026-08-31T16:24:35.0387121-07:00","actor":"backlogit","item_id":"159-S","event_type":"shipment_item_added","delta":{"item_id":"151.006-T"}}
 {"timestamp":"2026-09-04T14:49:00.1386258-07:00","actor":"backlogit","item_id":"159-S","event_type":"shipment_item_added","delta":{"item_id":"151.007-T"}}
 {"timestamp":"2026-09-05T19:09:44.3552836-07:00","actor":"backlogit","item_id":"159-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-09-06T00:27:02.2119318-07:00","actor":"backlogit","item_id":"159-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"159-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-09-06T00:27:08.6088921-07:00","actor":"backlogit","item_id":"159-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"159-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-09-06T00:29:09.979046-07:00","actor":"backlogit","item_id":"159-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"159-S","status":"shipped"}}
+{"timestamp":"2026-09-06T00:29:18.8306755-07:00","actor":"backlogit","item_id":"159-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab","message":"Merge pull request #435"}}
+{"timestamp":"2026-09-06T00:32:11.3326744-07:00","actor":"backlogit","item_id":"159-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/159-S.md"}}

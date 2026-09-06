@@ -15,12 +15,12 @@ additional_prs:
 merge_commit: cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab
 merged_at: "2026-09-06T05:24:43Z"
 reviewed_head: 494089ab638a7d111618ff6f9fd30febbc635934
-closure_status: READY_WITH_CONDITIONS
+closure_status: READY
 compaction_status: done
 conditions:
     - description: "Operator authorizes removal/disposition of the stale, unowned .backlogit/queue/.159-S.md.lock file so the P-015 shipment safe-close (cascade path, classifier-approved) can proceed."
-      satisfied: false
-      evidence: "pending operator decision"
+      satisfied: true
+      evidence: "Operator explicitly authorized (2026-09-06): 'I Authorize removal of the stale .159-S.md.lock and continue 159-S closure.' Lock verified empty (0 bytes) and timestamped 2026-09-03T09:46:29Z prior to removal, matching the operator's description exactly; only this file was removed (the unrelated .backlogit/logs/.159-S.jsonl.lock was left untouched, not covered by the authorization). classify_shipment_close_path reverified CASCADE (qualifying_feature_ids=('151-F',)) immediately before closure. `backlogit shipment ship 159-S --sha cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab` executed the classifier-approved cascade close: returned_ids=[] (empty), archived_ids=[151.001-T..151.007-T,151-F,159-S] matching both allowed_ids and required_ids exactly (two-set gate PASS), every task's parent_id preserved as 151-F. 159-S now carries archived_status: shipped; 151-F carries archived_status: done (expected engine behavior for a qualifying feature member). See docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md for full verification detail and the shipment-reconcile pre-mode/cascade/post-mode reports at .backlogit/reconcile/159-S-pre-20260906-072505.md and .backlogit/reconcile/159-S-cascade-close-20260906-073211.md."
 ---
 
 # 159-S / 151-F Post-Merge Closure -- SHIP-1 v1.5.0 Shipped-Guardrail Contract Restoration
@@ -58,25 +58,56 @@ used by `autoharness gate pipeline-topology`'s `closure_complete()` reader
   P-020 session memory (verbose original archived under
   `docs/archive/memory/2026-09-05/`).
 
-## Backlog Reconciliation (P-015) -- OPEN CONDITION
+## Backlog Reconciliation (P-015) -- RESOLVED
 
 The classifier (`src/autoharness/gates/shipment_closure.py`
 `classify_shipment_close_path`) was run against the live workspace for
 manifest `["151-F", "151.001-T".."151.007-T"]` and returned
 **`ClosePath.CASCADE`** ("every feature member is a verified fully-covered
 root; cascade close is permitted", qualifying feature `151-F`). The cascade
-close (`backlogit shipment ship 159-S`) has **not yet been executed**: the
-`shipment-reconcile` skill's single-writer lock
-(`.backlogit/queue/159-S.md`) could not be acquired --
-`.backlogit/queue/.159-S.md.lock` already exists, is empty (does not carry
-the expected agent/timestamp/pid fields), and is dated 2026-09-03 (over 2.5
-days before this closure attempt, and this Ship session did not create it).
-Per the file-lock skill's non-negotiable lock hygiene rule, only the
-operator may force-break a lock they did not create; this agent halted the
-safe-close step at that gate rather than override it. `159-S` and `151-F`
-therefore remain `status: active` in `.backlogit/queue/` pending operator
-disposition of the stale lock and a follow-up completion of the cascade
-close.
+close was initially blocked: the `shipment-reconcile` skill's single-writer
+lock (`.backlogit/queue/159-S.md`) could not be acquired because
+`.backlogit/queue/.159-S.md.lock` already existed, was empty (did not carry
+the expected agent/timestamp/pid fields), and was dated 2026-09-03 (over 2.5
+days before the prior closure attempt, and not created by that Ship
+session). Per the file-lock skill's non-negotiable lock hygiene rule, only
+the operator may force-break a lock they did not create.
+
+**Resolution (2026-09-06):** the operator explicitly authorized removal of
+exactly that stale lock file ("I Authorize removal of the stale
+.159-S.md.lock and continue 159-S closure."). This Ship session verified
+the lock's content (empty) and timestamp (2026-09-03T09:46:29Z) matched the
+operator's description before removing only that single file -- the
+unrelated `.backlogit/logs/.159-S.jsonl.lock` (a different lock, dated
+2026-08-31, not covered by the authorization) was left untouched. The
+classifier was reverified (`CASCADE`, unchanged) immediately before
+closure. `backlogit shipment ship 159-S --sha
+cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab` then executed the
+classifier-approved Cascade Close Sub-Procedure:
+
+* `returned_ids`: `[]` (empty -- no classifier/engine mismatch).
+* `archived_ids`: `[151.001-T, 151.002-T, 151.003-T, 151.004-T, 151.005-T,
+  151.006-T, 151.007-T, 151-F, 159-S]` -- exactly matches both `allowed_ids`
+  and `required_ids` (two-set gate PASS; no unexpected artifact archived,
+  nothing required left unarchived).
+* Every archived task's `parent_id` verified unchanged (`151-F`) against
+  the pre-close snapshot.
+* `159-S` now carries `status: archived`, `archived_status: shipped`.
+* `151-F` now carries `status: archived`, `archived_status: done` (expected
+  engine behavior for a qualifying feature member -- the engine
+  unconditionally forces a qualifying feature to `done` before archiving
+  it, so `shipped` provenance is never expected on the feature itself).
+* All 7 tasks carry `status: archived`, `archived_status: done`,
+  `parent_id: 151-F` preserved.
+
+Full verification detail, the pre-close declared-status/parent_id snapshot,
+and the two-set gate computation are recorded in
+`docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md` and in the
+`shipment-reconcile` pre-mode/cascade-close/post-mode reports at
+`.backlogit/reconcile/159-S-pre-20260906-072505.md` and
+`.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`. `159-S` and
+`151-F` are now fully archived; no further backlog bookkeeping action is
+outstanding for this shipment.
 
 ## Stash Disposition (P-021)
 
@@ -101,11 +132,11 @@ archived under `docs/archive/memory/2026-09-05/`.
 
 ## Releasability Evidence
 
-**Closure verdict: READY_WITH_CONDITIONS.** The shipped code change is fully
-released and verified (CLI surface `PASS`, no rollback trigger observed,
-Copilot review `SATISFIED`, local review `READY`). The single open condition
-is procedural backlog bookkeeping (P-015 cascade close blocked by a stale
-lock file), not a defect in the shipped functionality. This condition must
-be resolved (`satisfied: true` with evidence) and this frontmatter updated
-before `closure_complete('159-S')` registers `True` for any successor
-shipment's predecessor-closure readiness check.
+**Closure verdict: READY.** The shipped code change is fully released and
+verified (CLI surface `PASS`, no rollback trigger observed, Copilot review
+`SATISFIED`, local review `READY`). The prior single open condition
+(procedural backlog bookkeeping -- P-015 cascade close blocked by a stale
+lock file) is now resolved with operator-authorized evidence recorded above
+and in the `conditions` frontmatter block; `159-S` and `151-F` are fully
+archived. `closure_complete('159-S')` now registers `True` for any
+successor shipment's predecessor-closure readiness check.
