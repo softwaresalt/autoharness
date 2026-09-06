@@ -49,14 +49,17 @@ was touched under this authorization.
    classified `BRANCH_POST_MERGE_CLOSURE_ELIGIBLE`).
 4. Acquired the shipment-record lock (`scripts/acquire_lock.ps1
    .backlogit\queue\159-S.md`) -- clean acquisition, no conflict.
-5. Ran `shipment-reconcile` pre-mode (`expected_status: done`, applied to
-   task-artifact manifest members; feature member verified separately via
-   the P-015 classifier) -- all 7 tasks `matched` or `pre-archived`
-   (`151.007-T` was already relocated to `.backlogit/archive/` by a prior
-   session's commit `1b758a16` while still declaring `status: done`, not
-   `status: archived` -- expected/tolerated per the Cascade Close
-   Sub-Procedure's pre-archived-member rule); no orphans; shipment record
-   status `active` -> `record-consistent`. **`151-F` itself declared
+5. Ran `shipment-reconcile` pre-mode (`expected_status: done`) against the
+   full manifest, including the qualifying feature `151-F` -- not a
+   task-artifact-only scope; the P-015 classifier reverification in step 6
+   below is an additional, separate CASCADE-eligibility check, never a
+   substitute for the pre-mode item-level status gate. All 7 tasks
+   `matched` or `pre-archived` (`151.007-T` was already relocated to
+   `.backlogit/archive/` by a prior session's commit `1b758a16` while
+   still declaring `status: done`, not `status: archived` --
+   expected/tolerated per the Cascade Close Sub-Procedure's
+   pre-archived-member rule); no orphans; shipment record status `active`
+   -> `record-consistent`. **`151-F` itself declared
    `status: active`, not `status: done`; the literal Pre-Mode protocol
    (step 7) therefore computed `status-mismatch`, which requires
    `recommendation: HALT -- operator reconcile required`.** This session
