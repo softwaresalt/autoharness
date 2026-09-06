@@ -140,7 +140,16 @@ full informational cross-check of the informally-referenced stash IDs
 One emergent out-of-scope finding was captured as P-021 stash entry
 `24A85BF8` (unrelated flaky `test_graphtor_mcp_shim.py` test) for Stage's
 retrospective review; it does not block this release's runtime
-releasability.
+releasability. A second, higher-priority P-021 finding was captured as
+stash entry `15A02E21` (2026-09-06): whether the operator's
+lock-removal-scoped authorization sufficiently covers proceeding past the
+`shipment-reconcile` Pre-Mode per-item `status-mismatch`/`HALT` verdict on
+qualifying feature `151-F`, or whether fresh explicit operator
+authorization (or a `shipment-reconcile` skill fix) is required. This
+question remains **unresolved** and requires operator/Stage disposition;
+see `docs/closure/2026-09-06-159-s-151-f-closure.md`'s Risky Action Record
+for the full detail and the PR's "Risk Note" section for the two forward
+paths.
 
 ## Compaction (P-020)
 
