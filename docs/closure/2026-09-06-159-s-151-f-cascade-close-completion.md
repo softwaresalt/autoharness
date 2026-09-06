@@ -9,7 +9,11 @@ closure_status: READY
 
 This record documents the resumed Ship post-merge closure session that
 resolved the single open condition on `docs/closure/159-S-151-F-post-merge-closure.md`
-and completed shipment `159-S`'s P-015 backlog closure.
+and mechanically completed shipment `159-S`'s P-015 backlog archival --
+**the mechanical archival is complete; whether that archival's own
+authorization was sufficient remains open under P-021 deferred stash entry
+`15A02E21`** (see the Outcome section below and the PR's "Risk Note" for
+the full disposition).
 
 ## Prior State
 
