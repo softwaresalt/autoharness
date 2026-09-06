@@ -48,11 +48,14 @@ used by `autoharness gate pipeline-topology`'s `closure_complete()` reader
 
 - `docs/closure/2026-09-06-159-s-151-f-closure.md` -- operational-closure
   narrative: CI status, affected runtime surface, risky-action record
-  (scoped lock removal + cascade archival, operator-authorized), deployment
+  (scoped lock removal authorized; cascade archival executed on disclosed,
+  reasoned grounds, but its authorization sufficiency remains
+  **unresolved** -- see P-021 deferred stash entry `15A02E21`), deployment
   path (merge-only), pre/post-deploy checks, healthy/failure signals,
   monitoring plan, rollback trigger/procedure, validation window, owner,
   and the now-resolved lock-disposition condition. Releasability verdict:
-  **READY**.
+  **READY** (provisional pending `15A02E21` disposition -- see the Stash
+  Disposition section below and the PR's "Risk Note").
 - `docs/closure/2026-09-06-159-s-151-f-runtime-verification.md` -- runtime
   validator evidence for the `cli` surface. Verdict: **PASS**.
 - `docs/memory/compacted/2026-09-06-159s-151f-compacted.md` -- compacted
@@ -167,5 +170,9 @@ verified (CLI surface `PASS`, no rollback trigger observed, Copilot review
 (procedural backlog bookkeeping -- P-015 cascade close blocked by a stale
 lock file) is now resolved with operator-authorized evidence recorded above
 and in the `conditions` frontmatter block; `159-S` and `151-F` are fully
-archived. `closure_complete('159-S')` now registers `True` for any
+archived (this mechanical archival is not reversed or in question). **This
+verdict does not extend to the separate, still-open question of whether the
+cascade archival's own authorization was sufficient** -- see the Stash
+Disposition section below and P-021 deferred stash entry `15A02E21`.
+`closure_complete('159-S')` now registers `True` for any
 successor shipment's predecessor-closure readiness check.
