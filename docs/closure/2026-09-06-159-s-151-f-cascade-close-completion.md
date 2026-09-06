@@ -118,8 +118,11 @@ was touched under this authorization.
 12. Ran `backlogit sync` -- re-indexed 1129 artifacts, `CLOSURE_INDEX_SYNC_OK`.
 13. Updated `docs/closure/159-S-151-F-post-merge-closure.md` frontmatter
     (`closure_status: READY`, condition `satisfied: true` with this
-    evidence) and body (Backlog Reconciliation section marked RESOLVED,
-    Releasability Evidence updated to `READY`).
+    evidence) and body (Backlog Reconciliation section heading updated to
+    reflect mechanical resolution, Releasability Evidence updated to
+    `READY`; both later further qualified in PR #436 review rounds 4-7 to
+    disclose the pre-mode deviation and the still-open authorization
+    question captured as P-021 entry `15A02E21`).
 
 ## Final Archived State (evidence)
 
@@ -137,8 +140,14 @@ was touched under this authorization.
 
 ## Outcome
 
-`159-S` backlog closure is complete. `docs/closure/159-S-151-F-post-merge-closure.md`
-now registers `closure_status: READY` with `compaction_status: done`
-(already recorded by the prior session), satisfying
-`closure_complete('159-S') == True` for `autoharness gate
-pipeline-topology`'s predecessor-closure readiness check.
+`159-S`'s **mechanical** backlog archival is complete: all 9 manifest
+members carry their expected `archived_status`, the two-set gate and
+`parent_id`-preservation check both passed, and no unexpected artifact was
+archived or left behind. `docs/closure/159-S-151-F-post-merge-closure.md`
+registers `closure_status: READY` with `compaction_status: done` (already
+recorded by the prior session), satisfying `closure_complete('159-S') ==
+True` for `autoharness gate pipeline-topology`'s predecessor-closure
+readiness check. **This mechanical completion is separate from, and does
+not resolve, the still-open question of whether the cascade archival's
+authorization was sufficient** -- captured as P-021 deferred stash entry
+`15A02E21` and not settled by this record.

@@ -62,7 +62,7 @@ used by `autoharness gate pipeline-topology`'s `closure_complete()` reader
   P-020 session memory (verbose original archived under
   `docs/archive/memory/2026-09-05/`).
 
-## Backlog Reconciliation (P-015) -- RESOLVED
+## Backlog Reconciliation (P-015) -- MECHANICALLY RESOLVED, AUTHORIZATION UNDER REVIEW (see P-021 entry `15A02E21`)
 
 The classifier (`src/autoharness/gates/shipment_closure.py`
 `classify_shipment_close_path`) was run against the live workspace for
