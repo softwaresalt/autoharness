@@ -322,20 +322,27 @@ class VerifyWorkspaceTests(unittest.TestCase):
             # `.mcp.json`.
             self.assertNotIn("${workspaceFolder}", root_mcp_text)
             self.assertNotIn("${workspace_folder}", root_mcp_text)
-            # 120-F post-closure correction regression guard (2026-08-13):
+            # 120-F post-closure correction regression guard (2026-08-13,
+            # citation corrected 2026-09-05 by 151.005-T):
             # the committed root `.mcp.json` must stay environment-agnostic
             # -- no committed absolute filesystem path for any drive letter
             # (Windows) or POSIX absolute root, and no `env` block at all
-            # for backlogit/engram/graphtor-docs. The dynamic
-            # ENGRAM_WORKSPACE/GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES values now
-            # come from the supervisor process environment
-            # (`autoharness.supervise.bootstrap`) inherited by
-            # Copilot/MCP children, never from a literal path checked into
-            # this file. Checked against DECODED JSON string values (not
-            # raw text) so both a Windows drive-letter path and a POSIX
-            # absolute path (leading `/`) are caught -- a raw-text regex
-            # for the drive-letter pattern alone would miss e.g. a
-            # committed `/home/user/engram`-style absolute path.
+            # for backlogit/engram/graphtor-docs. Any dynamic
+            # ENGRAM_WORKSPACE/GRAPHTOR_DB_PATH/GRAPHTOR_SOURCES value must
+            # be supplied by the ambient launching environment inherited by
+            # Copilot/MCP children (for example the operator's shell session
+            # or the workspace-root `.env.local` described in
+            # `.github/instructions/graphtor-docs.instructions.md`), never
+            # from a literal path checked into this file. No in-repo module
+            # injects these values today: `ENGRAM_WORKSPACE` occurs in
+            # exactly one live location repository-wide, which is this
+            # comment. This guard therefore pins the committed-file
+            # invariant only; it takes no position on which mechanism
+            # supplies the values at runtime. Checked against DECODED JSON
+            # string values (not raw text) so both a Windows drive-letter
+            # path and a POSIX absolute path (leading `/`) are caught -- a
+            # raw-text regex for the drive-letter pattern alone would miss
+            # e.g. a committed `/home/user/engram`-style absolute path.
             self.assertNotRegex(root_mcp_text, r"[A-Za-z]:[\\/]")
 
             def _absolute_path_like_string_values(node: object) -> list:
