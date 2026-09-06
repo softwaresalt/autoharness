@@ -24,7 +24,10 @@ Constraints honoured
   `_render_template`, `_resolve_artifact_role` and `_compose_artifact_variables`
   are imported from `autoharness.verify_workspace` and used verbatim.
 * **Plan review finding 6** -- substitution is pure string replacement from
-  fixed variable tables. No ``eval``, no shell, no network.
+  fixed variable tables. No ``eval``, no shell, no network. `_resolve_default_branch`
+  (the one live-git/`gh` resolver `_derive_template_variables` unconditionally
+  calls) is stubbed to a fixed value in `RenderedCorpus.__init__` so variable
+  derivation itself never shells out or reaches the network.
 * **Plan review finding 5** -- renders are cached per variable set (module-level
   memo), so a test class renders once regardless of how many assertions consume
   it. Measured cost: full corpus 1.77 s, variable derivation 0.095 s
@@ -37,6 +40,7 @@ writes to the repository.
 from __future__ import annotations
 
 import copy
+import unittest.mock as _mock
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -238,9 +242,25 @@ class RenderedCorpus:
         if not isinstance(model_routing, dict):
             model_routing = {}
         self.variant = variant
-        self.variables = _derive_template_variables(
-            REPO_ROOT, manifest, config, profile, registry
-        )
+        # `_derive_template_variables` unconditionally calls
+        # `_resolve_default_branch`, whose fallback chain shells out to
+        # `git ls-remote origin HEAD` and then `gh repo view`
+        # (verify_workspace.py:2631-2701) when no local `refs/remotes/origin/HEAD`
+        # ref exists -- exactly the shallow/CI-checkout case this harness must
+        # also tolerate. That violates this module's own no-shell/no-network
+        # contract (plan review finding 6) if left unpatched. Pin it to this
+        # repository's actual default branch (`main`), the same deterministic
+        # substitution pattern `tests/test_template_variable_derivation_contract.py`
+        # already uses for this exact function, so the otherwise-live variable
+        # table is still derived from real fixtures -- only this one resolver
+        # is stubbed (Copilot review finding on this feature's own PR).
+        with _mock.patch(
+            "autoharness.verify_workspace._resolve_default_branch",
+            return_value="main",
+        ):
+            self.variables = _derive_template_variables(
+                REPO_ROOT, manifest, config, profile, registry
+            )
         self._model_routing = model_routing
         self._cache: dict[tuple[str, str], str] = {}
 

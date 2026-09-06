@@ -24,6 +24,7 @@ from _assertion_render import (
     RenderedCorpus,
     corpus_for,
     iter_assertions,
+    render_source,
     resolve_source_of_truth,
     unresolved_placeholders,
 )
@@ -225,6 +226,32 @@ class VariableSetTests(unittest.TestCase):
             ["{{BACKLOG_DIRECTORY}}", "{{DOCS_CLOSURE}}"],
         )
         self.assertEqual(unresolved_placeholders("no placeholders here"), [])
+
+    def test_operational_closure_template_leaves_no_unresolved_placeholder_under_either_variant(
+        self,
+    ) -> None:
+        """151.001-T acceptance (plan lines 211-215): a real render of the
+        edited ``operational-closure`` template under BOTH the backlogit and
+        the non-backlogit variable sets must leave zero unresolved ``{{``
+        tokens. The helper-on-synthetic-strings test above proves the scanner
+        works; this test proves the actual template output is clean (Copilot
+        review finding on this feature's own PR: checking only four variable
+        map entries would let a real unresolved token through undetected).
+        """
+        installed_path = ".github/skills/operational-closure/SKILL.md"
+        for variant in (VARIANT_BACKLOGIT, VARIANT_NON_BACKLOGIT):
+            with self.subTest(variant=variant):
+                rendered = render_source(installed_path, variant)
+                self.assertEqual(
+                    unresolved_placeholders(rendered),
+                    [],
+                    f"unresolved {{{{...}}}} placeholder(s) remain in the "
+                    f"{variant!r}-variant render of {installed_path}",
+                )
+                self.assertIn("Source artifact cleanup", rendered)
+                self.assertIn("source_stash_id", rendered)
+                self.assertIn("source_deliberation_id", rendered)
+                self.assertNotIn("{{FEATURE_", rendered)
 
 
 class HarnessLocationTests(unittest.TestCase):
