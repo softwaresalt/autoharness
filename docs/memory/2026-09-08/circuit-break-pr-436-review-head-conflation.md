@@ -100,7 +100,24 @@ identity: "pr-436-review-doc-reviewed-vs-fixing-head-conflation:docs/reviews/202
   3. Operator may authorize routing this specific fix as a new, separately tracked operation (not a retry of
      the tripped one) once `162-F`/`170-S` is unblocked and claimed under normal shipment intake, so the
      correction lands as part of the full methodology fix rather than a fourth ad hoc attempt.
-  4. Operator may extend/waive the breaker for this exact operation with explicit, audited authorization — per
-     circuit-breaker policy this requires explicit operator approval and does not reset or bypass the
-     underlying requirement to identify what will differ this time (a different author/mechanism, not a
-     cosmetic retry).
+  4. Operator may authorize this same failure class as a genuinely new operation under a materially different
+     mechanism (a structural/systemic-contract fix rather than another literal SHA-substitution instance) — per
+     `.github/instructions/circuit-breaker.instructions.md`, resetting the attempt counter without explicit
+     operator approval for a genuinely new operation is itself an anti-pattern, and no waiver of the *same*
+     tripped operation's limit exists at any threshold. Explicit operator approval can authorize proceeding only
+     when the operation is genuinely new (a different author/mechanism, not a cosmetic retry of the tripped
+     literal-substitution operation) — it can never waive or extend the tripped operation's own three-attempt
+     limit.
+
+## Resolution
+
+The operator explicitly dispositioned this circuit as a genuinely new systemic-contract operation (2026-09-08,
+per option 4 above, not a fourth literal SHA-substitution retry): retire the requirement that a Git-tracked
+artifact name the SHA of the commit containing itself (a structural fixed-point impossibility — the SHA does
+not exist until the commit is made), and replace it with a `reviewed_subject_sha` / `resolution_commit_sha` /
+`verified_subject_sha` naming contract, moving current-HEAD/readiness facts to external, post-push-updated
+surfaces (PR body, review responses). This is documented in full in
+`docs/reviews/2026-09-07-pr-436-adversarial-review.md`'s "Round 17" section and
+`docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md`'s "Round 17 addendum". This resolution
+note is itself written under the same contract it describes: it identifies the operator's disposition date and
+the mechanism-difference test satisfied, without naming the SHA of the commit that contains this note.

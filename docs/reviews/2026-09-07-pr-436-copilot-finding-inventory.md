@@ -19,6 +19,8 @@ round_16_fix_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 round_17_reviewed_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 round_17_continuation_reviewed_head: 8711bca15f97b386641c58b302ba5b35d9aa3da1
 round_17_continuation_2_reviewed_head: e0a14f5c177bf9de648560d523d5bf717850a683
+round_17_continuation_3_reviewed_head: ee207be714f6a068f9f02b29aefcf51400071251
+round_17_continuation_4_reviewed_head: fbb282185fc0a33a1b09dbc141d0f1c6bed8270c
 tags: [copilot-review, review-pattern, p-018, p-021, evidence-consistency, compound-learning]
 ---
 
@@ -186,6 +188,11 @@ rounds/HEADs.
 | F34 | R17 (8711bca1, reviewed) | thread `PRRT_kwDORzpWpM6gZuPp` | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:5` (`root_cause` frontmatter) | The round-17 commit (`8711bca1`) updated this file's `citations` block to 18 reviews/round-17 data but left the searchable `root_cause` frontmatter field asserting the stale "13 Copilot rounds ... 24 distinct findings ... 12 root-cause classes" figure, so indexed/machine retrieval would summarize an outdated dataset even though the narrative citations were current | RC-2 | P2 | C1 (same-contract-surface completion of this round's own citation update, in this same file) | **fixed** — `root_cause` reworded to state both the round-13 baseline (13 rounds/56 utterances/24 findings) and the round-17 running total (18 reviews/33 distinct findings), still 12 root-cause classes, matching the citations block | this session (R17-continuation) | 1 (class rec #7 of RC-2) |
 | F35 | R17-continuation (e0a14f5c, reviewed) | thread `PRRT_kwDORzpWpM6gaOaF` | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:5` (`root_cause` frontmatter) | The very commit that fixed F34 (`e0a14f5c`) left `root_cause` saying "18 Copilot reviews" while the same commit's own `citations` block already said "19th is the round-17-continuation review" — F34's own fix introduced a fresh RC-2 mismatch one field away from the one it had just closed | RC-2 | P2 | C1 (same-contract-surface completion of the F34 fix, in the same field, same file) | **fixed** — `root_cause` reworded to "19 Copilot reviews ... 34 distinct findings," matching `citations` | this session (R17-continuation, second pass) | 1 (class rec #8 of RC-2 — a fix for an RC-2 defect recreated an RC-2 defect one field away, mirroring F30/F33's recursive pattern in a different root-cause class) |
 | F36 | R17-continuation (e0a14f5c, reviewed) | threads `PRRT_kwDORzpWpM6gaOav`, `PRRT_kwDORzpWpM6gaObR`, `PRRT_kwDORzpWpM6gaOb4` | all 3 review/compound files' "Round 17 continuation" narrative sections | Each file's continuation narrative cited P-021 deferred-scope stash entries `A8CA35BB`/`EE1AB6DB` as "captured," but those entries existed only in the local, uncommitted `.backlogit/stash.jsonl` working-tree copy — not in the version tracked at `e0a14f5c` — so no reviewer or tool reading the branch could actually see them | RC-1 | P1 | C1 (the citing prose is same-contract-surface with this round's own capture action; the fix is publishing the entries the prose already claims exist, not new scope) | **fixed** — `.backlogit/stash.jsonl` surgically reconstructed (committed-baseline content plus exactly these 2 new JSON lines, none of the concurrent unrelated Stage working-tree entries in the same file staged or altered) so `A8CA35BB`/`EE1AB6DB` are now durably present at the fixing commit; `.backlogit/archive/stash.jsonl` (entirely Stage-owned dirty content) left untouched | this session (R17-continuation, second pass) | 3 (one distinct defect, 3 manifestations — one per citing file; class rec #6 of RC-1) |
+| F37 | R17-continuation (ee207be7, auto-triggered review) | thread `PRRT_kwDORzpWpM6gaoJt` | `docs/closure/2026-09-06-159-s-151-f-closure.md` | Missing post-mode report path referenced by the closure lock-release contract — a genuine gap in an unrelated closure artifact | RC-3 | P2 | **deferred** (P-021 C1: not a completion of this round's authorized systemic-HEAD-fix surface) | deferred | `C395CFE3` | 1 |
+| F38 | R17-continuation (ee207be7, auto-triggered review) | threads `PRRT_kwDORzpWpM6gaoKN`, `PRRT_kwDORzpWpM6gaoKh` | `docs/closure/2026-09-06-159-s-151-f-closure.md` (2 manifestations) | Closure condition narrower than tracker `2B68F9D6`'s actual requirement — distinct from `EE1AB6DB`'s role-attribution issue despite sharing a file/area | RC-2 | P2 | **deferred** (same authorization boundary as F37; role-attribution vs scope-completeness confirmed distinct via P-021 discovery, not merged with `EE1AB6DB`) | deferred | `24E3E464` | 2 |
+| F39 | R17-continuation (fbb28218, reviewed) | suppressed | `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md:103-106` (own "Option 4") | This session's own circuit-breaker continuity record framed operator authorization as "extend/waive the breaker for this exact operation," but `.github/instructions/circuit-breaker.instructions.md` defines no waiver of a tripped same-operation limit at any threshold — only explicit approval of a genuinely new, differently-mechanized operation | RC-2 | P1 | **C1 (same-contract-surface completion of this round's own circuit-break-record authorship)** | **fixed** — "Option 4" reworded to state the actual policy (approval authorizes a genuinely new operation only, never a waiver/extension); new "## Resolution" section added documenting how the operator's disposition satisfied the genuinely-new-operation test, written without naming its own containing commit SHA | this session (R17-continuation, fourth pass) | 1 (class rec #9 of RC-2 — a self-authored continuity record about a self-referential-identity defect itself briefly asserted an unsupported policy carve-out) |
+| F40 | R17-continuation (fbb28218, reviewed) | suppressed | `docs/closure/2026-09-06-159-s-151-f-closure.md:103` vs `:107-112` | Table row says the deviation "closes only after `169-S` is published and ships"; the same file's narrative 4 lines later says the disposition is already unconditional and does not depend on `169-S` — internal contradiction over whether `169-S` gates the deviation's own closure or only the remediation-publication tracker | RC-2 | P2 | **deferred** (P-021 C1: unrelated closure artifact, outside this round's authorized surface) | deferred | `35CE8C55` | 1 |
+| F41 | R17-continuation (fbb28218, reviewed) | suppressed | `docs/memory/compacted/2026-09-06-159s-151f-compacted.md:17` | Calls the test-suite result a "full local build," while PR #435 records the editable-install build as not applicable (dependencies unresolvable without network access) — conflates test execution with build evidence in durable memory | RC-5 | P3 | **deferred** (P-021 C1: unrelated compacted-memory artifact, outside this round's authorized surface) | deferred | `DC6F5B20` | 1 |
 
 ### Chronology preserved, duplicates collapsed
 
@@ -216,9 +223,18 @@ of "19" reviews) and F36 (the continuation's own narrative cited 2
 newly-captured stash entries that existed only in the local working tree,
 not on the branch at that commit). Both were fixed in the same
 same-contract-surface pass, without re-entering a literal SHA-substitution
-loop. Findings F01-F36 (36 distinct findings total, up from 24 at round 13,
-29 at round 15, 32 at round 16, 33 at round 17, 34 at round 17's first
-continuation pass) are canonical as of round 17's second continuation pass.
+loop. An auto-triggered review at the F35/F36 fixing commit (`ee207be7`)
+then found F37 and F38 — both genuine but out-of-scope closure-artifact
+gaps, both deferred via P-021 capture rather than fixed. A fourth,
+explicitly-requested review at the next fixing commit (`fbb28218`, which
+also corrected a stray 30-vs-31 thread-count arithmetic error) then found,
+among 7 mostly-stale suppressed restatements, one genuine same-contract-surface
+defect in this session's own circuit-breaker continuity record (F39, fixed)
+and two further genuine but out-of-scope findings in unrelated closure/memory
+artifacts (F40, F41, both deferred). Findings F01-F41 (41 distinct findings
+total, up from 24 at round 13, 29 at round 15, 32 at round 16, 33 at round
+17, 34 at round 17's first continuation pass, 36 at round 17's second
+continuation pass) are canonical as of round 17's fourth continuation pass.
 
 ## Root-cause taxonomy (derived, not assumed)
 
@@ -227,9 +243,9 @@ continuation pass) are canonical as of round 17's second continuation pass.
 | **RC-9** | **Current-HEAD readiness drift** | 5 (F11, F23, F27, F30, F33) | **11** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit — **F33 is the degenerate self-referential sub-case: a committed artifact's own section header tried to name the SHA of the commit that would contain it, a structural fixed-point impossibility (the SHA does not exist until the commit is made), not ordinary post-commit staleness; resolved round 17 by retiring self-attestation from committed artifacts entirely rather than by another SHA substitution** |
 | **RC-11** | **Pre/post-mutation chronology falsification** | 2 (F16, F24/F28) | **9** | Evidence produced *after* an irreversible action is narrated as if it had been produced *before* it, silently converting a safety gate into a post-hoc observation |
 | **RC-10** | **Cross-surface propagation incompleteness** | 2 (F15, F25) | **8** | A correction is applied to the location that was flagged, not to every location asserting the same fact |
-| **RC-2** | **Machine-readable vs narrative mismatch** | 8 (F02, F13, F14, F20, F21, F29, F34, F35) | **13** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact — **F35: a fix for one RC-2 field-mismatch (F34) recreated a fresh, adjacent RC-2 field-mismatch one number away, the same recursive shape RC-9 showed in F30→F33** |
-| **RC-5** | **Cross-surface state currency** | 4 (F05, F17, F18, F19) | **5** | Durable memory or committed backlog data still asserts a superseded state that query-first retrieval will resurface as a live blocker |
-| **RC-3** | **Unsatisfied producer contract** | 3 (F03, F07, F10) | **5** | A required artifact/section/source-scan the governing contract names was never produced, or was produced with only part of its required inputs |
+| **RC-2** | **Machine-readable vs narrative mismatch** | 11 (F02, F13, F14, F20, F21, F29, F34, F35, F38, F39, F40) | **16** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact — **F35: a fix for one RC-2 field-mismatch (F34) recreated a fresh, adjacent RC-2 field-mismatch one number away, the same recursive shape RC-9 showed in F30→F33; F39: this session's own circuit-breaker continuity record briefly asserted an unsupported "waiver" carve-out contradicting governing circuit-breaker policy — fixed as a same-contract-surface completion of this session's own authorship; F38/F40 remain deferred, unrelated closure artifacts** |
+| **RC-5** | **Cross-surface state currency** | 5 (F05, F17, F18, F19, F41) | **6** | Durable memory or committed backlog data still asserts a superseded state that query-first retrieval will resurface as a live blocker — **F41: durable memory conflates test-suite execution with build evidence, deferred, unrelated compacted-memory artifact** |
+| **RC-3** | **Unsatisfied producer contract** | 4 (F03, F07, F10, F37) | **6** | A required artifact/section/source-scan the governing contract names was never produced, or was produced with only part of its required inputs — **F37: deferred, unrelated closure artifact** |
 | **RC-1** | **Evidence–artifact content error** | 5 (F01, F12, F26, F32, F36) | **8** | A statement about a file, PR, or record does not match that file/PR/record as it actually exists — **new manifestation (F26): a REMEDIATION of one finding cites an unrelated record as its own tracker, propagating a fresh RC-1 defect through the very act of fixing a prior one; F32: a compound-learning document *about* evidence-consistency errors contained one of its own (an off-by-one review count); F36: a continuation narrative cited 2 P-021 stash captures as durably recorded when they existed only in the local uncommitted working tree, across 3 files** |
 | **RC-6** | **Contract misreading / unsupported carve-out** | 1 (F06) | 4 | An exemption is invented to make a failing gate pass, rather than the gate result being disclosed |
 | **RC-4** | **Disclosure incompleteness** | 1 (F04) | 1 | A risky/destructive action or residual risk is omitted from the record that is contractually required to carry it |
@@ -528,6 +544,95 @@ third consecutive round in which fixing the trio of review/compound files
 introduced one small same-file inconsistency the very next review caught —
 expected, and handled identically each time: verify live state, classify
 strictly via P-021 C1, never expand into the deferred closure-doc findings.
+
+### Round 17 continuation, third pass — auto-triggered Copilot review at HEAD `ee207be7`
+
+After the second pass's commit (`ee207be7`) was pushed, a Copilot review
+auto-triggered (no explicit re-request needed — reviews can complete purely
+from push/thread activity; always poll `gh api .../pulls/436/reviews
+--paginate` and match `commit_id` against actual current HEAD rather than
+assuming the review found is the one explicitly requested) and completed at
+`ee207be7`. This review surfaced **3 new threaded findings**, both genuinely
+new and both correctly out of scope:
+
+- `PRRT_kwDORzpWpM6gaoJt` — **F37 above, deferred.** A missing post-mode
+  report path in `docs/closure/2026-09-06-159-s-151-f-closure.md`, unrelated
+  to this round's authorized systemic-HEAD-fix contract surface.
+- `PRRT_kwDORzpWpM6gaoKN`, `PRRT_kwDORzpWpM6gaoKh` — **F38 above, deferred.**
+  Two manifestations (same file, two locations) of the same defect: the
+  closure condition is narrower than tracker `2B68F9D6`'s actual
+  requirement. P-021 discovery confirmed this is distinct from `EE1AB6DB`
+  (role-attribution) despite sharing a file/area — both captured
+  separately, not merged, per the "positive confirmation required for
+  reuse" rule.
+
+One suppressed comment also surfaced, a stale restatement of `EE1AB6DB`'s
+already-captured topic — no new entry created. Discovery-checked against
+both the active and archived stash before capturing `C395CFE3` (F37) and
+`24E3E464` (F38); no duplicates found. All 3 threads replied-to and
+resolved, citing the respective deferred entry IDs. Live GraphQL confirmed
+34 total threads, 34 resolved, 0 open, as of this pass.
+
+**Third-pass verdict:** 0 findings required fixing (both were genuinely new,
+genuinely out-of-scope closure-artifact gaps); both deferred via P-021
+capture with clean discovery; 0 findings required re-entering a literal
+SHA-substitution loop.
+
+### Round 17 continuation, fourth pass — explicitly-requested Copilot review at HEAD `fbb28218`
+
+A second review, explicitly requested via the standard re-request flow, was
+also in flight concurrently and completed at `fbb28218` (the commit that
+corrected a 30-vs-31 stray thread-count arithmetic error found while
+verifying the third pass's resolution). This review (ID `5147309535`)
+produced 0 new threaded comments but 7 suppressed comments, requiring full
+inspection of the suppressed body — not just threads — per the established
+"0 threads ≠ clean" lesson. Classification:
+
+- 4 stale restatements of already-captured/out-of-scope topics (repeats of
+  the F37/F38 area, and one repeat of the `closure_status READY` vs
+  canonical-mismatch topic already tracked elsewhere) — no new entries.
+- `docs/closure/2026-09-06-159-s-151-f-closure.md:103` — **F40 above,
+  deferred.** Internal contradiction: the table row says the deviation
+  "closes only after `169-S` is published and ships," while the same
+  file's narrative 4 lines later says the disposition is already
+  unconditional. Genuinely new, out of scope. Captured as `35CE8C55`.
+- `docs/memory/compacted/2026-09-06-159s-151f-compacted.md:17` — **F41
+  above, deferred.** Conflates test-suite execution with build evidence
+  ("full local build") when PR #435 records the editable-install build as
+  not applicable. Genuinely new, out of scope. Captured as `DC6F5B20`.
+- `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md:103-106`
+  — **F39 above, fixed.** This session's own circuit-breaker continuity
+  record — the file this round's own systemic fix is grounded in — briefly
+  described operator authorization as an "extend/waive the breaker for this
+  exact operation" option. `.github/instructions/circuit-breaker.instructions.md`
+  defines no such waiver at any threshold: explicit operator approval can
+  authorize proceeding only for a genuinely new operation (a different
+  author/mechanism, not a cosmetic retry), never a waiver or extension of
+  the same tripped operation's own limit. This is a same-contract-surface
+  completion — the defect is in this session's own authorship of the very
+  record establishing the authorization this round relies on — so it was
+  fixed directly: "Option 4" reworded to state the actual policy, and a new
+  "## Resolution" section added documenting how the operator's actual
+  disposition satisfied the genuinely-new-operation test. The Resolution
+  section is itself written under the naming contract it describes: it
+  names the disposition date and the mechanism-difference test satisfied,
+  without naming the SHA of the commit that contains it.
+
+Discovery-checked `35CE8C55` and `DC6F5B20` against both active and archived
+stash before capture; no duplicates found. Both are suppressed findings with
+no review thread, so no reply/resolve step applies — their references are
+discharged via the residual-risk citations in this inventory, the
+adversarial review, and the taxonomy file, per the threadless defer-capture
+path.
+
+**Fourth-pass verdict:** 1 same-contract-surface finding fixed (F39, in this
+session's own circuit-break continuity record); 2 genuinely new but
+out-of-scope findings deferred (F40, F41); 4 stale restatements required no
+action; 0 findings required re-entering a literal SHA-substitution loop.
+This pass also required republishing `.backlogit/stash.jsonl` a further time
+(baseline plus 4 new lines: `C395CFE3`, `24E3E464`, `35CE8C55`, `DC6F5B20`),
+using the same surgical technique, with Stage's concurrent unrelated
+working-tree entries in the same file left untouched at every step.
 
 ## Cross-references
 

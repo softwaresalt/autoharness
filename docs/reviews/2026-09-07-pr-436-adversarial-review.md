@@ -33,6 +33,8 @@ round_17_p3_count: 1
 round_17_readiness_outcome: READY_WITH_FOLLOWUPS
 round_17_continuation_reviewed_head: 8711bca15f97b386641c58b302ba5b35d9aa3da1
 round_17_continuation_2_reviewed_head: e0a14f5c177bf9de648560d523d5bf717850a683
+round_17_continuation_3_reviewed_head: ee207be714f6a068f9f02b29aefcf51400071251
+round_17_continuation_4_reviewed_head: fbb282185fc0a33a1b09dbc141d0f1c6bed8270c
 head_attribution_contract: "no field in this file names the SHA of the commit that contains it; see 'Round 17' section for the reviewed_subject_sha / resolution_commit_sha / verified_subject_sha naming contract"
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
@@ -592,4 +594,93 @@ unchanged: `READY_WITH_FOLLOWUPS`, P0=0/P1=0/P2=2/P3=1 (the 2 P2s and 1 P3
 remain the same pre-existing, already-disclosed follow-up items; F35/F36
 were fixed, not counted as new residual severity). No merge approval given
 or sought.
+
+### Round-17 third continuation — auto-triggered Copilot review at HEAD `ee207be7`
+
+After the second continuation's fix commit (`ee207be7`) was pushed, a
+Copilot review auto-triggered without an explicit re-request (reviews can
+complete purely from push/thread activity — always poll
+`gh api .../pulls/436/reviews --paginate` and match `commit_id` against
+actual current HEAD, not just the last explicitly requested review) and
+completed at reviewed subject
+`ee207be714f6a068f9f02b29aefcf51400071251` (`round_17_continuation_3_reviewed_head`
+in this file's frontmatter). This review opened 3 new threads, all
+genuinely new and all correctly out of scope for this round's authorized
+systemic-HEAD-fix operation:
+
+- `PRRT_kwDORzpWpM6gaoJt` — a missing post-mode report path in
+  `docs/closure/2026-09-06-159-s-151-f-closure.md`. Deferred as `C395CFE3`.
+- `PRRT_kwDORzpWpM6gaoKN`, `PRRT_kwDORzpWpM6gaoKh` — two manifestations
+  (same file, two locations) of the same defect: the closure condition is
+  narrower than tracker `2B68F9D6`'s actual requirement. P-021 discovery
+  confirmed this is distinct from `EE1AB6DB` (role-attribution) despite
+  sharing a file/area — reuse requires positive confirmation of the same
+  expansion, not proximity alone, so both were captured separately as
+  `24E3E464` rather than merged with `EE1AB6DB`.
+
+One suppressed comment was a stale restatement of `EE1AB6DB`'s
+already-captured topic; no new entry. All 3 threads replied-to and
+resolved, citing `C395CFE3`/`24E3E464`. Live GraphQL confirmed 34 total
+threads, 34 resolved, 0 open. Full per-finding detail:
+`docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`'s F37/F38
+rows and "Round 17 continuation, third pass" section. Readiness outcome
+unchanged: `READY_WITH_FOLLOWUPS`, P0=0/P1=0/P2=2/P3=1. No merge approval
+given or sought.
+
+### Round-17 fourth continuation — explicitly-requested Copilot review at HEAD `fbb28218`
+
+A second review, explicitly requested via the standard re-request flow and
+running concurrently with the third continuation's auto-triggered review,
+completed at reviewed subject `fbb282185fc0a33a1b09dbc141d0f1c6bed8270c`
+(`round_17_continuation_4_reviewed_head` in this file's frontmatter — the
+commit that also corrected a stray 30-vs-31 thread-count arithmetic error
+found while verifying the third continuation's resolution). This review
+produced 0 new threaded comments but 7 suppressed comments, requiring full
+inspection of the suppressed body per the established "0 threads ≠ clean"
+lesson:
+
+- 4 were stale restatements of already-captured/out-of-scope topics; no
+  new entries.
+- `docs/closure/2026-09-06-159-s-151-f-closure.md:103` — genuinely new,
+  out of scope: the table row says the deviation "closes only after
+  `169-S` is published and ships," while the same file's narrative 4 lines
+  later says the disposition is already unconditional — an internal
+  contradiction in an unrelated closure artifact. Deferred as `35CE8C55`.
+- `docs/memory/compacted/2026-09-06-159s-151f-compacted.md:17` —
+  genuinely new, out of scope: calls the test-suite result a "full local
+  build," conflating test execution with build evidence, when PR #435
+  records the editable-install build as not applicable. Deferred as
+  `DC6F5B20`.
+- `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md:103-106`
+  — genuinely new, **and in scope**: this session's own circuit-breaker
+  continuity record briefly described operator authorization as an
+  "extend/waive the breaker for this exact operation" option, but
+  `.github/instructions/circuit-breaker.instructions.md` defines no waiver
+  of a tripped same-operation limit at any threshold — explicit operator
+  approval authorizes proceeding only for a genuinely new operation, never
+  a waiver/extension of the tripped operation's own limit. Because the
+  defect is in this session's own authorship of the very continuity record
+  this round's authorization relies on, it is a same-contract-surface
+  completion, not an expansion. Fixed: "Option 4" reworded to state the
+  actual policy; a new "## Resolution" section added, itself written under
+  the naming contract it describes (it names the disposition date and the
+  mechanism-difference test satisfied, never the SHA of the commit
+  containing it).
+
+`35CE8C55` and `DC6F5B20` are suppressed findings with no review thread, so
+no reply/resolve step applies — their references are discharged via
+residual-risk citations in this file, the finding inventory, and the
+taxonomy file, per the threadless defer-capture path. Discovery-checked
+both against active and archived stash before capture; no duplicates
+found. Full per-finding detail:
+`docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`'s F39/F40/F41
+rows and "Round 17 continuation, fourth pass" section. This pass also
+required republishing `.backlogit/stash.jsonl` a further time (baseline
+plus 4 new lines: `C395CFE3`, `24E3E464`, `35CE8C55`, `DC6F5B20`), using
+the same surgical technique that isolates only the new lines from Stage's
+concurrent unrelated working-tree entries in the same file. Readiness
+outcome unchanged: `READY_WITH_FOLLOWUPS`, P0=0/P1=0/P2=2/P3=1 (F39 fixed,
+not counted as new residual severity; F40/F41 are new deferred follow-ups,
+consistent with the pre-existing P2/P3 count which already tracked
+deferred, not-yet-remediated items). No merge approval given or sought.
 

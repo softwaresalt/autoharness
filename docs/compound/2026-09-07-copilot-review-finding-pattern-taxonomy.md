@@ -2,7 +2,7 @@
 title: "Hosted-review finding patterns are predictable: a 12-class taxonomy and a proactive pre-PR evidence-consistency gate"
 problem_type: review-coverage-gap
 category: hosted-review-pattern-learning
-root_cause: "Local review reviews the diff, not the evidence graph; and it runs once, before the remediation commits that create the most recurrent defect classes exist. Across PR #436's 20 Copilot reviews (round-13 baseline: 13 rounds, 56 raw finding utterances compressing to 24 distinct findings; updated through round 17's second continuation: 36 distinct findings), all confined to the same 12 root-cause classes, and 100% escaped local review and CI. The three highest-volume classes (current-HEAD readiness drift, pre/post-mutation chronology falsification, cross-surface propagation incompleteness) are all structural properties of multi-artifact evidence sets that no single-file diff review can observe, and two of them are actually *created by* the act of remediating a prior round."
+root_cause: "Local review reviews the diff, not the evidence graph; and it runs once, before the remediation commits that create the most recurrent defect classes exist. Across PR #436's 22 Copilot reviews (round-13 baseline: 13 rounds, 56 raw finding utterances compressing to 24 distinct findings; updated through round 17's fourth continuation: 41 distinct findings), all confined to the same 12 root-cause classes, and 100% escaped local review and CI. The three highest-volume classes (current-HEAD readiness drift, pre/post-mutation chronology falsification, cross-surface propagation incompleteness) are all structural properties of multi-artifact evidence sets that no single-file diff review can observe, and two of them are actually *created by* the act of remediating a prior round."
 resolution_type: process
 severity: high
 component: "review skill / pr-lifecycle skill / Ship agent / compound library"
@@ -28,10 +28,10 @@ tags:
   - suppressed-findings-first-class
   - self-referential-fixed-point-identity
 citations:
-  - "PR #436 (chore: post-merge closure for 151-F), 20 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught F30-F32, 18th is the round-17 review at HEAD `0b45caf8` that caught the identical RC-9 conflation recurring in round 16's own header, 19th is the round-17-continuation review at HEAD `8711bca1` that caught F34, 20th is the round-17 second-continuation review at HEAD `e0a14f5c` that caught F35 (the F34 fix's own root_cause count going stale one field away) and F36 (a same-round narrative citing 2 P-021 stash captures that existed only in the local working tree, not on the branch) — tripping a circuit breaker resolved by a structural naming contract rather than a further SHA substitution), 31 threads (31 resolved), 37+ suppressed findings"
-  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 17's second continuation/F35-F36)"
-  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15/round-16/round-17/round-17-continuation disposition appended)"
-  - "docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md (round-15/round-16 literal-substitution attempts and their recurrence, the trigger for the round-17 structural fix)"
+  - "PR #436 (chore: post-merge closure for 151-F), 22 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught F30-F32, 18th is the round-17 review at HEAD `0b45caf8` that caught the identical RC-9 conflation recurring in round 16's own header, 19th is the round-17-continuation review at HEAD `8711bca1` that caught F34, 20th is the round-17 second-continuation review at HEAD `e0a14f5c` that caught F35 (the F34 fix's own root_cause count going stale one field away) and F36 (a same-round narrative citing 2 P-021 stash captures that existed only in the local working tree, not on the branch), 21st is the round-17 third-continuation review at HEAD `ee207be7` (auto-triggered) that caught F37/F38 (two genuinely new, correctly deferred closure-artifact gaps), 22nd is the round-17 fourth-continuation review at HEAD `fbb28218` (explicitly requested) that caught F39 (a same-contract-surface defect in this session's own circuit-breaker continuity record — an unsupported 'waiver' framing contradicting governing circuit-breaker policy, fixed) and F40/F41 (two further genuinely new but out-of-scope closure/memory-artifact gaps, deferred) — tripping a circuit breaker resolved by a structural naming contract rather than a further SHA substitution), 34 threads (34 resolved), 43+ suppressed findings"
+  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 17's fourth continuation/F37-F41)"
+  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15/round-16/round-17/round-17-continuation through fourth continuation disposition appended)"
+  - "docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md (round-15/round-16 literal-substitution attempts and their recurrence, the trigger for the round-17 structural fix; Option 4 corrected round-17 fourth continuation to remove an unsupported waiver framing, with a Resolution section documenting the operator's actual disposition)"
   - "src/autoharness/gates/topology.py:294 _closure_artifact_complete / :654 closure_complete"
   - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md (suppressed comments; unenforced closure conditions)"
   - "docs/compound/093-S-review-loop-convergence.md (bounded review loops)"
@@ -534,6 +534,60 @@ time the commit lands — re-verify the count/citation is still internally
 consistent and that any "captured" claim is checked against the actual
 committed (not local working-tree) state, in the same pass that makes the
 fix, before treating the round as closed.
+
+### Round-17 third continuation — two genuinely new, correctly deferred closure-artifact gaps
+
+An auto-triggered Copilot review at the second continuation's fix commit
+HEAD (`ee207be7`) found 3 new threaded findings, both genuinely new defects
+and both correctly deferred rather than fixed:
+
+- A missing post-mode report path in an unrelated closure artifact
+  (deferred, `C395CFE3`).
+- A closure condition narrower than an existing remediation tracker's
+  actual requirement, in the same unrelated closure artifact (2
+  manifestations, deferred, `24E3E464`). P-021 discovery confirmed this is
+  a distinct defect from a prior round's role-attribution finding
+  (`EE1AB6DB`) despite sharing a file/area — reuse requires positive
+  confirmation of the same expansion, not proximity alone.
+
+**Proactive lesson:** not every recursive Copilot finding is
+same-contract-surface. When a new finding requires editing a file entirely
+outside the authorized operation's contract surface, defer it — do not
+expand scope merely because the review keeps surfacing new items in the
+same PR. The P-021 C1 test (same contract surface as the authorized change)
+is the discriminator, not "did Copilot flag it in this same review round."
+
+### Round-17 fourth continuation — a defect in the authorization record itself is still same-contract-surface
+
+A second, explicitly-requested Copilot review completed at the next fixing
+commit HEAD (`fbb28218`, which also corrected a stray thread-count
+arithmetic error). Among 7 suppressed comments (4 stale restatements, 2
+genuinely new but out-of-scope closure/memory-artifact gaps deferred as
+`35CE8C55`/`DC6F5B20`), one was a genuinely new **and in-scope** finding:
+this session's own circuit-breaker continuity record — the record whose
+disposition test this entire round's authorization is grounded in —
+briefly described operator authorization as an "extend/waive the breaker
+for this exact operation" option. The governing circuit-breaker policy
+defines no such waiver at any threshold: explicit approval authorizes
+proceeding only for a genuinely new operation, never a waiver or extension
+of the same tripped operation's own limit.
+
+**Why this one is same-contract-surface and the other two are not:** the
+defect lives inside this session's own authorship of the authorization
+artifact this round's work is grounded in, not in an unrelated closure or
+memory record from a prior, different shipment. Completing (correcting)
+one's own round's continuity record is part of finishing the same change;
+editing an unrelated closure artifact's own separate defect is not.
+Fixed by rewording the option to state the actual policy and adding a
+"## Resolution" section — itself written under the naming contract this
+round establishes, naming the disposition date and the mechanism-difference
+test satisfied, never the SHA of the commit containing it.
+
+**Proactive lesson:** a self-authored authorization/continuity record is
+itself part of the evidence graph this taxonomy exists to police — verify
+it against the actual governing policy text before relying on its
+framing, especially when a review later flags it as contradicting that
+policy.
 
 ## The loop this closes
 
