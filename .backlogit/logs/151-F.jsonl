@@ -1,1 +1,4 @@
 {"timestamp":"2026-09-05T19:09:48.4057866-07:00","actor":"backlogit","item_id":"151-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-09-06T00:29:05.7284785-07:00","actor":"backlogit","item_id":"151-F","event_type":"status_changed","delta":{"_shipment_operation":"159-S","from":"active","reason":"shipment released","to":"done"}}
+{"timestamp":"2026-09-06T00:29:27.7963172-07:00","actor":"backlogit","item_id":"151-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab","message":"Merge pull request #435"}}
+{"timestamp":"2026-09-06T00:32:01.2983692-07:00","actor":"backlogit","item_id":"151-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/151-F.md"}}

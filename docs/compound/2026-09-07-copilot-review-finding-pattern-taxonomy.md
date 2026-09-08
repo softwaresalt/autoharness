@@ -1,0 +1,602 @@
+---
+title: "Hosted-review finding patterns are predictable: a 12-class taxonomy and a proactive pre-PR evidence-consistency gate"
+problem_type: review-coverage-gap
+category: hosted-review-pattern-learning
+root_cause: "Local review reviews the diff, not the evidence graph; and it runs once, before the remediation commits that create the most recurrent defect classes exist. Across PR #436's 22 Copilot reviews (round-13 baseline: 13 rounds, 56 raw finding utterances compressing to 24 distinct findings; updated through round 17's fourth continuation: 41 distinct findings), all confined to the same 12 root-cause classes, and 100% escaped local review and CI. The three highest-volume classes (current-HEAD readiness drift, pre/post-mutation chronology falsification, cross-surface propagation incompleteness) are all structural properties of multi-artifact evidence sets that no single-file diff review can observe, and two of them are actually *created by* the act of remediating a prior round."
+resolution_type: process
+severity: high
+component: "review skill / pr-lifecycle skill / Ship agent / compound library"
+related_pr: 436
+related_shipment: 159-S
+related_feature: 151-F
+inventory: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
+source: docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md
+doc_type: learning
+tags:
+  - copilot-review
+  - review-pattern
+  - evidence-consistency
+  - p-018
+  - p-021
+  - compound-learning
+  - closure-evidence
+  - current-head-drift
+  - chronology
+  - machine-readable-narrative-parity
+  - proactive-detection
+  - self-inflicted-regression
+  - suppressed-findings-first-class
+  - self-referential-fixed-point-identity
+citations:
+  - "PR #436 (chore: post-merge closure for 151-F), 22 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught F30-F32, 18th is the round-17 review at HEAD `0b45caf8` that caught the identical RC-9 conflation recurring in round 16's own header, 19th is the round-17-continuation review at HEAD `8711bca1` that caught F34, 20th is the round-17 second-continuation review at HEAD `e0a14f5c` that caught F35 (the F34 fix's own root_cause count going stale one field away) and F36 (a same-round narrative citing 2 P-021 stash captures that existed only in the local working tree, not on the branch), 21st is the round-17 third-continuation review at HEAD `ee207be7` (auto-triggered) that caught F37/F38 (two genuinely new, correctly deferred closure-artifact gaps), 22nd is the round-17 fourth-continuation review at HEAD `fbb28218` (explicitly requested) that caught F39 (a same-contract-surface defect in this session's own circuit-breaker continuity record — an unsupported 'waiver' framing contradicting governing circuit-breaker policy, fixed) and F40/F41 (two further genuinely new but out-of-scope closure/memory-artifact gaps, deferred) — tripping a circuit breaker resolved by a structural naming contract rather than a further SHA substitution), 34 threads (34 resolved), 43+ suppressed findings"
+  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 17's fourth continuation/F37-F41)"
+  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15/round-16/round-17/round-17-continuation through fourth continuation disposition appended)"
+  - "docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md (round-15/round-16 literal-substitution attempts and their recurrence, the trigger for the round-17 structural fix; Option 4 corrected round-17 fourth continuation to remove an unsupported waiver framing, with a Resolution section documenting the operator's actual disposition)"
+  - "src/autoharness/gates/topology.py:294 _closure_artifact_complete / :654 closure_complete"
+  - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md (suppressed comments; unenforced closure conditions)"
+  - "docs/compound/093-S-review-loop-convergence.md (bounded review loops)"
+---
+
+# Hosted-review findings are predictable — stop re-discovering them one round at a time
+
+**Companion inventory:** `docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`
+(one row per distinct finding, round/HEAD, fixing commit, recurrence count).
+This file carries the *reusable* half: the taxonomy, the proactive checks, the
+promotion rule, and the metrics. Keep the two in sync.
+
+## The headline number
+
+PR #436 took **13 Copilot review rounds**. It produced **56 raw finding
+utterances** that deduplicate to **24 distinct findings** in **12 root-cause
+classes**. **Zero** were caught by the local `review` skill or by CI.
+**64% of utterances (36/56) were suppressed, non-threaded findings** visible
+only in the review body's free-text field.
+
+Five separate times the PR looked converged (`ad4cb74a` generated literally
+zero comments; rounds 7-9 opened zero threads) and four more substantive
+rounds followed each time.
+
+The recurrence structure is the point: this was not 24 unrelated defects
+found 13 times. It was **a small number of structural evidence-integrity
+defect classes, re-manifesting on new surfaces and new HEADs**.
+
+## Why local review missed all 24
+
+Four causes, in order of contribution:
+
+1. **Local review reviews the *diff*. These defects are properties of the
+   *evidence graph*.** A frontmatter field contradicting prose two files away
+   is invisible in any single-file hunk.
+2. **Local review runs once — *before* the remediation commits exist.** The
+   two highest-volume classes (`RC-9` current-HEAD drift, `RC-11` chronology
+   falsification) are *manufactured by the act of remediating*. A pre-fix
+   review is structurally incapable of seeing them.
+3. **No persona owned "is this evidence internally consistent and temporally
+   possible?"** Constitution / Correctness / Maintainability / Python /
+   Template Integrity all review content quality, not evidence coherence.
+4. **A docs/backlog-only PR was treated as low-risk.** It was not. This PR's
+   `closure_status: READY` field is read by
+   `_closure_artifact_complete()` (`src/autoharness/gates/topology.py:294`)
+   and mechanically unblocks successor shipments. **A documentation PR that
+   writes a field a gate consumes is a gate change wearing a docs costume.**
+
+## The taxonomy — 12 root-cause classes, with PR #436 examples
+
+Ordered by manifestation volume, not by discovery order.
+
+### RC-9 — Current-HEAD readiness drift (8 manifestations, the most recurrent)
+
+The readiness/gate record names a HEAD that is no longer current, **because
+recording readiness creates a new commit**. Copilot raised this at
+`060384e5`, `7d483840`, `be0882c9`, `373e8965`, `46176517`, `dd796a53`,
+`659c8e75` — seven rounds — and it was never structurally fixed, only
+re-chased.
+
+> "The PR readiness record is stale: GitHub reports current HEAD
+> `060384e5…`, while the PR description records reviewed HEAD `90b65178…`."
+
+**This class is self-generating and cannot be fixed by being more careful.**
+It needs a *contract*, not diligence: state readiness as a claim about a
+named SHA, and require re-verification only when the diff's *semantic content*
+changes, not when the readiness block itself is rewritten.
+
+### RC-11 — Pre/post-mutation chronology falsification (8)
+
+Evidence produced *after* an irreversible action is narrated as if produced
+*before* it — silently converting a safety gate into a post-hoc observation.
+
+> "Byte-identical post-close evidence establishes the eventual empty set, but
+> it cannot establish that the pre-mutation guard ran."
+
+This is the highest-severity class in the taxonomy. A reconstructed scan can
+prove *what the data was*; it can never recreate *the halt opportunity that
+was never offered*. Note the specific trap: the reconstruction here was
+genuinely byte-identical and genuinely correct, which is exactly why it read
+as compliant evidence for five rounds.
+
+### RC-10 — Cross-surface propagation incompleteness (7)
+
+A correction is applied to the location that was flagged, not to every
+location asserting the same fact. Rounds 6, 7, 8 and 9 of PR #436 were
+*entirely* this: each round fixed one more stale assertion about the same
+`15A02E21` risk (Stash Disposition §, then Risky Action Record opening, then
+Follow-Ups §, then Outcome §, then Releasability §, then a section heading,
+then an opening sentence).
+
+**Four review rounds were spent on one fact that had seven homes.**
+
+### RC-2 — Machine-readable vs narrative mismatch (9 across 5 findings)
+
+A frontmatter/status field a tool consumes disagrees with prose in the same
+or a linked artifact. Includes the inverse failure (`F21`): over-correcting
+the prose and leaving a stale qualifier behind.
+
+> "`closure_status: READY` makes `topology.py` treat this shipment as
+> complete and unblock successors, but this record itself says pre-mode
+> found a `status-mismatch` whose required result was `HALT`."
+
+### RC-5 — Cross-surface state currency (5)
+
+Durable memory or **committed backlog data** still asserts a superseded state
+that query-first retrieval resurfaces as a live blocker. PR #436 hit this
+three times: compacted memory (R1), stash entry `15A02E21` (R10), stash entry
+`856B6770` (R13 — **still open**). Copilot named the third one as a
+recurrence of the second in its own words: *"This recreates the same
+data-currency gap already identified for `15A02E21`."*
+
+**When a reviewer tells you a finding is a recurrence, that is a promotion
+signal, not a comment.**
+
+### RC-3 — Unsatisfied producer contract (5)
+
+A required artifact/section/source-scan the governing contract names was
+never produced, or produced from only some of its required inputs. PR #436:
+a missing post-mode report; a closure artifact that pointed at a runtime
+report instead of inlining the required structured evidence; a
+linked-deliberation scan that read 1 of 3 engine-defined sources.
+
+### RC-1 — Evidence–artifact content error (3)
+
+A statement about a file/PR/record doesn't match that file/PR/record.
+PR #436 described PR #435's scope as "templates/skills/tests only" when it
+also changed `src/autoharness/verify_workspace.py` and the installed Ship
+agent. **The fix here was verified by running `gh pr view 435 --json files`
+first — never trust review text or your own prior summary about a fact you
+can query.**
+
+### RC-6 — Contract misreading / unsupported carve-out (4)
+
+An exemption is invented to make a failing gate pass, instead of the gate
+result being disclosed. PR #436's "task-artifact-filter parity" carve-out was
+withdrawn in round 2 and then **re-surfaced three more times** in downstream
+summaries that had copied it.
+
+**A withdrawn claim propagates exactly like a stale fact (RC-10). Withdrawing
+it in one place does not withdraw it.**
+
+### RC-4 / RC-7 / RC-8 / RC-12 — the low-volume, high-signal classes
+
+| Class | PR #436 example | Why it matters |
+|---|---|---|
+| **RC-4** Disclosure incompleteness | Risky Action Record said "no destructive action occurred" after a lock deletion + cascade archival | A contract-required disclosure slot that is filled with a falsehood is worse than an empty one |
+| **RC-7** Non-executable command | `git revert <merge-sha>` documented as the rollback; fails without `-m 1` | Rollback instructions are *only* exercised in an emergency — a broken one is discovered at the worst moment |
+| **RC-8** Condition/window semantics | "next CI run or next release, whichever comes first" ends observation before the artifact ships | A condition that admits an interpretation voiding its own purpose |
+| **RC-12** Temporal impossibility | Disposition dated `2026-09-07`; the stash entry it dispositions was created `2026-09-08T04:53:59Z` | Cheap to detect mechanically, and a reliable tell that a narrative was written from intent rather than from evidence |
+
+## Proactive pre-PR checks — one per class
+
+Run these **before** requesting hosted review, and **again after every
+review-fix commit**. Each maps to a class above.
+
+| Class | Proactive check | Mechanisable? |
+|---|---|---|
+| RC-9 | Compare the readiness block's stated SHA to `git rev-parse HEAD` **as the last action before push**; if a fix commit changed only the readiness block itself, say so explicitly rather than re-running the whole gate | Yes — trivial SHA compare |
+| RC-11 | For every claim of the form "X was verified/collected before Y", locate the artifact carrying X and confirm its commit/timestamp precedes Y's. If X was reconstructed, the word "reconstructed" must appear in the same paragraph | Partly — grep for pre-mutation verbs, then manual |
+| RC-10 | `git grep` the **identifier** of every corrected fact (stash ID, shipment ID, verdict token) across all touched files; every hit must agree. Do this *after* the fix, not before | Yes — grep-and-compare |
+| RC-2 | Extract every frontmatter field that a tool consumes; assert prose agreement in the same file and in every file that cites it. Then check for *stale qualifiers* left by over-correction | Partly |
+| RC-5 | For every `.backlogit/` entity named in the narrative, read the **committed** record (`git show HEAD:<path>`) — not the working tree — and confirm it agrees | Yes |
+| RC-3 | Re-read the governing SKILL/instruction section, enumerate its required outputs and required *inputs*, and tick each one against the artifact | No — requires contract reading |
+| RC-1 | Any statement about another PR/file/record must be re-derived from the source (`gh pr view N --json files`, `git show`), never copied from a prior summary | Yes |
+| RC-6 | Any sentence that explains why a gate did **not** apply is a carve-out. Either the contract text supports it verbatim, or it is a disclosed deviation. There is no third option | No — judgment |
+| RC-4 | Every contract-required disclosure slot (risky actions, residual risk, deviations) must be filled from the session's actual action log, not from memory | Partly |
+| RC-7 | Every command in the artifact is copy-paste executed (or dry-run) before the artifact is committed | Yes |
+| RC-8 | Every condition/window gets read adversarially: "what is the earliest moment this is satisfiable, and is that the moment I meant?" | No — judgment |
+| RC-12 | Assert `disposition_date >= finding_created_at` for every disposition; assert every stated ordering against real timestamps | Yes |
+
+## The reusable evidence-consistency checklist
+
+Use verbatim for any PR whose payload is evidence (closure records,
+reconcile reports, memory compactions, backlog publications, review
+histories). **Run it against the branch tree (`git show HEAD:<path>`), never
+against the working tree** — untracked local artifacts are invisible to
+reviewers and to `main`.
+
+1. **Machine-readable fields.** List every frontmatter key any tool reads
+   (`closure_status`, `compaction_status`, `conditions[].satisfied`,
+   `archived_status`, `status`, `priority`). For each: which code reads it,
+   what does that code do with each value, and does the prose in this file
+   agree?
+2. **Prose vs. its own frontmatter.** Read the document's verdict sentence
+   and its frontmatter as if they were written by two different people.
+3. **Source artifacts.** Every claim about another artifact is re-derived
+   from that artifact, not from a summary of it.
+4. **Producer/consumer naming.** Every file the narrative promises to exist
+   must exist *at the exact path the consumer globs for*. Verify the glob, not
+   the intent (`docs/closure/{shipment_id}-*-post-merge-closure.md`).
+5. **Temporal ordering.** Every "before/after" claim is checked against real
+   commit SHAs and timestamps. Every disposition postdates its finding.
+6. **Cross-references.** Every referenced ID/path exists **on the remote
+   branch**. Local untracked files do not count.
+7. **Current HEAD.** The readiness block's SHA equals `git rev-parse HEAD` at
+   push time.
+8. **Operator dispositions.** Every disposition is quoted or cited with a
+   date, and the entity it dispositions reflects it **in committed data**.
+9. **Propagation sweep.** `git grep` each corrected identifier; reconcile
+   every hit.
+10. **Withdrawn claims.** Anything retracted in an earlier round is grepped
+    for and removed everywhere, including downstream summaries.
+
+## Generalizable pattern vs. one-off correction
+
+Promote to a compound learning **only** when at least one holds:
+
+* **Recurrence** — the same root-cause class appears ≥2 times in one PR, or
+  ≥2 times across PRs. (PR #436: RC-9 ×8, RC-11 ×8, RC-10 ×7.)
+* **Cross-contract invariant** — the finding reveals a rule spanning two
+  surfaces that neither surface states (e.g. "a docs field consumed by a gate
+  is a gate change").
+* **Escape** — the finding escaped local review *and* CI and was caught only
+  by hosted review.
+* **High severity** — P0/P1, or it touches a fail-closed safety gate.
+* **Reviewer-declared recurrence** — the reviewer itself says "this is the
+  same issue as X" (PR #436, F18).
+
+Treat as a **one-off correction, no compound entry**, when: it is a typo,
+a single wrong number with no class behind it, a formatting nit, or a fix
+whose reasoning does not generalise past this file. One-offs are recorded in
+the PR's Review History and nowhere else.
+
+## How to update the library without generating noise
+
+**Never write one compound file per comment.** The bounded rule:
+
+1. **Search first.** `grep` `docs/compound/` for the `root_cause` /
+   `problem_type` / `category` of the finding. This entry consolidated five
+   prior learnings rather than adding a sixth sibling.
+2. **If the root-cause class already exists → append, don't create.** Add a
+   dated example row/section to the existing file and bump its `tags`. A new
+   file is justified only by a *new class*, never by a new instance.
+3. **One entry per PR at most, written once at closure** — not per round.
+   Batch the whole PR's findings into a single taxonomy pass.
+4. **Split content when it gets unwieldy**: reusable taxonomy → `docs/compound/`;
+   per-finding evidence trail → `docs/reviews/`; link them bidirectionally in
+   frontmatter (`inventory:` ↔ `compound_learning:`).
+5. **Consolidation over accretion.** If two learnings share a `root_cause`,
+   merge them and leave the superseded file a stub pointer.
+
+## Feedback-loop metrics (workflow evidence, not a telemetry engine)
+
+All five are derivable from artifacts the workflow already produces — the
+finding inventory, the PR's Review History, and `git log`. No runtime
+instrumentation is required or implied.
+
+| Metric | Definition | Source | Target direction |
+|---|---|---|---|
+| **Recurrence rate** | manifestations ÷ distinct findings, per PR | inventory table | ↓ (PR #436: 56/24 = **2.33**) |
+| **First-detected phase** | for each finding: `plan` / `local-review` / `ci` / `hosted-review` / `post-merge` | inventory "Source" column | shift left (PR #436: **100% hosted-review**) |
+| **Escaped-to-hosted-review count** | findings first detected by hosted review that a listed proactive check would have caught | inventory + checklist mapping | ↓ |
+| **Time-to-disposition** | capture timestamp → operator/Stage disposition timestamp, per P-021 deferred entry | stash `created_at` + disposition record | ↓, and **must be ≥ 0** (RC-12 guard) |
+| **Class coverage** | fraction of the 12 classes with an active proactive check wired into a skill | this file's checklist table | → 100% |
+
+Record them **once per PR at closure**, in the closure record's review
+section. That is the whole feedback loop: measure at closure, promote at
+closure, retrieve at the next pre-PR gate.
+
+## Round 15 addendum — convergence lesson: fixing a finding can itself create a new one
+
+**Data update (round 15, this session):** round 14 fixed 3 of round 13's 4
+unfixed findings in one bounded commit (`fdcf91e2`) — but its own fix
+introduced a *new* defect (a new RC-1 manifestation: citing an unrelated,
+already-archived stash entry, `27F9EC8A`, as the tracker for a distinct
+publication gap), and it left 2 more findings untouched simply because it
+never edited the files they lived in. Round 15's fresh hosted review then
+surfaced **5 more findings** (3 threaded + 2 suppressed, `F25`-`F29`) at the
+same HEAD `fdcf91e2`. Updated totals: **62 raw utterances, 29 distinct
+findings, still 12 root-cause classes** (no new class was needed — F26 is a
+new *manifestation* of RC-1, not a new class).
+
+**The central lesson, stated generally:** *after any authoritative state
+change (a stash entry moves active→archived, a `closure_status` flips, a
+disposition is recorded), enumerate every producer and consumer of that fact
+— frontmatter, narrative prose, compacted memory, reports, the PR body, and
+gate outputs — and update all of them in the same pass.* Fixing the flagged
+location and stopping there is exactly how round 14 both resolved F18/F21/F23
+*and* created F26: it updated the two files it was editing anyway, but chose
+a convenient existing ID (`27F9EC8A`) rather than verifying that ID's own
+semantics matched the new fact being recorded. A propagation sweep (RC-10's
+proactive check) validates *agreement*, not *truth* — sweeping a wrong fact
+consistently everywhere does not make it right, and can look more convincing
+than an isolated error.
+
+**Suppressed findings are first-class, not a lesser tier.** Two of round 15's
+five findings (`F28`, `F29`) had no review thread at all — they lived only in
+the Copilot review body's free-text section. Both were exactly as severe
+(P1/P1) as the threaded findings, and one (`F29`, compacted memory asserting
+unconditional `READY`) is arguably the more durable risk, since compacted
+memory is what a *future* session retrieves, long after this PR's threads are
+resolved and forgotten. **Convergence requires reading the whole review body
+every round, not just `reviewThreads` — this is the third time this exact
+lesson has been re-confirmed on this same PR** (see the headline "64% of
+utterances were suppressed" statistic above, and `docs/compound/114-S-109-F-copilot-review-fix-patterns.md`).
+
+**Convergence requires a semantic-delta check against the entire evidence
+graph, not a thread-by-thread patch loop.** The round-13→14→15 sequence is a
+worked example of *why* a bounded, single-thread-at-a-time cycle does not
+converge on a multi-artifact evidence set: each cycle's fix is locally
+correct and globally incomplete, so the *set* of true statements about the
+shipment never stabilizes across all its producers/consumers in fewer
+iterations than there are producers/consumers. The fix that finally converged
+(round 15) did three things differently from rounds 1-14: (a) it inventoried
+*all* findings — threaded and suppressed — before editing anything; (b) it
+searched all touched files for every stale identifier/date/claim rather than
+fixing only the specific flagged lines; and (c) it commissioned an
+*independent* adversarial re-review of its own diff before committing, rather
+than trusting the fixer's own read of "done." **(c) is the mechanizable part
+of this lesson: a self-check by the same agent that made the edits cannot
+reliably catch a round-14-style self-inflicted regression, because the same
+blind spot that produced the error is present at self-review time too.**
+
+### New proactive check (RC-1, refined)
+
+| Class | Proactive check | Mechanisable? |
+|---|---|---|
+| RC-1 (refined) | Before citing *any* existing ID (stash entry, task, shipment) as the tracker/evidence for a fact, read that ID's own record and confirm its subject matches the fact being cited — never reuse an ID for convenience because it happens to be `active` or nearby | Partly — the read is mechanical; the subject-match judgment is not |
+| Convergence-loop (new) | Before starting any review-fix cycle on a multi-artifact evidence set, inventory the *entire* current review body (threaded + suppressed) and cross-reference against the full producer/consumer set for every fact being corrected, not just the flagged lines. Run an independent (not self-authored) adversarial pass on the resulting diff before commit | Partly — inventory step is mechanical; independence is a process requirement |
+
+## Round 16 addendum — the fix's own new prose is itself an evidence surface
+
+**Data update (round 16, this session):** a fresh Copilot review at the
+round-15 fix HEAD (`e075de2670addf74182a6b8ed7c9ef23ea0c216e`) found 3 more
+findings (`F30`-`F32`) — not in files round 15 left untouched, but *inside
+the very artifacts round 15 had just authored or edited*: the adversarial
+review's own new section header conflated the reviewed-HEAD with the
+fix-HEAD (F30, a new RC-9 manifestation); a 4th file carrying `856B6770`'s
+disposition date was missed by round 15's sweep even though the sweep's own
+prose claimed "all 3 files" (F31, RC-12); and this taxonomy's own new
+citation about the review count was off by one (F32, RC-1) — an
+evidence-consistency document containing an evidence-consistency error about
+itself. Updated totals: **32 distinct findings, still 12 root-cause classes**
+(F30 is RC-9, F31 is RC-12, F32 is RC-1 — no new class needed).
+
+**The refined lesson:** round 15's own addendum (above) already identified
+that an independent adversarial re-review is necessary because a self-check
+shares the fixer's blind spot. Round 16 shows that lesson is **necessary but
+not sufficient on its own**: the round-15 independent `code-review`-agent
+pass was scoped to verifying the *9 originally-flagged findings* were
+resolved and to searching for regressions in the *edited closure/reconcile
+files* — it was not instructed to independently fact-check the *brand-new
+prose the fix itself was writing* (a fresh table row's HEAD label, a fresh
+addendum's own dates, a fresh citation's own counts). **New-authored text
+describing a fix is itself part of the evidence graph, and needs the same
+"read the ID/date/count against ground truth, don't just check internal
+plausibility" discipline applied to it that RC-1/RC-9/RC-12's proactive
+checks already prescribe for the artifacts being fixed.** Concretely: before
+treating a fix as complete, re-run the RC-1/RC-9/RC-12 proactive checks
+(below) against the fix's *own new sentences*, not only against the
+originally-flagged locations.
+
+### New proactive check (self-referential, round 16)
+
+| Class | Proactive check | Mechanisable? |
+|---|---|---|
+| Self-referential evidence (new) | After authoring any new disposition prose, table row, or addendum that itself cites a HEAD SHA, a date, or a count, apply that same claim's own proactive check (RC-9's current-HEAD check, RC-12's chronology check, RC-1's ID/record match check) to the newly-written sentence before treating the fix as complete — a fix's own explanation is not exempt from the discipline it is describing | Partly — the re-application of an existing check is mechanical; noticing that new prose needs the same check applied is a process discipline |
+
+## Round 17 addendum — self-referential HEAD attribution is a structural impossibility, not a discipline gap
+
+**Data update (round 17, this session):** a fresh Copilot review at HEAD
+`0b45caf82fb6b973f6b04f7851d681a8b3b64b5a` (thread `PRRT_kwDORzpWpM6gYzGj`)
+found that round 16's own new section header (in
+`docs/reviews/2026-09-07-pr-436-adversarial-review.md:375`) reproduced the
+*identical* RC-9 conflation that F30 had flagged and round 16 had just
+corrected one section earlier: it named the pre-fix reviewed HEAD
+(`e075de26`) as both "reviewed" and "fixed," when round 16's own fix
+actually committed at `0b45caf8`. Two literal-substitution attempts (round
+15's header, then round 16's header) each fixed one instance and
+immediately re-created a fresh instance of the same class one section
+later, tripping a universal same-error-recurrence circuit breaker at the
+third occurrence (full attempt chain:
+`docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`).
+Updated totals: **33 distinct findings, still 12 root-cause classes** (F33
+is a new RC-9 manifestation, not a new class).
+
+**The refined lesson — round 16's own proactive check addressed the wrong
+layer.** The round-16 addendum (above) prescribed re-applying RC-9/RC-11/RC-1's
+checks to a fix's *own new prose* before treating the fix as complete. That
+check still frames the defect as **"did the fixer verify carefully
+enough,"** and a third, independent Copilot review proves that framing is
+insufficient: round 16 *did* re-verify its own new prose against `git log`
+(per its own stated method), and still produced the same class of error,
+because the check it applied — "does this sentence name the correct current
+HEAD?" — has no correct answer at the moment the sentence is authored. **A
+committed artifact's own containing commit SHA does not exist until the
+commit is made; no amount of diligence, re-verification, or independent
+review at authoring time can make a sentence correctly name a SHA that has
+not been assigned yet.** This is why attempts 1 and 2 each looked locally
+successful (the specific wrong string was corrected) and each recreated the
+failure mode one commit later — a literal SHA-substitution retry is not a
+smaller, more careful version of the right fix; it is the same impossible
+contract, retried.
+
+**Anti-pattern (new, named): Self-referential fixed-point identity.** A
+distinct, more severe sub-case of RC-9, not ordinary post-commit staleness.
+Ordinary RC-9 drift (F11, F23, F27) names a real SHA that was correct when
+written and later became stale as new commits landed — a compare-and-refresh
+check (the existing RC-9 proactive check, below) resolves it. The
+self-referential sub-case (F33, and F30 one section before it) is different
+in kind: the artifact tries to name the SHA of *the commit that will
+contain this very claim*, which is unknowable at authoring time by
+construction. Refreshing the value after the fact does not fix it — it only
+moves the identical unresolvable claim into the *next* commit, which is
+exactly the observed round-15 → round-16 → round-17 recurrence pattern. **A
+refresh loop of this kind cannot converge**, because the artifact and the
+fact it is trying to state change together, one edit always behind the
+other, in an infinite regress.
+
+**The structural resolution (adopted round 17, PR #436):**
+
+1. A Git-tracked review/evidence artifact **never** claims to identify the
+   commit SHA that contains it.
+2. Tracked artifacts distinguish three stable, non-self-referential roles
+   instead of one overloaded "HEAD": **`reviewed_subject_sha`** (the
+   commit/diff actually reviewed before a round's remediation),
+   **`resolution_commit_sha`** (a commit that applied a *prior* remediation,
+   nameable only once that commit already exists, recorded by a *later*
+   artifact or entry — never described as "this commit"), and
+   **`verified_subject_sha`** (for a post-fix verification performed before
+   the commit reporting it, the SHA being verified, not the verifying
+   commit).
+3. Current HEAD and merge readiness stay on external, dynamic surfaces —
+   the PR body (updated *after* push), check-run output, and review
+   replies — queried from GitHub, never asserted inside a committed file.
+   Merge gates compare the dynamic `headRefOid` against the externally
+   published readiness value; no committed file self-attests its own SHA.
+
+**Note on the existing RC-9 proactive check (above):** that check ("compare
+the readiness block's stated SHA to `git rev-parse HEAD` as the last action
+before push") targets the PR-body/readiness surface, which is legitimately
+updated *after* push and is not self-referential. It does not apply to prose
+embedded inside a committed file, which can never name its own containing
+commit — that case is covered by the new check below instead.
+
+### New proactive check (structural, round 17 — supersedes the round-16 self-check for this specific sub-case)
+
+| Class | Proactive check | Mechanisable? |
+|---|---|---|
+| Self-referential fixed-point identity (new, refines RC-9) | Before authoring any sentence, table row, or frontmatter field that would need to name "this commit," "the HEAD after this fix," or equivalent, stop: that value cannot exist yet. Replace it with `reviewed_subject_sha` (a past commit) or defer the current-HEAD fact entirely to the PR body / check-run / review-reply surface, updated after push. Do not "fix" a self-referential claim by substituting a corrected SHA into the same committed location — that only relocates the identical impossibility into the next commit | Yes — the check is a pattern match on the *kind* of claim ("does this sentence require knowing this-commit's-own SHA?"), not a diligence judgment call, and is therefore fully mechanisable, unlike the round-16 check it supersedes |
+
+**Follow-up, not implemented this round:** propagating this naming
+convention into the `review`/`pr-lifecycle` skills' own HEAD-attribution
+guidance is part of the reviewed `162-F`/`170-S` implementation-methodology
+plan (`docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md`),
+a Stage-owned planning artifact Ship does not edit (P-010). Recorded here as
+a refinement for Stage's `170-S` methodology tracker.
+
+### Round-17 continuation — one same-file completion, two out-of-scope deferrals
+
+A fresh Copilot review at the round-17 fix commit's HEAD (`8711bca1`) caught
+F34: this file's own round-17 citation update (above) left the searchable
+`root_cause` frontmatter field stating the stale round-13 totals while the
+`citations` block already carried current data. Fixed in place (same file,
+same update — a completion, not a scope expansion). Two unrelated,
+pre-existing closure-doc findings surfaced as suppressed comments in the
+same review; both require editing files outside this round's authorized
+contract surface and were captured as P-021 deferred-scope stash entries
+(`A8CA35BB`, `EE1AB6DB`) rather than fixed here — see
+`docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`'s "Round 17
+continuation" section for the full per-comment disposition.
+
+### Round-17 second continuation — a stale count and an unpublished capture, both same-contract-surface
+
+A further Copilot review at the first continuation's fix commit HEAD
+(`e0a14f5c`) caught two more same-contract-surface defects, both introduced
+by that same commit:
+
+- **F35**: the F34 fix's own `root_cause` value ("18 Copilot reviews") was
+  already one behind the `citations` block it was supposed to match (which
+  already counted the round-17-continuation review as the 19th). Fixed by
+  restating `root_cause` to "19 Copilot reviews ... 34 distinct findings."
+  This is the RC-2 class's own version of RC-9's F30→F33 recursion: a fix
+  for a machine-readable/narrative mismatch recreated a fresh one, one
+  field away, in the same edit window.
+- **F36**: the round-17-continuation narrative (in this file and its two
+  sibling review files) described stash entries `A8CA35BB`/`EE1AB6DB` as
+  "captured," but P-021 capture via `backlogit stash add` only writes to
+  the local working-tree `.backlogit/stash.jsonl` — it does not, by
+  itself, make the entry visible to a reviewer of the committed branch.
+  The continuation's own prose asserted durability that did not yet exist.
+  Fixed by publishing the entries: `.backlogit/stash.jsonl` was surgically
+  reconstructed (last committed baseline plus exactly the new JSON lines,
+  with the file's other concurrent, unrelated Stage-owned uncommitted
+  entries never staged or altered) so the cited entries are now durably
+  present at the fixing commit.
+
+One further suppressed comment (`docs/closure/2026-09-06-159-s-151-f-closure.md:20`,
+a missing "Invariants to preserve" section) was genuine but out of scope for
+the same reason as `A8CA35BB`/`EE1AB6DB`, and was captured the same way as
+stash entry `5F70D80C` after a clean active+archived discovery scan found no
+existing duplicate. See the finding inventory's "Round 17 continuation,
+second pass" section for the full disposition.
+
+**Proactive lesson (generalizes both F35 and F36):** publishing a fix for a
+narrative/count staleness finding, or for a P-021 capture-durability gap,
+is itself a same-file edit that can go stale or remain locally-only by the
+time the commit lands — re-verify the count/citation is still internally
+consistent and that any "captured" claim is checked against the actual
+committed (not local working-tree) state, in the same pass that makes the
+fix, before treating the round as closed.
+
+### Round-17 third continuation — two genuinely new, correctly deferred closure-artifact gaps
+
+An auto-triggered Copilot review at the second continuation's fix commit
+HEAD (`ee207be7`) found 3 new threaded findings, both genuinely new defects
+and both correctly deferred rather than fixed:
+
+- A missing post-mode report path in an unrelated closure artifact
+  (deferred, `C395CFE3`).
+- A closure condition narrower than an existing remediation tracker's
+  actual requirement, in the same unrelated closure artifact (2
+  manifestations, deferred, `24E3E464`). P-021 discovery confirmed this is
+  a distinct defect from a prior round's role-attribution finding
+  (`EE1AB6DB`) despite sharing a file/area — reuse requires positive
+  confirmation of the same expansion, not proximity alone.
+
+**Proactive lesson:** not every recursive Copilot finding is
+same-contract-surface. When a new finding requires editing a file entirely
+outside the authorized operation's contract surface, defer it — do not
+expand scope merely because the review keeps surfacing new items in the
+same PR. The P-021 C1 test (same contract surface as the authorized change)
+is the discriminator, not "did Copilot flag it in this same review round."
+
+### Round-17 fourth continuation — a defect in the authorization record itself is still same-contract-surface
+
+A second, explicitly-requested Copilot review completed at the next fixing
+commit HEAD (`fbb28218`, which also corrected a stray thread-count
+arithmetic error). Among 7 suppressed comments (4 stale restatements, 2
+genuinely new but out-of-scope closure/memory-artifact gaps deferred as
+`35CE8C55`/`DC6F5B20`), one was a genuinely new **and in-scope** finding:
+this session's own circuit-breaker continuity record — the record whose
+disposition test this entire round's authorization is grounded in —
+briefly described operator authorization as an "extend/waive the breaker
+for this exact operation" option. The governing circuit-breaker policy
+defines no such waiver at any threshold: explicit approval authorizes
+proceeding only for a genuinely new operation, never a waiver or extension
+of the same tripped operation's own limit.
+
+**Why this one is same-contract-surface and the other two are not:** the
+defect lives inside this session's own authorship of the authorization
+artifact this round's work is grounded in, not in an unrelated closure or
+memory record from a prior, different shipment. Completing (correcting)
+one's own round's continuity record is part of finishing the same change;
+editing an unrelated closure artifact's own separate defect is not.
+Fixed by rewording the option to state the actual policy and adding a
+"## Resolution" section — itself written under the naming contract this
+round establishes, naming the disposition date and the mechanism-difference
+test satisfied, never the SHA of the commit containing it.
+
+**Proactive lesson:** a self-authored authorization/continuity record is
+itself part of the evidence graph this taxonomy exists to police — verify
+it against the actual governing policy text before relying on its
+framing, especially when a review later flags it as contradicting that
+policy.
+
+## The loop this closes
+
+**Before PR:** retrieve this taxonomy → run the 10-point checklist →
+fix what it finds locally.
+**After hosted review:** classify every finding (threaded *and* suppressed)
+into a class → count recurrences → apply the promotion rule → append here or
+record as one-off.
+**At closure:** emit the five metrics.
+
+Each pass should shrink the next PR's hosted-review round count. That is the
+compounding mechanism, and it is measurable with the metrics above.
