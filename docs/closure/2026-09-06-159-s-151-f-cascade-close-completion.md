@@ -85,14 +85,28 @@ was touched under this authorization.
    `allowed_ids` members (7 tasks, `151-F`, `159-S`) before invoking the
    cascade operation. All 7 tasks declared `status: done` (not `archived`)
    despite residing in `.backlogit/archive/`; `151-F` declared `status:
-   active`, no `parent_id` (root); linked-deliberation scan for 151-F
-   across all three engine-defined sources
-   (`custom_fields.source_deliberation_id`: absent; description text and
-   `references`, both scanned with the engine's
-   `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` pattern: no matches) validated an
-   empty linked-deliberation set (`{}`) — see
-   `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md` for the
-   full per-source detail.
+   active`, no `parent_id` (root).
+
+   **Linked-deliberation scan chronology (corrected):** the three-source
+   scan for `151-F` (`custom_fields.source_deliberation_id`: absent;
+   description text and `references`, both scanned with the engine's
+   `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` pattern: no matches; validated
+   empty linked-deliberation set `{}`) was **not** executed live as part of
+   this step 7 pre-close capture. It was **reconstructed in a later,
+   resumed session** (round 4, commit `42428afe`) from the preserved
+   pre-close snapshot (commit `1b758a16`, byte-identical to the archived
+   `151-F` record) -- see
+   `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`'s own
+   "Reconstructed from preserved pre-close evidence" disclosure for the
+   full per-source detail. Whether `shipment-reconcile`'s Step 0(c)
+   linked-deliberation guard was required to run as a **live pre-mutation
+   gate** before the original cascade invocation, rather than being
+   reconstructible after the fact, is a distinct, undispositioned protocol
+   question -- separate from the `15A02E21` pre-mode `status-mismatch`
+   deviation above -- captured as P-021 deferred stash entry `856B6770`
+   for Stage/operator disposition. This does not reopen or reverse the
+   mechanical archival, nor the `15A02E21` disposition; it is an
+   additional residual risk on this PR.
 8. Invoked `backlogit shipment ship 159-S --sha
    cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab --message "Merge pull request
    #435" --author "Derek Williams

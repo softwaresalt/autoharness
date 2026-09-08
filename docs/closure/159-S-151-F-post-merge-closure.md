@@ -178,6 +178,21 @@ prior art for overriding any other `HALT`. Nothing is reopened, reversed or
 re-executed. See `docs/closure/2026-09-06-159-s-151-f-closure.md`'s
 Risky Action Record and "P-005 deviation record" table for full detail.
 
+**A third, DISTINCT P-021 finding was captured as stash entry `856B6770`
+(2026-09-08, round 12):** whether `shipment-reconcile`'s Step 0(c)
+linked-deliberation guard for `151-F` was required to run as a **live
+pre-mutation gate** before the original cascade invocation, given that the
+three-source linked-deliberation scan was in fact reconstructed in a later,
+resumed session (round 4, commit `42428afe`) from preserved pre-close
+evidence rather than executed live at the time of the destructive
+invocation -- see
+`docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md`'s step 7
+for the corrected chronology. This is **separate from, and additional to**,
+the `15A02E21` disposition above; it does **not** reopen or reverse the
+mechanical archival or that disposition, and has **not yet** received
+operator/Stage disposition. It is recorded here as an open residual risk
+requiring further disposition, not resolved by this PR.
+
 ## Compaction (P-020)
 
 `compaction_status: done` -- `compact-context --target all` was invoked
@@ -188,7 +203,8 @@ archived under `docs/archive/memory/2026-09-05/`.
 
 ## Releasability Evidence
 
-**Closure verdict: READY (unconditional).** The shipped code change is fully
+**Closure verdict: READY (mechanically unconditional; one distinct
+residual risk open for disposition).** The shipped code change is fully
 released and verified (CLI surface `PASS`, no rollback trigger observed,
 Copilot review `SATISFIED`, local review `READY`). The prior single open
 condition (procedural backlog bookkeeping -- P-015 cascade close blocked by
@@ -198,6 +214,9 @@ fully archived (this mechanical archival is not reversed or in question).
 **The formerly-open question of whether the cascade archival's own
 authorization was sufficient is also now dispositioned** (operator,
 2026-09-07: `accepted-with-remediation` P-005 deviation) -- see the Stash
-Disposition section above. No part of this verdict remains provisional.
-`closure_complete('159-S')` now registers `True` for any
+Disposition section above. No part of the mechanical archival or the
+`15A02E21` authorization disposition remains provisional; the distinct,
+separately-captured Step 0(c) pre-mutation-guard question (`856B6770`) is
+an open residual risk pending its own disposition, not a qualifier on this
+verdict's basis. `closure_complete('159-S')` now registers `True` for any
 successor shipment's predecessor-closure readiness check.
