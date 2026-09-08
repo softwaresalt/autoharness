@@ -2,7 +2,7 @@
 shipment: 159-S
 feature: 151-F
 merge_commit: cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab
-closure_status: READY
+closure_status: READY_WITH_CONDITIONS
 ---
 
 # 159-S / 151-F Cascade Close Completion (Resumed Ship Session, 2026-09-06)
@@ -16,7 +16,14 @@ dispositioned by the operator on 2026-09-07 as an
 `accepted-with-remediation` P-005 deviation** (P-021 stash entry
 `15A02E21`; see the Outcome section below and
 `docs/closure/2026-09-06-159-s-151-f-closure.md`'s "P-005 deviation record"
-table for the full disposition).
+table for the full disposition). **This file's own `closure_status`
+mirrors the canonical `docs/closure/159-S-151-F-post-merge-closure.md`
+record; it is `READY_WITH_CONDITIONS`, not `READY`, because one distinct
+condition -- durable publication of the `856B6770` remediation identity
+(`163-F` / `163.001-T`..`163.007-T` / `171-S`) -- remains unsatisfied. This
+file is not itself the artifact `autoharness gate pipeline-topology`'s
+`closure_complete()` reader globs (`docs/closure/{shipment_id}-*-post-merge-closure.md`),
+but its narrative must not contradict the canonical record's status.**
 
 ## Prior State
 
@@ -98,7 +105,9 @@ was touched under this authorization.
    `151-F` record) -- see
    `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`'s own
    "Reconstructed from preserved pre-close evidence" disclosure for the
-   full per-source detail.    **This is now dispositioned (operator, 2026-09-07): a second, distinct
+   full per-source detail.
+
+   **This is now dispositioned (operator, 2026-09-08): a second, distinct
    `accepted-with-remediation` P-005 process deviation** -- separate from
    the `15A02E21` pre-mode `status-mismatch` deviation above -- captured
    as P-021 deferred stash entry `856B6770`. The mechanical archival
@@ -165,12 +174,20 @@ was touched under this authorization.
 `159-S`'s **mechanical** backlog archival is complete: all 9 manifest
 members carry their expected `archived_status`, the two-set gate and
 `parent_id`-preservation check both passed, and no unexpected artifact was
-archived or left behind. `docs/closure/159-S-151-F-post-merge-closure.md`
-registers `closure_status: READY` with `compaction_status: done` (already
-recorded by the prior session), satisfying `closure_complete('159-S') ==
-True` for `autoharness gate pipeline-topology`'s predecessor-closure
-readiness check. **This mechanical completion is separate from the question
-of whether the cascade archival's authorization was sufficient** -- that
+archived or left behind. **This mechanical-archival completeness is
+distinct from, and must not be conflated with, the shipment's overall
+machine-readable closure gate outcome.** The canonical closure record,
+`docs/closure/159-S-151-F-post-merge-closure.md`, now registers
+`closure_status: READY_WITH_CONDITIONS` with one unsatisfied condition (the
+`856B6770` remediation's backlog-record publication, tracked as active
+P-021 stash entry `2B68F9D6`); `autoharness gate pipeline-topology`'s
+`closure_complete('159-S')` reader therefore currently returns **`False`**,
+not `True`, for that canonical artifact -- any successor shipment's
+predecessor-closure readiness check must treat `159-S` as **not yet**
+mechanically complete on this specific machine-readable signal until that
+condition is satisfied. **This mechanical completion is separate from the
+question of whether the cascade archival's authorization was sufficient**
+-- that
 question was captured as P-021 stash entry `15A02E21` and was **not**
 settled by this record; it was settled on 2026-09-07 by operator decision
 D-1, which recorded it as an `accepted-with-remediation` P-005 deviation
@@ -183,8 +200,14 @@ this PR -- that gap is captured separately as deferred stash entry
 distinct question -- whether Step 0(c)'s linked-deliberation guard was
 required to run as a live pre-mutation gate before that same cascade
 invocation -- was captured as P-021 stash entry `856B6770` and was
-likewise dispositioned by the operator on 2026-09-07 as a second, distinct
+likewise dispositioned by the operator on 2026-09-08 (not 2026-09-07 --
+`856B6770` was not captured until 2026-09-08T04:53:59Z, so an earlier
+disposition date is chronologically impossible and is corrected here) as
+a second, distinct
 `accepted-with-remediation` P-005 deviation**, with remediation tracked as
-a separate follow-up shipment (not `169-S`); see that file's second
+a separate follow-up shipment (feature `163-F` / tasks `163.001-T`..
+`163.007-T` / shipment `171-S`; not `169-S`), whose own durable backlog-record
+publication is the single condition keeping `closure_status` at
+`READY_WITH_CONDITIONS` above; see that file's second
 "P-005 deviation record" table for full detail. Neither disposition
 reopens or reverses the mechanical archival.

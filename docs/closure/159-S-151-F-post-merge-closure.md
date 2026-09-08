@@ -23,7 +23,7 @@ conditions:
       evidence: "Operator explicitly authorized (2026-09-06): 'I Authorize removal of the stale .159-S.md.lock and continue 159-S closure.' Lock verified empty (0 bytes) and timestamped 2026-09-03T09:46:29Z prior to removal, matching the operator's description exactly; only this file was removed (the unrelated .backlogit/logs/.159-S.jsonl.lock was left untouched, not covered by the authorization). classify_shipment_close_path reverified CASCADE (qualifying_feature_ids=('151-F',)) immediately before closure. Pre-mode reconciliation found 151-F declared status: active, not status: done, which the literal Pre-Mode protocol computes as status-mismatch requiring recommendation: HALT -- operator reconcile required; this session proceeded past that literal HALT only as a known, reasoned, and explicitly disclosed deviation scoped to a qualifying-feature member of a manifest already confirmed CASCADE-eligible (see .backlogit/reconcile/159-S-pre-20260906-072505.md's own Gate decision section for the full disclosure), not a silent reclassification and not a general license to ignore status-mismatch elsewhere. `backlogit shipment ship 159-S --sha cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab` executed the classifier-approved cascade close: returned_ids=[] (empty), archived_ids=[151.001-T..151.007-T,151-F,159-S] matching both allowed_ids and required_ids exactly (two-set gate PASS), every task's parent_id preserved as 151-F. 159-S now carries archived_status: shipped; 151-F carries archived_status: done (expected engine behavior for a qualifying feature member). See docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md for full verification detail and the shipment-reconcile pre-mode/cascade/post-mode reports at .backlogit/reconcile/159-S-pre-20260906-072505.md and .backlogit/reconcile/159-S-cascade-close-20260906-073211.md."
     - description: "The 856B6770 accepted-with-remediation P-005 deviation's durable remediation identity (feature 163-F, tasks 163.001-T..163.007-T, shipment 171-S) is durably published as committed backlog records on this branch (or main), so the remediation is trackable from committed state rather than only from a forward reference inside the archived stash entry's text."
       satisfied: false
-      evidence: "NOT YET SATISFIED as of this PR's round-14 HEAD. 163-F, 163.001-T..163.007-T, and 171-S exist only as untracked local backlog records in this workspace; `git ls-files '*163-F*' '*163.0*-T*' '*171-S*'` on this branch returns empty. This publication gap is tracked as active P-021 stash entry 27F9EC8A (Ship, round 14; left active by deliberate index-only selective staging, unedited) pending Stage publication of 163-F/171-S (which itself depends on the separately-tracked, unpublished 169-S per 171-S's own blocks-depends dependency, and dragging that in would exceed this round's narrow authorization). This condition does not reopen, reverse, or requalify the 856B6770 disposition itself (accepted-with-remediation P-005 process deviation, operator, 2026-09-07), which stands as final and unaffected -- see the Stash Disposition section below. It gates only the currency of the remediation's own backlog-record publication."
+      evidence: "NOT YET SATISFIED as of this PR's round-15 HEAD. 163-F, 163.001-T..163.007-T, and 171-S exist only as untracked local backlog records in this workspace; `git ls-files '*163-F*' '*163.0*-T*' '*171-S*'` on this branch returns empty. This publication gap is tracked as active P-021 stash entry 2B68F9D6 (Ship, round 15; a dedicated publication tracker created after Stage archived the now-resolved, unrelated 27F9EC8A stash-currency finding -- 27F9EC8A must not be read as covering this publication gap) pending Stage publication of 163-F/171-S (which itself depends on the separately-tracked, unpublished 169-S per 171-S's own blocks-depends dependency, and dragging that in would exceed this round's narrow authorization). This condition does not reopen, reverse, or requalify the 856B6770 disposition itself (accepted-with-remediation P-005 process deviation, operator, 2026-09-08), which stands as final and unaffected -- see the Stash Disposition section below. It gates only the currency of the remediation's own backlog-record publication."
 ---
 
 # 159-S / 151-F Post-Merge Closure -- SHIP-1 v1.5.0 Shipped-Guardrail Contract Restoration
@@ -64,7 +64,7 @@ used by `autoharness gate pipeline-topology`'s `closure_complete()` reader
   unconditional as of 2026-09-07 -- see the Stash Disposition section
   below; one distinct condition remains open for the separate `856B6770`
   remediation's backlog-record publication, tracked as active P-021 stash
-  entry `27F9EC8A`).
+  entry `2B68F9D6`).
 - `docs/closure/2026-09-06-159-s-151-f-runtime-verification.md` -- runtime
   validator evidence for the `cli` surface. Verdict: **PASS**.
 - `docs/memory/compacted/2026-09-06-159s-151f-compacted.md` -- compacted
@@ -195,8 +195,11 @@ invocation -- see
 for the corrected chronology. This is **separate from, and additional to**,
 the `15A02E21` disposition above.
 
-**This finding is now RESOLVED (operator, 2026-09-07): recorded as a
+**This finding is now RESOLVED (operator, 2026-09-08): recorded as a
 second, DISTINCT `accepted-with-remediation` P-005 process deviation.**
+(`856B6770` was itself only captured on 2026-09-08T04:53:59Z; a
+2026-09-07 disposition date for it is chronologically impossible and is
+corrected here.)
 The live pre-mutation gate was **not executed** -- `shipment-reconcile`'s
 Step 0(c) requires the three-source linked-deliberation collection before
 the cascade invocation, halting on ambiguity, and here it was reconstructed
@@ -224,7 +227,10 @@ with an indivisible-atomic-core task) but does carry a sequencing-only
 unrelated, broader `169-S`/`161-F` decomposition to avoid a dangling
 dependency reference, which exceeds this round's narrow authorization; that
 publication gap is captured separately as active P-021 stash entry
-`27F9EC8A` (round 14) and does not reopen, reverse, or requalify this
+`2B68F9D6` (round 15; `27F9EC8A`, which named this same publication gap in
+an earlier round's text, has since been resolved and archived as a
+distinct, unrelated stash-currency finding and must not be cited as the
+tracker here) and does not reopen, reverse, or requalify this
 disposition. Stage's own deliberation and disposition-routing artifacts for
 this finding exist but are tracked separately and are intentionally not
 part of this PR -- they are not required to understand this disposition.
@@ -243,8 +249,13 @@ archived under `docs/archive/memory/2026-09-05/`.
 **Closure verdict: READY_WITH_CONDITIONS (both P-005 dispositions
 final and mechanically unconditional; one distinct condition open -- the
 `856B6770` remediation's backlog-record publication).** The shipped code
-change is fully released and verified (CLI surface `PASS`, no rollback
-trigger observed, Copilot review `SATISFIED`, local review `READY`). The
+change (PR #435, reviewed HEAD `494089ab`, this file's own `reviewed_head`)
+is fully released and verified (CLI surface `PASS`, no rollback
+trigger observed, Copilot review `SATISFIED`, local review `READY`). **This
+`SATISFIED`/`READY` pair describes PR #435's own review state only, not
+this closure PR (#436)'s review state -- #436's own current-HEAD Local
+Review Readiness and Copilot-review gate results are tracked separately in
+the PR #436 body, not in this file.** The
 prior single open condition (procedural backlog bookkeeping -- P-015
 cascade close blocked by a stale lock file) is resolved with
 operator-authorized evidence recorded above and in the `conditions`
@@ -254,7 +265,7 @@ whether the cascade archival's own authorization was sufficient is also
 now dispositioned** (operator, 2026-09-07: `accepted-with-remediation`
 P-005 deviation) -- see the Stash Disposition section above. **The
 distinct Step 0(c) live-pre-mutation-gate question (`856B6770`) is
-likewise now dispositioned** (operator, 2026-09-07: a second, distinct
+likewise now dispositioned** (operator, 2026-09-08: a second, distinct
 `accepted-with-remediation` P-005 deviation): the mechanical archive
 stands as verified and final, process compliance was deficient because
 the gate did not run live, and remediation now has a durable identity
@@ -263,7 +274,7 @@ the gate did not run live, and remediation now has a durable identity
 verdict.** What remains open is narrower and purely mechanical: `163-F` /
 `163.001-T`..`163.007-T` / `171-S` are not yet durably committed backlog
 records on this branch or `main` (see the new `conditions` entry above and
-active P-021 stash entry `27F9EC8A`). Until that publication lands,
+active P-021 stash entry `2B68F9D6`). Until that publication lands,
 `closure_complete('159-S')` registers `False` for this artifact (the
 `conditions` block carries one unsatisfied entry); any successor
 shipment's predecessor-closure readiness check should treat `159-S` as not
