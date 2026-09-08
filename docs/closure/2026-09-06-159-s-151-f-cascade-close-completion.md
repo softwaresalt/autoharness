@@ -161,6 +161,8 @@ question was captured as P-021 stash entry `15A02E21` and was **not**
 settled by this record; it was settled on 2026-09-07 by operator decision
 D-1, which recorded it as an `accepted-with-remediation` P-005 deviation
 whose remediation is the `shipment-reconcile` Pre-Mode member-class fix
-(Option A), tracked as shipment `169-S` (queued). See
-`docs/closure/2026-09-06-159-s-151-f-closure.md`'s "P-005 deviation record"
-table for the full disposition.
+(Option A), which Stage intends to track as shipment `169-S` (queued;
+not yet a durably committed backlog record on this branch or `main` as of
+this PR -- that gap is captured separately as deferred stash entry
+`1CD92B69`). See `docs/closure/2026-09-06-159-s-151-f-closure.md`'s
+"P-005 deviation record" table for the full disposition.

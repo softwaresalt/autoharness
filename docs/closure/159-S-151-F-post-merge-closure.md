@@ -163,10 +163,15 @@ Pre-Mode contract adopted in the same decision (Option A, classifier-aware
 member-class scoping, with qualifying-feature `active` a valid pre-close
 state) would have returned `PROCEED` for exactly this manifest with no
 override and no mutation. The **remediation** is the `shipment-reconcile`
-Pre-Mode member-class fix, tracked as shipment `169-S` (queued; Stage's own
-planning, decision, and diagram artifacts for that fix are tracked
+Pre-Mode member-class fix, which Stage has decided/harvested and intends to
+track as shipment `169-S` (queued). As of this PR, `169-S` is not yet a
+durably committed backlog record on this branch or `main`; that
+publication gap (and stash entry `15A02E21`'s own not-yet-reconciled
+payload) is captured separately as deferred stash entry `1CD92B69` for
+Stage to close, and does not reopen this disposition. Stage's own
+planning, decision, and diagram artifacts for the fix are tracked
 separately and are intentionally not part of this PR -- they are not
-required to understand this disposition). The acceptance is scoped to this
+required to understand this disposition. The acceptance is scoped to this
 manifest, this classifier verdict and this disclosure; it is expressly
 **not** a general licence to proceed past `status-mismatch` and **not**
 prior art for overriding any other `HALT`. Nothing is reopened, reversed or
