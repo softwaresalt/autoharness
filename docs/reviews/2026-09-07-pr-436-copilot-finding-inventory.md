@@ -1,5 +1,5 @@
 ---
-title: "PR #436 Copilot hosted-review finding inventory (all 15 rounds, all HEADs)"
+title: "PR #436 Copilot hosted-review finding inventory (all 16 rounds, all HEADs)"
 doc_type: review-inventory
 problem_type: review-pattern-analysis
 category: hosted-review-finding-taxonomy
@@ -11,9 +11,10 @@ source: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T09:00:00-07:00"
+updated_at: "2026-09-08T19:45:00-07:00"
 reviewed_head: 659c8e75c236e5e2efe8da31dca2c985b9ccba41
 round_15_reviewed_head: fdcf91e2e0a5d8e9c6893e060aeaecc837592271
+round_16_reviewed_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
 tags: [copilot-review, review-pattern, p-018, p-021, evidence-consistency, compound-learning]
 ---
 
@@ -81,6 +82,7 @@ pass" below.
 | 13 | `659c8e75` | 2026-09-08T06:16:06Z | 1 | 4 | 🟡 |
 | 14 | `fdcf91e2` | (Ship, single-round fix; no fresh hosted review requested before round 15) | — | — | 🟡 partial fix |
 | 15 | `fdcf91e2` (reviewed) | 2026-09-08 (round-15 review) | 3 | 2 | 🟡 **(convergence pass — see below)** |
+| 16 | `e075de26` (reviewed) | 2026-09-08T19:31:49Z | 2 | 1 | 🟡 **(round-15's own fix artifacts contained 3 fresh errors — see below)** |
 
 Note the shape: **`ad4cb74a` produced literally zero comments, and rounds 7-9
 produced zero threads — yet the PR was not clean.** Four more substantive
@@ -114,6 +116,13 @@ on those untouched surfaces, which is exactly what round 15's hosted review
 **Round 15 (this session, Ship)** is the comprehensive convergence pass:
 see "Round 15 — convergence pass" below for the full finding-by-finding
 disposition.
+
+**Round 16 (this session, Ship)** is a narrow, in-scope follow-on cycle: a
+fresh Copilot review at the round-15 fix HEAD (`e075de2670addf74182a6b8ed7c9ef23ea0c216e`)
+found that round 15's own newly-authored artifacts contained 3 fresh
+errors (F30-F32 below) — none reopen a prior finding; all 3 are same-surface
+completions of the round-15 edit itself. See "Round 16 — narrow follow-on
+fix" below.
 
 ## Distinct finding inventory
 
@@ -152,6 +161,9 @@ rounds/HEADs.
 | F27 | R15 (fdcf91e2, reviewed) | thread `PRRT_kwDORzpWpM6gJ3Au` | `docs/closure/159-S-151-F-post-merge-closure.md:18` (PR body Local Review Readiness) | PR body readiness block covers old HEAD `659c8e75`/`READY` rather than current HEAD and conditional closure | RC-9 | P2 | C1 | **queued for fix at the post-fix HEAD** (PR body updated after this commit is pushed, per the required workflow's ordering — readiness must be recorded for the HEAD it actually describes) | this session (R15, post-push step) | 1 (class rec #9 of RC-9) |
 | F28 | R15 (fdcf91e2, reviewed) | suppressed | `.backlogit/reconcile/159-S-pre-20260906-072505.md` | Post-hoc linked-deliberation reconstruction (round 4) still narrated as immediately-pre-close evidence | RC-11 | P1 | C1 | **fixed** — same fix as F24 (single edit resolves both the round-13 suppressed finding and this round-15 recurrence) | this session (R15) | see F24 |
 | F29 | R15 (fdcf91e2, reviewed) | suppressed | `docs/memory/compacted/2026-09-06-159s-151f-compacted.md` | Compacted memory still asserted unconditional `READY`, contradicting canonical `READY_WITH_CONDITIONS` | RC-2 / RC-10 | P1 | C1 | **fixed** — new third addendum (`2026-09-08, third`) explicitly retracts the prior "unconditional READY" conclusion and states the current, correct `closure_status`/tracker/`closure_complete()` facts | this session (R15) | 1 (class rec #6 of RC-2) |
+| F30 | R16 (e075de26, reviewed) | thread `PRRT_kwDORzpWpM6gYcYh` | `docs/reviews/2026-09-07-pr-436-adversarial-review.md:305` | Round-15's own new "post-fix disposition" section header labelled `fdcf91e2` (the pre-fix, reviewed HEAD) as "the HEAD after the round-15 commit" — conflating reviewed-HEAD with fix-HEAD, so the `READY_WITH_FOLLOWUPS` verdict was not attributable to a specific, correct current-HEAD SHA | RC-9 | P1 | C1 | **fixed** — header rewritten to name both HEADs explicitly (`fdcf91e2` reviewed-before-fix, `e075de2670addf74182a6b8ed7c9ef23ea0c216e` fix-committed-at); added a distinct `round_15_fix_head` frontmatter field alongside the pre-existing `round_15_reviewed_head` so the two are never conflated again | this session (R16) | 1 (class rec #10 of RC-9) |
+| F31 | R16 (e075de26, reviewed) | thread `PRRT_kwDORzpWpM6gYcY5` | `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md:184` | A 4th file carrying `856B6770`'s disposition still said `2026-09-07`, missed by round 15's per-file sweep, which believed (and stated) it had corrected "all 3 files" | RC-12 | P1 | C1 | **fixed** — same `2026-09-07`→`2026-09-08` correction with the same chronological-impossibility note used in the other 3 files | this session (R16) | 2 (class rec #2 of RC-12 — the "swept all N files" claim was itself wrong by one, a mild RC-10 flavor) |
+| F32 | R16 (e075de26, reviewed) | suppressed | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:30` (citations) | Round-15's own newly-authored compound-taxonomy citation claimed "17 Copilot reviews (through round 15)"; the true count through round 15 was 16 — the 17th review is the round-16 review that caught this off-by-one | RC-1 | P2 | C1 | **fixed** — citation corrected to state the count accurately across both rounds (16 through round 15, 17th is the round-16 review itself) | this session (R16) | 1 (class rec #5 of RC-1 — a compound-learning document about evidence-consistency errors contained one of its own) |
 
 ### Chronology preserved, duplicates collapsed
 
@@ -168,25 +180,29 @@ tracker) and left F22/F24 untouched because they lived in files round 14
 did not edit. Round 15 (this session) is a **comprehensive convergence
 pass** that fixed every one of F22, F24, F25, F26, F28, F29 in one coherent
 evidence-graph edit, and queued F27 (PR-body readiness) for the immediate
-post-push step. Findings F01-F29 (29 distinct findings total, up from 24 at
-round 13) are canonical as of round 15.
+post-push step (fixed after push, this session). Round 16 (this session,
+narrow follow-on) fixed F30-F32 — 3 fresh errors introduced by round 15's
+own newly-authored artifacts (adversarial-review header, one missed
+cascade-close reconcile file, taxonomy citation off-by-one) — none reopen a
+prior finding. Findings F01-F32 (32 distinct findings total, up from 24 at
+round 13, 29 at round 15) are canonical as of round 16.
 
 ## Root-cause taxonomy (derived, not assumed)
 
 | ID | Root-cause class | Distinct findings | Manifestations | Definition |
 |---|---|---|---|---|
-| **RC-9** | **Current-HEAD readiness drift** | 3 (F11, F23, F27) | **9** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit |
+| **RC-9** | **Current-HEAD readiness drift** | 4 (F11, F23, F27, F30) | **10** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit |
 | **RC-11** | **Pre/post-mutation chronology falsification** | 2 (F16, F24/F28) | **9** | Evidence produced *after* an irreversible action is narrated as if it had been produced *before* it, silently converting a safety gate into a post-hoc observation |
 | **RC-10** | **Cross-surface propagation incompleteness** | 2 (F15, F25) | **8** | A correction is applied to the location that was flagged, not to every location asserting the same fact |
 | **RC-2** | **Machine-readable vs narrative mismatch** | 6 (F02, F13, F14, F20, F21, F29) | **10** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact |
 | **RC-5** | **Cross-surface state currency** | 4 (F05, F17, F18, F19) | **5** | Durable memory or committed backlog data still asserts a superseded state that query-first retrieval will resurface as a live blocker |
 | **RC-3** | **Unsatisfied producer contract** | 3 (F03, F07, F10) | **5** | A required artifact/section/source-scan the governing contract names was never produced, or was produced with only part of its required inputs |
-| **RC-1** | **Evidence–artifact content error** | 3 (F01, F12, F26) | **4** | A statement about a file, PR, or record does not match that file/PR/record as it actually exists — **new manifestation (F26): a REMEDIATION of one finding cites an unrelated record as its own tracker, propagating a fresh RC-1 defect through the very act of fixing a prior one** |
+| **RC-1** | **Evidence–artifact content error** | 4 (F01, F12, F26, F32) | **5** | A statement about a file, PR, or record does not match that file/PR/record as it actually exists — **new manifestation (F26): a REMEDIATION of one finding cites an unrelated record as its own tracker, propagating a fresh RC-1 defect through the very act of fixing a prior one; F32: a compound-learning document *about* evidence-consistency errors contained one of its own (an off-by-one review count)** |
 | **RC-6** | **Contract misreading / unsupported carve-out** | 1 (F06) | 4 | An exemption is invented to make a failing gate pass, rather than the gate result being disclosed |
 | **RC-4** | **Disclosure incompleteness** | 1 (F04) | 1 | A risky/destructive action or residual risk is omitted from the record that is contractually required to carry it |
 | **RC-7** | **Non-executable command** | 1 (F08) | 1 | A documented command fails when actually invoked |
 | **RC-8** | **Condition/window semantics error** | 1 (F09) | 1 | A stated condition admits an interpretation that voids its own purpose |
-| **RC-12** | **Temporal impossibility** | 1 (F22) | 1 | A recorded date/order is physically impossible against another recorded timestamp — **now fixed (R15)** |
+| **RC-12** | **Temporal impossibility** | 2 (F22, F31) | 2 | A recorded date/order is physically impossible against another recorded timestamp — **F22 fixed R15; F31 is the same underlying defect surviving in a 4th file that R15's sweep believed (and stated) it had exhaustively covered, fixed R16** |
 
 ## Escape analysis
 
@@ -249,6 +265,47 @@ another single-thread-at-a-time cycle.
 5. Refreshed `docs/reviews/2026-09-07-pr-436-adversarial-review.md` for the
    post-fix HEAD (before/after disposition of every AF-01–AF-11) and this
    inventory file, consolidating rather than duplicating.
+
+## Round 16 — narrow follow-on fix (this session)
+
+**Trigger:** a fresh Copilot review at the round-15 fix HEAD
+(`e075de2670addf74182a6b8ed7c9ef23ea0c216e`) surfaced 2 open threads plus 1
+suppressed comment (F30-F32 above) against artifacts round 15 itself had just
+authored or edited — i.e. round 15's fix (and its own compound-learning
+write-up) contained fresh, in-scope defects on the same closure-evidence
+surface, not new out-of-scope scope expansion.
+
+**Classification:** all 3 findings pass the P-021 C1 same-contract-surface
+test — each is a completion of the exact round-15 change already authorised
+(correcting a HEAD label, a disposition date, and a citation count inside
+files round 15 itself created or edited), not a new expansion. Per the
+operator's explicit instruction, this cycle proceeded directly (within the
+review skill's 3-cycle limit — this is the 2nd review-fix cycle of this
+session, not a same-error third-attempt recurrence).
+
+**Method, in order:**
+1. Re-read the full round-16 Copilot review body (2 threaded + 1 suppressed)
+   before any edit.
+2. Fixed `docs/reviews/2026-09-07-pr-436-adversarial-review.md`'s round-15
+   section header (F30) and added a distinct `round_15_fix_head` frontmatter
+   field so reviewed-HEAD and fix-HEAD can never again be conflated in this
+   file.
+3. Fixed the 4th (previously missed) file carrying `856B6770`'s disposition
+   date (F31) in `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`,
+   using the same correction pattern already applied to the other 3 files.
+4. Fixed the compound taxonomy's own review-count citation (F32), an
+   off-by-one introduced by round 15's own authoring.
+5. Updated this inventory and the compound taxonomy with the round-16 data
+   and the reinforced lesson: **an independent adversarial re-review of a
+   fix's *target* findings does not, by itself, guarantee the fix's own
+   newly-authored prose is internally consistent — a fresh full sweep of the
+   newly-authored text itself (dates, HEAD labels, counts) is a distinct,
+   necessary step, not implied by "the flagged findings are now resolved."**
+
+**Verdict:** F30-F32 fixed; zero new findings introduced by this narrow
+cycle (verified by direct, targeted read of each edited line, not a fresh
+independent-agent pass, given the narrow 3-line scope). No prior finding
+reopened.
 
 ## Cross-references
 

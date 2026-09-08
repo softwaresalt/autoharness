@@ -1,11 +1,13 @@
 ---
-title: "Adversarial re-review of PR #436 at HEAD 659c8e75 (report-only, Stage-run); round-15 convergence disposition appended"
+title: "Adversarial re-review of PR #436 at HEAD 659c8e75 (report-only, Stage-run); round-15/round-16 convergence disposition appended"
 doc_type: review
 review_mode: report-only
 posture: adversarial-analysis
 target_pr: 436
 reviewed_head: 659c8e75c236e5e2efe8da31dca2c985b9ccba41
 round_15_reviewed_head: fdcf91e2e0a5d8e9c6893e060aeaecc837592271
+round_15_fix_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
+round_16_reviewed_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
 diff_base: cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab
 diff_scope: "full branch diff vs merge-base with origin/main (28 files, +1518/-25)"
 readiness_outcome: BLOCKED
@@ -18,10 +20,14 @@ round_15_p0_count: 0
 round_15_p1_count: 0
 round_15_p2_count: 2
 round_15_p3_count: 1
+round_16_p0_count: 0
+round_16_p1_count: 0
+round_16_p2_count: 2
+round_16_p3_count: 1
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T09:00:00-07:00"
+updated_at: "2026-09-08T19:45:00-07:00"
 inventory: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 compound_learning: docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md
 source: docs/reviews/2026-09-07-pr-436-adversarial-review.md
@@ -302,7 +308,7 @@ next owner for the PR itself is the **operator** (to authorise or decline a
 further round); the next owner for the captured items is **Stage**, then
 **Ship**.
 
-## Round 15 — post-fix disposition (this session, Ship, HEAD `fdcf91e2` after commit)
+## Round 15 — post-fix disposition (this session, Ship; reviewed HEAD `fdcf91e2` before the fix, fix committed at HEAD `e075de2670addf74182a6b8ed7c9ef23ea0c216e`)
 
 The operator subsequently authorised round 14 (one bounded fix, commit
 `fdcf91e2`) and then, after round 14 produced a fresh recurrence (F26) and
@@ -364,3 +370,42 @@ it. No P0/P1 remain on this closure PR's evidence-graph surface. This PR is
 **still not being merged** — no merge approval was given or sought this
 round; `162-F`/`170-S` (the harness-implementation methodology) remain queued
 and P-001/dependency-gated behind open #436, `169-S`, and `162-S`.
+
+## Round 16 — narrow follow-on disposition (this session, Ship, reviewed and
+fixed at HEAD `e075de2670addf74182a6b8ed7c9ef23ea0c216e`)
+
+A fresh Copilot review at the round-15 fix HEAD found 3 fresh findings
+(`F30`-`F32` in the finding inventory) inside artifacts round 15 itself had
+just authored: this file's own round-15 section header conflated the
+reviewed-HEAD (`fdcf91e2`) with the fix-HEAD (now corrected above, and a
+distinct `round_15_fix_head` frontmatter field added so the two are never
+conflated again); a 4th file carrying `856B6770`'s disposition date that
+round 15's sweep missed despite claiming it had covered "all 3 files"; and
+this document's companion compound-taxonomy file's own review-count citation
+was off by one. All 3 are same-contract-surface completions of round 15's
+own change (P-021 C1 in-scope), fixed directly per the operator's explicit
+authorization to continue the convergence pass; none reopens a prior
+finding, and no fifth AF-series finding was introduced.
+
+Fixed by direct, targeted verification of each of the 3 edited lines against
+ground truth (not a fresh independent-agent pass, given the narrow 3-line
+scope of this cycle) — HEAD label cross-checked against `git log`, date
+cross-checked against `.backlogit/archive/stash.jsonl`'s `856B6770.created_at`,
+review count cross-checked against `gh pr view 436 --json reviews` filtered
+to `copilot-pull-request-reviewer`.
+
+### Round-16 verdict
+
+| Counter | Value |
+|---|---|
+| P0 | **0** |
+| P1 | **0** (F30/F31 fixed; no new P1) |
+| P2 | **2** (AF-08/AF-10 bundled, unchanged) |
+| P3 | **1** (AF-11, unchanged) |
+| **Readiness outcome** | **`READY_WITH_FOLLOWUPS`** (same residual follow-ups as round 15; F32 was P2-equivalent metadata, now fixed) |
+
+Threads `PRRT_kwDORzpWpM6gYcYh` and `PRRT_kwDORzpWpM6gYcY5` replied to
+(citing the round-16 fixing commit) and resolved. F32 has no thread
+(suppressed); its disposition is recorded here and in the finding inventory.
+This PR is **still not being merged** — no merge approval was given or
+sought this round.

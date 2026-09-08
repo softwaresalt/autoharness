@@ -27,9 +27,9 @@ tags:
   - self-inflicted-regression
   - suppressed-findings-first-class
 citations:
-  - "PR #436 (chore: post-merge closure for 151-F), 17 Copilot reviews (through round 15), 20+ threads, 36+ suppressed findings"
-  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 15/F29)"
-  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15 post-fix disposition appended)"
+  - "PR #436 (chore: post-merge closure for 151-F), 17 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught this count being previously stated as 17 through round 15), 20+ threads, 36+ suppressed findings"
+  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 16/F32)"
+  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15 post-fix disposition appended, round-16 header correction applied)"
   - "src/autoharness/gates/topology.py:294 _closure_artifact_complete / :654 closure_complete"
   - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md (suppressed comments; unenforced closure conditions)"
   - "docs/compound/093-S-review-loop-convergence.md (bounded review loops)"
@@ -350,6 +350,44 @@ blind spot that produced the error is present at self-review time too.**
 |---|---|---|
 | RC-1 (refined) | Before citing *any* existing ID (stash entry, task, shipment) as the tracker/evidence for a fact, read that ID's own record and confirm its subject matches the fact being cited — never reuse an ID for convenience because it happens to be `active` or nearby | Partly — the read is mechanical; the subject-match judgment is not |
 | Convergence-loop (new) | Before starting any review-fix cycle on a multi-artifact evidence set, inventory the *entire* current review body (threaded + suppressed) and cross-reference against the full producer/consumer set for every fact being corrected, not just the flagged lines. Run an independent (not self-authored) adversarial pass on the resulting diff before commit | Partly — inventory step is mechanical; independence is a process requirement |
+
+## Round 16 addendum — the fix's own new prose is itself an evidence surface
+
+**Data update (round 16, this session):** a fresh Copilot review at the
+round-15 fix HEAD (`e075de2670addf74182a6b8ed7c9ef23ea0c216e`) found 3 more
+findings (`F30`-`F32`) — not in files round 15 left untouched, but *inside
+the very artifacts round 15 had just authored or edited*: the adversarial
+review's own new section header conflated the reviewed-HEAD with the
+fix-HEAD (F30, a new RC-9 manifestation); a 4th file carrying `856B6770`'s
+disposition date was missed by round 15's sweep even though the sweep's own
+prose claimed "all 3 files" (F31, RC-12); and this taxonomy's own new
+citation about the review count was off by one (F32, RC-1) — an
+evidence-consistency document containing an evidence-consistency error about
+itself. Updated totals: **32 distinct findings, still 12 root-cause classes**
+(F30 is RC-9, F31 is RC-12, F32 is RC-1 — no new class needed).
+
+**The refined lesson:** round 15's own addendum (above) already identified
+that an independent adversarial re-review is necessary because a self-check
+shares the fixer's blind spot. Round 16 shows that lesson is **necessary but
+not sufficient on its own**: the round-15 independent `code-review`-agent
+pass was scoped to verifying the *9 originally-flagged findings* were
+resolved and to searching for regressions in the *edited closure/reconcile
+files* — it was not instructed to independently fact-check the *brand-new
+prose the fix itself was writing* (a fresh table row's HEAD label, a fresh
+addendum's own dates, a fresh citation's own counts). **New-authored text
+describing a fix is itself part of the evidence graph, and needs the same
+"read the ID/date/count against ground truth, don't just check internal
+plausibility" discipline applied to it that RC-1/RC-9/RC-12's proactive
+checks already prescribe for the artifacts being fixed.** Concretely: before
+treating a fix as complete, re-run the RC-1/RC-9/RC-12 proactive checks
+(below) against the fix's *own new sentences*, not only against the
+originally-flagged locations.
+
+### New proactive check (self-referential, round 16)
+
+| Class | Proactive check | Mechanisable? |
+|---|---|---|
+| Self-referential evidence (new) | After authoring any new disposition prose, table row, or addendum that itself cites a HEAD SHA, a date, or a count, apply that same claim's own proactive check (RC-9's current-HEAD check, RC-12's chronology check, RC-1's ID/record match check) to the newly-written sentence before treating the fix as complete — a fix's own explanation is not exempt from the discipline it is describing | Partly — the re-application of an existing check is mechanical; noticing that new prose needs the same check applied is a process discipline |
 
 ## The loop this closes
 
