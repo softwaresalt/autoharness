@@ -98,15 +98,15 @@ was touched under this authorization.
    `151-F` record) -- see
    `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md`'s own
    "Reconstructed from preserved pre-close evidence" disclosure for the
-   full per-source detail. Whether `shipment-reconcile`'s Step 0(c)
-   linked-deliberation guard was required to run as a **live pre-mutation
-   gate** before the original cascade invocation, rather than being
-   reconstructible after the fact, is a distinct, undispositioned protocol
-   question -- separate from the `15A02E21` pre-mode `status-mismatch`
-   deviation above -- captured as P-021 deferred stash entry `856B6770`
-   for Stage/operator disposition. This does not reopen or reverse the
-   mechanical archival, nor the `15A02E21` disposition; it is an
-   additional residual risk on this PR.
+   full per-source detail.    **This is now dispositioned (operator, 2026-09-07): a second, distinct
+   `accepted-with-remediation` P-005 process deviation** -- separate from
+   the `15A02E21` pre-mode `status-mismatch` deviation above -- captured
+   as P-021 deferred stash entry `856B6770`. The mechanical archival
+   stands as verified and final; remediation (a durable pre-mutation
+   evidence record, a fail-closed live-execution check, and a replay
+   test) is tracked as a separate follow-up shipment, not folded into
+   `169-S`. See `docs/closure/2026-09-06-159-s-151-f-closure.md`'s second
+   "P-005 deviation record" table for full detail.
 8. Invoked `backlogit shipment ship 159-S --sha
    cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab --message "Merge pull request
    #435" --author "Derek Williams
@@ -179,4 +179,12 @@ whose remediation is the `shipment-reconcile` Pre-Mode member-class fix
 not yet a durably committed backlog record on this branch or `main` as of
 this PR -- that gap is captured separately as deferred stash entry
 `1CD92B69`). See `docs/closure/2026-09-06-159-s-151-f-closure.md`'s
-"P-005 deviation record" table for the full disposition.
+"P-005 deviation record" table for the full disposition. **A second,
+distinct question -- whether Step 0(c)'s linked-deliberation guard was
+required to run as a live pre-mutation gate before that same cascade
+invocation -- was captured as P-021 stash entry `856B6770` and was
+likewise dispositioned by the operator on 2026-09-07 as a second, distinct
+`accepted-with-remediation` P-005 deviation**, with remediation tracked as
+a separate follow-up shipment (not `169-S`); see that file's second
+"P-005 deviation record" table for full detail. Neither disposition
+reopens or reverses the mechanical archival.

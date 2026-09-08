@@ -188,10 +188,34 @@ evidence rather than executed live at the time of the destructive
 invocation -- see
 `docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md`'s step 7
 for the corrected chronology. This is **separate from, and additional to**,
-the `15A02E21` disposition above; it does **not** reopen or reverse the
-mechanical archival or that disposition, and has **not yet** received
-operator/Stage disposition. It is recorded here as an open residual risk
-requiring further disposition, not resolved by this PR.
+the `15A02E21` disposition above.
+
+**This finding is now RESOLVED (operator, 2026-09-07): recorded as a
+second, DISTINCT `accepted-with-remediation` P-005 process deviation.**
+The live pre-mutation gate was **not executed** -- `shipment-reconcile`'s
+Step 0(c) requires the three-source linked-deliberation collection before
+the cascade invocation, halting on ambiguity, and here it was reconstructed
+only afterward. The post-hoc reconstruction proves the **data and outcome**
+were unchanged (the reconstructed inputs are byte-identical to what a live
+scan would have read, so the validated empty result is correct), but that
+is a **category-different** guarantee from the preserved option to decline
+an irreversible mutation that a pre-mutation gate exists to protect -- an
+audit performed after the fact can never recreate a halt opportunity that
+was never offered live. **The mechanical archive stands as verified and
+final** (unchanged by this disposition; see the Backlog Reconciliation
+section above). This disposition is **not** precedent for treating
+post-hoc reconstruction as equivalent to live pre-mutation execution on any
+future `shipment-reconcile` invocation. **Remediation is tracked as a
+separate follow-up shipment** -- not yet a durably committed backlog
+record as of this PR, and explicitly **not folded into `169-S`**, whose own
+scope is the distinct Pre-Mode member-class contract and which is
+sealed/plan-reviewed with an indivisible-atomic-core task -- so that live
+Step 0(c) execution becomes provable going forward (durable pre-mutation
+evidence record, fail-closed check, and a `159-S`-pattern replay test).
+Stage's own deliberation and disposition-routing artifacts for this finding
+exist but are tracked separately and are intentionally not part of this
+PR -- they are not required to understand this disposition. Nothing is
+reopened, reversed, or re-executed.
 
 ## Compaction (P-020)
 
@@ -214,9 +238,12 @@ fully archived (this mechanical archival is not reversed or in question).
 **The formerly-open question of whether the cascade archival's own
 authorization was sufficient is also now dispositioned** (operator,
 2026-09-07: `accepted-with-remediation` P-005 deviation) -- see the Stash
-Disposition section above. No part of the mechanical archival or the
-`15A02E21` authorization disposition remains provisional; the distinct,
-separately-captured Step 0(c) pre-mutation-guard question (`856B6770`) is
-an open residual risk pending its own disposition, not a qualifier on this
-verdict's basis. `closure_complete('159-S')` now registers `True` for any
+Disposition section above. **The distinct Step 0(c) live-pre-mutation-gate
+question (`856B6770`) is likewise now dispositioned** (operator,
+2026-09-07: a second, distinct `accepted-with-remediation` P-005
+deviation): the mechanical archive stands as verified and final, process
+compliance was deficient because the gate did not run live, and
+remediation is tracked as a separate follow-up shipment, not folded into
+`169-S`. No part of the mechanical archival or either disposition remains
+provisional. `closure_complete('159-S')` now registers `True` for any
 successor shipment's predecessor-closure readiness check.
