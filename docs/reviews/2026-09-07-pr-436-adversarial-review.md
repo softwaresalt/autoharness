@@ -1,5 +1,5 @@
 ---
-title: "Adversarial re-review of PR #436 at HEAD 659c8e75 (report-only, Stage-run); round-15/round-16 convergence disposition appended"
+title: "Adversarial re-review of PR #436 at HEAD 659c8e75 (report-only, Stage-run); round-15/round-16/round-17 convergence disposition appended"
 doc_type: review
 review_mode: report-only
 posture: adversarial-analysis
@@ -8,6 +8,8 @@ reviewed_head: 659c8e75c236e5e2efe8da31dca2c985b9ccba41
 round_15_reviewed_head: fdcf91e2e0a5d8e9c6893e060aeaecc837592271
 round_15_fix_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
 round_16_reviewed_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
+round_16_fix_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
+round_17_reviewed_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 diff_base: cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab
 diff_scope: "full branch diff vs merge-base with origin/main (28 files, +1518/-25)"
 readiness_outcome: BLOCKED
@@ -24,10 +26,16 @@ round_16_p0_count: 0
 round_16_p1_count: 0
 round_16_p2_count: 2
 round_16_p3_count: 1
+round_17_p0_count: 0
+round_17_p1_count: 0
+round_17_p2_count: 2
+round_17_p3_count: 1
+round_17_readiness_outcome: READY_WITH_FOLLOWUPS
+head_attribution_contract: "no field in this file names the SHA of the commit that contains it; see 'Round 17' section for the reviewed_subject_sha / resolution_commit_sha / verified_subject_sha naming contract"
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T19:45:00-07:00"
+updated_at: "2026-09-08T20:05:00-07:00"
 inventory: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 compound_learning: docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md
 source: docs/reviews/2026-09-07-pr-436-adversarial-review.md
@@ -371,8 +379,9 @@ it. No P0/P1 remain on this closure PR's evidence-graph surface. This PR is
 round; `162-F`/`170-S` (the harness-implementation methodology) remain queued
 and P-001/dependency-gated behind open #436, `169-S`, and `162-S`.
 
-## Round 16 — narrow follow-on disposition (this session, Ship, reviewed and
-fixed at HEAD `e075de2670addf74182a6b8ed7c9ef23ea0c216e`)
+## Round 16 — narrow follow-on disposition (this session, Ship; reviewed
+subject HEAD `e075de2670addf74182a6b8ed7c9ef23ea0c216e` before this round's
+fix, fix committed at HEAD `0b45caf82fb6b973f6b04f7851d681a8b3b64b5a`)
 
 A fresh Copilot review at the round-15 fix HEAD found 3 fresh findings
 (`F30`-`F32` in the finding inventory) inside artifacts round 15 itself had
@@ -409,3 +418,104 @@ Threads `PRRT_kwDORzpWpM6gYcYh` and `PRRT_kwDORzpWpM6gYcY5` replied to
 (suppressed); its disposition is recorded here and in the finding inventory.
 This PR is **still not being merged** — no merge approval was given or
 sought this round.
+
+## Round 17 — systemic contract fix for reviewed-vs-fixing HEAD conflation (this session, Ship; reviewed subject HEAD `0b45caf82fb6b973f6b04f7851d681a8b3b64b5a`)
+
+A fresh Copilot review at HEAD `0b45caf8` (thread `PRRT_kwDORzpWpM6gYzGj`)
+found that the Round 16 header immediately above reproduced, in its own new
+prose, the identical class of defect (RC-9, current-HEAD readiness drift)
+that F30 had already flagged and round 16 itself corrected one section
+earlier: it named the pre-fix reviewed HEAD (`e075de26`) as both "reviewed"
+and "fixed," when the round-16 fix actually committed at `0b45caf8`. Ship
+acknowledged the finding transparently on the thread and did not apply a
+further edit in that session — the same-error recurrence tripped a
+universal circuit breaker; see
+`docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md` for
+the full attempt chain and the operator's subsequent disposition.
+
+**Why a literal SHA-substitution retry cannot converge.** Attempts 1 and 2
+each tried to fix a *specific wrong SHA string* by substituting the correct
+one — but "the correct one" for a HEAD-attribution claim inside a section
+that itself becomes part of a new commit is not a fixed target: the moment
+the file is edited and committed, the repository's HEAD advances to a new
+SHA that the just-written prose cannot have named, because that SHA did not
+exist at authoring time. A tracked artifact's own containing commit is a
+value the artifact cannot compute about itself before that commit is
+created — this is a recursive fixed-point impossibility, not an authoring
+mistake that a more careful retry can fix. Round 16 fixed F30's *instance*
+of the conflation (the round-15 header) but re-created a *fresh* instance of
+the same underlying impossible claim in its own new header, because both
+attempts treated the defect as "wrong SHA, substitute the right one" rather
+than "this class of claim can never be made correctly about a commit's own
+contents."
+
+**The systemic resolution (operator-directed, distinct from a fourth
+literal-substitution retry).** The class of claim itself is retired, not
+patched again:
+
+1. A Git-tracked review/evidence artifact **MUST NOT** claim to identify the
+   commit SHA that contains it. This applies to every round's disposition
+   prose and frontmatter in this file and its companions, going forward.
+2. Tracked artifacts instead use stable, non-self-referential identities:
+   - **`reviewed_subject_sha`** — the commit/diff actually reviewed *before*
+     the round's remediation (already the meaning of this file's
+     `*_reviewed_head` fields; unaffected by this change).
+   - **`resolution_commit_sha`** — the commit that *applied* a prior
+     remediation, recorded only by a *later* artifact/entry once that
+     commit already exists in history (already the meaning of this file's
+     `round_15_fix_head`, and now `round_16_fix_head`, added below to close
+     the gap that caused the round-16 recurrence: round 16 never recorded
+     its own `round_16_fix_head`, so its header prose fell back to reusing
+     the reviewed-subject SHA for both roles).
+   - **`verified_subject_sha`** — for a post-fix verification performed
+     *before* the commit that reports it, the SHA being verified, never the
+     verifying commit itself.
+3. Current PR HEAD and merge readiness are external, dynamic facts, queried
+   from GitHub after push and recorded in the PR body / check-run / review
+   response — never inside a committed file. This round's own fix commit
+   SHA is therefore deliberately **absent** from this section and from this
+   file's frontmatter: it cannot be known at the time this section is
+   authored, and it will instead be published, after push, as the
+   `headRefOid` in this PR's `## Local Review Readiness` block (and cited in
+   the reply that resolves thread `PRRT_kwDORzpWpM6gYzGj`) — not written
+   back into this file in a later edit, which would only reproduce the same
+   impossibility one level down.
+4. Merge gates compare the dynamic `headRefOid` reported by GitHub against
+   the externally published PR-body readiness value; no committed file is
+   required, or permitted, to self-attest its own containing SHA.
+
+**Frontmatter correction applied this round:** `round_16_fix_head:
+0b45caf82fb6b973f6b04f7851d681a8b3b64b5a` added — the missing field whose
+absence caused the round-16 header to fall back to the reviewed-subject SHA
+for both roles — and `round_17_reviewed_head:
+0b45caf82fb6b973f6b04f7851d681a8b3b64b5a` added (the subject this round
+reviewed: a fixed historical fact about a commit that already exists, not a
+claim about this round's own commit). The Round 16 header above is
+corrected in place to name both HEADs explicitly using the "reviewed
+subject" / "fix committed at" phrasing this contract establishes, rather
+than a single ambiguous "reviewed and fixed at."
+
+**Scope note:** the full methodology generalisation of this contract
+(naming-convention adoption across the `review`/`pr-lifecycle` skills, and
+the compound taxonomy's RC-9 proactive check) is not implemented this round.
+It is tracked as a follow-up under the already-queued `162-F`/`170-S`
+methodology work (P-001/dependency-gated, not yet claimed). The reviewed
+implementation plan for that work (`docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md`)
+is a Stage-owned planning artifact; Ship does not edit it (P-010) and
+instead records this needed refinement here for Stage's `170-S` tracker to
+pick up.
+
+### Round-17 verdict
+
+| Counter | Value |
+|---|---|
+| P0 | **0** |
+| P1 | **0** |
+| P2 | **2** (AF-08/AF-10 bundled, unchanged) |
+| P3 | **1** (AF-11, unchanged) |
+| **Readiness outcome** | **`READY_WITH_FOLLOWUPS`** (unchanged from round 16; this round is a structural-contract fix, not a new substantive finding) |
+
+Thread `PRRT_kwDORzpWpM6gYzGj` is replied to (citing this round's resolution
+commit, published in the PR body after push, per the contract above, rather
+than in this file) and resolved. This PR is **still not being merged** — no
+merge approval was given or sought this round.

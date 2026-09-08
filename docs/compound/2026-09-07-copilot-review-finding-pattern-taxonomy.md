@@ -26,10 +26,12 @@ tags:
   - proactive-detection
   - self-inflicted-regression
   - suppressed-findings-first-class
+  - self-referential-fixed-point-identity
 citations:
-  - "PR #436 (chore: post-merge closure for 151-F), 17 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught this count being previously stated as 17 through round 15), 20+ threads, 36+ suppressed findings"
-  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 16/F32)"
-  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15 post-fix disposition appended, round-16 header correction applied)"
+  - "PR #436 (chore: post-merge closure for 151-F), 18 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught F30-F32, 18th is the round-17 review at HEAD `0b45caf8` that caught the identical RC-9 conflation recurring in round 16's own header — tripping a circuit breaker resolved by a structural naming contract rather than a further SHA substitution), 26 threads (26 resolved), 36+ suppressed findings"
+  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 17/F33)"
+  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15/round-16/round-17 disposition appended)"
+  - "docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md (round-15/round-16 literal-substitution attempts and their recurrence, the trigger for the round-17 structural fix)"
   - "src/autoharness/gates/topology.py:294 _closure_artifact_complete / :654 closure_complete"
   - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md (suppressed comments; unenforced closure conditions)"
   - "docs/compound/093-S-review-loop-convergence.md (bounded review loops)"
@@ -388,6 +390,96 @@ originally-flagged locations.
 | Class | Proactive check | Mechanisable? |
 |---|---|---|
 | Self-referential evidence (new) | After authoring any new disposition prose, table row, or addendum that itself cites a HEAD SHA, a date, or a count, apply that same claim's own proactive check (RC-9's current-HEAD check, RC-12's chronology check, RC-1's ID/record match check) to the newly-written sentence before treating the fix as complete — a fix's own explanation is not exempt from the discipline it is describing | Partly — the re-application of an existing check is mechanical; noticing that new prose needs the same check applied is a process discipline |
+
+## Round 17 addendum — self-referential HEAD attribution is a structural impossibility, not a discipline gap
+
+**Data update (round 17, this session):** a fresh Copilot review at HEAD
+`0b45caf82fb6b973f6b04f7851d681a8b3b64b5a` (thread `PRRT_kwDORzpWpM6gYzGj`)
+found that round 16's own new section header (in
+`docs/reviews/2026-09-07-pr-436-adversarial-review.md:375`) reproduced the
+*identical* RC-9 conflation that F30 had flagged and round 16 had just
+corrected one section earlier: it named the pre-fix reviewed HEAD
+(`e075de26`) as both "reviewed" and "fixed," when round 16's own fix
+actually committed at `0b45caf8`. Two literal-substitution attempts (round
+15's header, then round 16's header) each fixed one instance and
+immediately re-created a fresh instance of the same class one section
+later, tripping a universal same-error-recurrence circuit breaker at the
+third occurrence (full attempt chain:
+`docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`).
+Updated totals: **33 distinct findings, still 12 root-cause classes** (F33
+is a new RC-9 manifestation, not a new class).
+
+**The refined lesson — round 16's own proactive check addressed the wrong
+layer.** The round-16 addendum (above) prescribed re-applying RC-9/RC-11/RC-1's
+checks to a fix's *own new prose* before treating the fix as complete. That
+check still frames the defect as **"did the fixer verify carefully
+enough,"** and a third, independent Copilot review proves that framing is
+insufficient: round 16 *did* re-verify its own new prose against `git log`
+(per its own stated method), and still produced the same class of error,
+because the check it applied — "does this sentence name the correct current
+HEAD?" — has no correct answer at the moment the sentence is authored. **A
+committed artifact's own containing commit SHA does not exist until the
+commit is made; no amount of diligence, re-verification, or independent
+review at authoring time can make a sentence correctly name a SHA that has
+not been assigned yet.** This is why attempts 1 and 2 each looked locally
+successful (the specific wrong string was corrected) and each recreated the
+failure mode one commit later — a literal SHA-substitution retry is not a
+smaller, more careful version of the right fix; it is the same impossible
+contract, retried.
+
+**Anti-pattern (new, named): Self-referential fixed-point identity.** A
+distinct, more severe sub-case of RC-9, not ordinary post-commit staleness.
+Ordinary RC-9 drift (F11, F23, F27) names a real SHA that was correct when
+written and later became stale as new commits landed — a compare-and-refresh
+check (the existing RC-9 proactive check, below) resolves it. The
+self-referential sub-case (F33, and F30 one section before it) is different
+in kind: the artifact tries to name the SHA of *the commit that will
+contain this very claim*, which is unknowable at authoring time by
+construction. Refreshing the value after the fact does not fix it — it only
+moves the identical unresolvable claim into the *next* commit, which is
+exactly the observed round-15 → round-16 → round-17 recurrence pattern. **A
+refresh loop of this kind cannot converge**, because the artifact and the
+fact it is trying to state change together, one edit always behind the
+other, in an infinite regress.
+
+**The structural resolution (adopted round 17, PR #436):**
+
+1. A Git-tracked review/evidence artifact **never** claims to identify the
+   commit SHA that contains it.
+2. Tracked artifacts distinguish three stable, non-self-referential roles
+   instead of one overloaded "HEAD": **`reviewed_subject_sha`** (the
+   commit/diff actually reviewed before a round's remediation),
+   **`resolution_commit_sha`** (a commit that applied a *prior* remediation,
+   nameable only once that commit already exists, recorded by a *later*
+   artifact or entry — never described as "this commit"), and
+   **`verified_subject_sha`** (for a post-fix verification performed before
+   the commit reporting it, the SHA being verified, not the verifying
+   commit).
+3. Current HEAD and merge readiness stay on external, dynamic surfaces —
+   the PR body (updated *after* push), check-run output, and review
+   replies — queried from GitHub, never asserted inside a committed file.
+   Merge gates compare the dynamic `headRefOid` against the externally
+   published readiness value; no committed file self-attests its own SHA.
+
+**Note on the existing RC-9 proactive check (above):** that check ("compare
+the readiness block's stated SHA to `git rev-parse HEAD` as the last action
+before push") targets the PR-body/readiness surface, which is legitimately
+updated *after* push and is not self-referential. It does not apply to prose
+embedded inside a committed file, which can never name its own containing
+commit — that case is covered by the new check below instead.
+
+### New proactive check (structural, round 17 — supersedes the round-16 self-check for this specific sub-case)
+
+| Class | Proactive check | Mechanisable? |
+|---|---|---|
+| Self-referential fixed-point identity (new, refines RC-9) | Before authoring any sentence, table row, or frontmatter field that would need to name "this commit," "the HEAD after this fix," or equivalent, stop: that value cannot exist yet. Replace it with `reviewed_subject_sha` (a past commit) or defer the current-HEAD fact entirely to the PR body / check-run / review-reply surface, updated after push. Do not "fix" a self-referential claim by substituting a corrected SHA into the same committed location — that only relocates the identical impossibility into the next commit | Yes — the check is a pattern match on the *kind* of claim ("does this sentence require knowing this-commit's-own SHA?"), not a diligence judgment call, and is therefore fully mechanisable, unlike the round-16 check it supersedes |
+
+**Follow-up, not implemented this round:** propagating this naming
+convention into the `review`/`pr-lifecycle` skills' own HEAD-attribution
+guidance is part of the reviewed `162-F`/`170-S` implementation-methodology
+plan (`docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md`),
+a Stage-owned planning artifact Ship does not edit (P-010). Recorded here as
+a refinement for Stage's `170-S` methodology tracker.
 
 ## The loop this closes
 

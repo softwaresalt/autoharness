@@ -11,10 +11,12 @@ source: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T19:45:00-07:00"
+updated_at: "2026-09-08T20:05:00-07:00"
 reviewed_head: 659c8e75c236e5e2efe8da31dca2c985b9ccba41
 round_15_reviewed_head: fdcf91e2e0a5d8e9c6893e060aeaecc837592271
 round_16_reviewed_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
+round_16_fix_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
+round_17_reviewed_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 tags: [copilot-review, review-pattern, p-018, p-021, evidence-consistency, compound-learning]
 ---
 
@@ -124,6 +126,20 @@ errors (F30-F32 below) — none reopen a prior finding; all 3 are same-surface
 completions of the round-15 edit itself. See "Round 16 — narrow follow-on
 fix" below.
 
+**Round 17 (this session, Ship)** is a systemic-contract fix, not a fourth
+literal-substitution retry: a fresh Copilot review at the round-16 fix HEAD
+(`0b45caf82fb6b973f6b04f7851d681a8b3b64b5a`) found that round 16's own new
+section header reproduced the identical RC-9 conflation F30 had just fixed
+one section earlier — because round 16 never recorded a `round_16_fix_head`
+frontmatter field, its header prose fell back to reusing the
+reviewed-subject SHA for both "reviewed" and "fixed" roles. Two
+literal-substitution attempts (round 15's header, round 16's header) each
+tripped the same class of defect one section later, tripping a universal
+circuit breaker at the third occurrence (F33 below). The operator
+dispositioned this as a genuinely new systemic-contract operation: no
+committed artifact may claim to identify the commit SHA that contains it;
+see "Round 17 — systemic contract fix" below.
+
 ## Distinct finding inventory
 
 Legend — **RC** = root-cause class (see taxonomy below). **P-021** = scope
@@ -164,6 +180,7 @@ rounds/HEADs.
 | F30 | R16 (e075de26, reviewed) | thread `PRRT_kwDORzpWpM6gYcYh` | `docs/reviews/2026-09-07-pr-436-adversarial-review.md:305` | Round-15's own new "post-fix disposition" section header labelled `fdcf91e2` (the pre-fix, reviewed HEAD) as "the HEAD after the round-15 commit" — conflating reviewed-HEAD with fix-HEAD, so the `READY_WITH_FOLLOWUPS` verdict was not attributable to a specific, correct current-HEAD SHA | RC-9 | P1 | C1 | **fixed** — header rewritten to name both HEADs explicitly (`fdcf91e2` reviewed-before-fix, `e075de2670addf74182a6b8ed7c9ef23ea0c216e` fix-committed-at); added a distinct `round_15_fix_head` frontmatter field alongside the pre-existing `round_15_reviewed_head` so the two are never conflated again | this session (R16) | 1 (class rec #10 of RC-9) |
 | F31 | R16 (e075de26, reviewed) | thread `PRRT_kwDORzpWpM6gYcY5` | `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md:184` | A 4th file carrying `856B6770`'s disposition still said `2026-09-07`, missed by round 15's per-file sweep, which believed (and stated) it had corrected "all 3 files" | RC-12 | P1 | C1 | **fixed** — same `2026-09-07`→`2026-09-08` correction with the same chronological-impossibility note used in the other 3 files | this session (R16) | 2 (class rec #2 of RC-12 — the "swept all N files" claim was itself wrong by one, a mild RC-10 flavor) |
 | F32 | R16 (e075de26, reviewed) | suppressed | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:30` (citations) | Round-15's own newly-authored compound-taxonomy citation claimed "17 Copilot reviews (through round 15)"; the true count through round 15 was 16 — the 17th review is the round-16 review that caught this off-by-one | RC-1 | P2 | C1 | **fixed** — citation corrected to state the count accurately across both rounds (16 through round 15, 17th is the round-16 review itself) | this session (R16) | 1 (class rec #5 of RC-1 — a compound-learning document about evidence-consistency errors contained one of its own) |
+| F33 | R17 (0b45caf8, reviewed) | thread `PRRT_kwDORzpWpM6gYzGj` | `docs/reviews/2026-09-07-pr-436-adversarial-review.md:375` | Round-16's own new section header repeated the identical RC-9 conflation F30 had just fixed one section earlier: it labelled the pre-fix reviewed HEAD `e075de26` as both "reviewed" and "fixed," when round 16's fix actually committed at `0b45caf8` — because round 16 never recorded a `round_16_fix_head` frontmatter field, its own header prose fell back to reusing the reviewed-subject SHA for both roles | RC-9 (self-referential fixed-point sub-case) | P1 | C1 | **fixed systemically, not by literal substitution** — attempts 1-2 (round 15's header, round 16's header) each substituted a corrected SHA and each re-created the same class of claim one section later, tripping a universal same-error-recurrence circuit breaker at attempt 3 (full chain: `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`); the operator dispositioned this as a genuinely new systemic-contract operation rather than a fourth retry — the round-16 header now names "reviewed subject `e075de26`" / "fix committed at `0b45caf8`" explicitly, `round_16_fix_head` is added to frontmatter to close the gap, and a `reviewed_subject_sha`/`resolution_commit_sha`/`verified_subject_sha` naming contract is established so a committed artifact never again claims to name its own containing commit — see the adversarial review's new "Round 17" section for the full contract | this session (R17) | 2 (class rec #11 of RC-9 — the first RC-9 manifestation that is itself a recurrence of a same-file, same-round-window RC-9 fix, confirming the class needed a structural resolution, not another instance-level substitution) |
 
 ### Chronology preserved, duplicates collapsed
 
@@ -184,14 +201,14 @@ post-push step (fixed after push, this session). Round 16 (this session,
 narrow follow-on) fixed F30-F32 — 3 fresh errors introduced by round 15's
 own newly-authored artifacts (adversarial-review header, one missed
 cascade-close reconcile file, taxonomy citation off-by-one) — none reopen a
-prior finding. Findings F01-F32 (32 distinct findings total, up from 24 at
-round 13, 29 at round 15) are canonical as of round 16.
+prior finding. Findings F01-F33 (33 distinct findings total, up from 24 at
+round 13, 29 at round 15, 32 at round 16) are canonical as of round 17.
 
 ## Root-cause taxonomy (derived, not assumed)
 
 | ID | Root-cause class | Distinct findings | Manifestations | Definition |
 |---|---|---|---|---|
-| **RC-9** | **Current-HEAD readiness drift** | 4 (F11, F23, F27, F30) | **10** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit |
+| **RC-9** | **Current-HEAD readiness drift** | 5 (F11, F23, F27, F30, F33) | **11** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit — **F33 is the degenerate self-referential sub-case: a committed artifact's own section header tried to name the SHA of the commit that would contain it, a structural fixed-point impossibility (the SHA does not exist until the commit is made), not ordinary post-commit staleness; resolved round 17 by retiring self-attestation from committed artifacts entirely rather than by another SHA substitution** |
 | **RC-11** | **Pre/post-mutation chronology falsification** | 2 (F16, F24/F28) | **9** | Evidence produced *after* an irreversible action is narrated as if it had been produced *before* it, silently converting a safety gate into a post-hoc observation |
 | **RC-10** | **Cross-surface propagation incompleteness** | 2 (F15, F25) | **8** | A correction is applied to the location that was flagged, not to every location asserting the same fact |
 | **RC-2** | **Machine-readable vs narrative mismatch** | 6 (F02, F13, F14, F20, F21, F29) | **10** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact |
@@ -306,6 +323,79 @@ session, not a same-error third-attempt recurrence).
 cycle (verified by direct, targeted read of each edited line, not a fresh
 independent-agent pass, given the narrow 3-line scope). No prior finding
 reopened.
+
+## Round 17 — systemic contract fix (this session)
+
+**Trigger:** a fresh Copilot review at the round-16 fix HEAD
+(`0b45caf82fb6b973f6b04f7851d681a8b3b64b5a`) surfaced 1 open thread
+(`PRRT_kwDORzpWpM6gYzGj`, F33 above): round 16's own new section header
+reproduced the identical RC-9 conflation that F30 had flagged and round 16
+itself had just fixed one section earlier — a fresh instance of the same
+defect class, not a reopening of F30.
+
+**Why this round is not a fourth literal-substitution retry.** Attempt 1
+(round 15's header) and attempt 2 (round 16's header) each corrected one
+wrong SHA string and each immediately reproduced the same class of error one
+section later. That two-for-two recurrence rate is itself the diagnostic
+signal: the defect is not "an insufficiently careful SHA correction," it is
+a structural fixed-point impossibility — a committed artifact cannot name
+the SHA of the commit that contains it, because that SHA does not exist
+until the commit is made. The circuit breaker tripped at the third
+same-class occurrence (Copilot's round-17 detection); full attempt chain
+and operator disposition:
+`docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`. The
+operator explicitly dispositioned this as a genuinely new systemic-contract
+operation — removing the impossible requirement rather than retrying the
+same substitution a fourth time.
+
+**Root cause, structurally stated:** a Git-tracked review/evidence artifact
+must not claim to identify the commit SHA that contains it. Every prior
+attempt treated "reviewed and fixed at HEAD X" as a single claim resolvable
+by picking the right X; the round-17 fix instead splits that single
+overloaded claim into three distinct, individually satisfiable roles:
+`reviewed_subject_sha` (the commit/diff actually reviewed before a round's
+fix — always a past, already-existing commit, never self-referential),
+`resolution_commit_sha` (the commit that applied a prior fix, nameable only
+by a *later* artifact/entry once that commit already exists — this file's
+existing `round_15_fix_head` field and the newly-added `round_16_fix_head`
+field are both instances of this role), and `verified_subject_sha` (a SHA
+verified before the commit that reports the verification, never the
+verifying commit itself). Current PR HEAD and merge readiness remain
+external, dynamic facts recorded in the PR body / check-run / review
+response after push — never inside a committed file.
+
+**Method:**
+1. Re-read the open thread and the circuit-breaker memory record in full
+   before any edit, confirming operator disposition was recorded.
+2. Added the missing `round_16_fix_head` frontmatter field to
+   `docs/reviews/2026-09-07-pr-436-adversarial-review.md` (the gap whose
+   absence caused round 16's header to fall back to the reviewed-subject
+   SHA for both roles) and corrected the round-16 header in place to name
+   both HEADs explicitly.
+3. Appended a new "Round 17" section to that same file documenting the
+   contract and explicitly declining to name this round's own fix commit
+   SHA inside the committed file (per the contract itself) — that SHA is
+   published, after push, only in the PR body's `Local Review Readiness`
+   block and in the reply that resolves thread `PRRT_kwDORzpWpM6gYzGj`.
+4. Updated this inventory (F33 row, RC-9 taxonomy row, canonical-count
+   summary) and the compound taxonomy (new anti-pattern, new proactive
+   check, updated review-count citation) with the round-17 data.
+5. Did **not** modify the reviewed `162-F`/`170-S` implementation-methodology
+   plan (`docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md`)
+   — that is a Stage-owned planning artifact and Ship editing it would
+   violate P-010. The needed refinement (propagate this naming contract
+   into the `review`/`pr-lifecycle` skill guidance the plan designs) is
+   recorded here as a follow-up for Stage's existing `170-S` methodology
+   tracker, not implemented in this session.
+
+**Verdict:** F33 fixed structurally (contract adopted, not a fourth SHA
+substitution); zero new findings introduced. Threaded count (live-verified
+via `gh api graphql reviewThreads`, all rounds to date): **26 total review
+threads on PR #436, 26 resolved, 0 open** once this round's reply/resolve
+step (below) completes against thread `PRRT_kwDORzpWpM6gYzGj` (25 resolved,
+1 open immediately before this round). Suppressed count unchanged from round
+16 (F32 remains the only suppressed finding in this round window; F33 was
+threaded). No prior finding reopened.
 
 ## Cross-references
 
