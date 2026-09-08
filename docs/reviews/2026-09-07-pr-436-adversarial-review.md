@@ -32,6 +32,7 @@ round_17_p2_count: 2
 round_17_p3_count: 1
 round_17_readiness_outcome: READY_WITH_FOLLOWUPS
 round_17_continuation_reviewed_head: 8711bca15f97b386641c58b302ba5b35d9aa3da1
+round_17_continuation_2_reviewed_head: e0a14f5c177bf9de648560d523d5bf717850a683
 head_attribution_contract: "no field in this file names the SHA of the commit that contains it; see 'Round 17' section for the reviewed_subject_sha / resolution_commit_sha / verified_subject_sha naming contract"
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
@@ -548,3 +549,47 @@ Full per-finding detail: `docs/reviews/2026-09-07-pr-436-copilot-finding-invento
 F34 row and "Round 17 continuation" section. Readiness outcome unchanged:
 `READY_WITH_FOLLOWUPS`, P0=0/P1=0/P2=2/P3=1. No merge approval given or
 sought.
+
+### Round-17 second continuation — post-push Copilot re-review at HEAD `e0a14f5c`
+
+After the first continuation's fix commit was pushed, the PR body updated,
+and thread `PRRT_kwDORzpWpM6gZuPp` replied-to/resolved, a further Copilot
+review was requested and completed at the new HEAD (reviewed subject
+`e0a14f5c177bf9de648560d523d5bf717850a683` — see
+`round_17_continuation_2_reviewed_head` in this file's frontmatter, a
+`reviewed_subject_sha` for an already-existing, already-pushed commit).
+Live GraphQL confirmed thread `PRRT_kwDORzpWpM6gZuPp` **is** actually
+resolved; the review body's own suppressed restatement to the contrary was
+itself stale, consistent with the pattern already observed twice this
+session. This review opened 4 new threads:
+
+- `PRRT_kwDORzpWpM6gaOaF` — the prior continuation's own F34 fix left the
+  `root_cause` frontmatter one number behind its own `citations` block
+  ("18" reviews vs. the "19th" the citations already named). Fixed by
+  restating `root_cause` as "19 Copilot reviews ... 34 distinct findings" —
+  same-contract-surface completion of the prior pass's own edit.
+- `PRRT_kwDORzpWpM6gaOav`, `PRRT_kwDORzpWpM6gaObR`, `PRRT_kwDORzpWpM6gaOb4`
+  — all three name the same underlying gap in three different citing
+  files: the prior continuation's narrative described P-021 stash entries
+  `A8CA35BB`/`EE1AB6DB` as "captured," but `backlogit stash add` only
+  writes the local working-tree copy of `.backlogit/stash.jsonl` — those
+  entries were not yet committed, so no reviewer of the branch could
+  actually see them. Fixed by surgically committing exactly those 2 JSON
+  lines onto the last committed baseline, leaving the file's other,
+  concurrent, unrelated Stage-owned working-tree entries untouched and
+  unstaged.
+
+One further suppressed comment
+(`docs/closure/2026-09-06-159-s-151-f-closure.md:20`, a missing "Invariants
+to preserve" section) was genuine but out of scope for this round's
+authorized systemic-HEAD-fix operation, for the same reason as
+`A8CA35BB`/`EE1AB6DB`; a clean active+archived P-021 discovery scan found
+no existing duplicate, so it was captured as a new stash entry
+(`5F70D80C`) rather than fixed here. Full per-finding detail:
+`docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`'s F35/F36
+rows and "Round 17 continuation, second pass" section. Readiness outcome
+unchanged: `READY_WITH_FOLLOWUPS`, P0=0/P1=0/P2=2/P3=1 (the 2 P2s and 1 P3
+remain the same pre-existing, already-disclosed follow-up items; F35/F36
+were fixed, not counted as new residual severity). No merge approval given
+or sought.
+

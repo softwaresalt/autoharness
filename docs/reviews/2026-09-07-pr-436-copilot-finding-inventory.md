@@ -1,5 +1,5 @@
 ---
-title: "PR #436 Copilot hosted-review finding inventory (all 16 rounds, all HEADs)"
+title: "PR #436 Copilot hosted-review finding inventory (all 17 rounds, all HEADs)"
 doc_type: review-inventory
 problem_type: review-pattern-analysis
 category: hosted-review-finding-taxonomy
@@ -11,13 +11,14 @@ source: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T20:45:00-07:00"
+updated_at: "2026-09-08T21:15:00-07:00"
 reviewed_head: 659c8e75c236e5e2efe8da31dca2c985b9ccba41
 round_15_reviewed_head: fdcf91e2e0a5d8e9c6893e060aeaecc837592271
 round_16_reviewed_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
 round_16_fix_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 round_17_reviewed_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 round_17_continuation_reviewed_head: 8711bca15f97b386641c58b302ba5b35d9aa3da1
+round_17_continuation_2_reviewed_head: e0a14f5c177bf9de648560d523d5bf717850a683
 tags: [copilot-review, review-pattern, p-018, p-021, evidence-consistency, compound-learning]
 ---
 
@@ -183,6 +184,8 @@ rounds/HEADs.
 | F32 | R16 (e075de26, reviewed) | suppressed | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:30` (citations) | Round-15's own newly-authored compound-taxonomy citation claimed "17 Copilot reviews (through round 15)"; the true count through round 15 was 16 — the 17th review is the round-16 review that caught this off-by-one | RC-1 | P2 | C1 | **fixed** — citation corrected to state the count accurately across both rounds (16 through round 15, 17th is the round-16 review itself) | this session (R16) | 1 (class rec #5 of RC-1 — a compound-learning document about evidence-consistency errors contained one of its own) |
 | F33 | R17 (0b45caf8, reviewed) | thread `PRRT_kwDORzpWpM6gYzGj` | `docs/reviews/2026-09-07-pr-436-adversarial-review.md:375` | Round-16's own new section header repeated the identical RC-9 conflation F30 had just fixed one section earlier: it labelled the pre-fix reviewed HEAD `e075de26` as both "reviewed" and "fixed," when round 16's fix actually committed at `0b45caf8` — because round 16 never recorded a `round_16_fix_head` frontmatter field, its own header prose fell back to reusing the reviewed-subject SHA for both roles | RC-9 (self-referential fixed-point sub-case) | P1 | C1 | **fixed systemically, not by literal substitution** — attempts 1-2 (round 15's header, round 16's header) each substituted a corrected SHA and each re-created the same class of claim one section later, tripping a universal same-error-recurrence circuit breaker at attempt 3 (full chain: `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`); the operator dispositioned this as a genuinely new systemic-contract operation rather than a fourth retry — the round-16 header now names "reviewed subject `e075de26`" / "fix committed at `0b45caf8`" explicitly, `round_16_fix_head` is added to frontmatter to close the gap, and a `reviewed_subject_sha`/`resolution_commit_sha`/`verified_subject_sha` naming contract is established so a committed artifact never again claims to name its own containing commit — see the adversarial review's new "Round 17" section for the full contract | this session (R17) | 2 (class rec #11 of RC-9 — the first RC-9 manifestation that is itself a recurrence of a same-file, same-round-window RC-9 fix, confirming the class needed a structural resolution, not another instance-level substitution) |
 | F34 | R17 (8711bca1, reviewed) | thread `PRRT_kwDORzpWpM6gZuPp` | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:5` (`root_cause` frontmatter) | The round-17 commit (`8711bca1`) updated this file's `citations` block to 18 reviews/round-17 data but left the searchable `root_cause` frontmatter field asserting the stale "13 Copilot rounds ... 24 distinct findings ... 12 root-cause classes" figure, so indexed/machine retrieval would summarize an outdated dataset even though the narrative citations were current | RC-2 | P2 | C1 (same-contract-surface completion of this round's own citation update, in this same file) | **fixed** — `root_cause` reworded to state both the round-13 baseline (13 rounds/56 utterances/24 findings) and the round-17 running total (18 reviews/33 distinct findings), still 12 root-cause classes, matching the citations block | this session (R17-continuation) | 1 (class rec #7 of RC-2) |
+| F35 | R17-continuation (e0a14f5c, reviewed) | thread `PRRT_kwDORzpWpM6gaOaF` | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:5` (`root_cause` frontmatter) | The very commit that fixed F34 (`e0a14f5c`) left `root_cause` saying "18 Copilot reviews" while the same commit's own `citations` block already said "19th is the round-17-continuation review" — F34's own fix introduced a fresh RC-2 mismatch one field away from the one it had just closed | RC-2 | P2 | C1 (same-contract-surface completion of the F34 fix, in the same field, same file) | **fixed** — `root_cause` reworded to "19 Copilot reviews ... 34 distinct findings," matching `citations` | this session (R17-continuation, second pass) | 1 (class rec #8 of RC-2 — a fix for an RC-2 defect recreated an RC-2 defect one field away, mirroring F30/F33's recursive pattern in a different root-cause class) |
+| F36 | R17-continuation (e0a14f5c, reviewed) | threads `PRRT_kwDORzpWpM6gaOav`, `PRRT_kwDORzpWpM6gaObR`, `PRRT_kwDORzpWpM6gaOb4` | all 3 review/compound files' "Round 17 continuation" narrative sections | Each file's continuation narrative cited P-021 deferred-scope stash entries `A8CA35BB`/`EE1AB6DB` as "captured," but those entries existed only in the local, uncommitted `.backlogit/stash.jsonl` working-tree copy — not in the version tracked at `e0a14f5c` — so no reviewer or tool reading the branch could actually see them | RC-1 | P1 | C1 (the citing prose is same-contract-surface with this round's own capture action; the fix is publishing the entries the prose already claims exist, not new scope) | **fixed** — `.backlogit/stash.jsonl` surgically reconstructed (committed-baseline content plus exactly these 2 new JSON lines, none of the concurrent unrelated Stage working-tree entries in the same file staged or altered) so `A8CA35BB`/`EE1AB6DB` are now durably present at the fixing commit; `.backlogit/archive/stash.jsonl` (entirely Stage-owned dirty content) left untouched | this session (R17-continuation, second pass) | 3 (one distinct defect, 3 manifestations — one per citing file; class rec #6 of RC-1) |
 
 ### Chronology preserved, duplicates collapsed
 
@@ -206,10 +209,16 @@ cascade-close reconcile file, taxonomy citation off-by-one) — none reopen a
 prior finding. Round 17 (this session) fixed F33 systemically and, in a
 same-file continuation pass after a second, later Copilot review at the
 round-17 commit HEAD, also fixed F34 (a same-contract-surface frontmatter
-staleness gap in the very citation update round 17 had just made). Findings
-F01-F34 (34 distinct findings total, up from 24 at round 13, 29 at round 15,
-32 at round 16, 33 at round 17) are canonical as of round 17's continuation
-pass.
+staleness gap in the very citation update round 17 had just made). A third
+Copilot review, at the continuation's own fixing commit (`e0a14f5c`), then
+found F35 (the F34 fix itself left one field one number stale — "18" instead
+of "19" reviews) and F36 (the continuation's own narrative cited 2
+newly-captured stash entries that existed only in the local working tree,
+not on the branch at that commit). Both were fixed in the same
+same-contract-surface pass, without re-entering a literal SHA-substitution
+loop. Findings F01-F36 (36 distinct findings total, up from 24 at round 13,
+29 at round 15, 32 at round 16, 33 at round 17, 34 at round 17's first
+continuation pass) are canonical as of round 17's second continuation pass.
 
 ## Root-cause taxonomy (derived, not assumed)
 
@@ -218,10 +227,10 @@ pass.
 | **RC-9** | **Current-HEAD readiness drift** | 5 (F11, F23, F27, F30, F33) | **11** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit — **F33 is the degenerate self-referential sub-case: a committed artifact's own section header tried to name the SHA of the commit that would contain it, a structural fixed-point impossibility (the SHA does not exist until the commit is made), not ordinary post-commit staleness; resolved round 17 by retiring self-attestation from committed artifacts entirely rather than by another SHA substitution** |
 | **RC-11** | **Pre/post-mutation chronology falsification** | 2 (F16, F24/F28) | **9** | Evidence produced *after* an irreversible action is narrated as if it had been produced *before* it, silently converting a safety gate into a post-hoc observation |
 | **RC-10** | **Cross-surface propagation incompleteness** | 2 (F15, F25) | **8** | A correction is applied to the location that was flagged, not to every location asserting the same fact |
-| **RC-2** | **Machine-readable vs narrative mismatch** | 7 (F02, F13, F14, F20, F21, F29, F34) | **11** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact |
+| **RC-2** | **Machine-readable vs narrative mismatch** | 8 (F02, F13, F14, F20, F21, F29, F34, F35) | **13** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact — **F35: a fix for one RC-2 field-mismatch (F34) recreated a fresh, adjacent RC-2 field-mismatch one number away, the same recursive shape RC-9 showed in F30→F33** |
 | **RC-5** | **Cross-surface state currency** | 4 (F05, F17, F18, F19) | **5** | Durable memory or committed backlog data still asserts a superseded state that query-first retrieval will resurface as a live blocker |
 | **RC-3** | **Unsatisfied producer contract** | 3 (F03, F07, F10) | **5** | A required artifact/section/source-scan the governing contract names was never produced, or was produced with only part of its required inputs |
-| **RC-1** | **Evidence–artifact content error** | 4 (F01, F12, F26, F32) | **5** | A statement about a file, PR, or record does not match that file/PR/record as it actually exists — **new manifestation (F26): a REMEDIATION of one finding cites an unrelated record as its own tracker, propagating a fresh RC-1 defect through the very act of fixing a prior one; F32: a compound-learning document *about* evidence-consistency errors contained one of its own (an off-by-one review count)** |
+| **RC-1** | **Evidence–artifact content error** | 5 (F01, F12, F26, F32, F36) | **8** | A statement about a file, PR, or record does not match that file/PR/record as it actually exists — **new manifestation (F26): a REMEDIATION of one finding cites an unrelated record as its own tracker, propagating a fresh RC-1 defect through the very act of fixing a prior one; F32: a compound-learning document *about* evidence-consistency errors contained one of its own (an off-by-one review count); F36: a continuation narrative cited 2 P-021 stash captures as durably recorded when they existed only in the local uncommitted working tree, across 3 files** |
 | **RC-6** | **Contract misreading / unsupported carve-out** | 1 (F06) | 4 | An exemption is invented to make a failing gate pass, rather than the gate result being disclosed |
 | **RC-4** | **Disclosure incompleteness** | 1 (F04) | 1 | A risky/destructive action or residual risk is omitted from the record that is contractually required to carry it |
 | **RC-7** | **Non-executable command** | 1 (F08) | 1 | A documented command fails when actually invoked |
@@ -464,10 +473,61 @@ assumed from the comment text alone) before disposition:
 expansion of the current fix (2 pre-existing, unrelated closure-doc findings
 captured for future, separately authorized work instead); 0 findings
 required re-entering a literal SHA-substitution loop. Thread count after
-this continuation: still 26 total, 26 resolved, 0 open (the round-17
+this continuation: **27 total, 27 resolved, 0 open** (the round-17
 continuation's single new thread, `PRRT_kwDORzpWpM6gZuPp`, is replied-to and
-resolved as part of this same pass — see the adversarial review's Round 17
-section for the reply text and commit citation).
+resolved as part of this same pass — it is a NEW thread, not one of the
+prior 26, since the review that opened it ran after those 26 were already
+resolved — see the adversarial review's Round 17 section for the reply text
+and commit citation).
+
+### Round 17 continuation, second pass — Copilot re-review at HEAD `e0a14f5c`
+
+After the first continuation's commit (`e0a14f5c`) was pushed, the PR body
+was updated for the new HEAD, and thread `PRRT_kwDORzpWpM6gZuPp` was
+replied-to and resolved, a further Copilot review was requested and
+completed at `e0a14f5c` (20th Copilot review overall). Live GraphQL
+confirmed thread `PRRT_kwDORzpWpM6gZuPp` **is** actually resolved — the
+review body's own suppressed restatement to the contrary was itself stale,
+consistent with the established staleness pattern (see the "always verify
+against live state" note above). This review surfaced **4 new threaded
+findings**:
+
+- `PRRT_kwDORzpWpM6gaOaF` — **F35 above, fixed.** The F34 fix committed one
+  round earlier had itself gone stale by the time it landed: it set
+  `root_cause` to "18 Copilot reviews" while the same commit's `citations`
+  block already said the 19th review was the round-17-continuation review
+  itself. Fixed by restating `root_cause` as "19 Copilot reviews ... 34
+  distinct findings," matching `citations`.
+- `PRRT_kwDORzpWpM6gaOav`, `PRRT_kwDORzpWpM6gaObR`, `PRRT_kwDORzpWpM6gaOb4`
+  — **F36 above, fixed.** All three flag the same underlying gap from three
+  different citing files: the first continuation's narrative (in this file,
+  the adversarial review, and the taxonomy) described P-021 stash entries
+  `A8CA35BB`/`EE1AB6DB` as "captured," but the entries existed only in the
+  local, uncommitted `.backlogit/stash.jsonl` working-tree copy — invisible
+  to any reviewer or tool reading the committed branch. Fixed by surgically
+  reconstructing `.backlogit/stash.jsonl` (committed baseline plus exactly
+  the 2 new JSON lines, none of the concurrent, unrelated Stage
+  working-tree entries in that same file staged or altered) so the entries
+  are now durably present at the fixing commit.
+
+One further suppressed comment surfaced:
+`docs/closure/2026-09-06-159-s-151-f-closure.md:20` (missing "Invariants to
+preserve" section) — genuine but out-of-scope for the same reason F35/F36's
+sibling out-of-scope findings were: it requires editing a closure artifact
+outside this round's authorized systemic-HEAD-fix contract surface.
+Discovery-checked against both the active and archived stash (no existing
+entry describes this gap) before capture as a new P-021 deferred-scope stash
+entry, provisional priority `low`, kind `task`, pending Stage triage.
+
+**Second-pass verdict:** F35 and F36 fixed, both same-contract-surface
+completions of the prior pass's own work (a stale count one field away, and
+publishing captures the prior pass's own prose already claimed existed); 1
+new out-of-scope closure-doc finding deferred via P-021 capture, not fixed;
+0 findings required re-entering a literal SHA-substitution loop. This is the
+third consecutive round in which fixing the trio of review/compound files
+introduced one small same-file inconsistency the very next review caught —
+expected, and handled identically each time: verify live state, classify
+strictly via P-021 C1, never expand into the deferred closure-doc findings.
 
 ## Cross-references
 
