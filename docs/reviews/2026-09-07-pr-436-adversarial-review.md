@@ -31,11 +31,12 @@ round_17_p1_count: 0
 round_17_p2_count: 2
 round_17_p3_count: 1
 round_17_readiness_outcome: READY_WITH_FOLLOWUPS
+round_17_continuation_reviewed_head: 8711bca15f97b386641c58b302ba5b35d9aa3da1
 head_attribution_contract: "no field in this file names the SHA of the commit that contains it; see 'Round 17' section for the reviewed_subject_sha / resolution_commit_sha / verified_subject_sha naming contract"
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T20:05:00-07:00"
+updated_at: "2026-09-08T20:45:00-07:00"
 inventory: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 compound_learning: docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md
 source: docs/reviews/2026-09-07-pr-436-adversarial-review.md
@@ -519,3 +520,31 @@ Thread `PRRT_kwDORzpWpM6gYzGj` is replied to (citing this round's resolution
 commit, published in the PR body after push, per the contract above, rather
 than in this file) and resolved. This PR is **still not being merged** — no
 merge approval was given or sought this round.
+
+### Round-17 continuation — post-push Copilot re-review at HEAD `8711bca1`
+
+After the round-17 fix commit was pushed and thread `PRRT_kwDORzpWpM6gYzGj`
+was replied-to/resolved, a fresh Copilot review was requested and completed
+at the new HEAD (reviewed subject `8711bca15f97b386641c58b302ba5b35d9aa3da1`
+— see `round_17_continuation_reviewed_head` in this file's frontmatter, a
+`reviewed_subject_sha` for an already-existing, already-pushed commit, not a
+self-referential claim). It opened one new thread,
+`PRRT_kwDORzpWpM6gZuPp`, on
+`docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:5`:
+that file's round-17 update refreshed its `citations` block but left the
+searchable `root_cause` frontmatter field stating the stale round-13 totals.
+This is a same-contract-surface completion of the round-17 citation work
+(same file, same update), not a scope expansion, and was fixed in place
+(frontmatter now states both the round-13 baseline and the round-17 running
+total). Nine suppressed comments were also individually verified against
+current committed content; two genuine but unrelated closure-doc findings
+(cascade-close task-archival phrasing, publication-ownership phrasing) were
+out of scope for this round's authorized systemic-HEAD-fix operation and
+were captured as P-021 deferred-scope stash entries (`A8CA35BB`,
+`EE1AB6DB`) rather than fixed here; the remaining suppressed comments were
+either already resolved by this round's own actions (committing the
+circuit-breaker record) or stale re-statements of already-correct content.
+Full per-finding detail: `docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`'s
+F34 row and "Round 17 continuation" section. Readiness outcome unchanged:
+`READY_WITH_FOLLOWUPS`, P0=0/P1=0/P2=2/P3=1. No merge approval given or
+sought.

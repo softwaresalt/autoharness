@@ -2,7 +2,7 @@
 title: "Hosted-review finding patterns are predictable: a 12-class taxonomy and a proactive pre-PR evidence-consistency gate"
 problem_type: review-coverage-gap
 category: hosted-review-pattern-learning
-root_cause: "Local review reviews the diff, not the evidence graph; and it runs once, before the remediation commits that create the most recurrent defect classes exist. Across PR #436's 13 Copilot rounds, 56 raw finding utterances compressed to 24 distinct findings in 12 root-cause classes, and 100% escaped local review and CI. The three highest-volume classes (current-HEAD readiness drift, pre/post-mutation chronology falsification, cross-surface propagation incompleteness) are all structural properties of multi-artifact evidence sets that no single-file diff review can observe, and two of them are actually *created by* the act of remediating a prior round."
+root_cause: "Local review reviews the diff, not the evidence graph; and it runs once, before the remediation commits that create the most recurrent defect classes exist. Across PR #436's 18 Copilot reviews (round-13 baseline: 13 rounds, 56 raw finding utterances compressing to 24 distinct findings; updated through round 17: 33 distinct findings), all confined to the same 12 root-cause classes, and 100% escaped local review and CI. The three highest-volume classes (current-HEAD readiness drift, pre/post-mutation chronology falsification, cross-surface propagation incompleteness) are all structural properties of multi-artifact evidence sets that no single-file diff review can observe, and two of them are actually *created by* the act of remediating a prior round."
 resolution_type: process
 severity: high
 component: "review skill / pr-lifecycle skill / Ship agent / compound library"
@@ -28,9 +28,9 @@ tags:
   - suppressed-findings-first-class
   - self-referential-fixed-point-identity
 citations:
-  - "PR #436 (chore: post-merge closure for 151-F), 18 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught F30-F32, 18th is the round-17 review at HEAD `0b45caf8` that caught the identical RC-9 conflation recurring in round 16's own header — tripping a circuit breaker resolved by a structural naming contract rather than a further SHA substitution), 26 threads (26 resolved), 36+ suppressed findings"
-  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 17/F33)"
-  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15/round-16/round-17 disposition appended)"
+  - "PR #436 (chore: post-merge closure for 151-F), 19 Copilot reviews total (16 through round 15 at HEAD `fdcf91e2`, 17th is the round-16 review at HEAD `e075de26` that caught F30-F32, 18th is the round-17 review at HEAD `0b45caf8` that caught the identical RC-9 conflation recurring in round 16's own header, 19th is the round-17-continuation review at HEAD `8711bca1` that caught F34 — a same-file frontmatter-staleness gap in this round-17 commit's own citation update — tripping a circuit breaker resolved by a structural naming contract rather than a further SHA substitution), 27 threads (27 resolved), 36+ suppressed findings"
+  - "docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md (full per-finding evidence trail, updated through round 17 continuation/F34)"
+  - "docs/reviews/2026-09-07-pr-436-adversarial-review.md (independent re-review at HEAD 659c8e75; round-15/round-16/round-17/round-17-continuation disposition appended)"
   - "docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md (round-15/round-16 literal-substitution attempts and their recurrence, the trigger for the round-17 structural fix)"
   - "src/autoharness/gates/topology.py:294 _closure_artifact_complete / :654 closure_complete"
   - "docs/compound/114-S-109-F-copilot-review-fix-patterns.md (suppressed comments; unenforced closure conditions)"
@@ -480,6 +480,20 @@ guidance is part of the reviewed `162-F`/`170-S` implementation-methodology
 plan (`docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md`),
 a Stage-owned planning artifact Ship does not edit (P-010). Recorded here as
 a refinement for Stage's `170-S` methodology tracker.
+
+### Round-17 continuation — one same-file completion, two out-of-scope deferrals
+
+A fresh Copilot review at the round-17 fix commit's HEAD (`8711bca1`) caught
+F34: this file's own round-17 citation update (above) left the searchable
+`root_cause` frontmatter field stating the stale round-13 totals while the
+`citations` block already carried current data. Fixed in place (same file,
+same update — a completion, not a scope expansion). Two unrelated,
+pre-existing closure-doc findings surfaced as suppressed comments in the
+same review; both require editing files outside this round's authorized
+contract surface and were captured as P-021 deferred-scope stash entries
+(`A8CA35BB`, `EE1AB6DB`) rather than fixed here — see
+`docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md`'s "Round 17
+continuation" section for the full per-comment disposition.
 
 ## The loop this closes
 

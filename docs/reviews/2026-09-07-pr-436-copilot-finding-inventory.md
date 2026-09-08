@@ -11,12 +11,13 @@ source: docs/reviews/2026-09-07-pr-436-copilot-finding-inventory.md
 generated_by: stage
 generated_at: "2026-09-07T23:42:58-07:00"
 updated_by: ship
-updated_at: "2026-09-08T20:05:00-07:00"
+updated_at: "2026-09-08T20:45:00-07:00"
 reviewed_head: 659c8e75c236e5e2efe8da31dca2c985b9ccba41
 round_15_reviewed_head: fdcf91e2e0a5d8e9c6893e060aeaecc837592271
 round_16_reviewed_head: e075de2670addf74182a6b8ed7c9ef23ea0c216e
 round_16_fix_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
 round_17_reviewed_head: 0b45caf82fb6b973f6b04f7851d681a8b3b64b5a
+round_17_continuation_reviewed_head: 8711bca15f97b386641c58b302ba5b35d9aa3da1
 tags: [copilot-review, review-pattern, p-018, p-021, evidence-consistency, compound-learning]
 ---
 
@@ -181,6 +182,7 @@ rounds/HEADs.
 | F31 | R16 (e075de26, reviewed) | thread `PRRT_kwDORzpWpM6gYcY5` | `.backlogit/reconcile/159-S-cascade-close-20260906-073211.md:184` | A 4th file carrying `856B6770`'s disposition still said `2026-09-07`, missed by round 15's per-file sweep, which believed (and stated) it had corrected "all 3 files" | RC-12 | P1 | C1 | **fixed** — same `2026-09-07`→`2026-09-08` correction with the same chronological-impossibility note used in the other 3 files | this session (R16) | 2 (class rec #2 of RC-12 — the "swept all N files" claim was itself wrong by one, a mild RC-10 flavor) |
 | F32 | R16 (e075de26, reviewed) | suppressed | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:30` (citations) | Round-15's own newly-authored compound-taxonomy citation claimed "17 Copilot reviews (through round 15)"; the true count through round 15 was 16 — the 17th review is the round-16 review that caught this off-by-one | RC-1 | P2 | C1 | **fixed** — citation corrected to state the count accurately across both rounds (16 through round 15, 17th is the round-16 review itself) | this session (R16) | 1 (class rec #5 of RC-1 — a compound-learning document about evidence-consistency errors contained one of its own) |
 | F33 | R17 (0b45caf8, reviewed) | thread `PRRT_kwDORzpWpM6gYzGj` | `docs/reviews/2026-09-07-pr-436-adversarial-review.md:375` | Round-16's own new section header repeated the identical RC-9 conflation F30 had just fixed one section earlier: it labelled the pre-fix reviewed HEAD `e075de26` as both "reviewed" and "fixed," when round 16's fix actually committed at `0b45caf8` — because round 16 never recorded a `round_16_fix_head` frontmatter field, its own header prose fell back to reusing the reviewed-subject SHA for both roles | RC-9 (self-referential fixed-point sub-case) | P1 | C1 | **fixed systemically, not by literal substitution** — attempts 1-2 (round 15's header, round 16's header) each substituted a corrected SHA and each re-created the same class of claim one section later, tripping a universal same-error-recurrence circuit breaker at attempt 3 (full chain: `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`); the operator dispositioned this as a genuinely new systemic-contract operation rather than a fourth retry — the round-16 header now names "reviewed subject `e075de26`" / "fix committed at `0b45caf8`" explicitly, `round_16_fix_head` is added to frontmatter to close the gap, and a `reviewed_subject_sha`/`resolution_commit_sha`/`verified_subject_sha` naming contract is established so a committed artifact never again claims to name its own containing commit — see the adversarial review's new "Round 17" section for the full contract | this session (R17) | 2 (class rec #11 of RC-9 — the first RC-9 manifestation that is itself a recurrence of a same-file, same-round-window RC-9 fix, confirming the class needed a structural resolution, not another instance-level substitution) |
+| F34 | R17 (8711bca1, reviewed) | thread `PRRT_kwDORzpWpM6gZuPp` | `docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md:5` (`root_cause` frontmatter) | The round-17 commit (`8711bca1`) updated this file's `citations` block to 18 reviews/round-17 data but left the searchable `root_cause` frontmatter field asserting the stale "13 Copilot rounds ... 24 distinct findings ... 12 root-cause classes" figure, so indexed/machine retrieval would summarize an outdated dataset even though the narrative citations were current | RC-2 | P2 | C1 (same-contract-surface completion of this round's own citation update, in this same file) | **fixed** — `root_cause` reworded to state both the round-13 baseline (13 rounds/56 utterances/24 findings) and the round-17 running total (18 reviews/33 distinct findings), still 12 root-cause classes, matching the citations block | this session (R17-continuation) | 1 (class rec #7 of RC-2) |
 
 ### Chronology preserved, duplicates collapsed
 
@@ -201,8 +203,13 @@ post-push step (fixed after push, this session). Round 16 (this session,
 narrow follow-on) fixed F30-F32 — 3 fresh errors introduced by round 15's
 own newly-authored artifacts (adversarial-review header, one missed
 cascade-close reconcile file, taxonomy citation off-by-one) — none reopen a
-prior finding. Findings F01-F33 (33 distinct findings total, up from 24 at
-round 13, 29 at round 15, 32 at round 16) are canonical as of round 17.
+prior finding. Round 17 (this session) fixed F33 systemically and, in a
+same-file continuation pass after a second, later Copilot review at the
+round-17 commit HEAD, also fixed F34 (a same-contract-surface frontmatter
+staleness gap in the very citation update round 17 had just made). Findings
+F01-F34 (34 distinct findings total, up from 24 at round 13, 29 at round 15,
+32 at round 16, 33 at round 17) are canonical as of round 17's continuation
+pass.
 
 ## Root-cause taxonomy (derived, not assumed)
 
@@ -211,7 +218,7 @@ round 13, 29 at round 15, 32 at round 16) are canonical as of round 17.
 | **RC-9** | **Current-HEAD readiness drift** | 5 (F11, F23, F27, F30, F33) | **11** | A readiness/gate record names a HEAD that is no longer current, because the act of recording readiness creates a new commit — **F33 is the degenerate self-referential sub-case: a committed artifact's own section header tried to name the SHA of the commit that would contain it, a structural fixed-point impossibility (the SHA does not exist until the commit is made), not ordinary post-commit staleness; resolved round 17 by retiring self-attestation from committed artifacts entirely rather than by another SHA substitution** |
 | **RC-11** | **Pre/post-mutation chronology falsification** | 2 (F16, F24/F28) | **9** | Evidence produced *after* an irreversible action is narrated as if it had been produced *before* it, silently converting a safety gate into a post-hoc observation |
 | **RC-10** | **Cross-surface propagation incompleteness** | 2 (F15, F25) | **8** | A correction is applied to the location that was flagged, not to every location asserting the same fact |
-| **RC-2** | **Machine-readable vs narrative mismatch** | 6 (F02, F13, F14, F20, F21, F29) | **10** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact |
+| **RC-2** | **Machine-readable vs narrative mismatch** | 7 (F02, F13, F14, F20, F21, F29, F34) | **11** | A frontmatter/status field a tool consumes disagrees with the prose in the same or a linked artifact |
 | **RC-5** | **Cross-surface state currency** | 4 (F05, F17, F18, F19) | **5** | Durable memory or committed backlog data still asserts a superseded state that query-first retrieval will resurface as a live blocker |
 | **RC-3** | **Unsatisfied producer contract** | 3 (F03, F07, F10) | **5** | A required artifact/section/source-scan the governing contract names was never produced, or was produced with only part of its required inputs |
 | **RC-1** | **Evidence–artifact content error** | 4 (F01, F12, F26, F32) | **5** | A statement about a file, PR, or record does not match that file/PR/record as it actually exists — **new manifestation (F26): a REMEDIATION of one finding cites an unrelated record as its own tracker, propagating a fresh RC-1 defect through the very act of fixing a prior one; F32: a compound-learning document *about* evidence-consistency errors contained one of its own (an off-by-one review count)** |
@@ -396,6 +403,71 @@ step (below) completes against thread `PRRT_kwDORzpWpM6gYzGj` (25 resolved,
 1 open immediately before this round). Suppressed count unchanged from round
 16 (F32 remains the only suppressed finding in this round window; F33 was
 threaded). No prior finding reopened.
+
+### Round 17 continuation — post-push Copilot re-review at HEAD `8711bca1`
+
+After the round-17 commit (`8711bca1`) was pushed and thread
+`PRRT_kwDORzpWpM6gYzGj` was replied-to and resolved, a fresh Copilot review
+was requested and completed at the new HEAD (19th Copilot review overall on
+PR #436). It surfaced **1 new threaded finding** (`PRRT_kwDORzpWpM6gZuPp`,
+F34 above — fixed) and **9 suppressed comments**. Every suppressed comment
+was individually checked against the current committed file content (not
+assumed from the comment text alone) before disposition:
+
+- **3 were resolved by this same round's own action** of committing
+  `docs/memory/2026-09-08/circuit-break-pr-436-review-head-conflation.md`
+  as durable evidence (`docs/compound/...taxonomy.md:34`,
+  `docs/reviews/...adversarial-review.md:434`,
+  `docs/reviews/...copilot-finding-inventory.md:349` — each cited that file
+  as missing/uncommitted; it is now committed, so the citations resolve).
+- **2 were stale re-surfacing of already-correct state**, verified by direct
+  inspection: `docs/reviews/...adversarial-review.md:480` (claimed the PR
+  body still showed the old HEAD; live `gh pr view 436` confirms the body
+  already records `Reviewed HEAD: 8711bca1`) and
+  `docs/closure/159-S-151-F-post-merge-closure.md:18` (claimed
+  `closure_status` was still unconditional `READY`; the committed frontmatter
+  already reads `READY_WITH_CONDITIONS`, matching F13's round-1 fix).
+- **1 was assessed as a misreading, not a defect**:
+  `docs/closure/159-S-151-F-post-merge-closure.md:233` — read in full, the
+  sentence is not self-contradictory; it correctly states `27F9EC8A` *used
+  to* (mis)cover this gap in an earlier round's text and has *since* been
+  resolved/archived as its own distinct, unrelated finding, so it must not
+  be cited here. No change made.
+- **1 concerns this same file's intentional round-13-baseline convention**
+  (`docs/compound/...taxonomy.md:52`, "The headline number" section) and was
+  addressed as part of F34's fix: the frontmatter `root_cause` field (the
+  searchable/machine-readable surface Copilot's threaded F34 comment named)
+  now states current totals, while the body's "## The headline number"
+  section is deliberately left as the labeled round-13 historical snapshot
+  per this file's own established convention (later rounds append "Updated
+  totals" addenda rather than rewriting the baseline — see the round-14/15/16
+  addenda at lines ~305, ~368). This is not a new defect, and Copilot's
+  suppressed comment is satisfied by the frontmatter correction it flagged.
+- **2 are genuine, still-valid, but out-of-scope for this round's authorized
+  operation**: `docs/closure/2026-09-06-159-s-151-f-cascade-close-completion.md:75`
+  (ambiguous "matched or pre-archived" phrasing for six of seven tasks, when
+  all seven were in fact already archive-resident) and
+  `docs/closure/159-S-151-F-post-merge-closure.md:26` (the unsatisfied
+  condition's evidence says "pending Stage publication of 163-F/171-S," but
+  active stash tracker `2B68F9D6` explicitly assigns publication —
+  "selective staging, committing, pushing" — to Ship, not Stage). Both
+  require editing a closure artifact outside this round's authorized
+  systemic-HEAD-fix contract surface (the three review/compound files plus
+  the circuit-breaker record), so per the P-021 defer-capture procedure both
+  were captured as active P-021 stash entries rather than fixed here:
+  `A8CA35BB` (cascade-close-completion phrasing) and `EE1AB6DB` (closure-doc
+  publication-ownership phrasing). Neither reopens, reverses, or requalifies
+  any prior disposition; both are provisional-priority `low`, kind `task`,
+  pending Stage triage.
+
+**Continuation verdict:** F34 fixed; 0 findings deferred as a scope
+expansion of the current fix (2 pre-existing, unrelated closure-doc findings
+captured for future, separately authorized work instead); 0 findings
+required re-entering a literal SHA-substitution loop. Thread count after
+this continuation: still 26 total, 26 resolved, 0 open (the round-17
+continuation's single new thread, `PRRT_kwDORzpWpM6gZuPp`, is replied-to and
+resolved as part of this same pass — see the adversarial review's Round 17
+section for the reply text and commit citation).
 
 ## Cross-references
 
