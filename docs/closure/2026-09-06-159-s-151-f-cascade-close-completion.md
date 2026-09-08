@@ -10,10 +10,13 @@ closure_status: READY
 This record documents the resumed Ship post-merge closure session that
 resolved the single open condition on `docs/closure/159-S-151-F-post-merge-closure.md`
 and mechanically completed shipment `159-S`'s P-015 backlog archival --
-**the mechanical archival is complete; whether that archival's own
-authorization was sufficient remains open under P-021 deferred stash entry
-`15A02E21`** (see the Outcome section below and the PR's "Risk Note" for
-the full disposition).
+**the mechanical archival is complete, and the separate question of whether
+that archival's own authorization was sufficient was subsequently
+dispositioned by the operator on 2026-09-07 as an
+`accepted-with-remediation` P-005 deviation** (P-021 stash entry
+`15A02E21`; see the Outcome section below and
+`docs/closure/2026-09-06-159-s-151-f-closure.md`'s "P-005 deviation record"
+table for the full disposition).
 
 ## Prior State
 
@@ -125,8 +128,9 @@ was touched under this authorization.
     evidence) and body (Backlog Reconciliation section heading updated to
     reflect mechanical resolution, Releasability Evidence updated to
     `READY`; both later further qualified in PR #436 review rounds 4-7 to
-    disclose the pre-mode deviation and the still-open authorization
-    question captured as P-021 entry `15A02E21`).
+    disclose the pre-mode deviation and the then-open authorization
+    question captured as P-021 entry `15A02E21` -- dispositioned
+    2026-09-07 as an `accepted-with-remediation` P-005 deviation).
 
 ## Final Archived State (evidence)
 
@@ -151,7 +155,12 @@ archived or left behind. `docs/closure/159-S-151-F-post-merge-closure.md`
 registers `closure_status: READY` with `compaction_status: done` (already
 recorded by the prior session), satisfying `closure_complete('159-S') ==
 True` for `autoharness gate pipeline-topology`'s predecessor-closure
-readiness check. **This mechanical completion is separate from, and does
-not resolve, the still-open question of whether the cascade archival's
-authorization was sufficient** -- captured as P-021 deferred stash entry
-`15A02E21` and not settled by this record.
+readiness check. **This mechanical completion is separate from the question
+of whether the cascade archival's authorization was sufficient** -- that
+question was captured as P-021 stash entry `15A02E21` and was **not**
+settled by this record; it was settled on 2026-09-07 by operator decision
+D-1, which recorded it as an `accepted-with-remediation` P-005 deviation
+whose remediation is the `shipment-reconcile` Pre-Mode member-class fix
+(Option A), tracked as shipment `169-S` (queued). See
+`docs/closure/2026-09-06-159-s-151-f-closure.md`'s "P-005 deviation record"
+table for the full disposition.

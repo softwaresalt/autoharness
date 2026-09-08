@@ -49,20 +49,24 @@ used by `autoharness gate pipeline-topology`'s `closure_complete()` reader
 - `docs/closure/2026-09-06-159-s-151-f-closure.md` -- operational-closure
   narrative: CI status, affected runtime surface, risky-action record
   (scoped lock removal authorized; cascade archival executed on disclosed,
-  reasoned grounds, but its authorization sufficiency remains
-  **unresolved** -- see P-021 deferred stash entry `15A02E21`), deployment
+  reasoned grounds, and its authorization sufficiency now **dispositioned**
+  by the operator on 2026-09-07 as an **accepted-with-remediation P-005
+  deviation** -- see P-021 stash entry `15A02E21` and this file's own
+  "P-005 deviation record" table for the full disposition, basis for
+  acceptance, and remediation), deployment
   path (merge-only), pre/post-deploy checks, healthy/failure signals,
   monitoring plan, rollback trigger/procedure, validation window, owner,
   and the now-resolved lock-disposition condition. Releasability verdict:
-  **READY** (provisional pending `15A02E21` disposition -- see the Stash
-  Disposition section below and the PR's "Risk Note").
+  **READY** (unconditional as of 2026-09-07; the `15A02E21` disposition
+  that `READY` was formerly pending has been made -- see the Stash
+  Disposition section below).
 - `docs/closure/2026-09-06-159-s-151-f-runtime-verification.md` -- runtime
   validator evidence for the `cli` surface. Verdict: **PASS**.
 - `docs/memory/compacted/2026-09-06-159s-151f-compacted.md` -- compacted
   P-020 session memory (verbose original archived under
   `docs/archive/memory/2026-09-05/`).
 
-## Backlog Reconciliation (P-015) -- MECHANICALLY RESOLVED, AUTHORIZATION UNDER REVIEW (see P-021 entry `15A02E21`)
+## Backlog Reconciliation (P-015) -- MECHANICALLY RESOLVED; AUTHORIZATION DISPOSITIONED 2026-09-07 (accepted-with-remediation P-005 deviation, P-021 entry `15A02E21`)
 
 The classifier (`src/autoharness/gates/shipment_closure.py`
 `classify_shipment_close_path`) was run against the live workspace for
@@ -148,11 +152,26 @@ stash entry `15A02E21` (2026-09-06): whether the operator's
 lock-removal-scoped authorization sufficiently covers proceeding past the
 `shipment-reconcile` Pre-Mode per-item `status-mismatch`/`HALT` verdict on
 qualifying feature `151-F`, or whether fresh explicit operator
-authorization (or a `shipment-reconcile` skill fix) is required. This
-question remains **unresolved** and requires operator/Stage disposition;
-see `docs/closure/2026-09-06-159-s-151-f-closure.md`'s Risky Action Record
-for the full detail and the PR's "Risk Note" section for the two forward
-paths.
+authorization (or a `shipment-reconcile` skill fix) is required.
+
+**This question is now RESOLVED (operator, 2026-09-07): the cascade
+archival is recorded as an `accepted-with-remediation` P-005 process
+deviation.** Ship proceeded past a literal fail-closed `HALT` on an
+authorization that named only lock removal -- that is the P-005 deviation.
+It is **accepted** because its outcome was provably correct: the corrected
+Pre-Mode contract adopted in the same decision (Option A, classifier-aware
+member-class scoping, with qualifying-feature `active` a valid pre-close
+state) would have returned `PROCEED` for exactly this manifest with no
+override and no mutation. The **remediation** is the `shipment-reconcile`
+Pre-Mode member-class fix, tracked as shipment `169-S` (queued; Stage's own
+planning, decision, and diagram artifacts for that fix are tracked
+separately and are intentionally not part of this PR -- they are not
+required to understand this disposition). The acceptance is scoped to this
+manifest, this classifier verdict and this disclosure; it is expressly
+**not** a general licence to proceed past `status-mismatch` and **not**
+prior art for overriding any other `HALT`. Nothing is reopened, reversed or
+re-executed. See `docs/closure/2026-09-06-159-s-151-f-closure.md`'s
+Risky Action Record and "P-005 deviation record" table for full detail.
 
 ## Compaction (P-020)
 
@@ -164,15 +183,16 @@ archived under `docs/archive/memory/2026-09-05/`.
 
 ## Releasability Evidence
 
-**Closure verdict: READY.** The shipped code change is fully released and
-verified (CLI surface `PASS`, no rollback trigger observed, Copilot review
-`SATISFIED`, local review `READY`). The prior single open condition
-(procedural backlog bookkeeping -- P-015 cascade close blocked by a stale
-lock file) is now resolved with operator-authorized evidence recorded above
-and in the `conditions` frontmatter block; `159-S` and `151-F` are fully
-archived (this mechanical archival is not reversed or in question). **This
-verdict does not extend to the separate, still-open question of whether the
-cascade archival's own authorization was sufficient** -- see the Stash
-Disposition section below and P-021 deferred stash entry `15A02E21`.
+**Closure verdict: READY (unconditional).** The shipped code change is fully
+released and verified (CLI surface `PASS`, no rollback trigger observed,
+Copilot review `SATISFIED`, local review `READY`). The prior single open
+condition (procedural backlog bookkeeping -- P-015 cascade close blocked by
+a stale lock file) is resolved with operator-authorized evidence recorded
+above and in the `conditions` frontmatter block; `159-S` and `151-F` are
+fully archived (this mechanical archival is not reversed or in question).
+**The formerly-open question of whether the cascade archival's own
+authorization was sufficient is also now dispositioned** (operator,
+2026-09-07: `accepted-with-remediation` P-005 deviation) -- see the Stash
+Disposition section above. No part of this verdict remains provisional.
 `closure_complete('159-S')` now registers `True` for any
 successor shipment's predecessor-closure readiness check.
