@@ -1,23 +1,27 @@
 ---
 title: "Decided plan — SHIP-2 — Release and CI pipeline fail-closed gates"
-date: 2026-09-09
-slug: release-ci-fail-closed-gates
 doc_type: decided-plan
+status: shipped
+created: 2026-09-09
+supersedes: docs/archive/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md
 shipment_unit: "SHIP-2"
 shipment: 160-S
 feature: 152-F
 tasks: [152.001-T, 152.002-T, 152.003-T]
 merge_commit: 12b2d4a36f0cdcd9a07aa2cfc13b372cea2ef386
 pr: 439
-source_plan: docs/archive/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md
 plan_review_verdict: PASS
 ---
 
 # SHIP-2 — Release and CI pipeline fail-closed gates (decided plan)
 
 Consolidated from the fully-reviewed plan (multi-persona adversarial gate,
-`Verdict: PASS`, 2 P0 + 4 P1 raised across cycles 0/1/5 and resolved before
-harvest, zero unresolved P0/P1) and the shipment's own review-fix history.
+`Verdict: PASS`): 1 P0 + 4 P1 raised across cycles 0/1 and resolved
+**before harvest**, plus a second P0 raised in the extended cycle 5 (after
+harvest — task `152.001-T` already existed — but before its implementation
+was executed) and likewise resolved. Cumulative across the full
+review-fix history: 2 P0 + 4 P1 raised, all resolved, zero unresolved
+P0/P1. Consolidated together with the shipment's own review-fix history.
 Shipped as `160-S` / PR #439, merge commit `12b2d4a3`.
 
 ## Problem consolidated
