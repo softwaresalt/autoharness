@@ -257,7 +257,7 @@ operator's decision.
 | **Mechanical outcome** | **CORRECT and FINAL.** Independently re-verified. Nothing to remediate mechanically. Not re-opened |
 | **Process compliance** | **NOT COMPLIANT, permanently disclosed.** Step 0(c) is recorded as not executed live. **No retroactive compliance is claimed** and none is available |
 | **Authorization** | **GRANTED (2026-09-08)** for the deviation's disposition only. It authorizes no merge, no further review round, and no other deviation |
-| **Future precedent** | **PROTECTED by remediation, not by excuse.** The gate is fixed systemically in `163-F`/`171-S` so this cannot recur — per lesson 7 of the composed-state-machine learning: fix the contract, label the deviation, do not build a deviation ritual around it |
+| **Future precedent** | **PROTECTED by a PLANNED remediation, not yet implemented.** `163-F`/`171-S` are queued, plan-reviewed records (no implementation change has shipped as of this disposition) that are INTENDED to fix the gate systemically once `171-S` executes, so this is not expected to recur after that shipment ships — per lesson 7 of the composed-state-machine learning: fix the contract, label the deviation, do not build a deviation ritual around it. The plan's own proposed anchor mechanism has an open hardening gap flagged by Copilot review and captured as stash `DDBF283E` (requires deliberation); "fixed" should be read as "planned and tracked," not "already shipped" |
 
 ### Remediation identity (closes the AF-06 auditability gap)
 
