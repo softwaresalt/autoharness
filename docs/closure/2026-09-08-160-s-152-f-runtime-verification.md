@@ -18,16 +18,22 @@ pre-publish probe used by `.github/workflows/release.yml` so that host
 identity, response body shape, and exact version identity are all validated
 before the probe reports the target version as already published (bindings
 H2a/H2b), and the CLI wrapper now fails closed (exit 2 with an explicit
-remedy message) instead of silently exiting 0. PR #439 is open against
-`main` (not yet merged); this report records validator evidence generated
-against `last_code_affecting_head`
+remedy message) instead of silently exiting 0. This report originally
+recorded pre-merge validator evidence while PR #439 was still open against
+`main`; PR #439 has since merged (`merge_commit`
+`12b2d4a36f0cdcd9a07aa2cfc13b372cea2ef386`, frontmatter above), and the CLI
+help smoke check was re-confirmed on the new `main` post-merge
+(`post_merge_reverification` frontmatter above: exit 0, CLI help text
+printed). The evidence below remains anchored to `last_code_affecting_head`
 `373a24ea777bd19aa11c54fe655c99b34c8bb8e2` -- the most recent commit that
-changed reviewed code. It is not a claim about the PR's current HEAD: see
-the Evidence Currency Model in the companion
+changed reviewed code -- and is unaffected by the merge itself, since no
+further code changes occurred between that commit and merge. It is not a
+claim about any HEAD later than the merge commit: see the Evidence Currency
+Model in the companion
 `docs/closure/2026-09-08-160-s-152-f-closure.md` for why this artifact
-never asserts current-HEAD readiness for itself. The PR's live current HEAD
-and P-018 Copilot-review state are tracked externally in the PR body's
-`## Local Review Readiness` block and via `autoharness gate copilot-review
+never asserts current-HEAD readiness for itself. Before the merge, the PR's
+live current HEAD and P-018 Copilot-review state were tracked externally in
+the PR body's `## Local Review Readiness` block and via `autoharness gate copilot-review
 439`, evaluated at merge time.
 
 ## Validator Contract
@@ -104,5 +110,8 @@ Plus the pre-existing, already-captured P-021 deferred entry `24A85BF8`
 `test_graphtor_mcp_shim.py` test, first captured under shipment 159-S --
 out of scope for this shipment's runtime surface and not a release blocker.
 
-None of the four follow-ups above block this shipment's release-blocker
-condition (the CLI help smoke check), and none require action before merge.
+None of the four follow-ups above blocked this shipment's release-blocker
+condition (the CLI help smoke check), and none required action before the
+merge completed. All four remain open P-021 items for Stage triage and
+deliberation; see the companion closure artifact's CI Status and Review
+section for the same list.
