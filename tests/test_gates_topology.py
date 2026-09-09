@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+import os
 import subprocess
 import tempfile
 import unittest
@@ -2253,3 +2255,171 @@ class WorktreeGitInvocationErrorTests(unittest.TestCase):
             errored_check.details['git_invocation_error'],
             'fatal: unable to read worktree config',
         )
+
+
+class AmbientEmptyGithubHeadRefPushContextEndToEndTests(unittest.TestCase):
+    """152.003-T: an end-to-end regression test for the actual ambient
+    condition that broke CI (116-S live-CI finding; hotfix commit
+    ``2661c1c8``).
+
+    GitHub Actions sets ``GITHUB_HEAD_REF`` to the empty string -- PRESENT,
+    not absent -- on ``push``-triggered runs, as opposed to
+    ``pull_request``-triggered runs (where it is genuinely the PR's source
+    branch name) or a bare local shell (where it is typically unset
+    entirely). This test drives ``evaluate()`` through that literal ambient
+    state end to end, rather than through five individually patched call
+    sites, asserting the push-context outcome: an empty ``GITHUB_HEAD_REF``
+    must NOT be mistaken for a `pull_request` event, and branch resolution
+    must fall through to ``GITHUB_REF_NAME``/``GITHUB_REF_TYPE``.
+
+    This manipulates ``os.environ`` directly rather than via
+    ``patched_environ()``: ``patched_environ()``'s A5 entry-guard
+    (144.002-T, BINDING) deliberately refuses to patch a key whose ambient
+    value is already the empty string, which is exactly the state this test
+    needs to hold for the duration of the ``evaluate()`` call.
+    """
+
+    _MANAGED_KEYS = (
+        'GITHUB_HEAD_REF',
+        'GITHUB_REF_NAME',
+        'GITHUB_REF_TYPE',
+        'GITHUB_EVENT_PATH',
+    )
+
+    def setUp(self) -> None:
+        self._prior = {key: os.environ.get(key) for key in self._MANAGED_KEYS}
+
+    def tearDown(self) -> None:
+        for key, value in self._prior.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_ambient_empty_head_ref_is_not_treated_as_pull_request(self) -> None:
+        from autoharness.gates.topology import _ci_pull_request_event_active
+
+        os.environ['GITHUB_HEAD_REF'] = ''
+        self.assertFalse(_ci_pull_request_event_active())
+
+    def test_ambient_empty_head_ref_push_context_resolves_via_ref_name(self) -> None:
+        """The literal push-context ambient state: `GITHUB_HEAD_REF` present
+        as `""`, `GITHUB_REF_NAME`/`GITHUB_REF_TYPE` naming the pushed
+        branch. `--mode ci` must resolve the branch via the `GITHUB_REF_NAME`
+        fallback, exactly as a real `push`-triggered CI run requires."""
+        os.environ['GITHUB_HEAD_REF'] = ''
+        os.environ['GITHUB_REF_NAME'] = 'main'
+        os.environ['GITHUB_REF_TYPE'] = 'branch'
+        os.environ.pop('GITHUB_EVENT_PATH', None)
+
+        readers = _FakeReaders(
+            shipments=(_shipment('116-S', 'active'),), branch='', default_branch='main',
+        )
+        result = evaluate(
+            TopologyInput(mode='ci', phase='ambient', target_shipment_id=None),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'branch_ownership')
+        self.assertEqual(check.token, 'BRANCH_CREATE_ELIGIBLE')
+        self.assertTrue(check.details['resolved_via_ci_env_fallback'])
+
+
+class GithubHeadRefClearHelperGuardTests(unittest.TestCase):
+    """152.003-T: a machine-enforced guard for the `_clear_ambient_github_head_ref()`
+    convention (029-DL: a convention survives only if a machine produces it
+    or penalizes its absence).
+
+    Statically parses THIS test file's own source and asserts that every
+    `patched_environ(...)` call naming `GITHUB_HEAD_REF` -- whether used as
+    a `with` context manager or invoked bare -- is immediately preceded, in
+    its own enclosing statement block, by a call to
+    `_clear_ambient_github_head_ref()`. This guards against reintroducing
+    the ambient-empty-string failure class (hotfix commit `2661c1c8`) the
+    next time a test is written against
+    `patched_environ(GITHUB_HEAD_REF=...)` without the clear helper.
+    """
+
+    @staticmethod
+    def _call_targets_patched_environ_with_head_ref(call: ast.Call) -> bool:
+        if not (isinstance(call.func, ast.Name) and call.func.id == 'patched_environ'):
+            return False
+        return any(kw.arg == 'GITHUB_HEAD_REF' for kw in call.keywords)
+
+    @staticmethod
+    def _is_clear_helper_call(stmt: ast.stmt) -> bool:
+        return (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == '_clear_ambient_github_head_ref'
+        )
+
+    def _find_violations(self, tree: ast.Module) -> list[int]:
+        violations: list[int] = []
+
+        def visit_body(body: list[ast.stmt]) -> None:
+            for index, stmt in enumerate(body):
+                target_call = None
+                if isinstance(stmt, ast.With):
+                    for item in stmt.items:
+                        ctx = item.context_expr
+                        if isinstance(ctx, ast.Call) and self._call_targets_patched_environ_with_head_ref(ctx):
+                            target_call = ctx
+                            break
+                elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+                    if self._call_targets_patched_environ_with_head_ref(stmt.value):
+                        target_call = stmt.value
+
+                if target_call is not None:
+                    preceded = index > 0 and self._is_clear_helper_call(body[index - 1])
+                    if not preceded:
+                        violations.append(stmt.lineno)
+
+                for field in ('body', 'orelse', 'finalbody'):
+                    nested = getattr(stmt, field, None)
+                    if isinstance(nested, list) and nested:
+                        visit_body(nested)
+
+        visit_body(tree.body)
+        return violations
+
+    def test_every_patched_environ_github_head_ref_call_is_preceded_by_clear_helper(self) -> None:
+        source_path = Path(__file__)
+        source = source_path.read_text(encoding='utf-8')
+        tree = ast.parse(source, filename=str(source_path))
+        violations = self._find_violations(tree)
+        self.assertEqual(
+            violations,
+            [],
+            'patched_environ(...) call(s) naming GITHUB_HEAD_REF at line(s) '
+            f'{violations} in {source_path.name} are not immediately preceded '
+            'by a call to _clear_ambient_github_head_ref() -- see hotfix '
+            'commit 2661c1c8 and 152.003-T.',
+        )
+
+    def test_guard_detects_a_violation_when_the_clear_call_is_missing(self) -> None:
+        """Proves the guard is not vacuously true: a synthetic module whose
+        `patched_environ(GITHUB_HEAD_REF=...)` call is NOT preceded by the
+        clear helper must be reported as a violation."""
+        synthetic_source = (
+            "def test_example():\n"
+            "    readers = None\n"
+            "    with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
+            "        pass\n"
+        )
+        tree = ast.parse(synthetic_source, filename='<synthetic>')
+        violations = self._find_violations(tree)
+        self.assertEqual(violations, [3])
+
+    def test_guard_accepts_a_call_immediately_preceded_by_the_clear_helper(self) -> None:
+        synthetic_source = (
+            "def test_example():\n"
+            "    _clear_ambient_github_head_ref()\n"
+            "    with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
+            "        pass\n"
+        )
+        tree = ast.parse(synthetic_source, filename='<synthetic>')
+        violations = self._find_violations(tree)
+        self.assertEqual(violations, [])
+
