@@ -16,9 +16,9 @@ plan_review_verdict: PASS
 # SHIP-2 — Release and CI pipeline fail-closed gates (decided plan)
 
 Consolidated from the fully-reviewed plan (multi-persona adversarial gate,
-`Verdict: PASS`, 1 P0 + 2 P1 raised and resolved before harvest, zero
-unresolved P0/P1) and the shipment's own review-fix history. Shipped as
-`160-S` / PR #439, merge commit `12b2d4a3`.
+`Verdict: PASS`, 2 P0 + 4 P1 raised across cycles 0/1/5 and resolved before
+harvest, zero unresolved P0/P1) and the shipment's own review-fix history.
+Shipped as `160-S` / PR #439, merge commit `12b2d4a3`.
 
 ## Problem consolidated
 
@@ -67,7 +67,10 @@ Two independent fail-open conditions:
    on `skip-existing: true` in `release.yml`.
 2. **152.002-T** (M/medium) — extracted the inline heredoc probe into
    `build_support/pypi_probe.py` (shared `build_support/__init__.py` with
-   SHIP-10, excluded from both distribution channels), with typed outcomes
+   SHIP-10; as shipped, `build_support/**` is present in the sdist and
+   absent from the wheel — full exclusion from the sdist as well is
+   SHIP-10's explicitly out-of-scope future work, not this shipment's
+   delivered state), with typed outcomes
    (`ProbeResult` ABSENT/PRESENT, `ProbeIntegrityError`/`ProbeTransportError`
    derived from `ProbeError`), `HTTPError`-before-`URLError` exception
    ordering, and 6 hermetic cases C1–C6 (404-proceeds; present-version
@@ -84,8 +87,10 @@ Two independent fail-open conditions:
 * No artifact-identity verification against PyPI (H1).
 * No override/workflow-dispatch/repo-variable bypass mechanism.
 * No change to `tests/_env_patch.py` A4/A5 semantics.
-* `build_support/**` excluded from both distribution channels (coordinated
-  with SHIP-10).
+* `build_support/**` coordinated with SHIP-10 on distribution-channel
+  exclusion; as shipped, it is present in the sdist and absent from the
+  wheel — excluding it from the sdist as well is SHIP-10's explicitly
+  out-of-scope future work, not a constraint this shipment achieved.
 
 ## Rejected alternatives
 
