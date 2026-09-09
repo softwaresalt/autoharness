@@ -20,8 +20,8 @@ fully archived prior to this session; 160-S was explicitly not claimed).
      head, Outcome `READY_WITH_FOLLOWUPS`, 0 P0/P1, follow-ups explicit
      (`1CD92B69`, `6B627A50`, `DDBF283E`, `EB23D1B9`), full-build
      non-applicability recorded (docs/backlog-only change) with pre-push-hook
-     full unittest suite evidence (2057 passed, 0 failures) additionally
-     recorded.
+     full unittest suite evidence (2057 tests run, 0 failures, 20 skipped)
+     additionally recorded.
    - GraphQL review-thread query confirmed **zero** unresolved review threads.
    - `autoharness gate copilot-review 437 --repo softwaresalt/autoharness` →
      `SATISFIED`, exit 0.
@@ -71,9 +71,15 @@ fully archived prior to this session; 160-S was explicitly not claimed).
   `main`. No shipment currently active. `160-S` is now execution-ready
   (predecessor-closure gate passes) but remains unclaimed, awaiting a future
   session/operator direction.
-- No new post-merge closure branch/PR was required beyond PR #437 itself
-  (PR #437 *was* the closure-repair PR; its merge is the terminal action for
-  this repair scope).
+- PR #437 *was* the closure-repair PR; its merge (`66a3ae89...`) is the
+  terminal action that repairs the 159-S/151-F post-merge closure evidence
+  itself. Recording *this* session's merge decision durably still required a
+  **separate** follow-up post-merge closure branch/PR (`post-merge/159-s-closure-verification`,
+  PR #438, this PR) per the Ship agent's Post-Merge Branch Protocol, since
+  closure-documentation commits must not land directly on `main`. PR #438 is
+  therefore a distinct, narrower closure-verification PR that commits this
+  session-memory record — not a second repair of the 159-S/151-F closure
+  evidence, which PR #437 already completed in full.
 - Outstanding P-021 follow-ups (unchanged by this session, tracked
   separately, Stage-owned unless noted): `1CD92B69` (Stage), `6B627A50`
   (Ship-owned publication action, still open), `DDBF283E` (requires Stage
