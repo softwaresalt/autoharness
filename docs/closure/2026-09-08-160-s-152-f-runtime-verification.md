@@ -3,7 +3,7 @@ shipment: 160-S
 feature: 152-F
 pr: 439
 merge_commit: null
-reviewed_head: 0af4644aa291459540c76c1e8489f2aeb5e1d9b8
+reviewed_head: 373a24ea777bd19aa11c54fe655c99b34c8bb8e2
 surface: cli
 verdict: PASS
 ---
@@ -19,7 +19,7 @@ before the probe reports the target version as already published (bindings
 H2a/H2b), and the CLI wrapper now fails closed (exit 2 with an explicit
 remedy message) instead of silently exiting 0. PR #439 is open against
 `main` (not yet merged); this report is pre-merge PR-readiness evidence for
-reviewed HEAD `0af4644aa291459540c76c1e8489f2aeb5e1d9b8`.
+reviewed HEAD `373a24ea777bd19aa11c54fe655c99b34c8bb8e2`.
 
 ## Validator Contract
 
@@ -36,7 +36,7 @@ Per `.autoharness/workspace-profile.yaml` `runtime_validation`:
 
 * Adapter: `command` (CLI adapter, per `adapter_hint`).
 * Command: `uv run autoharness --help`, run at reviewed HEAD
-  `0af4644aa291459540c76c1e8489f2aeb5e1d9b8` on the shipment branch worktree.
+  `373a24ea777bd19aa11c54fe655c99b34c8bb8e2` on the shipment branch worktree.
 * Expected: command exits 0 and prints CLI help text.
 * Observed: exit code `0`; CLI help text printed (`autoharness home`,
   `version`, ...).
@@ -48,12 +48,13 @@ Per `.autoharness/workspace-profile.yaml` `runtime_validation`:
   is therefore unaffected by construction; the probe above confirms no
   incidental packaging or import regression was introduced. The change's own
   executable acceptance criteria -- the C1-C6 case table in
-  `tests/test_build_support_pypi_probe.py` (16 tests, hermetic, no network
+  `tests/test_build_support_pypi_probe.py` (20 tests, hermetic, no network
   I/O per binding H4) and the extended AST guard plus end-to-end push-context
   test in `tests/test_gates_topology.py` (113 tests) -- are this shipment's
   in-repo regression coverage for the release-workflow behavior it changes,
-  and are CI-verified (full canonical suite: 2082 tests, 0 failures, 20
-  skipped, re-run at each review-fix HEAD) rather than a separate runtime
+  and are CI-verified (full canonical suite: 2087 tests, 0 failures, 20
+  skipped, re-run at each review-fix HEAD, including this reviewed HEAD)
+  rather than a separate runtime
   surface requiring live PyPI network verification. The release workflow
   itself (`.github/workflows/release.yml`) is not a runtime surface exercised
   by an operator; it fires on tag push and is out of scope for a pre-merge
