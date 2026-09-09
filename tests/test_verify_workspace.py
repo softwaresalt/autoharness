@@ -253,6 +253,34 @@ class VerifyWorkspaceTests(unittest.TestCase):
             release_workflow.index("Create or update GitHub Release"),
         )
 
+    def test_release_workflow_invokes_extracted_pypi_probe_module(self) -> None:
+        """Copilot review finding (PR #439): the hermetic
+        ``tests/test_build_support_pypi_probe.py`` suite imports
+        ``build_support.pypi_probe`` directly and never inspects
+        ``release.yml``, so if this step's command were reverted to the
+        pre-152.002-T inline ``python - <<'PY'`` heredoc (or removed
+        entirely), all of those probe tests would still pass while the
+        release workflow silently stopped running the fail-closed
+        pre-publish check this shipment (152-F) exists to add. Assert the
+        "Check PyPI pre-publish state" step invokes the extracted module
+        by exact command, that it runs before the publish step, and that
+        the obsolete inline heredoc probe it replaced is gone."""
+        repo_root = Path(__file__).resolve().parents[1]
+        release_workflow = (repo_root / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+
+        self.assertIn("Check PyPI pre-publish state", release_workflow)
+        self.assertIn("run: python -m build_support.pypi_probe", release_workflow)
+        self.assertLess(
+            release_workflow.index("Check PyPI pre-publish state"),
+            release_workflow.index("Publish distribution to PyPI"),
+            "the pre-publish probe step must run before the publish step",
+        )
+        # The obsolete inline probe (pre-152.002-T) embedded its urllib
+        # logic directly in a YAML heredoc; that logic now lives entirely
+        # in build_support/pypi_probe.py, so no urllib usage should remain
+        # in the workflow file itself.
+        self.assertNotIn("urllib", release_workflow)
+
     def test_user_facing_python_cli_docs_prefer_pip_install(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         expected_phrases_by_file = {

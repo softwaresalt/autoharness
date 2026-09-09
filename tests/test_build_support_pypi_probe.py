@@ -20,6 +20,8 @@ change to this test module.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import unittest
 import urllib.error
@@ -44,14 +46,26 @@ PROBE_URL = f"https://pypi.org/pypi/autoharness/{REQUESTED_VERSION}/json"
 class _FakeHTTPResponse:
     """A minimal stand-in for the object ``urllib.request.urlopen`` returns.
 
-    Supports the two calls ``probe()`` makes on a successful response:
-    ``.read()`` for the body, and (once task 152.001-T lands) ``.geturl()``
-    for the final resolved URL after redirects.
+    Supports the calls ``probe()`` makes on a successful response:
+    ``.status`` for the HTTP status code, ``.geturl()`` for the final
+    resolved URL after redirects, and ``.read()`` for the body. ``.read()``
+    raises ``AssertionError`` when ``forbid_read=True`` so tests can prove
+    the host/status checks reject a response *before* the body is ever
+    consumed (task 152.001-T review finding: host validated before body
+    read).
     """
 
-    def __init__(self, body: bytes, url: str = PROBE_URL) -> None:
+    def __init__(
+        self,
+        body: bytes,
+        url: str = PROBE_URL,
+        status: int = 200,
+        forbid_read: bool = False,
+    ) -> None:
         self._body = body
         self._url = url
+        self.status = status
+        self._forbid_read = forbid_read
 
     def __enter__(self) -> "_FakeHTTPResponse":
         return self
@@ -60,6 +74,11 @@ class _FakeHTTPResponse:
         return False
 
     def read(self) -> bytes:
+        if self._forbid_read:
+            raise AssertionError(
+                "response.read() must not be called before the host/status "
+                "checks reject an untrusted response"
+            )
         return self._body
 
     def geturl(self) -> str:
@@ -73,25 +92,29 @@ def _json_body(version: str) -> bytes:
 class _PatchedUrlopen:
     """Context manager that patches ``build_support.pypi_probe``'s
     ``urllib.request.urlopen`` to return a fixed value or raise a fixed
-    exception, restoring the original afterward."""
+    exception, restoring the original afterward. Records every URL the
+    patched ``urlopen`` was called with in ``requested_urls`` so tests can
+    assert the probe requests the exact-version endpoint (binding H2b)."""
 
     def __init__(self, *, result=None, error: Exception | None = None) -> None:
         self._result = result
         self._error = error
         self._original = None
+        self.requested_urls: list[str] = []
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> "_PatchedUrlopen":
         import build_support.pypi_probe as module
 
         self._original = module.urllib.request.urlopen
 
         def _fake_urlopen(url, *args, **kwargs):
+            self.requested_urls.append(url)
             if self._error is not None:
                 raise self._error
             return self._result
 
         module.urllib.request.urlopen = _fake_urlopen
-        return None
+        return self
 
     def __exit__(self, *exc_info: object) -> bool:
         import build_support.pypi_probe as module
@@ -114,6 +137,58 @@ class ProbeCaseTableTests(unittest.TestCase):
         with _PatchedUrlopen(result=response):
             result = probe(REQUESTED_VERSION)
         self.assertEqual(result, ProbeResult(status=ProbeStatus.PRESENT, version=REQUESTED_VERSION))
+
+    def test_probe_requests_exact_version_endpoint_url(self) -> None:
+        """Binding H2b: ``probe()`` must query the EXACT-VERSION PyPI
+        endpoint for the requested version, not a latest-version or
+        wrong-package endpoint. The fake previously accepted the requested
+        URL but discarded it, so a production regression pointing at the
+        wrong endpoint would leave every injected-response case green;
+        record the URL the patched ``urlopen`` was actually called with
+        and assert it matches the documented exact-version endpoint."""
+        response = _FakeHTTPResponse(_json_body(REQUESTED_VERSION))
+        with _PatchedUrlopen(result=response) as patched:
+            probe(REQUESTED_VERSION)
+        self.assertEqual(patched.requested_urls, [PROBE_URL])
+
+    def test_non_200_success_status_raises_transport_error_not_present(self) -> None:
+        """The documented exact-version contract permits only 200 or 404
+        from this endpoint (binding H2a/H2b). ``urlopen`` does not raise
+        ``HTTPError`` for other 2xx statuses, so a 203/206 response with an
+        otherwise-matching body must not be classified ``PRESENT`` -- it is
+        a transport/integrity anomaly."""
+        response = _FakeHTTPResponse(_json_body(REQUESTED_VERSION), status=203)
+        with _PatchedUrlopen(result=response):
+            with self.assertRaises(ProbeTransportError):
+                probe(REQUESTED_VERSION)
+
+    def test_wrong_host_response_rejected_before_body_is_read(self) -> None:
+        """The host check must run *before* ``response.read()`` -- reading
+        first would let an untrusted host stream an arbitrarily large or
+        non-terminating body into the process before rejection. The fake
+        response raises ``AssertionError`` from ``.read()`` when
+        ``forbid_read=True``, so this test fails loudly (rather than just
+        raising the wrong exception type) if the ordering regresses."""
+        response = _FakeHTTPResponse(
+            _json_body(REQUESTED_VERSION),
+            url=f"https://mirror.example.com/pypi/autoharness/{REQUESTED_VERSION}/json",
+            forbid_read=True,
+        )
+        with _PatchedUrlopen(result=response):
+            with self.assertRaises(ProbeTransportError):
+                probe(REQUESTED_VERSION)
+
+    def test_non_200_status_response_rejected_before_body_is_read(self) -> None:
+        """As above, for the status check: a non-200 status from the
+        trusted host must be rejected before the body is consumed."""
+        response = _FakeHTTPResponse(
+            _json_body(REQUESTED_VERSION),
+            status=203,
+            forbid_read=True,
+        )
+        with _PatchedUrlopen(result=response):
+            with self.assertRaises(ProbeTransportError):
+                probe(REQUESTED_VERSION)
 
     def test_c3_url_error_propagates(self) -> None:
         error = urllib.error.URLError("connection refused")
@@ -226,10 +301,23 @@ class CliExitCodeMappingTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
 
     def test_cli_exit_code_two_for_present_with_remedy_message(self) -> None:
+        """The name promises a remedy message, so this must assert the
+        message content on stderr -- not just the exit code. A regression
+        that removed the message, or emitted it to stdout instead of
+        stderr, would previously stay green here."""
         response = _FakeHTTPResponse(_json_body(REQUESTED_VERSION))
-        with _PatchedUrlopen(result=response), patched_environ(VERSION=REQUESTED_VERSION):
+        captured_stderr = io.StringIO()
+        with (
+            _PatchedUrlopen(result=response),
+            patched_environ(VERSION=REQUESTED_VERSION),
+            contextlib.redirect_stderr(captured_stderr),
+        ):
             exit_code = main()
         self.assertEqual(exit_code, 2)
+        stderr_text = captured_stderr.getvalue()
+        self.assertIn(REQUESTED_VERSION, stderr_text)
+        self.assertIn("bump", stderr_text.lower())
+        self.assertIn("re-tag", stderr_text.lower())
 
     def test_cli_exit_code_one_for_transport_error(self) -> None:
         error = urllib.error.URLError("connection refused")
