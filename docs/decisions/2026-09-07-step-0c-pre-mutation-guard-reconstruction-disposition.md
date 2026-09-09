@@ -23,7 +23,7 @@ pr_head: "094bd157d61df3d32d88f5c3566496cd3cddf549"
 cascade_commit: "cb474a0a7d1fdfe2bbfe0dd3e2a6110aefb533ab"
 preserved_evidence_commit: "1b758a16"
 related_but_distinct:
-  - "docs/decisions/2026-09-06-shipment-reconcile-cascade-pre-mode-contract-deliberation.md (stash 15A02E21) - RELATED, DISTINCT: the Pre-Mode member-class status-mismatch/HALT deviation, already dispositioned accepted-with-remediation P-005, remediated by shipment 169-S / feature 161-F. This deliberation concerns a SECOND, separate deviation in a different sub-step (Step 0(c) linked-deliberation collection ordering), and MUST NOT be folded into that disposition."
+  - "2026-09-06-shipment-reconcile-cascade-pre-mode-contract-deliberation (stash 15A02E21; cited by title only — not yet committed to any branch, pending publication tracked by follow-up 1CD92B69) - RELATED, DISTINCT: the Pre-Mode member-class status-mismatch/HALT deviation, already dispositioned accepted-with-remediation P-005, remediated by shipment 169-S / feature 161-F. This deliberation concerns a SECOND, separate deviation in a different sub-step (Step 0(c) linked-deliberation collection ordering), and MUST NOT be folded into that disposition."
 tags:
   - shipment-reconcile
   - pre-mutation-gate

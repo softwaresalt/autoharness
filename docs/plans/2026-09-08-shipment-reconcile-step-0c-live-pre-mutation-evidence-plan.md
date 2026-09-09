@@ -11,15 +11,15 @@ related_stash_entries:
   - "9E22BFC6 — AF-06: the 856B6770 remediation had no trackable identity. THIS PLAN and its harvested feature/shipment are that identity."
   - "27F9EC8A — AF-07: committed stash currency gap for 856B6770. Part (a) discharged by the Stage stash disposition written alongside this plan; part (b) tracked by 162.011-T in 170-S."
 compound_learnings:
-  - "docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md"
+  - "2026-09-06-composed-workflow-protocol-state-machine-validation (cited by title only — the compound-learning artifact is not yet committed to any branch; pending publication, tracked by stash 15A02E21 / follow-up 1CD92B69)"
   - "docs/compound/2026-08-18-lifecycle-gate-must-precede-safe-close-mutation.md"
   - "docs/compound/2026-08-21-ast-based-structural-regression-guards-beat-line-regex.md"
   - "docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md"
   - "docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md"
 decision_status_at_planning: "decided (operator, 2026-09-08) — Option A accepted-with-remediation P-005 deviation; mechanical outcome final; systemic remedy tracked as a SEPARATE sibling shipment, not folded into 169-S; no merge authorization"
 related_but_distinct:
-  - "docs/plans/2026-09-07-shipment-reconcile-cascade-premode-member-class-contract-plan.md (stash 15A02E21, feature 161-F, shipment 169-S) — RELATED, DISTINCT. 161-F fixes WHAT Pre-Mode compares (member-class status contract). This plan fixes WHETHER Step 0(c) ran live and is evidenced as pre-mutation. Different contract surface, different failure mode, different tests. MUST NOT be merged. Sequencing dependency only, to avoid conflicting edits to the same SKILL.md Step 0 / Cascade Sub-Procedure region."
-  - "docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md (feature 162-F, shipment 170-S) — RELATED, DISTINCT. Hosted-review learning methodology. MUST NOT absorb this fix."
+  - "2026-09-07-shipment-reconcile-cascade-premode-member-class-contract-plan (stash 15A02E21, feature 161-F, shipment 169-S; cited by title only — not yet committed to any branch, pending publication tracked by follow-up 1CD92B69) — RELATED, DISTINCT. 161-F fixes WHAT Pre-Mode compares (member-class status contract). This plan fixes WHETHER Step 0(c) ran live and is evidenced as pre-mutation. Different contract surface, different failure mode, different tests. MUST NOT be merged. Sequencing dependency only, to avoid conflicting edits to the same SKILL.md Step 0 / Cascade Sub-Procedure region."
+  - "2026-09-07-review-pattern-learning-methodology-plan (feature 162-F, shipment 170-S; cited by title only — not yet committed to any branch, pending publication) — RELATED, DISTINCT. Hosted-review learning methodology. MUST NOT absorb this fix."
 tags:
   - "plan"
   - "shipment-reconcile"
