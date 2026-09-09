@@ -1,1 +1,3 @@
 {"timestamp":"2026-09-08T21:29:32.2848503-07:00","actor":"backlogit","item_id":"152-F","event_type":"status_changed","delta":{"from":"queued","reason":"shipment claimed","to":"active"}}
+{"timestamp":"2026-09-09T13:29:03.4636412-07:00","actor":"backlogit","item_id":"152-F","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"12b2d4a36f0cdcd9a07aa2cfc13b372cea2ef386","message":"Merge pull request #439 from softwaresalt/feat/160-s-ship-2-release-and-ci-pipeline-fail-closed-gates"}}
+{"timestamp":"2026-09-09T13:29:54.1233061-07:00","actor":"backlogit","item_id":"152-F","event_type":"archived","delta":{"archive_path":".backlogit/archive/152-F.md"}}
