@@ -82,33 +82,16 @@ jobs:
       - name: Check PyPI pre-publish state
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          python - <<'PY'
-          import os
-          import urllib.error
-          import urllib.request
-
-          version = os.environ["VERSION"]
-          url = f"https://pypi.org/pypi/autoharness/{version}/json"
-
-          try:
-              with urllib.request.urlopen(url) as response:
-                  response.read()
-          except urllib.error.HTTPError as exc:
-              if exc.code == 404:
-                  print(f"autoharness {version} not yet on PyPI.")
-              else:
-                  raise
-          else:
-              print(
-                  f"autoharness {version} is already on PyPI; "
-                  "publish will skip existing files on reruns."
-              )
-          PY
+        run: python -m build_support.pypi_probe
 
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
+          # skip-existing is retained as deliberate defence in depth behind
+          # the fail-closed pre-publish probe above (task 152.001-T): the
+          # probe now exits non-zero before this step runs when the version
+          # is already published, so this setting should be unreachable in
+          # the intended path.
           skip-existing: true
 
       - name: Smoke test published package from PyPI
