@@ -3,7 +3,7 @@ shipment: 160-S
 feature: 152-F
 pr: 439
 merge_commit: null
-reviewed_head: 373a24ea777bd19aa11c54fe655c99b34c8bb8e2
+last_code_affecting_head: 373a24ea777bd19aa11c54fe655c99b34c8bb8e2
 surface: cli
 verdict: PASS
 ---
@@ -18,8 +18,16 @@ identity, response body shape, and exact version identity are all validated
 before the probe reports the target version as already published (bindings
 H2a/H2b), and the CLI wrapper now fails closed (exit 2 with an explicit
 remedy message) instead of silently exiting 0. PR #439 is open against
-`main` (not yet merged); this report is pre-merge PR-readiness evidence for
-reviewed HEAD `373a24ea777bd19aa11c54fe655c99b34c8bb8e2`.
+`main` (not yet merged); this report records validator evidence generated
+against `last_code_affecting_head`
+`373a24ea777bd19aa11c54fe655c99b34c8bb8e2` -- the most recent commit that
+changed reviewed code. It is not a claim about the PR's current HEAD: see
+the Evidence Currency Model in the companion
+`docs/closure/2026-09-08-160-s-152-f-closure.md` for why this artifact
+never asserts current-HEAD readiness for itself. The PR's live current HEAD
+and P-018 Copilot-review state are tracked externally in the PR body's
+`## Local Review Readiness` block and via `autoharness gate copilot-review
+439`, evaluated at merge time.
 
 ## Validator Contract
 
@@ -35,7 +43,7 @@ Per `.autoharness/workspace-profile.yaml` `runtime_validation`:
 ## Execution
 
 * Adapter: `command` (CLI adapter, per `adapter_hint`).
-* Command: `uv run autoharness --help`, run at reviewed HEAD
+* Command: `uv run autoharness --help`, run at `last_code_affecting_head`
   `373a24ea777bd19aa11c54fe655c99b34c8bb8e2` on the shipment branch worktree.
 * Expected: command exits 0 and prints CLI help text.
 * Observed: exit code `0`; CLI help text printed (`autoharness home`,
@@ -53,8 +61,8 @@ Per `.autoharness/workspace-profile.yaml` `runtime_validation`:
   test in `tests/test_gates_topology.py` (113 tests) -- are this shipment's
   in-repo regression coverage for the release-workflow behavior it changes,
   and are CI-verified (full canonical suite: 2087 tests, 0 failures, 20
-  skipped, re-run at each review-fix HEAD, including this reviewed HEAD)
-  rather than a separate runtime
+  skipped, re-run at each review-fix HEAD, including this
+  `last_code_affecting_head`) rather than a separate runtime
   surface requiring live PyPI network verification. The release workflow
   itself (`.github/workflows/release.yml`) is not a runtime surface exercised
   by an operator; it fires on tag push and is out of scope for a pre-merge
@@ -65,9 +73,9 @@ Per `.autoharness/workspace-profile.yaml` `runtime_validation`:
 ## Verdict
 
 **PASS.** The only declared runtime surface (`cli`) starts cleanly with no
-import, packaging, or option-parsing failures at reviewed HEAD. No release
-blocker condition observed. No manual checkpoints were declared in the
-validator manifest.
+import, packaging, or option-parsing failures at `last_code_affecting_head`.
+No release blocker condition observed. No manual checkpoints were declared
+in the validator manifest.
 
 ## Follow-Ups
 
