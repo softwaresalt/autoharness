@@ -2,10 +2,11 @@
 shipment: 160-S
 feature: 152-F
 pr: 439
-merge_commit: null
+merge_commit: 12b2d4a36f0cdcd9a07aa2cfc13b372cea2ef386
 last_code_affecting_head: 373a24ea777bd19aa11c54fe655c99b34c8bb8e2
 surface: cli
 verdict: PASS
+post_merge_reverification: "uv run autoharness --help re-run on new main post-merge; exit 0, CLI help text printed"
 ---
 
 # 160-S / 152-F Runtime Verification -- SHIP-2 Release and CI Pipeline Fail-Closed Gates
