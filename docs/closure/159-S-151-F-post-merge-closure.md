@@ -171,11 +171,14 @@ member-class scoping, with qualifying-feature `active` a valid pre-close
 state) would have returned `PROCEED` for exactly this manifest with no
 override and no mutation. The **remediation** is the `shipment-reconcile`
 Pre-Mode member-class fix, which Stage has decided/harvested and intends to
-track as shipment `169-S` (queued). As of this PR, `169-S` is not yet a
-durably committed backlog record on this branch or `main`; that
-publication gap (and stash entry `15A02E21`'s own not-yet-reconciled
-payload) is captured separately as deferred stash entry `1CD92B69` for
-Stage to close, and does not reopen this disposition. Stage's own
+track as shipment `169-S`. `169-S`'s own shipment record is now durably
+committed on this branch, published by this PR's closure-repair session
+(commit `a601696e78ffb0f1a276a8b3ce855d66d4187ff9`; see the RESOLVED
+disposition below) -- only `169-S`'s own manifest members (`161-F` /
+`161.001-T`..`161.007-T`) remain uncommitted, a distinct publication gap
+tracked separately by deferred stash entries `1CD92B69` (reconciling stash
+`15A02E21`) and `6B627A50` (the `161-F` member content itself) for Stage to
+close, and does not reopen this disposition. Stage's own
 planning, decision, and diagram artifacts for the fix are tracked
 separately and are intentionally not part of this PR -- they are not
 required to understand this disposition. The acceptance is scoped to this

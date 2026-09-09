@@ -90,7 +90,7 @@ live execution **provable**, not merely **required**.
 | Two-set gate consuming the snapshot | same files, L730–L760 (step 3) | reads the Step 0(b)/(c) snapshot |
 | Report output surface | same files, L63 — `.backlogit/reconcile/{shipment_id}-{mode}-{timestamp}.md` | the existing durable evidence location |
 | Scenario matrix / quality criteria | same files, L1002 / L1011 | where negative scenarios are enumerated |
-| Diagram | `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` | must draw the new pre-mutation node |
+| Diagram | `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` (this file, and `docs/diagrams/` itself, do not yet exist on this branch or `main`) | U4 **creates** this diagram, drawing the new pre-mutation node; it is a new artifact, not an update to an existing one |
 | Checksum manifest | `.autoharness/harness-manifest.yaml` (shipment-reconcile entries at L126, L201, L272, L274, L396) | skill/template edits invalidate checksums |
 
 ## Requirements Trace
@@ -242,12 +242,13 @@ Quality Criteria (L1011), in both copies:
   `scan_performed: true`, `linked_deliberation_ids: []`, timestamp strictly before the
   invocation ⇒ **PASS**. This names the legitimate passing state required by lesson 6.
 
-### U4 — Diagram currency
+### U4 — Diagram currency (creates a new artifact)
 
-Update `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` to draw the evidence
-emission as an explicit node on the pre-mutation side of the cascade invocation, with
-both halt tokens as labelled exits. Per lesson 2 of the composed-state-machine
-learning, the diagram is where the seam becomes reviewable.
+`docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` does not yet exist on this
+branch or `main`. Create it, drawing the evidence emission as an explicit node on the
+pre-mutation side of the cascade invocation, with both halt tokens as labelled exits.
+Per lesson 2 of the composed-state-machine learning, the diagram is where the seam
+becomes reviewable.
 
 ### U5 — Checksum recompute and GREEN
 
@@ -288,8 +289,8 @@ at its hard 3-cycle limit, P-018 blocked). Sequencing, not merging.
 |---|---|
 | **Unsatisfiable gate** — the check can never pass | U3 names a concrete legitimate passing state (the empty-set 159-S shape). Lesson 6 check applied below |
 | **Merge conflict with 169-S** in the same Step 0 region | `blocks` dependency on 169-S; U2 is authored against post-169-S text |
-| **Guard passes on a phrase appearing elsewhere** in an 1082-line file | Section-scoped assertions (U1b), never file-wide regex |
-| **Dogfood-parity drift** between resolved copy and template | Paired edit in the same commit; parity assertion in U1b; checksums in U5 |
+| **Guard passes on a phrase appearing elsewhere** in an 1082-line file | Section-scoped assertions (U1c), never file-wide regex |
+| **Dogfood-parity drift** between resolved copy and template | Paired edit in the same commit; parity assertion in U1c; checksums in U5 |
 | **Scope creep into 169-S or 170-S** | Explicit `related_but_distinct` frontmatter; separate feature, separate shipment |
 | **Retroactive-compliance claim** | The plan and every harvested task state that 159-S remains a recorded, permanently disclosed deviation. This fix is forward-only |
 
