@@ -2338,6 +2338,15 @@ class GithubHeadRefClearHelperGuardTests(unittest.TestCase):
     the ambient-empty-string failure class (hotfix commit `2661c1c8`) the
     next time a test is written against
     `patched_environ(GITHUB_HEAD_REF=...)` without the clear helper.
+
+    The traversal covers every nested statement-list block reachable from a
+    statement, including the two block kinds that live inside non-statement
+    child nodes rather than a top-level `body`/`orelse`/`finalbody` field:
+    `Try.handlers` (each `ExceptHandler.body`) and `Match.cases` (each
+    `match_case.body`). Without those two, a call written inside an
+    `except:` clause or a `case:` block would be invisible to the guard
+    despite the guard's claim to cover every call in the file (local review
+    finding, PR #439).
     """
 
     @staticmethod
@@ -2358,6 +2367,35 @@ class GithubHeadRefClearHelperGuardTests(unittest.TestCase):
     def _find_violations(self, tree: ast.Module) -> list[int]:
         violations: list[int] = []
 
+        def nested_blocks(stmt: ast.stmt) -> list[list[ast.stmt]]:
+            """Every statement-list block nested directly inside `stmt`.
+
+            Covers the generic `body`/`orelse`/`finalbody` fields (If, For,
+            While, With, Try, function/class bodies, ...) AND the two block
+            kinds that live inside non-statement child nodes rather than a
+            top-level field: `ast.Try.handlers` (a list of `ExceptHandler`,
+            each with its own `.body`) and `ast.Match.cases` (a list of
+            `match_case`, each with its own `.body`). Without these two, a
+            `patched_environ(GITHUB_HEAD_REF=...)` call written inside an
+            `except:` clause or a `case:` block is silently invisible to
+            this guard even though the guard claims to cover every call in
+            the file.
+            """
+            blocks: list[list[ast.stmt]] = []
+            for field in ('body', 'orelse', 'finalbody'):
+                nested = getattr(stmt, field, None)
+                if isinstance(nested, list) and nested:
+                    blocks.append(nested)
+            for handler in getattr(stmt, 'handlers', None) or []:
+                handler_body = getattr(handler, 'body', None)
+                if isinstance(handler_body, list) and handler_body:
+                    blocks.append(handler_body)
+            for case in getattr(stmt, 'cases', None) or []:
+                case_body = getattr(case, 'body', None)
+                if isinstance(case_body, list) and case_body:
+                    blocks.append(case_body)
+            return blocks
+
         def visit_body(body: list[ast.stmt]) -> None:
             for index, stmt in enumerate(body):
                 target_call = None
@@ -2376,10 +2414,8 @@ class GithubHeadRefClearHelperGuardTests(unittest.TestCase):
                     if not preceded:
                         violations.append(stmt.lineno)
 
-                for field in ('body', 'orelse', 'finalbody'):
-                    nested = getattr(stmt, field, None)
-                    if isinstance(nested, list) and nested:
-                        visit_body(nested)
+                for nested in nested_blocks(stmt):
+                    visit_body(nested)
 
         visit_body(tree.body)
         return violations
@@ -2418,6 +2454,68 @@ class GithubHeadRefClearHelperGuardTests(unittest.TestCase):
             "    _clear_ambient_github_head_ref()\n"
             "    with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
             "        pass\n"
+        )
+        tree = ast.parse(synthetic_source, filename='<synthetic>')
+        violations = self._find_violations(tree)
+        self.assertEqual(violations, [])
+
+    def test_guard_detects_a_violation_inside_an_except_handler(self) -> None:
+        """A `patched_environ(GITHUB_HEAD_REF=...)` call written inside an
+        `except:` clause is ordinary control flow, not an escape hatch: the
+        guard must traverse `Try.handlers` (each `ExceptHandler.body`) and
+        report the violation exactly as it would for the same call at the
+        top level of a function."""
+        synthetic_source = (
+            "def test_example():\n"
+            "    try:\n"
+            "        pass\n"
+            "    except ValueError:\n"
+            "        with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
+            "            pass\n"
+        )
+        tree = ast.parse(synthetic_source, filename='<synthetic>')
+        violations = self._find_violations(tree)
+        self.assertEqual(violations, [5])
+
+    def test_guard_accepts_a_call_preceded_by_the_clear_helper_inside_an_except_handler(self) -> None:
+        synthetic_source = (
+            "def test_example():\n"
+            "    try:\n"
+            "        pass\n"
+            "    except ValueError:\n"
+            "        _clear_ambient_github_head_ref()\n"
+            "        with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
+            "            pass\n"
+        )
+        tree = ast.parse(synthetic_source, filename='<synthetic>')
+        violations = self._find_violations(tree)
+        self.assertEqual(violations, [])
+
+    def test_guard_detects_a_violation_inside_a_match_case(self) -> None:
+        """A `patched_environ(GITHUB_HEAD_REF=...)` call written inside a
+        `match`/`case` block is ordinary control flow, not an escape hatch:
+        the guard must traverse `Match.cases` (each `match_case.body`) and
+        report the violation exactly as it would for the same call at the
+        top level of a function."""
+        synthetic_source = (
+            "def test_example(value):\n"
+            "    match value:\n"
+            "        case 'x':\n"
+            "            with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
+            "                pass\n"
+        )
+        tree = ast.parse(synthetic_source, filename='<synthetic>')
+        violations = self._find_violations(tree)
+        self.assertEqual(violations, [4])
+
+    def test_guard_accepts_a_call_preceded_by_the_clear_helper_inside_a_match_case(self) -> None:
+        synthetic_source = (
+            "def test_example(value):\n"
+            "    match value:\n"
+            "        case 'x':\n"
+            "            _clear_ambient_github_head_ref()\n"
+            "            with patched_environ(GITHUB_HEAD_REF='feat/x'):\n"
+            "                pass\n"
         )
         tree = ast.parse(synthetic_source, filename='<synthetic>')
         violations = self._find_violations(tree)

@@ -134,6 +134,24 @@ class ProbeCaseTableTests(unittest.TestCase):
             with self.assertRaises(ProbeTransportError):
                 probe(REQUESTED_VERSION)
 
+    def test_c4_wrong_host_404_raises_transport_error_not_absent(self) -> None:
+        """A 404 whose OWN resolved URL host (after redirects) is not
+        pypi.org must never be accepted as proof of absence: ``urlopen``
+        follows redirects transparently, so a redirect to a different host
+        that itself returns 404 is a transport anomaly, not evidence the
+        version is absent from PyPI (binding H2a). Must raise
+        ``ProbeTransportError`` and must NOT return ``ABSENT``."""
+        error = urllib.error.HTTPError(
+            f"https://mirror.example.com/pypi/autoharness/{REQUESTED_VERSION}/json",
+            404,
+            "Not Found",
+            {},
+            None,
+        )
+        with _PatchedUrlopen(error=error):
+            with self.assertRaises(ProbeTransportError):
+                probe(REQUESTED_VERSION)
+
     def test_c5_undecodable_body_raises_transport_error(self) -> None:
         response = _FakeHTTPResponse(b"\xff\xfe not valid json or utf-8 \x00")
         with _PatchedUrlopen(result=response):

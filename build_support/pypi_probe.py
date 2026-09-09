@@ -65,29 +65,34 @@ class ProbeIntegrityError(ProbeError):
 class ProbeTransportError(ProbeError):
     """A transport-level failure.
 
-    Raised for ``URLError``, non-404 ``HTTPError``, a response resolved to a
-    host other than ``pypi.org`` after redirects, or a response body that
-    cannot be decoded/does not have the expected shape (task 152.001-T,
-    binding H2/H2a).
+    Raised for ``URLError``, non-404 ``HTTPError``, a 200 or 404 response
+    resolved to a host other than ``pypi.org`` after redirects, or a
+    response body that cannot be decoded/does not have the expected shape
+    (task 152.001-T, binding H2/H2a).
     """
 
 
 def probe(version: str, url: str | None = None) -> ProbeResult:
     """Query PyPI's exact-version JSON endpoint for ``version``.
 
-    Returns ``ProbeResult(status=ABSENT)`` on a 404. Returns
-    ``ProbeResult(status=PRESENT)`` only when ALL of the following hold
-    (binding H2a): the final resolved response host (after redirects) is
-    ``pypi.org``; the body decodes as JSON; the decoded body identifies the
-    requested version. Raises ``ProbeTransportError`` for a transport
-    ``URLError``, a non-404 HTTP error, a response resolved to a host other
-    than ``pypi.org``, or a body that cannot be decoded / lacks
+    Returns ``ProbeResult(status=ABSENT)`` on a 404 -- but only when that
+    404's own resolved response host (after redirects) is ``pypi.org``
+    (binding H2a); a redirect to a different host that itself returns 404
+    is a transport anomaly, not proof of absence, and raises
+    ``ProbeTransportError`` instead. Returns ``ProbeResult(status=PRESENT)``
+    only when ALL of the following hold (binding H2a): the final resolved
+    response host (after redirects) is ``pypi.org``; the body decodes as
+    JSON; the decoded body identifies the requested version. Raises
+    ``ProbeTransportError`` for a transport ``URLError``, a non-404 HTTP
+    error, a response (or 404 error) resolved to a host other than
+    ``pypi.org``, or a body that cannot be decoded / lacks
     ``info.version``. Raises ``ProbeIntegrityError`` when the decoded body
     identifies a version different from the one requested -- the
     exact-version endpoint queried here can only conform by returning 404 or
     a body naming that exact version, so a mismatch is positive evidence of
     a cache, mirror, or interception anomaly, never evidence of absence
-    (binding H2b). Absence is proved by 404 and nothing else.
+    (binding H2b). Absence is proved by a pypi.org-hosted 404 and nothing
+    else.
     """
     if url is None:
         url = f"https://pypi.org/pypi/autoharness/{version}/json"
@@ -103,6 +108,19 @@ def probe(version: str, url: str | None = None) -> ProbeResult:
         # as transport failures, silently defeating the 404/non-404
         # distinction below.
         if exc.code == 404:
+            # A 404 is only proof of absence if it actually came from
+            # pypi.org. ``urlopen`` follows redirects transparently, so a
+            # redirect to a different host that itself returns 404 must
+            # not be accepted as absence (binding H2a) -- validate the
+            # error's resolved URL host exactly as the success path below
+            # validates ``response.geturl()``.
+            error_host = urlsplit(exc.geturl()).hostname
+            if error_host != PYPI_HOST:
+                raise ProbeTransportError(
+                    f"PyPI probe 404 response resolved to unexpected host "
+                    f"{error_host!r} (expected {PYPI_HOST!r}); final URL: "
+                    f"{exc.geturl()}"
+                ) from exc
             return ProbeResult(status=ProbeStatus.ABSENT, version=version)
         raise ProbeTransportError(f"PyPI probe HTTP error {exc.code}: {exc}") from exc
     except urllib.error.URLError as exc:
