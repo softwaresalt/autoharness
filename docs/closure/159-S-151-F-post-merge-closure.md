@@ -176,9 +176,12 @@ committed on this branch, published by this PR's closure-repair session
 (commit `a601696e78ffb0f1a276a8b3ce855d66d4187ff9`; see the RESOLVED
 disposition below) -- only `169-S`'s own manifest members (`161-F` /
 `161.001-T`..`161.007-T`) remain uncommitted, a distinct publication gap
-tracked separately by deferred stash entries `1CD92B69` (reconciling stash
-`15A02E21`) and `6B627A50` (the `161-F` member content itself) for Stage to
-close, and does not reopen this disposition. Stage's own
+tracked separately by deferred stash entries `1CD92B69` (Stage-owned:
+reconciling stash `15A02E21`) and `6B627A50` (Ship-owned: publishing the
+`161-F` member content itself, consistent with this file's own condition-2
+evidence above and P-021 stash entry `2B68F9D6`'s Ownership and Role
+Boundary section, which classifies selective staging/committing/pushing as
+Ship-owned), and does not reopen this disposition. Stage's own
 planning, decision, and diagram artifacts for the fix are tracked
 separately and are intentionally not part of this PR -- they are not
 required to understand this disposition. The acceptance is scoped to this
