@@ -1,0 +1,8 @@
+{"timestamp":"2026-09-08T00:45:56.8550598-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_created","delta":{"items":["163-F"],"title":"SHIP-13 - Shipment-reconcile Step 0(c) provable live pre-mutation evidence gate (856B6770)"}}
+{"timestamp":"2026-09-08T00:46:14.3552142-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.001-T"}}
+{"timestamp":"2026-09-08T00:46:18.3266434-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.002-T"}}
+{"timestamp":"2026-09-08T00:46:22.4235713-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.003-T"}}
+{"timestamp":"2026-09-08T00:46:26.3140622-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.004-T"}}
+{"timestamp":"2026-09-08T00:46:30.5006718-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.005-T"}}
+{"timestamp":"2026-09-08T00:46:34.5099407-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.006-T"}}
+{"timestamp":"2026-09-08T00:46:38.6267263-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.007-T"}}
