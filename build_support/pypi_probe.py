@@ -3,14 +3,18 @@
 Extracted from the inline ``python - <<'PY'`` heredoc previously embedded in
 ``.github/workflows/release.yml`` (task 152.002-T) so the probe logic is
 importable and testable -- an inline heredoc in YAML is untestable by
-construction. This extraction is behaviour-preserving: the workflow keeps
-calling the probe from the same step, at the same point, with the same
-inputs, and this module's initial logic mirrors the pre-fix ``else:`` branch
-exactly (any successful HTTP response is treated as "present" without
-validating the response host or body). Task 152.001-T changes this module's
-behavioural contract to fail closed on an already-published version; see that
-task and ``docs/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md``
-for the full rationale.
+construction.
+
+Task 152.001-T (this task) changes the extracted helper's behavioural
+contract to fail closed on an already-published version: "present" now
+requires the final resolved response host to be ``pypi.org``, the body to
+decode as JSON, and the decoded body to identify the requested version
+(binding H2a). A response that decodes cleanly but names a *different*
+version is an integrity anomaly, not evidence of absence, because the
+exact-version endpoint queried here can only conform by returning 404 or a
+body naming that exact version (binding H2b). See
+``docs/plans/2026-08-31-ship2-release-ci-fail-closed-gates-plan.md`` for the
+full rationale.
 
 Invoked from ``release.yml`` as ``python -m build_support.pypi_probe``, with
 the version supplied through the ``VERSION`` environment variable the
@@ -19,12 +23,14 @@ surrounding workflow step already sets.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from enum import Enum
+from urllib.parse import urlsplit
 
 PYPI_HOST = "pypi.org"
 
@@ -69,19 +75,27 @@ class ProbeTransportError(ProbeError):
 def probe(version: str, url: str | None = None) -> ProbeResult:
     """Query PyPI's exact-version JSON endpoint for ``version``.
 
-    Pre-fix behaviour (this task, 152.002-T): a 404 means the version is
-    absent and the probe proceeds; any other HTTP error or a transport
-    ``URLError`` propagates; any successful (2xx) response is treated as
-    "present" without further validation of the response host or body --
-    this mirrors the pre-fix ``else:`` branch exactly and is intentionally
-    fail-open pending task 152.001-T's fix.
+    Returns ``ProbeResult(status=ABSENT)`` on a 404. Returns
+    ``ProbeResult(status=PRESENT)`` only when ALL of the following hold
+    (binding H2a): the final resolved response host (after redirects) is
+    ``pypi.org``; the body decodes as JSON; the decoded body identifies the
+    requested version. Raises ``ProbeTransportError`` for a transport
+    ``URLError``, a non-404 HTTP error, a response resolved to a host other
+    than ``pypi.org``, or a body that cannot be decoded / lacks
+    ``info.version``. Raises ``ProbeIntegrityError`` when the decoded body
+    identifies a version different from the one requested -- the
+    exact-version endpoint queried here can only conform by returning 404 or
+    a body naming that exact version, so a mismatch is positive evidence of
+    a cache, mirror, or interception anomaly, never evidence of absence
+    (binding H2b). Absence is proved by 404 and nothing else.
     """
     if url is None:
         url = f"https://pypi.org/pypi/autoharness/{version}/json"
 
     try:
         with urllib.request.urlopen(url) as response:
-            response.read()
+            final_url = response.geturl()
+            body_bytes = response.read()
     except urllib.error.HTTPError as exc:
         # HTTPError is caught before URLError: HTTPError is a subclass of
         # URLError, so if the URLError clause were checked first it would
@@ -93,6 +107,32 @@ def probe(version: str, url: str | None = None) -> ProbeResult:
         raise ProbeTransportError(f"PyPI probe HTTP error {exc.code}: {exc}") from exc
     except urllib.error.URLError as exc:
         raise ProbeTransportError(f"PyPI probe transport error: {exc}") from exc
+
+    final_host = urlsplit(final_url).hostname
+    if final_host != PYPI_HOST:
+        raise ProbeTransportError(
+            f"PyPI probe response resolved to unexpected host {final_host!r} "
+            f"(expected {PYPI_HOST!r}); final URL: {final_url}"
+        )
+
+    try:
+        decoded = json.loads(body_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ProbeTransportError(f"PyPI probe response body was not valid JSON: {exc}") from exc
+
+    try:
+        body_version = decoded["info"]["version"]
+    except (KeyError, TypeError) as exc:
+        raise ProbeTransportError(
+            "PyPI probe response body did not contain info.version"
+        ) from exc
+
+    if body_version != version:
+        raise ProbeIntegrityError(
+            f"PyPI probe requested version {version!r} but response body "
+            f"identified version {body_version!r} -- exact-version endpoint "
+            "integrity anomaly (cache, mirror, or interception proxy)"
+        )
 
     return ProbeResult(status=ProbeStatus.PRESENT, version=version)
 
@@ -119,10 +159,11 @@ def already_published_message(version: str) -> str:
 def main(argv: list[str] | None = None) -> int:
     """Thin CLI wrapper: no probe logic lives here.
 
-    Pre-fix mapping (this task, 152.002-T): ``ABSENT`` -> exit 0; ``PRESENT``
-    -> exit 0 (matches the pre-fix workflow's fail-open behaviour, which
-    never raised or exited non-zero on a successful response);
-    ``ProbeError`` -> exit 1, message on stderr.
+    Mapping: ``ABSENT`` -> exit 0; ``PRESENT`` -> exit 2 (the fail-closed
+    outcome, deliberately distinct from an error exit so an operator can
+    tell "already published" from "the probe itself broke"), with the
+    remedy message on stderr; ``ProbeError`` (``ProbeIntegrityError`` or
+    ``ProbeTransportError``) -> exit 1, message on stderr.
     """
     del argv  # No CLI arguments; the version comes from the VERSION env var.
     version = os.environ["VERSION"]
@@ -137,11 +178,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"autoharness {version} not yet on PyPI.")
         return 0
 
-    print(
-        f"autoharness {version} is already on PyPI; "
-        "publish will skip existing files on reruns."
-    )
-    return 0
+    print(already_published_message(version), file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

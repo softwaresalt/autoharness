@@ -87,6 +87,11 @@ jobs:
       - name: Publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
+          # skip-existing is retained as deliberate defence in depth behind
+          # the fail-closed pre-publish probe above (task 152.001-T): the
+          # probe now exits non-zero before this step runs when the version
+          # is already published, so this setting should be unreachable in
+          # the intended path.
           skip-existing: true
 
       - name: Smoke test published package from PyPI
