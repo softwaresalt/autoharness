@@ -8,8 +8,8 @@ stash_entries:
   - "DDBF283E — Step 0(c) evidence-mechanism redesign (REQUIRES DELIBERATION: yes). Source: PR 437 HEAD e78e3f00e6f3303ae2c070a2d8a5a8434736fa49, Copilot round-1 review, thread PRRT_kwDORzpWpM6gdwXD; feature 151-F; shipment N/A; task N/A."
   - "EB23D1B9 — encode the DDBF283E prerequisite as a real blocking predecessor in 171-S's dependency graph (REQUIRES DELIBERATION: yes). Source: PR 437 HEAD 42783ce42c8dfd352662fe44d2c12eb325340968, Copilot round-4 review, thread PRRT_kwDORzpWpM6ge79q; feature 151-F; shipment N/A; task N/A."
 revises:
-  - "docs/plans/2026-09-08-shipment-reconcile-step-0c-live-pre-mutation-evidence-plan.md (U1a, U1b, U1c, U2, U3)"
-  - "163.001-T, 163.002-T, 163.003-T, 163.004-T, 163.005-T (feature 163-F, shipment 171-S)"
+  - "docs/plans/2026-09-08-shipment-reconcile-step-0c-live-pre-mutation-evidence-plan.md (U1a, U1b, U1c, U2, U3; and via R1-12: U4, new U6)"
+  - "163.001-T, 163.002-T, 163.003-T, 163.004-T, 163.005-T (feature 163-F, shipment 171-S); and via D-7/D-8: 163.006-T, 163.007-T, new 163.008-T"
 supersedes_mechanism_in:
   - "docs/decisions/2026-09-07-step-0c-pre-mutation-guard-reconstruction-disposition.md — the Option A remediation REQUIREMENTS (RQ-1/RQ-2/RQ-3) are unchanged and remain binding; only the MECHANISM by which RQ-2's 'provably pre-mutation' is satisfied is redesigned here."
 compound_learnings:
@@ -144,10 +144,11 @@ agent authored.
   Shipped shipments retain their logs with `archived` as the final line, so the
   anchor remains readable and auditable **to a reader working in the closing
   workspace** after the close. A proof that vanished with the archival would be
-  useless. **This is local durability only:** `.backlogit/logs/` is covered by a
-  workspace `.gitignore` rule, so the log is not repository-durable by default and a
-  fresh-clone reviewer cannot see it at all. See **D-7** for the split and the
-  bounded tracked-evidence obligation that closes it.
+  useless. **This bullet establishes local durability only** — it says nothing about
+  whether the log reaches the repository. Whether a fresh-clone reviewer can see it
+  depends on that path's **tracking state**, not on an assumed blanket ignore rule;
+  see **D-7** (as premise-corrected in review-fix cycle 2) and plan section **R1-12**
+  for the Case A/B/C publication contract and the executor assigned in **D-8**.
 * **The negative case is directly observable in the real failure.**
   `.backlogit/logs/159-S.jsonl` contains nine engine events and **no** evidence
   anchor anywhere before `archived`. The 159-S history the plan exists to reject is
@@ -275,19 +276,35 @@ retroactive-compliance claim for 159-S.
 
 ### D-5 — 2-hour rule and the two-axis gate
 
+> **Decision-label namespacing (review-fix cycle 2).** These `D-n` labels are **this
+> deliberation's**. The plan
+> (`docs/plans/2026-09-08-shipment-reconcile-step-0c-live-pre-mutation-evidence-plan.md`)
+> has its own, unrelated `D-1..D-8` sequence. Cite them qualified — **`redesign
+> decision D-n`** for this file, **`plan D-n`** for the plan. Bare `D-n` is ambiguous
+> and must not be used. Live collisions: **redesign decision D-5** (this section,
+> sizing) vs. **plan D-5** (state the requirement once); **redesign decision D-7**
+> (durability split) vs. **plan D-7** (no Python source change).
+
+**Sizing table — corrected 2026-09-10 (review-fix cycle 2).** The `163.006-T` /
+`163.007-T` "unchanged" row had gone stale: plan-review cycle 3 re-sized `163.006-T`
+`XS`→`S` and `trivial`→`low`, and the record already carried those values while this
+table still said "unchanged". Each task now has its own row, and `163.008-T` is added.
+
 | Task | Size | Complexity | Change |
 |---|---|---|---|
 | `163.001-T` U1a fixture | S → **M** | medium | fixture must model engine-log append order, not just file presence |
-| `163.002-T` U1b assertions | S → **M** | medium | adds the backdated-reconstruction rejection family and token-identity assertions |
-| `163.003-T` U1c guards | S | medium | guard additionally asserts the anchor clause and demotion sentence, same section-scoped technique |
+| `163.002-T` U1b assertions | S → **M** | medium | adds the backdated-reconstruction rejection family and token-identity assertions; R1-12 also removes the superseded `collection_completed_at` timestamp comparison from its ordering family (a **deletion**, so no size pressure) |
+| `163.003-T` U1c guards | S → **M** | medium | **re-confirmed and re-sized (review-fix cycle 2).** `S` was correct for the R1 assertion set. It is no longer: the guard now additionally asserts the R1-11 L1/L2 split sentence, the negative no-fifth-`PRECASCADE`-token assertion, and the R1-12 U6 publication step with its non-`PRECASCADE` condition name — three additional section-scoped assertion groups across two files. `M` reflects the accumulated set. Complexity stays `medium`: the technique is unchanged, only the surface grew |
 | `163.004-T` U2 atomic core | **M** | medium → **high** | anchor emission + digest binding + four tokens, still a paired prose edit to two files |
 | `163.005-T` U3 scenario matrix | S | low | two additional scenario rows |
-| `163.006-T`, `163.007-T` | unchanged | unchanged | unchanged |
+| `163.006-T` U4 diagram | XS → **S** | trivial → **low** | **corrected (review-fix cycle 2); this table previously said "unchanged", which contradicted the record and cycle 3's own finding.** The unit grew from two halt tokens to four, gained the anchor node and the L1/L2 split, and R1-12 added the resolve-canonical-path rule |
+| `163.007-T` U5 checksums | XS | low | unchanged in scope; gains one dependency edge (on `163.008-T`) so it still runs last |
+| `163.008-T` U6 L2 publication step | **S** | **medium** | **new (review-fix cycle 2, plan D-8).** Paired prose edit to the same two files U2 edits: Case A/B/C detection, staging, five verification criteria, reconcile-report outcome, and the `RECONCILE_CLOSURE_INCOMPLETE_L2_EVIDENCE` report. `medium` because the conditional detection and the commit-content assertions require care, not because the surface is large |
 
 Every task remains within the 2-hour rule; `M` is "several files or functions, a few
 test scenarios" and `163.004-T` remains a bounded paired edit across exactly two
 files. **No size crosses the 2-hour threshold, so no split is forced on the size
-axis.**
+axis.** Task count is **8** after `163.008-T` (7 before).
 
 `163.004-T` rises to `complexity: high`, which under the Stage two-axis gate forces a
 split **or a de-risking step**. It is explicitly **not** split: the task is declared
@@ -337,18 +354,33 @@ claimable**, because its shipment-level predecessor `169-S` is still unshipped. 
 `033-DL` edges are retained after satisfaction as a permanent audit record that
 `171-S`'s contract was gated on, and corrected by, this redesign.
 
-## Open Questions
-
 ### D-7 — Durability split: local runtime ordering proof vs. repository audit evidence
+
+> **RELOCATED 2026-09-10 (review-fix cycle 2).** D-7 was filed under "Open
+> Questions", which mis-stated its status: it is a **decided** correction that was
+> propagated into the plan and into six backlog records, not an unresolved question.
+> It now sits under **Chosen Direction** alongside D-1..D-6 and D-8. The genuinely
+> open items remain in the "Open Questions" section further below.
 
 **Added 2026-09-10 (review-fix cycle 1), correcting an overstatement in O4 and D-1.**
 Those sections described the anchor as "durable" and "auditable" without naming the
-audience. That was true of the closing workspace and **false of the repository**:
-`.backlogit/logs/` is `.gitignore`d, so a reviewer with a fresh clone could see
-neither the anchor nor the append order, and the only surviving evidence visible to
-them would have been the agent-authored `collection_completed_at` that D-1 exists to
-demote. The decision is corrected, not retracted — the mechanism is right; the
-durability claim was scoped wrong.
+audience. That was true of the closing workspace and did not, by itself, establish
+that the evidence reaches the repository. The decision is corrected, not retracted —
+the mechanism is right; the durability claim was scoped wrong.
+
+> **PREMISE CORRECTED 2026-09-10 (review-fix cycle 2).** As first written, this
+> section justified the split with the claim that "`.backlogit/logs/` is
+> `.gitignore`d, so a reviewer with a fresh clone could see neither the anchor nor the
+> append order". Direct inspection refutes the categorical form of that claim:
+> `origin/main`'s `.gitignore` carries **no** `.backlogit/logs/` rule; `git ls-files`
+> shows **993 of 1016** local logs already tracked, including `150-S`, `159-S`,
+> `169-S` and `171-S` itself; the `.backlogit/logs/` ignore rule exists only as an
+> **uncommitted** working-tree edit; and a `.gitignore` rule never hides an
+> already-tracked path. The L1/L2 **conclusion** survives — publication to the
+> repository is still a separate concern from local retention, and still deserves to
+> be named separately — but the **mechanism** is now conditional on the path's actual
+> tracking state (plan section R1-12, Cases A/B/C) rather than on an assumed blanket
+> ignore rule.
 
 Two layers, separately named, neither substitutable for the other:
 
@@ -358,18 +390,26 @@ Two layers, separately named, neither substitutable for the other:
   invocation. **All four D-2 halt tokens evaluate L1 and only L1.** Unchanged by
   this correction.
 * **L2 — repository audit evidence (never gate-bearing).** At the closure commit,
-  that **one** shipment's engine log is force-added past the ignore rule (`git add
-  -f`) and committed **verbatim and byte-unmodified**, beside the already-tracked
-  evidence record under `.backlogit/reconcile/`. Bounded to one shipment at its own
-  closure; not a general un-ignoring of `.backlogit/logs/`, not a historical
-  backfill, and not a `.gitignore` change.
+  that **one** shipment's engine log is published into the repository **verbatim and
+  byte-unmodified**, beside the already-tracked evidence record under
+  `.backlogit/reconcile/`. The staging action follows the path's tracking state
+  (plan R1-12): an ordinary commit of its mutation when the path is **already
+  tracked** — the actual state of `171-S` — an ordinary `git add` when it is
+  untracked and not ignored, and a `git add -f` bounded to that one log when it is
+  untracked and ignored. The **durable postcondition is identical in all three
+  cases**: the engine-authored bytes L1 evaluated are present in the closure commit.
+  Bounded to one shipment at its own closure; not a general un-ignoring of
+  `.backlogit/logs/`, not a historical backfill, and not a `.gitignore` change —
+  boundedness is asserted against the closure commit's own contents (at most one
+  newly-tracked `.backlogit/logs/` path, no `.gitignore` modification), so it holds
+  without consulting any ignore rule.
 
 **Why the engine's own bytes and not an agent-written export.** A transcription or
 summary would reintroduce precisely the defect this deliberation exists to remove —
-evidence authored by the party whose compliance is being checked. `git add -f` is a
-staging action over bytes the agent did not write; it cannot alter append order, and
-any alteration is a content change visible in the diff. A fresh-clone reviewer can
-then (1) recompute the record's `sha256` and compare it to the anchor's, (2) confirm
+evidence authored by the party whose compliance is being checked. Staging is an
+action over bytes the agent did not write; it cannot alter append order, and any
+alteration is a content change visible in the diff. A fresh-clone reviewer can then
+(1) recompute the record's `sha256` and compare it to the anchor's, (2) confirm
 the anchor precedes the engine-written mutation lines **in append order**, and (3)
 confirm the record's `HEAD` SHA and manifest describe the closed state — none of
 which consults an agent-authored timestamp.
@@ -381,11 +421,55 @@ artifact that cannot yet exist. Instead, **operational closure is incomplete unt
 is committed** — a reportable P-001 condition. Missing L2 never authorizes a close,
 never downgrades a halt, and is never a fallback for a failed L1 check.
 
-**Also rejected:** un-ignoring `.backlogit/logs/` wholesale (unbounded repository
-growth plus a `.gitignore` change outside this feature's scope).
+> **EXECUTOR ASSIGNED 2026-09-10 (review-fix cycle 2) — see D-8.** As first written,
+> this paragraph attached P-001 incomplete-closure semantics to L2 without naming any
+> implementation surface that could perform or verify it, leaving a normative
+> obligation with no executor. D-8 assigns one: **Ship, at operational closure**, via
+> the Post-Cascade Publication step added by plan unit **U6** and harvested as task
+> **`163.008-T`**, reporting `RECONCILE_CLOSURE_INCOMPLETE_L2_EVIDENCE`.
 
-Propagated to the plan as **R1-11**, and to `163-F`, `163.003-T`, `163.004-T`,
-`163.005-T` and `163.006-T`.
+**Also rejected:** un-ignoring `.backlogit/logs/` wholesale, or making any
+`.gitignore` change at all (unbounded repository growth, plus a dependency on
+working-tree state this decision does not own).
+
+Propagated to the plan as **R1-11** (corrected by **R1-12**), and to `163-F`,
+`163.003-T`, `163.004-T`, `163.005-T`, `163.006-T`, **`163.007-T`** and the new
+`163.008-T`, and recorded in `033-DL`.
+
+### D-8 — The L2 obligation keeps its normative force and gains an executor
+
+**Decided 2026-09-10 (review-fix cycle 2).** D-7 left L2 as a normative P-001
+obligation that nothing implemented, performed, or verified. Only two resolutions were
+honest:
+
+1. **Give it an owner** — keep the P-001 and fail-closed language and name a real
+   implementation surface; or
+2. **Make it advisory** — strip every P-001 and fail-closed claim from it and say
+   plainly that nothing enforces it.
+
+**Option 1 is chosen.** Option 2 would have reopened the exact fresh-clone
+auditability gap the authorized redesign exists to close: with L2 advisory, a close
+could be published with no repository-visible ordering proof and no reportable
+condition, leaving the only surviving evidence the agent-authored
+`collection_completed_at` that D-1 demotes. Softening the obligation to avoid an
+ownership question would have been a scope retreat dressed as simplification.
+
+**The assignment:**
+
+| Aspect | Value |
+|---|---|
+| **Owner** | The closing agent executing the `shipment-reconcile` cascade path — **Ship, at operational closure**. Never Stage, which does not close shipments |
+| **Implementation unit** | **U6** — a paired prose edit to the same two files U2 edits (`.github/skills/shipment-reconcile/SKILL.md` and `templates/skills/shipment-reconcile/SKILL.md.tmpl`). No new file, no Python source change, no `.gitignore` change |
+| **Backlog item** | **`163.008-T`**, parent `163-F`, member of `171-S`, depends on `163.004-T` (U2 states the obligation) and blocks `163.007-T` (U5 consumes its bytes) |
+| **Behaviour** | Detect the tracking case (A/B/C), stage accordingly, verify the five R1-12 criteria against the closure commit, and record the outcome and detected case in the reconcile report |
+| **Reportable condition** | `RECONCILE_CLOSURE_INCOMPLETE_L2_EVIDENCE` — a **P-001 incomplete-closure report**, not a halt token. Named outside the `RECONCILE_FAIL_PRECASCADE_` namespace so `163.003-T`'s "no fifth `PRECASCADE` token" negative assertion keeps firing on a genuine regression |
+| **What it never does** | Never authorizes a close, never downgrades or re-runs the L1 gate, never acts as a fallback for a failed L1 check, never blocks the cascade |
+
+The pre-cascade gate surface stays at exactly the **four** D-2 tokens. U6 runs outside
+and after the single-writer lock window, so it adds no lock, no second writer, and no
+new failure window.
+
+## Open Questions
 
 ### Remaining open questions
 
@@ -404,8 +488,15 @@ Propagated to the plan as **R1-11**, and to `163-F`, `163.003-T`, `163.004-T`,
   behaviour*. A future regression in backlogit's log retention would silently weaken
   this gate. **D-7's L2 obligation partially mitigates this after the fact** — once a
   shipment's log is committed at closure, a later engine-side retention regression
-  cannot remove the already-published audit evidence — but it does **not** protect a
-  close that has not happened yet, so the open question stands for L1.
+  cannot remove the already-published audit evidence — and **D-8 gives that
+  mitigation an executor (U6 / `163.008-T`)**, so it is a step someone performs and
+  verifies rather than an aspiration. It still does **not** protect a close that has
+  not happened yet, so the open question stands for L1.
+* **The workspace `.gitignore` addition of `.backlogit/logs/`** is uncommitted
+  working-tree state. Whether to commit it is an operator question. It is **not** a
+  prerequisite for anything here: after the R1-12 correction, this decision and the
+  plan read no ignore rule and change none, and the L2 postcondition is identical in
+  all three tracking cases.
 * **169-S interaction.** Unchanged from the original plan: sequencing only, never
   merging. `171-S` continues to `blocks`-depend on `169-S`, and U2 is still authored
   against post-169-S text.
