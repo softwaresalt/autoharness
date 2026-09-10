@@ -31,9 +31,35 @@ No silent ad-hoc fallback for a *configured-and-available* tool occurred.
 
 ## Startup recovery
 
-Zero-candidate normal startup. Enumerated all 32 checkpoints unfiltered;
-`needs_quarantine: 0`, no validation anomalies, all `agent: stage` /
-`status: resolved`. No active candidate ⇒ proceeded to triage. Not a failure.
+Zero-candidate normal startup. Enumerated all checkpoints unfiltered; no
+quarantine flags, no validation anomalies, no `agent: stage` record in
+`status: active`. No active candidate ⇒ proceeded to triage. Not a failure.
+
+> **Correction (2026-09-10, review-fix cycle 1).** As originally written this
+> section said "all 32 checkpoints unfiltered; `needs_quarantine: 0`, no
+> validation anomalies, **all `agent: stage` / `status: resolved`**". Two claims
+> in that sentence do not survive a check against current durable evidence:
+>
+> * **Role.** Not all enumerated records were `agent: stage`. Two are
+>   `agent: ship` — `checkpoint-20260904-002322.json` and
+>   `checkpoint-20260908-195611.json` — and both predate this session, so both
+>   were in the enumeration. Both are `status: resolved`. This does **not**
+>   change the outcome: Stage's recovery protocol enumerates unfiltered
+>   precisely so quarantine/validation anomalies cannot hide behind a filter,
+>   and *then* partitions to `agent: stage` + `status: active`. The ship-owned
+>   records were correctly outside Stage's candidate set (owner-exclusive
+>   routing), and the zero-candidate conclusion stands.
+> * **Count.** `32` is not reproducible from durable evidence. Current on-disk
+>   state shows **34** checkpoint files dated on or before 2026-09-08 (33
+>   tracked plus the untracked ship-owned `checkpoint-20260908-195611.json`),
+>   all of which existed at this session's start. The recorded figure is
+>   therefore restated as "all checkpoints" rather than asserting a specific
+>   number that cannot be re-derived.
+>
+> Corrected here rather than left standing: the enumeration-is-unfiltered claim
+> is load-bearing for the recovery protocol's fail-closed property, so an
+> inaccurate summary of what the enumeration returned is worth fixing even
+> though the decision it supported was right.
 
 ## The decisive finding
 

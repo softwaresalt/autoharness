@@ -13,8 +13,8 @@ plan_review_verdict: "PASS (cycle 2 of 3; cycle 1 FAIL on four P1 findings, all 
 plan_hardened: true
 harvested_feature: "161-F"
 harvested_tasks: "161.001-T, 161.002-T, 161.003-T, 161.004-T, 161.005-T, 161.006-T, 161.007-T"
-shipment: "169-S"
-shipment_status: "queued — NOT routed to Ship; blocked by open PR #436 / 159-S post-merge closure"
+harvested_shipment: "169-S"
+harvested_shipment_status: "queued — NOT routed to Ship; blocked by open PR #436 / 159-S post-merge closure"
 date: 2026-09-06
 stash_entry: "15A02E21"
 shipment: "159-S"

@@ -140,10 +140,14 @@ agent authored.
   carries `"actor":"backlogit"`, ending in `archived`.
 * `comment` events land in the same log with engine-written timestamps
   (`005-F.jsonl`, `005-S.jsonl`, `011-DL.jsonl`).
-* **The proof artifact survives the mutation it proves.** Shipped shipments retain
-  their logs with `archived` as the final line, so the anchor remains readable and
-  auditable after the close. A proof that vanished with the archival would be
-  useless.
+* **The proof artifact survives the mutation it proves — on the local filesystem.**
+  Shipped shipments retain their logs with `archived` as the final line, so the
+  anchor remains readable and auditable **to a reader working in the closing
+  workspace** after the close. A proof that vanished with the archival would be
+  useless. **This is local durability only:** `.backlogit/logs/` is covered by a
+  workspace `.gitignore` rule, so the log is not repository-durable by default and a
+  fresh-clone reviewer cannot see it at all. See **D-7** for the split and the
+  bounded tracked-evidence obligation that closes it.
 * **The negative case is directly observable in the real failure.**
   `.backlogit/logs/159-S.jsonl` contains nine engine events and **no** evidence
   anchor anywhere before `archived`. The 159-S history the plan exists to reject is
@@ -307,19 +311,83 @@ artifact type**. No `blocked` shipment lifecycle is invented, and no dependency 
 declared on a shipment that does not exist:
 
 * the redesign is recorded as a first-class backlogit **deliberation** artifact
-  (`-DL`, an existing configured type with established precedent in this workspace);
-* `171-S` gains a second `blocks` dependency on that deliberation artifact, so the
-  prerequisite is visible to the same claim-eligibility logic EB23D1B9 cited, rather
-  than living only as prose in a stash entry;
+  (`033-DL`, an existing configured type with established precedent in this
+  workspace);
+* the blocking edge is declared at the **feature and task level**, where the gated
+  work actually lives: `163-F` `blocks`-depends on `033-DL`, as do the five revised
+  tasks `163.001-T`, `163.002-T`, `163.003-T`, `163.004-T` and `163.005-T`;
 * that edge is satisfied **only** when the deliberation artifact reaches a terminal
   state, which happens only after the revised plan passes `plan-review`.
 
-`171-S` therefore remains unclaimable until the revision gate is genuinely complete,
-by the ordinary dependency mechanism and not by a special case. The edge is retained
-after satisfaction as a permanent audit record that `171-S`'s contract was gated on,
-and corrected by, this redesign.
+**Correction (2026-09-10, review-fix cycle 1).** An earlier draft of this decision
+stated that `171-S` would "gain a second `blocks` dependency on that deliberation
+artifact". That is **not what was implemented, and it is not implementable**:
+backlogit shipment claim-eligibility evaluates **shipment predecessors only**, so a
+shipment→deliberation edge was correctly rejected by the tool rather than silently
+accepted. Recording one anyway would have created a permanently unsatisfiable
+shipment edge — the `15A02E21` mistake in a new place. The prerequisite is therefore
+gated at feature/task level, which is where it binds: `171-S` cannot be worked
+through to completion while `163-F` and its tasks are blocked, and `171-S`'s own
+shipment-level eligibility continues to declare exactly one dependency,
+`blocks 169-S`.
+
+**Current state.** `033-DL` reached `status: done` on 2026-09-10, so the feature- and
+task-level gate is **satisfied**. `171-S` nonetheless remains **queued and not
+claimable**, because its shipment-level predecessor `169-S` is still unshipped. The
+`033-DL` edges are retained after satisfaction as a permanent audit record that
+`171-S`'s contract was gated on, and corrected by, this redesign.
 
 ## Open Questions
+
+### D-7 — Durability split: local runtime ordering proof vs. repository audit evidence
+
+**Added 2026-09-10 (review-fix cycle 1), correcting an overstatement in O4 and D-1.**
+Those sections described the anchor as "durable" and "auditable" without naming the
+audience. That was true of the closing workspace and **false of the repository**:
+`.backlogit/logs/` is `.gitignore`d, so a reviewer with a fresh clone could see
+neither the anchor nor the append order, and the only surviving evidence visible to
+them would have been the agent-authored `collection_completed_at` that D-1 exists to
+demote. The decision is corrected, not retracted — the mechanism is right; the
+durability claim was scoped wrong.
+
+Two layers, separately named, neither substitutable for the other:
+
+* **L1 — local runtime ordering proof (gate-bearing).** The
+  `PRECASCADE_EVIDENCE_ANCHOR` event in `.backlogit/logs/{shipment_id}.jsonl`,
+  written by the engine, read inside the existing lock before the cascade
+  invocation. **All four D-2 halt tokens evaluate L1 and only L1.** Unchanged by
+  this correction.
+* **L2 — repository audit evidence (never gate-bearing).** At the closure commit,
+  that **one** shipment's engine log is force-added past the ignore rule (`git add
+  -f`) and committed **verbatim and byte-unmodified**, beside the already-tracked
+  evidence record under `.backlogit/reconcile/`. Bounded to one shipment at its own
+  closure; not a general un-ignoring of `.backlogit/logs/`, not a historical
+  backfill, and not a `.gitignore` change.
+
+**Why the engine's own bytes and not an agent-written export.** A transcription or
+summary would reintroduce precisely the defect this deliberation exists to remove —
+evidence authored by the party whose compliance is being checked. `git add -f` is a
+staging action over bytes the agent did not write; it cannot alter append order, and
+any alteration is a content change visible in the diff. A fresh-clone reviewer can
+then (1) recompute the record's `sha256` and compare it to the anchor's, (2) confirm
+the anchor precedes the engine-written mutation lines **in append order**, and (3)
+confirm the record's `HEAD` SHA and manifest describe the closed state — none of
+which consults an agent-authored timestamp.
+
+**Fail-closed is preserved and placed where it can act.** L2 is written after a
+mutation the gate already permitted, so it cannot be a pre-cascade token; adding a
+fifth token for it was considered and **rejected** as an unsatisfiable gate on an
+artifact that cannot yet exist. Instead, **operational closure is incomplete until L2
+is committed** — a reportable P-001 condition. Missing L2 never authorizes a close,
+never downgrades a halt, and is never a fallback for a failed L1 check.
+
+**Also rejected:** un-ignoring `.backlogit/logs/` wholesale (unbounded repository
+growth plus a `.gitignore` change outside this feature's scope).
+
+Propagated to the plan as **R1-11**, and to `163-F`, `163.003-T`, `163.004-T`,
+`163.005-T` and `163.006-T`.
+
+### Remaining open questions
 
 * **Anchor event vocabulary.** The anchor is carried as a `comment` event with a
   literal `PRECASCADE_EVIDENCE_ANCHOR` token in its payload, because that uses only
@@ -334,7 +402,10 @@ and corrected by, this redesign.
   a third-party tool, not of this harness — precisely the composed-state-machine
   seam. `163.003-T`'s guard asserts the *contract text*; nothing asserts the *engine
   behaviour*. A future regression in backlogit's log retention would silently weaken
-  this gate.
+  this gate. **D-7's L2 obligation partially mitigates this after the fact** — once a
+  shipment's log is committed at closure, a later engine-side retention regression
+  cannot remove the already-published audit evidence — but it does **not** protect a
+  close that has not happened yet, so the open question stands for L1.
 * **169-S interaction.** Unchanged from the original plan: sequencing only, never
   merging. `171-S` continues to `blocks`-depend on `169-S`, and U2 is still authored
   against post-169-S text.

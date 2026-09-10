@@ -8,10 +8,10 @@ status: reviewed
 requires_plan_hardening: "yes"
 plan_hardening_status: "hardened"
 plan_review_verdict: "PASS"
-plan_review_cycles: 2
-revision: "R1 (2026-09-10) — Step 0(c) evidence-anchor mechanism redesign. Replaces the self-reported `collection_completed_at` ordering proof with an engine-written append-only anchor. Amends U1a, U1b, U1c, U2, U3. Requirements RQ-1/RQ-2/RQ-3 are UNCHANGED; only the mechanism satisfying RQ-2's 'provably pre-mutation' clause is redesigned. See the Revision R1 section below."
+plan_review_cycles: 3
+revision: "R1 (2026-09-10) — Step 0(c) evidence-anchor mechanism redesign. Replaces the self-reported `collection_completed_at` ordering proof with an engine-written append-only anchor. Amends U1a, U1b, U1c, U2, U3. Requirements RQ-1/RQ-2/RQ-3 are UNCHANGED; only the mechanism satisfying RQ-2's 'provably pre-mutation' clause is redesigned. See the Revision R1 section below. R1-11 (added 2026-09-10, review-fix cycle 1) splits local runtime ordering proof (L1, gate-bearing) from repository audit evidence (L2, never gate-bearing) and adds the bounded tracked-engine-log closure obligation; U4 is corrected from create to update."
 revision_source: "docs/decisions/2026-09-10-step-0c-evidence-anchor-mechanism-redesign-deliberation.md"
-revision_gate: "033-DL — blocking predecessor of 163-F and of tasks 163.001-T, 163.002-T, 163.003-T, 163.004-T, 163.005-T"
+revision_gate: "033-DL — blocking predecessor of 163-F and of tasks 163.001-T, 163.002-T, 163.003-T, 163.004-T, 163.005-T. Feature/task level only: backlogit shipment claim-eligibility evaluates shipment predecessors only, so a 171-S→033-DL shipment edge was correctly rejected by the tool and was NOT recorded. 033-DL reached status done on 2026-09-10, satisfying this gate; 171-S remains queued and unclaimable on its shipment-level blocks dependency on 169-S."
 stash_entry: "856B6770"
 related_stash_entries:
   - "9E22BFC6 — AF-06: the 856B6770 remediation had no trackable identity. THIS PLAN and its harvested feature/shipment are that identity."
@@ -98,7 +98,7 @@ live execution **provable**, not merely **required**.
 | Two-set gate consuming the snapshot | same files, L730–L760 (step 3) | reads the Step 0(b)/(c) snapshot |
 | Report output surface | same files, L63 — `.backlogit/reconcile/{shipment_id}-{mode}-{timestamp}.md` | the existing durable evidence location |
 | Scenario matrix / quality criteria | same files, L1002 / L1011 | where negative scenarios are enumerated |
-| Diagram | `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` (this file, and `docs/diagrams/` itself, do not yet exist on this branch or `main`) | U4 **creates** this diagram, drawing the new pre-mutation node; it is a new artifact, not an update to an existing one |
+| Diagram | `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` — **exists** in the workspace (the `docs/diagrams/` set was authored and operator-approved on 2026-09-07 under gate `G-DIAG-REVIEW`, recorded in the 15A02E21 deliberation's `linked_artifacts`); present as a working-tree artifact, not yet committed to `main` | U4 **updates** this existing diagram, adding the pre-mutation evidence node, the R1 anchor, and all four halt-token exits. It is **not** a new artifact, and U4 must not create a second diagram alongside it |
 | Checksum manifest | `.autoharness/harness-manifest.yaml` (shipment-reconcile entries at L126, L201, L272, L274, L396) | skill/template edits invalidate checksums |
 
 ## Requirements Trace
@@ -162,10 +162,18 @@ re-promotes it: agreement between it and the anchor is *not* a PASS condition.
 
 **Verified against live data (2026-09-10):** engine authorship confirmed in
 `150-S`/`151-S`/`152-S` logs; `comment` events carry engine timestamps
-(`005-F`, `005-S`, `011-DL`); logs **survive archival**, so the proof outlives the
-mutation it proves; and `.backlogit/logs/159-S.jsonl` contains **no** anchor before
+(`005-F`, `005-S`, `011-DL`); logs **survive archival on the local filesystem**, so
+the proof outlives the mutation it proves *for a reviewer working in the closing
+workspace*; and `.backlogit/logs/159-S.jsonl` contains **no** anchor before
 `archived` — the real failure case is mechanically detectable under R1 and was not
 under the original mechanism.
+
+> **Durability scope — read with R1-11.** The claim above is about **local
+> filesystem** retention only. `.backlogit/logs/` is covered by a workspace
+> `.gitignore` rule, so a shipment log is **not** repository-durable by default and
+> a fresh-clone reviewer cannot see it at all. R1-11 splits the two concerns and
+> adds the bounded tracked-evidence obligation that makes the closure claim
+> auditable from a clean clone. R1-1 remains the **only** gate-bearing proof.
 
 ### R1-2 — U2(b) becomes four separately labelled, independently failing tokens
 
@@ -221,9 +229,12 @@ The existing ordering and explicit-empty assertion families are unchanged.
 
 Same section-scoped technique, no file-wide regex. Within the resolved Step 0(c)
 slice, assert: the anchor emission obligation; all four token names; the
-`collection_completed_at` demotion sentence; and the strengthened anti-reconstruction
-clause. The single-statement rule (D-5) extends to the anchor obligation — stated
-once, referenced from the Cascade Sub-Procedure.
+`collection_completed_at` demotion sentence; the strengthened anti-reconstruction
+clause; and the R1-11 **L1/L2 durability-split sentence** — specifically that the
+engine log is the sole gate input and that the tracked-log closure obligation is
+explicitly *not* a gate and *not* a fallback. The single-statement rule (D-5)
+extends to the anchor obligation and to the L2 obligation — each stated once,
+referenced from the Cascade Sub-Procedure.
 
 ### R1-7 — U3 scenario matrix gains two rows
 
@@ -233,6 +244,12 @@ once, referenced from the Cascade Sub-Procedure.
   satisfiable:** record present, `scan_performed: true`,
   `linked_deliberation_ids: []`, anchor present, digest matching, anchor preceding
   all mutation events ⇒ **PASS**.
+
+**No third row for R1-11.** The L2 tracked-log closure obligation is deliberately
+**not** added to the scenario matrix: the matrix enumerates pre-cascade gate
+outcomes, and L2 is a post-close publication obligation with no gate outcome. State
+it once in the Step 0(c) extension (D-5) and, if the quality criteria mention it at
+all, mention it as a closure obligation explicitly marked non-gating.
 
 ### R1-8 — Threat model (bounds the claim; do not overstate it)
 
@@ -246,14 +263,27 @@ append-only JSONL, which is an out-of-protocol act and itself a P-005 violation.
 Under the original mechanism the same forgery required only writing a different
 string into a file the agent was already authoring.
 
+**The claim is also bounded in *reach*, not only in strength.** The anchor is
+tamper-evident **to a reader who can see the engine log**. Because
+`.backlogit/logs/` is `.gitignore`d, that reader is — by default — someone working
+in the closing workspace, not someone reading the repository. R1-11 states that
+split explicitly and adds the bounded obligation that extends the evidence to a
+fresh clone. Do not describe the anchor as "durable" or "auditable" without
+naming which of the two audiences is meant.
+
 ### R1-9 — What R1 does NOT change
 
 No Python source change (Non-Goal preserved). No new implementation units, no new
-files, no new task. No change to `169-S`/`161-F` or `170-S`/`162-F` scope. No
+task, and no new artifact **kind**: R1-11's L2 obligation creates no file — it
+force-tracks an engine log that the close already produces, and commits it into the
+same closure commit as the already-tracked evidence record. No `.gitignore` change,
+and no widening of `.backlogit/logs/` tracking beyond the single shipment being
+closed. No change to `169-S`/`161-F` or `170-S`/`162-F` scope. No
 re-opening of the 856B6770 disposition. **No retroactive-compliance claim for
 159-S** — it remains a permanently disclosed deviation, and R1 is forward-only. The
 `blocks` dependency on `169-S` is unchanged; U2 is still authored against post-169-S
-text. Every H-3 protected invariant stands.
+text. Every H-3 protected invariant stands, and R1-11 adds, removes, renames, or
+merges **no halt token** — the gate surface is exactly the four tokens of R1-2.
 
 ### R1-10 — Rejected alternatives (full rationale in the decision artifact)
 
@@ -266,6 +296,85 @@ text. Every H-3 protected invariant stands.
   `15A02E21` mistake. Retained as an **optional corroborating field only**.
 * **Skill-maintained hash chain** — the agent owns the chain, so it is self-reported
   at one remove; new structure and new failure modes for no additional trust.
+
+### R1-11 — Durability split: local runtime ordering proof vs. repository audit evidence
+
+R1-1 asserted the anchor is durable and auditable. That was **overstated**: it is
+true of the local workspace and false of the repository, because
+`.backlogit/logs/` is covered by a workspace `.gitignore` rule (`.gitignore`,
+`.backlogit/logs/`). A reviewer with only a fresh clone therefore cannot see the
+anchor at all, and — under the pre-R1-11 contract — would have had nothing to fall
+back on except the agent-authored `collection_completed_at` that R1 exists to
+demote. R1-11 removes that gap **without** relaxing the gate.
+
+The two concerns are now separately named. They are **not** interchangeable and
+neither substitutes for the other.
+
+| Layer | Artifact | Written by | Audience | Gate-bearing? |
+|---|---|---|---|---|
+| **L1 — local runtime ordering proof** | `PRECASCADE_EVIDENCE_ANCHOR` event in `.backlogit/logs/{shipment_id}.jsonl` | the **engine** (timestamp, actor, append position) | the closing workspace, at close time | **YES — the sole gate input.** All four R1-2 tokens evaluate L1 and only L1 |
+| **L2 — repository audit evidence** | the same engine log, **force-tracked** at the closure commit, alongside the already-tracked evidence record under `.backlogit/reconcile/` | the **engine** (bytes are the engine's, verbatim and unmodified); the closing agent performs only the `git add -f` | a fresh-clone reviewer, after the close | **NO — never a gate input, never a fallback** |
+
+**L1 is unchanged.** The four tokens in R1-2 read the live engine log inside the
+existing lock, before the cascade invocation. Nothing in R1-11 adds, removes,
+renames, merges, or weakens a token; nothing in R1-11 is consulted by the gate; and
+the absence, failure, or unavailability of L2 **never** authorizes a close, never
+downgrades a halt, and never produces a fallback path. L2 is written **after** the
+mutation the gate already permitted, so it is structurally incapable of being a
+pre-mutation gate.
+
+**L2 obligation (bounded).** At the closure commit for a shipment closed through the
+cascade path, the closing agent MUST commit, into the repository:
+
+1. the evidence record `.backlogit/reconcile/{shipment_id}-precascade-snapshot-{timestamp}.md`
+   (already a tracked path — no change); **and**
+2. that shipment's **own** engine log `.backlogit/logs/{shipment_id}.jsonl`,
+   force-added past the ignore rule (`git add -f`), **verbatim and byte-unmodified**.
+
+The bound is exact and MUST NOT be widened: **one shipment's log, at its own closure
+commit, unmodified.** This is not a general un-ignoring of `.backlogit/logs/`, not a
+bulk backfill of historical logs, and not a new `.gitignore` change. Logs for
+shipments not closed through this path stay ignored and untracked, as today.
+
+**Why force-tracking the engine log, and not an agent-written export.** A
+transcription, summary, or excerpt would reintroduce exactly the defect R1-0
+identified: an artifact whose fields are written by the agent whose compliance is
+being checked. Committing the engine's own bytes keeps the property that makes the
+anchor worth anything — **no field the collecting agent authors is load-bearing**.
+The `git add -f` is a staging action over bytes the agent did not write; it cannot
+alter append order, and any alteration is a content change visible in the diff.
+
+**What a fresh-clone reviewer can then verify, without trusting any agent-authored
+timestamp:**
+
+1. recompute `sha256` over the committed evidence record's bytes and compare it to
+   the `sha256` carried in the committed anchor event — this binds record to anchor;
+2. locate the `PRECASCADE_EVIDENCE_ANCHOR` line in the committed log and confirm it
+   precedes the engine-written `shipment_status_changed` / `commit_tracked` /
+   `archived` lines **in append order** — this is the ordering proof, and it is
+   positional, not temporal;
+3. confirm the record's `HEAD` SHA and manifest list describe the state that was
+   closed.
+
+`collection_completed_at` is not consulted in any of the three steps. Its R1-1
+demotion is preserved exactly.
+
+**Failure behaviour (fail-closed is preserved, and relocated to the correct
+boundary).** L2 cannot gate a mutation that has already happened, so it is enforced
+where it *can* be enforced: **operational closure is INCOMPLETE until L2 is
+committed.** A close whose L1 gate passed but whose L2 evidence was not committed is
+a **P-001 incomplete-closure** condition — report it, do not silently accept it, and
+do not treat it as a reason to re-run, weaken, or retro-fit the L1 gate. The
+mechanical close stands; the *publication* is unfinished until the engine log is in
+the repository. This is deliberately the same posture the harness already takes for
+other post-merge closure obligations, and it is stated so that no future reader
+mistakes L2 for a fifth halt token.
+
+**Explicitly rejected.** Adding a fifth pre-cascade token for L2 (it would gate on an
+artifact that cannot exist yet); un-ignoring `.backlogit/logs/` wholesale (unbounded
+repository growth and an unrelated `.gitignore` change outside this feature's scope);
+and an agent-authored anchor excerpt or audit summary (reintroduces self-reported
+evidence — R1-0).
 
 ## Implementation Units
 
@@ -384,7 +493,26 @@ Both emit a **P-005** violation and halt. Neither authorizes a fallback to safe-
 extension, and have the Cascade Close Sub-Procedure **reference** it rather than restate
 it. Two independent restatements drift — that is literally how `15A02E21` was born.
 
+**(e) L2 repository audit evidence obligation (added by R1-11; NOT a gate).** State
+once, in the same Step 0(c) extension, that at the closure commit for a shipment
+closed through the cascade path the closing agent commits (i) the evidence record
+under `.backlogit/reconcile/` and (ii) **that shipment's own** engine log
+`.backlogit/logs/{shipment_id}.jsonl`, force-added past the workspace ignore rule and
+**verbatim and byte-unmodified**. State in the same place that this obligation is
+**not** a halt token, **not** a gate input, and **not** a fallback: the four tokens of
+R1-2 read the live engine log only, and a missing L2 makes the closure *publication*
+incomplete (a reportable P-001 condition) without ever authorizing, re-running, or
+weakening the L1 gate. Bounded to one shipment at its own closure — no `.gitignore`
+change, no historical backfill, no other log.
+
 ### U3 — Scenario matrix and quality criteria currency
+
+> **SUPERSEDED BY R1-7 AND R1-11 where they conflict.** The three bullets below are
+> the **pre-R1** two-token formulation, retained verbatim as history. Under R1 the
+> matrix carries **four** tokens and **five** rows — see R1-7 for the two added rows
+> and for the narrowing of `..._EVIDENCE_STALE` to content mismatch, and R1-11 for
+> the explicit statement that L2 repository audit evidence is **not** a matrix gate
+> row.
 
 Add the negative scenarios to the Deterministic Safe-Close Scenario Matrix (L1002) and
 Quality Criteria (L1011), in both copies:
@@ -393,16 +521,41 @@ Quality Criteria (L1011), in both copies:
   record ⇒ `RECONCILE_FAIL_PRECASCADE_EVIDENCE_MISSING`.
 * **Negative — post-hoc reconstruction**: evidence record present but
   `collection_completed_at` is after the cascade invocation ⇒
-  `RECONCILE_FAIL_PRECASCADE_EVIDENCE_STALE`.
+  `RECONCILE_FAIL_PRECASCADE_EVIDENCE_STALE`. *(Superseded: under R1 this detection
+  belongs to `..._ANCHOR_MISSING` / `..._ANCHOR_NOT_PRE_MUTATION`; `..._EVIDENCE_STALE`
+  narrows to `HEAD`/manifest mismatch or an absent `collection_completed_at`.)*
 * **Positive — empty validated set (the 159-S shape)**: evidence record present,
   `scan_performed: true`, `linked_deliberation_ids: []`, timestamp strictly before the
   invocation ⇒ **PASS**. This names the legitimate passing state required by lesson 6.
+  *(Superseded: under R1 the passing row additionally requires a present anchor whose
+  digest matches the record and whose append position precedes every engine-written
+  mutation event; the timestamp is corroborating only.)*
 
-### U4 — Diagram currency (creates a new artifact)
+### U4 — Diagram currency (updates an existing artifact)
 
-`docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` does not yet exist on this
-branch or `main`. Create it, drawing the evidence emission as an explicit node on the
-pre-mutation side of the cascade invocation, with both halt tokens as labelled exits.
+`docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` **exists** — the
+`docs/diagrams/` set was authored and operator-approved on 2026-09-07 under gate
+`G-DIAG-REVIEW` and is present in the workspace as a working-tree artifact not yet
+committed to `main`. U4 **updates** it; it does not create it, and must not add a
+parallel diagram beside it. If the diagram set is published by an unrelated change
+before U4 runs, U4 still updates the published file.
+
+The update must draw, on the **pre-mutation** side of the cascade invocation:
+
+* the Step 0(c) evidence-record emission node;
+* the **R1 anchor** node — the `PRECASCADE_EVIDENCE_ANCHOR` append into the
+  engine-owned `.backlogit/logs/{shipment_id}.jsonl`, positioned inside the existing
+  single-writer lock and strictly before the cascade invocation, so the append-order
+  relationship the gate depends on is visible rather than implied;
+* **all four** halt tokens as separately labelled exits —
+  `RECONCILE_FAIL_PRECASCADE_EVIDENCE_MISSING`,
+  `RECONCILE_FAIL_PRECASCADE_EVIDENCE_STALE`,
+  `RECONCILE_FAIL_PRECASCADE_ANCHOR_MISSING`,
+  `RECONCILE_FAIL_PRECASCADE_ANCHOR_NOT_PRE_MUTATION` — never collapsed into a shared
+  "fail" exit, which would erase in the diagram the diagnostic R1-2 exists to create;
+* the R1-11 **L1/L2 split**, with L2 drawn on the post-close side and visibly **not**
+  wired into any gate decision, so no reader infers a fifth halt token.
+
 Per lesson 2 of the composed-state-machine learning, the diagram is where the seam
 becomes reviewable.
 
@@ -434,7 +587,7 @@ at its hard 3-cycle limit, P-018 blocked). Sequencing, not merging.
 | D-1 | Evidence record lives at `.backlogit/reconcile/`, the skill's existing report surface | Additive write to a location the skill already owns; no new storage contract, no backlog-state mutation |
 | D-2 | The check tests **pre-existence**, not reproducibility | Reproducibility is Purpose 1, already satisfied in 159-S. Purpose 2 is the one that failed |
 | D-3 | Empty result must be recorded explicitly | An unrecorded empty scan is indistinguishable from no scan — the precise 159-S failure |
-| D-4 | Two separate halt tokens, independently evaluated | Merging two questions into one condition is the documented root cause of `B57F9E24` |
+| D-4 | Two separate halt tokens, independently evaluated | Merging two questions into one condition is the documented root cause of `B57F9E24`. **SUPERSEDED BY R1-2 (2026-09-10):** the *never-merge* principle stands and is unchanged; the *count* does not. The gate now carries **four** separately labelled, independently failing tokens — `..._EVIDENCE_MISSING`, `..._EVIDENCE_STALE`, `..._ANCHOR_MISSING`, `..._ANCHOR_NOT_PRE_MUTATION`. Read "two" here as pre-R1 history |
 | D-5 | Requirement stated **once**, referenced elsewhere | Independent restatements drift; that is how `15A02E21` arose |
 | D-6 | Separate shipment, sequenced after 169-S | Different contract surface; 169-S's plan is sealed and cannot be re-reviewed |
 | D-7 | No Python source change | The classifier already exposes everything Step 0(c) references |
@@ -492,13 +645,26 @@ once, reference it from the Cascade Sub-Procedure.
 
 ### H-2 — Lesson 6 discharge: name a passing state and a failing state
 
+> **SUPERSEDED BY R1-H2 (2026-09-10) where it conflicts.** The discharge below is the
+> **pre-R1** formulation and is retained verbatim as history. It rests on
+> `collection_completed_at` ordering, which R1-1 demoted to corroborating metadata,
+> and it names `..._EVIDENCE_STALE` as the post-hoc-reconstruction detector, which
+> R1-2 reassigned to the two anchor tokens. R1-H2 is the governing discharge; the
+> lesson-6 obligation itself is unchanged.
+
 * **Legitimate passing state:** 159-S's own shape, executed correctly — shipment record
   + covering feature `active` + tasks `done`; Step 0(c) runs at `T0`, writes
   `scan_performed: true, linked_deliberation_ids: []`, `collection_completed_at: T0`;
-  cascade invoked at `T1 > T0`; HEAD SHA and manifest match. **PASSES.**
+  cascade invoked at `T1 > T0`; HEAD SHA and manifest match. **PASSES.** *(Under R1 this
+  state additionally requires a present anchor whose digest matches the record and whose
+  append position precedes every engine-written mutation event — see R1-7's positive row.)*
 * **Legitimate failing state:** the actual 159-S history — cascade at `T1`, collection
   reconstructed at `T2 > T1`. **FAILS** with
-  `RECONCILE_FAIL_PRECASCADE_EVIDENCE_STALE`, for the ordering reason.
+  `RECONCILE_FAIL_PRECASCADE_EVIDENCE_STALE`, for the ordering reason. *(Under R1 this
+  history fails with `..._ANCHOR_MISSING` — `.backlogit/logs/159-S.jsonl` carries no
+  anchor before `archived` — and a **backdated** reconstruction, which the pre-R1
+  formulation could not fail at all, fails with `..._ANCHOR_MISSING` or
+  `..._ANCHOR_NOT_PRE_MUTATION`, never with `..._EVIDENCE_STALE`.)*
 
 The gate is reachable. It is not the 161-F unsatisfiable-gate shape.
 
@@ -552,8 +718,12 @@ exists to remove.** The passing state is named concretely in R1-7 and is reachab
 today: the anchor uses backlogit's already-published append operation, needs no
 network, no new file format, and no engine change. Verified empirically that the
 anchor's substrate behaves as required — engine-written events, engine-owned append
-order, and **log retention after archival** (a proof that vanished with the archival
-would make the gate unsatisfiable at exactly the moment it must be audited).
+order, and **log retention after archival on the local filesystem** (a proof that
+vanished with the archival would make the gate unsatisfiable at exactly the moment
+it must be audited). R1-11's L2 obligation does **not** re-introduce
+unsatisfiability: it is not a gate input, it runs after the close, and its absence
+halts nothing — it makes the closure *publication* incomplete, which is a reportable
+P-001 condition, not an unreachable gate.
 
 ### R1-H2 — Lesson 6: name a passing state AND a failing state
 
@@ -598,7 +768,10 @@ names changes meaning.
 
 Unchanged from the original plan: two hand-edited files (skill + template), the test
 module, the scenario matrix, the diagram, and manifest checksums. **No Python source,
-no schema, no CLI, no new template family.** R1 adds no file to the set.
+no schema, no CLI, no new template family.** R1 adds no file to the set. R1-11 adds
+no file either — it force-tracks, at the closure commit, an engine log the close
+already writes, bounded to the single shipment being closed; it changes no
+`.gitignore` rule and touches no other log.
 
 ### R1-H7 — Unresolved decisions
 
@@ -693,4 +866,146 @@ units stands and was not re-litigated.
 
 **PASS** — zero P0, zero P1. Cycle 2. R1 is accepted; `171-S`'s revised contract is
 sealed and `033-DL` may reach its terminal state.
+
+## Plan Hardening — R1-11 (2026-09-10, review-fix cycle 1)
+
+R1-11 touches a fail-closed gate's *evidence* surface on an irreversible destructive
+path, so the `requires_plan_hardening: yes` signal is again reinforced. A third
+hardening pass was run over R1-11 only.
+
+### R1-11-H1 — Does R1-11 create an unsatisfiable gate? (the `15A02E21` check)
+
+**No, and the check drove the design.** The obvious shape — "add a fifth token that
+fails when the tracked log is absent" — *is* the `15A02E21` mistake: it gates the
+close on an artifact that cannot exist until after the close. That shape was
+explicitly rejected. L2 is placed at the closure/publication boundary, where it is
+satisfiable by construction, and the pre-cascade gate surface is left at exactly
+four tokens.
+
+### R1-11-H2 — Lesson 6: name a passing state AND a failing state
+
+* **Passing (L2):** a shipment closed through the cascade path whose closure commit
+  contains the evidence record and that shipment's own engine log, force-added and
+  byte-identical to the engine's bytes. Reachable with `git add -f`, no engine
+  change, no network.
+* **Failing (L2):** the same close published without the engine log. Reported as an
+  **incomplete closure** (P-001), not as a halt, not as a gate failure, and never as
+  grounds to re-run or weaken the L1 check.
+* **L1 unchanged:** R1-H2's passing and failing states stand verbatim.
+
+### R1-11-H3 — Protected invariants (re-checked against R1-11)
+
+All H-3 invariants stand and none is touched: R1-11 adds no source, no matcher, no
+status-inference, and no lock. Additionally re-verified: **token count is exactly
+four** (R1-11 adds none and `163.003-T`'s guard now *fails* if a fifth PRECASCADE
+halt token appears); **no field the collecting agent authors becomes load-bearing**
+(L2 commits the engine's bytes, not a transcription); **`collection_completed_at`
+stays demoted** (it is consulted in none of the three fresh-clone verification
+steps); and the **D-5 single-statement rule** extends to the L2 obligation rather
+than being bypassed by it.
+
+### R1-11-H4 — Ordering and lock invariants
+
+L2 runs at the closure commit, **outside and after** the single-writer lock window,
+and touches no file the lock protects. It introduces no new lock, no second writer,
+and no new failure window. It cannot be hoisted into the lock window — the log it
+publishes is not complete until the cascade's own mutation events have been
+appended.
+
+### R1-11-H5 — Risky actions
+
+| Action | Risk | Control |
+|---|---|---|
+| Force-adding a path covered by `.gitignore` | Scope creep into a general un-ignoring of `.backlogit/logs/`, or an unrelated `.gitignore` edit | Bound stated three times and asserted by the guard: **one shipment's log, at its own closure commit, unmodified.** No `.gitignore` change is authorized by this plan |
+| Publishing an engine log into the repository | Repository growth; accidental publication of unrelated shipment logs | Bounded to the closed shipment only; historical backfill explicitly out of scope |
+| A reader mistaking L2 for a gate | Fail-closed posture appears to move to a post-close artifact | L2 is labelled non-gating in the skill text, asserted as non-gating by `163.003-T`, drawn as unwired in the diagram (`163.006-T`), and excluded from the scenario matrix (`163.005-T`) |
+
+### R1-11-H6 — Blast radius
+
+Unchanged file set. R1-11 adds **no file, no unit, no task, no token, no
+`.gitignore` change, and no Python source change**; it adds contract text to the two
+already-edited copies and assertions to already-existing tasks.
+
+### R1-11-H7 — Unresolved decisions
+
+**None blocking.** The `.gitignore` rule for `.backlogit/logs/` is an existing
+workspace state that this plan deliberately does **not** change; whether that rule
+should be revisited is a separate operator question and is not a prerequisite for
+R1-11, which works with the rule as-is via a bounded force-add.
+
+## Plan Review — Cycle 3 (review-fix cycle 1 remediation, 2026-09-10)
+
+Scope of this cycle: **the review-fix cycle 1 remediation only** — the frontmatter
+defect, R1-11, the U4 create→update correction, the superseded pre-R1 token wording,
+and the `033-DL` dependency-encoding correction. Cycles 1 and 2 stand and were not
+re-litigated.
+
+### Capability probe (P-012)
+
+`backlogit` MCP transport **available** — `TOOL_OK: backlogit`; `INDEX_SYNC_OK`.
+`agent-intercom` callable surface **unavailable** — `INTERCOM_DEGRADED`, operator
+visibility reduced; no phase broadcasts emitted and no approval-dependent
+destructive action attempted. Engram and graphtor-docs MCP tools not exposed —
+`ENGRAM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`; file-based exploration used throughout.
+Every claim in this cycle about file existence, ignore rules, dependency edges and
+checkpoint contents was verified by direct inspection, not recalled.
+
+### Persona coverage
+
+| Persona | Finding |
+|---|---|
+| **Contract/protocol reviewer** | The L2 obligation is stated once and referenced, extending D-5 rather than bypassing it. Token count is pinned at four in the plan, the guard task, the matrix task and the diagram task, so the four surfaces cannot drift apart. **PASS** |
+| **Fail-closed design reviewer** | L1 remains the sole gate input; all four tokens are unchanged in name, count and independence. L2 cannot downgrade a halt, cannot authorize a close, and is not a fallback. Its own failure mode is relocated to the closure boundary as a reportable P-001 condition rather than being dropped. **PASS** |
+| **Composed-state-machine reviewer** | The corrected `033-DL` narrative is now consistent with the engine's actual behaviour: backlogit shipment eligibility takes shipment predecessors only, the rejected shipment→deliberation edge is described as rejected, and the real gate is recorded at feature/task level. This is the same composed-contract seam the feature exists to address, so getting the description right matters. **PASS** |
+| **Test-quality reviewer** | `163.003-T` gains an assertion that *fails* if a fifth PRECASCADE token appears — a negative assertion, not just a presence check, which is what stops L2 being promoted into the gate by a future editor. **PASS** |
+| **Scope/width reviewer** | No new file, no new unit, no new task, no Python source, no schema, no CLI, no `.gitignore` change. Task count still 7. `163.006-T` re-sized `XS`→`S` and `trivial`→`low` to match its grown (four-token + anchor + split) scope; still well inside the 2-hour rule. **PASS** |
+| **Evidence-consistency reviewer** | Stale `not yet committed` claims in `163.005-T`/`163.006-T` synchronized with `163.004-T`'s publication wording (commit `5171ace1` on `main`). Elided `Plan: ... U3/U4/U5` references expanded to the full plan path in `163.005-T`/`163.006-T`/`163.007-T`. `170-S` given `priority: high` to match `162-F` and sibling shipment ordering. **PASS** |
+| **Security/integrity reviewer** | The durability claim is now scoped to an audience in every place it appears. L2 publishes the engine's own bytes, so the "no agent-authored field is load-bearing" property survives into the repository; an agent-written excerpt was considered and rejected for exactly that reason. Tamper-**evidence** claim unchanged; no tamper-proofness claim introduced. **PASS** |
+
+### Findings
+
+* **P0 — none. P1 — none.**
+* **P0-1 (resolved, this cycle):** duplicate `shipment` key in
+  `docs/decisions/2026-09-06-shipment-reconcile-cascade-pre-mode-contract-deliberation.md`
+  — the harvested shipment `169-S` and the subject shipment `159-S` both claimed
+  `shipment:`, so a YAML parser silently kept only the last. Renamed the harvest
+  relationship to `harvested_shipment` / `harvested_shipment_status`; subject
+  `shipment: 159-S` preserved. Verified by parsing: 29 distinct keys, both values
+  now readable. A repository-wide duplicate-key scan over all `docs/**` and
+  `.backlogit/**` frontmatter found no other occurrence.
+* **P1-1 (resolved, this cycle):** the R1 anchor was described as durable and
+  auditable without naming an audience, while `.backlogit/logs/` is `.gitignore`d —
+  overstating repository auditability. Resolved inside the R1 evidence-gate contract
+  by R1-11's L1/L2 split plus the bounded tracked-log closure obligation. Fail-closed
+  behaviour is unchanged and ignored logs are nowhere described as remotely durable.
+* **P2-5 (resolved):** `163.006-T` and plan U4 asserted diagram 05 and `docs/diagrams/`
+  did not exist and instructed **create**. Both exist (operator-approved 2026-09-07
+  under `G-DIAG-REVIEW`, present as working-tree artifacts). Retargeted to **update**,
+  and extended to show the R1 anchor and all four halt tokens rather than two.
+* **P2-6 (resolved):** `D-4` and `H-2` still carried the pre-R1 two-token and
+  `..._EVIDENCE_STALE`-as-reconstruction-detector wording. Marked **superseded** with
+  the governing R1 semantics restated in place; the historical text is retained rather
+  than erased, per the no-history-erasure rule.
+* **P3-4 (accepted, tracked):** the workspace `.gitignore` rule that motivates R1-11
+  is itself uncommitted working-tree state at the time of this cycle. R1-11 is
+  written to be correct under the rule either way — a bounded force-add is a no-op
+  for a path that is already tracked and the required action for a path that is
+  ignored — so no dependency on that rule's publication is introduced.
+* **P3-5 (accepted, tracked as residual risk — stash `904C47BC`):** the checkpoint
+  payload contract conflict. `checkpoint-20260909-232909.json` carries a top-level
+  `progress` object, which harness `backlogit.instructions.md` rule 4 forbids and the
+  engine's own CheckpointV1 schema explicitly permits as a legal top-level key. This
+  is a composed-contract conflict, not a corrupt artifact, and it is **not** resolved
+  by this cycle: the tool-owned checkpoint was **not** hand-edited, no file was
+  quarantined or repaired, and no self-authorized disposition was made. Full scope,
+  duplicate scan and disposition guidance live in `904C47BC`, which remains **active
+  and undispositioned** with `requires deliberation: yes` unmet.
+
+### Gate decision
+
+**PASS** — zero unresolved P0, zero unresolved P1. Cycle 3 of a 3-cycle budget.
+Every finding raised in this cycle passed the P-021 C1 same-contract-surface test
+and was fixed rather than deferred; no `DEFERRED SCOPE EXPANSION` capture was
+required. `904C47BC` is pre-existing, separately captured, and carried as residual
+risk — not a deferral created by this cycle.
 
