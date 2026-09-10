@@ -3,23 +3,31 @@ title: "shipment-reconcile Step 0(c): durable pre-mutation evidence record and f
 description: "Implementation plan for the operator's accepted-with-remediation disposition of stash 856B6770 — make live execution of the Step 0(c) linked-deliberation collection PROVABLE by requiring a durable, timestamped pre-mutation evidence record emitted before the P-015 cascade invocation, failing closed when that record is absent or not provably pre-mutation, and locking the behaviour with a 159-S-pattern replay regression test that rejects post-hoc reconstruction"
 source: "docs/decisions/2026-09-07-step-0c-pre-mutation-guard-reconstruction-disposition.md"
 date: 2026-09-08
+last_revised: 2026-09-10
 status: reviewed
 requires_plan_hardening: "yes"
+plan_hardening_status: "hardened"
 plan_review_verdict: "PASS"
+plan_review_cycles: 2
+revision: "R1 (2026-09-10) — Step 0(c) evidence-anchor mechanism redesign. Replaces the self-reported `collection_completed_at` ordering proof with an engine-written append-only anchor. Amends U1a, U1b, U1c, U2, U3. Requirements RQ-1/RQ-2/RQ-3 are UNCHANGED; only the mechanism satisfying RQ-2's 'provably pre-mutation' clause is redesigned. See the Revision R1 section below."
+revision_source: "docs/decisions/2026-09-10-step-0c-evidence-anchor-mechanism-redesign-deliberation.md"
+revision_gate: "033-DL — blocking predecessor of 163-F and of tasks 163.001-T, 163.002-T, 163.003-T, 163.004-T, 163.005-T"
 stash_entry: "856B6770"
 related_stash_entries:
   - "9E22BFC6 — AF-06: the 856B6770 remediation had no trackable identity. THIS PLAN and its harvested feature/shipment are that identity."
   - "27F9EC8A — AF-07: committed stash currency gap for 856B6770. Part (a) discharged by the Stage stash disposition written alongside this plan; part (b) tracked by 162.011-T in 170-S."
+  - "DDBF283E — R1 SOURCE: the U2 pre-existence proof was forgeable by a backdated post-hoc reconstruction. Resolved by Revision R1. PR 437 HEAD e78e3f00, thread PRRT_kwDORzpWpM6gdwXD."
+  - "EB23D1B9 — R1 SOURCE: the DDBF283E prerequisite was not encoded in 171-S's claim-eligibility graph. Resolved by Revision R1's gate encoding (033-DL). PR 437 HEAD 42783ce4, thread PRRT_kwDORzpWpM6ge79q."
 compound_learnings:
-  - "2026-09-06-composed-workflow-protocol-state-machine-validation (cited by title only — the compound-learning artifact is not yet committed to any branch; pending publication, tracked by stash 15A02E21 / follow-up 1CD92B69)"
+  - "docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md (published 2026-09-10, commit 5171ace1 on main — the 'pending publication' note carried here at planning time is now discharged)"
   - "docs/compound/2026-08-18-lifecycle-gate-must-precede-safe-close-mutation.md"
   - "docs/compound/2026-08-21-ast-based-structural-regression-guards-beat-line-regex.md"
   - "docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md"
   - "docs/compound/2026-09-07-copilot-review-finding-pattern-taxonomy.md"
 decision_status_at_planning: "decided (operator, 2026-09-08) — Option A accepted-with-remediation P-005 deviation; mechanical outcome final; systemic remedy tracked as a SEPARATE sibling shipment, not folded into 169-S; no merge authorization"
 related_but_distinct:
-  - "2026-09-07-shipment-reconcile-cascade-premode-member-class-contract-plan (stash 15A02E21, feature 161-F, shipment 169-S; cited by title only — not yet committed to any branch, pending publication tracked by follow-up 1CD92B69) — RELATED, DISTINCT. 161-F fixes WHAT Pre-Mode compares (member-class status contract). This plan fixes WHETHER Step 0(c) ran live and is evidenced as pre-mutation. Different contract surface, different failure mode, different tests. MUST NOT be merged. Sequencing dependency only, to avoid conflicting edits to the same SKILL.md Step 0 / Cascade Sub-Procedure region."
-  - "2026-09-07-review-pattern-learning-methodology-plan (feature 162-F, shipment 170-S; cited by title only — not yet committed to any branch, pending publication) — RELATED, DISTINCT. Hosted-review learning methodology. MUST NOT absorb this fix."
+  - "docs/plans/2026-09-07-shipment-reconcile-cascade-premode-member-class-contract-plan.md (stash 15A02E21 — now archived; feature 161-F, shipment 169-S; published 2026-09-10, commit 5171ace1 on main) — RELATED, DISTINCT. 161-F fixes WHAT Pre-Mode compares (member-class status contract). This plan fixes WHETHER Step 0(c) ran live and is evidenced as pre-mutation. Different contract surface, different failure mode, different tests. MUST NOT be merged. Sequencing dependency only, to avoid conflicting edits to the same SKILL.md Step 0 / Cascade Sub-Procedure region."
+  - "docs/plans/2026-09-07-review-pattern-learning-methodology-plan.md (feature 162-F, shipment 170-S; published 2026-09-10, commit 922f99bf on main) — RELATED, DISTINCT. Hosted-review learning methodology. MUST NOT absorb this fix."
 tags:
   - "plan"
   - "shipment-reconcile"
@@ -110,6 +118,154 @@ requirements, no more:
 supplies the qualifying-feature determination Step 0(c) references; the evidence record
 is an additive artifact written by the skill's own protocol, at the surface the skill
 already owns (`.backlogit/reconcile/`). Same posture as 161-F.
+
+## Revision R1 (2026-09-10) — evidence-anchor mechanism redesign
+
+> **Read this section together with U1a/U1b/U1c/U2/U3 below.** Where R1 conflicts
+> with the original text of those units, **R1 governs**. Everything not named here
+> — including RQ-1/RQ-2/RQ-3, the unit structure, the file set, the task count, the
+> Non-Goals, and every H-3 protected invariant — is **unchanged**.
+
+**Source:** `docs/decisions/2026-09-10-step-0c-evidence-anchor-mechanism-redesign-deliberation.md`
+(stash `DDBF283E`, `EB23D1B9`). **Gate:** `033-DL`.
+
+### R1-0 — What was wrong
+
+U2's pre-existence proof rested on `collection_completed_at` plus the `HEAD` SHA and
+manifest list — **all three written by the agent whose compliance is being checked,
+through the ordinary protocol surface**. A post-hoc reconstruction that backdates the
+timestamp satisfies every clause. The gate could not fail the 159-S history it exists
+to reject. `15A02E21` was a gate no legitimate state could satisfy; this was its dual
+— a gate no illegitimate state could fail.
+
+The **rule** U2(c) stated was right. The **mechanism** did not implement it.
+
+### R1-1 — The authoritative ordering proof is an engine-written anchor event
+
+U2(a) gains a step, performed inside the existing lock, after the record is written
+and before the cascade invocation:
+
+* compute `sha256` over the evidence record's bytes;
+* append an anchor event to `.backlogit/logs/{shipment_id}.jsonl` via backlogit's
+  append operation, carrying the literal token `PRECASCADE_EVIDENCE_ANCHOR`, the
+  `shipment_id`, the record's repo-relative path, and that `sha256`.
+
+The **engine**, not the agent, writes the event's `timestamp`, `actor`, and — the
+part that carries the proof — its **append position**. The cascade mutation later
+appends its own engine-written `shipment_status_changed` / `commit_tracked` /
+`archived` events to the same file. Ordering is proved by **relative append position
+in a file the engine owns**.
+
+`collection_completed_at` stays in the record but is **demoted to corroborating
+metadata**. State this demotion explicitly in one sentence, so no future reader
+re-promotes it: agreement between it and the anchor is *not* a PASS condition.
+
+**Verified against live data (2026-09-10):** engine authorship confirmed in
+`150-S`/`151-S`/`152-S` logs; `comment` events carry engine timestamps
+(`005-F`, `005-S`, `011-DL`); logs **survive archival**, so the proof outlives the
+mutation it proves; and `.backlogit/logs/159-S.jsonl` contains **no** anchor before
+`archived` — the real failure case is mechanically detectable under R1 and was not
+under the original mechanism.
+
+### R1-2 — U2(b) becomes four separately labelled, independently failing tokens
+
+The never-merge rule (root cause of `B57F9E24`) applies. Collapsing these would
+destroy the diagnostic this shipment exists to produce: *"you never ran Step 0(c)"*
+must not report identically to *"you reconstructed it afterwards."*
+
+| Token | Fires when |
+|---|---|
+| `RECONCILE_FAIL_PRECASCADE_EVIDENCE_MISSING` | no evidence record for this `shipment_id` |
+| `RECONCILE_FAIL_PRECASCADE_EVIDENCE_STALE` | record exists but does not describe the state being closed: `HEAD` SHA or manifest mismatch, or `collection_completed_at` absent |
+| `RECONCILE_FAIL_PRECASCADE_ANCHOR_MISSING` **(new)** | no `PRECASCADE_EVIDENCE_ANCHOR` event for this `shipment_id`, **or** its `sha256` does not match the record on disk |
+| `RECONCILE_FAIL_PRECASCADE_ANCHOR_NOT_PRE_MUTATION` **(new)** | anchor exists but does not precede the earliest engine-written mutation event for this shipment in append order |
+
+All four emit **P-005** and halt; none authorizes a safe-close fallback. The two
+pre-existing tokens keep their names; their semantics are **narrowed**, not
+redefined. The digest match lives in `..._ANCHOR_MISSING` deliberately: an anchor
+that does not bind to the record on disk is not an anchor for it.
+
+### R1-3 — U2(c) anti-reconstruction clause is strengthened, not replaced
+
+Keep the existing clause verbatim and append one sentence naming the mechanism that
+now enforces it: the pre-existence evidence is the engine-written anchor's position
+relative to the engine's own mutation events, and **no field the collecting agent
+authors is load-bearing for that determination**.
+
+### R1-4 — U1a fixture must model engine-log append order
+
+The fixture's recorded `(step, timestamp)` sequence is extended to a recorded
+**append-ordered engine event log** per shipment, so an assertion can ask *"does the
+anchor precede the mutation events in append order?"* — not merely *"is a file
+present?"* and not merely *"is one timestamp less than another?"*. Timestamp
+comparison alone is exactly what R1 removes from the load-bearing path.
+
+### R1-5 — U1b gains the backdated-reconstruction rejection family
+
+The negative case `DDBF283E` requires:
+
+> An evidence record exists whose `collection_completed_at` is strictly **before**
+> the cascade invocation and whose `HEAD` SHA and manifest list both **match** the
+> closed state — a perfect forgery under the original mechanism — but whose anchor
+> event is **absent**, or appears **after** the mutation events.
+
+MUST be **rejected**, and rejected with `..._ANCHOR_MISSING` /
+`..._ANCHOR_NOT_PRE_MUTATION`, **never** with `..._EVIDENCE_STALE`. **Assert the
+token identity, not merely the rejection** — that is what proves the ordering proof,
+and not a content comparison, is doing the work. This assertion fails against the
+pre-R1 mechanism, which is the point of adding it.
+
+The existing ordering and explicit-empty assertion families are unchanged.
+
+### R1-6 — U1c guard additionally asserts the R1 contract text
+
+Same section-scoped technique, no file-wide regex. Within the resolved Step 0(c)
+slice, assert: the anchor emission obligation; all four token names; the
+`collection_completed_at` demotion sentence; and the strengthened anti-reconstruction
+clause. The single-statement rule (D-5) extends to the anchor obligation — stated
+once, referenced from the Cascade Sub-Procedure.
+
+### R1-7 — U3 scenario matrix gains two rows
+
+* **Negative — backdated reconstruction** (R1-5's case) ⇒ `..._ANCHOR_MISSING` or
+  `..._ANCHOR_NOT_PRE_MUTATION`.
+* **Positive — the legitimate 159-S shape, restated so the gate is provably
+  satisfiable:** record present, `scan_performed: true`,
+  `linked_deliberation_ids: []`, anchor present, digest matching, anchor preceding
+  all mutation events ⇒ **PASS**.
+
+### R1-8 — Threat model (bounds the claim; do not overstate it)
+
+The target is **tamper-evident and out-of-protocol**, not tamper-proof. No purely
+local mechanism resists an operator with shell access, and chasing that would buy
+nothing. The threat is the 159-S failure mode: a good-faith agent reconstructing
+equivalent-looking evidence, sincerely believing content equality is what the
+contract asks for. R1 makes that path **unreachable through the agent's normal tool
+surface** — forging the anchor requires hand-splicing a line into an engine-owned
+append-only JSONL, which is an out-of-protocol act and itself a P-005 violation.
+Under the original mechanism the same forgery required only writing a different
+string into a file the agent was already authoring.
+
+### R1-9 — What R1 does NOT change
+
+No Python source change (Non-Goal preserved). No new implementation units, no new
+files, no new task. No change to `169-S`/`161-F` or `170-S`/`162-F` scope. No
+re-opening of the 856B6770 disposition. **No retroactive-compliance claim for
+159-S** — it remains a permanently disclosed deviation, and R1 is forward-only. The
+`blocks` dependency on `169-S` is unchanged; U2 is still authored against post-169-S
+text. Every H-3 protected invariant stands.
+
+### R1-10 — Rejected alternatives (full rationale in the decision artifact)
+
+* **External RFC 3161 timestamp** — injects a network dependency into a fail-closed
+  irreversible close path, converting an integrity control into an availability
+  outage for offline operators.
+* **Git-commit ancestry as the primary anchor** — genuinely monotonic, but requires
+  a commit at a specific mid-close moment the close path does not guarantee; making
+  the gate depend on it would make it unsatisfiable in legitimate states, the
+  `15A02E21` mistake. Retained as an **optional corroborating field only**.
+* **Skill-maintained hash chain** — the agent owns the chain, so it is self-reported
+  at one remove; new structure and new failure modes for no additional trust.
 
 ## Implementation Units
 
@@ -383,6 +539,76 @@ then changed.
 merge authorization for PR #436 and requests none; it neither requires nor implies any
 further PR #436 review round.
 
+## Plan Hardening — Revision R1 (2026-09-10)
+
+R1 is gate-shaped, on an irreversible destructive path, and adds halt tokens, so the
+`requires_plan_hardening: yes` signal is reinforced rather than satisfied. A second
+hardening pass was run over the revision only.
+
+### R1-H1 — Does R1 create an unsatisfiable gate? (the `15A02E21` check)
+
+**No — and this was checked first, because it is the failure mode this feature
+exists to remove.** The passing state is named concretely in R1-7 and is reachable
+today: the anchor uses backlogit's already-published append operation, needs no
+network, no new file format, and no engine change. Verified empirically that the
+anchor's substrate behaves as required — engine-written events, engine-owned append
+order, and **log retention after archival** (a proof that vanished with the archival
+would make the gate unsatisfiable at exactly the moment it must be audited).
+
+### R1-H2 — Lesson 6: name a passing state AND a failing state
+
+* **Passing:** R1-7's positive row — the legitimate empty-set 159-S *shape* with a
+  valid anchor.
+* **Failing:** R1-5's backdated reconstruction — a record perfect under the original
+  mechanism, rejected under R1 for the ordering reason. Both are executable
+  assertions in `163.002-T`, not prose.
+
+### R1-H3 — Protected invariants (re-checked against R1)
+
+All H-3 invariants stand. Specifically re-verified: the three engine-defined sources
+and the exact matcher are untouched; `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS/_MISSING`
+semantics are untouched (R1's tokens are additive); the reference-only
+`allowed_ids`/`required_ids` rule is untouched; declared frontmatter status is still
+never inferred from storage location; the two-set gate's conditions stay unmerged —
+and R1 **applies** that same rule rather than eroding it, by refusing to collapse its
+own four tokens; `mode: detect-mixed-role` stays strictly read-only.
+
+### R1-H4 — Ordering and lock invariants
+
+The anchor append happens **inside** the existing single-writer lock on
+`.backlogit/queue/{shipment_id}.md`, in the same window as the record write, between
+Step 0(c) and the cascade invocation. It introduces **no new lock, no second writer,
+and no new failure window**, and MUST NOT be hoisted before lock acquisition.
+
+**New failure mode considered:** the record is written but the anchor append fails
+(engine error). This is a torn state, and it fails **closed** —
+`..._ANCHOR_MISSING` fires on the subsequent check and the close halts. That is the
+correct outcome and requires no compensating logic; the orphaned record is inert.
+The reverse tear (anchor written, record write fails) is caught by the digest
+mismatch clause of the same token.
+
+### R1-H5 — Risky actions
+
+Editing halt-token semantics on a destructive path. Mitigated by narrowing rather
+than redefining the two pre-existing tokens, keeping their names stable, and adding
+the two new tokens additively — no existing caller or test that asserts the old token
+names changes meaning.
+
+### R1-H6 — Blast radius
+
+Unchanged from the original plan: two hand-edited files (skill + template), the test
+module, the scenario matrix, the diagram, and manifest checksums. **No Python source,
+no schema, no CLI, no new template family.** R1 adds no file to the set.
+
+### R1-H7 — Unresolved decisions
+
+**None blocking.** Two follow-ups are recorded as Open Questions in the decision
+artifact — a dedicated engine-side anchor event type (a backlogit feature request,
+strictly stronger but not required under the stated threat model) and the dependence
+on backlogit's log-retention behaviour, which `163.003-T`'s guard cannot assert
+because it is third-party engine behaviour rather than contract text. Neither blocks
+R1.
+
 ## Plan Review
 
 ### Capability probe (P-012)
@@ -392,6 +618,12 @@ functional — `TOOL_DEGRADED: backlogit MCP — CLI fallback: backlogit`. Engra
 and graphtor-docs MCP tools not exposed in this session — `ENGRAM_DEGRADED`,
 `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`; file-based exploration used throughout, and
 all cited line numbers were read directly rather than recalled.
+
+**Cycle 2 (2026-09-10) probe:** `backlogit` MCP transport **available** —
+`TOOL_OK: backlogit`; `INDEX_SYNC_OK`. Engram, intercom and graphtor-docs remain
+unexposed — `ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`. All R1
+claims about engine log behaviour were verified by direct file inspection rather than
+recalled, and are cited by filename in R1-1.
 
 ### Persona coverage
 
@@ -419,3 +651,46 @@ all cited line numbers were read directly rather than recalled.
 ### Gate decision
 
 **PASS** — zero P0, zero P1. Cycle 1. Proceed to harvest.
+
+## Plan Review — Cycle 2 (Revision R1, 2026-09-10)
+
+Scope of this cycle: **the R1 revision only.** Cycle 1's PASS over the unrevised
+units stands and was not re-litigated.
+
+### Persona coverage
+
+| Persona | Finding |
+|---|---|
+| **Contract/protocol reviewer** | Anchor obligation stated once in the Step 0(c) extension; Cascade Sub-Procedure references it. The D-5 single-statement rule is extended to the anchor rather than bypassed. **PASS** |
+| **Fail-closed design reviewer** | Four tokens, independently evaluated, all P-005, none authorizes a safe-close fallback. Torn-state analysis (R1-H4) confirms both tear directions fail closed. **PASS** |
+| **Composed-state-machine reviewer** | R1 is precisely a composed-state-machine correction: it stops proving an ordering property from agent-authored data and starts proving it from the engine's own append order. Substrate behaviour verified against live logs, including post-archival retention. Residual third-party-behaviour dependence recorded as an Open Question, not hidden. **PASS** |
+| **Test-quality reviewer** | R1-5 asserts **token identity**, not merely rejection, so a content-equality implementation cannot satisfy it. The assertion fails against the pre-R1 mechanism — a genuine RED. Section-scoped guards retained. **PASS** |
+| **Scope/width reviewer** | No new files, no new units, no new task, no Python source. Task count still 7. Sizes re-evaluated; all within the 2-hour rule. **PASS** |
+| **Evidence-consistency reviewer** | Stale "not yet committed to any branch" claims for the 161-F/162-F artifacts corrected to their actual publication commits. No retroactive-compliance claim introduced; 159-S disclosure remains permanent. Traceability to `DDBF283E`/`EB23D1B9` carried in frontmatter and in `033-DL`. **PASS** |
+| **Security/integrity reviewer** | The claim is bounded to tamper-**evidence** and explicitly declines a tamper-proofness claim (R1-8). The digest binding closes the anchor-early/fabricate-record-later seam. **PASS** |
+
+### Findings
+
+* **P0 — none. P1 — none.**
+* **P2-3** (in-body, resolved): a draft of R1 put the digest match under
+  `..._EVIDENCE_STALE`. That would have reported a forged anchor as a stale record,
+  losing the very diagnostic R1 exists to create. Moved to `..._ANCHOR_MISSING`
+  (R1-2).
+* **P2-4** (in-body, resolved): a draft left `collection_completed_at` co-equal with
+  the anchor, which would let a future reader re-promote it to load-bearing. R1-1 now
+  requires an explicit demotion sentence in-skill, and R1-6 makes the guard assert it.
+* **P3-2** (accepted): `163.004-T` rises to `complexity: high`. Not split — the task
+  is INDIVISIBLE and the indivisibility argument is *strengthened* by R1 (the anchor
+  is the record's proof, binding emission and check more tightly than before).
+  De-risked instead, as the two-axis gate permits, by this deliberation, by RED-first
+  ordering, and by this review cycle.
+* **P3-3** (accepted, tracked as an Open Question): nothing asserts backlogit's
+  log-retention behaviour, because it is third-party engine behaviour rather than
+  contract text. A future regression there would silently weaken the gate. Accepted
+  for this shipment; recorded in the decision artifact.
+
+### Gate decision
+
+**PASS** — zero P0, zero P1. Cycle 2. R1 is accepted; `171-S`'s revised contract is
+sealed and `033-DL` may reach its terminal state.
+
