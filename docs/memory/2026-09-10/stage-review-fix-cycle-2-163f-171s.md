@@ -100,3 +100,15 @@ own shipment log.
 
 `171-S` stays queued behind `169-S`. When `169-S` ships, Ship claims `171-S` and
 executes U1a → U1b/U1c → U2 → U3/U4/U6 → U5.
+
+## Correction (added by review-fix cycle 3, 2026-09-10)
+
+The `range: origin/main..8731383f27f9bee31d45dba5fb34899a6aadd015` marker in this
+record's frontmatter names the range as it stood **before** this cycle's own remediation
+was committed. Read literally it claims a reviewed HEAD that excludes the changes cycle 2
+actually made. The accurate statement: **cycle 2 ran pre-commit**, over the working tree
+subsequently committed as **`e25f8f8c967f10e7d92d2992ff269269114a01a9`** (parent
+`8731383f`), so the content it covered is `origin/main..e25f8f8c`. The frontmatter marker
+is left as written; this note is the correction. Subsequent cycles cite an immutable
+reviewed tree for pre-commit passes and record the final local review separately after
+the commit exists.

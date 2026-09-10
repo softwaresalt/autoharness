@@ -292,14 +292,14 @@ table still said "unchanged". Each task now has its own row, and `163.008-T` is 
 
 | Task | Size | Complexity | Change |
 |---|---|---|---|
-| `163.001-T` U1a fixture | S → **M** | medium | fixture must model engine-log append order, not just file presence |
-| `163.002-T` U1b assertions | S → **M** | medium | adds the backdated-reconstruction rejection family and token-identity assertions; R1-12 also removes the superseded `collection_completed_at` timestamp comparison from its ordering family (a **deletion**, so no size pressure) |
+| `163.001-T` U1a fixture | S → **M** | medium | fixture must model engine-log append order, not just file presence; R1-13 adds the `LATE_BUT_ANCHORED` positive variant (one further variant inside a set this task already builds — **no size change**) |
+| `163.002-T` U1b assertions | S → **M** | medium | adds the backdated-reconstruction rejection family and token-identity assertions; R1-12 also removes the superseded `collection_completed_at` timestamp comparison from its ordering family (a **deletion**, so no size pressure); R1-13 adds one acceptance assertion over the `LATE_BUT_ANCHORED` variant (**no size change**) |
 | `163.003-T` U1c guards | S → **M** | medium | **re-confirmed and re-sized (review-fix cycle 2).** `S` was correct for the R1 assertion set. It is no longer: the guard now additionally asserts the R1-11 L1/L2 split sentence, the negative no-fifth-`PRECASCADE`-token assertion, and the R1-12 U6 publication step with its non-`PRECASCADE` condition name — three additional section-scoped assertion groups across two files. `M` reflects the accumulated set. Complexity stays `medium`: the technique is unchanged, only the surface grew |
 | `163.004-T` U2 atomic core | **M** | medium → **high** | anchor emission + digest binding + four tokens, still a paired prose edit to two files |
 | `163.005-T` U3 scenario matrix | S | low | two additional scenario rows |
 | `163.006-T` U4 diagram | XS → **S** | trivial → **low** | **corrected (review-fix cycle 2); this table previously said "unchanged", which contradicted the record and cycle 3's own finding.** The unit grew from two halt tokens to four, gained the anchor node and the L1/L2 split, and R1-12 added the resolve-canonical-path rule |
 | `163.007-T` U5 checksums | XS | low | unchanged in scope; gains one dependency edge (on `163.008-T`) so it still runs last |
-| `163.008-T` U6 L2 publication step | **S** | **medium** | **new (review-fix cycle 2, plan D-8).** Paired prose edit to the same two files U2 edits: Case A/B/C detection, staging, five verification criteria, reconcile-report outcome, and the `RECONCILE_CLOSURE_INCOMPLETE_L2_EVIDENCE` report. `medium` because the conditional detection and the commit-content assertions require care, not because the surface is large |
+| `163.008-T` U6 L2 publication step | **S** | **medium** | **new (review-fix cycle 2, plan D-8).** Paired prose edit to the same two files U2 edits: Case A/B/C detection, staging, five verification criteria, reconcile-report outcome, and the `RECONCILE_CLOSURE_INCOMPLETE_L2_EVIDENCE` report. `medium` because the conditional detection and the commit-content assertions require care, not because the surface is large. **Review-fix cycle 3 (R1-13)** corrects its fidelity criterion to the append-only prefix rule, separates its two roles, and adds the remediation path — all clarifications to text this task already writes, so **no size change** |
 
 Every task remains within the 2-hour rule; `M` is "several files or functions, a few
 test scenarios" and `163.004-T` remains a bounded paired edit across exactly two
@@ -404,6 +404,23 @@ Two layers, separately named, neither substitutable for the other:
   newly-tracked `.backlogit/logs/` path, no `.gitignore` modification), so it holds
   without consulting any ignore rule.
 
+> **FIDELITY CRITERION CORRECTED 2026-09-10 (review-fix cycle 3; plan section R1-13(a)).**
+> "Verbatim and byte-unmodified" above means **no pre-existing byte is modified, deleted,
+> truncated or reordered** — it does **not** mean the committed blob equals the file the
+> gate read, and plan R1-12's original "byte-identical to the engine log the gate read"
+> criterion is superseded. The engine appends the cascade's own
+> `shipment_status_changed` / `commit_tracked` / `archived` events to the same log
+> **after** L1's read and **before** the closure commit (directly observable in
+> `.backlogit/logs/150-S.jsonl`), so a byte-identical requirement would fail every
+> legitimate close. The satisfiable rule is the **append-only prefix rule**: the exact
+> `PRECASCADE_EVIDENCE_ANCHOR` line and all pre-cascade bytes L1 evaluated appear
+> byte-unmodified, in unchanged relative order, as the prefix — or a provably unchanged
+> ordered leading segment — of the committed log; engine-written post-gate mutation lines
+> are **expected** append-only extensions and never a fidelity failure; any modification,
+> deletion, truncation or reordering of pre-existing bytes **is** a failure. The separate
+> criterion that the mutation lines **follow** the anchor in the committed bytes is
+> preserved and is **not** merged into this one.
+
 **Why the engine's own bytes and not an agent-written export.** A transcription or
 summary would reintroduce precisely the defect this deliberation exists to remove —
 evidence authored by the party whose compliance is being checked. Staging is an
@@ -432,9 +449,12 @@ never downgrades a halt, and is never a fallback for a failed L1 check.
 `.gitignore` change at all (unbounded repository growth, plus a dependency on
 working-tree state this decision does not own).
 
-Propagated to the plan as **R1-11** (corrected by **R1-12**), and to `163-F`,
-`163.003-T`, `163.004-T`, `163.005-T`, `163.006-T`, **`163.007-T`** and the new
-`163.008-T`, and recorded in `033-DL`.
+Propagated to the plan as **R1-11** (corrected by **R1-12**, and further corrected and
+completed by **R1-13**), and to `163-F`, `163.001-T`, `163.002-T`, `163.003-T`,
+`163.004-T`, `163.005-T`, `163.006-T`, **`163.007-T`** and the new `163.008-T`, and
+recorded in `033-DL`. (`163.001-T` and `163.002-T` carry the R1-12 timestamp-ordering
+supersession and the R1-13 `LATE_BUT_ANCHORED` fixture variant and its assertion; they
+were absent from this list before review-fix cycle 3.)
 
 ### D-8 — The L2 obligation keeps its normative force and gains an executor
 
@@ -458,11 +478,13 @@ ownership question would have been a scope retreat dressed as simplification.
 
 | Aspect | Value |
 |---|---|
-| **Owner** | The closing agent executing the `shipment-reconcile` cascade path — **Ship, at operational closure**. Never Stage, which does not close shipments |
+| **Owner — Role 1 (implementer)** | Ship, executing task `163.008-T` in `171-S` as an ordinary build-pipeline task: it writes the Post-Cascade Publication **contract text** into the two paired files. This is a normal RED→GREEN build step, not a close (clarified review-fix cycle 3, plan R1-13(c)) |
+| **Owner — Role 2 (runtime actor)** | The closing agent executing the `shipment-reconcile` cascade path at a **future** close — **Ship, at operational closure**. Never Stage, which does not close shipments. "Never Stage" attaches to this role only |
 | **Implementation unit** | **U6** — a paired prose edit to the same two files U2 edits (`.github/skills/shipment-reconcile/SKILL.md` and `templates/skills/shipment-reconcile/SKILL.md.tmpl`). No new file, no Python source change, no `.gitignore` change |
 | **Backlog item** | **`163.008-T`**, parent `163-F`, member of `171-S`, depends on `163.004-T` (U2 states the obligation) and blocks `163.007-T` (U5 consumes its bytes) |
-| **Behaviour** | Detect the tracking case (A/B/C), stage accordingly, verify the five R1-12 criteria against the closure commit, and record the outcome and detected case in the reconcile report |
+| **Behaviour** | Detect the tracking case (A/B/C), stage accordingly, verify the five R1-12 criteria against the closure commit — with fidelity evaluated under the **append-only prefix rule** of R1-13(a), never as a byte-identical comparison — and record the outcome and detected case in the reconcile report |
 | **Reportable condition** | `RECONCILE_CLOSURE_INCOMPLETE_L2_EVIDENCE` — a **P-001 incomplete-closure report**, not a halt token. Named outside the `RECONCILE_FAIL_PRECASCADE_` namespace so `163.003-T`'s "no fifth `PRECASCADE` token" negative assertion keeps firing on a genuine regression |
+| **Remediation when evidence is missing** (added review-fix cycle 3, plan R1-13(d)) | Closure stays **INCOMPLETE**; publish the exact engine log in a **follow-up closure commit** satisfying the same criteria **before** P-001 release-unit completion; **never** amend, rewrite or force-push published history to insert it; **never** mark closure done while it is missing; and if the log cannot be produced at all, report the unremediable gap with its reason rather than substituting an agent-authored transcription |
 | **What it never does** | Never authorizes a close, never downgrades or re-runs the L1 gate, never acts as a fallback for a failed L1 check, never blocks the cascade |
 
 The pre-cascade gate surface stays at exactly the **four** D-2 tokens. U6 runs outside
