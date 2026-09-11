@@ -54,11 +54,16 @@ if [ ! -e "$FILEPATH" ]; then
     echo "Warning: Target file does not exist: $FILEPATH" >&2
 fi
 
-# Finding 6 fix: normalise to an absolute path via `realpath -m` unconditionally
-# -- this canonicalises as much of the path as exists and works whether or not
-# the target itself exists, so dirname/basename never operate on an
-# unnormalised relative root-level filename.
-TARGET_PATH="$(realpath -m "$FILEPATH")"
+# Finding 6 fix: normalise to an absolute path via `realpath` unconditionally
+# -- GNU and BSD/macOS realpath both canonicalise a path whose final
+# component does not yet exist (only the leading directory components must
+# exist), so this works whether or not the target itself exists, and
+# dirname/basename never operate on an unnormalised relative root-level
+# filename. Deliberately NOT `realpath -m`: that flag is a GNU-only
+# extension (`--canonicalize-missing`) unsupported by BSD/macOS realpath,
+# and is unnecessary here since plain `realpath` already tolerates a
+# missing final path component on both platforms.
+TARGET_PATH="$(realpath "$FILEPATH")"
 
 RESOLVED_DIR="$(dirname "$TARGET_PATH")"
 FILENAME="$(basename "$TARGET_PATH")"
