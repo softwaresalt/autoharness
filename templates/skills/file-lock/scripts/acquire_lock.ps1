@@ -163,10 +163,17 @@ function Get-AutoharnessRealPath {
 
 function Test-AutoharnessPathContained {
     # Path-segment containment check (H4): a candidate is contained only when
-    # it equals the root or begins with the root followed by a directory
-    # separator. A bare string-prefix check (`StartsWith($root)` with no
-    # separator) is forbidden -- it would wrongly treat "$root-evil" as
-    # contained within "$root".
+    # it begins with the root followed by a directory separator. A bare
+    # string-prefix check (`StartsWith($root)` with no separator) is
+    # forbidden -- it would wrongly treat "$root-evil" as contained within
+    # "$root".
+    #
+    # The root itself is deliberately NOT treated as contained: accepting
+    # equality would let a caller pass the workspace root directory itself
+    # as the lock target, and Split-Path would then place the lock file
+    # (".<root-name>.lock") in the root's PARENT -- outside the containment
+    # boundary this check exists to enforce. Only a proper descendant of the
+    # root is a valid lock target.
     #
     # Uses the shared $autoharnessPathComparisonMode (Windows:
     # OrdinalIgnoreCase; Linux/macOS: Ordinal) so this containment check
@@ -177,9 +184,6 @@ function Test-AutoharnessPathContained {
         [Parameter(Mandatory = $true)][string]$RealRoot,
         [Parameter(Mandatory = $true)][string]$RealCandidate
     )
-    if ($RealCandidate.Equals($RealRoot, $autoharnessPathComparisonMode)) {
-        return $true
-    }
     $rootWithSeparator = $RealRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     return $RealCandidate.StartsWith($rootWithSeparator, $autoharnessPathComparisonMode)
 }
@@ -341,7 +345,15 @@ try {
     # caller can capture it. It is printed here, ONCE, on success, and MUST
     # NEVER be re-echoed by this script (or release_lock.ps1) in any later
     # status, verbose, or error output.
-    Write-Host "LOCK_TOKEN=$lockToken"
+    #
+    # Write-Output (not Write-Host) is required: Write-Host writes to the
+    # host/information stream, which ordinary success-stream capture (e.g.
+    # `$result = & ./acquire_lock.ps1 ...`) never receives. Since
+    # release_lock.ps1 now requires this token, a caller using standard
+    # capture would silently receive no token at all if this stayed on
+    # Write-Host. The human-readable "Lock acquired" status line above
+    # intentionally remains on Write-Host.
+    Write-Output "LOCK_TOKEN=$lockToken"
     exit 0
 }
 catch [System.IO.IOException] {

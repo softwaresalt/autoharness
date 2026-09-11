@@ -115,9 +115,13 @@ else
     ESCAPED_ROOT="$(printf '%s' "$NORMALIZED_ROOT" | sed -e 's/\\/\\\\/g' -e 's/\*/\\*/g' -e 's/?/\\?/g' -e 's/\[/\\[/g')"
     ROOT_DESCENDANT_PATTERN="${ESCAPED_ROOT}/*"
 fi
+# The root itself is deliberately NOT an accepted target: accepting
+# equality would let a caller pass the workspace root directory as
+# FILEPATH, and dirname/basename below would then place the lock file
+# (".<root-name>.lock") in the root's PARENT -- outside the containment
+# boundary this check exists to enforce. Only a proper descendant of the
+# root is a valid lock target.
 case "$REAL_TARGET" in
-    "$REAL_ROOT")
-        ;;
     $ROOT_DESCENDANT_PATTERN)
         ;;
     *)

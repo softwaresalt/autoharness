@@ -200,6 +200,30 @@ class AcquireLockContainmentPs1Tests(unittest.TestCase):
                 )
                 self.assertFalse((self.outside / ".evil.txt.lock").exists())
 
+    def test_target_equal_to_workspace_root_rejected(self) -> None:
+        """Round-5 Copilot review regression: `Test-AutoharnessPathContained`
+        used to carry an explicit equality branch (`return $true` when the
+        candidate equalled the root), accepting the workspace root ITSELF
+        as a valid lock target. Since `Split-Path` then places the lock
+        file (".<root-name>.lock") in the root's PARENT directory, that
+        branch let a caller escape the containment boundary by passing the
+        root directory as FilePath. Only a proper descendant of the root
+        is a valid target now; passing the root itself must be rejected
+        and must not create a lock file in the root's parent."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                result = _run_ps1(
+                    interpreter,
+                    [str(self.ws), "-WorkspaceRoot", str(self.ws)],
+                    cwd=self.ws,
+                )
+                self.assertNotEqual(
+                    result.returncode,
+                    0,
+                    msg=f"stdout={result.stdout} stderr={result.stderr}",
+                )
+                self.assertFalse((self.root / f".{self.ws.name}.lock").exists())
+
     def test_missing_workspace_root_git_derived_default_succeeds(self) -> None:
         """When --workspace-root is omitted, a git-derived root is trusted
         only when the script's own installed directory is a direct `scripts/`
@@ -426,6 +450,22 @@ class AcquireLockContainmentShTests(unittest.TestCase):
         )
         self.assertNotEqual(escape_result.returncode, 0, msg=escape_result.stdout)
         self.assertFalse((glob_sibling / ".evil.txt.lock").exists())
+
+    def test_target_equal_to_workspace_root_rejected(self) -> None:
+        """Round-5 Copilot review regression: the containment `case`
+        statement used to carry an explicit `"$REAL_ROOT")` branch that
+        accepted the workspace root ITSELF as a valid lock target. Since
+        `dirname`/`basename` then place the lock file
+        (".<root-name>.lock") in the root's PARENT directory, that branch
+        let a caller escape the containment boundary by passing the root
+        directory as FILEPATH. Only a proper descendant of the root is a
+        valid target now; passing the root itself must be rejected and
+        must not create a lock file in the root's parent."""
+        result = self._run(
+            [str(self.ws), "--workspace-root", str(self.ws)], cwd=self.ws
+        )
+        self.assertNotEqual(result.returncode, 0, msg=result.stdout)
+        self.assertFalse((self.root / f".{self.ws.name}.lock").exists())
 
     def test_missing_workspace_root_git_derived_default_succeeds(self) -> None:
         repo_root = self.root / "repo"

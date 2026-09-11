@@ -189,6 +189,53 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                 self.assertIn(f"owner_digest: {expected_digest}", lock_content)
                 self.lock_file.unlink()
 
+    def test_acquire_token_is_captured_by_powershell_success_stream(self) -> None:
+        """Round-5 Copilot review regression: the token line used to be
+        emitted via `Write-Host`, which writes to the host/information
+        stream and is NEVER received by ordinary PowerShell success-stream
+        capture (e.g. `$result = & ./acquire_lock.ps1 ...`) -- even though
+        it does appear on the process's raw stdout, which is why the
+        subprocess-based `result.stdout` assertions above did not catch
+        this. Since release_lock.ps1 requires the token, any caller using
+        the idiomatic capture pattern would silently receive no token at
+        all. Invoke the script from WITHIN a wrapper PowerShell process via
+        variable assignment (not raw stdout capture) and assert the
+        LOCK_TOKEN line is present in that captured success-stream output."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+                wrapper_command = (
+                    f"$result = & '{_PS1_ACQUIRE}' '{self.target}' "
+                    f"-WorkspaceRoot '{self.root}'; "
+                    "$result -join \"`n\""
+                )
+                result = subprocess.run(
+                    [
+                        interpreter,
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        wrapper_command,
+                    ],
+                    cwd=self.root,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                self.assertEqual(result.returncode, 0, msg=result.stderr)
+                match = _TOKEN_LINE_RE.search(result.stdout)
+                self.assertIsNotNone(
+                    match,
+                    msg=(
+                        "LOCK_TOKEN line missing from PowerShell success-stream "
+                        f"capture (variable assignment): {result.stdout!r} "
+                        f"stderr={result.stderr!r}"
+                    ),
+                )
+                self.lock_file.unlink()
+
     def test_release_without_token_and_without_force_is_refused(self) -> None:
         for interpreter in _PWSH_INTERPRETERS:
             with self.subTest(interpreter=interpreter):
