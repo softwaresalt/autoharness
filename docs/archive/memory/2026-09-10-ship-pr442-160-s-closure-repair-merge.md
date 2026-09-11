@@ -19,7 +19,11 @@ separate session-memory record once claimed.
    `src/autoharness/gates/topology.py`). This is the same recurring
    producer/consumer contract-mismatch defect documented in
    `docs/bugs/2026-09-06-closure-evidence-producer-consumer-contract-mismatch.md`,
-   previously repaired identically for 001-S, 005-S, 008-S, 156-S, 159-S.
+   previously repaired for 001-S, 005-S, 008-S, 156-S, 159-S -- not all
+   identically: 001-S and 008-S failed on the naming axis (same repair
+   shape as this one), while 005-S failed on the metadata axis (frontmatter
+   alignment, a different repair shape); see the bug report's recurrence
+   table for the full breakdown.
 2. Verified the fix non-destructively (scratch-directory copy test) before
    touching the real worktree.
 3. Branch-creation gate: `main` was dirty with 5 pre-existing, unrelated
