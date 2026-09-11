@@ -66,6 +66,32 @@ def _make_junction(link_path: Path, target: Path, interpreter: str) -> None:
         raise RuntimeError(f"junction creation failed: {result.stderr}")
 
 
+def _enable_windows_case_sensitive_directory(path: Path) -> bool:
+    """Best-effort: enable the Windows 10 1803+ per-directory case-sensitivity
+    attribute (`fsutil file setCaseSensitiveInfo <path> enable`) and confirm
+    it took effect via `queryCaseSensitiveInfo`. Returns False (never raises)
+    on any failure -- e.g. `fsutil` unavailable, a non-NTFS volume, or an
+    older Windows build -- so the caller can skip gracefully rather than
+    fail the test on an environment that cannot support this scenario."""
+    fsutil = shutil.which("fsutil")
+    if fsutil is None:
+        return False
+    try:
+        enable_result = subprocess.run(
+            [fsutil, "file", "setCaseSensitiveInfo", str(path), "enable"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if enable_result.returncode != 0:
+            return False
+        query_result = subprocess.run(
+            [fsutil, "file", "queryCaseSensitiveInfo", str(path)],
+            capture_output=True, text=True, timeout=30,
+        )
+        return query_result.returncode == 0 and "is enabled" in query_result.stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 @unittest.skipUnless(_PWSH_INTERPRETERS, "no PowerShell interpreter available")
 class AcquireLockContainmentPs1Tests(unittest.TestCase):
     def setUp(self) -> None:
@@ -177,6 +203,60 @@ class AcquireLockContainmentPs1Tests(unittest.TestCase):
                     ),
                 )
                 self.assertFalse((ws_upper / ".evil.txt.lock").exists())
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows-only per-directory case-sensitivity attribute")
+    def test_windows_per_directory_case_sensitive_sibling_rejected(self) -> None:
+        """Round-9 review regression: `Get-AutoharnessContainmentComparisonMode`
+        queries `fsutil file queryCaseSensitiveInfo` to detect a Windows 10
+        1803+ directory with the per-directory case-sensitivity attribute
+        enabled (`fsutil file setCaseSensitiveInfo ... enable`), under which
+        case-only sibling directories (e.g. `ws` and `WS`) genuinely coexist
+        even on Windows. The original match pattern ('is case sensitive')
+        never matched fsutil's actual wording ('... is enabled.'/'...
+        is disabled.'), so the helper always fell through to
+        OrdinalIgnoreCase and a candidate resolved into the case-differing
+        sibling was wrongly treated as contained -- a genuine containment
+        bypass, confirmed empirically and distinct from the ordinary
+        case-insensitive-NTFS scenario `test_case_only_sibling_directory_rejected`
+        already covers (and skips on win32 for exactly the opposite reason:
+        that scenario cannot even be constructed on an ordinary
+        case-insensitive volume). Skips gracefully if this environment
+        cannot actually enable the attribute (e.g. non-NTFS volume, older
+        Windows build, or insufficient privilege)."""
+        parent = Path(tempfile.mkdtemp())
+        try:
+            if not _enable_windows_case_sensitive_directory(parent):
+                self.skipTest(
+                    "could not enable Windows per-directory case sensitivity "
+                    "on this environment (fsutil unavailable, non-NTFS "
+                    "volume, or unsupported Windows build)"
+                )
+            ws_lower = parent / "ws"
+            ws_lower.mkdir()
+            ws_upper = parent / "WS"
+            ws_upper.mkdir()
+            target = ws_upper / "evil.txt"
+            target.write_text("case-sibling-on-case-sensitive-dir", encoding="utf-8")
+            for interpreter in _PWSH_INTERPRETERS:
+                with self.subTest(interpreter=interpreter):
+                    result = _run_ps1(
+                        interpreter,
+                        [str(target), "-WorkspaceRoot", str(ws_lower)],
+                        cwd=ws_lower,
+                    )
+                    self.assertNotEqual(
+                        result.returncode,
+                        0,
+                        msg=(
+                            "a case-only sibling directory on a Windows "
+                            "directory with per-directory case sensitivity "
+                            "enabled must never be treated as contained "
+                            f"(stdout={result.stdout} stderr={result.stderr})"
+                        ),
+                    )
+                    self.assertFalse((ws_upper / ".evil.txt.lock").exists())
+        finally:
+            shutil.rmtree(parent, ignore_errors=True)
 
     def test_directory_junction_escape_rejected(self) -> None:
         for interpreter in _PWSH_INTERPRETERS:

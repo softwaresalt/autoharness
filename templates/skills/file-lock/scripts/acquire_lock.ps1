@@ -192,8 +192,20 @@ function Get-AutoharnessContainmentComparisonMode {
         return [System.StringComparison]::OrdinalIgnoreCase
     }
     try {
+        # Round-9 review fix: fsutil's actual output is "Case sensitive
+        # attribute on directory <path> is enabled." (or "... is disabled."),
+        # never containing the substring "is case sensitive" that the
+        # original match pattern looked for -- so the enabled case was NEVER
+        # detected and this helper always fell through to the
+        # OrdinalIgnoreCase default, silently defeating the whole per-
+        # directory check this function exists to perform. Match the actual
+        # "is enabled." wording instead (confirmed empirically: `fsutil file
+        # setCaseSensitiveInfo <dir> enable` followed by `queryCaseSensitiveInfo`
+        # prints exactly "... is enabled.", and the disabled case prints
+        # "... is disabled." -- the two are disjoint substrings, so this
+        # match cannot conflate them).
         $fsutilOutput = & fsutil file queryCaseSensitiveInfo $parentOfRoot 2>$null
-        if ($LASTEXITCODE -eq 0 -and (($fsutilOutput -join "`n") -match 'is case sensitive')) {
+        if ($LASTEXITCODE -eq 0 -and (($fsutilOutput -join "`n") -match 'is enabled')) {
             return [System.StringComparison]::Ordinal
         }
     } catch {
