@@ -30,11 +30,19 @@ changed reviewed code -- and is unaffected by the merge itself, since no
 further code changes occurred between that commit and merge. It is not a
 claim about any HEAD later than the merge commit: see the Evidence Currency
 Model in the companion
-`docs/closure/2026-09-08-160-s-152-f-closure.md` for why this artifact
+`docs/closure/160-S-152-F-post-merge-closure.md` for why this artifact
 never asserts current-HEAD readiness for itself. Before the merge, the PR's
 live current HEAD and P-018 Copilot-review state were tracked externally in
 the PR body's `## Local Review Readiness` block and via `autoharness gate copilot-review
 439`, evaluated at merge time.
+
+(Post-merge closure evidence repair note: the companion closure artifact was
+renamed from `docs/closure/2026-09-08-160-s-152-f-closure.md` to
+`docs/closure/160-S-152-F-post-merge-closure.md` on `post-merge/160-s-closure-repair`
+to conform to the `pipeline-topology` gate's required
+`{shipment_id}-{feature_id}-post-merge-closure.md` discovery pattern -- see
+`docs/bugs/2026-09-06-closure-evidence-producer-consumer-contract-mismatch.md`.
+No content changed; this cross-reference is updated to the new filename.)
 
 ## Validator Contract
 
