@@ -84,7 +84,14 @@ via `git merge-base --is-ancestor`. No admin fallback used or needed.
   and its runtime-verification companion updated with `merge_commit:
   12b2d4a36f0cdcd9a07aa2cfc13b372cea2ef386`, the merge-approval condition
   marked `satisfied: true` with full last-mile evidence, and
-  `closure_status: READY`.
+  `closure_status: READY`. (Post-hoc pointer note, PR #442: the closure
+  artifact above was subsequently renamed to
+  `docs/closure/160-S-152-F-post-merge-closure.md` to conform to the
+  `pipeline-topology` gate's discovery glob -- see
+  `docs/bugs/2026-09-06-closure-evidence-producer-consumer-contract-mismatch.md`.
+  This entry's prose is left otherwise unchanged as a frozen historical
+  record of the merge session; only this forwarding pointer was added so
+  navigation to the current artifact does not break.)
 * CLI smoke test re-run post-merge on new `main`: `uv run autoharness --help`
   → exit 0.
 * `compact-context --target all` invoked per P-020 (mandatory per-merge);
