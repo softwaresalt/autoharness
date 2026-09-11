@@ -39,8 +39,10 @@ the PR body's `## Local Review Readiness` block and via `autoharness gate copilo
 (Post-merge closure evidence repair note: the companion closure artifact was
 renamed from `docs/closure/2026-09-08-160-s-152-f-closure.md` to
 `docs/closure/160-S-152-F-post-merge-closure.md` on `post-merge/160-s-closure-repair`
-to conform to the `pipeline-topology` gate's required
-`{shipment_id}-{feature_id}-post-merge-closure.md` discovery pattern -- see
+to conform to the `pipeline-topology` gate's required discovery glob
+`docs/closure/{shipment_id}-*-post-merge-closure.md` -- the middle path
+segment is a wildcard, not literally required to equal the feature ID; see
+`src/autoharness/gates/topology.py`'s `closure_complete()` and
 `docs/bugs/2026-09-06-closure-evidence-producer-consumer-contract-mismatch.md`.
 No content changed; this cross-reference is updated to the new filename.)
 
