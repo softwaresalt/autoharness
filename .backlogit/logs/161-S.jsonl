@@ -2,3 +2,8 @@
 {"timestamp":"2026-08-31T16:24:32.0742541-07:00","actor":"backlogit","item_id":"161-S","event_type":"shipment_item_added","delta":{"item_id":"153.004-T"}}
 {"timestamp":"2026-08-31T16:24:46.0826219-07:00","actor":"backlogit","item_id":"161-S","event_type":"shipment_item_added","delta":{"item_id":"153.005-T"}}
 {"timestamp":"2026-09-10T20:18:11.7197424-07:00","actor":"backlogit","item_id":"161-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-09-11T16:25:26.3724115-07:00","actor":"backlogit","item_id":"161-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"161-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-09-11T16:25:30.281893-07:00","actor":"backlogit","item_id":"161-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"161-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-09-11T16:27:24.3798207-07:00","actor":"backlogit","item_id":"161-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"161-S","status":"shipped"}}
+{"timestamp":"2026-09-11T16:27:43.5286315-07:00","actor":"backlogit","item_id":"161-S","event_type":"commit_tracked","delta":{"author":"Derek Williams \u003c42183845+softwaresalt@users.noreply.github.com\u003e","commit_sha":"6da9aed580f9ed232a6871281f47567c9060ffa8","message":"Merge pull request #444 from softwaresalt/feat/161-s-ship-3-file-lock-script-security-hardening-template-first"}}
+{"timestamp":"2026-09-11T16:33:32.469642-07:00","actor":"backlogit","item_id":"161-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/161-S.md"}}
