@@ -67,8 +67,10 @@ per-file locks unless one of the conditions above is met.
 
 Lock commands (when needed):
 
-* PowerShell: `scripts/acquire_lock.ps1 <filepath>` / `scripts/release_lock.ps1 <filepath>`
-* Bash: `scripts/acquire_lock.sh <filepath>` / `scripts/release_lock.sh <filepath>`
+* PowerShell: `scripts/acquire_lock.ps1 <filepath>` (capture the printed token) /
+  `scripts/release_lock.ps1 <filepath> -Token <token>`
+* Bash: `scripts/acquire_lock.sh <filepath>` (capture the printed token) /
+  `scripts/release_lock.sh <filepath> --token <token>`
 
 ## Skill Loading Strategy
 
