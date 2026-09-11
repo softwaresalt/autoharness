@@ -9,7 +9,7 @@ shipment: 171-S
 review_mode: pre-commit
 reviewed_parent_commit: e25f8f8c967f10e7d92d2992ff269269114a01a9
 reviewed_tree: 9a7862d43519349a198d7913e7417dfb4f099938
-remediation_commit: "recorded post-commit — see 'Final local review record' below"
+remediation_commit: 097a8736983fcdfc246202d2d5d315150cce886c
 tags: [memory, stage, review-fix, shipment-reconcile, pre-mutation-gate, final-cycle]
 ---
 
@@ -138,7 +138,7 @@ Recorded in the follow-up commit, separately from the pre-commit pass above, so 
 review claim names a HEAD that did not exist when the review ran.
 
 * Reviewed tree (pre-commit): `9a7862d43519349a198d7913e7417dfb4f099938`
-* Remediation commit publishing that tree: **`__PENDING__`**
+* Remediation commit publishing that tree: **`097a8736983fcdfc246202d2d5d315150cce886c`**
 * Local review outcome for that commit: `READY` — zero P0, zero unresolved P1; Stage
   planning/backlog artifacts only; full local build **not applicable** (no source, test,
   template, skill or agent file was modified).
