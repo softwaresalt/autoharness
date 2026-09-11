@@ -80,6 +80,20 @@ else
     REAL_ROOT="$REAL_GIT_TOPLEVEL"
 fi
 
+# FILEPATH is documented as workspace-root-relative (round-9 review fix):
+# anchor a relative value to REAL_ROOT instead of the process CWD. Unlike
+# release_lock.sh (which only anchors when --workspace-root is explicitly
+# supplied, since it has no default root of its own), acquire_lock.sh ALWAYS
+# resolves a workspace root above (explicit or git-derived), so anchoring
+# here is unconditional. Without this, a caller invoking the script from a
+# directory other than the workspace root could fail to lock the intended
+# in-root target, or lock a different same-named file that happens to exist
+# under the caller's CWD. An absolute FILEPATH is left untouched.
+case "$FILEPATH" in
+    /*) ;;
+    *) FILEPATH="${REAL_ROOT}/${FILEPATH}" ;;
+esac
+
 if [ ! -e "$FILEPATH" ]; then
     echo "Error: Target file does not exist: $FILEPATH" >&2
     exit 1

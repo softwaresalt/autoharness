@@ -58,10 +58,6 @@ _PWSH_INTERPRETERS = [p for p in _PWSH_CANDIDATES if p]
 _BASH = shutil.which("bash")
 
 
-def _normalize(data: bytes) -> bytes:
-    return data.replace(b"\r\n", b"\n")
-
-
 def _run_ps1(interpreter: str, script: Path, args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     full_args = [interpreter, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)] + args
     return subprocess.run(full_args, cwd=cwd, capture_output=True, text=True, timeout=60)
@@ -71,14 +67,24 @@ class TemplateInstalledByteParityTests(unittest.TestCase):
     """H1: scripts/ is a pure verbatim copy of templates/skills/file-lock/scripts/."""
 
     def test_installed_scripts_are_byte_identical_to_templates(self) -> None:
+        # Round-9 review fix: this test asserts BYTE identity (H1), so it must
+        # compare raw read_bytes() with no EOL normalization. Normalizing
+        # CRLF to LF before comparing would make an installed copy that had
+        # silently drifted to CRLF line endings compare equal to an LF
+        # template source, hiding exactly the template/install divergence
+        # this test exists to catch. Both locations are established
+        # elsewhere in this session (and enforced by the file-lock skill's
+        # authoring convention) to be LF-only; a real CRLF drift is a
+        # genuine parity failure, not a cosmetic difference to normalize
+        # away.
         for name in _SCRIPT_NAMES:
             with self.subTest(script=name):
-                template_bytes = _normalize((_TEMPLATE_DIR / name).read_bytes())
-                installed_bytes = _normalize((_INSTALLED_DIR / name).read_bytes())
+                template_bytes = (_TEMPLATE_DIR / name).read_bytes()
+                installed_bytes = (_INSTALLED_DIR / name).read_bytes()
                 self.assertEqual(
                     template_bytes,
                     installed_bytes,
-                    msg=f"{name}: installed copy diverges from its template source (LF-normalized comparison)",
+                    msg=f"{name}: installed copy diverges from its template source (raw byte comparison)",
                 )
 
     def test_manifest_checksums_match_installed_scripts_on_disk(self) -> None:
@@ -321,3 +327,89 @@ class VerificationMatrixParityShTests(unittest.TestCase):
             codes[label] = result.returncode
             self.assertNotEqual(result.returncode, 0, msg=f"{label}: expected rejection")
         self.assertEqual(codes["template"], codes["installed"])
+
+        # `../` traversal rejection (round-9 review fix: missing POSIX scenario).
+        codes = {}
+        for label, script in (("template", template_script), ("installed", installed_script)):
+            base = self.root / f"{label}-traversal"
+            ws = base / "ws"
+            outside = base / "outside"
+            (ws / "sub").mkdir(parents=True)
+            outside.mkdir()
+            (outside / "evil.txt").write_text("outside", encoding="utf-8")
+            traversal_target = ws / "sub" / ".." / ".." / "outside" / "evil.txt"
+            result = self._run_sh(script, [str(traversal_target), "--workspace-root", str(ws)], cwd=ws)
+            codes[label] = result.returncode
+            self.assertNotEqual(result.returncode, 0, msg=f"{label}: expected ../ traversal rejection")
+        self.assertEqual(codes["template"], codes["installed"])
+
+        # Symlinked directory pointing outside is rejected (round-9 review
+        # fix: missing POSIX scenario; real symlinks are unprivileged on
+        # POSIX, unlike Windows, so this needs no junction workaround).
+        codes = {}
+        for label, script in (("template", template_script), ("installed", installed_script)):
+            base = self.root / f"{label}-symlink"
+            ws = base / "ws"
+            outside = base / "outside"
+            ws.mkdir(parents=True)
+            outside.mkdir()
+            (outside / "evil.txt").write_text("outside", encoding="utf-8")
+            link_path = ws / "linkout"
+            link_path.symlink_to(outside, target_is_directory=True)
+            result = self._run_sh(script, [str(link_path / "evil.txt"), "--workspace-root", str(ws)], cwd=ws)
+            codes[label] = result.returncode
+            self.assertNotEqual(result.returncode, 0, msg=f"{label}: expected symlink escape rejection")
+        self.assertEqual(codes["template"], codes["installed"])
+
+        # Sibling directory sharing the root's name as a string prefix
+        # (ws-evil vs ws) is rejected (round-9 review fix: missing POSIX
+        # scenario).
+        codes = {}
+        for label, script in (("template", template_script), ("installed", installed_script)):
+            base = self.root / f"{label}-sibling"
+            ws = base / "ws"
+            ws_evil = base / "ws-evil"
+            ws.mkdir(parents=True)
+            ws_evil.mkdir()
+            (ws_evil / "evil.txt").write_text("sibling", encoding="utf-8")
+            result = self._run_sh(script, [str(ws_evil / "evil.txt"), "--workspace-root", str(ws)], cwd=ws)
+            codes[label] = result.returncode
+            self.assertNotEqual(result.returncode, 0, msg=f"{label}: expected sibling shared-prefix rejection")
+        self.assertEqual(codes["template"], codes["installed"])
+
+    def test_release_root_level_present_and_missing_target_parity(self) -> None:
+        # Round-9 review fix: POSIX counterpart of
+        # VerificationMatrixParityPs1Tests.test_release_root_level_present_and_missing_target_parity.
+        if _BASH is None:
+            self.skipTest("no bash interpreter available")
+        template_acquire = _TEMPLATE_DIR / "acquire_lock.sh"
+        installed_acquire = _INSTALLED_DIR / "acquire_lock.sh"
+        template_release = _TEMPLATE_DIR / "release_lock.sh"
+        installed_release = _INSTALLED_DIR / "release_lock.sh"
+
+        with self.subTest(scenario="root-level-present"):
+            root_tmpl = Path(tempfile.mkdtemp(dir=self.root, prefix="e-template-"))
+            root_inst = Path(tempfile.mkdtemp(dir=self.root, prefix="e-installed-"))
+            (root_tmpl / "present.txt").write_text("x", encoding="utf-8")
+            (root_inst / "present.txt").write_text("x", encoding="utf-8")
+
+            acquire_tmpl = self._run_sh(template_acquire, ["present.txt", "--workspace-root", str(root_tmpl)], cwd=root_tmpl)
+            acquire_inst = self._run_sh(installed_acquire, ["present.txt", "--workspace-root", str(root_inst)], cwd=root_inst)
+            self.assertEqual(acquire_tmpl.returncode, 0, msg=acquire_tmpl.stderr)
+            self.assertEqual(acquire_inst.returncode, 0, msg=acquire_inst.stderr)
+
+            release_tmpl = self._run_sh(template_release, ["present.txt", "--force"], cwd=root_tmpl)
+            release_inst = self._run_sh(installed_release, ["present.txt", "--force"], cwd=root_inst)
+            self.assertEqual(release_tmpl.returncode, 0, msg=release_tmpl.stderr)
+            self.assertEqual(release_inst.returncode, 0, msg=release_inst.stderr)
+            self.assertEqual(release_tmpl.returncode, release_inst.returncode)
+
+        with self.subTest(scenario="root-level-missing"):
+            root_tmpl = Path(tempfile.mkdtemp(dir=self.root, prefix="f-template-"))
+            root_inst = Path(tempfile.mkdtemp(dir=self.root, prefix="f-installed-"))
+
+            release_tmpl = self._run_sh(template_release, ["missing.txt"], cwd=root_tmpl)
+            release_inst = self._run_sh(installed_release, ["missing.txt"], cwd=root_inst)
+            self.assertEqual(release_tmpl.returncode, 0, msg=release_tmpl.stderr)
+            self.assertEqual(release_inst.returncode, 0, msg=release_inst.stderr)
+            self.assertEqual(release_tmpl.returncode, release_inst.returncode)

@@ -347,6 +347,20 @@ function Resolve-AutoharnessWorkspaceRoot {
 
 $realWorkspaceRoot = Resolve-AutoharnessWorkspaceRoot -ExplicitRoot $WorkspaceRoot
 
+# FilePath is documented as workspace-root-relative (round-9 review fix):
+# anchor a relative value to the resolved workspace root instead of the
+# process's current working directory. Unlike release_lock.ps1 (which only
+# anchors when -WorkspaceRoot is explicitly supplied, since it has no
+# default root of its own), acquire_lock.ps1 ALWAYS resolves a workspace
+# root above (explicit or git-derived), so anchoring here is unconditional.
+# Without this, a caller invoking the script from a directory other than the
+# workspace root could fail to lock the intended in-root target, or lock a
+# different same-named file that happens to exist under the caller's CWD.
+# An absolute FilePath is left untouched.
+if (-not [System.IO.Path]::IsPathRooted($FilePath)) {
+    $FilePath = Join-Path $realWorkspaceRoot $FilePath
+}
+
 if (-not (Test-Path -LiteralPath $FilePath)) {
     Write-Error "Target file does not exist: $FilePath"
     exit 1
