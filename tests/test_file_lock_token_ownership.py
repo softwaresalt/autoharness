@@ -824,7 +824,7 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
             real_bash = Path(_BASH).resolve()
             for name in (
                 "bash", "sh", "rm", "cat", "dirname", "basename", "sed",
-                "date", "printf", "tr", "head", "realpath", "awk",
+                "date", "printf", "tr", "head", "tail", "realpath", "awk",
             ):
                 candidate = shutil.which(name)
                 if candidate:
