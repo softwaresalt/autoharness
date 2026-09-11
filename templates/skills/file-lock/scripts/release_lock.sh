@@ -107,23 +107,63 @@ fi
 # exist) parent directory with `realpath` and re-append the leaf filename --
 # this needs no non-existent-path canonicalisation support from `realpath`
 # at all, so it works identically on GNU and BSD/macOS.
-if [ -e "$FILEPATH" ]; then
-    TARGET_PATH="$(realpath "$FILEPATH")"
-else
-    PARENT_DIR="$(dirname "$FILEPATH")"
-    LEAF_NAME="$(basename "$FILEPATH")"
-    if [ ! -d "$PARENT_DIR" ]; then
+#
+# Round-8 review fix: `[ -e "$path" ]` follows a symlink and reports the
+# TARGET's existence, so a BROKEN symlink leaf (its own recorded target
+# deleted) falls into the "does not exist" branch below. The parent-only
+# recovery there previously re-appended the symlink's own lexical name as
+# the leaf, computing the WRONG lock path (beside the symlink, not beside
+# the real target acquire actually locked). `[ -L "$path" ]` checks the
+# link entry itself without following it, so it still reports true for a
+# broken symlink; `readlink` then reads its raw recorded target without
+# requiring that target to exist, letting release recover and resolve the
+# SAME real path acquire stored the lock beside. A depth cap guards against
+# a hand-crafted symlink cycle recursing indefinitely. `exit 0` is
+# deliberately never called from inside this function: it runs inside the
+# command-substitution subshell created by its caller below, where `exit`
+# would only terminate that subshell, not the script -- callers detect the
+# "no resolvable parent" case via this function's non-zero return status
+# instead, and perform the warn-and-exit-0 themselves at the top level.
+resolve_autoharness_best_effort_real_path() {
+    local candidate="$1"
+    local depth="${2:-0}"
+    if [ "$depth" -gt 20 ]; then
+        printf '%s\n' "$candidate"
+        return 0
+    fi
+    if [ -e "$candidate" ]; then
+        realpath "$candidate"
+        return 0
+    fi
+    if [ -L "$candidate" ]; then
+        local raw_target
+        raw_target="$(readlink "$candidate")"
+        case "$raw_target" in
+            /*) ;;
+            *) raw_target="$(dirname "$candidate")/${raw_target}" ;;
+        esac
+        resolve_autoharness_best_effort_real_path "$raw_target" "$((depth + 1))"
+        return $?
+    fi
+    local parent_dir leaf_name
+    parent_dir="$(dirname "$candidate")"
+    leaf_name="$(basename "$candidate")"
+    if [ ! -d "$parent_dir" ]; then
         # A missing parent directory means no lock file could possibly
         # exist beside this target either -- a lock file always lives in
         # the same directory as its target. This mirrors the PowerShell
         # variant, which never errors on a missing parent (GetFullPath is
         # pure string normalisation with no filesystem access), and the
         # documented "no lock file exists" contract: a warning and a
-        # successful exit, not a failure.
-        echo "Warning: No lock file found for: $FILEPATH (parent directory does not exist; already released or never locked)" >&2
-        exit 0
+        # successful exit, not a failure -- signalled to the caller via a
+        # non-zero return here rather than exiting directly (see above).
+        return 1
     fi
-    TARGET_PATH="$(realpath "$PARENT_DIR")/${LEAF_NAME}"
+    printf '%s/%s\n' "$(realpath "$parent_dir")" "$leaf_name"
+}
+if ! TARGET_PATH="$(resolve_autoharness_best_effort_real_path "$FILEPATH")"; then
+    echo "Warning: No lock file found for: $FILEPATH (parent directory does not exist; already released or never locked)" >&2
+    exit 0
 fi
 
 RESOLVED_DIR="$(dirname "$TARGET_PATH")"

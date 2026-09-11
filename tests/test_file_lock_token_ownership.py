@@ -174,6 +174,33 @@ def _make_junction(link_path: Path, target: Path, interpreter: str) -> None:
         )
 
 
+def _make_file_symlink_or_skip(
+    test: unittest.TestCase, link_path: Path, target: Path, interpreter: str
+) -> None:
+    """Create a FILE symlink (not a directory junction) for the round-8
+    broken-symlink-leaf regression tests below. Unlike a directory junction,
+    a Windows file symlink requires SeCreateSymbolicLinkPrivilege (granted
+    to Administrators only when running elevated, or to any user with
+    Developer Mode enabled) -- a privilege GitHub Actions' windows-latest
+    runners hold by default, but which is not guaranteed in every local dev
+    environment. Skip the test (rather than failing it) when creation is
+    refused for a privilege reason, so this regression coverage degrades
+    gracefully instead of blocking unrelated work on unprivileged hosts."""
+    cmd = [
+        interpreter,
+        "-NoProfile",
+        "-Command",
+        f"New-Item -ItemType SymbolicLink -Path '{link_path}' -Target '{target}' | Out-Null",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0 or not link_path.exists():
+        test.skipTest(
+            "unable to create a file symlink in this environment "
+            f"(likely missing SeCreateSymbolicLinkPrivilege/Developer Mode): "
+            f"stderr={result.stderr!r}"
+        )
+
+
 @unittest.skipUnless(_PWSH_INTERPRETERS, "no PowerShell interpreter available")
 class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
     def setUp(self) -> None:
@@ -436,6 +463,63 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                 self.assertFalse(
                     lexical_lock_file.is_file(),
                     msg="no separate lock file should be created at the lexical junction path",
+                )
+
+    def test_release_missing_target_resolves_lock_through_broken_symlink_leaf(
+        self,
+    ) -> None:
+        """Round-8 Copilot review regression: when the target ITSELF (the
+        leaf, not merely an ancestor) is a symlink whose recorded target has
+        been deleted, release must still find and remove the lock file
+        acquire created beside the REAL (dereferenced) target -- not beside
+        the symlink's own lexical name. `Test-Path` follows a reparse point
+        and reports the TARGET's existence, so a broken symlink leaf still
+        reads as "exists" even though resolving through it then throws;
+        the fix reads the symlink's own recorded link target via
+        `Get-Item -Force` and recurses into resolving that instead."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                iteration_root = Path(tempfile.mkdtemp(dir=self.root))
+                real_target = iteration_root / "real.txt"
+                real_target.write_text("contained", encoding="utf-8")
+                link_target = iteration_root / "link.txt"
+                _make_file_symlink_or_skip(
+                    self, link_target, real_target, interpreter
+                )
+                real_lock_file = iteration_root / ".real.txt.lock"
+                _write_lock_file_with_digest(
+                    real_lock_file, _expected_digest("irrelevant-token")
+                )
+                real_target.unlink()
+                self.assertFalse(real_target.exists())
+                self.assertTrue(real_lock_file.exists())
+                result = _run_ps1(
+                    interpreter,
+                    _PS1_RELEASE,
+                    [str(link_target), "-Force"],
+                    cwd=iteration_root,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    msg=(
+                        "release through a broken symlink leaf must succeed, "
+                        f"not throw: stdout={result.stdout} stderr={result.stderr}"
+                    ),
+                )
+                self.assertFalse(
+                    real_lock_file.exists(),
+                    msg=(
+                        "release must recover the symlink's own recorded "
+                        "target and remove the lock file created beside "
+                        "the real (dereferenced) path acquire actually "
+                        "locked (round-8 fix)"
+                    ),
+                )
+                lexical_lock_file = iteration_root / ".link.txt.lock"
+                self.assertFalse(
+                    lexical_lock_file.is_file(),
+                    msg="no separate lock file should be created at the lexical symlink-leaf path",
                 )
 
     def test_release_workspace_root_anchoring_round_trip_from_different_cwd(

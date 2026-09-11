@@ -161,6 +161,47 @@ function Get-AutoharnessRealPath {
     return $resolved
 }
 
+function Get-AutoharnessContainmentComparisonMode {
+    # H4 containment-check comparison mode, queried per-root rather than
+    # assumed from the OS alone (round-8 review fix). Windows 10 1803+
+    # supports PER-DIRECTORY case sensitivity (`fsutil file
+    # setCaseSensitiveInfo`, used by WSL interop and some containerized
+    # workloads); when the root's PARENT directory has that attribute set,
+    # sibling directories differing only by case (e.g. "ws" and "WS") can
+    # genuinely coexist there. The previous blanket "OrdinalIgnoreCase
+    # because this is Windows" assumption would wrongly conflate such a
+    # case-differing sibling with the real root, letting a candidate that
+    # actually resolved into the sibling be treated as contained. Query the
+    # ACTUAL case-sensitivity of the root's parent directory via `fsutil
+    # file queryCaseSensitiveInfo` (the attribute governs whether entries
+    # WITHIN that parent can coexist by case alone, which is exactly the
+    # sibling-collision scenario this containment check must not miss); a
+    # query failure (fsutil unavailable, non-NTFS volume, insufficient
+    # privilege, any other error) or a root with no parent (the root IS the
+    # filesystem root) falls back to OrdinalIgnoreCase, the safe default for
+    # the overwhelming majority of ordinary (case-insensitive) NTFS volumes.
+    # Non-Windows platforms are case-sensitive by default and always use
+    # Ordinal, unchanged from before -- this helper is only consulted on
+    # Windows.
+    param([Parameter(Mandatory = $true)][string]$RootPath)
+    if (-not $autoharnessIsWindowsPlatform) {
+        return [System.StringComparison]::Ordinal
+    }
+    $parentOfRoot = Split-Path -Parent $RootPath
+    if ([string]::IsNullOrEmpty($parentOfRoot)) {
+        return [System.StringComparison]::OrdinalIgnoreCase
+    }
+    try {
+        $fsutilOutput = & fsutil file queryCaseSensitiveInfo $parentOfRoot 2>$null
+        if ($LASTEXITCODE -eq 0 -and (($fsutilOutput -join "`n") -match 'is case sensitive')) {
+            return [System.StringComparison]::Ordinal
+        }
+    } catch {
+        # Fall through to the safe OrdinalIgnoreCase default below.
+    }
+    return [System.StringComparison]::OrdinalIgnoreCase
+}
+
 function Test-AutoharnessPathContained {
     # Path-segment containment check (H4): a candidate is contained only when
     # it begins with the root followed by a directory separator. A bare
@@ -175,15 +216,19 @@ function Test-AutoharnessPathContained {
     # boundary this check exists to enforce. Only a proper descendant of the
     # root is a valid lock target.
     #
-    # Uses the shared $autoharnessPathComparisonMode (Windows:
-    # OrdinalIgnoreCase; Linux/macOS: Ordinal) so this containment check
-    # matches the case-sensitivity of the underlying filesystem -- this
-    # script explicitly supports Linux/macOS pwsh, where a case-insensitive
-    # comparison would let a case-only sibling path escape containment.
+    # Round-8 review fix: the comparison mode is now derived PER-ROOT via
+    # Get-AutoharnessContainmentComparisonMode instead of the coarser
+    # OS-only $autoharnessPathComparisonMode -- a blanket "Windows means
+    # OrdinalIgnoreCase" assumption misses per-directory case sensitivity
+    # (fsutil file setCaseSensitiveInfo), under which a case-only sibling
+    # (e.g. "ws" vs "WS") can genuinely coexist even on Windows. This script
+    # explicitly supports Linux/macOS pwsh too, where Ordinal is always used
+    # regardless of any per-directory query.
     param(
         [Parameter(Mandatory = $true)][string]$RealRoot,
         [Parameter(Mandatory = $true)][string]$RealCandidate
     )
+    $comparisonMode = Get-AutoharnessContainmentComparisonMode -RootPath $RealRoot
     $normalizedRoot = $RealRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
     $normalizedCandidate = $RealCandidate.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
     # Round-6/7 review fix: reject equality BEFORE the prefix check. For a
@@ -196,11 +241,11 @@ function Test-AutoharnessPathContained {
     # (separator-trimmed) forms directly, with the same comparison mode
     # used below, closes that gap without changing behaviour for any
     # non-degenerate root.
-    if ($normalizedCandidate.Equals($normalizedRoot, $autoharnessPathComparisonMode)) {
+    if ($normalizedCandidate.Equals($normalizedRoot, $comparisonMode)) {
         return $false
     }
     $rootWithSeparator = $normalizedRoot + [System.IO.Path]::DirectorySeparatorChar
-    return $RealCandidate.StartsWith($rootWithSeparator, $autoharnessPathComparisonMode)
+    return $RealCandidate.StartsWith($rootWithSeparator, $comparisonMode)
 }
 
 # --- Token/digest (O2, TC1-TC6) --------------------------------------------

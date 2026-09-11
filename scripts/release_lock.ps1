@@ -244,9 +244,62 @@ if (-not (Test-Path -LiteralPath $FilePath)) {
 # reflects Set-Location, matching the same PWD-relative semantics
 # release_lock.sh gets for free from the shell's own $PWD.
 $absolutePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($FilePath)
-$targetPath = if (Test-Path -LiteralPath $FilePath) {
-    Get-AutoharnessRealPath (Resolve-Path -LiteralPath $FilePath).Path
-} else {
+
+function Resolve-AutoharnessBestEffortRealPath {
+    # Best-effort REAL path resolution for a lock target that may not fully
+    # exist, used by the missing-target recovery below so release agrees
+    # with acquire's choice of fully-dereferenced lock location. Tried in
+    # order:
+    #
+    #  1. The path fully exists and fully resolves (symlinks/junctions and
+    #     all) -- delegate straight to Get-AutoharnessRealPath.
+    #
+    #  2. Round-8 review fix: the path exists as a filesystem ENTRY (Test-
+    #     Path reports true) but Get-AutoharnessRealPath still throws. This
+    #     happens for a BROKEN symlink/reparse point -- one whose own
+    #     recorded link target no longer exists. Test-Path on a reparse
+    #     point reports the entry's own presence, not its target's, so a
+    #     deleted-target symlink still reads as "exists" even though
+    #     resolving through it (CreateFile/realpath) fails. Read the
+    #     entry's OWN recorded link target instead (Get-Item only needs
+    #     reparse-point metadata, not the target, so it works even when the
+    #     target is gone) and recurse into resolving THAT path -- this is
+    #     exactly the real path acquire stored the lock beside before the
+    #     target was deleted. A recorded target that is itself relative is
+    #     anchored against the symlink's own parent directory, matching how
+    #     the filesystem itself would interpret it. A depth cap guards
+    #     against a hand-crafted symlink cycle recursing indefinitely.
+    #
+    #  3. Neither the path nor its symlink metadata is available (a plain
+    #     missing file, or nothing in the chain read succeeded) -- resolve
+    #     as much of the PARENT chain as exists (H5 parity, round-6 fix)
+    #     and fall back to a purely lexical join for the parts that do not.
+    param(
+        [Parameter(Mandatory = $true)][string]$AbsolutePath,
+        [int]$Depth = 0
+    )
+    if ($Depth -gt 20) {
+        return $AbsolutePath
+    }
+    if (Test-Path -LiteralPath $AbsolutePath) {
+        try {
+            return Get-AutoharnessRealPath (Resolve-Path -LiteralPath $AbsolutePath).Path
+        } catch {
+            # Fall through to the broken-symlink-leaf recovery below.
+        }
+        try {
+            $linkItem = Get-Item -LiteralPath $AbsolutePath -Force -ErrorAction Stop
+            if ($linkItem.LinkType -and $linkItem.Target) {
+                $rawTarget = @($linkItem.Target)[0]
+                if (-not [System.IO.Path]::IsPathRooted($rawTarget)) {
+                    $rawTarget = Join-Path (Split-Path -Parent $AbsolutePath) $rawTarget
+                }
+                return Resolve-AutoharnessBestEffortRealPath -AbsolutePath $rawTarget -Depth ($Depth + 1)
+            }
+        } catch {
+            # Fall through to the lexical/parent-based recovery below.
+        }
+    }
     # Round-6 review / H5 parity fix: a missing target may still have an
     # existing PARENT directory reached through a symlink/junction (e.g.
     # acquired via a path like "link/file.txt" where "link" points at
@@ -262,15 +315,16 @@ $targetPath = if (Test-Path -LiteralPath $FilePath) {
     # lexical path when even the parent does not exist (in which case no
     # lock could exist there regardless, and Test-Path on the computed
     # lock path below will simply report none found).
-    $lexicalParent = Split-Path -Parent $absolutePath
-    $leafName = Split-Path -Leaf $absolutePath
-    if (Test-Path -LiteralPath $lexicalParent -PathType Container) {
+    $lexicalParent = Split-Path -Parent $AbsolutePath
+    $leafName = Split-Path -Leaf $AbsolutePath
+    if ($lexicalParent -and (Test-Path -LiteralPath $lexicalParent -PathType Container)) {
         $realParent = Get-AutoharnessRealPath (Resolve-Path -LiteralPath $lexicalParent).Path
-        Join-Path $realParent $leafName
-    } else {
-        $absolutePath
+        return Join-Path $realParent $leafName
     }
+    return $AbsolutePath
 }
+
+$targetPath = Resolve-AutoharnessBestEffortRealPath -AbsolutePath $absolutePath
 
 $resolvedDir = Split-Path -Parent $targetPath
 $fileName = Split-Path -Leaf $targetPath
