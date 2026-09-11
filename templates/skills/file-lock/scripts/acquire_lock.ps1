@@ -132,6 +132,47 @@ function Test-AutoharnessPathContained {
     return $RealCandidate.StartsWith($rootWithSeparator, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+# --- Token/digest (O2, TC1-TC6) --------------------------------------------
+#
+# TC1: CSPRNG only, >=128 bits. Get-Random/$RANDOM are forbidden non-CSPRNG
+# sources; System.Security.Cryptography.RandomNumberGenerator is used here.
+# V-a (docs/research/2026-09-10-ship3-file-lock-behavior-matrix-and-token-vectors.md)
+# fixes the concrete choice: 32 bytes (256 bits), lowercase hex, fixed length
+# 64 characters.
+function New-AutoharnessLockToken {
+    # RandomNumberGenerator.Fill() is .NET-Core-only (added 3.0+) and is
+    # unavailable under Windows PowerShell 5.1's .NET Framework runtime --
+    # the portable choice (works on both pwsh and powershell.exe, mirroring
+    # the P/Invoke portability rationale used for real-path resolution) is
+    # the classic instance-based Create()/GetBytes() API.
+    $bytes = New-Object byte[] 32
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    }
+    finally {
+        $rng.Dispose()
+    }
+    return -join ($bytes | ForEach-Object { $_.ToString('x2') })
+}
+
+# TC3: SHA-256 digest of the token's canonical UTF-8 bytes (no BOM, no
+# trailing newline -- V-a/V-b). `Encoding.UTF8.GetBytes` does not add a BOM
+# (only file-writing APIs do, per task 0's empirical finding); this operates
+# on the in-memory string directly, never via a file.
+function Get-AutoharnessTokenDigest {
+    param([Parameter(Mandatory = $true)][string]$Token)
+    $tokenBytes = [System.Text.Encoding]::UTF8.GetBytes($Token)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digestBytes = $sha.ComputeHash($tokenBytes)
+    }
+    finally {
+        $sha.Dispose()
+    }
+    return -join ($digestBytes | ForEach-Object { $_.ToString('x2') })
+}
+
 function Resolve-AutoharnessWorkspaceRoot {
     param([Parameter(Mandatory = $false)][string]$ExplicitRoot)
 
@@ -217,12 +258,18 @@ if (Test-Path -LiteralPath $lockFile) {
 $agentName = if ($env:AGENT_NAME) { $env:AGENT_NAME } else { "unknown" }
 $timestamp = Get-Date -Format 'o'
 $pid_val = $PID
+$lockToken = New-AutoharnessLockToken
+$ownerDigest = Get-AutoharnessTokenDigest -Token $lockToken
 
+# O1: `agent`/`pid` remain a courtesy/anti-accident identity only (never
+# authorisation -- see TC5/O2). O2: `owner_digest` is the capability check;
+# the token itself is NEVER persisted, only its digest.
 $lockContent = @"
 agent: $agentName
 timestamp: $timestamp
 pid: $pid_val
 file: $FilePath
+owner_digest: $ownerDigest
 "@
 
 try {
@@ -238,6 +285,11 @@ try {
     $writer.Close()
     $stream.Close()
     Write-Host "Lock acquired: $lockFile"
+    # TC5: the token is a short-lived secret returned on stdout so the
+    # caller can capture it. It is printed here, ONCE, on success, and MUST
+    # NEVER be re-echoed by this script (or release_lock.ps1) in any later
+    # status, verbose, or error output.
+    Write-Host "LOCK_TOKEN=$lockToken"
     exit 0
 }
 catch [System.IO.IOException] {

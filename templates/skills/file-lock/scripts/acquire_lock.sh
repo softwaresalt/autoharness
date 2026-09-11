@@ -114,14 +114,46 @@ AGENT_NAME="${AGENT_NAME:-unknown}"
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 PID_VAL="$$"
 
+# --- Token generation (TC1/V-a) and digest (TC3/V-b/V-d) ------------------
+#
+# TC1 requires a CSPRNG source of >=128 bits; $RANDOM/awk-rand style
+# generators are forbidden. Prefer openssl's CSPRNG when present, otherwise
+# read directly from /dev/urandom (both are legitimate CSPRNG sources on
+# POSIX). If neither is available, fail closed rather than silently falling
+# back to a weaker generator -- no lock is acquired.
+if command -v openssl >/dev/null 2>&1; then
+    LOCK_TOKEN="$(openssl rand -hex 32)"
+elif [ -r /dev/urandom ]; then
+    LOCK_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
+else
+    echo "Error: no CSPRNG source available (need 'openssl' or a readable /dev/urandom); refusing to fabricate a weaker token." >&2
+    exit 1
+fi
+
+# V-d: SHA-256 only, via sha256sum or shasum -a 256; never a weaker digest.
+# printf '%s' (never echo, which may append a trailing newline) preserves the
+# exact UTF-8 bytes of the token per V-a/V-b.
+if command -v sha256sum >/dev/null 2>&1; then
+    OWNER_DIGEST="$(printf '%s' "$LOCK_TOKEN" | sha256sum | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+    OWNER_DIGEST="$(printf '%s' "$LOCK_TOKEN" | shasum -a 256 | awk '{print $1}')"
+else
+    echo "Error: neither 'sha256sum' nor 'shasum -a 256' is available; refusing to fabricate a weaker digest or store the token in plaintext." >&2
+    exit 1
+fi
+
 LOCK_CONTENT="agent: ${AGENT_NAME}
 timestamp: ${TIMESTAMP}
 pid: ${PID_VAL}
-file: ${FILEPATH}"
+file: ${FILEPATH}
+owner_digest: ${OWNER_DIGEST}"
 
 # Use exclusive file creation to minimize race window
 if (set -o noclobber; echo "$LOCK_CONTENT" > "$LOCKFILE") 2>/dev/null; then
     echo "Lock acquired: $LOCKFILE"
+    # TC5: print the token once, on success, so the caller can capture it.
+    # NEVER re-echo this token in any later status/verbose/error output.
+    echo "LOCK_TOKEN=${LOCK_TOKEN}"
     exit 0
 else
     echo "Warning: Lock already held on: $FILEPATH (race condition)" >&2
