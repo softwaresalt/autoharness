@@ -306,6 +306,49 @@ if [ "$OWNERSHIP_VERIFIED" -ne 1 ]; then
     echo "Warning: --force supplied; breaking this lock without a verified token (${OWNER_REPORT}). O3: this is an advisory lock, not an adversarial guarantee -- only the operator should do this." >&2
 fi
 
+if [ "$OWNERSHIP_VERIFIED" -eq 1 ]; then
+    # Round-9 review follow-up (TOCTOU race): ownership was verified above
+    # against a SNAPSHOT of the lock file read earlier in this script.
+    # Between that read and the `rm -f` below, another legitimate release
+    # could have removed this same lock and a new owner could have
+    # acquired a DIFFERENT lock at the same path; without a recheck, `rm -f`
+    # would delete whatever currently occupies the pathname -- i.e. the new
+    # owner's lock -- using this process's now-stale token verification.
+    # Re-reading owner_digest immediately before deletion and refusing to
+    # proceed unless it still matches narrows (though, absent an atomic
+    # compare-and-delete filesystem primitive, cannot fully eliminate) that
+    # race window. This mitigation only applies to the token-verified path;
+    # --force remains an unconditional operator override per O3 and is not
+    # re-checked here.
+    if [ -n "${AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS:-}" ]; then
+        # TEST-ONLY HOOK: deterministically widens the TOCTOU window so an
+        # automated test can inject a concurrent lock change between this
+        # verification and the recheck below. Never set outside test runs;
+        # when the environment variable is absent (the default), this is a
+        # complete no-op with zero behavioural or timing impact.
+        if [ -n "${AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE:-}" ]; then
+            # TEST-ONLY HOOK: signals the harness that this process has
+            # entered the widened race window, so the test can perform the
+            # concurrent swap deterministically instead of guessing at
+            # process-startup timing. Never set outside test runs.
+            : > "$AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE"
+        fi
+        _delay_seconds="$(awk -v ms="$AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS" 'BEGIN { printf "%f", ms / 1000 }')"
+        sleep "$_delay_seconds"
+    fi
+    if [ ! -e "$LOCKFILE" ]; then
+        echo "Warning: lock file disappeared before deletion could be confirmed (already released by another process): $LOCKFILE" >&2
+        exit 0
+    fi
+    RECHECK_CONTENT="$(cat "$LOCKFILE")"
+    RECHECK_DIGEST="$(printf '%s\n' "$RECHECK_CONTENT" | sed -n 's/^owner_digest: //p' | tail -n1)"
+    RECHECK_DIGEST_LOWER="$(printf '%s' "$RECHECK_DIGEST" | tr '[:upper:]' '[:lower:]')"
+    if [ -z "$RECHECK_DIGEST" ] || [ "$RECHECK_DIGEST_LOWER" != "$RECORDED_DIGEST_LOWER" ]; then
+        echo "Error: refusing to release -- the lock at '$LOCKFILE' changed between verification and deletion (a different owner now holds it); this process's token no longer matches the current owner. Re-run release to re-verify against the new owner, or have the operator use --force." >&2
+        exit 1
+    fi
+fi
+
 if rm -f "$LOCKFILE"; then
     echo "Lock released: $LOCKFILE"
     exit 0

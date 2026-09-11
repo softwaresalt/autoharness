@@ -29,11 +29,13 @@ values.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -49,6 +51,24 @@ _PWSH_INTERPRETERS = [p for p in _PWSH_CANDIDATES if p]
 _BASH = shutil.which("bash")
 
 _TOKEN_LINE_RE = re.compile(r"^LOCK_TOKEN=([0-9a-f]{64})$", re.MULTILINE)
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+_PWSH_ERROR_GUTTER_RE = re.compile(r"(?m)^\s*\d*\s*\|\s?")
+
+
+def _normalize_pwsh_error_text(text: str) -> str:
+    """Strip ANSI/VT100 escape sequences AND the per-line `NNN | ` gutter
+    prefix that PowerShell 7's `ConciseView` error rendering inserts on
+    every wrapped continuation line (observed on Linux CI's `/usr/bin/pwsh`
+    even though stderr is not a TTY) -- without stripping the gutter, a
+    long human-readable error phrase that happens to wrap across lines
+    would literally contain a stray `| ` in the middle where none exists
+    in the original message. Then collapse all remaining whitespace/line
+    breaks, so the phrase can be matched as a single contiguous substring
+    regardless of host platform, PowerShell edition, or console width."""
+    stripped = _ANSI_ESCAPE_RE.sub("", text)
+    de_guttered = _PWSH_ERROR_GUTTER_RE.sub("", stripped)
+    return re.sub(r"\s+", " ", de_guttered)
 
 # Frozen (token -> owner_digest) constants from V-c/V-c2 in
 # docs/research/2026-09-10-ship3-file-lock-behavior-matrix-and-token-vectors.md.
@@ -141,6 +161,23 @@ def _run_ps1(interpreter: str, script: Path, args: list[str], cwd: Path):
     return subprocess.run(
         full_args, cwd=cwd, capture_output=True, text=True, timeout=60
     )
+
+
+def _wait_for_signal_file(signal_path: Path, timeout_s: float = 10.0) -> bool:
+    """Poll for a test-only signal file's existence, deterministically.
+
+    Used by the round-10 TOCTOU race regression tests below: rather than
+    guessing at process-startup/scheduling timing with a fixed sleep before
+    racing a concurrent lock swap, the release script (under the
+    AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL_FILE test-only hooks)
+    touches this file the instant it enters the widened recheck window, so
+    the swap always lands inside that window regardless of host speed."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if signal_path.exists():
+            return True
+        time.sleep(0.02)
+    return signal_path.exists()
 
 
 def _make_junction(link_path: Path, target: Path, interpreter: str) -> None:
@@ -665,6 +702,114 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                 self.assertIn("-Force", release_result.stderr)
                 self.lock_file.unlink()
 
+    def test_release_refuses_when_lock_swapped_underneath_verified_token_toctou(
+        self,
+    ) -> None:
+        """Round-10 Copilot review regression (TOCTOU race): release
+        verifies ownership against a SNAPSHOT of the lock file read at
+        startup, then (pre-fix) unconditionally deleted whatever currently
+        occupied the path. If a second legitimate owner re-acquired a
+        DIFFERENT lock at the same path between that snapshot read and the
+        deletion, the stale verification would delete the new owner's lock.
+
+        This test drives that exact interleaving deterministically using
+        the test-only AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL_FILE
+        hooks (never set outside test runs; a complete no-op when absent):
+        it starts a release of lock A in the background, waits for the
+        release process's own signal confirming it has verified lock A's
+        token and entered the widened pre-delete recheck window, then
+        overwrites the lock file's content in place with a different
+        owner's digest (a single write, deliberately never an
+        unlink-then-recreate step -- that would open a transient
+        "file absent" window racing against this same background process
+        and nondeterministically exercise the separate, already-covered
+        "lock disappeared" branch instead of the digest-mismatch branch
+        this test targets), and asserts the backgrounded release now
+        REFUSES (non-zero exit, lock B's content left in place) instead of
+        deleting lock B."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+                acquire_a = self._acquire(interpreter)
+                self.assertEqual(acquire_a.returncode, 0, msg=acquire_a.stderr)
+                token_a_match = _TOKEN_LINE_RE.search(acquire_a.stdout)
+                self.assertIsNotNone(token_a_match)
+                token_a = token_a_match.group(1)
+
+                signal_file = self.root / ".release_race.signal"
+                if signal_file.exists():
+                    signal_file.unlink()
+                env = dict(os.environ)
+                env["AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS"] = "1500"
+                env["AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE"] = str(signal_file)
+                release_proc = subprocess.Popen(
+                    [
+                        interpreter,
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(_PS1_RELEASE),
+                        str(self.target),
+                        "-Token",
+                        token_a,
+                    ],
+                    cwd=self.root,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                try:
+                    self.assertTrue(
+                        _wait_for_signal_file(signal_file),
+                        msg="release process never reached the widened recheck "
+                        "window -- test cannot prove the race was exercised",
+                    )
+                    # Race: swap in a brand-new lock B's content at the same
+                    # path (a single write, never an unlink+recreate gap --
+                    # a transient "file absent" window would exercise the
+                    # separate already-fixed "lock disappeared" branch
+                    # instead of the TOCTOU digest-mismatch branch this test
+                    # targets) while A's release is paused in its pre-delete
+                    # recheck window.
+                    token_b = "b" * 63 + "1"
+                    digest_b = _expected_digest(token_b)
+                    _write_lock_file_with_digest(
+                        self.lock_file, digest_b, file_field=str(self.target)
+                    )
+                    stdout_a, stderr_a = release_proc.communicate(timeout=30)
+                finally:
+                    if release_proc.poll() is None:
+                        release_proc.kill()
+                        release_proc.communicate()
+
+                self.assertNotEqual(
+                    release_proc.returncode,
+                    0,
+                    msg=f"stale release of A must refuse once B has replaced the "
+                    f"lock; stdout={stdout_a!r} stderr={stderr_a!r}",
+                )
+                self.assertIn(
+                    "changed between verification and deletion",
+                    _normalize_pwsh_error_text(stderr_a),
+                    msg=f"stderr={stderr_a!r}",
+                )
+                self.assertTrue(
+                    self.lock_file.exists(),
+                    msg="lock B must survive the stale release-A attempt",
+                )
+                lock_b_content = self.lock_file.read_text(encoding="utf-8")
+                self.assertIn(
+                    f"owner_digest: {digest_b}",
+                    lock_b_content,
+                    msg="the surviving lock must still be B's, not a stale remnant of A's",
+                )
+                self.lock_file.unlink()
+                if signal_file.exists():
+                    signal_file.unlink()
+
 
 def _read_lf(path: Path) -> str:
     return path.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -1050,6 +1195,71 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
         self.assertIn(str(self.lock_file), release_result.stderr)
         self.assertIn("stale", release_result.stderr.lower())
         self.assertIn("--force", release_result.stderr)
+
+    def test_release_refuses_when_lock_swapped_underneath_verified_token_toctou(
+        self,
+    ) -> None:
+        """Round-10 Copilot review regression (TOCTOU race), bash mirror of
+        the PowerShell test of the same name above. See that test's
+        docstring for the full race narrative; this drives the identical
+        interleaving against release_lock.sh using the same test-only
+        AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL_FILE hooks."""
+        acquire_a = self._acquire()
+        self.assertEqual(acquire_a.returncode, 0, msg=acquire_a.stderr)
+        token_a_match = _TOKEN_LINE_RE.search(acquire_a.stdout)
+        self.assertIsNotNone(token_a_match)
+        token_a = token_a_match.group(1)
+
+        signal_file = self.root / ".release_race.signal"
+        if signal_file.exists():
+            signal_file.unlink()
+        env = dict(os.environ)
+        env["AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS"] = "1500"
+        env["AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE"] = str(signal_file)
+        release_proc = subprocess.Popen(
+            [_BASH, str(self.release_script), str(self.target), "--token", token_a],
+            cwd=self.root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            self.assertTrue(
+                _wait_for_signal_file(signal_file),
+                msg="release process never reached the widened recheck window "
+                "-- test cannot prove the race was exercised",
+            )
+            # Race: overwrite the lock file's content in place with a
+            # different owner's digest (a single write, never an
+            # unlink-then-recreate step -- see the PowerShell test's
+            # docstring for why that would be nondeterministic) while A's
+            # release is paused in its pre-delete recheck window.
+            token_b = "b" * 63 + "1"
+            digest_b = _expected_digest(token_b)
+            _write_lock_file_with_digest(self.lock_file, digest_b, file_field=str(self.target))
+            stdout_a, stderr_a = release_proc.communicate(timeout=30)
+        finally:
+            if release_proc.poll() is None:
+                release_proc.kill()
+                release_proc.communicate()
+
+        self.assertNotEqual(
+            release_proc.returncode,
+            0,
+            msg=f"stale release of A must refuse once B has replaced the lock; "
+            f"stdout={stdout_a!r} stderr={stderr_a!r}",
+        )
+        self.assertIn("changed between verification and deletion", stderr_a)
+        self.assertTrue(
+            self.lock_file.exists(), msg="lock B must survive the stale release-A attempt"
+        )
+        lock_b_content = self.lock_file.read_text(encoding="utf-8")
+        self.assertIn(
+            f"owner_digest: {digest_b}",
+            lock_b_content,
+            msg="the surviving lock must still be B's, not a stale remnant of A's",
+        )
 
 
 if __name__ == "__main__":

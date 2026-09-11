@@ -394,6 +394,53 @@ if (-not $ownershipVerified) {
     Write-Warning "autoharness-file-lock: -Force supplied; breaking this lock without a verified token ($ownerReport). O3: this is an advisory lock, not an adversarial guarantee -- only the operator should do this."
 }
 
+if ($ownershipVerified) {
+    # Round-9 review follow-up (TOCTOU race): ownership was verified above
+    # against a SNAPSHOT of the lock file read earlier in this script.
+    # Between that read and the Remove-Item below, another legitimate
+    # release could have removed this same lock and a new owner could have
+    # acquired a DIFFERENT lock at the same path; without a recheck,
+    # Remove-Item would delete "whatever currently occupies the path" --
+    # i.e. the new owner's lock -- using this process's now-stale token
+    # verification. Re-reading owner_digest immediately before deletion and
+    # refusing to proceed unless it still matches narrows (though, absent an
+    # atomic compare-and-delete filesystem primitive, cannot fully
+    # eliminate) that race window. This mitigation only applies to the
+    # token-verified path; -Force remains an unconditional operator
+    # override per O3 and is not re-checked here.
+    if ($env:AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS) {
+        # TEST-ONLY HOOK: deterministically widens the TOCTOU window so an
+        # automated test can inject a concurrent lock change between this
+        # verification and the recheck below. Never set outside test runs;
+        # when the environment variable is absent (the default), this is a
+        # complete no-op with zero behavioural or timing impact.
+        if ($env:AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE) {
+            # TEST-ONLY HOOK: signals the harness that this process has
+            # entered the widened race window, so the test can perform the
+            # concurrent swap deterministically instead of guessing at
+            # process-startup timing. Never set outside test runs.
+            New-Item -ItemType File -Path $env:AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE -Force | Out-Null
+        }
+        Start-Sleep -Milliseconds ([int]$env:AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS)
+    }
+    if (-not (Test-Path -LiteralPath $lockFile)) {
+        Write-Warning "autoharness-file-lock: lock file disappeared before deletion could be confirmed (already released by another process): $lockFile"
+        exit 0
+    }
+    $recheckContent = Get-Content -LiteralPath $lockFile -Raw
+    $recheckDigest = $null
+    foreach ($line in ($recheckContent -split "`r?`n")) {
+        if ($line -match '^owner_digest:\s*(.*)$') {
+            $recheckDigest = $Matches[1]
+            break
+        }
+    }
+    if (-not ($recheckDigest -and $recheckDigest.Equals($recordedDigest, [System.StringComparison]::OrdinalIgnoreCase))) {
+        Write-Error "autoharness-file-lock: refusing to release -- the lock at '$lockFile' changed between verification and deletion (a different owner now holds it); this process's token no longer matches the current owner. Re-run release to re-verify against the new owner, or have the operator use -Force."
+        exit 1
+    }
+}
+
 try {
     Remove-Item -LiteralPath $lockFile -Force
     Write-Host "Lock released: $lockFile"
