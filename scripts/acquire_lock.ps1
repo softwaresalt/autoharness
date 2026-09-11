@@ -305,9 +305,24 @@ $fileName = Split-Path -Leaf $realTargetPath
 $lockFile = Join-Path $directory ".$fileName.lock"
 
 if (Test-Path -LiteralPath $lockFile) {
-    $lockContent = Get-Content -LiteralPath $lockFile -Raw
+    # TC5d: the lock content now carries owner_digest (O2). Printing the raw
+    # file content here would leak owner_digest into contention diagnostics,
+    # contradicting TC5d's "never print owner_digest or the token"
+    # guarantee. Parse and print only the non-sensitive fields (agent, pid,
+    # timestamp), the same fields release_lock.ps1 reports in its own
+    # ownership-refusal diagnostic.
+    $existingLockContent = Get-Content -LiteralPath $lockFile -Raw
+    $existingFields = @{}
+    foreach ($line in ($existingLockContent -split "`r?`n")) {
+        if ($line -match '^([a-zA-Z_]+):\s*(.*)$') {
+            $existingFields[$Matches[1]] = $Matches[2]
+        }
+    }
+    $existingAgent = if ($existingFields.ContainsKey('agent')) { $existingFields['agent'] } else { 'unknown' }
+    $existingPid = if ($existingFields.ContainsKey('pid')) { $existingFields['pid'] } else { 'unknown' }
+    $existingTimestamp = if ($existingFields.ContainsKey('timestamp')) { $existingFields['timestamp'] } else { 'unknown' }
     Write-Warning "Lock already held on: $FilePath"
-    Write-Warning "Lock info: $lockContent"
+    Write-Warning "Lock info: agent=$existingAgent, pid=$existingPid, timestamp=$existingTimestamp"
     exit 1
 }
 

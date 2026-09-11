@@ -11,13 +11,25 @@
 # lock unconditionally and is intended for operator use only (O3: these are
 # advisory locks, not an adversarial security boundary).
 #
-# Usage: scripts/release_lock.sh <filepath> [--token <token>] [--force]
+# --workspace-root <path> (optional; round-6 review, finding-6 parity):
+# anchors a RELATIVE filepath argument to the given root instead of the
+# process's current working directory, so a caller invoking acquire and
+# release from two DIFFERENT working directories with the same documented
+# workspace-relative path (e.g. "sub/file.txt") computes the SAME lock
+# path in both cases. When omitted, relative paths continue to resolve
+# against the process CWD exactly as before (no default root is derived
+# and no root is required) -- this option is purely additive and does not
+# change behaviour for any absolute-path invocation, or for any caller that
+# does not supply it.
+#
+# Usage: scripts/release_lock.sh <filepath> [--token <token>] [--force] [--workspace-root <path>]
 
 set -euo pipefail
 
 FILEPATH=""
 TOKEN="${LOCK_TOKEN:-}"
 FORCE=0
+WORKSPACE_ROOT=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -33,11 +45,19 @@ while [ $# -gt 0 ]; do
             FORCE=1
             shift
             ;;
+        --workspace-root)
+            if [ $# -lt 2 ]; then
+                echo "Error: --workspace-root requires a value" >&2
+                exit 1
+            fi
+            WORKSPACE_ROOT="$2"
+            shift 2
+            ;;
         *)
             if [ -z "$FILEPATH" ]; then
                 FILEPATH="$1"
             else
-                echo "Usage: release_lock.sh <filepath> [--token <token>] [--force]" >&2
+                echo "Usage: release_lock.sh <filepath> [--token <token>] [--force] [--workspace-root <path>]" >&2
                 exit 1
             fi
             shift
@@ -46,8 +66,26 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$FILEPATH" ]; then
-    echo "Usage: release_lock.sh <filepath> [--token <token>] [--force]" >&2
+    echo "Usage: release_lock.sh <filepath> [--token <token>] [--force] [--workspace-root <path>]" >&2
     exit 1
+fi
+
+# When --workspace-root is supplied and FILEPATH is relative (does not
+# start with "/"), anchor it to the given root instead of the process CWD.
+# An absolute FILEPATH is left untouched -- there is no CWD ambiguity to
+# resolve for it, matching acquire_lock.sh's own treatment of --workspace-root
+# (which affects containment decisions, never path resolution, for an
+# already-absolute target).
+if [ -n "$WORKSPACE_ROOT" ]; then
+    if [ ! -e "$WORKSPACE_ROOT" ]; then
+        echo "Error: --workspace-root does not exist: $WORKSPACE_ROOT" >&2
+        exit 1
+    fi
+    REAL_WORKSPACE_ROOT="$(realpath "$WORKSPACE_ROOT")"
+    case "$FILEPATH" in
+        /*) ;;
+        *) FILEPATH="${REAL_WORKSPACE_ROOT}/${FILEPATH}" ;;
+    esac
 fi
 
 if [ ! -e "$FILEPATH" ]; then

@@ -21,13 +21,21 @@ Agents MUST follow the concurrency protocol defined in
 
 * `filepath`: (Required) Path to the target file, relative to the workspace root.
 * `action`: (Required) One of `acquire` or `release`.
-* `--workspace-root <path>` (acquire only, optional): explicit workspace
-  root for the H2/H4 containment check. When omitted, the root is derived
-  from `git rev-parse --show-toplevel`, but only trusted when the script's
-  own installed directory is exactly that root's `scripts/` child (guards
-  against a nested checkout without its own `.git` silently widening to an
-  ancestor repository's root); otherwise acquire fails closed and requires
-  this flag explicitly.
+* `--workspace-root <path>` (acquire: optional, fail-closed default;
+  release: optional, no default): explicit workspace root.
+  * On `acquire`, this is the H2/H4 containment-check root. When omitted,
+    the root is derived from `git rev-parse --show-toplevel`, but only
+    trusted when the script's own installed directory is exactly that
+    root's `scripts/` child (guards against a nested checkout without its
+    own `.git` silently widening to an ancestor repository's root);
+    otherwise acquire fails closed and requires this flag explicitly.
+  * On `release`, this anchors a *relative* `filepath` to the given root
+    instead of the process's current working directory, so a caller
+    invoking acquire and release from two different working directories
+    with the same workspace-relative path computes the same lock path in
+    both cases. Purely additive: omitting it preserves today's
+    CWD-relative resolution exactly, and an already-absolute `filepath` is
+    never affected.
 * `--token <token>` (release only, optional): the capability token printed
   by `acquire_lock` at acquire time (`LOCK_TOKEN=<token>`). Falls back to
   the `LOCK_TOKEN` environment variable when not supplied. Required to
@@ -150,8 +158,8 @@ Releases a file lock by deleting the `.{filename}.lock` file, after
 verifying the caller can prove ownership of it.
 
 ```text
-PowerShell: scripts/release_lock.ps1 <filepath> [-Token <token>] [-Force]
-Bash:       scripts/release_lock.sh <filepath> [--token <token>] [--force]
+PowerShell: scripts/release_lock.ps1 <filepath> [-Token <token>] [-Force] [-WorkspaceRoot <path>]
+Bash:       scripts/release_lock.sh <filepath> [--token <token>] [--force] [--workspace-root <path>]
 ```
 
 Refuses (non-zero exit, lock left in place) unless the supplied token's

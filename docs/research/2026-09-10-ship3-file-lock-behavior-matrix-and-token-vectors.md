@@ -138,6 +138,22 @@ required); the fact that POSIX does not crash must not be read as "POSIX has no
 bug here" — it has a *different*, harder-to-notice one (lock-path divergence if
 acquire and release are ever invoked from different working directories).
 
+**Implementation note (round-6 Copilot review, this same task)**: the
+root-anchoring fix above removes the *crash*, but does not by itself make
+acquire and release compute the **same** lock path when the two are invoked
+from genuinely different working directories, because `release_lock`'s
+resolution is still CWD-relative when no explicit root is supplied. The
+implemented fix adds an **optional** `--workspace-root <path>` /
+`-WorkspaceRoot <path>` parameter to `release_lock.{sh,ps1}` (mirroring
+`acquire_lock`'s existing parameter) that anchors a *relative* `filepath`
+argument to the given root instead of the process CWD. Unlike `acquire`'s
+mandatory, fail-closed git-derived default, this parameter is deliberately
+**optional with no default** on `release`: when omitted, resolution behaves
+exactly as before (CWD-relative), preserving full backward compatibility for
+every existing caller and test. A caller that wants a CWD-independent
+round trip supplies the same `--workspace-root` value to both `acquire` and
+`release`.
+
 ### Case 7 — nested git checkout: `git rev-parse --show-toplevel` widens to the parent repository (finding 2)
 
 | Platform | Observed | Intended post-fix |

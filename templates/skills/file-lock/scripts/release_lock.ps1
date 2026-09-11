@@ -19,6 +19,17 @@
     back to the LOCK_TOKEN environment variable when not supplied.
 .PARAMETER Force
     Operator-only override: break the lock even without a matching token.
+.PARAMETER WorkspaceRoot
+    Optional (round-6 review, finding-6 parity). Anchors a RELATIVE FilePath
+    to the given root instead of the process's current working directory,
+    so a caller invoking acquire and release from two DIFFERENT working
+    directories with the same documented workspace-relative path (e.g.
+    "sub/file.txt") computes the SAME lock path in both cases. When
+    omitted, relative paths continue to resolve against the process CWD
+    exactly as before (no default root is derived and no root is
+    required) -- this parameter is purely additive and does not change
+    behaviour for any absolute-path invocation, or for any caller that
+    does not supply it.
 .EXAMPLE
     scripts/release_lock.ps1 src/main.rs -Token <token>
 .EXAMPLE
@@ -33,7 +44,10 @@ param(
     [string]$Token,
 
     [Parameter(Mandatory = $false)]
-    [switch]$Force
+    [switch]$Force,
+
+    [Parameter(Mandatory = $false)]
+    [string]$WorkspaceRoot
 )
 
 Set-StrictMode -Version Latest
@@ -184,6 +198,24 @@ function Get-AutoharnessSingleQuoted {
     return "'" + ($Value -replace "'", "''") + "'"
 }
 
+# -WorkspaceRoot (optional, round-6 review, finding-6 parity): when supplied
+# and $FilePath is relative, anchor it to the given root instead of the
+# process CWD, so a caller invoking acquire and release from two DIFFERENT
+# working directories with the same documented workspace-relative path
+# computes the SAME lock path in both cases. An absolute $FilePath is left
+# untouched, and omitting -WorkspaceRoot preserves today's CWD-relative
+# behaviour exactly (no default root is derived or required).
+if ($WorkspaceRoot) {
+    if (-not (Test-Path -LiteralPath $WorkspaceRoot)) {
+        Write-Error "--workspace-root does not exist: $WorkspaceRoot"
+        exit 1
+    }
+    $realWorkspaceRootForAnchoring = Get-AutoharnessRealPath (Resolve-Path -LiteralPath $WorkspaceRoot).Path
+    if (-not [System.IO.Path]::IsPathRooted($FilePath)) {
+        $FilePath = Join-Path $realWorkspaceRootForAnchoring $FilePath
+    }
+}
+
 if (-not (Test-Path -LiteralPath $FilePath)) {
     # Target file may have been deleted or moved; still clean up the lock.
     Write-Warning "Target file does not exist: $FilePath"
@@ -199,7 +231,29 @@ $absolutePath = [System.IO.Path]::GetFullPath($FilePath)
 $targetPath = if (Test-Path -LiteralPath $FilePath) {
     Get-AutoharnessRealPath (Resolve-Path -LiteralPath $FilePath).Path
 } else {
-    $absolutePath
+    # Round-6 review / H5 parity fix: a missing target may still have an
+    # existing PARENT directory reached through a symlink/junction (e.g.
+    # acquired via a path like "link/file.txt" where "link" points at
+    # "realdir", then "file.txt" is deleted while "link" itself remains).
+    # acquire_lock always stores the lock beside the FULLY DEREFERENCED
+    # real path, so a purely lexical GetFullPath here would compute the
+    # WRONG lock path (beside the symlink, not the real directory) and
+    # silently leave the actual lock behind -- exactly the defect finding 6
+    # exists to eliminate. Resolve the parent through any reparse points
+    # when it exists (mirroring the POSIX variant's `realpath
+    # "$PARENT_DIR"` behaviour, which dereferences symlinks in the parent
+    # chain even when the leaf is missing), and only fall back to a purely
+    # lexical path when even the parent does not exist (in which case no
+    # lock could exist there regardless, and Test-Path on the computed
+    # lock path below will simply report none found).
+    $lexicalParent = Split-Path -Parent $absolutePath
+    $leafName = Split-Path -Leaf $absolutePath
+    if (Test-Path -LiteralPath $lexicalParent -PathType Container) {
+        $realParent = Get-AutoharnessRealPath (Resolve-Path -LiteralPath $lexicalParent).Path
+        Join-Path $realParent $leafName
+    } else {
+        $absolutePath
+    }
 }
 
 $resolvedDir = Split-Path -Parent $targetPath

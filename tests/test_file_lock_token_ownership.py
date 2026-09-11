@@ -143,6 +143,19 @@ def _run_ps1(interpreter: str, script: Path, args: list[str], cwd: Path):
     )
 
 
+def _make_junction(link_path: Path, target: Path, interpreter: str) -> None:
+    """Create a Windows directory junction without requiring admin rights."""
+    cmd = [
+        interpreter,
+        "-NoProfile",
+        "-Command",
+        f"New-Item -ItemType Junction -Path '{link_path}' -Target '{target}' | Out-Null",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        raise RuntimeError(f"junction creation failed: {result.stderr}")
+
+
 @unittest.skipUnless(_PWSH_INTERPRETERS, "no PowerShell interpreter available")
 class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
     def setUp(self) -> None:
@@ -236,6 +249,33 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                 )
                 self.lock_file.unlink()
 
+    def test_acquire_contention_diagnostic_never_prints_owner_digest(self) -> None:
+        """Round-6 Copilot review regression: adding owner_digest (O2) to the
+        lock payload made the pre-existing contention diagnostic (printed
+        when acquire finds an existing lock) echo the raw lock file content,
+        which now includes owner_digest -- contradicting TC5d's "status,
+        verbose, or error messages must never print owner_digest or the
+        token" guarantee. A second acquire attempt against an already-locked
+        target must report agent/pid/timestamp but never the digest."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+                first = self._acquire(interpreter)
+                self.assertEqual(first.returncode, 0, msg=first.stderr)
+                first_token = _TOKEN_LINE_RE.search(first.stdout).group(1)
+                expected_digest = _expected_digest(first_token)
+                second = self._acquire(interpreter)
+                self.assertNotEqual(second.returncode, 0)
+                combined = second.stdout + second.stderr
+                self.assertNotIn(
+                    expected_digest,
+                    combined,
+                    msg=f"owner_digest leaked in contention diagnostic: {combined!r}",
+                )
+                self.assertNotIn("owner_digest", combined)
+                self.lock_file.unlink()
+
     def test_release_without_token_and_without_force_is_refused(self) -> None:
         for interpreter in _PWSH_INTERPRETERS:
             with self.subTest(interpreter=interpreter):
@@ -325,6 +365,127 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                         f"stdout={result.stdout} stderr={result.stderr}"
                     ),
                 )
+
+    def test_release_missing_target_resolves_lock_through_junction_parent(
+        self,
+    ) -> None:
+        """Round-6 Copilot review regression (H5 parity): when the target
+        does not exist, release_lock.ps1's missing-target branch used to
+        resolve the parent directory purely lexically (GetFullPath, no
+        reparse-point dereferencing), while release_lock.sh's equivalent
+        branch already resolves the parent via `realpath` (dereferencing
+        symlinks/junctions). A lock file created at the REAL parent path
+        must be found and removed even when release is invoked through a
+        junction that points at that real parent."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                iteration_root = Path(tempfile.mkdtemp(dir=self.root))
+                real_parent = iteration_root / "real_parent"
+                real_parent.mkdir()
+                link_parent = iteration_root / "link_parent"
+                _make_junction(link_parent, real_parent, interpreter)
+                # Target does not exist under either path.
+                real_lock_file = real_parent / ".missing.txt.lock"
+                _write_lock_file_with_digest(
+                    real_lock_file, _expected_digest("irrelevant-token")
+                )
+                self.assertTrue(real_lock_file.exists())
+                result = _run_ps1(
+                    interpreter,
+                    _PS1_RELEASE,
+                    [str(link_parent / "missing.txt"), "-Force"],
+                    cwd=iteration_root,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    msg=(
+                        "release through a junction to a missing target "
+                        f"must succeed: stdout={result.stdout} "
+                        f"stderr={result.stderr}"
+                    ),
+                )
+                self.assertFalse(
+                    real_lock_file.exists(),
+                    msg=(
+                        "release must resolve the junctioned parent to its "
+                        "real path and remove the lock file created there, "
+                        "matching acquire's/release_lock.sh's reparse-point "
+                        "dereferencing behaviour (H5 parity)"
+                    ),
+                )
+                lexical_lock_file = link_parent / ".missing.txt.lock"
+                self.assertFalse(
+                    lexical_lock_file.is_file(),
+                    msg="no separate lock file should be created at the lexical junction path",
+                )
+
+    def test_release_workspace_root_anchoring_round_trip_from_different_cwd(
+        self,
+    ) -> None:
+        """Round-6 Copilot review regression (finding 6, CWD-independence):
+        acquire and release must compute the SAME lock path for the same
+        documented workspace-relative path, regardless of the caller's
+        current working directory, when -WorkspaceRoot is supplied. Acquire
+        from one CWD, then release from a DIFFERENT CWD using the same
+        relative path anchored by -WorkspaceRoot, and confirm the lock
+        created during acquire is found and removed."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                iteration_root = Path(tempfile.mkdtemp(dir=self.root))
+                nested_dir = iteration_root / "nested"
+                nested_dir.mkdir()
+                nested_target = nested_dir / "file.txt"
+                nested_target.write_text("contained", encoding="utf-8")
+                rel_path = "nested/file.txt"
+                lock_file = nested_dir / ".file.txt.lock"
+                if lock_file.exists():
+                    lock_file.unlink()
+
+                acquire_result = _run_ps1(
+                    interpreter,
+                    _PS1_ACQUIRE,
+                    [rel_path, "-WorkspaceRoot", str(iteration_root)],
+                    cwd=iteration_root,
+                )
+                self.assertEqual(acquire_result.returncode, 0, msg=acquire_result.stderr)
+                token_match = _TOKEN_LINE_RE.search(acquire_result.stdout)
+                self.assertIsNotNone(token_match)
+                token = token_match.group(1)
+                self.assertTrue(lock_file.exists())
+
+                other_cwd_tmp = tempfile.TemporaryDirectory()
+                try:
+                    other_cwd = Path(other_cwd_tmp.name).resolve()
+                    self.assertNotEqual(other_cwd, iteration_root)
+                    release_result = _run_ps1(
+                        interpreter,
+                        _PS1_RELEASE,
+                        [
+                            rel_path,
+                            "-WorkspaceRoot",
+                            str(iteration_root),
+                            "-Token",
+                            token,
+                        ],
+                        cwd=other_cwd,
+                    )
+                    self.assertEqual(
+                        release_result.returncode,
+                        0,
+                        msg=(
+                            "release from a different CWD with the same "
+                            "-WorkspaceRoot-anchored relative path must "
+                            f"succeed: stdout={release_result.stdout} "
+                            f"stderr={release_result.stderr}"
+                        ),
+                    )
+                    self.assertFalse(
+                        lock_file.exists(),
+                        msg="release must remove the lock created by acquire at the anchored real path",
+                    )
+                finally:
+                    other_cwd_tmp.cleanup()
 
     def test_frozen_v_c_vectors_release_succeeds(self) -> None:
         """TC1-TC6 mandatory acceptance (153.002-T): the release script's own
@@ -498,6 +659,102 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
         right_release = self._release(["--token", token])
         combined_ok = right_release.stdout + right_release.stderr
         self.assertNotIn(digest, combined_ok)
+
+    def test_acquire_contention_diagnostic_never_prints_owner_digest(self) -> None:
+        """Round-6 Copilot review regression: adding owner_digest (O2) to the
+        lock payload made the pre-existing contention diagnostic (printed
+        when acquire finds an existing lock) echo the raw lock file content
+        via `cat`, which now includes owner_digest -- contradicting TC5d's
+        "status, verbose, or error messages must never print owner_digest or
+        the token" guarantee. A second acquire attempt against an
+        already-locked target must report agent/pid/timestamp but never the
+        digest."""
+        first = self._acquire()
+        self.assertEqual(first.returncode, 0, msg=first.stderr)
+        first_token = _TOKEN_LINE_RE.search(first.stdout).group(1)
+        expected_digest = _expected_digest(first_token)
+        second = self._acquire()
+        self.assertNotEqual(second.returncode, 0)
+        combined = second.stdout + second.stderr
+        self.assertNotIn(
+            expected_digest,
+            combined,
+            msg=f"owner_digest leaked in contention diagnostic: {combined!r}",
+        )
+        self.assertNotIn("owner_digest", combined)
+
+    def test_release_workspace_root_anchoring_round_trip_from_different_cwd(
+        self,
+    ) -> None:
+        """Round-6 Copilot review regression (finding 6, CWD-independence):
+        acquire and release must compute the SAME lock path for the same
+        documented workspace-relative path, regardless of the caller's
+        current working directory, when --workspace-root is supplied.
+        Acquire from one CWD, then release from a DIFFERENT CWD using the
+        same relative path anchored by --workspace-root, and confirm the
+        lock created during acquire is found and removed."""
+        nested_dir = self.root / "nested"
+        nested_dir.mkdir()
+        nested_target = nested_dir / "file.txt"
+        nested_target.write_text("contained", encoding="utf-8")
+        rel_path = "nested/file.txt"
+        lock_file = nested_dir / ".file.txt.lock"
+        if lock_file.exists():
+            lock_file.unlink()
+
+        acquire_result = subprocess.run(
+            [
+                _BASH,
+                str(self.acquire_script),
+                rel_path,
+                "--workspace-root",
+                str(self.root),
+            ],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(acquire_result.returncode, 0, msg=acquire_result.stderr)
+        token_match = _TOKEN_LINE_RE.search(acquire_result.stdout)
+        self.assertIsNotNone(token_match)
+        token = token_match.group(1)
+        self.assertTrue(lock_file.exists())
+
+        other_cwd_tmp = tempfile.TemporaryDirectory()
+        try:
+            other_cwd = Path(other_cwd_tmp.name).resolve()
+            self.assertNotEqual(other_cwd, self.root)
+            release_result = subprocess.run(
+                [
+                    _BASH,
+                    str(self.release_script),
+                    rel_path,
+                    "--workspace-root",
+                    str(self.root),
+                    "--token",
+                    token,
+                ],
+                cwd=other_cwd,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            self.assertEqual(
+                release_result.returncode,
+                0,
+                msg=(
+                    "release from a different CWD with the same "
+                    "--workspace-root-anchored relative path must succeed: "
+                    f"stdout={release_result.stdout} stderr={release_result.stderr}"
+                ),
+            )
+            self.assertFalse(
+                lock_file.exists(),
+                msg="release must remove the lock created by acquire at the anchored real path",
+            )
+        finally:
+            other_cwd_tmp.cleanup()
 
     def test_release_root_level_missing_target_does_not_crash(self) -> None:
         missing_root_level = self.root / "MISSING.md"

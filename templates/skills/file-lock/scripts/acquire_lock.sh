@@ -135,8 +135,18 @@ FILENAME="$(basename "$REAL_TARGET")"
 LOCKFILE="${DIRECTORY}/.${FILENAME}.lock"
 
 if [ -e "$LOCKFILE" ]; then
+    # TC5d: the lock content now carries owner_digest (O2). Printing the raw
+    # file content here would leak owner_digest into contention diagnostics,
+    # contradicting TC5d's "never print owner_digest or the token"
+    # guarantee. Parse and print only the non-sensitive fields (agent, pid,
+    # timestamp), the same fields release_lock.sh reports in its own
+    # ownership-refusal diagnostic.
+    EXISTING_LOCK_CONTENT="$(cat "$LOCKFILE")"
+    EXISTING_AGENT="$(printf '%s\n' "$EXISTING_LOCK_CONTENT" | sed -n 's/^agent: //p' | head -n1)"
+    EXISTING_PID="$(printf '%s\n' "$EXISTING_LOCK_CONTENT" | sed -n 's/^pid: //p' | head -n1)"
+    EXISTING_TIMESTAMP="$(printf '%s\n' "$EXISTING_LOCK_CONTENT" | sed -n 's/^timestamp: //p' | head -n1)"
     echo "Warning: Lock already held on: $FILEPATH" >&2
-    echo "Warning: Lock info: $(cat "$LOCKFILE")" >&2
+    echo "Warning: Lock info: agent=${EXISTING_AGENT:-unknown}, pid=${EXISTING_PID:-unknown}, timestamp=${EXISTING_TIMESTAMP:-unknown}" >&2
     exit 1
 fi
 
