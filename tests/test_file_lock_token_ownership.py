@@ -815,6 +815,51 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                 if signal_file.exists():
                     signal_file.unlink()
 
+    def test_release_recheck_uses_last_owner_digest_not_first_injection(
+        self,
+    ) -> None:
+        """Round-12 Copilot review regression: the round-10 TOCTOU recheck
+        stopped scanning at the FIRST `owner_digest:` line match, while the
+        initial ownership parse above it in this same script (and the
+        POSIX release_lock.sh recheck) both keep the LAST match instead --
+        because acquire_lock writes caller-controlled fields (e.g. `agent`)
+        BEFORE the genuine final digest, a newline embedded in one of those
+        fields can inject an earlier, attacker-chosen `owner_digest:` line.
+        Before this fix, that first-match recheck would see the injected
+        value, disagree with the correctly-parsed (last-match) recorded
+        digest used for the initial verification, and falsely refuse to
+        release a lock the caller legitimately owns. This test constructs
+        exactly that injected lock file directly (no acquire/race needed,
+        since the recheck runs on every token-verified release) and asserts
+        release still succeeds against the genuine digest."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+                token = "a" * 63 + "1"
+                digest = _expected_digest(token)
+                injected_agent = "legit-agent\nowner_digest: " + ("0" * 64)
+                content = (
+                    f"agent: {injected_agent}\n"
+                    "timestamp: 2026-01-01T00:00:00Z\n"
+                    "pid: 12345\n"
+                    f"file: {self.target}\n"
+                    f"owner_digest: {digest}\n"
+                )
+                self.lock_file.write_text(content, encoding="utf-8")
+                result = self._release(interpreter, ["-Token", token])
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    msg=(
+                        "release must succeed against the genuine (last) "
+                        "owner_digest despite an injected earlier "
+                        f"owner_digest line: stdout={result.stdout} "
+                        f"stderr={result.stderr}"
+                    ),
+                )
+                self.assertFalse(self.lock_file.exists())
+
 
 def _read_lf(path: Path) -> str:
     return path.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -1265,6 +1310,40 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
             lock_b_content,
             msg="the surviving lock must still be B's, not a stale remnant of A's",
         )
+
+    def test_release_recheck_uses_last_owner_digest_not_first_injection(self) -> None:
+        """Round-12 Copilot review characterization test (POSIX side):
+        release_lock.sh's TOCTOU recheck already selects the LAST
+        `owner_digest:` match (`tail -n1`, same as the initial parse and
+        same fix applied to the PowerShell recheck's round-12 regression),
+        so a caller-controlled `agent` field containing an embedded newline
+        that injects an earlier, attacker-chosen `owner_digest:` line must
+        NOT cause a false refusal. Locks this already-correct behaviour in
+        as an explicit regression test."""
+        if self.lock_file.exists():
+            self.lock_file.unlink()
+        token = "a" * 63 + "1"
+        digest = _expected_digest(token)
+        injected_agent = "legit-agent\nowner_digest: " + ("0" * 64)
+        content = (
+            f"agent: {injected_agent}\n"
+            "timestamp: 2026-01-01T00:00:00Z\n"
+            "pid: 12345\n"
+            f"file: {self.target}\n"
+            f"owner_digest: {digest}\n"
+        )
+        self.lock_file.write_text(content, encoding="utf-8")
+        result = self._release(["--token", token])
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=(
+                "release must succeed against the genuine (last) owner_digest "
+                f"despite an injected earlier owner_digest line: "
+                f"stdout={result.stdout} stderr={result.stderr}"
+            ),
+        )
+        self.assertFalse(self.lock_file.exists())
 
 
 if __name__ == "__main__":

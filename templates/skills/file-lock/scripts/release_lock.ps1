@@ -437,8 +437,17 @@ if ($ownershipVerified) {
     $recheckDigest = $null
     foreach ($line in ($recheckContent -split "`r?`n")) {
         if ($line -match '^owner_digest:\s*(.*)$') {
+            # Round-12 review follow-up: do NOT `break` on the first match.
+            # The initial ownership parse above (and the POSIX release_lock.sh
+            # recheck) both keep the LAST `owner_digest:` match, because
+            # acquire_lock writes caller-controlled fields (e.g. `agent`)
+            # before the genuine final digest -- a newline embedded in one of
+            # those fields could otherwise inject an earlier, attacker-chosen
+            # `owner_digest:` line that a first-match/`break` scan would
+            # wrongly treat as authoritative, causing this recheck to refuse
+            # a still-legitimately-held lock. Keep overwriting so the final
+            # (real) digest always wins, matching that established pattern.
             $recheckDigest = $Matches[1]
-            break
         }
     }
     if (-not ($recheckDigest -and $recheckDigest.Equals($recordedDigest, [System.StringComparison]::OrdinalIgnoreCase))) {
