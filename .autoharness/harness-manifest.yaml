@@ -197,8 +197,8 @@ artifacts:
   - path: ".github/skills/file-lock/SKILL.md"
     primitive: 5
     template: "skills/file-lock/SKILL.md.tmpl"
-    checksum: "bb17bed11ef3555f034262b2913eb6e3858cba0cab825f01089c453cfdbd9808"
-    note: "installed by scoped follow-up to the 8AC574F1 merge-install, closing the transitive dangling reference that install of shipment-reconcile introduced: shipment-reconcile's safe-close procedure invokes this skill unconditionally (acquire at L260, release at L351, path cited at L1071). Template ships zero {{VARIABLE}} tokens so rendering is a no-op; the only transform is the H1/MD041 promotion of the leading `## File Lock` heading, matching the same normalization applied to the 7 other `##`-leading skill templates in this install. Written LF-only; checksum is SHA-256 over the raw LF file bytes. Companion `scripts/` artifacts are registered separately below under the engine's `concurrency pack script` template convention."
+    checksum: "b8e71d10e92b62f74bbd0a46efe139e9e01466c4bd12079b59a0e0804b059617"
+    note: "installed by scoped follow-up to the 8AC574F1 merge-install, closing the transitive dangling reference that install of shipment-reconcile introduced: shipment-reconcile's safe-close procedure invokes this skill unconditionally (acquire at L260, release at L351, path cited at L1071). Template ships zero {{VARIABLE}} tokens so rendering is a no-op; the only transform is the H1/MD041 promotion of the leading `## File Lock` heading, matching the same normalization applied to the 7 other `##`-leading skill templates in this install. Written LF-only; checksum is SHA-256 over the raw LF file bytes. Companion `scripts/` artifacts are registered separately below under the engine's `concurrency pack script` template convention. Checksum refreshed by 161-S/153.005-T (SHIP-3 plan H6/H7): invocation signatures gain --workspace-root/--token/--force; the exit-code contract's prior 'release failure: lock not found, exit 0 with warning' line is corrected to distinguish that no-lock-file case (still exit 0) from a genuine ownership-refusal (now non-zero, not a warning); adds the O2 token/ownership section and the O3 honest advisory-not-adversarial bound in plain words. Prior checksum bb17bed11ef3555f034262b2913eb6e3858cba0cab825f01089c453cfdbd9808. Refreshed via a direct SHA-256 over the installed file's raw bytes and verified to match the file on disk."
   - path: "scripts/acquire_lock.ps1"
     primitive: 5
     template: "concurrency pack script"
@@ -382,8 +382,8 @@ artifacts:
   - path: ".github/instructions/concurrency.instructions.md"
     primitive: 5
     template: "instructions/concurrency.instructions.md.tmpl"
-    checksum: "25ec9c915b64e654b88ab06046f7bf73709229542aa58c1829fa03b040be33fa"
-    note: "concurrency guardrail instruction (installed 067.005-T)"
+    checksum: "aef8eb294c52b140583541c3a50a24e2444d179d3d8e276389a442810b3c1e04"
+    note: "concurrency guardrail instruction (installed 067.005-T). Checksum refreshed by 161-S/153.005-T (SHIP-3 plan H6/H7): documents the O2 token/ownership mechanism (-Token/--token, LOCK_TOKEN env var), the O3 honest advisory-not-adversarial bound in plain words, and the -Force/--force operator-only override procedure introduced by 153.002-T; prior checksum 25ec9c915b64e654b88ab06046f7bf73709229542aa58c1829fa03b040be33fa. Refreshed via a direct SHA-256 over the installed file's raw bytes (matching verify_workspace._sha256_bytes(workspace_file.read_bytes())) and verified to match the file on disk; content verified identical to templates/instructions/concurrency.instructions.md.tmpl (LF-normalized, no rendering variables in this template)."
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5
     template: "foundation/constitution.instructions.md.tmpl"

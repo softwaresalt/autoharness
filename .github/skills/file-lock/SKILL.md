@@ -21,13 +21,64 @@ Agents MUST follow the concurrency protocol defined in
 
 * `filepath`: (Required) Path to the target file, relative to the workspace root.
 * `action`: (Required) One of `acquire` or `release`.
+* `--workspace-root <path>` (acquire only, optional): explicit workspace
+  root for the H2/H4 containment check. When omitted, the root is derived
+  from `git rev-parse --show-toplevel`, but only trusted when the script's
+  own installed directory is exactly that root's `scripts/` child (guards
+  against a nested checkout without its own `.git` silently widening to an
+  ancestor repository's root); otherwise acquire fails closed and requires
+  this flag explicitly.
+* `--token <token>` (release only, optional): the capability token printed
+  by `acquire_lock` at acquire time (`LOCK_TOKEN=<token>`). Falls back to
+  the `LOCK_TOKEN` environment variable when not supplied. Required to
+  release a lock unless `--force` is given.
+* `--force` (release only, operator use): break the lock even without a
+  matching token. See "Ownership and the `--force` override" below.
 
 ## Output
 
-* On `acquire` success: lock file created, exit code 0.
-* On `acquire` failure: lock already held by another process, exit code 1.
-* On `release` success: lock file removed, exit code 0.
-* On `release` failure: lock file not found (already released), exit code 0 with warning.
+* On `acquire` success: lock file created, exit code 0. A one-time
+  capability token is printed to stdout as `LOCK_TOKEN=<token>` — capture
+  it; it is never re-printed or recoverable from the lock file afterward
+  (only its digest is stored).
+* On `acquire` failure (lock already held, path escapes the workspace root,
+  or no CSPRNG/digest source is available): exit code 1.
+* On `release` success (token verified, or `--force` given): lock file
+  removed, exit code 0.
+* On `release` failure — ownership could not be verified and `--force` was
+  not given: lock file left in place, **exit code non-zero**. This is a
+  refusal, not a warning: an unverified release must never look identical
+  to a successful one on exit code.
+* On `release` when no lock file exists (already released, or the target
+  was never locked): exit code 0 with a warning — this case does not
+  require ownership proof, since there is nothing to protect.
+
+## Ownership and the `--force` override
+
+Every successful `acquire` mints a random capability token and stores only
+its SHA-256 digest in the lock file (`owner_digest`) — the token itself is
+never persisted anywhere. `release` requires the caller to present that
+same token (`--token` or `LOCK_TOKEN`) before it will remove the lock; a
+missing or non-matching token is refused (non-zero exit, lock left in
+place). `agent`/`pid`/timestamp recorded in the lock file remain identity
+metadata only — informative for a human or operator deciding whether to
+break a stale lock, and never treated as proof of ownership.
+
+**`--force` is an operator escape hatch, not routine agent usage.** It
+breaks the lock unconditionally, without a token, for cases such as a
+crashed process that never released its lock. Agents SHOULD NOT reach for
+`--force` on their own initiative when a normal release is refused; that
+refusal usually means the lock belongs to someone else. Surface the
+refusal (including the `agent`/`pid`/timestamp it reports) to the operator
+and let them decide.
+
+**Honest bound (non-adversarial)**: this is an advisory locking convenience
+for well-behaved cooperating agents, not a security boundary. The token
+defends against accidental or confused releases — for example, one agent's
+session mistakenly releasing a lock it never acquired — not against a
+hostile local process, which can always delete the `.{filename}.lock` file
+directly regardless of any token. Do not rely on this mechanism, or on any
+text in this skill, to imply an adversarial security guarantee.
 
 ## Scripts
 
@@ -37,43 +88,58 @@ compatibility. Use whichever matches the runtime environment.
 ### acquire_lock (.ps1 / .sh)
 
 Acquires a file lock by creating a `.{filename}.lock` file in the same
-directory as the target file. Fails if the lock already exists.
+directory as the target file, after verifying the target is contained
+within the workspace root (H2/H4). Fails if the lock already exists or the
+target escapes the root.
 
 ```text
-PowerShell: scripts/acquire_lock.ps1 <filepath>
-Bash:       scripts/acquire_lock.sh <filepath>
+PowerShell: scripts/acquire_lock.ps1 <filepath> [-WorkspaceRoot <path>]
+Bash:       scripts/acquire_lock.sh <filepath> [--workspace-root <path>]
 ```
+
+On success, prints `LOCK_TOKEN=<token>` to stdout — capture this value; it
+is required to release the lock later (unless the operator uses `--force`).
 
 The lock file contains:
 
-* Agent or process identifier (`$env:AGENT_NAME` / `$AGENT_NAME` or `"unknown"`)
+* Agent or process identifier (`$env:AGENT_NAME` / `$AGENT_NAME` or `"unknown"`) — identity metadata only, not an ownership proof
 * Timestamp (ISO 8601)
-* PID of the calling process
+* PID of the calling process — identity metadata only, not an ownership proof
+* `owner_digest`: SHA-256 digest of the capability token (the token itself is never stored)
 
 ### release_lock (.ps1 / .sh)
 
-Releases a file lock by deleting the `.{filename}.lock` file.
+Releases a file lock by deleting the `.{filename}.lock` file, after
+verifying the caller can prove ownership of it.
 
 ```text
-PowerShell: scripts/release_lock.ps1 <filepath>
-Bash:       scripts/release_lock.sh <filepath>
+PowerShell: scripts/release_lock.ps1 <filepath> [-Token <token>] [-Force]
+Bash:       scripts/release_lock.sh <filepath> [--token <token>] [--force]
 ```
+
+Refuses (non-zero exit, lock left in place) unless the supplied token's
+digest matches the lock file's `owner_digest`, or `-Force`/`--force` is
+given.
 
 ## Workflow
 
 ```text
 1. Agent identifies file to modify
 2. Agent runs: scripts/acquire_lock.{ps1|sh} <filepath>
-   ├─ Exit 0 → lock acquired, proceed to edit
-   └─ Exit 1 → lock held, wait or prompt operator
+   ├─ Exit 0 → lock acquired, capture LOCK_TOKEN=<token>, proceed to edit
+   └─ Exit 1 → lock held (or path rejected), wait or prompt operator
 3. Agent modifies the file
 4. Agent verifies the modification (compile, test, etc.)
-5. Agent runs: scripts/release_lock.{ps1|sh} <filepath>
+5. Agent runs: scripts/release_lock.{ps1|sh} <filepath> --token <token>
+   ├─ Exit 0 → lock released
+   └─ Non-zero → ownership could not be verified; surface to the operator
+       rather than reaching for --force
 ```
 
 ## Lock Hygiene
 
-* Locks are advisory, not enforced at the filesystem level.
+* Locks are advisory, not enforced at the filesystem level (see "Honest
+  bound" above).
 * Lock files MUST NOT be committed to version control.
 * Lock files older than 1 hour are likely stale — warn the operator.
-* Only the operator may force-break a lock they did not create.
+* Only the operator may force-break a lock they did not create, via `--force`.
