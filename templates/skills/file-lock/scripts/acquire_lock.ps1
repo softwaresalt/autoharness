@@ -52,7 +52,10 @@ $ErrorActionPreference = 'Stop'
 # `FileSystemInfo.ResolveLinkTarget`/`.LinkTarget` APIs because those are
 # .NET-Core-only; this P/Invoke call resolves the full reparse-point chain
 # in one call and works identically under Windows PowerShell 5.1 and
-# PowerShell 7+ (H5).
+# PowerShell 7+ (H5). This resolver is Windows-only (kernel32.dll does not
+# exist on Linux/macOS); on non-Windows platforms (reachable only via
+# PowerShell 7+/pwsh) `Get-AutoharnessRealPath` below shells out to the
+# external `realpath` command instead, mirroring the sibling `.sh` scripts.
 $autoharnessResolverSource = @'
 using System;
 using System.IO;
@@ -106,13 +109,44 @@ public static class AutoharnessFileLockPathResolver
 }
 '@
 
-if (-not ('AutoharnessFileLockPathResolver' -as [type])) {
-    Add-Type -TypeDefinition $autoharnessResolverSource -ErrorAction Stop
+# The kernel32 P/Invoke resolver above is Windows-only. `$IsWindows` is
+# defined by PowerShell 6+ (pwsh) on every platform but does not exist under
+# Windows PowerShell 5.1 (Desktop edition), which only ever runs on Windows --
+# so an undefined `$IsWindows` variable means "Windows PowerShell 5.1",
+# which is unconditionally Windows. This is evaluated once at script scope
+# rather than inside the function so `Add-Type` (an expensive, one-time,
+# process-wide type registration) is skipped entirely on non-Windows instead
+# of merely guarding the call site.
+$autoharnessIsWindowsPlatform = if (Test-Path variable:IsWindows) { $IsWindows } else { $true }
+
+if ($autoharnessIsWindowsPlatform) {
+    if (-not ('AutoharnessFileLockPathResolver' -as [type])) {
+        Add-Type -TypeDefinition $autoharnessResolverSource -ErrorAction Stop
+    }
 }
 
 function Get-AutoharnessRealPath {
+    # On Windows: the kernel32 P/Invoke resolver above, which fully
+    # dereferences symlinks/junctions/8.3 short paths and works identically
+    # under Windows PowerShell 5.1 and PowerShell 7+ (H5).
+    #
+    # On non-Windows (Linux/macOS, reachable only via PowerShell 7+/pwsh):
+    # kernel32.dll does not exist, so the P/Invoke path is unusable. Shell
+    # out to the external `realpath` command instead -- the identical tool
+    # and invocation form (`realpath "$path"`, no flags) already used by the
+    # sibling `.sh` scripts (acquire_lock.sh/release_lock.sh), so real-path
+    # semantics stay consistent across the bash and PowerShell entry points
+    # on the same platform. This requires the target to already exist, same
+    # as the Windows CreateFile-based resolver (OPEN_EXISTING).
     param([Parameter(Mandatory = $true)][string]$Path)
-    return [AutoharnessFileLockPathResolver]::GetRealPath($Path)
+    if ($autoharnessIsWindowsPlatform) {
+        return [AutoharnessFileLockPathResolver]::GetRealPath($Path)
+    }
+    $resolved = & realpath $Path 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $resolved) {
+        throw "autoharness-file-lock: unable to resolve real path via realpath: $Path"
+    }
+    return $resolved
 }
 
 function Test-AutoharnessPathContained {
