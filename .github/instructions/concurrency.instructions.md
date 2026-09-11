@@ -47,9 +47,13 @@ When locking is required, the agent MUST acquire a lock before modification:
    * PowerShell: `scripts/acquire_lock.ps1 <filepath>`
    * Bash: `scripts/acquire_lock.sh <filepath>`
    where `<filepath>` is the path to the file, relative to the workspace root.
-2. If the script exits with code **0**, the lock is acquired. Proceed.
-3. If the script exits with a **non-zero** code, the file is already locked.
-   The agent MUST NOT modify the file. Instead:
+2. If the script exits with code **0**, the lock is acquired. Capture the
+   `LOCK_TOKEN=<token>` line the script prints to stdout — this token proves
+   ownership when releasing the lock later, and is never recoverable
+   afterward (only its digest is stored in the lock file). Proceed.
+3. If the script exits with a **non-zero** code, the file is already locked
+   (or the target path was rejected — see "Workspace Root and Path
+   Containment" below). The agent MUST NOT modify the file. Instead:
    * Wait briefly (one cycle) and retry once.
    * If the retry also fails, count it as a session stall (per
      `circuit-breaker.instructions.md`) and prompt the operator:
@@ -58,12 +62,30 @@ When locking is required, the agent MUST acquire a lock before modification:
 ### After Completing the Modification
 
 After modifying the file and verifying the result (compilation, tests, etc.),
-release the lock:
+release the lock, supplying the token captured at acquire time:
 
-1. PowerShell: `scripts/release_lock.ps1 <filepath>`
-   Bash: `scripts/release_lock.sh <filepath>`
-2. If the release fails, log a warning but do not halt — stale locks are
-   recoverable.
+1. PowerShell: `scripts/release_lock.ps1 <filepath> -Token <token>`
+   Bash: `scripts/release_lock.sh <filepath> --token <token>`
+   (the token may also be supplied via the `LOCK_TOKEN` environment variable
+   instead of the flag.)
+2. If the release succeeds (exit code 0), you are done.
+3. If the release exits with a **non-zero** code, this is a **refusal**, not
+   a routine warning: the script could not verify that this caller owns the
+   lock (missing or mismatched token). Do not silently ignore it and do not
+   reach for `--force` on your own initiative — surface the refusal
+   (including the `agent`/`pid`/timestamp it reports) to the operator and
+   let them decide whether to force-release. A genuinely absent lock file
+   (nothing to release) is a separate, non-refusal case: it exits 0 with a
+   warning and requires no token.
+
+### Workspace Root and Path Containment
+
+`acquire_lock` rejects any target path that resolves outside the workspace
+root (H2/H4), including absolute paths, `../` traversal, and directory
+symlink/junction escapes. The root defaults to the git repository root
+derived from the script's own installed location; pass `-WorkspaceRoot`/
+`--workspace-root` explicitly when that default cannot be trusted (for
+example, a nested checkout without its own `.git`).
 
 ### Lock Scope
 
@@ -71,7 +93,33 @@ release the lock:
 * Lock files are created as `.<filename>.lock` in the same directory as
   the target file.
 * Lock files contain the agent name, timestamp, and process context for
-  diagnostic purposes.
+  diagnostic purposes only — this identity metadata is never treated as
+  proof of ownership. Ownership is proven by a capability token: lock
+  files also contain `owner_digest`, the SHA-256 digest of a random token
+  printed once on stdout at acquire time (see "Ownership and `--force`"
+  below). The token itself is never persisted in the lock file.
+
+## Ownership and `--force`
+
+Releasing a lock requires presenting the token captured at acquire time
+(`-Token`/`--token`, or the `LOCK_TOKEN` environment variable). A release
+without a matching token is refused (non-zero exit, lock left in place)
+unless the operator supplies `-Force`/`--force`.
+
+**`-Force`/`--force` is reserved for the operator**, exactly as the
+pre-existing "do not force-break locks" rule already required for manual
+lock-file deletion — the flag is the sanctioned mechanism for that same
+operator decision, not a new grant of agent authority. Agents MUST NOT
+supply `--force` on their own initiative; a refused release should be
+surfaced to the operator, not silently bypassed.
+
+**Honest bound (non-adversarial, O3)**: this token mechanism is an advisory
+convenience for well-behaved cooperating agents, not a security boundary.
+It defends against accidental or confused releases (one agent's session
+releasing a lock it never acquired), not against a hostile local process,
+which can always delete the `.<filename>.lock` file directly regardless of
+any token. Do not rely on this mechanism to imply an adversarial security
+guarantee.
 
 ## Rules
 
@@ -80,8 +128,10 @@ release the lock:
 2. **Release promptly.** Do not hold locks across unrelated operations.
    Acquire immediately before the edit, release immediately after
    verification.
-3. **Do not force-break locks.** If a lock exists, only the operator may
-   decide to break it. Agents MUST NOT delete lock files they did not create.
+3. **Do not force-break locks.** If a release is refused because ownership
+   could not be verified, only the operator may decide to break it, via
+   `-Force`/`--force`. Agents MUST NOT delete lock files directly, and MUST
+   NOT supply `--force` on their own initiative.
 4. **Lock files are ephemeral.** They MUST NOT be committed to version
    control. The workspace `.gitignore` should include `.*.lock` entries
    (or `**/.*.lock` for an explicit recursive pattern) for agent lock files.
