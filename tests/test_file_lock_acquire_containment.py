@@ -142,6 +142,42 @@ class AcquireLockContainmentPs1Tests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse((self.ws_evil / ".evil.txt.lock").exists())
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "case-only sibling directories are indistinguishable on Windows's "
+        "case-insensitive filesystem; this regression is only observable, "
+        "and only needs guarding, on a case-sensitive filesystem "
+        "(exercised by CI's ubuntu-latest /usr/bin/pwsh interpreter)",
+    )
+    def test_case_only_sibling_directory_rejected(self) -> None:
+        """Regression test: `Test-AutoharnessPathContained`'s comparison
+        mode must be Ordinal (case-sensitive) on Linux/macOS, not
+        OrdinalIgnoreCase -- otherwise a case-only sibling directory (e.g.
+        `WS` vs root `ws`) would be wrongly treated as contained on a
+        case-sensitive filesystem, a containment bypass."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                ws_upper = self.root / "WS"
+                ws_upper.mkdir()
+                target = ws_upper / "evil.txt"
+                target.write_text("case-sibling", encoding="utf-8")
+                result = _run_ps1(
+                    interpreter,
+                    [str(target), "-WorkspaceRoot", str(self.ws)],
+                    cwd=self.ws,
+                )
+                self.assertNotEqual(
+                    result.returncode,
+                    0,
+                    msg=(
+                        "a case-only sibling directory must never be "
+                        "treated as contained on a case-sensitive "
+                        f"filesystem (stdout={result.stdout} "
+                        f"stderr={result.stderr})"
+                    ),
+                )
+                self.assertFalse((ws_upper / ".evil.txt.lock").exists())
+
     def test_directory_junction_escape_rejected(self) -> None:
         for interpreter in _PWSH_INTERPRETERS:
             with self.subTest(interpreter=interpreter):

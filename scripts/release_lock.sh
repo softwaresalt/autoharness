@@ -54,16 +54,32 @@ if [ ! -e "$FILEPATH" ]; then
     echo "Warning: Target file does not exist: $FILEPATH" >&2
 fi
 
-# Finding 6 fix: normalise to an absolute path via `realpath` unconditionally
-# -- GNU and BSD/macOS realpath both canonicalise a path whose final
-# component does not yet exist (only the leading directory components must
-# exist), so this works whether or not the target itself exists, and
-# dirname/basename never operate on an unnormalised relative root-level
-# filename. Deliberately NOT `realpath -m`: that flag is a GNU-only
-# extension (`--canonicalize-missing`) unsupported by BSD/macOS realpath,
-# and is unnecessary here since plain `realpath` already tolerates a
-# missing final path component on both platforms.
-TARGET_PATH="$(realpath "$FILEPATH")"
+# Finding 6 fix: resolve the target to an absolate real path so dirname/
+# basename never operate on an unnormalised relative root-level filename --
+# even when the target itself does not yet exist. `realpath` on a
+# non-existent path is NOT reliably portable: GNU coreutils' plain
+# `realpath` (no flags) tolerates a missing *final* path component, but
+# BSD/macOS `realpath` requires every component, including the leaf, to
+# already exist and errors under `set -e` otherwise. Deliberately NOT
+# `realpath -m`: that flag is a GNU-only extension
+# (`--canonicalize-missing`) unsupported by BSD/macOS realpath.
+#
+# The portable fix: only call `realpath` on the full path when the target
+# already exists. When it does not, resolve just the (always-required-to-
+# exist) parent directory with `realpath` and re-append the leaf filename --
+# this needs no non-existent-path canonicalisation support from `realpath`
+# at all, so it works identically on GNU and BSD/macOS.
+if [ -e "$FILEPATH" ]; then
+    TARGET_PATH="$(realpath "$FILEPATH")"
+else
+    PARENT_DIR="$(dirname "$FILEPATH")"
+    LEAF_NAME="$(basename "$FILEPATH")"
+    if [ ! -d "$PARENT_DIR" ]; then
+        echo "Error: parent directory does not exist: $PARENT_DIR" >&2
+        exit 1
+    fi
+    TARGET_PATH="$(realpath "$PARENT_DIR")/${LEAF_NAME}"
+fi
 
 RESOLVED_DIR="$(dirname "$TARGET_PATH")"
 FILENAME="$(basename "$TARGET_PATH")"

@@ -119,6 +119,18 @@ public static class AutoharnessFileLockPathResolver
 # of merely guarding the call site.
 $autoharnessIsWindowsPlatform = if (Test-Path variable:IsWindows) { $IsWindows } else { $true }
 
+# Shared path-equality comparison mode, derived from the same platform flag:
+# Windows filesystems (NTFS) are case-preserving but case-insensitive, so
+# OrdinalIgnoreCase is correct there; Linux/macOS filesystems are
+# case-sensitive by default, so any path-equality/prefix check on those
+# platforms must use Ordinal instead, or a case-only sibling path (e.g.
+# "/tmp/WS" vs root "/tmp/ws") would be wrongly treated as identical/contained.
+$autoharnessPathComparisonMode = if ($autoharnessIsWindowsPlatform) {
+    [System.StringComparison]::OrdinalIgnoreCase
+} else {
+    [System.StringComparison]::Ordinal
+}
+
 if ($autoharnessIsWindowsPlatform) {
     if (-not ('AutoharnessFileLockPathResolver' -as [type])) {
         Add-Type -TypeDefinition $autoharnessResolverSource -ErrorAction Stop
@@ -155,15 +167,21 @@ function Test-AutoharnessPathContained {
     # separator. A bare string-prefix check (`StartsWith($root)` with no
     # separator) is forbidden -- it would wrongly treat "$root-evil" as
     # contained within "$root".
+    #
+    # Uses the shared $autoharnessPathComparisonMode (Windows:
+    # OrdinalIgnoreCase; Linux/macOS: Ordinal) so this containment check
+    # matches the case-sensitivity of the underlying filesystem -- this
+    # script explicitly supports Linux/macOS pwsh, where a case-insensitive
+    # comparison would let a case-only sibling path escape containment.
     param(
         [Parameter(Mandatory = $true)][string]$RealRoot,
         [Parameter(Mandatory = $true)][string]$RealCandidate
     )
-    if ($RealCandidate.Equals($RealRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($RealCandidate.Equals($RealRoot, $autoharnessPathComparisonMode)) {
         return $true
     }
     $rootWithSeparator = $RealRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-    return $RealCandidate.StartsWith($rootWithSeparator, [System.StringComparison]::OrdinalIgnoreCase)
+    return $RealCandidate.StartsWith($rootWithSeparator, $autoharnessPathComparisonMode)
 }
 
 # --- Token/digest (O2, TC1-TC6) --------------------------------------------
@@ -253,7 +271,7 @@ function Resolve-AutoharnessWorkspaceRoot {
         $expectedScriptsDir
     }
 
-    if (-not $realExpectedScriptsDir.Equals($realScriptDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $realExpectedScriptsDir.Equals($realScriptDir, $autoharnessPathComparisonMode)) {
         Write-Error "autoharness-file-lock: git-derived root '$realGitTopLevel' does not match this script's own installed location; this workspace is likely a nested checkout without its own .git (widening guard, finding 2). Pass -WorkspaceRoot explicitly."
         exit 1
     }
