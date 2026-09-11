@@ -75,8 +75,15 @@ else
     PARENT_DIR="$(dirname "$FILEPATH")"
     LEAF_NAME="$(basename "$FILEPATH")"
     if [ ! -d "$PARENT_DIR" ]; then
-        echo "Error: parent directory does not exist: $PARENT_DIR" >&2
-        exit 1
+        # A missing parent directory means no lock file could possibly
+        # exist beside this target either -- a lock file always lives in
+        # the same directory as its target. This mirrors the PowerShell
+        # variant, which never errors on a missing parent (GetFullPath is
+        # pure string normalisation with no filesystem access), and the
+        # documented "no lock file exists" contract: a warning and a
+        # successful exit, not a failure.
+        echo "Warning: No lock file found for: $FILEPATH (parent directory does not exist; already released or never locked)" >&2
+        exit 0
     fi
     TARGET_PATH="$(realpath "$PARENT_DIR")/${LEAF_NAME}"
 fi
@@ -99,6 +106,14 @@ RECORDED_AGENT="${RECORDED_AGENT:-unknown}"
 RECORDED_PID="${RECORDED_PID:-unknown}"
 RECORDED_TIMESTAMP="${RECORDED_TIMESTAMP:-unknown}"
 
+# V-a: the token this script's sibling acquire_lock.sh generates is always
+# 64 lowercase hex characters (32 CSPRNG bytes, V-a's fixed-length,
+# lowercase-only alphabet). V-c2 requires a wrong-length or wrong-charset
+# token to be rejected outright -- non-zero exit, a NAMED validation error,
+# no digest ever computed -- rather than silently hashed and compared, which
+# would let a truncating or charset-loose implementation slip through.
+_TOKEN_SHAPE_RE='^[0-9a-f]{64}$'
+
 # V-d: SHA-256 only, via sha256sum or shasum -a 256; never a weaker digest.
 compute_digest() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -111,26 +126,78 @@ compute_digest() {
     fi
 }
 
-OWNERSHIP_VERIFIED=0
-if [ -n "$RECORDED_DIGEST" ] && [ -n "$TOKEN" ]; then
-    SUPPLIED_DIGEST="$(compute_digest "$TOKEN")"
-    SUPPLIED_DIGEST_LOWER="$(printf '%s' "$SUPPLIED_DIGEST" | tr '[:upper:]' '[:lower:]')"
-    RECORDED_DIGEST_LOWER="$(printf '%s' "$RECORDED_DIGEST" | tr '[:upper:]' '[:lower:]')"
-    if [ "$SUPPLIED_DIGEST_LOWER" = "$RECORDED_DIGEST_LOWER" ]; then
-        OWNERSHIP_VERIFIED=1
+# 1-hour staleness heuristic (concurrency.instructions.md): report the lock
+# age so an operator deciding whether to --force has the same information
+# the policy asks them to consider. The recorded timestamp may have been
+# written by either acquire variant (POSIX `date -u +%Y-%m-%dT%H:%M:%SZ`, or
+# PowerShell's round-trip `Get-Date -Format 'o'`, which carries a local UTC
+# offset instead of a trailing Z); GNU `date -d` parses both forms, BSD/macOS
+# `date -j -f` only the POSIX-Z form. When neither succeeds, report the age
+# as unknown rather than fabricating a value.
+compute_lock_age_report() {
+    local ts="$1"
+    local now_epoch lock_epoch
+    now_epoch="$(date -u +%s)"
+    lock_epoch="$(date -u -d "$ts" +%s 2>/dev/null || true)"
+    if [ -z "$lock_epoch" ]; then
+        lock_epoch="$(date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$ts" +%s 2>/dev/null || true)"
     fi
-fi
+    if [ -z "$lock_epoch" ]; then
+        echo "age=unknown (unable to parse timestamp: $ts)"
+        return
+    fi
+    local age_seconds=$(( now_epoch - lock_epoch ))
+    if [ "$age_seconds" -lt 0 ]; then
+        age_seconds=0
+    fi
+    local age_minutes=$(( age_seconds / 60 ))
+    if [ "$age_seconds" -ge 3600 ]; then
+        echo "age=${age_minutes}m (stale: exceeds the 1-hour heuristic)"
+    else
+        echo "age=${age_minutes}m"
+    fi
+}
 
 # O2: possession of a token hashing to the recorded owner_digest is the
 # capability check. O1: agent/pid/timestamp are courtesy identity only and
-# carry no authorisation weight. TC5d: the refusal/warning below names
-# agent/pid/timestamp but NEVER the token or owner_digest.
+# carry no authorisation weight. TC5d: every message below names the lock
+# path, agent/pid/timestamp/age but NEVER the token or owner_digest.
+#
+# --force must not depend on any token-processing tooling or shape at all
+# (O3: the operator's override is unconditional): when FORCE=1, ownership
+# verification -- including token-shape validation and digest hashing -- is
+# skipped entirely, so a host without sha256sum/shasum, or a malformed
+# inherited LOCK_TOKEN, can never block a force-break.
+OWNERSHIP_VERIFIED=0
+TOKEN_MALFORMED=0
+if [ "$FORCE" -ne 1 ]; then
+    if [ -n "$TOKEN" ] && ! [[ "$TOKEN" =~ $_TOKEN_SHAPE_RE ]]; then
+        TOKEN_MALFORMED=1
+    elif [ -n "$RECORDED_DIGEST" ] && [ -n "$TOKEN" ]; then
+        SUPPLIED_DIGEST="$(compute_digest "$TOKEN")"
+        SUPPLIED_DIGEST_LOWER="$(printf '%s' "$SUPPLIED_DIGEST" | tr '[:upper:]' '[:lower:]')"
+        RECORDED_DIGEST_LOWER="$(printf '%s' "$RECORDED_DIGEST" | tr '[:upper:]' '[:lower:]')"
+        if [ "$SUPPLIED_DIGEST_LOWER" = "$RECORDED_DIGEST_LOWER" ]; then
+            OWNERSHIP_VERIFIED=1
+        fi
+    fi
+fi
+
+if [ "$TOKEN_MALFORMED" -eq 1 ]; then
+    # V-c2: fail closed before any digest is computed -- a wrong-length or
+    # wrong-charset token is a distinct, named validation error, not merely
+    # a digest mismatch.
+    echo "Error: TOKEN_MALFORMED -- supplied token is not 64 lowercase hex characters; refusing to verify ownership without computing a digest. Supply the exact value returned at acquire time, or have the operator supply --force." >&2
+    exit 1
+fi
+
 if [ "$OWNERSHIP_VERIFIED" -ne 1 ]; then
-    OWNER_REPORT="agent=${RECORDED_AGENT}, pid=${RECORDED_PID}, timestamp=${RECORDED_TIMESTAMP}"
+    AGE_REPORT="$(compute_lock_age_report "$RECORDED_TIMESTAMP")"
+    OWNER_REPORT="lock=${LOCKFILE}, agent=${RECORDED_AGENT}, pid=${RECORDED_PID}, timestamp=${RECORDED_TIMESTAMP}, ${AGE_REPORT}"
     if [ "$FORCE" -ne 1 ]; then
         # Decision (iii): refusal is a non-zero exit -- exit 0 would make the
         # refusal indistinguishable from success.
-        echo "Error: refusing to release -- ownership could not be verified (${OWNER_REPORT}). Supply --token with the value returned at acquire time, or have the operator supply --force." >&2
+        echo "Error: refusing to release -- ownership could not be verified (${OWNER_REPORT}). Supply --token with the value returned at acquire time, or have the operator run: release_lock.sh '${FILEPATH}' --force" >&2
         exit 1
     fi
     echo "Warning: --force supplied; breaking this lock without a verified token (${OWNER_REPORT}). O3: this is an advisory lock, not an adversarial guarantee -- only the operator should do this." >&2

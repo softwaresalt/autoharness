@@ -80,6 +80,43 @@ hostile local process, which can always delete the `.{filename}.lock` file
 directly regardless of any token. Do not rely on this mechanism, or on any
 text in this skill, to imply an adversarial security guarantee.
 
+## Token exposure and safe handling
+
+The capability token is a short-lived secret returned on **stdout** so the
+caller can capture it — the scripts do not, and cannot, control what the
+caller does with that stdout afterward. This is documented rather than
+assumed:
+
+* **Capture, don't print.** Because the token is printed on stdout, it can
+  land in CI logs, terminal transcripts, shell history, and agent
+  conversation logs if the caller echoes or re-prints it. Callers MUST
+  capture the `LOCK_TOKEN=<token>` line into a variable or file rather than
+  printing it again. The scripts themselves never re-echo the token (or the
+  `owner_digest`) in any status, verbose, warning, or error message —
+  refusal and staleness messages print the lock path, `agent`, `pid`, and
+  age, but never the token or the digest.
+* **Never persisted.** The token is never written to the lock file, to any
+  log the scripts create, or to telemetry — only its SHA-256 digest
+  (`owner_digest`) is persisted, and the digest cannot be reversed back into
+  the token.
+* **`--token` vs. `LOCK_TOKEN` exposure differs.** `LOCK_TOKEN` set as an
+  environment variable is inherited by child processes and, on some
+  systems, may be readable by other processes owned by the same user (for
+  example, via `/proc/<pid>/environ` on Linux). Passing `--token <token>` as
+  a command-line argument avoids environment inheritance but may be visible
+  to other users via process-listing tools (for example, `ps`) on systems
+  where process arguments are not restricted to their owner. Both forms are
+  supported; choose based on which exposure surface is more acceptable in
+  the calling environment.
+* **Why this is tolerable.** These exposure paths are acceptable only
+  because this token is an anti-accident capability for an *advisory* lock
+  (see "Honest bound" above), not an adversarial security boundary. Token
+  leakage degrades the anti-accident property (a hostile or careless holder
+  of the leaked token could release the lock as if they legitimately
+  acquired it) without creating an adversarial exposure that did not
+  already exist — a local process with write access to the workspace could
+  already delete the lock file directly, with or without the token.
+
 ## Scripts
 
 Both PowerShell and Bash equivalents are provided for cross-platform

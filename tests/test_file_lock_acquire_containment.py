@@ -369,6 +369,19 @@ class AcquireLockContainmentShTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, msg=result.stderr)
         self.assertFalse((self.outside / ".evil.txt.lock").exists())
 
+    def test_root_is_filesystem_root_ordinary_target_contained(self) -> None:
+        """Round-2 Copilot review regression: when `--workspace-root /` is
+        supplied, the descendant-match pattern used to be built as
+        "$REAL_ROOT/*", which for REAL_ROOT="/" becomes the literal pattern
+        "//*" -- requiring TWO leading slashes -- so an ordinary
+        single-slash-rooted target such as this test's own tempdir path was
+        wrongly rejected even though "/" trivially contains everything.
+        Every absolute path is a descendant of the filesystem root."""
+        target = self.ws_sub / "target.txt"
+        result = self._run([str(target), "--workspace-root", "/"], cwd=self.ws)
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue((self.ws_sub / ".target.txt.lock").exists())
+
     def test_missing_workspace_root_git_derived_default_succeeds(self) -> None:
         repo_root = self.root / "repo"
         scripts_dir = repo_root / "scripts"

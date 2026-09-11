@@ -89,10 +89,25 @@ REAL_TARGET="$(realpath "$FILEPATH")"
 
 # Path-segment containment: equal to the root, or the root plus a trailing
 # separator followed by the rest. Never a bare string prefix.
+#
+# Filesystem-root edge case: when REAL_ROOT is exactly "/", naively building
+# the descendant pattern as "$REAL_ROOT/*" doubles the separator ("//*"),
+# which requires TWO leading slashes to match and therefore rejects an
+# ordinary single-slash-rooted target such as "/tmp/file" even though it is
+# trivially inside a root of "/". Strip a trailing "/" from the root first
+# (a no-op for any normal root, which never carries one) so an empty result
+# unambiguously means the root was the filesystem root, and build the
+# descendant pattern from that normalised value instead.
+NORMALIZED_ROOT="${REAL_ROOT%/}"
+if [ -z "$NORMALIZED_ROOT" ]; then
+    ROOT_DESCENDANT_PATTERN="/*"
+else
+    ROOT_DESCENDANT_PATTERN="${NORMALIZED_ROOT}/*"
+fi
 case "$REAL_TARGET" in
     "$REAL_ROOT")
         ;;
-    "$REAL_ROOT"/*)
+    $ROOT_DESCENDANT_PATTERN)
         ;;
     *)
         echo "Error: target path escapes the workspace root and was rejected (root=$REAL_ROOT, target=$REAL_TARGET)." >&2

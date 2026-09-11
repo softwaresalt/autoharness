@@ -50,6 +50,80 @@ _BASH = shutil.which("bash")
 
 _TOKEN_LINE_RE = re.compile(r"^LOCK_TOKEN=([0-9a-f]{64})$", re.MULTILINE)
 
+# Frozen (token -> owner_digest) constants from V-c/V-c2 in
+# docs/research/2026-09-10-ship3-file-lock-behavior-matrix-and-token-vectors.md.
+# Per the plan (153.002-T), task 2 MUST cite these by name as the expected
+# value source and MUST NOT compute an expected digest from its own
+# implementation -- so these literals are transcribed verbatim from the
+# research doc, not derived here.
+_FROZEN_VECTORS_V_C = [
+    (
+        "V-c-1",
+        "e83b05973c834241b240698aacb6d11e1722cf7e8261ba5bb2af45f6ec1ca30a",
+        "96aa0ac1a81d5616a6a468f888d4f727958e15d33a6d9d00bf080d4c7ea2ae4e",
+    ),
+    (
+        "V-c-2",
+        "cec53b030c1d80eab1582ab06daf42204906075565aad99a6c0d23c52b1059c2",
+        "be46528d300d259b3bfa5a32ace47f22972d500ae1412ce59a02fa7b480da4ad",
+    ),
+    (
+        "V-c-3",
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "df0790f236013511e91fa4532fb7761f62320a51a3868dabf4a13fe5f53e3263",
+    ),
+    (
+        "V-c-4a",
+        "e0f0240b96cf3810ac4679762271e2916785e5ce24b755f2ae59d4c454914d21",
+        "75004610c37b3f618cb133894712ee9c3fd68e9bb9036a33fc08ca4a6f9139e1",
+    ),
+    (
+        "V-c-4b",
+        "e0f0240b96cf3810ac4679762271e2916785e5ce24b755f2ae59d4c454914d22",
+        "9c5fef6103f589f40e681b2ef292335e5145bc3b51f65464029d2b724573f6a7",
+    ),
+]
+
+# V-c2: derived from V-c-1 by adding/removing exactly one trailing character.
+# Rejected before a digest is ever computed -- there is no (token ->
+# owner_digest) pair for either.
+_FROZEN_VECTOR_V_C2_SHORT = (
+    "V-c2-short",
+    "e83b05973c834241b240698aacb6d11e1722cf7e8261ba5bb2af45f6ec1ca30",
+)
+_FROZEN_VECTOR_V_C2_LONG = (
+    "V-c2-long",
+    "e83b05973c834241b240698aacb6d11e1722cf7e8261ba5bb2af45f6ec1ca30aa",
+)
+
+# V-c "malformed/uppercase" vector: a charset violation (uppercase hex),
+# not a length-boundary violation -- V-a's alphabet is lowercase-only.
+_FROZEN_VECTOR_UPPERCASE_MALFORMED = (
+    "V-c-uppercase-malformed",
+    _FROZEN_VECTORS_V_C[0][1].upper(),
+)
+
+
+def _write_lock_file_with_digest(
+    lock_path: Path,
+    digest: str,
+    agent: str = "test-agent",
+    pid: int = 12345,
+    timestamp: str = "2026-01-01T00:00:00Z",
+    file_field: str = "target.txt",
+) -> None:
+    """Construct a lock file directly with a given owner_digest, bypassing
+    acquire, so a release script can be exercised against the frozen V-c/
+    V-c2 constants (which are not produced by any live acquire call)."""
+    content = (
+        f"agent: {agent}\n"
+        f"timestamp: {timestamp}\n"
+        f"pid: {pid}\n"
+        f"file: {file_field}\n"
+        f"owner_digest: {digest}\n"
+    )
+    lock_path.write_text(content, encoding="utf-8")
+
 
 def _expected_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
@@ -205,6 +279,82 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                     ),
                 )
 
+    def test_frozen_v_c_vectors_release_succeeds(self) -> None:
+        """TC1-TC6 mandatory acceptance (153.002-T): the release script's own
+        digest routine must agree with every frozen V-c constant, not a
+        digest re-derived from this test."""
+        for interpreter in _PWSH_INTERPRETERS:
+            for label, token, digest in _FROZEN_VECTORS_V_C:
+                with self.subTest(interpreter=interpreter, vector=label):
+                    _write_lock_file_with_digest(self.lock_file, digest)
+                    result = self._release(interpreter, ["-Token", token])
+                    self.assertEqual(
+                        result.returncode, 0, msg=f"{label}: {result.stderr}"
+                    )
+                    self.assertFalse(self.lock_file.exists())
+
+    def test_frozen_v_c2_length_boundary_vectors_rejected_before_digest(self) -> None:
+        """V-c2: a wrong-length token must be rejected with a NAMED error
+        before any digest is computed -- not silently hashed and compared."""
+        for interpreter in _PWSH_INTERPRETERS:
+            for label, token in (_FROZEN_VECTOR_V_C2_SHORT, _FROZEN_VECTOR_V_C2_LONG):
+                with self.subTest(interpreter=interpreter, vector=label):
+                    # The stored digest is irrelevant here -- V-c2 tokens must
+                    # be rejected before any digest comparison is attempted.
+                    _write_lock_file_with_digest(self.lock_file, _FROZEN_VECTORS_V_C[0][2])
+                    result = self._release(interpreter, ["-Token", token])
+                    self.assertNotEqual(
+                        result.returncode, 0, msg=f"{label} must be rejected"
+                    )
+                    self.assertIn(
+                        "TOKEN_MALFORMED",
+                        result.stderr,
+                        msg=f"{label} must surface a named validation error",
+                    )
+                    self.assertTrue(
+                        self.lock_file.exists(),
+                        msg=f"{label}: lock must remain since nothing was verified",
+                    )
+                    self.lock_file.unlink()
+
+    def test_uppercase_token_rejected_as_malformed(self) -> None:
+        """V-a's alphabet is lowercase-only; an uppercase rendering of an
+        otherwise-valid-length token is a charset violation, not a digest
+        mismatch, and must be rejected before hashing."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                label, token = _FROZEN_VECTOR_UPPERCASE_MALFORMED
+                _write_lock_file_with_digest(self.lock_file, _FROZEN_VECTORS_V_C[0][2])
+                result = self._release(interpreter, ["-Token", token])
+                self.assertNotEqual(result.returncode, 0, msg=label)
+                self.assertIn("TOKEN_MALFORMED", result.stderr)
+                self.assertTrue(self.lock_file.exists())
+                self.lock_file.unlink()
+
+    def test_refusal_message_reports_lock_path_and_age_and_force_remedy(self) -> None:
+        """Plan review finding 1 (P0), mandatory acceptance on 153.002-T: the
+        refusal message must state the lock path, agent/pid, the computed
+        age, the 1-hour staleness heuristic when exceeded, and the exact
+        --force/-Force remedy -- never the token or owner_digest."""
+        for interpreter in _PWSH_INTERPRETERS:
+            with self.subTest(interpreter=interpreter):
+                if self.lock_file.exists():
+                    self.lock_file.unlink()
+                acquire_result = self._acquire(interpreter)
+                self.assertEqual(acquire_result.returncode, 0, msg=acquire_result.stderr)
+                lock_content = self.lock_file.read_text(encoding="utf-8")
+                stale_ts = "2020-01-01T00:00:00Z"
+                new_content = re.sub(
+                    r"^timestamp: .*$", f"timestamp: {stale_ts}", lock_content, flags=re.MULTILINE
+                )
+                self.lock_file.write_text(new_content, encoding="utf-8")
+                release_result = self._release(interpreter, ["-Token", "0" * 64])
+                self.assertNotEqual(release_result.returncode, 0)
+                self.assertIn(str(self.lock_file), release_result.stderr)
+                self.assertIn("stale", release_result.stderr.lower())
+                self.assertIn("-Force", release_result.stderr)
+                self.lock_file.unlink()
+
 
 def _read_lf(path: Path) -> str:
     return path.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -317,6 +467,125 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
             0,
             msg=f"stdout={result.stdout} stderr={result.stderr}",
         )
+
+    def test_release_missing_parent_directory_is_warning_not_error(self) -> None:
+        """Regression: a target whose PARENT directory (not just the target
+        itself) does not exist must still be treated as "no lock file
+        exists" -- a warning and exit 0 -- matching the PowerShell variant
+        (GetFullPath is pure string normalisation with no filesystem access),
+        not a hard failure."""
+        missing_nested = self.root / "gone" / "nested.txt"
+        self.assertFalse(missing_nested.parent.exists())
+        result = subprocess.run(
+            [_BASH, str(self.release_script), str(missing_nested)],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=f"stdout={result.stdout} stderr={result.stderr}",
+        )
+
+    def test_release_with_force_succeeds_without_sha_tool_available(self) -> None:
+        """Regression: --force must not depend on any token-processing
+        tooling. An inherited LOCK_TOKEN plus --force on a host without
+        sha256sum/shasum used to enter compute_digest and exit 1 before the
+        force override could remove the stale lock."""
+        acquire_result = self._acquire()
+        self.assertEqual(acquire_result.returncode, 0, msg=acquire_result.stderr)
+
+        limited_bin = Path(tempfile.mkdtemp(prefix="limited_bin_"))
+        try:
+            real_bash = Path(_BASH).resolve()
+            for name in (
+                "bash", "sh", "rm", "cat", "dirname", "basename", "sed",
+                "date", "printf", "tr", "head", "realpath", "awk",
+            ):
+                candidate = shutil.which(name)
+                if candidate:
+                    (limited_bin / name).symlink_to(Path(candidate).resolve())
+            # Deliberately exclude sha256sum and shasum from this PATH.
+            env = {"PATH": str(limited_bin), "LOCK_TOKEN": "d" * 64}
+            release_result = subprocess.run(
+                [str(real_bash), str(self.release_script), str(self.target), "--force"],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+            self.assertEqual(
+                release_result.returncode,
+                0,
+                msg=f"stdout={release_result.stdout} stderr={release_result.stderr}",
+            )
+            self.assertFalse(self.lock_file.exists())
+        finally:
+            shutil.rmtree(limited_bin, ignore_errors=True)
+
+    def test_frozen_v_c_vectors_release_succeeds(self) -> None:
+        """TC1-TC6 mandatory acceptance (153.002-T): the release script's own
+        digest routine must agree with every frozen V-c constant, not a
+        digest re-derived from this test."""
+        for label, token, digest in _FROZEN_VECTORS_V_C:
+            with self.subTest(vector=label):
+                _write_lock_file_with_digest(self.lock_file, digest)
+                result = self._release(["--token", token])
+                self.assertEqual(result.returncode, 0, msg=f"{label}: {result.stderr}")
+                self.assertFalse(self.lock_file.exists())
+
+    def test_frozen_v_c2_length_boundary_vectors_rejected_before_digest(self) -> None:
+        """V-c2: a wrong-length token must be rejected with a NAMED error
+        before any digest is computed -- not silently hashed and compared."""
+        for label, token in (_FROZEN_VECTOR_V_C2_SHORT, _FROZEN_VECTOR_V_C2_LONG):
+            with self.subTest(vector=label):
+                _write_lock_file_with_digest(self.lock_file, _FROZEN_VECTORS_V_C[0][2])
+                result = self._release(["--token", token])
+                self.assertNotEqual(result.returncode, 0, msg=f"{label} must be rejected")
+                self.assertIn(
+                    "TOKEN_MALFORMED",
+                    result.stderr,
+                    msg=f"{label} must surface a named validation error",
+                )
+                self.assertTrue(
+                    self.lock_file.exists(),
+                    msg=f"{label}: lock must remain since nothing was verified",
+                )
+                self.lock_file.unlink()
+
+    def test_uppercase_token_rejected_as_malformed(self) -> None:
+        """V-a's alphabet is lowercase-only; an uppercase rendering of an
+        otherwise-valid-length token is a charset violation, not a digest
+        mismatch, and must be rejected before hashing."""
+        label, token = _FROZEN_VECTOR_UPPERCASE_MALFORMED
+        _write_lock_file_with_digest(self.lock_file, _FROZEN_VECTORS_V_C[0][2])
+        result = self._release(["--token", token])
+        self.assertNotEqual(result.returncode, 0, msg=label)
+        self.assertIn("TOKEN_MALFORMED", result.stderr)
+        self.assertTrue(self.lock_file.exists())
+        self.lock_file.unlink()
+
+    def test_refusal_message_reports_lock_path_and_age_and_force_remedy(self) -> None:
+        """Plan review finding 1 (P0), mandatory acceptance on 153.002-T: the
+        refusal message must state the lock path, agent/pid, the computed
+        age, the 1-hour staleness heuristic when exceeded, and the exact
+        --force remedy -- never the token or owner_digest."""
+        acquire_result = self._acquire()
+        self.assertEqual(acquire_result.returncode, 0, msg=acquire_result.stderr)
+        lock_content = self.lock_file.read_text(encoding="utf-8")
+        stale_ts = "2020-01-01T00:00:00Z"
+        new_content = re.sub(
+            r"^timestamp: .*$", f"timestamp: {stale_ts}", lock_content, flags=re.MULTILINE
+        )
+        self.lock_file.write_text(new_content, encoding="utf-8")
+        release_result = self._release(["--token", "0" * 64])
+        self.assertNotEqual(release_result.returncode, 0)
+        self.assertIn(str(self.lock_file), release_result.stderr)
+        self.assertIn("stale", release_result.stderr.lower())
+        self.assertIn("--force", release_result.stderr)
 
 
 if __name__ == "__main__":

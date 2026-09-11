@@ -136,6 +136,41 @@ function Get-AutoharnessTokenDigest {
     return -join ($digestBytes | ForEach-Object { $_.ToString('x2') })
 }
 
+# V-a: the token this script's sibling acquire_lock.ps1 generates is always
+# 64 lowercase hex characters (32 CSPRNG bytes, V-a's fixed-length,
+# lowercase-only alphabet). V-c2 requires a wrong-length or wrong-charset
+# token to be rejected outright -- non-zero exit, a NAMED validation error,
+# no digest ever computed -- rather than silently hashed and compared, which
+# would let a truncating or charset-loose implementation slip through.
+$autoharnessTokenShapeRegex = '^[0-9a-f]{64}$'
+
+# 1-hour staleness heuristic (concurrency.instructions.md): report the lock
+# age so an operator deciding whether to -Force has the same information
+# the policy asks them to consider. The recorded timestamp may have been
+# written by either acquire variant (PowerShell's round-trip
+# `Get-Date -Format 'o'`, or POSIX `date -u +%Y-%m-%dT%H:%M:%SZ`);
+# DateTimeOffset.Parse handles both forms. When parsing fails, report the
+# age as unknown rather than fabricating a value.
+function Get-AutoharnessLockAgeReport {
+    param([Parameter(Mandatory = $true)][string]$RecordedTimestamp)
+    try {
+        $lockTime = [System.DateTimeOffset]::Parse(
+            $RecordedTimestamp,
+            [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::None)
+        $ageSeconds = [int]([System.DateTimeOffset]::UtcNow - $lockTime.ToUniversalTime()).TotalSeconds
+        if ($ageSeconds -lt 0) { $ageSeconds = 0 }
+        $ageMinutes = [int]($ageSeconds / 60)
+        if ($ageSeconds -ge 3600) {
+            return "age=${ageMinutes}m (stale: exceeds the 1-hour heuristic)"
+        }
+        return "age=${ageMinutes}m"
+    }
+    catch {
+        return "age=unknown (unable to parse timestamp: $RecordedTimestamp)"
+    }
+}
+
 if (-not (Test-Path -LiteralPath $FilePath)) {
     # Target file may have been deleted or moved; still clean up the lock.
     Write-Warning "Target file does not exist: $FilePath"
@@ -179,22 +214,43 @@ $suppliedToken = if ($Token) { $Token } elseif ($env:LOCK_TOKEN) { $env:LOCK_TOK
 
 # O2: possession of the token that hashes to the recorded owner_digest is the
 # capability check. O1: agent/pid/timestamp are courtesy identity only and
-# carry no authorisation weight. TC5d: the refusal/staleness report below
-# names agent/pid/timestamp but NEVER the token or owner_digest.
+# carry no authorisation weight. TC5d: every message below names the lock
+# path, agent/pid/timestamp/age but NEVER the token or owner_digest.
+#
+# -Force must not depend on any token-processing tooling or shape at all
+# (O3: the operator's override is unconditional): when -Force is supplied,
+# ownership verification -- including token-shape validation and digest
+# hashing -- is skipped entirely, so a malformed inherited LOCK_TOKEN can
+# never block a force-break.
 $ownershipVerified = $false
-if ($recordedDigest -and $suppliedToken) {
-    $suppliedDigest = Get-AutoharnessTokenDigest -Token $suppliedToken
-    if ($suppliedDigest.Equals($recordedDigest, [System.StringComparison]::OrdinalIgnoreCase)) {
-        $ownershipVerified = $true
+$tokenMalformed = $false
+if (-not $Force) {
+    if ($suppliedToken -and -not ($suppliedToken -cmatch $autoharnessTokenShapeRegex)) {
+        $tokenMalformed = $true
+    }
+    elseif ($recordedDigest -and $suppliedToken) {
+        $suppliedDigest = Get-AutoharnessTokenDigest -Token $suppliedToken
+        if ($suppliedDigest.Equals($recordedDigest, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $ownershipVerified = $true
+        }
     }
 }
 
+if ($tokenMalformed) {
+    # V-c2: fail closed before any digest is computed -- a wrong-length or
+    # wrong-charset token is a distinct, named validation error, not merely
+    # a digest mismatch.
+    Write-Error "autoharness-file-lock: TOKEN_MALFORMED -- supplied token is not 64 lowercase hex characters; refusing to verify ownership without computing a digest. Supply the exact value returned at acquire time, or have the operator supply -Force."
+    exit 1
+}
+
 if (-not $ownershipVerified) {
-    $ownerReport = "agent=$recordedAgent, pid=$recordedPid, timestamp=$recordedTimestamp"
+    $ageReport = Get-AutoharnessLockAgeReport -RecordedTimestamp $recordedTimestamp
+    $ownerReport = "lock=$lockFile, agent=$recordedAgent, pid=$recordedPid, timestamp=$recordedTimestamp, $ageReport"
     if (-not $Force) {
         # Decision (iii): a refusal is a non-zero exit -- exit 0 would make
         # the refusal indistinguishable from success.
-        Write-Error "autoharness-file-lock: refusing to release -- ownership could not be verified ($ownerReport). Supply -Token with the value returned at acquire time, or have the operator supply -Force."
+        Write-Error "autoharness-file-lock: refusing to release -- ownership could not be verified ($ownerReport). Supply -Token with the value returned at acquire time, or have the operator run: release_lock.ps1 '$FilePath' -Force"
         exit 1
     }
     Write-Warning "autoharness-file-lock: -Force supplied; breaking this lock without a verified token ($ownerReport). O3: this is an advisory lock, not an adversarial guarantee -- only the operator should do this."
