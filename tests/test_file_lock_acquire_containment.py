@@ -382,6 +382,51 @@ class AcquireLockContainmentShTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue((self.ws_sub / ".target.txt.lock").exists())
 
+    def test_root_containing_glob_metacharacters_does_not_widen_containment(
+        self,
+    ) -> None:
+        """Round-4 Copilot review regression: the descendant-match pattern
+        used to interpolate the normalised workspace root directly into an
+        unquoted `case` glob pattern ("$REAL_ROOT/*"). A root such as
+        "ws[0]" therefore produced the pattern "ws[0]/*", and "[0]" is a
+        glob CHARACTER CLASS matching the single literal character "0" --
+        so a sibling directory literally named "ws0" (outside the intended
+        root) would be wrongly accepted as if it were inside "ws[0]".
+        Build two siblings under the same parent: the real bracketed root
+        and the "ws0" sibling the old buggy pattern would have matched.
+        A target inside the real root must still succeed; a target inside
+        the "ws0" sibling, passed with --workspace-root pointing at the
+        bracketed root, must still be rejected."""
+        bracket_root = self.root / "ws[0]"
+        bracket_root.mkdir()
+        (bracket_root / "target.txt").write_text("contained", encoding="utf-8")
+
+        glob_sibling = self.root / "ws0"
+        glob_sibling.mkdir()
+        (glob_sibling / "evil.txt").write_text("outside", encoding="utf-8")
+
+        contained_result = self._run(
+            [
+                str(bracket_root / "target.txt"),
+                "--workspace-root",
+                str(bracket_root),
+            ],
+            cwd=bracket_root,
+        )
+        self.assertEqual(contained_result.returncode, 0, msg=contained_result.stderr)
+        self.assertTrue((bracket_root / ".target.txt.lock").exists())
+
+        escape_result = self._run(
+            [
+                str(glob_sibling / "evil.txt"),
+                "--workspace-root",
+                str(bracket_root),
+            ],
+            cwd=bracket_root,
+        )
+        self.assertNotEqual(escape_result.returncode, 0, msg=escape_result.stdout)
+        self.assertFalse((glob_sibling / ".evil.txt.lock").exists())
+
     def test_missing_workspace_root_git_derived_default_succeeds(self) -> None:
         repo_root = self.root / "repo"
         scripts_dir = repo_root / "scripts"

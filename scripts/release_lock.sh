@@ -158,6 +158,19 @@ compute_lock_age_report() {
     fi
 }
 
+# The refusal remedy below embeds the caller-supplied path inside a
+# single-quoted shell command that the operator is expected to copy and
+# paste verbatim. A path containing an embedded single quote would
+# otherwise terminate that quoting early and let trailing characters be
+# interpreted as additional shell syntax (command injection via a crafted
+# filename). Render the path through the standard POSIX-safe single-quote
+# idiom instead: replace each embedded "'" with the four-character
+# sequence '\'' (close quote, escaped literal quote, reopen quote), then
+# wrap the whole result in an outer pair of single quotes.
+shell_quote() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
 # O2: possession of a token hashing to the recorded owner_digest is the
 # capability check. O1: agent/pid/timestamp are courtesy identity only and
 # carry no authorisation weight. TC5d: every message below names the lock
@@ -197,7 +210,7 @@ if [ "$OWNERSHIP_VERIFIED" -ne 1 ]; then
     if [ "$FORCE" -ne 1 ]; then
         # Decision (iii): refusal is a non-zero exit -- exit 0 would make the
         # refusal indistinguishable from success.
-        echo "Error: refusing to release -- ownership could not be verified (${OWNER_REPORT}). Supply --token with the value returned at acquire time, or have the operator run: release_lock.sh '${FILEPATH}' --force" >&2
+        echo "Error: refusing to release -- ownership could not be verified (${OWNER_REPORT}). Supply --token with the value returned at acquire time, or have the operator run: release_lock.sh $(shell_quote "${FILEPATH}") --force" >&2
         exit 1
     fi
     echo "Warning: --force supplied; breaking this lock without a verified token (${OWNER_REPORT}). O3: this is an advisory lock, not an adversarial guarantee -- only the operator should do this." >&2

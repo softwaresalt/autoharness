@@ -102,7 +102,18 @@ NORMALIZED_ROOT="${REAL_ROOT%/}"
 if [ -z "$NORMALIZED_ROOT" ]; then
     ROOT_DESCENDANT_PATTERN="/*"
 else
-    ROOT_DESCENDANT_PATTERN="${NORMALIZED_ROOT}/*"
+    # The root itself must be treated as a LITERAL string in the case
+    # pattern below, not as a glob -- a workspace root containing shell
+    # glob metacharacters ([, ], *, ?, \) would otherwise let the pattern
+    # match paths outside the root (e.g. root "/tmp/ws[0]" naively becomes
+    # pattern "/tmp/ws[0]/*", and "[0]" is a glob character class matching
+    # the literal character "0", so it would wrongly accept the sibling
+    # path "/tmp/ws0/file"). Escape backslash, star, question mark, and
+    # open-bracket in the root so only the trailing "/*" we append stays
+    # pattern-active; an escaped "[" also prevents any "]" that follows
+    # from closing a character class, so "]" needs no separate escaping.
+    ESCAPED_ROOT="$(printf '%s' "$NORMALIZED_ROOT" | sed -e 's/\\/\\\\/g' -e 's/\*/\\*/g' -e 's/?/\\?/g' -e 's/\[/\\[/g')"
+    ROOT_DESCENDANT_PATTERN="${ESCAPED_ROOT}/*"
 fi
 case "$REAL_TARGET" in
     "$REAL_ROOT")

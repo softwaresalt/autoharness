@@ -171,6 +171,19 @@ function Get-AutoharnessLockAgeReport {
     }
 }
 
+function Get-AutoharnessSingleQuoted {
+    # The refusal remedy embeds the caller-supplied path inside a
+    # single-quoted PowerShell command that the operator is expected to
+    # copy and paste verbatim. A path containing an embedded "'" would
+    # otherwise terminate that quoting early and let trailing characters
+    # be interpreted as additional PowerShell syntax (injection via a
+    # crafted filename). PowerShell's own single-quoted-string escape rule
+    # doubles each embedded quote ('' represents a literal '), so apply
+    # that rule here before wrapping the result in an outer quote pair.
+    param([Parameter(Mandatory = $true)][string]$Value)
+    return "'" + ($Value -replace "'", "''") + "'"
+}
+
 if (-not (Test-Path -LiteralPath $FilePath)) {
     # Target file may have been deleted or moved; still clean up the lock.
     Write-Warning "Target file does not exist: $FilePath"
@@ -250,7 +263,8 @@ if (-not $ownershipVerified) {
     if (-not $Force) {
         # Decision (iii): a refusal is a non-zero exit -- exit 0 would make
         # the refusal indistinguishable from success.
-        Write-Error "autoharness-file-lock: refusing to release -- ownership could not be verified ($ownerReport). Supply -Token with the value returned at acquire time, or have the operator run: release_lock.ps1 '$FilePath' -Force"
+        $quotedPath = Get-AutoharnessSingleQuoted -Value $FilePath
+        Write-Error "autoharness-file-lock: refusing to release -- ownership could not be verified ($ownerReport). Supply -Token with the value returned at acquire time, or have the operator run: release_lock.ps1 $quotedPath -Force"
         exit 1
     }
     Write-Warning "autoharness-file-lock: -Force supplied; breaking this lock without a verified token ($ownerReport). O3: this is an advisory lock, not an adversarial guarantee -- only the operator should do this."
