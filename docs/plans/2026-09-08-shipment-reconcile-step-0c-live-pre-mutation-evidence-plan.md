@@ -100,7 +100,7 @@ live execution **provable**, not merely **required**.
 | Report output surface | same files, L63 — `.backlogit/reconcile/{shipment_id}-{mode}-{timestamp}.md` | the existing durable evidence location |
 | Scenario matrix / quality criteria | same files, L1002 / L1011 | where negative scenarios are enumerated |
 | Diagram | `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` — authored and operator-approved on 2026-09-07 under gate `G-DIAG-REVIEW`, recorded in the `15A02E21` deliberation's `linked_artifacts`, and **untracked / absent from `origin/main`** (verified 2026-09-10) | **CORRECTED BY R1-12; this row's earlier "U4 updates this existing diagram / it is not a new artifact" wording is superseded and retained only as history.** U4 applies the **upsert rule** against this single canonical path, resolved at execution time: **update it in place if present; create that same canonical file at that same path if absent.** Never a second or parallel diagram, and never a path that branches on whether the file was found |
-| Checksum manifest | `.autoharness/harness-manifest.yaml` (shipment-reconcile entries at L126, L201, L272, L274, L396) | skill/template edits invalidate checksums |
+| Checksum manifest | `.autoharness/harness-manifest.yaml` — **exactly ONE** artifact entry, identified by its **`path:` key** `.github/skills/shipment-reconcile/SKILL.md`. That entry's `checksum:` field is the **only** recompute target. **CORRECTED BY R1-14; the earlier "(shipment-reconcile entries at L126, L201, L272, L274, L396)" wording was FALSE and is SUPERSEDED — retained nowhere as an instruction.** Locate the entry **by path, never by line number**. `templates/skills/shipment-reconcile/SKILL.md.tmpl` is only that entry's `template:` value and has **no manifest entry and no checksum of its own**. **Do not add, remove, rename, reorder or re-checksum any other manifest entry.** | the paired skill edit invalidates that one checksum |
 
 ## Requirements Trace
 
@@ -606,6 +606,59 @@ never said what the closing agent then **does**. Without that, "incomplete" has 
 `163-F`, `163.001-T`, `163.002-T`, `163.003-T`, `163.004-T`, `163.005-T`, `163.006-T`,
 `163.007-T` and `163.008-T`, to redesign decision `D-7`/`D-8`, and to `033-DL`.
 
+### R1-14 — The U5 checksum contract was factually false; corrected to a path-keyed single target
+
+**2026-09-10, review-fix cycle 4 (operator-authorized extension). R1-14 GOVERNS over
+R1-13, R1-12, R1-11 and R1 wherever they describe the U5 checksum set. No new unit, no new
+task, no size change, no file-set change, no token-count change.**
+
+**The defect.** Every prior statement of U5's checksum contract — the Blast Radius row, the
+R1-11 note on `163.007-T`, and the restatements in amendments R1-12(2) and R1-13 — asserted
+that U5 recomputes **"the five shipment-reconcile entries at L126, L201, L272, L274,
+L396"**. Direct inspection of `.autoharness/harness-manifest.yaml` on 2026-09-10 (72
+artifact entries, parsed as YAML, not grepped) refutes that claim outright:
+
+| Claim | Verified reality |
+|---|---|
+| Five manifest entries | **Exactly ONE** entry has a `path:` key containing `shipment-reconcile`: `.github/skills/shipment-reconcile/SKILL.md` |
+| The template has its own checksum | The manifest contains **zero** entries whose `path:` starts with `templates/`. `templates/skills/shipment-reconcile/SKILL.md.tmpl` appears only as that one entry's `template:` value, and has **no entry and no checksum** |
+| L126 / L201 / L396 are shipment-reconcile entries | They are **`note:` prose lines belonging to THREE UNRELATED artifacts** — `.github/agents/_ship.agent.md` (L126), `.github/skills/file-lock/SKILL.md` (L201), and `.github/policies/workflow-policies.md` (L396) — which merely *mention* the string "shipment-reconcile" |
+| L272 and L274 are two entries | They are **two fields of the SAME single entry**: its `path:` key (L272) and its `template:` value (L274) |
+
+The five "entries" were five **grep hits for the string `shipment-reconcile`**, mistaken for
+five manifest entries. This was not a cosmetic error: followed literally it would have
+directed the implementer to **recompute checksums on three unrelated artifacts** — the Ship
+agent definition, the file-lock skill, and the workflow-policies registry — corrupting their
+integrity records while leaving the real target ambiguous.
+
+**The corrected contract.**
+
+1. **ONE TARGET, RESOLVED BY PATH KEY.** U5 recomputes the `checksum:` field of the single
+   manifest artifact entry whose `path:` is `.github/skills/shipment-reconcile/SKILL.md`.
+2. **NEVER BY LINE NUMBER.** Line numbers are unstable — every amendment to a neighbouring
+   `note:` shifts them, which is precisely how this defect became undetectable. Resolve the
+   entry by its `path:` key.
+3. **THE TEMPLATE HAS NO CHECKSUM.** `templates/skills/shipment-reconcile/SKILL.md.tmpl` is
+   edited by U2 and U6 and its bytes matter for dogfood parity (U1c), but it is **not a
+   manifest-managed artifact**. Editing it produces **no** manifest mutation. Do not invent
+   an entry for it.
+4. **NO COLLATERAL MANIFEST EDITS — EXPLICITLY FORBIDDEN.** U5 must **not** add, remove,
+   rename, reorder, or re-checksum **any other manifest entry**, and specifically must not
+   touch the `_ship.agent.md`, `file-lock/SKILL.md` or `workflow-policies.md` entries whose
+   `note:` prose mentions shipment-reconcile. The closure diff must show exactly **one**
+   changed `checksum:` value.
+5. **UNCHANGED BY R1-14:** U5 still runs LAST and still consumes every prior edit's bytes;
+   dependencies stay `163.005-T`, `163.006-T`, `163.008-T`; size stays **XS / low**;
+   `.backlogit/logs/` and `.backlogit/reconcile/` remain **workspace state** and must never
+   be added to the manifest in any tracking case; and this feature still adds no new file
+   and no new harness-managed artifact.
+
+**Superseded text is retained only behind unmistakable markers** (`CORRECTED BY R1-14` /
+`SUPERSEDED`) as history, never as an instruction.
+
+**Propagated to** the Blast Radius table, plan unit `U5`, task `163.007-T` (main description
+plus its R1-11 note and its R1-12 and R1-13 restatements), and the review record.
+
 ## Implementation Units
 
 ### U1a — RED: replay fixture for the 159-S shape
@@ -928,8 +981,15 @@ Harvested as task `163.008-T`.
 
 ### U5 — Checksum recompute and GREEN
 
-Recompute `.autoharness/harness-manifest.yaml` checksums for the edited skill and
-template, and run the full suite green.
+Recompute **the single** `.autoharness/harness-manifest.yaml` checksum for the artifact
+entry whose `path:` key is `.github/skills/shipment-reconcile/SKILL.md`, and run the full
+suite green.
+
+**CORRECTED BY R1-14 (see below).** There is **one** checksum target, not two and not
+five. The paired template `templates/skills/shipment-reconcile/SKILL.md.tmpl` is edited by
+U2/U6 but carries **no manifest entry and no checksum**, so editing it produces no
+manifest mutation. Resolve the entry **by its `path:` key**, never by line number, and
+leave every other manifest entry byte-unchanged.
 
 ## Dependency Graph
 

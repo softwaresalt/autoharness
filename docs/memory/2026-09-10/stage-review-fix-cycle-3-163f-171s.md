@@ -134,11 +134,25 @@ U1a → U1b/U1c → U2 → U3/U4/U6 → U5.
 
 ## Final local review record (recorded after the commit)
 
+> **⚠️ OUTCOME SUPERSEDED — CORRECTED 2026-09-10 BY REVIEW-FIX CYCLE 4.**
+> The `READY` verdict recorded in this section is **withdrawn and replaced by
+> `READY_WITH_FOLLOWUPS`**. The verdict was wrong on its own stated facts: this same
+> document's "Residual risks / follow-ups" section records `904C47BC` as **active and
+> undispositioned** with `requires deliberation: yes` **unmet**, which is by definition a
+> readiness state *with* an open follow-up, not an unqualified `READY`. The two sections
+> contradicted each other and the follow-up section is the accurate one.
+> The commit SHA, tree SHA and P0/P1 counts below **remain correct and unchanged**; only
+> the outcome **label** was wrong. The authoritative current readiness record is
+> `docs/memory/2026-09-10/stage-review-fix-cycle-4-163f-171s-readiness.md`.
+> This block is retained as history; the `READY` label below is **not** a live claim.
+
 Recorded in the follow-up commit, separately from the pre-commit pass above, so that no
 review claim names a HEAD that did not exist when the review ran.
 
 * Reviewed tree (pre-commit): `9a7862d43519349a198d7913e7417dfb4f099938`
 * Remediation commit publishing that tree: **`097a8736983fcdfc246202d2d5d315150cce886c`**
-* Local review outcome for that commit: `READY` — zero P0, zero unresolved P1; Stage
+* Local review outcome for that commit: ~~`READY`~~ → **SUPERSEDED, see the correction
+  block above; the corrected outcome is `READY_WITH_FOLLOWUPS` with follow-up
+  `904C47BC`** — zero P0, zero unresolved P1; Stage
   planning/backlog artifacts only; full local build **not applicable** (no source, test,
   template, skill or agent file was modified).
