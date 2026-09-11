@@ -29,6 +29,16 @@ scripts/acquire_lock.ps1 text eol=lf
 scripts/acquire_lock.sh text eol=lf
 scripts/release_lock.ps1 text eol=lf
 scripts/release_lock.sh text eol=lf
+# The template sources for the above four installed scripts must carry the
+# same LF pin -- otherwise a Windows checkout with core.autocrlf=true smudges
+# only the unpinned templates/ copy to CRLF while the pinned scripts/ copy
+# stays LF, producing a raw-byte parity mismatch
+# (test_file_lock_template_installed_parity.py) that is a checkout artifact,
+# not a real content divergence.
+templates/skills/file-lock/scripts/acquire_lock.ps1 text eol=lf
+templates/skills/file-lock/scripts/acquire_lock.sh text eol=lf
+templates/skills/file-lock/scripts/release_lock.ps1 text eol=lf
+templates/skills/file-lock/scripts/release_lock.sh text eol=lf
 
 # Root markdownlint config: manifest-checksummed so tune-harness can detect
 # rule weakening or deletion deterministically, therefore it needs the same
