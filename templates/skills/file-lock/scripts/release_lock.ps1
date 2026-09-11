@@ -93,13 +93,33 @@ public static class AutoharnessFileLockPathResolver
 }
 '@
 
-if (-not ('AutoharnessFileLockPathResolver' -as [type])) {
-    Add-Type -TypeDefinition $autoharnessResolverSource -ErrorAction Stop
+# The kernel32 P/Invoke resolver above is Windows-only (same rationale as
+# acquire_lock.ps1). `$IsWindows` is defined by PowerShell 6+ (pwsh) on every
+# platform but does not exist under Windows PowerShell 5.1 (Desktop
+# edition), which only ever runs on Windows -- so an undefined `$IsWindows`
+# variable means "Windows PowerShell 5.1", which is unconditionally Windows.
+$autoharnessIsWindowsPlatform = if (Test-Path variable:IsWindows) { $IsWindows } else { $true }
+
+if ($autoharnessIsWindowsPlatform) {
+    if (-not ('AutoharnessFileLockPathResolver' -as [type])) {
+        Add-Type -TypeDefinition $autoharnessResolverSource -ErrorAction Stop
+    }
 }
 
 function Get-AutoharnessRealPath {
+    # On Windows: the kernel32 P/Invoke resolver above. On non-Windows
+    # (Linux/macOS, reachable only via PowerShell 7+/pwsh): kernel32.dll does
+    # not exist, so shell out to the external `realpath` command instead --
+    # the same tool and invocation form used by the sibling `.sh` scripts.
     param([Parameter(Mandatory = $true)][string]$Path)
-    return [AutoharnessFileLockPathResolver]::GetRealPath($Path)
+    if ($autoharnessIsWindowsPlatform) {
+        return [AutoharnessFileLockPathResolver]::GetRealPath($Path)
+    }
+    $resolved = & realpath $Path 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $resolved) {
+        throw "autoharness-file-lock: unable to resolve real path via realpath: $Path"
+    }
+    return $resolved
 }
 
 # TC3: same digest computation as acquire_lock.ps1 (V-b canonicalization).
