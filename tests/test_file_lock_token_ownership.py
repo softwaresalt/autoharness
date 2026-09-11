@@ -526,6 +526,64 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
         finally:
             shutil.rmtree(limited_bin, ignore_errors=True)
 
+    def test_acquire_fails_closed_without_sha_tool_available(self) -> None:
+        """V-e / TC3 mandatory acceptance (153.002-T): when neither
+        `sha256sum` nor `shasum -a 256` is resolvable on PATH, acquire must
+        exit non-zero with a named remedy, must NOT create a lock file, and
+        must NOT fall back to a weaker digest or store the token in
+        plaintext -- never silently downgrading the digest guarantee."""
+        limited_bin = Path(tempfile.mkdtemp(prefix="limited_bin_"))
+        try:
+            real_bash = Path(_BASH).resolve()
+            for name in (
+                "bash", "sh", "rm", "cat", "dirname", "basename", "sed",
+                "date", "printf", "tr", "head", "realpath", "awk", "mkdir",
+                "openssl", "od",
+            ):
+                candidate = shutil.which(name)
+                if candidate:
+                    (limited_bin / name).symlink_to(Path(candidate).resolve())
+            # Deliberately exclude sha256sum and shasum from this PATH.
+            # openssl/od are included so the script actually reaches the
+            # digest-tool check (TC1's CSPRNG step) rather than failing
+            # earlier for an unrelated reason.
+            env = {"PATH": str(limited_bin)}
+            acquire_result = subprocess.run(
+                [
+                    str(real_bash),
+                    str(self.acquire_script),
+                    str(self.target),
+                    "--workspace-root",
+                    str(self.root),
+                ],
+                cwd=self.root,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+            self.assertNotEqual(
+                acquire_result.returncode,
+                0,
+                msg=(
+                    "acquire must fail closed (non-zero exit) when no SHA-256 "
+                    f"utility is available; stdout={acquire_result.stdout} "
+                    f"stderr={acquire_result.stderr}"
+                ),
+            )
+            self.assertFalse(
+                self.lock_file.exists(),
+                msg="acquire must not create a lock file when it fails closed",
+            )
+            combined = acquire_result.stdout + acquire_result.stderr
+            self.assertIn(
+                "sha256sum",
+                combined,
+                msg="the fail-closed error must name the missing utility",
+            )
+        finally:
+            shutil.rmtree(limited_bin, ignore_errors=True)
+
     def test_frozen_v_c_vectors_release_succeeds(self) -> None:
         """TC1-TC6 mandatory acceptance (153.002-T): the release script's own
         digest routine must agree with every frozen V-c constant, not a
