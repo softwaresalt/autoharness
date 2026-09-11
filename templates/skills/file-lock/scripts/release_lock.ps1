@@ -221,13 +221,29 @@ if (-not (Test-Path -LiteralPath $FilePath)) {
     Write-Warning "Target file does not exist: $FilePath"
 }
 
-# Finding 6 fix: always normalise to an absolute path via GetFullPath FIRST,
-# which works whether or not the target exists (pure string normalisation,
-# no filesystem access) -- Split-Path can therefore never receive a bare
-# relative root-level filename and see an empty parent. When the file does
-# exist, additionally resolve through any reparse points so acquire and
-# release agree on the same REAL path when a symlink is involved.
-$absolutePath = [System.IO.Path]::GetFullPath($FilePath)
+# Finding 6 fix: always normalise to an absolute path FIRST, which works
+# whether or not the target exists (pure string normalisation, no
+# filesystem access beyond consulting the current location) -- Split-Path
+# can therefore never receive a bare relative root-level filename and see
+# an empty parent. When the file does exist, additionally resolve through
+# any reparse points so acquire and release agree on the same REAL path
+# when a symlink is involved.
+#
+# Round-6/7 review fix: use $ExecutionContext.SessionState.Path.Get
+# UnresolvedProviderPathFromPSPath instead of [System.IO.Path]::GetFullPath.
+# GetFullPath resolves a relative path against .NET's
+# Environment.CurrentDirectory, which can silently diverge from
+# PowerShell's own logical location ($PWD) -- for example after
+# `Set-Location` within a runspace, or whenever the process was launched
+# from a different directory than the shell's current provider path
+# reflects. In that common interactive case, GetFullPath would compute the
+# lock path under the process's startup directory instead of the caller's
+# actual current directory, report nothing to release, and leave the real
+# lock behind. GetUnresolvedProviderPathFromPSPath is the PowerShell-native
+# API for resolving a possibly-nonexistent path against $PWD and correctly
+# reflects Set-Location, matching the same PWD-relative semantics
+# release_lock.sh gets for free from the shell's own $PWD.
+$absolutePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($FilePath)
 $targetPath = if (Test-Path -LiteralPath $FilePath) {
     Get-AutoharnessRealPath (Resolve-Path -LiteralPath $FilePath).Path
 } else {

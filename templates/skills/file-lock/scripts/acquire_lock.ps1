@@ -184,7 +184,22 @@ function Test-AutoharnessPathContained {
         [Parameter(Mandatory = $true)][string]$RealRoot,
         [Parameter(Mandatory = $true)][string]$RealCandidate
     )
-    $rootWithSeparator = $RealRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    $normalizedRoot = $RealRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    $normalizedCandidate = $RealCandidate.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
+    # Round-6/7 review fix: reject equality BEFORE the prefix check. For a
+    # filesystem-root value of $RealRoot (e.g. "C:\" or "/"), trimming the
+    # trailing separator and re-appending it below recreates the root
+    # string exactly, so a bare StartsWith check would wrongly return true
+    # for a candidate equal to the root itself -- the equality-rejection
+    # contract this function documents above would silently not hold for
+    # a root that IS a filesystem root. Comparing the two normalized
+    # (separator-trimmed) forms directly, with the same comparison mode
+    # used below, closes that gap without changing behaviour for any
+    # non-degenerate root.
+    if ($normalizedCandidate.Equals($normalizedRoot, $autoharnessPathComparisonMode)) {
+        return $false
+    }
+    $rootWithSeparator = $normalizedRoot + [System.IO.Path]::DirectorySeparatorChar
     return $RealCandidate.StartsWith($rootWithSeparator, $autoharnessPathComparisonMode)
 }
 

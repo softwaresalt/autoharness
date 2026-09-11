@@ -136,7 +136,19 @@ if [ ! -e "$LOCKFILE" ]; then
 fi
 
 LOCK_CONTENT="$(cat "$LOCKFILE")"
-RECORDED_DIGEST="$(printf '%s\n' "$LOCK_CONTENT" | sed -n 's/^owner_digest: //p' | head -n1)"
+# Round-6/7 review fix: acquire_lock.sh always writes owner_digest as the
+# LAST field of the lock content (agent, timestamp, pid, file,
+# owner_digest, in that order). The `agent` and `file` fields are
+# caller-controlled and are written BEFORE owner_digest; either can legally
+# contain an embedded newline (e.g. a FILEPATH value like
+# "x\nowner_digest: <attacker-chosen>") that injects a second, fake
+# `owner_digest:` line ahead of the genuine one. Selecting the FIRST match
+# (`head -n1`) would then read the injected value instead of the real
+# digest acquire computed. Since the genuine field is always written last
+# and nothing legitimate follows it, selecting the LAST match (`tail -n1`)
+# is safe and always yields the authentic digest regardless of any
+# newline injected earlier in the file.
+RECORDED_DIGEST="$(printf '%s\n' "$LOCK_CONTENT" | sed -n 's/^owner_digest: //p' | tail -n1)"
 RECORDED_AGENT="$(printf '%s\n' "$LOCK_CONTENT" | sed -n 's/^agent: //p' | head -n1)"
 RECORDED_PID="$(printf '%s\n' "$LOCK_CONTENT" | sed -n 's/^pid: //p' | head -n1)"
 RECORDED_TIMESTAMP="$(printf '%s\n' "$LOCK_CONTENT" | sed -n 's/^timestamp: //p' | head -n1)"
