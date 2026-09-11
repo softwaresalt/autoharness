@@ -144,16 +144,34 @@ def _run_ps1(interpreter: str, script: Path, args: list[str], cwd: Path):
 
 
 def _make_junction(link_path: Path, target: Path, interpreter: str) -> None:
-    """Create a Windows directory junction without requiring admin rights."""
+    """Create a directory reparse point without requiring admin rights.
+
+    Windows: a directory junction (`-ItemType Junction`) needs no elevated
+    privileges. Non-Windows (pwsh on Linux/macOS): `-ItemType Junction` is
+    an NTFS-only concept that PowerShell's Unix FileSystemProvider does not
+    implement as a real reparse point -- it can return exit 0 without
+    creating anything at all (a silent no-op, not a terminating error), so
+    a bare returncode check is not sufficient. Use `-ItemType SymbolicLink`
+    on non-Windows instead (ordinary users can create symlinks on
+    Linux/macOS with no elevation), and explicitly verify the link now
+    resolves to an existing path before returning, so a silent failure on
+    either platform surfaces as a loud RuntimeError rather than a
+    misleading downstream test failure."""
+    item_type = "Junction" if sys.platform == "win32" else "SymbolicLink"
     cmd = [
         interpreter,
         "-NoProfile",
         "-Command",
-        f"New-Item -ItemType Junction -Path '{link_path}' -Target '{target}' | Out-Null",
+        f"New-Item -ItemType {item_type} -Path '{link_path}' -Target '{target}' | Out-Null",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if result.returncode != 0:
-        raise RuntimeError(f"junction creation failed: {result.stderr}")
+        raise RuntimeError(f"{item_type} creation failed: {result.stderr}")
+    if not link_path.exists():
+        raise RuntimeError(
+            f"{item_type} creation reported success but '{link_path}' does "
+            f"not resolve to an existing path (stderr={result.stderr!r})"
+        )
 
 
 @unittest.skipUnless(_PWSH_INTERPRETERS, "no PowerShell interpreter available")
