@@ -98,11 +98,13 @@ assumed:
 * **Capture, don't print.** Because the token is printed on stdout, it can
   land in CI logs, terminal transcripts, shell history, and agent
   conversation logs if the caller echoes or re-prints it. Callers MUST
-  capture the `LOCK_TOKEN=<token>` line into a variable or file rather than
-  printing it again. The scripts themselves never re-echo the token (or the
-  `owner_digest`) in any status, verbose, warning, or error message —
-  refusal and staleness messages print the lock path, `agent`, `pid`, and
-  age, but never the token or the digest.
+  capture the `LOCK_TOKEN=<token>` line into an in-memory variable only —
+  never write it to a file, even temporarily, since that would create an
+  avoidable credential-at-rest exposure and directly contradicts the
+  "Never persisted" guidance below. The scripts themselves never re-echo
+  the token (or the `owner_digest`) in any status, verbose, warning, or
+  error message — refusal and staleness messages print the lock path,
+  `agent`, `pid`, and age, but never the token or the digest.
 * **Never persisted.** The token is never written to the lock file, to any
   log the scripts create, or to telemetry — only its SHA-256 digest
   (`owner_digest`) is persisted, and the digest cannot be reversed back into

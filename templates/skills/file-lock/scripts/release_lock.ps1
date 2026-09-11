@@ -414,12 +414,18 @@ if ($ownershipVerified) {
         # verification and the recheck below. Never set outside test runs;
         # when the environment variable is absent (the default), this is a
         # complete no-op with zero behavioural or timing impact.
-        if ($env:AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE) {
+        if ($env:AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL) {
             # TEST-ONLY HOOK: signals the harness that this process has
             # entered the widened race window, so the test can perform the
             # concurrent swap deterministically instead of guessing at
-            # process-startup timing. Never set outside test runs.
-            New-Item -ItemType File -Path $env:AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE -Force | Out-Null
+            # process-startup timing. Round-11 review follow-up: the
+            # signal path is ALWAYS derived here from the already-resolved,
+            # already-contained $lockFile -- this toggle only turns the
+            # signal on/off, it never accepts a caller-supplied path, so a
+            # stray inherited environment variable cannot be used to force-
+            # create or truncate an arbitrary file anywhere on the host.
+            # Never set outside test runs.
+            New-Item -ItemType File -Path "$lockFile.race-signal" -Force | Out-Null
         }
         Start-Sleep -Milliseconds ([int]$env:AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS)
     }

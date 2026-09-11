@@ -326,12 +326,18 @@ if [ "$OWNERSHIP_VERIFIED" -eq 1 ]; then
         # verification and the recheck below. Never set outside test runs;
         # when the environment variable is absent (the default), this is a
         # complete no-op with zero behavioural or timing impact.
-        if [ -n "${AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE:-}" ]; then
+        if [ -n "${AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL:-}" ]; then
             # TEST-ONLY HOOK: signals the harness that this process has
             # entered the widened race window, so the test can perform the
             # concurrent swap deterministically instead of guessing at
-            # process-startup timing. Never set outside test runs.
-            : > "$AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE"
+            # process-startup timing. Round-11 review follow-up: the
+            # signal path is ALWAYS derived here from the already-resolved,
+            # already-contained $LOCKFILE -- this toggle only turns the
+            # signal on/off, it never accepts a caller-supplied path, so a
+            # stray inherited environment variable cannot be used to
+            # truncate or create an arbitrary file anywhere on the host.
+            # Never set outside test runs.
+            : > "$LOCKFILE.race-signal"
         fi
         _delay_seconds="$(awk -v ms="$AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS" 'BEGIN { printf "%f", ms / 1000 }')"
         sleep "$_delay_seconds"

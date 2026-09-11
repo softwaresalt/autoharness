@@ -169,9 +169,14 @@ def _wait_for_signal_file(signal_path: Path, timeout_s: float = 10.0) -> bool:
     Used by the round-10 TOCTOU race regression tests below: rather than
     guessing at process-startup/scheduling timing with a fixed sleep before
     racing a concurrent lock swap, the release script (under the
-    AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL_FILE test-only hooks)
-    touches this file the instant it enters the widened recheck window, so
-    the swap always lands inside that window regardless of host speed."""
+    AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL test-only hooks) touches
+    a lock-adjacent signal file (`<lockfile>.race-signal`, always derived
+    by the script itself -- round-11 review follow-up removed the ability
+    to pass an arbitrary signal path via environment variable, since that
+    would let a stray inherited variable force-create/truncate any
+    writable file on the host during a normal run) the instant it enters
+    the widened recheck window, so the swap always lands inside that
+    window regardless of host speed."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         if signal_path.exists():
@@ -713,8 +718,8 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
         deletion, the stale verification would delete the new owner's lock.
 
         This test drives that exact interleaving deterministically using
-        the test-only AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL_FILE
-        hooks (never set outside test runs; a complete no-op when absent):
+        the test-only AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL hooks
+        (never set outside test runs; a complete no-op when absent):
         it starts a release of lock A in the background, waits for the
         release process's own signal confirming it has verified lock A's
         token and entered the widened pre-delete recheck window, then
@@ -737,12 +742,12 @@ class FileLockTokenOwnershipPs1Tests(unittest.TestCase):
                 self.assertIsNotNone(token_a_match)
                 token_a = token_a_match.group(1)
 
-                signal_file = self.root / ".release_race.signal"
+                signal_file = self.lock_file.with_name(self.lock_file.name + ".race-signal")
                 if signal_file.exists():
                     signal_file.unlink()
                 env = dict(os.environ)
                 env["AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS"] = "1500"
-                env["AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE"] = str(signal_file)
+                env["AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL"] = "1"
                 release_proc = subprocess.Popen(
                     [
                         interpreter,
@@ -1203,19 +1208,19 @@ class FileLockTokenOwnershipShTests(unittest.TestCase):
         the PowerShell test of the same name above. See that test's
         docstring for the full race narrative; this drives the identical
         interleaving against release_lock.sh using the same test-only
-        AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL_FILE hooks."""
+        AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS/_SIGNAL hooks."""
         acquire_a = self._acquire()
         self.assertEqual(acquire_a.returncode, 0, msg=acquire_a.stderr)
         token_a_match = _TOKEN_LINE_RE.search(acquire_a.stdout)
         self.assertIsNotNone(token_a_match)
         token_a = token_a_match.group(1)
 
-        signal_file = self.root / ".release_race.signal"
+        signal_file = self.lock_file.with_name(self.lock_file.name + ".race-signal")
         if signal_file.exists():
             signal_file.unlink()
         env = dict(os.environ)
         env["AUTOHARNESS_TEST_RELEASE_RACE_DELAY_MS"] = "1500"
-        env["AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL_FILE"] = str(signal_file)
+        env["AUTOHARNESS_TEST_RELEASE_RACE_SIGNAL"] = "1"
         release_proc = subprocess.Popen(
             [_BASH, str(self.release_script), str(self.target), "--token", token_a],
             cwd=self.root,
