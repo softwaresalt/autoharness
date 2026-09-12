@@ -160,11 +160,17 @@ through several primitives at once, and must stay coherent across them:
 
 * Pipeline: Brainstorm/Deliberate/Spike → Plan → Plan-Harden (when needed) → Review → Harvest → Harness → Build → Review → PR → Fix-CI → Runtime Verification → Operational Closure
 * Each agent declares its maximum subagent depth
-* Skills are leaf executors (no subagent spawning)
+* Skills are leaf executors (no subagent spawning), subject to the Bounded One-Hop Review-Family Exception below
 * Handoff contracts preserve verification and closure expectations from planning through release
 * Stop conditions prevent infinite loops (circuit breakers on task count, failure count, cycle count)
 * Stall detection enforces timeouts on long-running commands
 * Planning overlap must comply with P-016: Stage may plan ahead only when it does not create parallel implementation branches/worktrees; the only extra worktree exception is explicit Stage spike/research investigation with no implementation, template/source/config mutation, shipment claim, PR preparation, or Ship execution
+
+### Bounded One-Hop Review-Family Exception
+
+Skills are leaf executors by default: they do not spawn subagents. A skill qualifies for a BOUNDED, one-hop exception to this default IF AND ONLY IF its `SKILL.md` contains a `## Subagent Depth Constraint` section whose body states (i) a maximum spawn depth of exactly one hop, and (ii) that the subagents it spawns are themselves leaf executors that MUST NOT spawn any further subagents. Current qualifying members (`review`, `plan-review`) are EXAMPLES of skills meeting this property, never the definition of it — any skill whose `SKILL.md` carries a conforming `## Subagent Depth Constraint` section qualifies, and the exception is never special-cased to a fixed list of skill names.
+
+RESIDUAL LIMITATION: this exception's verifier checks DECLARATIONS IN SKILL TEXT; an agent that spawns a subagent at runtime without that spawn appearing declared in its `SKILL.md` is NOT detected by this check. Enforcement is at the DOCUMENT LAYER ONLY — this is a static text-conformance property, not a runtime spawn-time interception.
 
 ## Primitive 5: Tool Execution, Safety Modes, and Guardrails
 

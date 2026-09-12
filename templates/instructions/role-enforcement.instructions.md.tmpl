@@ -80,12 +80,18 @@ All P-010 violations are first-class observability events:
 
 Skills are leaf executors: they do not declare their own `model_family` /
 `model_provider` / `reasoning_effort` frontmatter and they do not spawn
-subagents. A skill invoked by an agent (Stage, Ship, Orchestrator, or an
+subagents, subject to the Bounded One-Hop Review-Family Exception below. A skill invoked by an agent (Stage, Ship, Orchestrator, or an
 elective agent) runs **inside the invoking agent's already-routed session** —
 it inherits whatever model that agent resolved and declared per its own
 invocation directive (P-013.5). This applies uniformly when invoking agents
 **and** their skill workflows: the routing decision is made once, at
 agent-invocation time, not re-resolved per skill call.
+
+### Bounded One-Hop Review-Family Exception
+
+Skills are leaf executors by default: they do not spawn subagents. A skill qualifies for a BOUNDED, one-hop exception to this default IF AND ONLY IF its `SKILL.md` contains a `## Subagent Depth Constraint` section whose body states (i) a maximum spawn depth of exactly one hop, and (ii) that the subagents it spawns are themselves leaf executors that MUST NOT spawn any further subagents. Current qualifying members (`review`, `plan-review`) are EXAMPLES of skills meeting this property, never the definition of it — any skill whose `SKILL.md` carries a conforming `## Subagent Depth Constraint` section qualifies, and the exception is never special-cased to a fixed list of skill names.
+
+RESIDUAL LIMITATION: this exception's verifier checks DECLARATIONS IN SKILL TEXT; an agent that spawns a subagent at runtime without that spawn appearing declared in its `SKILL.md` is NOT detected by this check. Enforcement is at the DOCUMENT LAYER ONLY — this is a static text-conformance property, not a runtime spawn-time interception.
 
 Before invoking any skill, the invoking agent MUST confirm and propagate its
 own current routing state for the session — either "resolved" or explicitly
