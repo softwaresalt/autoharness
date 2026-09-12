@@ -283,12 +283,13 @@ user-facing runtime surface.
 
 ## Source Artifact Cleanup
 
-Feature `153-F`'s covering backlog record does not populate the structured
-`custom_fields.source_deliberation_id` field (verified via `backlogit get
-153-F`: `custom_fields: map[harness_status:pending]`) -- `none` for that
-field under this convention; no Ship-side retirement action against it is
-applicable. Provenance is instead recorded via the `74C62374` label and
-description prose ("Source stash 74C62374") on `153-F`. This session's own
+Feature `153-F`'s covering backlog record does not populate either
+structured provenance field: `custom_fields.source_deliberation_id` is
+`none` and `custom_fields.source_stash_id` is likewise `none` (verified via
+`backlogit get 153-F`: `custom_fields: map[harness_status:pending]` --
+neither key is present) -- no Ship-side retirement action against either
+field is applicable. Provenance is instead recorded via the `74C62374` label
+and description prose ("Source stash 74C62374") on `153-F`. This session's own
 shipment-reconcile Pre-Mode ran a **live** (not reconstructed) three-source
 linked-deliberation scan against `153-F` immediately before the cascade
 invocation and confirmed the validated linked-deliberation ID set is empty

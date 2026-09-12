@@ -151,9 +151,11 @@ cross-runtime interop coverage gap).
 `PYTHONPATH=src python -m unittest discover -s tests` (full suite, 2152
 tests, green); `verify-harness` (checksum validation gating H1); manual
 containment matrix on both platforms; token-contract assertions (TC1–TC6)
-including cross-variant verification (TC4) and no-token-in-output checks
-(TC5). All confirmed green through 13 rounds of PR #444 Copilot review and
-final CI before merge.
+including same-platform round-trip verification (TC4's PowerShell↔PowerShell
+and POSIX↔POSIX cases; actual cross-runtime PowerShell↔POSIX round-trip
+exercise remains open, disclosed as P-021 `58A85283`) and no-token-in-output
+checks (TC5). All confirmed green through 13 rounds of PR #444 Copilot
+review and final CI before merge.
 
 ## Outcome
 
