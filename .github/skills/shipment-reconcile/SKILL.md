@@ -336,8 +336,12 @@ mutated or repaired by this mode.
 
 3. **Deleted-file guard** (known `backlogit_ship_shipment` quirk — see P-007):
    Run `git status -- ".backlogit/archive/"` and inspect for deletions.
-   If any archive files are reported as deleted, recommend
-   `git restore .backlogit/archive/` before the commit step.
+   If any archive files are reported as deleted, recommend that the invoking agent
+   obtain a fresh, live G1 approval (per P-007's G1-G9 approval-gate protocol,
+   matched to this shipment ID and the exact archive paths) before running
+   `git restore .backlogit/archive/`. Never recommend the restore as an
+   unconditional next step — the recommendation itself is evidence-only guidance,
+   not an authorization to run it.
 
 4. **Produce post-mode report** per the same schema.
 
