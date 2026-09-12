@@ -3,7 +3,7 @@ shipment: 162-S
 feature: 154-F
 pr: 446
 merge_commit: null
-last_code_affecting_head: 53d4548fadb8ede8bd0cf07351018ce519679b1a
+last_code_affecting_head: a8ae3bafb74703ea820818869f51bcd1ab5748e3
 surface: cli
 verdict: PASS
 post_merge_reverification: null
@@ -64,27 +64,25 @@ evidence, not because a specific code path was touched.
 
 * `uv run autoharness --help` -- exit 0, CLI help text printed (ran
   repeatedly throughout this session, most recently against
-  `last_code_affecting_head` `53d4548f`).
+  `last_code_affecting_head` `a8ae3baf`).
 * `uv run autoharness verify-workspace --workspace .` -- run after every
-  content edit in this shipment (10+ times across 154.001-T..154.004-T and
+  content edit in this shipment (12+ times across 154.001-T..154.004-T and
   every review-fix round); 0 strict-schema blockers, 0 blockers, 0
   warnings on every run; every touched artifact's manifest checksum verified
   `status: unchanged` against its actual on-disk content.
 * `PYTHONPATH=src python -m unittest discover -s tests` -- run to completion
   (full suite, no filters) after every task and every review-fix round,
-  including immediately after the `last_code_affecting_head` `53d4548f`
-  commit: 2186 tests, `OK (skipped=51)` (one run at this same content
-  observed a single failure in the flaky test named below; the very next
-  rerun of the full suite at the same content was clean). The only observed
-  intermittent failure across repeated local runs this session was
+  including immediately after the `last_code_affecting_head` `a8ae3baf`
+  commit: 2190 tests, `OK (skipped=51)`. Across the many full-suite runs
+  performed this session, the only observed intermittent failure was
   `tests.test_graphtor_mcp_shim.GraphtorMcpShimHandshakeTests.test_child_stdin_write_error_fails_requests_without_crashing`,
   a pre-existing, environment-load-sensitive subprocess/pipe-timing test in a
   file untouched by this diff (last modified in unrelated PR #429); confirmed
   intermittently flaky in isolation (2 failures / 1 pass across 3 isolated
-  reruns).
+  reruns) and never observed to fail on GitHub Actions CI for this PR.
 * CI (`test`, `ci gate`, `pipeline-topology (ambient)`, `detect code changes`)
   -- green on every push to PR #446 through `last_code_affecting_head`
-  `53d4548f`. CI status for the PR's live current HEAD (which may have
+  `a8ae3baf`. CI status for the PR's live current HEAD (which may have
   advanced past this commit with evidence-only/doc-only changes) is tracked
   externally per the Evidence Currency Model above.
 * New tests added by this shipment
@@ -112,9 +110,9 @@ evidence, not because a specific code path was touched.
 ## Verdict
 
 **PASS.** The CLI surface is unaffected and confirmed working; the full test
-suite (2186 tests) is green; CI is green on the final reviewed HEAD; every
-manifest checksum for a touched artifact matches its on-disk content with
-zero blockers or warnings.
+suite (2190 tests, at `last_code_affecting_head`) is green; CI is green
+through that same commit; every manifest checksum for a touched artifact
+matches its on-disk content with zero blockers or warnings.
 
 ## Blocked Prerequisites
 
