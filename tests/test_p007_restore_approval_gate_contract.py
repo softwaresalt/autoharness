@@ -1,0 +1,278 @@
+"""Contract tests for 154.002-T (SHIP-4, C0EA1175 / 701073F9):
+
+* Part 1 — P-007's `git restore` remediation step must be gated behind a
+  fresh, live, non-synthesizable operator approval (Decision G1-G9), never
+  issued unconditionally, never satisfiable by an agent-writable artifact.
+* Part 2 — the constitution-reviewer persona's principle checklist must
+  include Principle X and Principle XI (with its NON-NEGOTIABLE marker
+  verbatim).
+
+These are DETERMINISTIC STATIC TEXT assertions over the rendered template and
+its installed dogfood mirror, per the binding VERIFICATION SEAM recorded on
+154.002-T: no approval broker, remediation executor, or `git restore` call
+site exists in this product, so nothing here asserts a runtime exit code or
+process outcome.
+"""
+
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+_WORKFLOW_POLICY_TEMPLATE = _REPO_ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
+_WORKFLOW_POLICY_DOGFOOD = _REPO_ROOT / ".github" / "policies" / "workflow-policies.md"
+
+_CONSTITUTION_REVIEWER_TEMPLATE = (
+    _REPO_ROOT / "templates" / "agents" / "review" / "constitution-reviewer.agent.md.tmpl"
+)
+_CONSTITUTION_REVIEWER_DOGFOOD = (
+    _REPO_ROOT / ".github" / "agents" / "subagents" / "constitution-reviewer.agent.md"
+)
+
+# Known variable resolution for this dogfood workspace (.autoharness/harness-manifest.yaml
+# variables_used), used to normalize the template source to the same text the installed
+# mirror carries, without invoking the full renderer (which also resolves the live
+# {{DATE}} token elsewhere in the same file and would make the two files diverge on
+# unrelated grounds).
+_TEMPLATE_SUBSTITUTIONS = {
+    "{{BACKLOG_DIRECTORY}}": ".backlogit",
+    "{{OP_SHIP_SHIPMENT_MCP}}": "backlogit_ship_shipment",
+    "{{FEATURE_SHIPMENTS}}": "true",
+    "{{BACKLOG_TOOL_NAME}}": "backlogit",
+}
+
+
+def _lf_text(path: Path) -> str:
+    return path.read_bytes().replace(b"\r\n", b"\n").decode("utf-8")
+
+
+def _normalize_template(text: str) -> str:
+    for token, value in _TEMPLATE_SUBSTITUTIONS.items():
+        text = text.replace(token, value)
+    return text
+
+
+def _extract_section(text: str, heading: str, next_heading_prefix: str = "## ") -> str:
+    lines = text.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == heading:
+            start = index
+            break
+    if start is None:
+        raise AssertionError(f"missing heading: {heading!r}")
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if lines[index].startswith(next_heading_prefix):
+            end = index
+            break
+    return "\n".join(lines[start:end])
+
+
+class P007RestoreApprovalGateContract(unittest.TestCase):
+    """G7 deterministic static contract: four required observables over the
+    P-007 policy text, asserted identically against the template (with the
+    workspace's own variable resolution applied) and the installed dogfood
+    mirror."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template_section = _extract_section(
+            _normalize_template(_lf_text(_WORKFLOW_POLICY_TEMPLATE)),
+            "## P-007: Backlogit Archive Integrity After Shipment",
+        )
+        cls.dogfood_section = _extract_section(
+            _lf_text(_WORKFLOW_POLICY_DOGFOOD),
+            "## P-007: Backlogit Archive Integrity After Shipment",
+        )
+
+    def test_files_exist(self) -> None:
+        self.assertTrue(_WORKFLOW_POLICY_TEMPLATE.is_file())
+        self.assertTrue(_WORKFLOW_POLICY_DOGFOOD.is_file())
+
+    def test_g7_case_i_no_unconditional_restore(self) -> None:
+        """(i) NO-APPROVAL CONDITION: no unconditional `git restore` instruction.
+
+        Every `git restore` occurrence must be either inside the explicitly
+        G1-gated Recovery procedure (preceded, within the section, by the G1
+        gating language), or presented in the refusal path as a command a
+        human is told to run themselves — never issued directly.
+        """
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                # The withdrawn pre-fix wording started the violation action
+                # with an unconditional numbered restore step. That exact
+                # unconditional shape must not reappear.
+                self.assertNotRegex(
+                    section,
+                    r"\*\*Violation Action\*\*:\s*\n\n1\. Run `git restore",
+                    "found an unconditional git restore as the first violation-action step",
+                )
+                # The gate itself must be named before the recovery procedure
+                # issues the restore command.
+                g1_index = section.find("G1")
+                restore_call_index = section.find("Run `git restore")
+                self.assertGreater(g1_index, -1, "G1 gate clause is missing")
+                self.assertGreater(restore_call_index, -1, "no git restore instruction found at all")
+                self.assertLess(
+                    g1_index,
+                    restore_call_index,
+                    "G1 gate clause must appear before the git restore instruction",
+                )
+                # The actual restore call must be conditioned on an obtained
+                # approval result, not issued bare.
+                self.assertIn(
+                    "Obtain a live G1 approval result",
+                    section,
+                    "recovery procedure does not gate the restore behind an obtained G1 result",
+                )
+                # The default path is halt/report, tree untouched, P-005 telemetry.
+                self.assertIn(
+                    "halt, do not run `git restore`, record it through P-005 telemetry",
+                    section,
+                    "default path is not detect-halt-report-with-P-005-telemetry",
+                )
+                self.assertIn("leave the working tree untouched", section)
+
+    def test_g7_case_ii_mismatch_is_refusal(self) -> None:
+        """(ii) MISMATCH CONDITION: approval result must match shipment ID and
+        exact archive paths; mismatch/ambiguity/timeout/unreadable is a refusal."""
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                self.assertIn("CURRENT shipment ID", section)
+                self.assertIn("EXACT archive paths", section)
+                self.assertRegex(
+                    section,
+                    r"Mismatch, absence, ambiguity, timeout, or an unreadable channel is a REFUSAL",
+                )
+
+    def test_g7_case_iii_self_authorization_negative_and_affirmative(self) -> None:
+        """(iii) SELF-AUTHORIZATION NEGATIVE COVERAGE: no clause treats an
+        agent-writable artifact as an authorization source, and the
+        affirmative G2 clause states the backlog comment is evidence only."""
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                # Affirmative half: G2 explicitly excludes the comment as authority.
+                self.assertIn(
+                    "This record exists for audit and traceability only. It is NOT read back as authorization",
+                    section,
+                )
+                self.assertIn("is NOT a substitute for a live G1 result", section)
+                # Negative half: no clause anywhere in the section grants an
+                # agent-writable artifact (comment, telemetry record, file,
+                # agent-callable operation) authorization power. Scan every
+                # sentence containing "authoriz" and require each one to be
+                # part of the permitted negative/affirmative vocabulary.
+                permitted_patterns = [
+                    r"authorization to run the restore MUST be a LIVE approval RESULT",
+                    r"is NOT read back as authorization",
+                    r"is NOT a substitute for a live G1 result",
+                    r"authorization source",
+                    r"is NOT an authorization source",
+                    r"gains no new authority",
+                    r"destructive-command preauthorization",
+                    r"No admin authority is invented",
+                    r"No new approval store, file format, or CLI",
+                    r"authorized by this policy",
+                    r"cannot create it, cannot mark it satisfied",
+                    r"Self-authorization negative coverage",
+                    r"names the missing authorization channel",
+                ]
+                sentences = re.split(r"(?<=[.:])\s+", section)
+                for sentence in sentences:
+                    if "authoriz" not in sentence.lower():
+                        continue
+                    matched = any(re.search(pattern, sentence) for pattern in permitted_patterns)
+                    self.assertTrue(
+                        matched,
+                        f"sentence mentions authorization outside the permitted vocabulary: {sentence!r}",
+                    )
+                self.assertIn(
+                    "a backlog comment is evidence only and is NOT an authorization source",
+                    section,
+                )
+
+    def test_g7_case_iv_no_channel_halts_in_all_modes(self) -> None:
+        """(iv) NO-CHANNEL CONDITION: halt-without-restore when no independent
+        channel is available, in ALL modes, dark-factory/AFK named as an
+        instance rather than an exception."""
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                self.assertIn("No independent channel means halt, do not restore", section)
+                self.assertIn(
+                    "NO independent approval channel is available",
+                    section,
+                )
+                self.assertIn(
+                    "dark mode is the specific case of the general G3 rule, not an exception to it",
+                    section,
+                )
+                self.assertIn("Dark-mode / AFK is fail-closed", section)
+
+    def test_g8_refusal_names_channel_and_command(self) -> None:
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                self.assertIn(
+                    "the refusal message names the missing authorization channel and the exact command",
+                    section,
+                )
+
+    def test_g9_no_new_approval_infrastructure(self) -> None:
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                self.assertIn("No new approval store, file format, or CLI", section)
+                self.assertIn(
+                    "No new approval broker, remediation executor, or CLI surface is authorized by this policy",
+                    section,
+                )
+
+    def test_template_and_dogfood_sections_agree_after_variable_resolution(self) -> None:
+        self.assertEqual(
+            self.template_section.strip(),
+            self.dogfood_section.strip(),
+            "template (with known variable resolution) and installed mirror have diverged for P-007",
+        )
+
+
+class ConstitutionReviewerPrincipleChecklistContract(unittest.TestCase):
+    """Part 2 (701073F9): the constitution-reviewer checklist must include
+    Principle X and Principle XI, with Principle XI's NON-NEGOTIABLE marker
+    carried verbatim."""
+
+    def _checklist(self, path: Path) -> str:
+        text = _lf_text(path)
+        return _extract_section(text, "## Review Focus", next_heading_prefix="## ")
+
+    def test_files_exist(self) -> None:
+        self.assertTrue(_CONSTITUTION_REVIEWER_TEMPLATE.is_file())
+        self.assertTrue(_CONSTITUTION_REVIEWER_DOGFOOD.is_file())
+
+    def test_principle_x_and_xi_present_in_template_and_dogfood(self) -> None:
+        for label, path in (
+            ("template", _CONSTITUTION_REVIEWER_TEMPLATE),
+            ("dogfood", _CONSTITUTION_REVIEWER_DOGFOOD),
+        ):
+            with self.subTest(surface=label):
+                checklist = self._checklist(path)
+                self.assertIn("**Principle X**", checklist, "Principle X missing from checklist")
+                self.assertRegex(
+                    checklist,
+                    r"\*\*Principle XI \(NON-NEGOTIABLE\)\*\*",
+                    "Principle XI must carry its NON-NEGOTIABLE marker verbatim",
+                )
+                # Principles I-IX must remain present (nothing dropped).
+                for numeral in ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"]:
+                    self.assertIn(f"**Principle {numeral}**", checklist)
+
+    def test_template_and_dogfood_checklists_agree(self) -> None:
+        self.assertEqual(
+            self._checklist(_CONSTITUTION_REVIEWER_TEMPLATE).strip(),
+            self._checklist(_CONSTITUTION_REVIEWER_DOGFOOD).strip(),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

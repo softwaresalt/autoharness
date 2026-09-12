@@ -148,13 +148,38 @@ If the impl-plan output does not contain a `Requires plan hardening` conclusion,
 
 **Postcondition**: All archive files for the shipped items exist in `{{BACKLOG_DIRECTORY}}/archive/` with no working-tree deletions reported by `git status`.
 
-**Violation Action**:
+**Violation Action** (Decisions G1–G9; a `git restore` of `{{BACKLOG_DIRECTORY}}/archive/` is a destructive command and MUST be gated behind a fresh, live, non-synthesizable operator approval — never issued unconditionally):
 
-1. Run `git restore {{BACKLOG_DIRECTORY}}/archive/` to recover deleted archive files
-2. Re-verify with `git status -- "{{BACKLOG_DIRECTORY}}/archive/"` — confirm no deletions remain
-3. Stage the restored files: `git add {{BACKLOG_DIRECTORY}}/archive/`
-4. Proceed to the commit step only after verification passes
-5. If restoration fails, halt and prompt the operator. Broadcast a P-005 violation event.
+**G1 — The authorization source is a direct runtime operator approval (binding)**: authorization to run the restore MUST be a LIVE approval RESULT obtained at the moment of the request over an INDEPENDENT operator channel the executing agent CANNOT synthesize — the intercom approval/clearance operation, an interactive operator ask/confirm prompt, or the operator session channel. The defining property is non-synthesizability: the approving act must originate outside the agent's own writable surface, and the agent has no operation that can produce the affirmative result on its own behalf.
+
+**G2 — A backlog comment is evidence only, never authority**: after (and only after) a G1 approval result is obtained, the agent SHOULD record an `APPROVAL: P-007-ARCHIVE-RESTORE` comment on the shipment item carrying the shipment ID, the exact archive paths, the operator actor identity, the approval timestamp, and the channel the approval came over. This record exists for audit and traceability only. It is NOT read back as authorization, is NOT a substitute for a live G1 result, and its presence does NOT shorten, cache, or pre-satisfy any future approval — each remediation attempt requires its own fresh G1 approval.
+
+**G3 — No independent channel means halt, do not restore (binding)**: when NO independent approval channel is available — intercom degraded or unreachable, no interactive operator session, ask/confirm unavailable, or the channel present but unanswered — detect the violation, halt, do not run `git restore`, record it through P-005 telemetry with the exact remediation command for a human to run, and leave the working tree untouched. Absence of a channel is NEVER an implicit approval and NEVER a fallback to the comment path in G2.
+
+**G4 — Dark-mode / AFK is fail-closed**: under dark-factory/AFK mode no operator is present to give a G1 approval, so `git restore` NEVER runs. A dark-mode run always reports and never restores. This is the Principle VII-conformant outcome, not a degradation; dark mode is the specific case of the general G3 rule, not an exception to it.
+
+**G5 — Verification is a read of a live result, not an inference**: match the approval result to the CURRENT shipment ID and the EXACT archive paths to be restored. Mismatch, absence, ambiguity, timeout, or an unreadable channel is a REFUSAL, never a pass.
+
+**G6 — No admin authority is invented**: G1 is an operator-performed act the agent merely receives. The agent cannot create it, cannot mark it satisfied on its own behalf, and gains no new authority; merge preauthorization does NOT imply destructive-command preauthorization.
+
+**G7 — Deterministic static contract (mandatory, four required test observables over this policy text)**:
+
+1. **No-approval condition**: the remediation step contains NO unconditional `git restore` instruction — every occurrence of the restore command is either (a) inside an explicitly G1-gated branch, or (b) presented as a command FOR A HUMAN TO RUN in the refusal/report path. The default path is detect-halt-report-with-P-005-telemetry, and the tree is left untouched.
+2. **Mismatch condition**: the text requires the approval result to match the current shipment ID AND the exact archive paths, and names mismatch/ambiguity/timeout/unreadable as a refusal.
+3. **Self-authorization negative coverage**: the text NOWHERE treats an agent-writable artifact as an authorization source — no clause permits a backlog comment, a telemetry record, a file the agent can write, or any agent-callable operation to satisfy the gate; and the affirmative G2 clause is present stating a backlog comment is evidence only and is NOT an authorization source. Both halves are required.
+4. **No-channel condition**: the text declares halt-without-restore when no independent channel is available, in ALL modes, and that dark-factory/AFK is named as an instance of that rule rather than an exception to it.
+
+**G8 — Refusal message content**: the refusal message names the missing authorization channel and the exact command a human can run themselves, so a legitimate operator is never stranded without a remedy.
+
+**G9 — No new approval store, file format, or CLI**: G1 names approval channels the harness already has, and G2 uses the existing tool-owned comment surface for audit only. No new approval broker, remediation executor, or CLI surface is authorized by this policy.
+
+**Recovery procedure (executed only after a G1 approval result is obtained)**:
+
+1. Obtain a live G1 approval result over an independent operator channel, matched to the current shipment ID and exact archive paths (G5). Absent, mismatched, ambiguous, timed out, or unreadable → refusal (go to step 5).
+2. Run `git restore {{BACKLOG_DIRECTORY}}/archive/` to recover the deleted archive files.
+3. Re-verify with `git status -- "{{BACKLOG_DIRECTORY}}/archive/"` — confirm no deletions remain.
+4. Stage the restored files: `git add {{BACKLOG_DIRECTORY}}/archive/`. Proceed to the commit step only after verification passes. Record the `APPROVAL: P-007-ARCHIVE-RESTORE` audit comment (G2) after the restore succeeds.
+5. If no G1 approval is obtained, or restoration fails after approval, halt and prompt the operator with the exact command above to run themselves (G8). Broadcast a P-005 violation event. Do not restore.
 
 ---
 
