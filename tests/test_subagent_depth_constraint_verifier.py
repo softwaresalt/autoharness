@@ -69,6 +69,13 @@ _DEPTH_DECLARATION_NEGATION = re.compile(
 _LEAF_EXECUTOR_MUST_NOT_SPAWN = re.compile(
     r"leaf executors?[^.\n]{0,60}?must not spawn", re.IGNORECASE
 )
+# Clause boundaries used to scope negation detection to the clause that
+# actually governs the spawn verb, rather than the whole sentence prefix
+# (Copilot review, PR #446, thread PRRT_kwDORzpWpM6hulPM): a negation in an
+# earlier, unrelated clause of a compound sentence (e.g. "This skill never
+# edits files; it spawns reviewer subagents.") must not suppress a real,
+# later, un-negated spawn declaration.
+_CLAUSE_SPLIT = re.compile(r";|,\s+(?:but|and|or|however|although|while)\b", re.IGNORECASE)
 
 
 def _sentences(text: str) -> list[str]:
@@ -83,12 +90,18 @@ def declares_subagent_spawning(text: str) -> bool:
     for sentence in _sentences(text):
         if not _POSITIVE_SPAWN_SENTENCE.search(sentence):
             continue
-        # Only treat as a negation when the negation token appears before
-        # the spawn verb in the same sentence (e.g. "No subagent spawning",
-        # "MUST NOT spawn its own subagents").
         spawn_match = re.search(r"spawns?\b", sentence, re.IGNORECASE)
-        prefix = sentence[: spawn_match.start()] if spawn_match else sentence
-        if _NEGATION_TOKENS.search(prefix):
+        if spawn_match is None:
+            continue
+        # Scope the negation check to the CLAUSE governing the spawn verb,
+        # not the entire sentence prefix (e.g. "No subagent spawning",
+        # "MUST NOT spawn its own subagents").
+        clause_boundaries = [
+            m.end() for m in _CLAUSE_SPLIT.finditer(sentence) if m.end() <= spawn_match.start()
+        ]
+        clause_start = max(clause_boundaries) if clause_boundaries else 0
+        clause_prefix = sentence[clause_start : spawn_match.start()]
+        if _NEGATION_TOKENS.search(clause_prefix):
             continue
         return True
     return False
@@ -282,6 +295,17 @@ class SubagentSpawnDetectorUnitTests(unittest.TestCase):
         self.assertFalse(
             declares_subagent_spawning(
                 "Agent references (e.g., `spawns sub-agent: foo.agent.md`)"
+            )
+        )
+
+    def test_unrelated_earlier_negation_does_not_suppress_a_real_spawn_declaration(self) -> None:
+        # Copilot review (PR #446, thread PRRT_kwDORzpWpM6hulPM): a negation
+        # governing an unrelated, earlier clause in a compound sentence must
+        # not suppress detection of a real, later, un-negated spawn
+        # declaration in the same sentence.
+        self.assertTrue(
+            declares_subagent_spawning(
+                "This skill never edits files; it spawns reviewer subagents."
             )
         )
 
