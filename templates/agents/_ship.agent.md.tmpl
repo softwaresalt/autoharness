@@ -827,12 +827,29 @@ lifecycle to transition out of. See
         `{{BACKLOG_DIRECTORY}}/queue/` + `{{BACKLOG_DIRECTORY}}/archive/`, surface the
         protected-set violation, and halt. Do NOT commit a corrupt backlog.
    c. **Verify archive integrity (P-007)**: Run `git status -- "{{BACKLOG_DIRECTORY}}/archive/"`.
-      If any archive files appear as working-tree deletions, restore them immediately:
-      `git restore {{BACKLOG_DIRECTORY}}/archive/`. See P-007 in workflow-policies for the
-      full verification and violation protocol.
+      If any archive files appear as working-tree deletions, do NOT restore them
+      unconditionally: obtain a fresh, live G1 approval over an independent operator
+      channel, matched to this shipment ID and the EXACT set of deleted paths just
+      detected — never the whole `{{BACKLOG_DIRECTORY}}/archive/` directory. Immediately
+      before restoring, re-run the same `git status` check and confirm the approved
+      paths still report a deletion with no change to the set; if any approved path was
+      recreated, modified, or the deletion set otherwise changed since approval, the
+      approval is stale — obtain a fresh G1 approval matched to the newly-observed state
+      before proceeding, never restore against a stale observation. Only then run
+      `git restore -- <deleted-path-1> <deleted-path-2> ...` limited to that exact
+      pathspec. See P-007 in workflow-policies for the full G1-G9 approval-gate,
+      revalidation, pathspec-scoping, evidence, and refusal protocol. Absent an obtained
+      G1 approval, halt, record it through P-005 telemetry with the exact pathspec-scoped
+      command for a human to run, and leave the working tree untouched.
    d. **Post-archive reconciliation**: Invoke `shipment-reconcile` with `mode: post` and
-      `merge_commit_sha`. If the skill returns `HALT — restore archives`, run
-      `git restore {{BACKLOG_DIRECTORY}}/archive/` before step 1.e.
+      `merge_commit_sha`. If the skill returns `HALT — restore archives`, apply the same
+      P-007 G1 approval gate, revalidation, and pathspec-scoping as step 1.c — restore
+      only the exact deleted paths shipment-reconcile identified, never the whole archive
+      directory.
+      A restore does not itself change the already-returned `HALT` result: re-invoke
+      `shipment-reconcile` with `mode: post` again after the approved restore and require
+      a fresh `PROCEED` result before proceeding to step 1.e. If the re-run still does not
+      return `PROCEED`, halt and do not commit.
       The lock is released by the skill at the end of post-mode.
    e. Commit the backlog state **only after** safe-close returned `CLOSED` and post-mode
       returned `PROCEED` (never commit after a `HALT — cascade detected` until the revert in
