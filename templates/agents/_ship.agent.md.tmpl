@@ -839,8 +839,11 @@ lifecycle to transition out of. See
    d. **Post-archive reconciliation**: Invoke `shipment-reconcile` with `mode: post` and
       `merge_commit_sha`. If the skill returns `HALT — restore archives`, apply the same
       P-007 G1 approval gate and pathspec-scoping as step 1.c — restore only the exact
-      deleted paths shipment-reconcile identified, never the whole archive directory —
-      and only then proceed to step 1.e.
+      deleted paths shipment-reconcile identified, never the whole archive directory.
+      A restore does not itself change the already-returned `HALT` result: re-invoke
+      `shipment-reconcile` with `mode: post` again after the approved restore and require
+      a fresh `PROCEED` result before proceeding to step 1.e. If the re-run still does not
+      return `PROCEED`, halt and do not commit.
       The lock is released by the skill at the end of post-mode.
    e. Commit the backlog state **only after** safe-close returned `CLOSED` and post-mode
       returned `PROCEED` (never commit after a `HALT — cascade detected` until the revert in
