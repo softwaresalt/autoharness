@@ -827,12 +827,17 @@ lifecycle to transition out of. See
         `{{BACKLOG_DIRECTORY}}/queue/` + `{{BACKLOG_DIRECTORY}}/archive/`, surface the
         protected-set violation, and halt. Do NOT commit a corrupt backlog.
    c. **Verify archive integrity (P-007)**: Run `git status -- "{{BACKLOG_DIRECTORY}}/archive/"`.
-      If any archive files appear as working-tree deletions, restore them immediately:
-      `git restore {{BACKLOG_DIRECTORY}}/archive/`. See P-007 in workflow-policies for the
-      full verification and violation protocol.
+      If any archive files appear as working-tree deletions, do NOT restore them
+      unconditionally: obtain a fresh, live G1 approval over an independent operator
+      channel, matched to this shipment ID and the exact archive paths, before running
+      `git restore {{BACKLOG_DIRECTORY}}/archive/` — see P-007 in workflow-policies for
+      the full G1-G9 approval-gate, evidence, and refusal protocol. Absent an obtained
+      G1 approval, halt, record it through P-005 telemetry with the exact command above
+      for a human to run, and leave the working tree untouched.
    d. **Post-archive reconciliation**: Invoke `shipment-reconcile` with `mode: post` and
-      `merge_commit_sha`. If the skill returns `HALT — restore archives`, run
-      `git restore {{BACKLOG_DIRECTORY}}/archive/` before step 1.e.
+      `merge_commit_sha`. If the skill returns `HALT — restore archives`, apply the same
+      P-007 G1 approval gate as step 1.c before running
+      `git restore {{BACKLOG_DIRECTORY}}/archive/`, and only then proceed to step 1.e.
       The lock is released by the skill at the end of post-mode.
    e. Commit the backlog state **only after** safe-close returned `CLOSED` and post-mode
       returned `PROCEED` (never commit after a `HALT — cascade detected` until the revert in
