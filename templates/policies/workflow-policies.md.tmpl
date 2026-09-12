@@ -175,11 +175,11 @@ If the impl-plan output does not contain a `Requires plan hardening` conclusion,
 
 **Recovery procedure (executed only after a G1 approval result is obtained)**:
 
-1. Obtain a live G1 approval result over an independent operator channel, matched to the current shipment ID and exact archive paths (G5). Absent, mismatched, ambiguous, timed out, or unreadable → refusal (go to step 5).
-2. Run `git restore {{BACKLOG_DIRECTORY}}/archive/` to recover the deleted archive files.
-3. Re-verify with `git status -- "{{BACKLOG_DIRECTORY}}/archive/"` — confirm no deletions remain.
-4. Stage the restored files: `git add {{BACKLOG_DIRECTORY}}/archive/`. Proceed to the commit step only after verification passes. Record the `APPROVAL: P-007-ARCHIVE-RESTORE` audit comment (G2) after the restore succeeds.
-5. If no G1 approval is obtained, or restoration fails after approval, halt and prompt the operator with the exact command above to run themselves (G8). Broadcast a P-005 violation event. Do not restore.
+1. Obtain a live G1 approval result over an independent operator channel, matched to the current shipment ID and the EXACT set of deleted archive paths detected by the Required Check (G5). Absent, mismatched, ambiguous, timed out, or unreadable → refusal (go to step 5).
+2. Build a pathspec from ONLY the paths `git status -- "{{BACKLOG_DIRECTORY}}/archive/"` reported as deletions — never the whole `{{BACKLOG_DIRECTORY}}/archive/` directory, which could discard other tracked modifications below it that were never part of the approval. Run `git restore -- <deleted-path-1> <deleted-path-2> ...` limited to that exact pathspec to recover only the deleted archive files the approval covers.
+3. Re-verify with `git status -- "{{BACKLOG_DIRECTORY}}/archive/"` — confirm the same paths no longer report a deletion and no other deletion remains.
+4. Stage ONLY the same restored paths from step 2: `git add -- <deleted-path-1> <deleted-path-2> ...` — never an unscoped `git add {{BACKLOG_DIRECTORY}}/archive/`, which could stage unrelated work under the same directory beyond what was approved. Proceed to the commit step only after verification passes. Record the `APPROVAL: P-007-ARCHIVE-RESTORE` audit comment (G2), naming the exact restored paths, after the restore succeeds.
+5. If no G1 approval is obtained, or restoration fails after approval, halt and prompt the operator with the exact pathspec-scoped command above (built from the same detected deletions) to run themselves (G8). Broadcast a P-005 violation event. Do not restore.
 
 ---
 

@@ -57,8 +57,14 @@ _NEGATION_TOKENS = re.compile(
 )
 
 _MAX_DEPTH_DECLARATION = re.compile(
-    r"maximum(?:\s+spawn)?\s+depth\s*:?[^.\n]{0,60}?\b(\d+)\s*hops?\b",
+    r"maximum(?:\s+spawn)?\s+depth\s*:?(?P<middle>[^.\n]{0,60}?)\b(?P<value>\d+)\s*hops?\b",
     re.IGNORECASE,
+)
+# A negation appearing between "maximum depth" and the numeric value means the
+# sentence does NOT affirmatively declare that value as the bound (e.g.
+# "Maximum depth is not 1 hop" must not be read as declaring depth 1).
+_DEPTH_DECLARATION_NEGATION = re.compile(
+    r"\b(not|never|no|isn't|is not|n't)\b", re.IGNORECASE
 )
 _LEAF_EXECUTOR_MUST_NOT_SPAWN = re.compile(
     r"leaf executors?[^.\n]{0,60}?must not spawn", re.IGNORECASE
@@ -131,7 +137,14 @@ def evaluate_skill_text(text: str) -> list[str]:
     # declaration rather than scanning the whole section for any bare "1 hop"
     # substring — an unrelated mention of "1 hop" elsewhere in the section
     # (e.g. describing a call chain, not declaring the bound) must not count.
-    declared_depths = {int(m.group(1)) for m in _MAX_DEPTH_DECLARATION.finditer(section)}
+    # A negation between "maximum depth" and the number (e.g. "Maximum depth
+    # is not 1 hop") is not an affirmative declaration of that value and is
+    # excluded rather than counted.
+    declared_depths = {
+        int(m.group("value"))
+        for m in _MAX_DEPTH_DECLARATION.finditer(section)
+        if not _DEPTH_DECLARATION_NEGATION.search(m.group("middle"))
+    }
     has_leaf_clause = bool(_LEAF_EXECUTOR_MUST_NOT_SPAWN.search(section))
     has_depth_one = declared_depths == {1}
 
@@ -234,6 +247,25 @@ class SubagentSpawnDetectorUnitTests(unittest.TestCase):
         self.assertTrue(
             any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
             f"an unanchored '1 hop' substring incorrectly satisfied the depth bound: {failures}",
+        )
+
+    def test_red_case_negated_depth_declaration_does_not_satisfy_the_depth_bound(self) -> None:
+        # Copilot review (PR #446, thread PRRT_kwDORzpWpM6htwgy, also flagged
+        # at line 85 of this file): "Maximum depth is not 1 hop" must not be
+        # read as an affirmative declaration of depth 1 merely because the
+        # digit 1 appears between "maximum depth" and "hop".
+        text = (
+            "# Some Skill\n\n"
+            "This skill spawns reviewer subagents.\n\n"
+            "## Subagent Depth Constraint\n\n"
+            "Those subagents are leaf executors and MUST NOT spawn their own subagents. "
+            "Maximum depth is not 1 hop.\n\n"
+            "## Next Section\n"
+        )
+        failures = evaluate_skill_text(text)
+        self.assertTrue(
+            any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
+            f"a negated depth declaration incorrectly satisfied the depth bound: {failures}",
         )
 
     def test_negated_spawn_language_is_not_a_positive_declaration(self) -> None:
