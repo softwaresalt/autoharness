@@ -174,6 +174,67 @@ class P007RestoreApprovalGateContract(unittest.TestCase):
                 )
                 self.assertIn("leave the working tree untouched", section)
 
+    def test_revalidation_gates_against_stale_approval(self) -> None:
+        """Mandatory static coverage for the immediate pre-restore revalidation
+        step: a G1 approval matched against deletions observed before the
+        operator request must be re-checked against a fresh status read
+        immediately before the restore executes, and any drift (a path
+        recreated/modified, or the deletion set otherwise changed) must be
+        treated as a stale approval requiring a fresh G1 result rather than
+        being used to restore. Copilot review (PR #446, thread
+        PRRT_kwDORzpWpM6hu4p5): the mismatch test (case ii) only covers
+        shipment-ID/path matching at approval time, not this immediate
+        second status read, so removing the revalidation step alone would
+        not be caught without this dedicated coverage."""
+        for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
+            with self.subTest(surface=label):
+                self.assertIn(
+                    "Revalidate immediately before restoring",
+                    section,
+                    "no explicit immediate pre-restore revalidation step",
+                )
+                self.assertIn(
+                    "re-run `git status",
+                    section,
+                    "revalidation does not re-run the status check",
+                )
+                self.assertIn(
+                    "at the moment restoration is about to begin",
+                    section,
+                    "revalidation is not anchored to the moment restoration begins",
+                )
+                self.assertIn(
+                    "the approval is STALE and MUST NOT be used",
+                    section,
+                    "no explicit stale-approval refusal",
+                )
+                self.assertIn(
+                    "recreated, modified, or otherwise changed since the approval was matched",
+                    section,
+                    "stale-approval condition does not name recreated/modified/changed paths",
+                )
+                self.assertIn(
+                    "require a fresh G1 approval matched to the newly-observed state (return to step 1)",
+                    section,
+                    "no fresh-approval loop back to step 1 on staleness",
+                )
+                self.assertIn(
+                    "never proceed to step 3 with a stale approval",
+                    section,
+                    "no explicit prohibition on proceeding with a stale approval",
+                )
+                # Revalidation must appear textually between "obtain" (step 1)
+                # and the actual restore command (step 3), inside the same
+                # Recovery procedure block.
+                obtain_index = section.find("Obtain a live G1 approval result")
+                revalidate_index = section.find("Revalidate immediately before restoring")
+                restore_index = section.find("Run `git restore --")
+                self.assertGreater(obtain_index, -1)
+                self.assertGreater(revalidate_index, -1)
+                self.assertGreater(restore_index, -1)
+                self.assertLess(obtain_index, revalidate_index)
+                self.assertLess(revalidate_index, restore_index)
+
     def test_g7_case_ii_mismatch_is_refusal(self) -> None:
         """(ii) MISMATCH CONDITION: approval result must match shipment ID and
         exact archive paths; mismatch/ambiguity/timeout/unreadable is a refusal."""

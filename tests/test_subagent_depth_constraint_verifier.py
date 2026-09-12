@@ -57,7 +57,8 @@ _NEGATION_TOKENS = re.compile(
 )
 
 _MAX_DEPTH_DECLARATION = re.compile(
-    r"maximum(?:\s+spawn)?\s+depth\s*:?(?P<middle>[^.\n]{0,60}?)\b(?P<value>\d+)\s*hops?\b",
+    r"maximum(?:\s+spawn)?\s+depth\s*:?(?P<middle>[^.\n]{0,60}?)\b(?P<value>\d+)\s*hops?"
+    r"(?P<suffix>[^.\n]{0,30})",
     re.IGNORECASE,
 )
 # A negation appearing between "maximum depth" and the numeric value means the
@@ -65,6 +66,14 @@ _MAX_DEPTH_DECLARATION = re.compile(
 # "Maximum depth is not 1 hop" must not be read as declaring depth 1).
 _DEPTH_DECLARATION_NEGATION = re.compile(
     r"\b(not|never|no|isn't|is not|n't)\b", re.IGNORECASE
+)
+# A trailing qualifier immediately after "N hop(s)" (e.g. "1 hop or more",
+# "1 hop or 2 hops") also declares a non-exact bound and must be excluded the
+# same way as a leading qualifier or a negation. Copilot review, PR #446,
+# thread PRRT_kwDORzpWpM6hu4p1.
+_DEPTH_SUFFIX_QUALIFIER = re.compile(
+    r"^\s*or\s+(more|less|fewer|greater|higher|lower|deeper|\d+\s*hops?)\b",
+    re.IGNORECASE,
 )
 # A comparative/qualified-bound qualifier appearing between "maximum depth"
 # and the numeric value means the sentence declares a LOWER BOUND or
@@ -166,12 +175,15 @@ def evaluate_skill_text(text: str) -> list[str]:
     # excluded rather than counted. Likewise, a comparative/qualified-bound
     # qualifier (e.g. "Maximum depth is at least 1 hop") declares a lower
     # bound or non-exact relation, not an exact maximum, and is excluded the
-    # same way.
+    # same way — whether the qualifier appears BEFORE the number ("at least
+    # 1 hop") or immediately AFTER it as a trailing alternative ("1 hop or
+    # more", "1 hop or 2 hops").
     declared_depths = {
         int(m.group("value"))
         for m in _MAX_DEPTH_DECLARATION.finditer(section)
         if not _DEPTH_DECLARATION_NEGATION.search(m.group("middle"))
         and not _DEPTH_DECLARATION_QUALIFIER.search(m.group("middle"))
+        and not _DEPTH_SUFFIX_QUALIFIER.search(m.group("suffix"))
     }
     has_leaf_clause = bool(_LEAF_EXECUTOR_MUST_NOT_SPAWN.search(section))
     has_depth_one = declared_depths == {1}
@@ -314,6 +326,31 @@ class SubagentSpawnDetectorUnitTests(unittest.TestCase):
             any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
             f"a qualified lower-bound depth declaration incorrectly satisfied the exact depth bound: {failures}",
         )
+
+    def test_red_case_trailing_suffix_qualifier_does_not_satisfy_the_depth_bound(self) -> None:
+        # Copilot review (PR #446, thread PRRT_kwDORzpWpM6hu4p1): a qualifier
+        # appearing immediately AFTER the number ("1 hop or more", "1 hop or
+        # 2 hops") also declares a non-exact bound and must not satisfy the
+        # exact depth-1 requirement merely because the leading "middle" span
+        # (before the number) is clean.
+        for suffix_text, label in (
+            ("Maximum depth: 1 hop or more.", "or more"),
+            ("Maximum depth: 1 hop or 2 hops.", "or N hops"),
+        ):
+            with self.subTest(case=label):
+                text = (
+                    "# Some Skill\n\n"
+                    "This skill spawns reviewer subagents.\n\n"
+                    "## Subagent Depth Constraint\n\n"
+                    "Those subagents are leaf executors and MUST NOT spawn their own subagents. "
+                    f"{suffix_text}\n\n"
+                    "## Next Section\n"
+                )
+                failures = evaluate_skill_text(text)
+                self.assertTrue(
+                    any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
+                    f"a trailing suffix qualifier ({label}) incorrectly satisfied the exact depth bound: {failures}",
+                )
 
     def test_negated_spawn_language_is_not_a_positive_declaration(self) -> None:
         self.assertFalse(declares_subagent_spawning("No subagent spawning (leaf executor)."))
