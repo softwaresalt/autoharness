@@ -56,8 +56,10 @@ _NEGATION_TOKENS = re.compile(
     r"\b(no|not|never|must not|n't|without)\b", re.IGNORECASE
 )
 
-_DEPTH_ONE_PATTERN = re.compile(r"\b1\s*hop\b", re.IGNORECASE)
-_DEPTH_OTHER_PATTERN = re.compile(r"\b([02-9]|\d{2,})\s*hops?\b", re.IGNORECASE)
+_MAX_DEPTH_DECLARATION = re.compile(
+    r"maximum(?:\s+spawn)?\s+depth\s*:?[^.\n]{0,60}?\b(\d+)\s*hops?\b",
+    re.IGNORECASE,
+)
 _LEAF_EXECUTOR_MUST_NOT_SPAWN = re.compile(
     r"leaf executors?[^.\n]{0,60}?must not spawn", re.IGNORECASE
 )
@@ -125,22 +127,23 @@ def evaluate_skill_text(text: str) -> list[str]:
                          f"'{_CONSTRAINT_HEADING}' section")
         return failures
 
-    has_depth_one = bool(_DEPTH_ONE_PATTERN.search(section))
+    # Anchor the depth check to an actual "maximum [spawn] depth: N hop(s)"
+    # declaration rather than scanning the whole section for any bare "1 hop"
+    # substring — an unrelated mention of "1 hop" elsewhere in the section
+    # (e.g. describing a call chain, not declaring the bound) must not count.
+    declared_depths = {int(m.group(1)) for m in _MAX_DEPTH_DECLARATION.finditer(section)}
     has_leaf_clause = bool(_LEAF_EXECUTOR_MUST_NOT_SPAWN.search(section))
-    has_other_depth = bool(_DEPTH_OTHER_PATTERN.search(section))
+    has_depth_one = declared_depths == {1}
 
-    if not has_depth_one or not has_leaf_clause:
+    if not declared_depths or not has_leaf_clause:
         failures.append(
             "INVALID_CONSTRAINT_FORM: constraint section is missing the depth bound and/or "
             "the leaf-executor must-not-spawn-further clause"
         )
-
-    if has_other_depth and not has_depth_one:
+    elif not has_depth_one:
+        # A depth declaration exists but is not exactly {1} — either a single
+        # non-1 value, or multiple conflicting declared values.
         failures.append("INVALID_DEPTH: constraint section declares a depth other than 1 hop")
-    elif has_other_depth and has_depth_one:
-        # Both a valid "1 hop" and some other numeric "N hop(s)" token are
-        # present — ambiguous depth declaration, never valid.
-        failures.append("INVALID_DEPTH: constraint section declares more than one depth value")
 
     return failures
 
@@ -211,6 +214,27 @@ class SubagentSpawnDetectorUnitTests(unittest.TestCase):
         )
         failures = evaluate_skill_text(text)
         self.assertTrue(any(f.startswith("INVALID_DEPTH") for f in failures), failures)
+
+    def test_red_case_unrelated_1_hop_mention_does_not_satisfy_the_depth_bound(self) -> None:
+        # Copilot review (PR #446, thread PRRT_kwDORzpWpM6htobW): a bare "1 hop"
+        # substring anywhere in the section must not satisfy the depth
+        # requirement unless it appears as part of an actual "maximum [spawn]
+        # depth: N hop(s)" declaration. This fixture's only depth-shaped
+        # sentence declares an UNLIMITED bound while a separate, unrelated
+        # sentence happens to mention "1 hop" describing a call chain.
+        text = (
+            "# Some Skill\n\n"
+            "This skill spawns reviewer subagents.\n\n"
+            "## Subagent Depth Constraint\n\n"
+            "Those subagents are leaf executors and MUST NOT spawn their own subagents. "
+            "The first reviewer is 1 hop away; maximum depth is unlimited.\n\n"
+            "## Next Section\n"
+        )
+        failures = evaluate_skill_text(text)
+        self.assertTrue(
+            any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
+            f"an unanchored '1 hop' substring incorrectly satisfied the depth bound: {failures}",
+        )
 
     def test_negated_spawn_language_is_not_a_positive_declaration(self) -> None:
         self.assertFalse(declares_subagent_spawning("No subagent spawning (leaf executor)."))

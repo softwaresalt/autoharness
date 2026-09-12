@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import yaml
@@ -151,13 +152,26 @@ class DecisionFCoInstallationContract(unittest.TestCase):
         load_yaml = lambda name: yaml.safe_load(
             (autoharness_dir / name).read_text(encoding="utf-8")
         )
-        variables = _derive_template_variables(
-            _REPO_ROOT,
-            load_yaml("harness-manifest.yaml"),
-            load_yaml("config.yaml"),
-            load_yaml("workspace-profile.yaml"),
-            load_yaml("backlog-registry.yaml"),
-        )
+        # `_derive_template_variables` unconditionally calls
+        # `_resolve_default_branch`, whose fallback chain shells out to
+        # `git ls-remote origin HEAD` and then `gh repo view` when no local
+        # `refs/remotes/origin/HEAD` ref exists (e.g. a shallow/CI checkout).
+        # Pin it to this repository's actual default branch so this test
+        # remains hermetic and network-independent, per the same pattern
+        # `tests/_assertion_render.py` and
+        # `tests/test_template_variable_derivation_contract.py` already use
+        # (Copilot review, PR #446, thread PRRT_kwDORzpWpM6htobb).
+        with mock.patch(
+            "autoharness.verify_workspace._resolve_default_branch",
+            return_value="main",
+        ):
+            variables = _derive_template_variables(
+                _REPO_ROOT,
+                load_yaml("harness-manifest.yaml"),
+                load_yaml("config.yaml"),
+                load_yaml("workspace-profile.yaml"),
+                load_yaml("backlog-registry.yaml"),
+            )
         self.assertEqual(variables.get("PRIMARY_LANGUAGE_LOWER"), "python")
         template_text = _lf_text(_TECH_REVIEWER_TEMPLATE)
         rendered = _render_template(template_text, variables)
