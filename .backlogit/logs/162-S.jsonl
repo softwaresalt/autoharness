@@ -1,3 +1,8 @@
 {"timestamp":"2026-08-31T15:20:10.3023864-07:00","actor":"backlogit","item_id":"162-S","event_type":"shipment_created","delta":{"items":["154-F","154.001-T","154.002-T","154.003-T"],"title":"SHIP-4 — Review-persona, policy, and agent-architecture contract integrity"}}
 {"timestamp":"2026-08-31T16:24:43.1799915-07:00","actor":"backlogit","item_id":"162-S","event_type":"shipment_item_added","delta":{"item_id":"154.004-T"}}
 {"timestamp":"2026-09-11T20:53:32.1617742-07:00","actor":"backlogit","item_id":"162-S","event_type":"shipment_status_changed","delta":{"status":"active"}}
+{"timestamp":"2026-09-12T11:16:11.3265542-07:00","actor":"backlogit","item_id":"162-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"162-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-09-12T11:16:15.2737236-07:00","actor":"backlogit","item_id":"162-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"162-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-09-12T11:17:52.1406205-07:00","actor":"backlogit","item_id":"162-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"162-S","status":"shipped"}}
+{"timestamp":"2026-09-12T11:18:03.3922502-07:00","actor":"backlogit","item_id":"162-S","event_type":"commit_tracked","delta":{"author":"Ship Agent","commit_sha":"1b2312273c1570c7557d367429c24e7e8905c0de","message":"SHIP-4: review-persona, policy, and agent-architecture contract integrity (162-S)"}}
+{"timestamp":"2026-09-12T11:20:09.0699396-07:00","actor":"backlogit","item_id":"162-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/162-S.md"}}
