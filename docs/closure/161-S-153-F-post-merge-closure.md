@@ -59,10 +59,15 @@ were captured under P-021 rather than fixed (see Deferred Scope below).
 * Containment is enforced only after full symlink/junction resolution of
   *both* the candidate path and the workspace root, comparing
   fully-resolved real paths (never a string-prefix comparison).
-* PowerShell and POSIX variants implement identical semantics: a token
-  acquired under one platform variant verifies under the other (TC4),
-  verified via the cross-platform interoperability vectors recorded in
-  `153.001-T`'s behaviour matrix.
+* PowerShell and POSIX variants are intended to implement identical
+  semantics: a token acquired under one platform variant is designed to
+  verify under the other (TC4). The canonical token/digest values used to
+  assert this (V-a–V-e, including the V-d two-cell round-trip vectors) are
+  recorded in `153.004-T`'s behaviour matrix. **Disclosed gap** (open P-021
+  follow-up `58A85283`, not fixed by this closure): existing automated
+  tests exercise same-platform round trips only, so an actual
+  PowerShell→POSIX or POSIX→PowerShell cross-variant verification is not
+  yet automated and could still fail undetected.
 * No shipped documentation claims an adversarial security guarantee — the
   advisory bound (O3) is stated in plain words in
   `.github/instructions/concurrency.instructions.md` and
@@ -122,6 +127,21 @@ regression was introduced.
   Stage deliberation; none block this shipment's release-blocker condition
   (the CLI help smoke check).
 
+**Closure PR (#445) review remediation** (this document's own PR, separate
+from PR #444 above): two rounds of Copilot review on the closure PR itself
+surfaced 12 findings, all classified in-scope (P-021 C1/C3 same-contract-
+surface completions of this closure's own deliverables) and fixed directly
+-- including this document's own corrections above, a redacted token
+prefix, a corrected dedicated `mode: post` reconcile report
+(`.backlogit/reconcile/161-S-post-20260912-002500.md`, which also discloses
+a lock-ordering deviation from the `shipment-reconcile` skill's Required
+Protocol -- see that report's Step 5 for the full disclosure and rationale
+for why the verification remains valid despite it), and repaired stale
+`docs/plans/2026-08-31-...` references in the six archived 153-F/153.00x-T
+backlog records and the behaviour-matrix research doc after the plan was
+moved to `docs/archive/plans/` by this session's P-020 compaction. No
+findings on the closure PR were out of scope; none required P-021 capture.
+
 ## Pre-Deploy Audits
 
 * No migrations, feature flags, config, or access changes.
@@ -159,7 +179,7 @@ two genuinely safety-relevant surfaces touched by PR #444
 (`acquire_lock.{ps1,sh}`, `release_lock.{ps1,sh}`) were edited under
 `153.001-T`/`153.002-T`'s declared `careful` + `freeze-scope` safety mode
 (bounded to `templates/skills/file-lock/scripts/`, per binding H8), verified
-via the full test suite, the two-platform behaviour matrix (task 0), and the
+via the full test suite, the two-platform behaviour matrix (`153.004-T`), and the
 canonical token/digest interoperability vectors (V-a–V-e, V-c2–V-c3) rather
 than any live production lock operation, and required no elevated approval.
 
@@ -246,10 +266,13 @@ revert.
 
 Through the next several real file-lock skill invocations after merge
 (acquire/release cycles by Ship/Stage agents in normal dark-factory or
-interactive operation). No fixed SLA window; the change is fully covered by
-hermetic, deterministic tests plus the two-platform behaviour matrix, and
-this session's own post-merge closure work already exercised the hardened
-scripts live (successfully) as the first real post-merge usage.
+interactive operation). No fixed SLA window; the change is covered by
+hermetic, deterministic same-platform tests plus the two-platform behaviour
+matrix's recorded vectors (153.004-T) — cross-platform round-trip
+verification itself is not yet automated (disclosed gap, P-021 `58A85283`)
+— and this session's own post-merge closure work already exercised the
+hardened scripts live (successfully, same-platform) as the first real
+post-merge usage.
 
 ## Owner
 
