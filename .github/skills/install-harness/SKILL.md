@@ -1200,7 +1200,7 @@ scope.
    * `correctness-reviewer.agent.md` — Always-on behavioral correctness reviewer
    * `maintainability-reviewer.agent.md` — Always-on maintainability and complexity reviewer
    * `scope-boundary-auditor.agent.md` → `.github/agents/subagents/scope-boundary-auditor.agent.md` — Universal
-   * `technology-reviewer.agent.md` → `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` — Fully technology-specific
+   * `technology-reviewer.agent.md` → `.github/agents/subagents/{{PRIMARY_LANGUAGE_LOWER}}-reviewer.agent.md` — Fully technology-specific. **Co-installation invariant (Decision F1, MUST)** — see below.
    * `concurrency-reviewer.agent.md` → `.github/agents/subagents/concurrency-reviewer.agent.md` — Include only for languages with concurrency primitives
    * `agent-native-parity-reviewer.agent.md` → `.github/agents/subagents/agent-native-parity-reviewer.agent.md` — Include when `agent_native.recommended_reviewer` is true in the workspace profile
    * `security-reviewer.agent.md` → `.github/agents/subagents/security-reviewer.agent.md` — Include when the `review` layer is active; universal security code review persona
@@ -1208,6 +1208,22 @@ scope.
    * `template-integrity-reviewer.agent.md` → `.github/agents/subagents/template-integrity-reviewer.agent.md` — Include when the workspace produces template-driven or Markdown-heavy product surfaces so frontmatter, placeholder, markdown, and cross-reference defects are caught before PR submission
    * `schema-cli-docs-coupling-reviewer.agent.md` → `.github/agents/subagents/schema-cli-docs-coupling-reviewer.agent.md` — Include when diffs commonly span schemas, CLI verification logic, install/tune flows, and operator docs
    * `learnings-researcher.agent.md` → `.github/agents/subagents/learnings-researcher.agent.md` — Universal
+
+**Decision F — Technology-reviewer ↔ language-instruction co-installation invariant.** Three non-overlapping conditions, each with exactly one disposition:
+
+* **Condition A** (`PRIMARY_LANGUAGE={L}` declared AND the technology reviewer is selected) → **F1 co-installation (MUST)**: the matching `{L}.instructions.md` MUST be installed in the SAME composition — from the language-variant template `technology-{L}.instructions.md.tmpl` when one exists in the template set (first choice), otherwise from the generic `technology.instructions.md.tmpl` skeleton (fallback, only when no variant exists). If NEITHER template exists in the template set, the composition HALTS WITH A NAMED ERROR identifying both missing template paths — it does NOT silently drop the reviewer and does NOT silently install a dangling one.
+* **Condition B** (technology reviewer NOT selected) → the F1 rule does not fire. This is a statement about Decision F's own rule only: it is NOT a statement that no language instruction is installed. Step 2.2 item 1 installs `{language}.instructions.md` UNCONDITIONALLY as part of the Instruction Layer, independently of reviewer selection, and Decision F neither adds to nor suppresses that.
+* **Condition C** (an already-composed workspace carries a technology reviewer with no matching instruction) → **F2 graceful reference**: the installed `{language}-reviewer.agent.md` keeps the `{{PRIMARY_LANGUAGE_LOWER}}` placeholder (it is correct) and carries an explicit fallback clause so it degrades to generic coding-discipline guidance instead of citing an absent file when composed without the matching instruction. F1 is forward, at composition time, and NOT retroactive — it governs what this skill does when composing a workspace; it does not recompose an existing workspace.
+
+The M1–M5 outcome matrix (each row is a required behavior, not merely a suggestion):
+
+| # | Condition | Template set state | Outcome |
+|---|---|---|---|
+| M1 | PRIMARY_LANGUAGE=L, reviewer selected | `technology-{L}.instructions.md.tmpl` exists (language variant) | F1 co-installation from the language-variant template |
+| M2 | PRIMARY_LANGUAGE=L, reviewer selected | Variant absent, generic `technology.instructions.md.tmpl` present | F1 co-installation from the generic skeleton (variant is always first choice; generic is used only when no variant exists) |
+| M3 | PRIMARY_LANGUAGE=L, reviewer selected | Neither variant nor generic skeleton present | HALT with a named error identifying both missing template paths — fail closed; the reviewer is not silently dropped and not installed dangling |
+| M4 | Technology reviewer NOT selected | any | The F1 rule does not fire (Condition B); Step 2.2 item 1's unconditional `{language}.instructions.md` install is untouched by this scoping |
+| M5 | Already-composed workspace carrying a technology reviewer with no matching instruction | n/a (no composition runs) | F2 graceful reference: the reviewer degrades to generic coding-discipline guidance with no unconditional reference to an absent instruction file |
 
 5. **Orchestrating review skills**: `plan-review/SKILL.md`, `review/SKILL.md` — dispatch persona subagents during plan and code review at subagent depth 1. Install when the `review` layer is active. Ensure `review/SKILL.md` produces a local review readiness outcome (`READY`, `READY_WITH_FOLLOWUPS`, `BLOCKED`) and routes residual P2/P3 findings into explicit follow-up handling. `adversarial-review.agent.md` is a standalone agent at depth 2 (dispatches multiple parallel reviewer instances).
    * Minimal technology adaptation needed
