@@ -338,8 +338,12 @@ mutated or repaired by this mode.
    Run `git status -- ".backlogit/archive/"` and inspect for deletions.
    If any archive files are reported as deleted, recommend that the invoking agent
    obtain a fresh, live G1 approval (per P-007's G1-G9 approval-gate protocol,
-   matched to this shipment ID and the EXACT set of deleted paths just detected)
-   before running `git restore -- <deleted-path-1> <deleted-path-2> ...` limited
+   matched to this shipment ID and the EXACT set of deleted paths just detected),
+   revalidate immediately before restoring (re-run this same `git status` check
+   and confirm the approved paths still report a deletion with no change to the
+   set — a stale approval, where a path was recreated/modified since approval,
+   MUST NOT be used), and only then run
+   `git restore -- <deleted-path-1> <deleted-path-2> ...` limited
    to that exact pathspec — never the whole `.backlogit/archive/` directory,
    which could discard or stage unrelated tracked modifications below it. Never
    recommend the restore as an unconditional next step, and never recommend an

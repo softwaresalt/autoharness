@@ -98,15 +98,20 @@ class P007RestoreApprovalGateContract(unittest.TestCase):
 
         Every IMPERATIVE `git restore` instruction (a "run `git restore ...`"
         construct, case-insensitive on "run" so a future lowercase rephrasing
-        cannot slip past) must be gated: it must appear strictly after the
-        "Obtain a live G1 approval result" text in the same section. This
+        cannot slip past) must fall STRICTLY WITHIN the gated Recovery
+        procedure sub-block (bounded by its own heading and the section end),
+        not merely somewhere textually after an arbitrary gate phrase. This
         scans and classifies EVERY such occurrence, not just the first, per
-        Copilot review (PR #446, thread PRRT_kwDORzpWpM6ht-ZZ): checking only
-        first-occurrence ordering would miss a second unconditional restore
-        added later in the section, or one phrased with lowercase "run".
+        Copilot review (PR #446, threads PRRT_kwDORzpWpM6ht-ZZ and
+        PRRT_kwDORzpWpM6huu3Z): binding occurrences to "after the
+        approval-obtain phrase" alone would not catch a genuine unconditional
+        restore inserted anywhere else in the section that happens to sit
+        after that phrase textually without actually being inside the gated
+        procedure block.
         """
         imperative_restore = re.compile(r"\brun\s+`git restore\b", re.IGNORECASE)
         negation_before_run = re.compile(r"\b(not|never|n't|no)\s*$", re.IGNORECASE)
+        recovery_heading = re.compile(r"\*\*Recovery procedure")
         for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
             with self.subTest(surface=label):
                 # The withdrawn pre-fix wording started the violation action
@@ -118,10 +123,21 @@ class P007RestoreApprovalGateContract(unittest.TestCase):
                     "found an unconditional git restore as the first violation-action step",
                 )
                 g1_index = section.find("G1")
-                gate_index = section.find("Obtain a live G1 approval result")
                 self.assertGreater(g1_index, -1, "G1 gate clause is missing")
-                self.assertGreater(gate_index, -1, "recovery procedure does not gate the restore "
-                                    "behind an obtained G1 result")
+
+                recovery_match = recovery_heading.search(section)
+                self.assertIsNotNone(recovery_match, "Recovery procedure sub-block is missing")
+                recovery_start = recovery_match.start()
+                # The Recovery procedure block runs from its own heading to
+                # the end of the extracted P-007 section (it is the last
+                # sub-block before the trailing "---" already stripped by
+                # _extract_section).
+                recovery_block = section[recovery_start:]
+                self.assertIn(
+                    "Obtain a live G1 approval result",
+                    recovery_block,
+                    "recovery procedure does not gate the restore behind an obtained G1 result",
+                )
 
                 all_matches = list(imperative_restore.finditer(section))
                 self.assertGreater(
@@ -141,13 +157,14 @@ class P007RestoreApprovalGateContract(unittest.TestCase):
                     "no genuine (non-negated) imperative 'run `git restore' instruction found",
                 )
                 for match in genuine_instructions:
-                    self.assertGreater(
+                    self.assertGreaterEqual(
                         match.start(),
-                        gate_index,
+                        recovery_start,
                         "found a genuine imperative 'run `git restore' instruction at offset "
-                        f"{match.start()} that is not gated after the G1 approval-obtain "
-                        f"step (gate text at offset {gate_index}); every occurrence must be "
-                        "classified, not just the first",
+                        f"{match.start()} that falls OUTSIDE the gated Recovery procedure "
+                        f"sub-block (which starts at offset {recovery_start}); every "
+                        "occurrence must be bound to the gated procedure, not merely "
+                        "positioned after some gate phrase",
                     )
                 # The default path is halt/report, tree untouched, P-005 telemetry.
                 self.assertIn(

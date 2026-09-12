@@ -66,6 +66,17 @@ _MAX_DEPTH_DECLARATION = re.compile(
 _DEPTH_DECLARATION_NEGATION = re.compile(
     r"\b(not|never|no|isn't|is not|n't)\b", re.IGNORECASE
 )
+# A comparative/qualified-bound qualifier appearing between "maximum depth"
+# and the numeric value means the sentence declares a LOWER BOUND or
+# non-exact relation, not an exact maximum (e.g. "Maximum depth is at least
+# 1 hop" permits depths greater than 1 and must not be read as declaring an
+# exact maximum of 1). Copilot review, PR #446, thread PRRT_kwDORzpWpM6huu3d.
+_DEPTH_DECLARATION_QUALIFIER = re.compile(
+    r"\b(at least|at most|minimum|maximum of|no less than|no more than|"
+    r"or more|or fewer|or less|or greater|greater than|less than|"
+    r"up to|approximately|about|around)\b",
+    re.IGNORECASE,
+)
 _LEAF_EXECUTOR_MUST_NOT_SPAWN = re.compile(
     r"leaf executors?[^.\n]{0,60}?must not spawn", re.IGNORECASE
 )
@@ -152,11 +163,15 @@ def evaluate_skill_text(text: str) -> list[str]:
     # (e.g. describing a call chain, not declaring the bound) must not count.
     # A negation between "maximum depth" and the number (e.g. "Maximum depth
     # is not 1 hop") is not an affirmative declaration of that value and is
-    # excluded rather than counted.
+    # excluded rather than counted. Likewise, a comparative/qualified-bound
+    # qualifier (e.g. "Maximum depth is at least 1 hop") declares a lower
+    # bound or non-exact relation, not an exact maximum, and is excluded the
+    # same way.
     declared_depths = {
         int(m.group("value"))
         for m in _MAX_DEPTH_DECLARATION.finditer(section)
         if not _DEPTH_DECLARATION_NEGATION.search(m.group("middle"))
+        and not _DEPTH_DECLARATION_QUALIFIER.search(m.group("middle"))
     }
     has_leaf_clause = bool(_LEAF_EXECUTOR_MUST_NOT_SPAWN.search(section))
     has_depth_one = declared_depths == {1}
@@ -279,6 +294,25 @@ class SubagentSpawnDetectorUnitTests(unittest.TestCase):
         self.assertTrue(
             any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
             f"a negated depth declaration incorrectly satisfied the depth bound: {failures}",
+        )
+
+    def test_red_case_qualified_lower_bound_does_not_satisfy_the_depth_bound(self) -> None:
+        # Copilot review (PR #446, thread PRRT_kwDORzpWpM6huu3d): "Maximum
+        # depth is at least 1 hop" declares a lower bound, permitting depths
+        # greater than 1, and must not be read as an exact declaration of
+        # depth 1.
+        text = (
+            "# Some Skill\n\n"
+            "This skill spawns reviewer subagents.\n\n"
+            "## Subagent Depth Constraint\n\n"
+            "Those subagents are leaf executors and MUST NOT spawn their own subagents. "
+            "Maximum depth is at least 1 hop.\n\n"
+            "## Next Section\n"
+        )
+        failures = evaluate_skill_text(text)
+        self.assertTrue(
+            any(f.startswith("INVALID_CONSTRAINT_FORM") for f in failures),
+            f"a qualified lower-bound depth declaration incorrectly satisfied the exact depth bound: {failures}",
         )
 
     def test_negated_spawn_language_is_not_a_positive_declaration(self) -> None:
