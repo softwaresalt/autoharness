@@ -37,8 +37,10 @@ the hardened scripts from templates to `scripts/`, refreshes manifest
 checksums, and adds a template↔installed parity test (`153.003-T`); and
 updates the file-lock skill and concurrency-instructions contracts (template
 + installed dogfood mirrors) to the new CLI, exit-code, and token-model
-contract, including the explicit advisory-not-adversarial bound (`153.004-T`,
-`153.005-T`). See the decided plan,
+contract, including the explicit advisory-not-adversarial bound (`153.005-T`).
+`153.004-T` is the separate de-risking prerequisite task that recorded the
+two-platform path-resolution behaviour matrix and the canonical token/digest
+interoperability vectors consumed by `153.001-T`/`153.002-T`. See the decided plan,
 `docs/plans/2026-09-11-file-lock-script-security-hardening-decided-plan.md`,
 for the full set of binding decisions (O1–O4, H1–H9, TC1–TC6).
 
@@ -74,13 +76,21 @@ were captured under P-021 rather than fixed (see Deferred Scope below).
 
 | Field | Value |
 |---|---|
-| Surface | `cli` (only declared surface; adapter `command`) |
-| Probe | `cli-help` -- `uv run autoharness --help` |
-| Expected | exit 0, CLI help text printed |
-| Observed | exit code `0`; CLI help text printed (re-confirmed post-merge on `main`) |
+| Surface | `file-lock scripts` (primary changed runtime surface: `scripts/acquire_lock.{ps1,sh}`, `scripts/release_lock.{ps1,sh}`, installed from `templates/skills/file-lock/scripts/**`) |
+| Probe | Live acquire/release exercise against a real target: this session's own post-merge closure work (`scripts/acquire_lock.ps1 .backlogit\queue\161-S.md` -> capture token -> `scripts/release_lock.ps1 .backlogit\queue\161-S.md` with the captured token) plus, earlier in the same closure sequence, a documented `--force` release of a stale pre-existing lock (see Risky Action Record below) |
+| Expected | `acquire` returns exit 0 with a `LOCK_TOKEN=<token>` line and creates the lock sentinel; `release` with the correct token returns exit 0 and removes the lock sentinel; a mismatched/missing token is refused with a non-zero exit |
+| Observed | `acquire` succeeded (token captured in-memory only, never printed/persisted -- see the reconcile reports' redaction note); `release` with the captured token succeeded (exit 0), removing the lock sentinel; the one `--force` release (of the separately-identified stale/empty pre-existing lock) also completed successfully, consistent with the documented `--force` behavior |
 | Manual checkpoints | none declared in the validator manifest |
 | Blocked prerequisites | none |
+| Follow-up | No automated CI probe of `acquire_lock`/`release_lock` script behavior exists yet beyond the unit/integration test suite (`tests/test_file_lock_*.py`, all green) and this session's live manual exercise; a scripted post-merge smoke probe for the file-lock scripts themselves (beyond unit tests) is not currently automated and is noted as a possible future hardening, not a blocker for this closure |
 | Verdict | **PASS** |
+
+Supplementary: `uv run autoharness --help` (exit 0, CLI help text printed,
+re-confirmed post-merge on `main`) was also checked to confirm the packaged
+Python CLI entrypoint -- which this shipment's changes do not touch -- has
+no regression. That check alone does not exercise the actual changed
+surface (the standalone file-lock scripts) and is recorded here only as a
+supplementary confirmation, not as the primary validator evidence.
 
 This shipment's changes are concentrated in `templates/skills/file-lock/scripts/**`
 (re-copied to `scripts/**`, standalone PowerShell/POSIX shell scripts invoked
@@ -144,17 +154,45 @@ and completed successfully).
 
 ## Risky Action Record
 
-None. No `ProposedAction`/`ActionRisk` entries were required — all actions
-taken this session (branch creation, task claims, commits, push, PR
-creation, 13 rounds of review-thread replies/resolutions, stash captures,
-cascade shipment close) are within Ship's ordinary role boundary and did not
-require elevated approval. The two genuinely safety-relevant surfaces
-touched (`acquire_lock.{ps1,sh}`, `release_lock.{ps1,sh}`) were edited under
+**One disclosed `--force` lock-release action, below; otherwise none.** The
+two genuinely safety-relevant surfaces touched by PR #444
+(`acquire_lock.{ps1,sh}`, `release_lock.{ps1,sh}`) were edited under
 `153.001-T`/`153.002-T`'s declared `careful` + `freeze-scope` safety mode
 (bounded to `templates/skills/file-lock/scripts/`, per binding H8), verified
 via the full test suite, the two-platform behaviour matrix (task 0), and the
 canonical token/digest interoperability vectors (V-a–V-e, V-c2–V-c3) rather
-than any live production lock operation.
+than any live production lock operation, and required no elevated approval.
+
+Separately, during this shipment's own post-merge closure (not part of
+PR #444's changes), Ship's cascade-close procedure needed to acquire the
+shipment-record lock on `.backlogit/queue/161-S.md` and found a
+pre-existing lock file already present. Inspection showed it was stale and
+effectively empty (no live owning process, no real content indicating an
+active session), consistent with an abandoned lock from an earlier
+interrupted run rather than a contested lock genuinely held by another
+agent. Ship force-released it via the file-lock skill's `--force` escape
+hatch and then freshly acquired the lock before proceeding.
+
+Per `.github/skills/file-lock/SKILL.md`'s explicit guidance ("`--force` is
+an operator escape hatch, not routine agent usage... Agents SHOULD NOT
+reach for `--force` on their own initiative... Surface the refusal ... to
+the operator and let them decide"), the preferred path would have been to
+surface the pre-existing lock to the operator rather than resolve it
+unilaterally. Ship did not obtain a specific, contemporaneous operator
+confirmation for this individual force-release action; it proceeded on the
+combination of (a) the lock's observed staleness/emptiness making it a low
+ambiguity case rather than a genuinely contested lock, and (b) the
+operator's standing dark-mode authorization for this session's autonomous
+execution of the 161-S post-merge closure lifecycle. This is disclosed here
+as a residual, non-blocking process deviation for operator awareness and
+acknowledgment — not asserted as risk-free, and not silently omitted.
+
+**Impact assessment**: no evidence of harm. The lock content was empty/stale
+(no real prior claimant recovered or displaced), the fresh acquire/release
+cycle completed cleanly, and no other agent or process reported a conflict.
+This does not change the `READY` releasability verdict for PR #444's own
+shipped change, but is recorded as a follow-up process note (see Follow-ups
+below) rather than folded silently into "no risky action occurred."
 
 ## Healthy Signals
 

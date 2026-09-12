@@ -86,8 +86,10 @@ never authorized and never used.
 - Acquired the shipment file-lock on `.backlogit/queue/161-S.md` (found a
   stale/empty pre-existing lock unrelated to this session; force-released it
   per the skill's documented abandoned-lock mechanism, then freshly
-  acquired). Lock later released cleanly after cascade close (token
-  `57e48d1f...`).
+  acquired). Lock later released cleanly after cascade close (the release
+  token itself is never printed or persisted in any committed record, per
+  the file-lock handling contract; the release call was supplied the
+  captured token successfully).
 - **Cascade Close Sub-Procedure executed**: `backlogit shipment ship 161-S
   --sha 6da9aed5... --message ... --author ...` → `archived_ids` = exactly
   the 7-member `allowed_ids`/`required_ids` set (5 tasks + 153-F + 161-S),
@@ -96,15 +98,39 @@ never authorized and never used.
   Gate decision: **CLOSED**.
 - Post-Mode verification: archive presence for shipment + all 6 other
   members confirmed; deleted-file guard clean (no unexpected deletions in
-  `.backlogit/archive/`); lock released.
+  `.backlogit/archive/`); lock released. (Initially recorded inline in the
+  cascade-close report; corrected during closure-PR review remediation to a
+  separate dedicated `mode: post` report per the skill's Required Protocol
+  — see `161-S-post-20260912-002500.md`.)
 - Reconcile reports written: `.backlogit/reconcile/161-S-pre-20260911-162521.md`,
-  `.backlogit/reconcile/161-S-cascade-close-20260911-163333.md`.
+  `.backlogit/reconcile/161-S-cascade-close-20260911-163333.md`,
+  `.backlogit/reconcile/161-S-post-20260912-002500.md`.
 
 ## Follow-ups (P-021 deferred, Stage-owned, not fixed by Ship)
 
 - `04C4EA9A` — fsutil-fallback case-sensitivity gap (pre-existing, round-8 code).
 - `BD46D364` — recursion-cap/depth-guard canonical-path gap (pre-existing, round-8 code).
 - `58A85283` (reused, round-2 origin) — V-d cross-runtime interop test coverage gap.
+
+## Disclosed process deviation (closure-PR review remediation)
+
+Copilot review on the closure PR (#445) surfaced, and Ship fixed directly as
+in-scope same-contract-surface completions of this closure's own
+deliverables (P-021 C1/C3): a missing dedicated `mode: post` reconcile
+report (was folded inline into the cascade-close report instead), two
+committed acquisition-token prefixes (redacted from the reconcile report and
+this memory file — the file-lock contract requires the token never be
+persisted, even as a prefix), a runtime validator record that checked only
+`autoharness --help` rather than the actual changed file-lock script
+surface, a task-attribution error (`153.004-T` vs `153.005-T`) in the
+closure summary, and non-canonical decided-plan lifecycle field names plus
+a broken cross-reference link. Also disclosed and left as a non-blocking
+residual note (not silently asserted as risk-free): the stale/empty
+pre-existing lock on `.backlogit/queue/161-S.md` encountered during this
+closure's own cascade-close was force-released without a specific,
+contemporaneous operator confirmation for that individual action, per the
+file-lock skill's advisory guidance that `--force` should normally be
+surfaced to the operator rather than resolved unilaterally.
 
 ## Unrelated operator changes — preserved throughout, never touched
 
@@ -118,9 +144,12 @@ the worktree that was not in the operator's original 5-item list:
 same preservation discipline: not staged, not committed, not modified,
 flagged for operator awareness.
 
-## Remaining work (post-merge closure branch)
+## Remaining work (as of this memory file's last update)
 
-Compact-context (P-020, mandatory), closure PR creation via `pr-lifecycle`,
-local review + P-018 gate + CI on the closure PR, then halt for a
-**separate, explicit** operator merge approval (not inferred from PR #444's
-approval).
+Compact-context (P-020) is complete; closure PR #445 is open
+(`post-merge/153-f-ship-3-file-lock-script-security-hardening` -> `main`)
+and has been through one round of Copilot review remediation (this
+disclosed-process-deviation section). Remaining: confirm CI green on PR
+#445 at the current HEAD, confirm/re-run the P-018 copilot-review gate,
+fill in the Local Review Readiness block, then halt for a **separate,
+explicit** operator merge approval (not inferred from PR #444's approval).

@@ -1,14 +1,19 @@
 ---
-title: "SHIP-3 — file-lock script security hardening (template-first) — Decided Plan"
-date: 2026-09-11
-slug: file-lock-script-security-hardening
+title: "Decided plan — SHIP-3 — file-lock script security hardening (template-first)"
 doc_type: decided-plan
+status: shipped
+created: 2026-09-11
+supersedes: docs/archive/plans/2026-08-31-ship3-file-lock-script-security-hardening-plan.md
+slug: file-lock-script-security-hardening
 source_stash: "74C62374"
 source_decision: "docs/decisions/2026-08-31-dark-factory-staging-triage-and-shipment-portfolio.md"
-shipment_unit: "SHIP-3 (161-S)"
-verbose_original: "docs/archive/plans/2026-08-31-ship3-file-lock-script-security-hardening-plan.md"
+shipment_unit: "SHIP-3"
+shipment: 161-S
+feature: 153-F
+tasks: [153.001-T, 153.002-T, 153.003-T, 153.004-T, 153.005-T]
+merge_commit: 6da9aed580f9ed232a6871281f47567c9060ffa8
+pr: 444
 plan_review_verdict: "PASS (2 review-fix cycles, zero unresolved P0/P1)"
-implementation_status: "shipped — 161-S merged (PR #444, merge commit 6da9aed5)"
 ---
 
 # SHIP-3 — file-lock script security hardening — Decided Plan
@@ -100,14 +105,17 @@ guarantee the pack exists to provide did not hold.
 
 | # | Title | Surface |
 |---|---|---|
-| 0 (153.001-T*) | De-risking prerequisite: two-platform path-resolution/lock-path behaviour matrix (7 escape cases) + canonical token/digest interoperability vectors V-a–V-e (incl. V-c2/V-c3 length-boundary rejection vectors, added cycle 2) | `docs/` (record-only) |
-| 1 | Workspace-root containment + symlink-escape prevention in both acquire scripts | `templates/skills/file-lock/scripts/acquire_lock.{ps1,sh}` |
-| 2 | Token-based lock-ownership verification + consistent lock-path computation in both release scripts | `templates/skills/file-lock/scripts/{acquire,release}_lock.{ps1,sh}` |
-| 3 | Re-copy hardened scripts to `scripts/`, refresh manifest checksums, template↔installed parity test | `scripts/**`, `.autoharness/harness-manifest.yaml`, `tests/` |
-| 4 | Update file-lock skill + concurrency instruction contracts (template + dogfood) to new CLI/exit-codes/token model/honest guarantee | `templates/skills/file-lock/SKILL.md.tmpl`, `.github/skills/file-lock/SKILL.md`, `templates/instructions/concurrency.instructions.md.tmpl`, `.github/instructions/concurrency.instructions.md`, manifest |
+| 0 (153.004-T*) | De-risking prerequisite: two-platform path-resolution/lock-path behaviour matrix (7 escape cases) + canonical token/digest interoperability vectors V-a–V-e (incl. V-c2/V-c3 length-boundary rejection vectors, added cycle 2) | `docs/` (record-only) |
+| 1 (153.001-T) | Workspace-root containment + symlink-escape prevention in both acquire scripts | `templates/skills/file-lock/scripts/acquire_lock.{ps1,sh}` |
+| 2 (153.002-T) | Token-based lock-ownership verification + consistent lock-path computation in both release scripts | `templates/skills/file-lock/scripts/{acquire,release}_lock.{ps1,sh}` |
+| 3 (153.003-T) | Re-copy hardened scripts to `scripts/`, refresh manifest checksums, template↔installed parity test | `scripts/**`, `.autoharness/harness-manifest.yaml`, `tests/` |
+| 4 (153.005-T) | Update file-lock skill + concurrency instruction contracts (template + dogfood) to new CLI/exit-codes/token model/honest guarantee | `templates/skills/file-lock/SKILL.md.tmpl`, `.github/skills/file-lock/SKILL.md`, `templates/instructions/concurrency.instructions.md.tmpl`, `.github/instructions/concurrency.instructions.md`, manifest |
 
-*Task numbering in the plan (0–4) maps to backlog IDs 153.001-T–153.005-T.
-Machine dependency: `153.002-T` (task 2) is blocked by both `153.001-T`
+*Task numbering in the plan (0–4) is NOT sequential with backlog IDs: the
+mapping is 0→`153.004-T`, 1→`153.001-T`, 2→`153.002-T`, 3→`153.003-T`,
+4→`153.005-T` (the de-risking prerequisite was assigned the last backlog ID,
+`153.004-T`, despite being task 0 in execution order). Machine dependency:
+`153.002-T` (task 2) is blocked by both `153.001-T`
 (task 1) and `153.004-T` (task 0's matrix) — encoded as a graph edge, not
 prose, after plan-review cycle 2 found the prose-only version
 unenforceable. Task 4 sequenced last so it documents the contract as
@@ -131,9 +139,9 @@ actually shipped.
 | A7AD3044 | Shared cross-platform path-containment utility for the whole harness | Low — task 3's parity test bounds drift between the four scripts' independent containment logic |
 
 **Additional captures from PR #444 review remediation** (post-plan, during
-161-S implementation — see session memory
-`docs/memory/2026-09-11-ship-160s-closure-repair-161s-full-lifecycle.md` for
-full detail): `04C4EA9A` (fsutil-fallback case-sensitivity gap, pre-existing
+161-S implementation — see compacted session memory
+`docs/memory/compacted/2026-09-11-ship-160s-closure-repair-161s-full-lifecycle-compacted.md`
+for full detail): `04C4EA9A` (fsutil-fallback case-sensitivity gap, pre-existing
 round-8 code), `BD46D364` (recursion-cap/depth-guard canonical-path gap,
 pre-existing round-8 code), and reuse of pre-existing `58A85283` (V-d
 cross-runtime interop coverage gap).
