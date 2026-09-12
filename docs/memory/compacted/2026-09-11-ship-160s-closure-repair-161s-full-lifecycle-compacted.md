@@ -1,3 +1,17 @@
+---
+title: Compacted memory — 160-S closure repair (PR #442/#443) + 161-S full lifecycle (PR #444)
+doc_type: memory
+memory_class: compacted
+created: 2026-09-11
+shipment: [160-S, 161-S]
+feature: [152-F, 153-F]
+tasks: [153.001-T, 153.002-T, 153.003-T, 153.004-T, 153.005-T]
+merge_commit: 6da9aed580f9ed232a6871281f47567c9060ffa8
+pr: [442, 443, 444]
+consolidates: []   # written directly in compacted form; no separate verbose original
+related_compacted: docs/memory/compacted/2026-09-10-160-s-152-f-closure-repair-compacted.md   # 160-S closure repair (PR #442/#443)
+---
+
 # Session Memory — 2026-09-11 — Ship: 160-S closure repair + 161-S full lifecycle
 
 ## Scope
