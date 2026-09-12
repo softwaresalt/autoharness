@@ -3,13 +3,31 @@ shipment: 162-S
 feature: 154-F
 pr: 446
 merge_commit: null
-last_code_affecting_head: 1bd7ac6f7c3be3880f17aac0549e215f257e1523
+last_code_affecting_head: 53d4548fadb8ede8bd0cf07351018ce519679b1a
 surface: cli
 verdict: PASS
 post_merge_reverification: null
 ---
 
 # 162-S / 154-F Runtime Verification -- SHIP-4 Review-Persona, Policy, and Agent-Architecture Contract Integrity
+
+## Evidence Currency Model
+
+This artifact distinguishes **code-affecting commits** (which change
+template/policy/instruction/skill/test content and require fresh
+build/test/CI evidence) from the PR's **live, ever-advancing HEAD**. The
+frontmatter `last_code_affecting_head` names the most recent commit that
+changed such content; it is refreshed only when a later commit changes
+content again, not on every push. Per the same reasoning documented in
+`docs/closure/160-S-152-F-post-merge-closure.md`'s Evidence Currency Model:
+a committed file cannot truthfully assert it covers the commit that
+introduces it, and a self-referential "current HEAD" claim in this file
+would invalidate itself the instant each refresh commit was created. Live,
+merge-time-authoritative state (current `headRefOid`, local review
+readiness, the P-018 `autoharness gate copilot-review` verdict, and CI
+check status) is tracked externally in the PR body's
+`## Local Review Readiness` block and re-verified directly against GitHub
+at merge time — never asserted as a permanently-fixed fact in this file.
 
 ## Scope
 
@@ -45,24 +63,30 @@ evidence, not because a specific code path was touched.
 ## Execution
 
 * `uv run autoharness --help` -- exit 0, CLI help text printed (ran
-  repeatedly throughout this session, most recently at HEAD `1bd7ac6f`).
+  repeatedly throughout this session, most recently against
+  `last_code_affecting_head` `53d4548f`).
 * `uv run autoharness verify-workspace --workspace .` -- run after every
-  content edit in this shipment (9 times across 154.001-T..154.004-T and
-  three review-fix rounds); 0 strict-schema blockers, 0 blockers, 0
+  content edit in this shipment (10+ times across 154.001-T..154.004-T and
+  every review-fix round); 0 strict-schema blockers, 0 blockers, 0
   warnings on every run; every touched artifact's manifest checksum verified
   `status: unchanged` against its actual on-disk content.
 * `PYTHONPATH=src python -m unittest discover -s tests` -- run to completion
-  (full suite, no filters) after every task and every review-fix round; final
-  clean run at HEAD `1bd7ac6f`: 2186 tests, `OK (skipped=51)`. The only
-  observed intermittent failure across repeated local runs this session was
+  (full suite, no filters) after every task and every review-fix round,
+  including immediately after the `last_code_affecting_head` `53d4548f`
+  commit: 2186 tests, `OK (skipped=51)` (one run at this same content
+  observed a single failure in the flaky test named below; the very next
+  rerun of the full suite at the same content was clean). The only observed
+  intermittent failure across repeated local runs this session was
   `tests.test_graphtor_mcp_shim.GraphtorMcpShimHandshakeTests.test_child_stdin_write_error_fails_requests_without_crashing`,
   a pre-existing, environment-load-sensitive subprocess/pipe-timing test in a
   file untouched by this diff (last modified in unrelated PR #429); confirmed
   intermittently flaky in isolation (2 failures / 1 pass across 3 isolated
-  reruns) and green on every GitHub Actions CI run for this PR, including the
-  final HEAD.
+  reruns).
 * CI (`test`, `ci gate`, `pipeline-topology (ambient)`, `detect code changes`)
-  -- green on every push to PR #446, including the final HEAD `1bd7ac6f`.
+  -- green on every push to PR #446 through `last_code_affecting_head`
+  `53d4548f`. CI status for the PR's live current HEAD (which may have
+  advanced past this commit with evidence-only/doc-only changes) is tracked
+  externally per the Evidence Currency Model above.
 * New tests added by this shipment
   (`tests/test_p007_restore_approval_gate_contract.py`,
   `tests/test_subagent_depth_constraint_verifier.py`,
