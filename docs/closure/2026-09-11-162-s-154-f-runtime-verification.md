@@ -2,11 +2,11 @@
 shipment: 162-S
 feature: 154-F
 pr: 446
-merge_commit: null
+merge_commit: 1b2312273c1570c7557d367429c24e7e8905c0de
 last_code_affecting_head: a8ae3bafb74703ea820818869f51bcd1ab5748e3
 surface: cli
 verdict: PASS
-post_merge_reverification: null
+post_merge_reverification: "uv run autoharness --help re-run on new main post-merge; exit 0, CLI help text printed"
 ---
 
 # 162-S / 154-F Runtime Verification -- SHIP-4 Review-Persona, Policy, and Agent-Architecture Contract Integrity
