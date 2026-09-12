@@ -3,7 +3,7 @@
 - **Shipment**: 161-S (SHIP-3 — file-lock script security hardening, template-first)
 - **Feature**: 153-F
 - **Task**: 153.004-T (de-risking prerequisite, H9, blocking for 153.001-T and 153.002-T)
-- **Plan**: `docs/plans/2026-08-31-ship3-file-lock-script-security-hardening-plan.md`
+- **Plan**: `docs/archive/plans/2026-08-31-ship3-file-lock-script-security-hardening-plan.md`
 - **Scope**: record-only. No production script, template, or instruction files were
   edited to produce this document. All observations below were gathered against the
   **current, unmodified** `templates/skills/file-lock/scripts/{acquire,release}_lock.{ps1,sh}`
