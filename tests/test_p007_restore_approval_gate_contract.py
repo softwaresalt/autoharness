@@ -96,11 +96,17 @@ class P007RestoreApprovalGateContract(unittest.TestCase):
     def test_g7_case_i_no_unconditional_restore(self) -> None:
         """(i) NO-APPROVAL CONDITION: no unconditional `git restore` instruction.
 
-        Every `git restore` occurrence must be either inside the explicitly
-        G1-gated Recovery procedure (preceded, within the section, by the G1
-        gating language), or presented in the refusal path as a command a
-        human is told to run themselves — never issued directly.
+        Every IMPERATIVE `git restore` instruction (a "run `git restore ...`"
+        construct, case-insensitive on "run" so a future lowercase rephrasing
+        cannot slip past) must be gated: it must appear strictly after the
+        "Obtain a live G1 approval result" text in the same section. This
+        scans and classifies EVERY such occurrence, not just the first, per
+        Copilot review (PR #446, thread PRRT_kwDORzpWpM6ht-ZZ): checking only
+        first-occurrence ordering would miss a second unconditional restore
+        added later in the section, or one phrased with lowercase "run".
         """
+        imperative_restore = re.compile(r"\brun\s+`git restore\b", re.IGNORECASE)
+        negation_before_run = re.compile(r"\b(not|never|n't|no)\s*$", re.IGNORECASE)
         for label, section in (("template", self.template_section), ("dogfood", self.dogfood_section)):
             with self.subTest(surface=label):
                 # The withdrawn pre-fix wording started the violation action
@@ -111,24 +117,38 @@ class P007RestoreApprovalGateContract(unittest.TestCase):
                     r"\*\*Violation Action\*\*:\s*\n\n1\. Run `git restore",
                     "found an unconditional git restore as the first violation-action step",
                 )
-                # The gate itself must be named before the recovery procedure
-                # issues the restore command.
                 g1_index = section.find("G1")
-                restore_call_index = section.find("Run `git restore")
+                gate_index = section.find("Obtain a live G1 approval result")
                 self.assertGreater(g1_index, -1, "G1 gate clause is missing")
-                self.assertGreater(restore_call_index, -1, "no git restore instruction found at all")
-                self.assertLess(
-                    g1_index,
-                    restore_call_index,
-                    "G1 gate clause must appear before the git restore instruction",
+                self.assertGreater(gate_index, -1, "recovery procedure does not gate the restore "
+                                    "behind an obtained G1 result")
+
+                all_matches = list(imperative_restore.finditer(section))
+                self.assertGreater(
+                    len(all_matches), 0, "no imperative 'run `git restore' instruction found at all"
                 )
-                # The actual restore call must be conditioned on an obtained
-                # approval result, not issued bare.
-                self.assertIn(
-                    "Obtain a live G1 approval result",
-                    section,
-                    "recovery procedure does not gate the restore behind an obtained G1 result",
+                # A negation word (not/never/n't/no) immediately before "run"
+                # means this is a PROHIBITION ("do not run `git restore`"),
+                # never an actual instruction to execute it — exclude those,
+                # but still require at least one genuine (non-negated)
+                # imperative occurrence to exist and be gated.
+                genuine_instructions = [
+                    m for m in all_matches
+                    if not negation_before_run.search(section[max(0, m.start() - 15):m.start()])
+                ]
+                self.assertGreater(
+                    len(genuine_instructions), 0,
+                    "no genuine (non-negated) imperative 'run `git restore' instruction found",
                 )
+                for match in genuine_instructions:
+                    self.assertGreater(
+                        match.start(),
+                        gate_index,
+                        "found a genuine imperative 'run `git restore' instruction at offset "
+                        f"{match.start()} that is not gated after the G1 approval-obtain "
+                        f"step (gate text at offset {gate_index}); every occurrence must be "
+                        "classified, not just the first",
+                    )
                 # The default path is halt/report, tree untouched, P-005 telemetry.
                 self.assertIn(
                     "halt, do not run `git restore`, record it through P-005 telemetry",
