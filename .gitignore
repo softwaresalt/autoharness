@@ -12,6 +12,7 @@
 .backlogit/*.db-shm
 .backlogit/*.db-wal
 .backlogit/runtime/
+.backlogit/logs/
 
 # 088-F throwaway compression experiment — brainspace CCR store (never
 # committed; see experiments/088-compression-experiment/README.md). The
