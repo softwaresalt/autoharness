@@ -135,3 +135,44 @@ resolve at HEAD until the operator commits it.
 2. Ship executes `173-S` in dependency order starting at `165.001-T` (RED tests).
 3. After `173-S`, deliberate `86498B64`; sequence rather than parallelize, since
    both touch `src/autoharness/gates/topology.py`.
+
+---
+
+## Correction note (appended cycle 2, 2026-09-12) — do not rewrite the above
+
+This note is **appended, not merged**. Everything above records the state as it
+stood at the end of cycle 1 and is left byte-for-byte intact as intake history;
+the three statements below were true when written and are no longer true at the
+current HEAD.
+
+1. **"Review (PASS) … 1 of 3 cycles used" (line 110).** Superseded twice. The
+   review document at that path is now **cycle 3** against plan revision 3, and
+   **3 of 3** correction cycles are used. Its counts are 0 P0 / 0 P1 / 2 P2 /
+   4 P3. The cycle-1 and cycle-2 review texts remain in git history at their
+   respective commits.
+2. **"Publication note" (lines 125–130).** `docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`
+   is **no longer uncommitted**. It was committed **byte-for-byte unmodified** in
+   the cycle-2 correction commit under explicit operator authorization, as the
+   durable intake artefact that `AF2890B7`, this memory, the decision, and the
+   plan all forward-reference. The stated consequence — "that cross-reference
+   does not resolve at HEAD" — is therefore **resolved**. The rest of that
+   paragraph still holds: `.gitignore`, both `docs/design-docs/…` files,
+   `docs/diagrams/`, `scripts/check_eraser_diagrams.py`, and the
+   `.backlogit/checkpoints/*.json` files remain untouched and uncommitted
+   operator work-in-progress.
+3. **"Next steps" item 1 (line 134).** The bootstrap paradox is no longer an open
+   operator decision. It is resolved by decision D6: **exactly two** audited
+   forced `pre_claim` invocations for `173-S` only (pre-branch and immediately
+   pre-claim), each under enumerated validity conditions, expiring on successful
+   claim or any mismatch, with the post-claim `CLAIM_NOT_OBSERVED` retry
+   invocation explicitly **unauthorized**.
+
+Unchanged by this note: the Option A/B analysis, the `_prior_shipment_id`
+compound-library evidence, and the stash dispositions table — except that
+`AF2890B7`'s archival summary has since been reconciled through an **append-only**
+comment event on `165-F` (backlogit exposes no edit path for an archived stash
+entry), and the closure-defect disposition moved from `165.007-T` to stash
+`FD0CCB42`.
+
+Full cycle detail: `docs/memory/2026-09-12/stage-165f-173s-review-fix-cycle-1.md`
+and `docs/memory/2026-09-12/stage-165f-173s-review-fix-cycle-2.md`.

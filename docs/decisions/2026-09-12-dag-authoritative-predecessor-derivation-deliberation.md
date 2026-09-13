@@ -6,8 +6,9 @@ source: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-delib
 date: 2026-09-12
 status: decided
 deciders: operator, Stage
-revision: 2
-revision_note: "Review-fix cycle 1 — migration contract redesigned (D1), config key eliminated (D2), 173-S bootstrap disposition recorded (D3), closure-evidence defect descoped to stash FD0CCB42 (D4)."
+revision: 3
+revision_note: "Review-fix cycle 2 — genesis narrowed to a non-fail-open sole-extancy rule (D1), bootstrap re-scoped to exactly two audited forced pre_claim invocations (D6), original intake bug report committed verbatim as the durable source artifact, rollback re-posed as data-ordered with a migration ledger (D3)."
+source_bug_report: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 stash_ids:
   - AF2890B7
 related_stash_ids:
@@ -37,19 +38,28 @@ The operator has directed (2026-09-12) that explicit DAG dependencies become the
 authoritative sequencing source, because the numeric heuristic "is consistently
 causing problems in this and other workspaces."
 
-### Historical context (prose, no external link)
+### Historical context (the original intake, now a committed source)
 
 An earlier in-workspace investigation of this behaviour recommended a
 **presentation-only** remedy — relabel the advisory gate, surface the
 authoritative outcome, disambiguate `next_eligible` — and explicitly classified
 removal of the numeric fallback as a *future* contract-change option rather than
-the presumed fix. That investigation was recorded in an operator-owned working
-document that is not part of this repository's committed record. Operator product
-direction on 2026-09-12 **supersedes that recommendation**. This deliberation is
-therefore self-contained: every finding below is re-derived from committed
+the presumed fix. Operator product direction on 2026-09-12 **supersedes that
+recommendation**.
+
+**Source status corrected in review-fix cycle 2.** That investigation was
+recorded in `docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`.
+Cycle 1 removed every reference to it because the file was untracked, which left
+the stash record `AF2890B7` and the cycle-1 session memory pointing at a path no
+reader could resolve — durable artifacts referencing a non-durable file. Under
+operator authorization, that document is now **committed verbatim and
+unmodified** as the intake record, so the reference resolves and the supersession
+is auditable against the text it supersedes. The document is a historical record
+only: it is not a design input, and where it conflicts with this decision, this
+decision governs. Every finding below is independently re-derived from committed
 sources (production code, committed tests, committed `docs/compound/` learnings,
 and committed backlog records) and cites them directly, so no conclusion here
-depends on an uncommitted document.
+*depends* on that document.
 
 ## Research Findings
 
@@ -215,8 +225,57 @@ states are total, mutually exclusive, and each emits a distinct
 |---|---|---|---|
 | **Explicit** | `blocking_predecessor_ids` is non-empty | Evaluate every explicit predecessor under the existing ambiguity, shipped-terminal, and closure-evidence checks | `explicit` |
 | **Declared root** | No edges **and** the shipment record declares itself a root | **Pass** | `declared_root` |
-| **Genesis** | No edges, no declaration, **and** the workspace has no shipped-terminal shipment at all | **Pass** (bootstrap) | `genesis` |
-| **Unsequenced** | No edges, no declaration, and the workspace **does** have shipping history | **Block**, token `UNSEQUENCED_SHIPMENT` | `unsequenced` |
+| **Genesis** | No edges, no declaration, and the workspace satisfies **all** of G2/G3/G4 below | **Pass** (bootstrap) | `genesis` |
+| **Unsequenced** | No edges, no declaration, and any genesis condition fails | **Block**, token `UNSEQUENCED_SHIPMENT` | `unsequenced` |
+
+#### The genesis rule (narrowed in review-fix cycle 2)
+
+Cycle 1 defined genesis as "the workspace has no shipped-terminal shipment". That
+is **insufficient and fail-open**, and it is replaced. Genesis now requires **all**
+of the following, in addition to the candidate having no edges and no `dag-root`:
+
+* **G2 — no shipped-terminal shipment exists anywhere**, live *or* archived.
+* **G3 — the candidate is the SOLE EXTANT NONTERMINAL shipment**: no other
+  shipment record exists in a nonterminal state (`queued` or `active`), live or
+  archived.
+* **G4 — no `abandoned` shipment record exists anywhere**, live or archived.
+
+**Why absence of shipped history is insufficient.** A workspace can hold a dozen
+queued shipments and have shipped nothing — this repository was in exactly that
+shape for its first weeks. Under the cycle-1 rule, *every* edge-less shipment in
+such a workspace returns `genesis` and **passes simultaneously**, including
+shipments that are numerically and semantically downstream of other pending work.
+That is an unearned pass, in precisely the fail-open direction this feature exists
+to close, and it would be indistinguishable at the gate from a genuine bootstrap.
+
+**Why later-numbered candidates cannot silently pass.** G3 makes `genesis` a
+**cardinality-1** state: it is a property of a workspace holding exactly one
+shipment record, so it can never be true for two candidates at once, and it stops
+being available the moment a second shipment record of any kind exists. A
+later-numbered edge-less candidate in a populated workspace therefore has no
+genesis path at all — it is `unsequenced` and blocks until someone records intent.
+The bootstrap escape is available exactly once in a workspace's life, when there
+is provably nothing to sequence against.
+
+**Why `abandoned` needs its own clause.** `abandoned` is terminal but **not
+shipped**, so G2 alone would admit a workspace whose entire history is abandoned
+shipments. Such a workspace has demonstrably been sequenced before; treating it as
+a fresh install would re-open the same unearned pass through a narrower door. G4
+closes it.
+
+**Case coverage.**
+
+| Workspace | Genesis? | Result for an edge-less, undeclared candidate |
+|---|---|---|
+| Exactly one shipment record, nothing else | yes | pass `genesis` |
+| Several `queued` shipments, nothing ever shipped | **no** (G3) | block `unsequenced` |
+| Shipped history exists only as archived records | **no** (G2) | block `unsequenced` |
+| Only an `abandoned` record in history | **no** (G4) | block `unsequenced` |
+| Any of the above, candidate carries `dag-root` | n/a | pass `declared_root` |
+
+G2/G3/G4 are **workspace-level facts computed once per evaluation** from a single
+snapshot and shared by both gates (see D5) — three independent probes taken
+separately would be three chances to observe divergent snapshots.
 
 Rationale for each property:
 
@@ -228,9 +287,10 @@ Rationale for each property:
   remedy that is an ordinary backlog data operation (add the real `blocks` edge,
   or declare the shipment a root). Intentional roots are therefore representable
   *and* claimable — the Finding 6 defect is resolved.
-* **Bootstrap is defined.** A brand-new workspace has no shipping history, so it
-  has no implicit legacy sequencing to preserve; its first shipments pass as
-  `genesis`. A fresh install can never deadlock on its first claim.
+* **Bootstrap is defined, and bounded.** A workspace holding exactly one shipment
+  record has nothing to sequence against, so its **first** shipment passes as
+  `genesis` and a fresh install can never deadlock on its first claim. From the
+  second shipment record onward the escape closes and intent must be recorded.
 * **No numeric comparison on the claim path**, in any state — which is what
   Finding 4's directional-numeric lesson demands.
 
@@ -239,6 +299,17 @@ shipment's own backlogit record, read from frontmatter by the existing shipment
 reader. This was **empirically validated** before adopting it: `backlogit update
 173-S --labels "dag-root,topology-gate"` persists `labels:` on a shipment record,
 so the surface exists today and needs no backlogit change.
+
+**Label parsing needs its own validator (review-fix cycle 2).** The reader must
+parse `labels` with a **labels-specific** fail-closed validator, *not* with the
+existing `_tuple_of_str`. Verified: `_tuple_of_str` (`topology.py` L331) validates
+every member against `_ARTIFACT_ID_PATTERN` (`^\d+(?:\.\d+)*-[A-Z]+$`) and raises
+`BacklogUnavailableError` on any non-match. `dag-root` does not match that
+pattern, so reusing that function would make **every labelled shipment record** —
+including `173-S`, whose labels are `[dag-root, topology-gate]` — a hard read
+failure across the whole gate. The fail-closed *discipline* (absent field is fine;
+present-but-wrong-shaped container raises; malformed member raises; never coerce
+or drop) is what carries over; the artifact-ID *syntax* does not.
 
 **Declaration authority.** Declaring a root is an operator/Stage act performed on
 backlog data. Ship **must not** self-declare a root to unblock its own claim; that
@@ -284,6 +355,18 @@ default:
 
 Operators run the audit once, act on it with ordinary backlogit commands, and the
 workspace is migrated. No workspace is left depending on an inference.
+
+**Migration ledger and rollback ordering (review-fix cycle 2).** Migration
+mutates **backlog data** — `blocks` edges recorded and `dag-root` labels applied.
+A revert of the engine change does **not** undo those mutations, and the reverted
+numeric engine would then read the migrated edges as real explicit predecessors,
+producing a state that existed in neither the before nor the after configuration.
+The audit therefore emits a **durable, append-only migration ledger** recording,
+per shipment, the pre-migration edge set and label set, the derived state, the raw
+candidate, and the remediation chosen. Rollback is consequently **ordered**:
+revert backlog data first using the ledger, then revert the engine — never the
+reverse. Where a workspace was migrated by hand and has no ledger, the rollback
+claim is explicitly narrowed to manual reconstruction from record history.
 
 ### D4 — The closure-evidence defect is DESCOPED from this feature
 
@@ -331,21 +414,64 @@ synthesises `172-S` as its predecessor; `172-S` is queued and unshipped, so
 `pre_claim` blocks `173-S` with `PREDECESSOR_NOT_SHIPPED`. The shipment that fixes
 the defect is blocked *by the defect*.
 
-**Disposition (operator-authorized 2026-09-12):** a single **audited
-`pre_claim --force` override for `173-S` only**, to break the bootstrap cycle. The
-operator was presented with this exact option and authorized it as the
-continuation instruction for this session.
+**Disposition (operator-authorized 2026-09-12, re-scoped in review-fix cycle 2):**
+**exactly two** audited `pre_claim --force` invocations for **`173-S` only**, to
+break the bootstrap cycle.
 
-Bounds on that authorization — it is narrow by construction:
+**Why two, not one.** Cycle 1 recorded a *single-use* grant. That grant is
+**unsatisfiable as written**: the Ship agent's claim protocol runs
+`--phase pre_claim` **twice** before the claim — once **before** branch/worktree
+creation (`_ship.agent.md` L227–229) and again **immediately before** the claim to
+narrow the TOCTOU window (L254–255), with the claim gated on *both* runs passing
+(L258). A single-use authorization would either halt Ship at the second gate, or —
+worse — invite it to stretch one authorization silently across two invocations,
+which is precisely the kind of unaudited reinterpretation `--force` discipline
+exists to prevent. The grant is therefore stated as **exactly two**, mapped to the
+two invocations that actually occur.
+
+**Authorized invocations (exhaustive).**
+
+| # | Invocation point |
+|---|---|
+| U1 | `pre_claim` run **before** branch/worktree creation |
+| U2 | `pre_claim` run **immediately before** `backlogit_claim_shipment` |
+
+**Per-invocation validity conditions.** All must hold at the moment of *that*
+invocation; any one failing voids the authorization:
+
+1. The **only** blocking token in the payload is `PREDECESSOR_NOT_SHIPPED`.
+2. The inferred predecessor is **exactly `172-S`**.
+3. The current reviewed/staged `HEAD` is the Stage review-fix cycle 2 commit under
+   which this authorization was recorded, **and** the `173-S` manifest matches the
+   reviewed 9-item manifest exactly.
+4. **No other** topology, check, closure, or secrets violation is present —
+   including `PRECLAIM_ACTIVE_SHIPMENT_PRESENT`, a non-zero active-shipment count,
+   `SHIPMENT_STATE_INCONSISTENT`, an unresolvable shipment id, any closure-evidence
+   block, or any secrets finding.
+5. The force is recorded as an **audit event** naming the invocation (U1/U2), the
+   observed payload, the blocking token, the inferred predecessor, the `HEAD` SHA,
+   and decision D6 as its authorization source.
+
+**Expiry.** The authorization expires immediately upon the earlier of (a) the
+successful claim of `173-S`, or (b) **any** mismatch against conditions 1–4 at
+either invocation. On expiry-by-mismatch Ship **halts** and returns to the
+operator; it must not retry, must not force again, and must not reinterpret a
+mismatch as an equivalent case.
+
+**A third invocation is not authorized.** If the post-claim `CLAIM_NOT_OBSERVED`
+retry path re-runs `--phase pre_claim` before reclaiming (`_ship.agent.md`
+L282–283), the force authority is already **exhausted**. That run is evaluated
+**without** `--force`; if it blocks, Ship halts for a fresh operator decision.
+
+Unchanged bounds — narrow by construction:
 
 1. It applies to **`173-S` only**. It is not a precedent, not a policy change, and
    confers **no broader force authority** over any other shipment.
-2. It is **single-use** for the initial claim of `173-S`.
-3. It does **not** change `--force` semantics, which remain human-authorized,
+2. It does **not** change `--force` semantics, which remain human-authorized,
    shipment-specific, and audited. No agent may self-authorize a force.
-4. Ship **must record** the override in the claim evidence and in the shipment's
+3. Ship **must record** the override in the claim evidence and in the shipment's
    PR/closure record, naming this decision (D6) as its authorization source.
-5. It expires on its own: `173-S` has already been declared a root
+4. It is **self-liquidating**: `173-S` has already been declared a root
    (`labels: [dag-root]` on its record), so once `165.002-T` lands, `173-S`
    derives `predecessor_source: declared_root` and passes **natively**, with no
    force, on any subsequent evaluation.
@@ -401,8 +527,11 @@ Bounds on that authorization — it is narrow by construction:
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Silent fail-open in workspaces relying on numeric sequencing | High | D1 blocks unsequenced shipments in any workspace with shipping history; D3 audit migrates them explicitly |
+| Silent fail-open in workspaces relying on numeric sequencing | High | D1 blocks unsequenced shipments in any workspace disqualified from genesis (G2/G3/G4); D3 audit migrates them explicitly |
 | A blocking posture deadlocks legitimate roots | High | D1 declared-root state + genesis bootstrap; remedy is one backlog command and is named in the block message |
+| Genesis is granted too broadly and becomes a back-door fail-open | High | Genesis narrowed in cycle 2 to sole-extancy (G3) plus archived-inclusive shipped-history (G2) and abandoned-history (G4) probes; each disqualifier is asserted independently by test |
+| `labels` parsing reuses the artifact-ID validator and hard-fails every labelled record | High | D1 requires a labels-specific fail-closed validator; a positive reader-level anti-regression test asserts `[dag-root, topology-gate]` parses cleanly |
+| Rollback assumed to be code-only, leaving migrated edges/labels behind | Medium | D3 migration ledger plus mandatory data-first rollback ordering; narrowed claim where no ledger exists |
 | Ship self-declares `dag-root` to unblock itself | Medium | D1 declaration authority is operator/Stage; `declared_root` provenance makes every such pass auditable; agent templates state the prohibition |
 | Advisory/authoritative divergence reappears on a new dimension | Medium | D5 shared helper consumed by both gates; full state-matrix parity tests |
 | Audit surface inherits the suppression defect | Medium | D3 requires raw candidate reporting, asserted by test |
@@ -418,7 +547,10 @@ Bounds on that authorization — it is narrow by construction:
 * Regression coverage for: independent numerically adjacent DAG roots; explicit
   dependency chains; closure evidence demanded only for actual explicit
   predecessors; converging DAGs; malformed/unresolvable dependency data failing
-  closed; and all four D1 derivation states including the genesis bootstrap.
+  closed; and all four D1 derivation states, with each of the three genesis
+  disqualifiers (G2 archived shipped history, G3 a second extant nonterminal
+  shipment, G4 abandoned-only history) asserted independently rather than through
+  one composite fixture.
 * `pre_claim` remains sole claim authority in code, output, templates, and docs.
 * Engine, CLI output, templates, installed dogfood copies, and documentation move
   together within this shipment.
