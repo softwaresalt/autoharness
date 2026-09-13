@@ -1,13 +1,13 @@
 ---
-title: "Plan review — DAG-authoritative predecessor derivation (cycle 4, authorized final review; + PR review-fix cycle 1)"
-description: "Multi-persona adversarial plan review of docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md, gating harvest. Plan-review cycle 4 was the operator-authorized final narrow correction cycle. A subsequent PR review-fix cycle 1 (staging PR #448) is recorded in its own section and consumes none of the plan-review cycles."
+title: "Plan review — DAG-authoritative predecessor derivation (cycle 4, authorized final review; + PR review-fix cycles 1-2)"
+description: "Multi-persona adversarial plan review of docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md, gating harvest. Plan-review cycle 4 was the operator-authorized final narrow correction cycle. Subsequent PR review-fix cycles 1 and 2 (staging PR #448) are recorded in their own sections and consume none of the plan-review cycles."
 doc_type: review
 source: docs/reviews/2026-09-12-dag-authoritative-predecessor-derivation-plan-review.md
 date: 2026-09-13
 plan_path: docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md
-plan_revision: 5
+plan_revision: 6
 review_cycle: 4
-pr_review_fix_cycle: 1
+pr_review_fix_cycle: 2
 pr: 448
 decision: PASS
 ---
@@ -433,3 +433,245 @@ sized, dependency-wired, and bounded; otherwise simplify":
 No new P0 or P1 finding remains open. Both threads are resolved on the same
 contract surface they were raised against, and every coupled artifact now states
 the corrected contract consistently.
+
+## PR Review-Fix Cycle 2 (staging PR #448, 2026-09-13)
+
+```text
+scope: same-contract-surface correction of five Copilot review threads
+branch: chore/stage-173-S
+base HEAD at intake: 5aec76f2
+decision: PASS
+P0: 0   P1: 0
+```
+
+**Still a PR review-fix cycle, not a plan-review cycle.** It consumes none of the
+four completed plan-review cycles. It modified only Stage-owned
+plan/backlog/review/memory artifacts; no product source, test, or template file was
+touched, no PR API action was performed, and nothing was pushed or claimed. All five
+findings were assessed VALID and ACCEPTED.
+
+**Scope of record (thread `PRRT_kwDORzpWpM6h3frY`, final item).** Current scope is
+**10 executable tasks** (`165.001-T`, `165.002-T`, `165.003-T`, `165.004-T`,
+`165.005-T`, `165.006-T`, `165.008-T`, `165.011-T`, `165.012-T`, `165.009-T`) plus
+the covering feature `165-F` — **11 manifest items** — and the one-time operator
+entry path **BOOTSTRAP-A, steps B0/B1/B2** (forced `pre_claim`), B3, B4, B5, B6.
+`U0`/`U1`/`U2` name the **retracted** cycle-2/cycle-3 agent-run grant and are
+historical only. The PR #448 body is **Orchestrator-owned** and is updated
+separately; `173-S` and `165-F` are authoritative for these counts. No manifest,
+edge, or size change was made this cycle.
+
+### Thread 1 — `PRRT_kwDORzpWpM6h3fqf` (`165.011-T`, at-most-once consumption) — ACCEPTED
+
+**Finding.** "At most once" had no defined mechanism — the text said only that a
+label "is not already consumed".
+
+**Assessment.** Valid, and the most consequential finding of the cycle. At-most-once
+*is* the entire security value of a bootstrap grant; leaving its mechanism undefined
+left the bound undefined. As written the requirement was satisfiable by an
+in-process set that resets on every CLI invocation — a zero-guarantee at-most-once
+that would still have passed review.
+
+**Correction applied.** Deliverable 6 defines a concrete durable atomic mechanism:
+
+| Aspect | Contract |
+|---|---|
+| Claim primitive | `os.open(..., O_CREAT \| O_EXCL \| O_WRONLY, 0o600)` — atomic on POSIX, `CREATE_NEW` on Windows. Read-then-write existence checks are **forbidden** (TOCTOU) |
+| Location | `.autoharness/gates/bootstrap-grant-consumption/{shipment_id}/{label}.json` — under the already-gitignored `.autoharness/gates/` prefix, because this is node-local runtime state; the **grant** remains the version-controlled reviewable authorization |
+| Ordering | Evaluate unforced → apply all non-consumption match conditions → **claim** → only then force → emit audit. A non-matching grant never burns a label |
+| Record | `schema_version`, `grant_digest`, `grant_path`, `shipment_id`, `label`, `phase`, `actor`, `session_id`, `head_sha`, `manifest_digest`, `blocking_token`, `inferred_predecessor_id`, `claimed_at`, `status`, `audit_ref` |
+| Contention / replay | `FileExistsError` → fail closed, exit 1, warning. Never wait, retry, poll, break, or steal. **No TTL** (a TTL is at-most-once-per-interval) |
+| Grant tampering | `grant_digest` mismatch fails closed — editing the grant cannot reset consumption |
+| Crash states | Crash after claim (pre-evaluation or pre-audit) leaves an intact `claimed` record carrying every audit field; `claimed`→`consumed` uses temp+`fsync`+`os.replace` so the record is never torn |
+| Recovery | **Operator-only, out-of-band.** No CLI reset flag exists — such a flag would let an agent re-open an exhausted grant (P-005/P-001) |
+| Audit source | Emitted **from the claimed record**, not recomputed from live state, so the audit cannot record a state that was never authorized |
+| Malformed/stale record | Treated as **consumed** (fail closed) — the deliberate inverse of a malformed *grant* being treated as *no grant*; both resolve toward **no force** |
+| Containment | ID/label validated before any path construction; separators, `..`, NUL, drive/UNC rejected; resolved path asserted inside the resolved root, symlinks included |
+
+**Scope bound stated rather than hidden.** The guarantee is **per workspace clone**;
+a fresh clone starts with no consumption state. Compensating bounds
+(`expires_on_claim`, exact-token binding that stops matching once the shipment
+leaves `queued`, manifest-digest binding) are recorded, and a cross-machine
+guarantee is explicitly **not** invented. Recorded as accepted residual risk in plan
+§H5 and assigned to `165.009-T` deliverable 8b for documentation.
+
+**Sizing consequence.** `165.011-T` complexity raised **medium → high**; size
+unchanged at `M`. Per the two-axis rule `complexity: high` forces split-or-de-risk;
+**de-risked in place**, because Deliverable 6 is inseparable from Deliverable 2's
+matching rule — splitting them would ship a grant surface whose at-most-once bound is
+unenforced for the duration of the gap, which is precisely the defect raised. The
+de-risking is the enumerated 6a–6i contract plus a named concurrency/crash/replay
+test matrix.
+
+### Thread 2 — `PRRT_kwDORzpWpM6h3fq1` (`173-S` B4, claim reversal) — ACCEPTED
+
+**Finding.** BOOTSTRAP-A B4 instructed the operator to "reverse the claim" on a
+non-zero `post_claim`, but backlogit has no `active` → `queued` transition.
+
+**Verification performed (evidence, not assertion).**
+
+| Claim | Evidence |
+|---|---|
+| No unclaim/release/abort exists | `backlogit shipment --help` at this HEAD lists exactly `add`, `claim`, `create`, `get`, `list`, `return-blocked`, `ship` |
+| `queued` is not reachable from `active` | Shipment status enum is {`queued`, `blocked`, `active`, `shipped`, `abandoned`}; `queued` is the create-time default only |
+| `abandoned` *is* reachable | `abandoned` is a member of the shipment status enum; `backlogit update <id> --status <s>` exposes `--status` |
+
+**Assessment.** Valid. A failure branch that terminates in an unexecutable step — at
+the exact moment the workspace sits half-entered — is worse than having no failure
+branch, because it reads as a safety net that does not exist.
+
+**Correction applied.** "Reverse the claim" is **removed**. The executable contract
+is: halt immediately, `173-S` **remains `active`**, B5/B6 are not performed, Ship is
+not invoked, and no forced re-run is attempted (force authority already expired on
+the successful B3 claim). Remediation is explicit and operator-owned:
+**(a) diagnose and converge** — resolve the rejected condition (most plausibly a
+second `active` shipment, a P-001 violation) and re-run B4 unforced until it exits 0,
+then resume at B5; `173-S` stays `active`, a forward fix rather than a rollback; or
+**(b) abandon** — the supported `active` → `abandoned` transition, which **must be
+verified** by re-reading the record and confirming `status: abandoned`, and which is
+**terminal, not a requeue**: the scope must then be re-shipped under a new shipment
+record. No artifact may promise automatic reversal or requeue. Applied to `173-S`,
+plan §H6, and `165-F`.
+
+### Thread 3 — `PRRT_kwDORzpWpM6h3frC` (RED-test mechanism) — ACCEPTED
+
+**Finding.** Canonical CI uses `unittest`; `unittest.expectedFailure` cannot
+constrain the reason.
+
+**Verification performed.**
+
+| Claim | Evidence |
+|---|---|
+| Canonical CI runs stdlib `unittest` | `.github/workflows/ci.yml` — `PYTHONPATH=src python -m unittest discover -s tests`; the file header states "autoharness has no ruff/pyright/pytest configured; the only real gates are the stdlib unittest suite … and markdownlint" |
+| A pytest `xfail` marker is inert there | Under `unittest`, `@pytest.mark.xfail` sets an attribute nothing reads — the body runs, the expectation raises, **CI goes red** |
+| `expectedFailure` cannot constrain the reason | It accepts *any* exception and takes no `raises=` and no reason argument |
+
+**Assessment.** Valid, and it invalidated an instruction the plan had been carrying
+since cycle 3. The cycle-3 text ("pin each marker with an explicit `raises=`/reason")
+described a pytest capability under a runner that is not pytest. Had it been
+implemented literally, the harness task would have left canonical CI **red** — the
+precise outcome its own "every task ends green" rule forbids.
+
+**Correction applied.** A stdlib-only helper replaces both mechanisms:
+`@expect_red(raises=..., message_contains=..., reason=...)` — (a) passes only on the
+named exception type whose *normalized* message (`str(exc)`, whitespace-collapsed,
+stripped, casefolded) contains the expected substring; (b) **fails on any other
+exception**, naming expected vs. observed and flagging it as a *wrong* failure, so a
+broken fixture, an import/collection error, or an unregistered `--phase` turns the
+suite red instead of masquerading as RED; (c) **fails on XPASS**, preserving the
+strictness that made `xfail(strict=True)` desirable. Pure stdlib, no `pytest`
+import, identical behaviour under both runners. The permitted simpler alternative —
+authoring a RED expectation in the same task as its implementation, with the RED
+observation recorded in the disposition notes — is stated explicitly. **Every task
+ends green under both routes.** Applied to `165.001-T`, `165.002-T`, `165.004-T`,
+`165.005-T`, and plan §4/§T1/§T2/§T3/§T4/§H2 (F5, F13).
+
+### Thread 4 — `PRRT_kwDORzpWpM6h3frF` (genesis narrowness) — ACCEPTED
+
+**Finding.** Genesis must hold only when the candidate is the sole shipment record
+across all live and archived records, regardless of status/provenance; blocked,
+missing, and malformed/unrecognized archived statuses must disqualify or fail closed.
+
+**Verification performed.**
+
+| Claim | Evidence |
+|---|---|
+| `blocked` is a real shipment status | `backlogit_get_metadata_catalog` → shipment `status` enum = {`queued`, `blocked`, `active`, `shipped`, `abandoned`} |
+| The cycle-2 rule omitted it | G3 enumerated disqualifying nonterminal states as "`queued`/`active`"; G2 covered shipped-terminal only; G4 covered abandoned only. `blocked` appeared in **none** |
+| Therefore a fail-open existed | Candidate + one `blocked` record satisfied G2 ∧ G3 ∧ G4 → returned `genesis` — an unearned pass |
+
+**Assessment.** Valid, and structurally important beyond the single missing status.
+Enumerating statuses is fragile by construction: every value the enum gains in
+future silently re-opens the same hole at a moment nobody is watching for it.
+Counting *records* is status-agnostic and cannot be widened by a new enum member.
+
+**Correction applied.** G2/G3/G4 are replaced by a single **sole-record** rule:
+genesis requires G1 (no edges, no `dag-root`) **and** G2 (the candidate is the only
+shipment record in the workspace, live and archived counted together, regardless of
+status and provenance). Any other record disqualifies. A record whose status is
+absent, empty, non-string, unparseable, or unrecognized — including an unrecognized
+`archived_status` — **counts as disqualifying, fail closed**, never skipped or
+defaulted. An enumeration failure raises `BacklogUnavailableError` rather than
+concluding sole-extancy from a partial read. Genesis remains cardinality-1.
+Secondary benefit: the shared-snapshot surface (§3.4) drops from three facts to one,
+strictly lowering divergence risk.
+
+**Regression cases added.** `165.001-T` N5f (a `blocked` record present, live and
+archived), N5g (missing / empty / non-string / unrecognized status / unrecognized
+`archived_status`, each asserted independently), N5h (enumeration failure raises);
+N5e extended to prove `dag-root` still passes in every one of those workspaces;
+`165.004-T` P3b widened to two disqualifier shapes including `blocked`. Applied to
+`165-F`, `165.001-T`, `165.002-T`, `165.004-T`, `165.005-T`, `165.008-T`,
+`165.009-T`, and plan §3.1/§3.4/§T1/§T2/§T4/§T5/§T6/§T8/§T9/§H2 (F10, F11)/§H5.
+
+### Thread 5 — `PRRT_kwDORzpWpM6h3frY` (`165.006-T` audit purity) — ACCEPTED
+
+**Finding.** The zero-write assertion was reintroduced in the CLI task.
+
+**Assessment.** Valid, and a genuine **regression of a cycle-1 correction**.
+PR review-fix cycle 1 retracted the absolute no-write claim from `165.003-T`,
+`165-F`, `165.008-T` and `165.009-T` on thread `PRRT_kwDORzpWpM6h3Tgi`, but
+`165.006-T` deliverable 5 — authored in that same cycle — still required "an
+assertion that the audit render path performs NO WRITE — no file created, no record
+mutated". It is false for the same verified reason:
+`_gate_pipeline_topology_command` calls `_emit_pipeline_topology_telemetry`
+unconditionally on every run of every phase. This is exactly the class of
+coupled-artifact miss the cycle-1 sweep existed to catch, which is why the sweep
+table is now a standing obligation rather than a one-off.
+
+**Correction applied.** The absolute assertion is **removed** and replaced by the
+scoped form matching `165.003-T`: (a) no backlog mutation; (b) no migration-state or
+ledger write; (c) telemetry **explicitly allowed and positively tested** — with
+telemetry enabled the event *is* emitted while rendered output and exit code are
+identical to a telemetry-disabled run; (d) telemetry failure changes neither output
+nor exit code (fail-open preserved, not narrowed or made load-bearing). An explicit
+anti-regression note bars any future reintroduction. Applied to `165.006-T` and plan
+§T6.
+
+### Coupled-artifact sweep (completing this cycle)
+
+| Artifact | Change |
+|---|---|
+| `173-S` | B4 failure contract rewritten (no reversal); BOOTSTRAP-B bullet names the durable consumption record; new "PR REVIEW-FIX CYCLE 2 CHANGES" block with the five thread dispositions and the scope-of-record statement |
+| `165-F` | Genesis rewritten to the sole-record rule; BOOTSTRAP-A B4 halt-with-active note; BOOTSTRAP-B names the consumption record; new SCOPE OF RECORD paragraph (10 executable tasks, B0/B1/B2, not U0/U1/U2) |
+| `165.001-T` | RED mechanism section replacing the xfail/`expectedFailure` instruction; genesis rewritten to sole-record with N5f/N5g/N5h added and N5e extended; fixture quality gate and sizing rationale updated |
+| `165.002-T` | Genesis rewritten to sole-record with fail-closed unclassifiable-record rule and eight-case coverage list; constrained-RED mechanism replacing "CONSTRAINED XFAIL REASONS"; strict-xfail references re-expressed |
+| `165.004-T` | Constrained-RED mechanism; P3 fixture restated under sole-record; P3b widened to two disqualifier shapes including `blocked` |
+| `165.005-T` | Shared-helper snapshot reduced from three genesis facts to one sole-record count, with fail-closed and enumeration-failure rules |
+| `165.006-T` | Zero-write assertion removed and narrowed; genesis-disqualifier rendering restated as naming the disqualifying record(s) |
+| `165.008-T` | Agent-text genesis rule restated as sole-record, with an explicit bar on restating the retired three-probe form |
+| `165.009-T` | Doc genesis rule restated as sole-record with the "why count records" rationale; new deliverable 8b documenting the consumption mechanism and its honest per-clone scope bound |
+| `165.011-T` | Deliverable 6 added (6a–6i) with its test matrix; Deliverable 2 no longer says "not already consumed"; complexity medium → high with recorded de-risk rationale |
+| Plan | §3.1 genesis table and rules; §4 RED mechanism + T10 complexity cell; §T1/§T2/§T3/§T4/§T5/§T6/§T9/§T10; §H2 F5/F10/F11/F13; §H5 new residual risk; §H6 B4 failure contract; frontmatter revision 5 → 6 |
+
+### Deterministic checks run this cycle
+
+| Check | Result |
+|---|---|
+| Frontmatter validity (12 backlog records + plan + review + deliberation) | PASS — all parse; all `id` fields match filenames |
+| Manifest integrity (`173-S` = 11 items, unique, parent first, every item after its prerequisites) | PASS — unchanged this cycle |
+| Dependency DAG acyclicity + every edge endpoint on the manifest | PASS — 0 structural errors, edge set unchanged |
+| Size + complexity present and enum-valid on all 10 tasks (two independent axes) | PASS — `165.011-T` now M/**high**, recorded via the structured `complexity` field; all others unchanged |
+| 2-hour rule | PASS — no task above `M`; the one new `complexity: high` is de-risked in place with recorded rationale rather than left unaddressed |
+| Width isolation | PASS — CLI/audit, engine, agent-contract, and docs work remain separate tasks |
+| Evidence claims re-verified against source, not inherited | PASS — `backlogit shipment` subcommand list, shipment status enum, CI test-runner invocation, and the unconditional telemetry emission all confirmed by direct read this cycle |
+| Residual absolute no-write claims anywhere in the feature's artifacts | NONE — swept to zero (the `165.006-T` regression was the last one) |
+| Residual undefined "not already consumed" semantics | NONE — replaced by Deliverable 6 |
+| Residual promises of automatic claim reversal or requeue | NONE — swept to zero |
+| Residual `G2`/`G3`/`G4` probe references presented as live rule | NONE — retained only as explicitly-labelled retracted history |
+| Residual `xfail`/`expectedFailure` instructions presented as live mechanism | NONE — retained only as explicitly-labelled rejected alternatives |
+| Residual claims that an agent consumes a force grant to enter `173-S` | NONE |
+| Unresolved template placeholders introduced | NONE |
+| P-001 role boundary (no source, test, template, or config file modified) | PASS |
+
+### Finding counts
+
+| Severity | Count |
+|---|---|
+| P0 | **0** |
+| P1 | **0** |
+| P2 | 2 (carried unchanged from cycle 4: `9AA34143` rollup member set; `dag-root` not mechanically enforced) + 1 new, accepted and recorded (bootstrap-grant at-most-once is per-workspace-clone, not global — plan §H5) |
+| P3 | 4 (carried unchanged from cycle 4) |
+
+No new P0 or P1 finding remains open. All five threads are resolved on the same
+contract surface they were raised against, every coupled artifact states the
+corrected contract consistently, and no manifest, edge, or size change was required.

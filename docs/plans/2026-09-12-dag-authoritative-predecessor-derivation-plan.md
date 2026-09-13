@@ -5,8 +5,8 @@ doc_type: plan
 source: docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md
 date: 2026-09-12
 status: decided
-revision: 5
-revision_note: "PR review-fix cycle 1 (staging PR #448, Copilot review threads; separate from and subsequent to the four completed plan-review cycles). Thread PRRT_kwDORzpWpM6h3Tgb: the cycle-3 U0/U1/U2 agent-run force grant is RETRACTED as not executable — no installed Orchestrator/Ship contract passes `--force` and both halt on exit 1, and `--force` is stateless so an operator force does not unblock an agent's own unforced run; replaced by BOOTSTRAP-A (a one-time operator-run entry path proven against installed agent text, with the branch-vantage error corrected: `pre_claim` short-circuits on `branch_ownership`, so a Stage-branch run yields `BRANCH_MISMATCH`, never `PREDECESSOR_NOT_SHIPPED`) plus BOOTSTRAP-B (new tasks T10/`165.011-T` and T11/`165.012-T` adding a version-controlled, exact-bound pre-claim bootstrap grant surface, an agent-consumable CLI flag, and a full-provenance force audit recording invocation, full observed payload, HEAD, manifest identity, token/predecessor, and the authorizing decision). Thread PRRT_kwDORzpWpM6h3Tgi: the audit's absolute no-write claim is narrowed to no backlog mutations and no migration-state/ledger writes, with the unconditional, observational, fail-open `pipeline-topology` telemetry emission explicitly allowed and its test assertions rewritten accordingly. Manifest 9 -> 11 items; `165.009-T` moved last behind its new T11 edge. Prior revision 4 notes retained in git history."
+revision: 6
+revision_note: "PR review-fix cycle 1 (staging PR #448, Copilot review threads; separate from and subsequent to the four completed plan-review cycles). Thread PRRT_kwDORzpWpM6h3Tgb: the cycle-3 U0/U1/U2 agent-run force grant is RETRACTED as not executable — no installed Orchestrator/Ship contract passes `--force` and both halt on exit 1, and `--force` is stateless so an operator force does not unblock an agent's own unforced run; replaced by BOOTSTRAP-A (a one-time operator-run entry path proven against installed agent text, with the branch-vantage error corrected: `pre_claim` short-circuits on `branch_ownership`, so a Stage-branch run yields `BRANCH_MISMATCH`, never `PREDECESSOR_NOT_SHIPPED`) plus BOOTSTRAP-B (new tasks T10/`165.011-T` and T11/`165.012-T` adding a version-controlled, exact-bound pre-claim bootstrap grant surface, an agent-consumable CLI flag, and a full-provenance force audit recording invocation, full observed payload, HEAD, manifest identity, token/predecessor, and the authorizing decision). Thread PRRT_kwDORzpWpM6h3Tgi: the audit's absolute no-write claim is narrowed to no backlog mutations and no migration-state/ledger writes, with the unconditional, observational, fail-open `pipeline-topology` telemetry emission explicitly allowed and its test assertions rewritten accordingly. Manifest 9 -> 11 items; `165.009-T` moved last behind its new T11 edge. PR REVIEW-FIX CYCLE 2 (staging PR #448, five same-contract-surface Copilot threads, 2026-09-13; content only, NO manifest/edge/size change — scope remains 10 executable tasks, 11 manifest items, and BOOTSTRAP-A steps B0/B1/B2, never U0/U1/U2). Thread PRRT_kwDORzpWpM6h3fqf: T10 at-most-once consumption gains a CONCRETE DURABLE ATOMIC MECHANISM (O_EXCL exclusive-create per-grant/per-label record under the gitignored `.autoharness/gates/bootstrap-grant-consumption/`, claimed before the force, audit emitted from the claimed record, fail-closed contention/replay/malformed/stale handling, operator-only recovery, containment, and an honestly stated per-clone scope bound); the undefined not-already-consumed phrasing is removed and T10 complexity is raised medium -> high (de-risked in place, not split). Thread PRRT_kwDORzpWpM6h3fq1: BOOTSTRAP-A B4 reverse-the-claim is REMOVED as unexecutable (backlogit exposes no active->queued transition) and replaced by a halt-with-173-S-active contract plus explicit operator remediation, with the supported and VERIFIED active->abandoned transition as the only alternative and no promise of requeue. Thread PRRT_kwDORzpWpM6h3frC: the strict-xfail/expectedFailure RED mechanism is REPLACED by a stdlib-only `expect_red(raises=, message_contains=)` helper, because canonical CI runs `python -m unittest discover -s tests` where a pytest xfail marker is inert and `unittest.expectedFailure` cannot constrain the reason. Thread PRRT_kwDORzpWpM6h3frF: the three-probe genesis rule (G2/G3/G4) omitted the `blocked` status entirely and is REPLACED by the SOLE-RECORD rule — genesis only when the candidate is the only shipment record across all live and archived records regardless of status or provenance, with missing/unrecognized status failing closed — and regression cases are added. Thread PRRT_kwDORzpWpM6h3frY: T6's reintroduced absolute zero-write assertion is REMOVED and narrowed to no backlog mutation and no migration-state/ledger write, with the pre-existing observational fail-open telemetry append explicitly allowed and positively tested. Prior revision 4-5 notes retained in git history."
 decision_source: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md
 source_bug_report: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 stash_ids:
@@ -134,49 +134,75 @@ predecessor_ids := ShipmentState.blocking_predecessor_ids   # explicit `blocks` 
 |---|---|---|---|
 | Explicit | edges present | existing per-predecessor ambiguity / shipped-terminal / closure checks run **unchanged** (pre-existing behaviour, not modified, not re-tested here) | `explicit` |
 | Declared root | no edges, record declares `dag-root` | pass | `declared_root` |
-| Genesis | no edges, no declaration, **and G2 ∧ G3 ∧ G4** (below) | pass | `genesis` |
-| Unsequenced | no edges, no declaration, **any** genesis condition fails | **block** `UNSEQUENCED_SHIPMENT` | `unsequenced` |
+| Genesis | no edges, no declaration, **and G2 — sole record** (below) | pass | `genesis` |
+| Unsequenced | no edges, no declaration, **G2 fails** (any other shipment record exists) | **block** `UNSEQUENCED_SHIPMENT` | `unsequenced` |
 
 The `explicit` row's closure check is named only to describe what already happens
 on that path. This plan does **not** touch it, and no task asserts over it
 (`FD0CCB42` owns that surface exclusively).
 
-#### Genesis conditions (narrowed — review-fix cycle 2)
+#### Genesis conditions — the sole-record rule (PR review-fix cycle 2, thread `PRRT_kwDORzpWpM6h3frF`)
 
-* **G2** — no shipped-terminal shipment exists anywhere, **live or archived**.
-* **G3** — the candidate is the **sole extant nonterminal shipment**: no other
-  shipment record exists in a nonterminal state (`queued`/`active`), live or
-  archived.
-* **G4** — no `abandoned` shipment record exists anywhere, live or archived.
+* **G1** — the candidate declares no `blocks` edges and carries no `dag-root`.
+* **G2 — SOLE RECORD** — the candidate is the **only shipment record that exists
+  in the workspace**, counting **live and archived records together**,
+  **regardless of status and regardless of provenance**. Any other shipment record
+  — `queued`, `blocked`, `active`, `shipped`, `abandoned`, or anything else —
+  disqualifies genesis.
 
-The cycle-1 rule ("no shipped-terminal shipment exists") is **replaced** because it
-fails open. In a workspace with many queued shipments and nothing yet shipped it
-returns `genesis` for **every** edge-less shipment at once, including
-later-numbered candidates downstream of other pending work. G3 makes genesis a
-**cardinality-1** state that cannot be true for two shipments simultaneously and
-ceases to be available once a workspace holds a second shipment record of any
-kind — so a later-numbered candidate has no genesis path and blocks as
-`unsequenced` until intent is recorded. G4 exists because `abandoned` is terminal
-but not *shipped*, so G2 alone would admit an abandoned-only history as a fresh
-install.
+**This replaces the cycle-2 three-probe form (G2 shipped / G3 nonterminal / G4
+abandoned), which was a verified fail-open.** The shipment status enum is
+{`queued`, `blocked`, `active`, `shipped`, `abandoned`}. Cycle-2's G3 enumerated
+the disqualifying nonterminal states as "`queued`/`active`", while G2 covered only
+shipped-terminal records and G4 only abandoned ones — so **`blocked` appeared in no
+probe at all**. A workspace holding one `blocked` shipment alongside an edge-less
+undeclared candidate satisfied G2, G3 and G4 simultaneously and returned
+`genesis`: an unearned pass, in exactly the direction this feature exists to close.
+Enumerating statuses is structurally fragile — every value the enum gains in future
+silently re-opens the same hole at a moment nobody is looking. **Counting records is
+not**: "exactly one shipment record exists here" is status-agnostic and cannot be
+widened by a new enum member. It also reduces the shared-snapshot surface from
+three facts to one, which strictly lowers the divergence risk of §3.4.
+
+The cycle-1 rule ("no shipped-terminal shipment exists") remains **replaced** for
+its own reason: in a workspace with many queued shipments and nothing yet shipped
+it returned `genesis` for **every** edge-less shipment at once. Sole-extancy — now
+expressed as sole-*record* — makes genesis a **cardinality-1** state that cannot be
+true for two shipments simultaneously and ceases to be available once a workspace
+holds a second shipment record of any kind, so a later-numbered candidate has no
+genesis path and blocks as `unsequenced` until intent is recorded.
+
+**Unclassifiable records fail closed.** A shipment record whose status is absent,
+empty, whitespace-only, non-string, unparseable, or not a recognized member of the
+enum — including an archived record carrying an unrecognized `archived_status` —
+**still counts as a disqualifying record**. It is never skipped, never defaulted to
+a benign value, and never treated as absent: a record that cannot be classified is
+precisely the record whose sequencing significance is unknown, and discarding it is
+the fail-open move. If the live or archived record set cannot be **enumerated** at
+all, the evaluation raises `BacklogUnavailableError` rather than concluding
+sole-extancy from a short or partial read.
 
 | Workspace | Genesis? | Edge-less undeclared candidate |
 |---|---|---|
 | Exactly one shipment record, nothing else | yes | pass `genesis` |
-| Several `queued`, nothing ever shipped | no (G3) | block `unsequenced` |
-| Shipped history only as archived records | no (G2) | block `unsequenced` |
-| Only an `abandoned` record in history | no (G4) | block `unsequenced` |
+| Several `queued`, nothing ever shipped | no | block `unsequenced` |
+| Shipped history only as archived records | no | block `unsequenced` |
+| Only an `abandoned` record in history | no | block `unsequenced` |
+| **A `blocked` record present (live or archived)** | **no** | **block `unsequenced`** *(the cycle-2 fail-open)* |
+| **A record with missing/unrecognized status present** | **no (fail closed)** | **block `unsequenced`** |
+| Record set cannot be enumerated | n/a | `BacklogUnavailableError` |
 | Any of the above + `dag-root` on candidate | n/a | pass `declared_root` |
 
-G2/G3/G4 are workspace-level facts computed **once per evaluation** from a single
-snapshot inside the shared helper (§3.4) and handed to both gates.
+The sole-record count is a workspace-level fact computed **once per evaluation**
+from a single snapshot inside the shared helper (§3.4) and handed to both gates.
 
 The four states are total and mutually exclusive. `predecessor_source` is present
 on **every** `shipment_readiness` payload — blocked and passed alike.
 
 The `UNSEQUENCED_SHIPMENT` message must name the two remedies explicitly (record
 the real `blocks` edge, or declare the shipment a root), so the block is never a
-dead end; where genesis was disqualified, it also names which of G2/G3/G4 applied.
+dead end; where genesis was disqualified, it also names **which record(s)**
+disqualified it — id, live or archived, and the status as read.
 
 ### 3.2 Root declaration
 
@@ -229,8 +255,8 @@ cleanly.
 backlog or migration state.
 For every edge-less shipment it reports the derived state, the raw
 numerically-adjacent candidate the retired heuristic would have inferred, which
-genesis disqualifier applied where the state is `unsequenced`, and the remediation
-options available. It must **not** apply the reverse-dependency suppression
+disqualifying record(s) denied genesis where the state is `unsequenced`, and the
+remediation options available. It must **not** apply the reverse-dependency suppression
 predicate.
 
 **It is a pure report and nothing more (cycle 3; narrowed in PR review-fix cycle
@@ -288,8 +314,8 @@ All tasks are sized at or under 2 hours human-equivalent. Width isolation is
 observed: engine, CLI, template sources, installed mirrors, and docs are separate
 tasks.
 
-**Every task ends green.** New expectations land as strict expected-failure tests
-in the harness task and are flipped to ordinary passing tests by the implementation
+**Every task ends green.** New expectations land as **constrained RED** tests in the
+harness task and are flipped to ordinary passing tests by the implementation
 task that delivers the behaviour; tests that pin behaviour being removed are
 re-expressed in the **same** task that removes the behaviour. No task may leave the
 suite red for a successor to repair.
@@ -300,15 +326,49 @@ the refactor cannot silently change it). Only genuinely new behaviour is written
 as a failing expectation. Demanding a RED observation for existing behaviour would
 be impossible to satisfy honestly, so it is not required anywhere below.
 
-**Expected-failure reasons are constrained (cycle 3).** Every strict
-expected-failure marker must be scoped to the *specific* expected defect — the
-assertion it is allowed to fail on, and the exception types it is allowed to raise
-— so that an unrelated cause cannot satisfy RED. A fixture/setup error, an import
-or collection error, an unknown or unregistered `--phase` value, a typo in a
-fixture, or any other incidental failure must **not** count as the expected
-failure. Where the harness supports it, pin the marker with an explicit
-`raises=`/reason and assert the expected message or payload shape, so the test
-fails loudly on the wrong failure instead of passing quietly as "still red".
+**RED mechanism — a narrow custom helper, not `xfail` and not
+`unittest.expectedFailure` (PR review-fix cycle 2, thread `PRRT_kwDORzpWpM6h3frC`).**
+This **replaces** cycle 3's "xfail-strict / `expectedFailure` pinned with
+`raises=`/reason" instruction, which was not implementable in this repository.
+Verified at this HEAD: canonical CI runs `python -m unittest discover -s tests`
+(`.github/workflows/ci.yml`, whose own header records that "autoharness has no
+ruff/pyright/pytest configured; the only real gates are the stdlib unittest suite
+… and markdownlint"). Under `unittest` a `@pytest.mark.xfail(...)` decorator is
+**inert** — it sets an attribute nothing reads — so the body runs, the expectation
+raises, and **CI goes red**, directly contradicting "every task ends green".
+`unittest.expectedFailure` does run under that runner and does fail the suite on an
+unexpected success, but it **cannot constrain the reason**: it accepts *any*
+exception and takes no `raises=` and no reason argument, so a fixture error, an
+import error, an unregistered `--phase`, or a typo all register as "still red" —
+the exact hazard cycle 3 set out to close.
+
+Required instead: one small stdlib-only helper (e.g. `tests/support/red.py`)
+
+```text
+@expect_red(raises=<ExcType | tuple>, message_contains="<substring>", reason="<why>")
+```
+
+with three mandatory properties: (a) the expectation is satisfied — and the test
+**passes** — only when the body raises an instance of `raises` whose *normalized*
+message (`str(exc)`, whitespace-collapsed, stripped, casefolded) contains
+`message_contains`; (b) **any other exception fails the test**, with a diagnostic
+naming expected vs. observed and stating that this is a *wrong* failure, so a
+broken fixture turns the suite red instead of masquerading as RED; (c) **no
+exception at all fails the test as XPASS**, instructing the reader to flip the
+expectation to an ordinary assertion — preserving the strictness that made
+`xfail(strict=True)` desirable. The helper must be pure stdlib (`functools.wraps` +
+`try`/`except`), must not import `pytest`, and must behave identically under
+`python -m unittest discover -s tests` and under a local `pytest` run.
+`assertRaises` is not a substitute: it cannot distinguish XPASS from a missing
+behaviour and carries no "flip me later" intent.
+
+**Simpler alternative, explicitly permitted.** Where the helper is awkward for a
+particular expectation, that expectation may instead be authored **in the same task
+as its implementation** — written red and turned green in one task and one commit —
+**provided the RED observation is still recorded** (observed exception type and
+message captured in that task's disposition notes before the implementation lands).
+Either route is acceptable; leaving a genuinely unconstrained expectation is not.
+**Every task ends green under both routes.**
 
 **Task labels track task IDs (cycle 3).** The task numbering below is `T{n}` for
 `165.00{n}-T`; there is no `T7`, because `165.007-T` is archived and descoped.
@@ -317,14 +377,14 @@ review, and the backlog records disagree about which task was which.
 
 | # | Task | ID | Kind | Size | Complexity | Depends on |
 |---|---|---|---|---|---|---|
-| T1 | Derivation test harness: characterization + expected-failure matrix | 165.001-T | test | M | medium | — |
+| T1 | Derivation test harness: characterization + constrained-RED matrix | 165.001-T | test | M | medium | — |
 | T2 | Engine: four-state derivation, provenance, legacy-test re-expression | 165.002-T | impl | M | high | T1 |
 | T3 | Sequencing audit phase (pure read-only report) + tests | 165.003-T | impl | M | medium | T2 |
-| T4 | Advisory parity test matrix (characterization + expected-failure) | 165.004-T | test | S | medium | T2 |
+| T4 | Advisory parity test matrix (characterization + constrained RED) | 165.004-T | test | S | medium | T2 |
 | T5 | Engine: `dag-readiness` parity via shared derivation helper | 165.005-T | impl | M | high | T4 |
 | T6 | CLI: provenance, remediation, and audit output + tests | 165.006-T | impl | S | low | T2, **T3** |
 | T8 | Agent template sources **and** installed dogfood mirrors (atomic) | 165.008-T | docs | M | medium | T5, T6 |
-| T10 | Pre-claim bootstrap grant surface + full-provenance force audit | 165.011-T | impl | M | medium | T6 |
+| T10 | Pre-claim bootstrap grant surface + full-provenance force audit | 165.011-T | impl | M | **high** | T6 |
 | T11 | Orchestrator + Ship bootstrap-grant consumption (sources **and** mirrors, atomic) | 165.012-T | docs | M | medium | T10, T8 |
 | T9 | Gate documentation + audit/migration/rollback guide | 165.009-T | docs | M | low | T5, T6, **T11** |
 
@@ -364,7 +424,7 @@ document the final contract; the shipment manifest order was reordered to match.
 4. **Malformed/unresolvable dependency IDs fail closed** and are never silently
    dropped. This is **existing** behaviour: `_tuple_of_str` already validates
    dependency members against `_ARTIFACT_ID_PATTERN` and raises, so it is a
-   characterization test and must **not** be written as an expected failure.
+   characterization test and must **not** be written as a RED expectation.
 5. **Label parsing does not currently raise (cycle 3 reclassification).** A
    shipment record carrying `labels: [dag-root, topology-gate]` is read
    **successfully today** and raises nothing. Verified against source:
@@ -372,11 +432,12 @@ document the final contract; the shipment manifest order was reordered to match.
    reference to `labels` at all, so the field is simply not consulted. This is the
    **positive anti-regression** against ever validating labels with the artifact-ID
    validator, and it belongs here as a **passing characterization test** (former
-   N7a). Marking it strict expected-failure would have been wrong twice over: it
-   asserts behaviour that already holds, and under `xfail(strict=True)` it would
+   N7a). Marking it a RED expectation would have been wrong twice over: it
+   asserts behaviour that already holds, and under any strict RED mechanism —
+   `expect_red` included — it would
    **XPASS and fail the suite** the moment it ran.
 
-**New expectations (strict expected-failure; flipped by T2):**
+**New expectations (constrained RED via `expect_red`; flipped by T2):**
 
 1. Two numerically adjacent edge-less shipments are **not** blocked by numeric
    inference.
@@ -385,13 +446,20 @@ document the final contract; the shipment manifest order was reordered to match.
 3. `predecessor_source` is present and correct on a **passing** payload and on a
    **blocked** payload.
 4. Declared root passes with `predecessor_source: declared_root`.
-5. **Genesis, asserted per disqualifier** (cycle 2): (a) a workspace holding
-   exactly one shipment record passes `genesis`; (b) archived-only shipped history
-   is **not** genesis (G2); (c) several queued shipments with nothing ever shipped
-   is **not** genesis for *any* of them — asserted over at least two candidates
-   including a later-numbered one (G3); (d) abandoned-only history is **not**
-   genesis (G4); (e) `dag-root` still passes as `declared_root` in each
-   non-genesis workspace, proving the narrow rule does not deadlock real roots.
+5. **Genesis, asserted per disqualifying record class** (PR review-fix cycle 2):
+   (a) a workspace holding exactly one shipment record passes `genesis`; (b) a
+   `blocked` record present, live or archived, is **not** genesis — *the cycle-2
+   fail-open this finding found, and the case that must fail against the retired
+   three-probe rule*; (c) archived-only shipped history is **not** genesis; (d)
+   several queued shipments with nothing ever shipped is **not** genesis for *any*
+   of them — asserted over at least two candidates including a later-numbered one;
+   (e) abandoned-only history is **not** genesis; (f) a record whose status is
+   missing, empty, non-string, unrecognized, or whose `archived_status` is
+   unrecognized is **not** genesis — **fail closed**, never skipped; (g) an
+   enumeration failure raises `BacklogUnavailableError` rather than concluding
+   sole-extancy from a partial read; (h) `dag-root` still passes as `declared_root`
+   in each non-genesis workspace, proving the sole-record rule does not deadlock
+   real roots.
 6. Unsequenced shipment blocks with `UNSEQUENCED_SHIPMENT`, and the message names
    both remedies.
 7. **Label preservation and root classification** — genuinely absent today, so
@@ -405,18 +473,19 @@ document the final contract; the shipment manifest order was reordered to match.
 
 **Malformed dependency vs. malformed label — do not conflate (cycle 3).**
 Malformed *dependency* IDs already fail closed → characterization (item 4 above).
-Malformed *labels* are currently not validated at all → expected failure (item 8
+Malformed *labels* are currently not validated at all → constrained RED (item 8
 above). Writing the first as RED would be dishonest; writing the second as
 characterization would assert behaviour that does not exist.
 
-Every expected-failure marker above must be constrained per the reason rule in
-§4: scoped to its specific assertion and exception type, so a fixture error or an
-unregistered-phase error cannot satisfy RED.
+Every RED expectation above must be authored with xpect_red per the RED-mechanism
+rule in §4: scoped to its specific exception type and normalized message, so a
+fixture error or an unregistered-phase error cannot satisfy RED, and an XPASS fails
+the suite.
 
 Fixtures must make each state distinguishable — a fixture in which two states
 would produce the same observation cannot assert either (vacuous-test learning).
-Each genesis disqualifier is asserted independently so no composite fixture can
-carry the rule vacuously.
+Each disqualifying-record class is asserted independently so no composite fixture
+can carry the sole-record rule vacuously.
 
 ### T2 — Engine change (165.002-T)
 
@@ -424,7 +493,7 @@ Implement §3.1: derive from `blocking_predecessor_ids` only; parse the record's
 `labels` into a **validated, immutable `labels` tuple on `ShipmentState`** through
 a labels-specific fail-closed validator, **never `_tuple_of_str`**, and derive
 root classification from that tuple rather than storing a bare boolean (§3.2);
-implement the four-state resolution with the narrowed genesis rule (G2/G3/G4);
+implement the four-state resolution with the **sole-record** genesis rule (§3.1);
 attach `predecessor_source` to every payload; add `UNSEQUENCED_SHIPMENT` with
 remedy-naming text; remove `_prior_shipment_id` from the claim path (do not delete
 the function — T3 re-homes it as audit input, so deleting it would create a
@@ -439,8 +508,8 @@ only **two** dispositions are permitted:
 1. **Surviving safety intent** → re-expressed as an explicit-DAG or four-state
    assertion that passes in this task.
 2. **Historical directional knowledge** → re-expressed as a **raw
-   `audit_sequencing` numeric-candidate expectation**, written here as a *strict
-   expected-failure* test (the audit surface arrives in T3) and flipped green by
+   `audit_sequencing` numeric-candidate expectation**, written here as a
+   *constrained RED* test via `expect_red` (the audit surface arrives in T3) and flipped green by
    T3. Stated as the **negation** of suppression: the multi-hop and
    forward-dependent configurations, where suppression would have hidden the
    candidate, must still yield a reported raw candidate.
@@ -452,7 +521,7 @@ candidate *without* suppression. Bulk deletion remains forbidden; any case with
 genuinely no equivalent requires written rationale. Update the class docstring to
 record the heuristic as retired history.
 
-Flip T1's expected-failure markers to ordinary assertions. **Prove by test — not by
+Flip T1's RED expectations to ordinary assertions. **Prove by test — not by
 assertion — that the still-unfixed forward-dependent suppression defect can no
 longer affect a claim. There is no deferral option (cycle 2):** any surviving
 numeric inference reachable from a claim path blocks this task *and* `173-S` until
@@ -468,7 +537,7 @@ another task *inside* `173-S` is acceptable, shipping with the residue is not.
 Implement §3.3. Register `audit_sequencing` in `VALID_PHASES` only, **not** in
 `SCOPED_PHASES`, and give it no phase status requirement, so it cannot disturb the
 `lifecycle` phase's active-target invariant. Report per edge-less shipment: derived
-state, raw numeric-adjacency candidate, the applicable genesis disqualifier, and
+state, raw numeric-adjacency candidate, the record(s) that disqualified genesis, and
 the remediation options available. **Emit that report and nothing else** — the
 phase performs no backlog mutation and no migration-state/ledger write, owns no
 durable artifact, and defines no file format. The cycle-2 migration-ledger
@@ -491,13 +560,13 @@ output and exit code are identical to a telemetry-disabled run, and that a
 telemetry failure during an audit run changes neither output nor exit code
 (fail-open preserved).
 
-**T3 also flips the strict-xfail audit expectations inherited from T2** (the
+**T3 also flips the constrained-RED audit expectations inherited from T2** (the
 re-expressed historical directional cases). If any cannot be flipped green, the
 audit has inherited the suppression predicate and T3 is not done.
 
 ### T4 — Advisory parity matrix (165.004-T)
 
-Characterization for existing agreement; expected-failure for the new parity
+Characterization for existing agreement; constrained RED for the new parity
 requirements. The matrix is **total over the four derivation states and covers
 nothing else** (cycle 3 correction).
 
@@ -518,8 +587,11 @@ Parity is therefore asserted over predecessor **state** only:
   `ready_set`/`next_eligible` membership, never on closure evidence.
 * `declared_root` — must never be advisory-blocked while `pre_claim` passes it;
   parity fails in **both** directions, not just the permissive one.
-* `genesis` — built on a **genesis-valid** fixture (sole extant record) and
-  reported consistently with `pre_claim`'s pass.
+* `genesis` — built on a **genesis-valid** fixture (the candidate is the *sole
+  shipment record* in the workspace, live and archived counted together) and
+  reported consistently with `pre_claim`'s pass. The narrowness-parity case is
+  asserted over **two** disqualifier shapes — a second `queued` record, and a
+  `blocked` record (the status the retired three-probe rule omitted).
 * `unsequenced` — must never be `next_eligible` or in `ready_set`.
 * One **genesis-narrowness** case: a genesis-disqualified workspace reads
   `unsequenced` in *both* gates.
@@ -546,7 +618,7 @@ producer/consumer surface `FD0CCB42` exists to redefine, which would force
 `pre_claim`'s own pre-existing closure check on the `explicit` path is untouched
 and stays where it is.
 
-The genesis facts G2/G3/G4 are computed **once** inside that helper from one
+The single sole-record genesis fact is computed **once** inside that helper from one
 snapshot and handed to both gates; the advisory side must consume the **same
 narrow** genesis rule, never a broader "nothing shipped yet" notion. State in the
 task record whether the helper lives in `topology.py` or a new module. Exclude
@@ -557,13 +629,32 @@ authority.
 
 Surface `predecessor_source` and the selected predecessor IDs in JSON and human
 output on blocked and passed paths; render the `UNSEQUENCED_SHIPMENT` remedy text
-and the applicable genesis disqualifier; render **audit-phase output** readably.
+and the record(s) that disqualified genesis; render **audit-phase output** readably.
 The audit rendering is **pure report rendering** — there is no ledger and no
 persisted artifact to reference (§3.3), so the CLI displays only what the audit
 computes. Changes are **additive** — no existing field is renamed or removed.
 Assert in `tests/test_gate_pipeline_topology_cli.py`. **Retains dependencies on
 both T2 and T3**: T2 supplies `predecessor_source` for the provenance
 deliverables, and T3 supplies the audit payload that deliverable renders.
+
+**Audit-render purity is scoped, not absolute (PR review-fix cycle 2, thread
+`PRRT_kwDORzpWpM6h3frY`).** The cycle-1 form of this task required "an assertion
+that the audit render path performs **no write** — no file created, no record
+mutated". That is the *same absolute claim* PR review-fix cycle 1 had already
+retracted from T3, `165-F`, T8 and T9 on thread `PRRT_kwDORzpWpM6h3Tgi`, and it is
+false for the same verified reason: `_gate_pipeline_topology_command` calls
+`_emit_pipeline_topology_telemetry` **unconditionally on every run of every
+phase**, appending a telemetry event whenever telemetry is enabled. A test
+encoding "no file is created" fails on any telemetry-enabled workspace or — worse —
+pushes an implementer to suppress telemetry for this one phase, breaking parity
+with `pre_claim`/`post_claim`/`lifecycle`/`ambient`. **The absolute assertion is
+removed.** Assert exactly T3's contract and no more: (a) **no backlog mutation**;
+(b) **no migration-state or ledger write**; (c) telemetry is **explicitly allowed
+and positively tested** — with telemetry enabled the event *is* emitted while the
+rendered output and exit code are identical to a telemetry-disabled run; (d) a
+telemetry failure during a render changes neither output nor exit code (fail-open
+preserved, not narrowed or made load-bearing). Reintroducing an absolute no-write
+claim in this task is a regression of this finding.
 
 ### T8 — Agent contract text, sources and mirrors atomically (165.008-T)
 
@@ -578,8 +669,11 @@ task and one commit**:
   `.github/agents/_ship.agent.md`. No other installed instruction file is in scope.
 
 Content: predecessors derive from explicit `blocks` edges; the four states and
-their provenance values; **genesis is narrow** — an agent must not expect a second
-or later-numbered edge-less shipment to pass as `genesis`; `pre_claim` is the sole
+their provenance values; **genesis is the sole-record rule** — genesis holds only
+when the candidate is the *only* shipment record in the workspace, live and
+archived together, regardless of status or provenance, so an agent must not expect
+a second or later-numbered edge-less shipment to pass as `genesis` (and must not
+restate the retired `G2`/`G3`/`G4` probe form); `pre_claim` is the sole
 claim authority and `dag-readiness` is advisory/non-authorizing; **Ship must not
 self-declare `dag-root`**, stated as an agent-contract rule enforced by review and
 audit rather than by the gate (§3.2); and the audit phase is the migration path,
@@ -600,10 +694,65 @@ grant assumed already existed (§H6).
   because a grant that cannot be committed cannot be reviewed. Fields:
   `schema_version`, exact `shipment_id`, `authorized_invocations` from the closed
   set {`orchestrator_pre_route`, `ship_pre_branch`, `ship_pre_claim`} (each
-  consumable at most once), `expected_token`, `expected_predecessor_id`,
+  consumable at most once, enforced by the durable consumption record below),
+  `expected_token`, `expected_predecessor_id`,
   `manifest_digest`, `authorizing_decision`, `operator`, `expires_on_claim`.
+* **Durable, atomic, at-most-once consumption (PR review-fix cycle 2, thread
+  `PRRT_kwDORzpWpM6h3fqf`).** Cycle 1 said only that a label "is not already
+  consumed" — naming no storage, no durability, no atomicity and no failure
+  semantics, so it was satisfiable by an in-process set that resets every
+  invocation, i.e. a zero-guarantee at-most-once. That phrasing is **removed** and
+  replaced by a concrete mechanism:
+  * **Exclusive creation is the claim.** A per-grant/per-label record at
+    `.autoharness/gates/bootstrap-grant-consumption/{shipment_id}/{label}.json`,
+    created with `os.open(..., O_CREAT | O_EXCL | O_WRONLY, 0o600)` — atomic on
+    POSIX, `CREATE_NEW` on Windows — written and `fsync`'d before the force
+    proceeds. No advisory lock, no lockfile-plus-rename, and **no read-then-write
+    existence check** (a TOCTOU race, explicitly forbidden). The tree sits under the
+    already-gitignored `.autoharness/gates/` prefix because it is node-local
+    *runtime* state; the **grant** is the version-controlled, reviewable
+    authorization, the **record** is the durable proof it was spent.
+  * **Claim before force, always.** Evaluate unforced → apply every
+    non-consumption match condition → only then claim → only if the claim succeeds,
+    force. A non-matching grant must never burn a label. Claiming first is the
+    fail-closed direction: a crash between claim and force spends a label without
+    forcing (recoverable), whereas forcing first could force without recording the
+    spend (unrecoverable).
+  * **Record contents:** `schema_version`, `grant_digest` (SHA-256 over the grant
+    file's exact bytes), `grant_path`, `shipment_id`, `label`, `phase`, `actor`,
+    `session_id`, `head_sha`, `manifest_digest`, `blocking_token`,
+    `inferred_predecessor_id`, `claimed_at`, `status` (`claimed` → `consumed`), and
+    `audit_ref`.
+  * **Contention and replay are fail-closed and indistinguishable.**
+    `FileExistsError` → no force, ordinary exit 1, warning naming the record. Never
+    wait, retry, poll, break, or steal a claim. **No TTL and no auto-expiry** — a
+    TTL is at-most-once-*per-interval*, not at-most-once. A `grant_digest` mismatch
+    is also fail-closed, which defeats "edit the grant to reset consumption".
+  * **Crash states.** Crash after claim (before evaluation, or before the audit)
+    leaves an intact `claimed` record carrying every field the audit would have
+    carried, and later runs still fail closed. The `claimed` → `consumed` advance is
+    a temp-file + `fsync` + `os.replace` in the same directory, so the record is
+    never torn. **Recovery is operator-only and out-of-band**: no CLI reset flag
+    exists, because such a flag would let an agent re-open an exhausted grant
+    (P-005/P-001).
+  * **The audit is emitted from the claimed record**, not recomputed from live
+    state — recomputation could record a workspace state that was never the one
+    authorized.
+  * **Malformed/stale records fail closed**, i.e. are treated as *consumed*. This is
+    the deliberate opposite of a malformed *grant* (treated as *no grant*); both
+    defaults resolve toward **no force**.
+  * **Containment**: `shipment_id` and `label` are validated against the artifact-ID
+    pattern and the closed label set *before* any path is built; separators, `..`,
+    NUL and drive/UNC prefixes are rejected with no filesystem call; the resolved
+    path must lie inside the resolved consumption root, symlinks included.
+  * **Scope bound, stated honestly (accepted residual risk).** At-most-once holds
+    **per workspace clone** — the tree is gitignored, so a fresh clone starts empty.
+    Compensating bounds: `expires_on_claim`, the exact-token binding (which stops
+    matching once the shipment leaves `queued`) and the manifest-digest binding. A
+    cross-machine guarantee would need committed state or an external coordinator
+    and is deliberately **not** invented here; T9 documents the bound.
 * **Fail-closed exact matching.** A grant authorizes only when the label is listed
-  and unconsumed, the shipment id matches exactly, exit code is 1, the payload
+  **and its consumption claim succeeds**, the shipment id matches exactly, exit code is 1, the payload
   carries **exactly one** blocking check whose token equals `expected_token`, the
   derived predecessor equals `expected_predecessor_id`, and the current ordered
   manifest digest matches. Any mismatch — including an *additional* blocking check
@@ -629,10 +778,22 @@ grant assumed already existed (§H6).
   stays fail-open.
 * **Tests.** No-grant behaviour byte-identical to today on both paths; exact-match
   grant forces and populates every audit field; each mismatch dimension
-  independently fails to force (wrong shipment, unlisted label, consumed label,
+  independently fails to force (wrong shipment, unlisted label, already-claimed label,
   wrong token, wrong predecessor, stale digest, second blocking check); malformed
   grant is no grant; flag combination exits 2; telemetry failure never changes the
-  exit code.
+  exit code. **Consumption tests (cycle 2):** N ≥ 8 racing *processes* (not
+  threads) on the same grant+label — exactly one forces, all others exit 1, exactly
+  one record remains; sequential replay fails closed with the record byte-identical;
+  a non-matching grant leaves **no** record behind and a later matching invocation
+  still succeeds; crash injected between claim and evaluation, and between force and
+  audit, each leave an intact `claimed` record and a fail-closed re-run; editing the
+  grant after a spend fails closed on digest mismatch; truncated/unknown-version/
+  missing-field/path-disagreeing records each fail closed without being overwritten;
+  a far-past `claimed_at` still fails closed (guards against a TTL being added
+  later); crafted `..`/separator/NUL ids and a symlinked consumption directory are
+  rejected before any write; no code path unlinks, truncates or re-creates a record
+  and no reset flag exists; with no grant present, no consumption directory is
+  created at all.
 
 Depends on **T6**, which owns CLI audit/output rendering — serializing prevents two
 tasks editing the same rendering surface.
@@ -678,8 +839,9 @@ hierarchy clean (P-008). Depends on **T10** (the surface consumed) and **T8**
 ### T9 — Documentation and migration guide (165.009-T)
 
 Document the contract, the four provenance values, the `UNSEQUENCED_SHIPMENT`
-signal and its two remedies, the **narrow genesis rule** and why absence of
-shipped history alone is insufficient, the root-declaration surface — including
+signal and its two remedies, the **sole-record genesis rule** — why absence of
+shipped history alone is insufficient, and why the rule counts records instead of
+enumerating statuses (the retired three-probe form omitted `blocked` entirely) — the root-declaration surface — including
 what its authority is and is not (§3.2) — and the `audit_sequencing` migration
 procedure end to end. Explain why numeric adjacency was retired, citing the three
 recorded defect cycles. Record the **data-ordered rollback posture** (§H4): what is
@@ -688,8 +850,17 @@ diffs** are the record used to reverse migrated data, the mandatory data-first
 ordering, and the narrowed claim where migration was not committed. Document the
 **bootstrap grant surface** shipped by T10/T11 — what a grant is, where it lives,
 that it is operator-authored and review-gated, that no agent may write one, the
-exact-match bounds, and that a grant is `pre_claim`-only and at-most-once per named
-site. Cross-reference the decision, this plan, and the committed intake bug report.
+exact-match bounds, that a grant is `pre_claim`-only and at-most-once per named
+site, **how that at-most-once is enforced** (an exclusive-create consumption record
+claimed before the force, with the audit emitted from it), and its **honest scope
+bound** — at-most-once holds per workspace clone, a fresh clone starts with no
+consumption state, and the compensating bounds are `expires_on_claim` plus the
+exact-token and manifest-digest bindings. Document that a second attempt fails
+closed with the ordinary exit 1 and is never retried or stolen, that there is no
+TTL, that editing the grant does not reset consumption (digest binding), that a
+malformed record is treated as *consumed* while a malformed grant is treated as *no
+grant* — both resolving toward no force — and that recovery from a crashed claim is
+an operator-only out-of-band act with no CLI reset flag by design. Cross-reference the decision, this plan, and the committed intake bug report.
 Now also depends on **T11**, so the documentation describes the final agent
 contract rather than an intermediate one.
 
@@ -698,12 +869,12 @@ contract rather than an intermediate one.
 | Risk | Mitigation |
 |---|---|
 | Silent fail-open for prior numeric-reliant workspaces | Unsequenced state blocks in any genesis-disqualified workspace (§3.1); audit phase migrates intent (T3) |
-| Genesis granted too broadly, becoming a back-door fail-open | Genesis narrowed to sole-extancy (G3) plus archived-inclusive shipped history (G2) and abandoned history (G4); each disqualifier asserted independently (T1) |
+| Genesis granted too broadly, becoming a back-door fail-open | **Sole-record** genesis rule (§3.1): the candidate must be the ONLY shipment record in the workspace, live and archived together, regardless of status or provenance; an unclassifiable status disqualifies fail-closed; each disqualifying record class asserted independently (T1) |
 | `labels` parsed with the artifact-ID validator, hard-failing every labelled record | Labels-specific fail-closed validator required (§3.2); positive reader-level anti-regression as a **characterization** test (T1) |
 | Blocking posture deadlocks legitimate roots | Declared-root state plus genesis bootstrap; block message names both remedies and the disqualifier |
 | Ship self-declares a root to unblock itself | Declaration authority is operator/Stage; the label is a committed, diffable, review-gated record and provenance makes each pass attributable; T8 states the prohibition in both sources and mirrors. **Not mechanically enforced** — see §3.2 and H5 |
-| A task leaves the suite red | Expected-failure harness flipped by its implementer; legacy-test re-expression atomic with removal (T2); T2's audit expectations land strict-xfail and are flipped by T3 |
-| **A strict-xfail passes for the wrong reason, or XPASSes** | Expected-failure reasons are constrained to a specific assertion and exception type (§4); behaviour that already exists is characterization, never RED (T1 items 4–5) |
+| A task leaves the suite red | Constrained-RED harness flipped by its implementer; legacy-test re-expression atomic with removal (T2); T2's audit expectations land as constrained RED and are flipped by T3. The RED mechanism is a stdlib helper, so it behaves identically under canonical `unittest` CI — a pytest `xfail` marker would have been inert there and left CI red |
+| **A RED expectation passes for the wrong reason, or XPASSes** | ``expect_red`` matches only the named exception type and normalized message, fails on any other exception, and fails on XPASS (§4); behaviour that already exists is characterization, never RED (T1 items 4–5) |
 | Advisory/authoritative divergence recurs | Shared **derivation** helper (T5) with one-snapshot genesis facts plus a state-parity matrix (T4) |
 | Audit inherits the suppression defect | T3 reports raw candidates, asserted by the expectations T2 authors and T3 flips |
 | **A read-only gate phase acquires a write path** | T3 emits a report only; no ledger, no durable artifact, no file format (§3.3); tests assert no backlog mutation and no migration-state/ledger write, while allowing the pre-existing observational, fail-open telemetry emission |
@@ -714,7 +885,7 @@ contract rather than an intermediate one.
 ## 6. Quality Criteria
 
 * Genuinely new behaviour lands as a failing expectation before implementation;
-  existing behaviour is characterized, not faked as RED, and every expected-failure
+  existing behaviour is characterized, not faked as RED, and every RED expectation
   marker is constrained so an incidental error cannot satisfy it.
 * Every task ends with a green suite.
 * `pre_claim` remains sole claim authority in code, output, templates, and docs.
@@ -773,15 +944,15 @@ against the redesigned contract.
 | F2 | A migration posture blocks every DAG root with no way out | Four-state contract: declared roots and genesis pass; the unsequenced block names two concrete remedies; T1 asserts each state independently |
 | F3 | Advisory alignment reimplements derivation logic and re-diverges | T5 MUST consume one shared **derivation** helper; a parallel implementation is a review-blocking defect. The helper does **not** include closure evidence (cycle 3) |
 | F4 | Legacy safety cases deleted in bulk under cover of "migration" | T2 requires a per-case disposition for all five cases with written rationale for any non-migratable case, and permits only two disposition kinds |
-| F5 | A task ends red because test disposition trails the behaviour change | Expected-failure flip and legacy re-expression both occur inside the task that changes behaviour; T2's audit expectations are strict-xfail until T3 |
+| F5 | A task ends red because test disposition trails the behaviour change | RED-expectation flip and legacy re-expression both occur inside the task that changes behaviour; T2's audit expectations are constrained RED until T3 |
 | F6 | Retirement silently inherits the unfixed forward-dependent defect | T2 must **prove** claim-path moot-ness by test, with **no deferral option** — residue blocks the task and the shipment; T3 forbids the audit from inheriting the suppression predicate |
 | F7 | A new config surface is added without schema versioning discipline | No config key is added at all (D2); the schema surface does not exist to mutate |
 | F8 | Installed dogfood copies drift from template sources | Sources and mirrors land in **one task and one commit** (T8) with a recorded parity check; the cycle-1 dependency-only split is reversed because it scheduled drift rather than preventing it |
 | F9 | Closure-gate weakening sneaks in as a way to unblock `163-S` | No task touches closure semantics; the defect is descoped to `FD0CCB42` with an explicit no-weakening, no-competing-artifact constraint |
-| F10 | Parity tests pass vacuously | T4 is total over the four derivation states and carries no dimension that cannot apply to them; T1 asserts each genesis disqualifier independently with distinguishable fixtures |
-| F11 | Genesis re-entered through a back door (archiving, abandonment, or a populated-but-unshipped workspace) | Three-clause genesis rule (G2/G3/G4) computed from one snapshot, with per-clause tests |
+| F10 | Parity tests pass vacuously | T4 is total over the four derivation states and carries no dimension that cannot apply to them; T1 asserts each disqualifying-record class independently with distinguishable fixtures |
+| F11 | Genesis re-entered through a back door (archiving, abandonment, a ``blocked`` record, an unrecognized status, or a populated-but-unshipped workspace) | Sole-record genesis rule computed from one snapshot — any other shipment record of any status disqualifies, and an unclassifiable record disqualifies fail-closed — with per-record-class tests |
 | F12 | `labels` validation reuses artifact-ID syntax and bricks the gate | Labels-specific validator mandated in §3.2 and T2, with a positive reader-level anti-regression **characterization** test |
-| F13 | A strict-xfail is satisfied by a setup/collection/unknown-phase error, or XPASSes because the behaviour already exists | Expected-failure reasons constrained to a specific assertion and exception type (§4); the label-parse anti-regression reclassified to characterization (T1) |
+| F13 | A RED expectation is satisfied by a setup/collection/unknown-phase error, or XPASSes because the behaviour already exists | ``expect_red`` constrains RED to a named exception type and normalized message, fails on any other exception, and fails on XPASS (§4); the label-parse anti-regression reclassified to characterization (T1) |
 | F14 | The read-only audit grows a durable write path and becomes a second source of truth | Ledger removed (§3.3); the audit emits a report only, and version-controlled migration commits/diffs are the external record (H4) |
 | F15 | A descoped surface is re-imported through "read-only reuse" or a single test cell | Closure evidence removed from T4/T5 and every acceptance criterion; `FD0CCB42` is the exclusive owner |
 
@@ -835,7 +1006,18 @@ posture: it converts an unstated assumption into a one-time, bounded, self-servi
 action with tooling (T3) and documentation (T9) to support it. The alternative —
 passing by default — is the silent fail-open this design exists to prevent. Cycle 2
 widens this slightly: a workspace that has *never shipped* but holds more than one
-shipment record is also in this posture, by design (G3).
+shipment record is also in this posture, by design (sole-record rule, §3.1).
+
+**Also accepted (PR review-fix cycle 2): bootstrap-grant at-most-once is a
+per-workspace-clone guarantee, not a global one.** The consumption record tree is
+gitignored node-local runtime state, so a fresh clone of the repository starts with
+no consumption state and could in principle re-spend a label. This is bounded by
+`expires_on_claim`, by the exact-token binding (which stops matching the moment the
+shipment leaves `queued`), and by the manifest-digest binding, all of which drift as
+the shipment progresses. A cross-machine guarantee would require committing
+consumption state — letting a merge conflict resurrect or destroy a spend — or an
+external coordinator; both were judged worse than the stated bound, so neither is
+invented here. T9 documents the bound rather than implying a stronger one.
 
 **Also accepted (cycle 3): `dag-root` is not mechanically enforced.** Any actor who
 can commit to the repository can apply the label, and the gate neither detects nor
@@ -904,9 +1086,50 @@ never from a Stage branch.
 | B1 | `main` | Same verify-then-force sequence (mirrors Ship's pre-branch site) |
 | B2 | `173-S` shipment branch (operator creates it) | Same verify-then-force sequence, immediately before the claim (TOCTOU narrowing) |
 | B3 | `173-S` shipment branch | `backlogit shipment claim 173-S` |
-| B4 | `173-S` shipment branch | `--phase post_claim` **unforced**; must exit 0. No force is authorized at `post_claim` — a non-zero verdict halts and the claim is reversed |
+| B4 | `173-S` shipment branch | `--phase post_claim` **unforced**; must exit 0. No force is authorized at `post_claim`. **On a non-zero verdict the operator halts with `173-S` left `active`** — see the B4 failure contract below |
 | B5 | `173-S` shipment branch | Commit the durable evidence record (below) |
 | B6 | `173-S` shipment branch | Operator invokes **Ship directly**, with `173-S` already `active` and the branch already created |
+
+**B4 failure contract — halt with `173-S` left `active`; there is no automatic
+reversal (PR review-fix cycle 2, thread `PRRT_kwDORzpWpM6h3fq1`).** The cycle-1
+wording said the operator "halts and reverses the claim". That promised an
+operation that **does not exist**. Verified against the installed tool at this
+HEAD: `backlogit shipment` exposes exactly `add`, `claim`, `create`, `get`,
+`list`, `return-blocked`, `ship` — there is no `unclaim`, no `release`, no
+`abort`, and no command or flag performing an `active` → `queued` transition. The
+shipment status enum is {`queued`, `blocked`, `active`, `shipped`, `abandoned`};
+`queued` is reachable only as the create-time default, never as a transition *out
+of* `active`. A bootstrap contract whose failure branch terminates in an
+unexecutable step — at the exact moment the workspace sits half-entered — is worse
+than having no failure branch at all.
+
+The executable contract: on any non-zero B4 verdict the operator **halts
+immediately**; `173-S` **remains `active`**; B5 and B6 are not performed; Ship is
+not invoked; and no forced re-run is attempted (BOOTSTRAP-A's force authority
+already expired on the successful B3 claim). The operator records the failing
+payload verbatim and then performs **explicit remediation**:
+
+* **(a) Diagnose and converge — the expected path.** A non-zero `post_claim` after
+  a successful claim means the workspace holds a condition the gate rejects (most
+  plausibly a second `active` shipment — a P-001 single-active violation that
+  predates or races this entry). Resolve *that* condition, re-run B4 **unforced**
+  until it exits 0, then resume at B5. `173-S` stays `active` throughout; this is a
+  forward fix, not a rollback.
+* **(b) Abandon — only if the entry must not proceed at all.** `active` →
+  `abandoned` *is* supported (`abandoned` is in the status enum, reachable via
+  `backlogit update 173-S --status abandoned`). The operator **must verify** it by
+  re-reading the record (`backlogit shipment get 173-S`) and confirming
+  `status: abandoned`, recording observed before/after status. **Abandonment is
+  terminal and is not a requeue**: it does not return `173-S` to `queued` and does
+  not make it re-claimable, and under this feature's own sole-record genesis rule an
+  abandoned record permanently disqualifies genesis in this workspace. Choosing (b)
+  means the scope must be re-shipped under a **new** shipment record, as its own
+  work unit with its own authorization.
+
+**No artifact in this feature may promise automatic reversal, automatic requeue, or
+any `active` → `queued` transition.** No agent performs any part of this
+remediation: BOOTSTRAP-A is an operator path end to end, and a halt inside it hands
+control to the operator, never to Ship or the Orchestrator.
 
 **Handoff precision at B6.** Ship cannot derive the entry state, so the operator
 states it: `173-S` is already claimed, so Ship performs no claim and runs neither
