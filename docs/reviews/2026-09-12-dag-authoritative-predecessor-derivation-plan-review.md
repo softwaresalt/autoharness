@@ -1,12 +1,14 @@
 ---
-title: "Plan review — DAG-authoritative predecessor derivation (cycle 4, authorized final review)"
-description: "Multi-persona adversarial plan review of docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md revision 4, gating harvest. Operator-authorized additional narrow correction cycle; no further fix loop."
+title: "Plan review — DAG-authoritative predecessor derivation (cycle 4, authorized final review; + PR review-fix cycle 1)"
+description: "Multi-persona adversarial plan review of docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md, gating harvest. Plan-review cycle 4 was the operator-authorized final narrow correction cycle. A subsequent PR review-fix cycle 1 (staging PR #448) is recorded in its own section and consumes none of the plan-review cycles."
 doc_type: review
 source: docs/reviews/2026-09-12-dag-authoritative-predecessor-derivation-plan-review.md
 date: 2026-09-13
 plan_path: docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md
-plan_revision: 4
+plan_revision: 5
 review_cycle: 4
+pr_review_fix_cycle: 1
+pr: 448
 decision: PASS
 ---
 
@@ -245,10 +247,189 @@ supported, **non-blocking** final closure strategy for `173-S`; `CASCADE` is
 unavailable by design; provenance and off-manifest status of `165.007-T` and
 `165.010-T` are preserved without mutation.
 
-Harvest is complete and `173-S` is **staging-PR ready**, contingent on Ship using
-the **three** audited `pre_claim --force` invocations (U0 Orchestrator, U1 Ship
-pre-branch, U2 Ship pre-claim) authorized by decision D6 for `173-S` only, under
-the per-invocation conditions recorded on the shipment, with any mismatch expiring
-the authority and post-claim retry unauthorized.
+Harvest is complete and `173-S` is **staging-PR ready**. *(The cycle-4 text here
+originally made this contingent on Ship using three audited `pre_claim --force`
+invocations authorized by decision D6. That contingency is **retracted** — see the
+PR Review-Fix Cycle 1 section below, which establishes that no installed agent
+contract can perform a forced invocation and replaces it with an operator-run
+bootstrap plus the product mechanism `173-S` now ships.)*
 
-**This was the authorized final review. No further correction cycle is available.**
+**Plan-review cycle 4 was the authorized final PLAN-REVIEW cycle. No further
+plan-review correction cycle is available.** PR review-fix cycles are a separate
+counter and are recorded below.
+
+## PR Review-Fix Cycle 1 (staging PR #448, 2026-09-13)
+
+```text
+scope: same-contract-surface correction of two Copilot review threads
+branch: chore/stage-173-S
+base HEAD at intake: 64fca6da
+decision: PASS
+P0: 0   P1: 0
+```
+
+**This is a PR review-fix cycle, not a plan-review cycle.** It is separate from and
+subsequent to the four completed plan-review cycles and consumes none of them. It
+modifies only Stage-owned plan/backlog/review/memory artifacts; no product source,
+test, or template file was touched, no PR API action was performed, and nothing was
+pushed or claimed.
+
+### Thread 1 — `PRRT_kwDORzpWpM6h3Tgb` (`.backlogit/queue/173-S.md`) — ACCEPTED
+
+**Finding.** The U0/U1/U2 bootstrap grant is not executable, because current
+Orchestrator/Ship contracts call `pre_claim` without `--force` and halt on exit 1;
+and the existing force telemetry/audit lacks full payload, HEAD, and D6 fields.
+
+**Verification performed (evidence, not assertion).**
+
+| Claim | Evidence |
+|---|---|
+| Orchestrator never forces; halts on exit 1 | `.github/agents/_orchestrator.agent.md` step 2a — command has no `--force`; "Exit 1 ... or exit 2 ...: halt routing to Ship ... never inferred, never fail-open" |
+| Ship never forces; halts on exit 1 (both runs) | `.github/agents/_ship.agent.md` step 3 — both invocations lack `--force`; "halt immediately with the reported token/message — never inferred, never fail-open" |
+| No force provision exists for this gate | The only agent-visible force provision is for `copilot-review` (`_ship.agent.md` L526–527); none for `pipeline-topology` |
+| `--force` is stateless | `src/autoharness/cli.py` `_gate_pipeline_topology_command` converts exit 1 → 0 **in-process** and appends an audit line; it persists no verdict, so an agent's later unforced run is unaffected |
+| Audit payload is insufficient | `_audit_pipeline_topology_force` writes only `timestamp`, `actor`, `reason`, `mode`, `phase`, `target_shipment_id`, `token`, `message` |
+| Force audit log is not durable evidence | `.autoharness/gates/` is listed in `.gitignore` |
+| Gate blocks `173-S` as described | Read-only evaluation from `main`: exit 1, sole blocking check `shipment_readiness`, token `PREDECESSOR_NOT_SHIPPED`, `details.predecessor_id: "172-S"`, `live_status: "queued"` |
+| **New:** the recorded HEAD/vantage condition was wrong | Read-only evaluation from `chore/stage-173-S`: exit 1, sole blocking check `branch_ownership`, token `BRANCH_MISMATCH`. `PREDECESSOR_NOT_SHIPPED` is never reached, so cycle-3 validity condition 3 would have forced past a block D6 never authorized |
+
+**Correction applied.** The three-invocation agent-run grant is retracted. It is
+replaced by two explicitly separated mechanisms: **BOOTSTRAP-A**, a one-time
+operator-run entry path for `173-S` that is executable today (operator runs the
+three named gates unforced-then-forced from the correct vantages, commits a
+version-controlled evidence record because the audit log is gitignored, claims
+`173-S`, verifies `post_claim` **unforced**, and invokes Ship directly against an
+already-claimed shipment — a path Ship's own step 6 explicitly contemplates with
+"`expected_status: queued` (or `active` if already claimed)"); and **BOOTSTRAP-B**,
+the product mechanism `173-S` ships for future migrations, added as two new manifest
+tasks `165.011-T` (grant surface + full-provenance audit recording invocation, full
+observed payload, HEAD, manifest identity, token/predecessor, and D6) and
+`165.012-T` (Orchestrator/Ship consumption, sources and mirrors atomic).
+
+**No retroactive authorization.** Every artifact now states explicitly that
+`165.011-T`/`165.012-T` are shipped *by* `173-S`, are not installed until it merges,
+and therefore cannot authorize the claim that precedes that merge.
+
+**Authority bounds preserved.** Shipment-specific (`173-S` only), `pre_claim` only,
+exact-token (`PREDECESSOR_NOT_SHIPPED`) and exact-predecessor (`172-S`) bound, at
+most three forced invocations, expiring on claim or on any condition mismatch, with
+no fourth invocation and no post-claim force.
+
+### Thread 2 — `PRRT_kwDORzpWpM6h3Tgi` (`.backlogit/queue/165.003-T.md`) — ACCEPTED
+
+**Finding.** `pipeline-topology` always emits ordinary telemetry when enabled, so
+the absolute no-write claim is false.
+
+**Verification.** `_gate_pipeline_topology_command` calls
+`_emit_pipeline_topology_telemetry` unconditionally on every run, for every phase,
+before returning; the emitter is fail-open by an `except Exception` handler that
+returns a warning and never alters behaviour or exit code.
+
+**Correction applied.** The audit contract is narrowed to **no backlog mutations
+and no migration-state/ledger writes**. The pre-existing telemetry emission is
+explicitly allowed and must remain observational and fail-open; the audit adds no
+new field, journal, or emission site, and telemetry is never read back as state.
+The test requirement changed from "assert that no file is created or modified" to
+asserting no backlog/migration-state mutation, plus a positive assertion that with
+telemetry enabled the event *is* emitted while output and exit code are identical
+to a telemetry-disabled run, and that telemetry failure changes neither.
+
+### Coupled-artifact sweep (completing the cycle)
+
+The first pass of this cycle corrected `173-S`, `165.003-T`, the plan, the review,
+and added `165.011-T`/`165.012-T`, but left coupled artifacts still asserting the
+retracted claims. The sweep below closed them; a contradiction between a shipment
+record and its own feature record is a P1-class defect, not a cosmetic one.
+
+| Artifact | Residual defect found | Correction |
+|---|---|---|
+| `165-F` | BOOTSTRAP section still stated the U0/U1/U2 agent-run grant as live authorization | Rewritten to the retraction plus BOOTSTRAP-A/BOOTSTRAP-B split, with the no-retroactive-authorization rule stated |
+| `165-F` | "THE AUDIT PERSISTS NOTHING … the gate owns NO write path" | Narrowed to no backlog mutation / no migration-state write; telemetry explicitly allowed, observational, fail-open |
+| `165.006-T` | Body trailer omitted the new `→ 165.011-T` edge | Trailer states it, with the CLI-rendering serialization rationale |
+| `165.008-T` | Body trailer omitted the new `→ 165.012-T` edge | Trailer states it, with the same-four-files serialization rationale |
+| `165.008-T` | "READ-ONLY REPORT which persists nothing" propagated into agent contract text | Narrowed, and the agent text is explicitly barred from writing the absolute form |
+| `165.009-T` | Frontmatter carried the `165.012-T` edge but the body did not, and the plan's new bootstrap-grant documentation requirement had no task-side deliverable | Added deliverable 8 (bootstrap grant surface) and corrected the trailer |
+| `165.009-T` | Two further absolute no-write claims ("persists nothing", "owns no write path at all") | Narrowed; force-audit-log append also named so the doc task cannot restate the absolute |
+| `165.009-T` | Deliverable 8 pushed an `S` (~1.5h) task toward the 2-hour bound | Size raised `S` → `M` (complexity unchanged at `low`); plan §4 table row updated to match |
+| Deliberation `D6` | Still presented U0/U1/U2 as the executable disposition | Supersession banner added: the operator *authorization* stands, the *executor assumption* is retracted; historical sizing analysis preserved verbatim |
+| Deliberation `D3` | "It writes nothing, persists nothing" | Same narrowing applied in place, historical body preserved |
+| Deliberation frontmatter | `revision: 4` | Raised to `5` with a PR-review-fix revision note; `165-F` and `173-S` source references updated |
+
+### Handoff precision added this cycle
+
+Two operational gaps in BOOTSTRAP-A were closed, both required by "the initial path
+must be executable" rather than merely describable:
+
+1. **B6 entry state is now explicit.** Ship cannot derive that `173-S` is already
+   claimed, which `expected_status` its step-6 `shipment-reconcile` check should
+   use, or that it must run neither `pre_claim` invocation nor the step-5
+   `post_claim` verification. The operator now states all four. The
+   `expected_status` value is **observed at B3 and recorded at B5**, not assumed —
+   the prior text asserted "every manifest task is still `queued`", which depends
+   on unverified claim semantics. A **mixed** manifest means the operator skips
+   that check per its own recorded Scope note rather than passing a value
+   `shipment-reconcile` would classify `status-mismatch`.
+2. **The installed "Bootstrap exemption" clauses are ruled out explicitly.**
+   `_orchestrator.agent.md` L245–247 and `_ship.agent.md` L232–234, L297–299 skip
+   the topology gate *while the gate is not installed*. It **is** installed here,
+   so the exemption is inapplicable by its own condition — but it is exactly the
+   clause a reader could misuse to skip the gate for a self-hosted shipment.
+   `173-S` and the plan now bar that reading: BOOTSTRAP-A **runs** the gate
+   unforced at every step and forces only a verified, condition-matched block.
+
+### Necessity and bounds review of the two added tasks
+
+`165.011-T` and `165.012-T` were re-examined against "verify they are necessary,
+sized, dependency-wired, and bounded; otherwise simplify":
+
+* **Necessary, and only jointly so.** The audit-provenance half (`165.011-T`
+  deliverables 4–5) is directly demanded by the second half of the finding. The
+  grant surface without a consumer is dead code, and the consumer without the
+  surface has nothing to consume — so this is two tasks or zero, never one. Zero
+  would leave the next self-hosted migration repeating BOOTSTRAP-A's manual path
+  with no mechanism and no improved audit record, which is the state the finding
+  objected to.
+* **Correctly scoped as product work, not as a prerequisite.** Both are shipped
+  *by* `173-S` and are explicitly barred from authorizing its own claim. Nothing in
+  the entry path depends on them; BOOTSTRAP-A uses only currently installed
+  mechanisms.
+* **Sized within the rule.** Both `M` (~2h) / `medium`; neither is `high`
+  complexity, so no split or de-risking step is forced.
+* **Width-isolated.** `165.011-T` is CLI/audit code; `165.012-T` is agent-contract
+  text. They do not share an edited surface.
+* **Bounded.** `165.011-T` carries an explicit scope fence (no derivation
+  semantics, no verdict logic, no exit-code contract change; a no-grant run is
+  byte-identical to today). Grant authority is shipment-, token-, predecessor-,
+  manifest-, and label-bound, at most once per site, `pre_claim` only — the same
+  bounds as BOOTSTRAP-A, made mechanical. Shipment grows 9 → 11 items, every task
+  ≤ `M`.
+
+### Deterministic checks run this cycle
+
+| Check | Result |
+|---|---|
+| Frontmatter validity (12 backlog records + plan + review + deliberation) | PASS — all parse, all `id` fields match filenames |
+| Cross-reference integrity (every path referenced by an edited artifact resolves) | PASS — sole miss is a pre-existing cycle-3 ellipsis (`docs/bugs/2026-09-11-…`) in display text, P3, not a link |
+| Manifest integrity (`173-S` = 11 items, unique, parent first, every item after its prerequisites) | PASS |
+| Dependency DAG acyclicity + every edge endpoint on the manifest | PASS — 0 structural errors |
+| Size + complexity present and enum-valid on all 10 tasks (two independent axes) | PASS — `165.011-T` M/medium, `165.012-T` M/medium, `165.009-T` raised S→M/low |
+| 2-hour rule (no task over `M`; no new `complexity: high`) | PASS |
+| Width isolation (CLI/audit work separated from agent-contract work) | PASS |
+| Evidence claims re-verified against source, not inherited | PASS — audit field list, unconditional fail-open telemetry emission, stateless in-process `--force`, gitignored `.autoharness/gates/`, absent `--force` in both agent contracts, and `branch_ownership`-before-`shipment_readiness` short-circuit (`topology.py` L795–806) all confirmed by direct read |
+| Residual absolute no-write claims anywhere in the feature's artifacts | NONE — swept to zero |
+| Residual claims that an agent consumes a force grant to enter `173-S` | NONE — swept to zero |
+| Unresolved template placeholders introduced | NONE |
+| P-001 role boundary (no source, test, template, or config file modified) | PASS |
+
+### Finding counts
+
+| Severity | Count |
+|---|---|
+| P0 | **0** |
+| P1 | **0** |
+| P2 | 2 (carried unchanged from cycle 4: `9AA34143` rollup member set; `dag-root` not mechanically enforced) |
+| P3 | 4 (carried unchanged from cycle 4) |
+
+No new P0 or P1 finding remains open. Both threads are resolved on the same
+contract surface they were raised against, and every coupled artifact now states
+the corrected contract consistently.

@@ -5,8 +5,8 @@ doc_type: plan
 source: docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md
 date: 2026-09-12
 status: decided
-revision: 4
-revision_note: "Review-fix cycle 3 (authorized final narrow correction) — N7a reclassified as a passing characterization with constrained expected-failure reasons, the audit re-posed as a pure read-only report with the durable-ledger subsystem removed (version-controlled migration commits/diffs are the external record), closure-evidence parity removed entirely from T4/T5 and every acceptance criterion in favour of FD0CCB42's exclusive ownership, bootstrap re-scoped to exactly three audited forced invocations (Orchestrator U0 plus Ship U1/U2), `dag-root` authority narrowed to a version-controlled review-gated declaration that is not a security boundary, `ShipmentState` given a validated immutable labels tuple, the intake bug report made self-contained, and the 173-S closure posture recorded as verified per-item SAFE_CLOSE."
+revision: 5
+revision_note: "PR review-fix cycle 1 (staging PR #448, Copilot review threads; separate from and subsequent to the four completed plan-review cycles). Thread PRRT_kwDORzpWpM6h3Tgb: the cycle-3 U0/U1/U2 agent-run force grant is RETRACTED as not executable — no installed Orchestrator/Ship contract passes `--force` and both halt on exit 1, and `--force` is stateless so an operator force does not unblock an agent's own unforced run; replaced by BOOTSTRAP-A (a one-time operator-run entry path proven against installed agent text, with the branch-vantage error corrected: `pre_claim` short-circuits on `branch_ownership`, so a Stage-branch run yields `BRANCH_MISMATCH`, never `PREDECESSOR_NOT_SHIPPED`) plus BOOTSTRAP-B (new tasks T10/`165.011-T` and T11/`165.012-T` adding a version-controlled, exact-bound pre-claim bootstrap grant surface, an agent-consumable CLI flag, and a full-provenance force audit recording invocation, full observed payload, HEAD, manifest identity, token/predecessor, and the authorizing decision). Thread PRRT_kwDORzpWpM6h3Tgi: the audit's absolute no-write claim is narrowed to no backlog mutations and no migration-state/ledger writes, with the unconditional, observational, fail-open `pipeline-topology` telemetry emission explicitly allowed and its test assertions rewritten accordingly. Manifest 9 -> 11 items; `165.009-T` moved last behind its new T11 edge. Prior revision 4 notes retained in git history."
 decision_source: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md
 source_bug_report: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 stash_ids:
@@ -225,20 +225,38 @@ cleanly.
 
 ### 3.3 Sequencing audit (read-only migration path)
 
-`--phase audit_sequencing` is non-authorizing, never blocks, and never mutates.
+`--phase audit_sequencing` is non-authorizing, never blocks, and never mutates
+backlog or migration state.
 For every edge-less shipment it reports the derived state, the raw
 numerically-adjacent candidate the retired heuristic would have inferred, which
 genesis disqualifier applied where the state is `unsequenced`, and the remediation
 options available. It must **not** apply the reverse-dependency suppression
 predicate.
 
-**It is a pure report and nothing more (cycle 3).** The audit computes from the
-workspace it reads and emits output; it **writes nothing**, persists nothing, and
-owns no storage. The cycle-2 "durable, append-only migration ledger" is
-**removed** — along with every persistence claim, every durable-artifact
+**It is a pure report and nothing more (cycle 3; narrowed in PR review-fix cycle
+1).** The audit computes from the workspace it reads and emits output. It performs
+**no backlog mutation** — no item, feature, shipment, manifest, status, label, or
+dependency write — and **no migration-state or ledger write**: no durable migration
+record, no persisted audit artifact, no state file, no new file format, no
+persistence subsystem inside the gate. The cycle-2 "durable, append-only migration
+ledger" is **removed** — along with every persistence claim, every durable-artifact
 requirement, and the field recording the remediation an operator *would later*
 choose. That field described a decision that has not happened at audit time, so
 the audit could only ever have recorded a guess or an empty slot.
+
+**"Writes nothing" was false and is retracted (PR review-fix cycle 1, thread
+`PRRT_kwDORzpWpM6h3Tgi`).** `_gate_pipeline_topology_command` calls
+`_emit_pipeline_topology_telemetry` **unconditionally on every run**, appending a
+structured tool-telemetry event to the workspace telemetry journal whenever
+telemetry is enabled. `audit_sequencing` will emit that event exactly as
+`pre_claim`, `post_claim`, `lifecycle`, and `ambient` do, so an absolute no-write
+claim is unachievable and was never true of any phase. **The ordinary, pre-existing
+telemetry emission is allowed and unchanged.** It is observational only and must
+remain **fail-open** — the existing `except Exception` handler returns a warning
+and never alters behaviour or exit code, and this work must not narrow, harden, or
+make that fail-open contract load-bearing. The audit adds no new telemetry field,
+no new journal, and no new emission site. Telemetry is **not** a migration record
+and is never read back as authorization or state.
 
 Building a ledger would have given a **read-only gate phase its own write path and
 its own durable file format** — a persistence subsystem inside the component whose
@@ -306,7 +324,18 @@ review, and the backlog records disagree about which task was which.
 | T5 | Engine: `dag-readiness` parity via shared derivation helper | 165.005-T | impl | M | high | T4 |
 | T6 | CLI: provenance, remediation, and audit output + tests | 165.006-T | impl | S | low | T2, **T3** |
 | T8 | Agent template sources **and** installed dogfood mirrors (atomic) | 165.008-T | docs | M | medium | T5, T6 |
-| T9 | Gate documentation + audit/migration/rollback guide | 165.009-T | docs | S | low | T5, T6 |
+| T10 | Pre-claim bootstrap grant surface + full-provenance force audit | 165.011-T | impl | M | medium | T6 |
+| T11 | Orchestrator + Ship bootstrap-grant consumption (sources **and** mirrors, atomic) | 165.012-T | docs | M | medium | T10, T8 |
+| T9 | Gate documentation + audit/migration/rollback guide | 165.009-T | docs | M | low | T5, T6, **T11** |
+
+**PR review-fix cycle 1 additions (staging PR #448, thread
+`PRRT_kwDORzpWpM6h3Tgb`).** T10 and T11 are new. They exist because the bootstrap
+authorization recorded in cycles 2–3 named forced gate invocations that **no
+installed agent contract can perform** (§H6). T10 builds the grant surface; T11
+makes the agents consume it. The labels intentionally break suffix correspondence
+(`T10` = `165.011-T`, `T11` = `165.012-T`) because `165.010-T` is archived and its
+ID may not be reused. `T9` is listed last because it now depends on `T11` and must
+document the final contract; the shipment manifest order was reordered to match.
 
 **Cycle-2 structural corrections (retained).**
 
@@ -441,13 +470,26 @@ Implement §3.3. Register `audit_sequencing` in `VALID_PHASES` only, **not** in
 `lifecycle` phase's active-target invariant. Report per edge-less shipment: derived
 state, raw numeric-adjacency candidate, the applicable genesis disqualifier, and
 the remediation options available. **Emit that report and nothing else** — the
-phase performs no write of any kind, owns no durable artifact, and defines no file
-format. The cycle-2 migration-ledger requirement is **removed** (§3.3); the
-external migration record is the version-controlled commit history of the backlog
-records the operator edits, and the rollback evidence is those commits and their
-diffs (§H4). Tests must assert the audit reports a candidate in the exact
-configuration where the suppression predicate would have hidden it, that the audit
-never blocks or authorizes, and that it performs **no mutation and no persistence**.
+phase performs no backlog mutation and no migration-state/ledger write, owns no
+durable artifact, and defines no file format. The cycle-2 migration-ledger
+requirement is **removed** (§3.3); the external migration record is the
+version-controlled commit history of the backlog records the operator edits, and
+the rollback evidence is those commits and their diffs (§H4).
+
+**Test scope, narrowed in PR review-fix cycle 1.** Tests must assert the audit
+reports a candidate in the exact configuration where the suppression predicate
+would have hidden it; that the audit never blocks or authorizes; and that it makes
+**no backlog mutation and no migration-state/ledger write** — no file under the
+backlog root created, modified, or deleted; no status, label, dependency, or
+manifest change; no persisted audit artifact anywhere. **Do not assert "no file is
+created or modified" in absolute terms**: the unconditional `pipeline-topology`
+telemetry emission appends to the telemetry journal on every run when telemetry is
+enabled, so that assertion is false by construction and would push an implementer
+to suppress telemetry for this one phase and break parity with every other phase.
+Instead assert that, with telemetry enabled, the event **is** emitted and the audit
+output and exit code are identical to a telemetry-disabled run, and that a
+telemetry failure during an audit run changes neither output nor exit code
+(fail-open preserved).
 
 **T3 also flips the strict-xfail audit expectations inherited from T2** (the
 re-expressed historical directional cases). If any cannot be flipped green, the
@@ -548,6 +590,91 @@ the final working tree before commit; drift found is fixed, not noted. Introduce
 unresolved template placeholder tokens, and keep markdownlint heading hierarchy
 clean (P-008).
 
+### T10 — Pre-claim bootstrap grant surface + full-provenance force audit (165.011-T)
+
+**Added in PR review-fix cycle 1.** Build the mechanism the cycle-3 bootstrap
+grant assumed already existed (§H6).
+
+* **Grant record** at `.autoharness/bootstrap-grants/{shipment_id}.yaml` —
+  deliberately outside the gitignored `.autoharness/gates|staging|metrics` trees,
+  because a grant that cannot be committed cannot be reviewed. Fields:
+  `schema_version`, exact `shipment_id`, `authorized_invocations` from the closed
+  set {`orchestrator_pre_route`, `ship_pre_branch`, `ship_pre_claim`} (each
+  consumable at most once), `expected_token`, `expected_predecessor_id`,
+  `manifest_digest`, `authorizing_decision`, `operator`, `expires_on_claim`.
+* **Fail-closed exact matching.** A grant authorizes only when the label is listed
+  and unconsumed, the shipment id matches exactly, exit code is 1, the payload
+  carries **exactly one** blocking check whose token equals `expected_token`, the
+  derived predecessor equals `expected_predecessor_id`, and the current ordered
+  manifest digest matches. Any mismatch — including an *additional* blocking check
+  — means the grant does not apply and the ordinary exit-1 halt stands. A
+  malformed grant is treated as **no grant** plus a warning; it never widens
+  authority.
+* **CLI.** Add `--bootstrap-grant-invocation {label}`. `--force` semantics are
+  unchanged and remain the operator-only flag; the new flag is the agent-consumable
+  path and cannot force a verdict with no matching grant. Combining the two is an
+  argument error (exit 2).
+* **Audit record.** `_audit_pipeline_topology_force` today records only
+  `timestamp`, `actor`, `reason`, `mode`, `phase`, `target_shipment_id`, `token`,
+  `message`. Add — additively, renaming and removing nothing — `invocation`,
+  `observed_payload` (full pre-force result with every check's `details`),
+  `head_sha`, `manifest` (id, ordered items, digest), `blocking_token`,
+  `inferred_predecessor_id`, and `authorization` (source, decision, grant path,
+  operator). This closes the second half of the review finding.
+* **Telemetry parity, bounded.** Add `invocation`, `authorization_source`, and
+  `inferred_predecessor_id` only. Do **not** serialize `observed_payload`,
+  `head_sha`, or the manifest — the existing code comment excludes `result.message`
+  from telemetry precisely because free text can carry raw frontmatter and
+  filesystem paths, and bulk payload export falls under the same rule. Telemetry
+  stays fail-open.
+* **Tests.** No-grant behaviour byte-identical to today on both paths; exact-match
+  grant forces and populates every audit field; each mismatch dimension
+  independently fails to force (wrong shipment, unlisted label, consumed label,
+  wrong token, wrong predecessor, stale digest, second blocking check); malformed
+  grant is no grant; flag combination exits 2; telemetry failure never changes the
+  exit code.
+
+Depends on **T6**, which owns CLI audit/output rendering — serializing prevents two
+tasks editing the same rendering surface.
+
+### T11 — Orchestrator + Ship bootstrap-grant consumption (165.012-T)
+
+**Added in PR review-fix cycle 1.** Without this task nothing consumes T10's grant,
+because no installed agent contract passes a force or grant flag and both agents
+halt unconditionally on exit 1. Template **sources and installed mirrors land in
+one task and one commit**: `templates/agents/_orchestrator.agent.md.tmpl`,
+`templates/agents/_ship.agent.md.tmpl`, `.github/agents/_orchestrator.agent.md`,
+`.github/agents/_ship.agent.md`.
+
+Three consumption sites, each bound to exactly one label: Orchestrator step 2a →
+`orchestrator_pre_route`; Ship step 3 pre-branch run → `ship_pre_branch`; Ship
+step 3 pre-claim run → `ship_pre_claim`. At each site: no grant file → invoke
+exactly as today and the existing exit-1 halt is unchanged; grant file present →
+invoke with this site's label only and let the CLI decide; exit 0 `forced: false`
+→ ordinary pass; exit 0 `forced: true` → log `BOOTSTRAP_GRANT_CONSUMED`, surface
+the audit path, proceed; exit 1/2 → halt exactly as today. Grant absence and grant
+mismatch are indistinguishable in effect.
+
+Stated prohibitions: **no agent may author, edit, or extend a grant** (an agent
+writing its own grant has self-authorized a force — P-005/P-001), stated alongside
+T8's "Ship must not self-declare `dag-root`" rule; the Orchestrator's
+cursor-advance check evaluates a *different* shipment and is never a grant site;
+the post-claim `CLAIM_NOT_OBSERVED` reclaim path's `pre_claim` re-run is never a
+grant site; `post_claim`/`lifecycle`/`ambient` are never grant sites.
+
+**Branch-vantage note (empirically verified this cycle).** `pre_claim` evaluates
+`branch_ownership` before `shipment_readiness` and short-circuits, so a run from a
+non-shipment, non-default branch returns a sole blocking check of
+`BRANCH_MISMATCH`, never `PREDECESSOR_NOT_SHIPPED`. Because grants are bound to an
+exact token, a `PREDECESSOR_NOT_SHIPPED` grant cannot match from a wrong-branch
+vantage; the agent text records this and states that a `BRANCH_MISMATCH` block is
+never grant-eligible.
+
+Source/mirror parity is checked against the final working tree before commit and
+drift is fixed, not noted. No unresolved placeholder tokens; markdownlint heading
+hierarchy clean (P-008). Depends on **T10** (the surface consumed) and **T8**
+(which edits the same four files first).
+
 ### T9 — Documentation and migration guide (165.009-T)
 
 Document the contract, the four provenance values, the `UNSEQUENCED_SHIPMENT`
@@ -558,8 +685,13 @@ procedure end to end. Explain why numeric adjacency was retired, citing the thre
 recorded defect cycles. Record the **data-ordered rollback posture** (§H4): what is
 code-reversible, what is not, that the operator's own **migration commits and their
 diffs** are the record used to reverse migrated data, the mandatory data-first
-ordering, and the narrowed claim where migration was not committed. Cross-reference
-the decision, this plan, and the committed intake bug report.
+ordering, and the narrowed claim where migration was not committed. Document the
+**bootstrap grant surface** shipped by T10/T11 — what a grant is, where it lives,
+that it is operator-authored and review-gated, that no agent may write one, the
+exact-match bounds, and that a grant is `pre_claim`-only and at-most-once per named
+site. Cross-reference the decision, this plan, and the committed intake bug report.
+Now also depends on **T11**, so the documentation describes the final agent
+contract rather than an intermediate one.
 
 ## 5. Risks
 
@@ -574,7 +706,7 @@ the decision, this plan, and the committed intake bug report.
 | **A strict-xfail passes for the wrong reason, or XPASSes** | Expected-failure reasons are constrained to a specific assertion and exception type (§4); behaviour that already exists is characterization, never RED (T1 items 4–5) |
 | Advisory/authoritative divergence recurs | Shared **derivation** helper (T5) with one-snapshot genesis facts plus a state-parity matrix (T4) |
 | Audit inherits the suppression defect | T3 reports raw candidates, asserted by the expectations T2 authors and T3 flips |
-| **A read-only gate phase acquires a write path** | T3 emits a report only; no ledger, no durable artifact, no file format (§3.3); tests assert no mutation and no persistence |
+| **A read-only gate phase acquires a write path** | T3 emits a report only; no ledger, no durable artifact, no file format (§3.3); tests assert no backlog mutation and no migration-state/ledger write, while allowing the pre-existing observational, fail-open telemetry emission |
 | Template/installed-copy drift | T8 updates sources and mirrors in one commit and records a parity check; no intermediate window exists |
 | Rollback assumed code-only, stranding migrated edges/labels | Documented data-first rollback ordering against the operator's version-controlled migration commits and diffs (T9, H4) |
 | Scope creep into closure evidence | Descoped to `FD0CCB42`, which owns it **exclusively**; no task reads, evaluates, or asserts parity over closure evidence, and no acceptance criterion references it |
@@ -586,7 +718,12 @@ the decision, this plan, and the committed intake bug report.
   marker is constrained so an incidental error cannot satisfy it.
 * Every task ends with a green suite.
 * `pre_claim` remains sole claim authority in code, output, templates, and docs.
-* The `audit_sequencing` phase writes nothing and persists nothing.
+* The `audit_sequencing` phase performs no backlog mutation and no
+  migration-state/ledger write; the ordinary `pipeline-topology` telemetry emission
+  is unchanged, observational, and fail-open.
+* A bootstrap grant is operator-authored, version-controlled, exact-bound, and
+  `pre_claim`-only; no agent may author one, and a missing grant is
+  indistinguishable in effect from a non-matching one.
 * No closure-evidence discovery, evaluation, or parity assertion appears in any
   task or acceptance criterion; `FD0CCB42` owns that surface exclusively.
 * No unresolved template placeholder tokens in touched templates; markdownlint
@@ -710,44 +847,149 @@ permission model, which is outside this shipment (§3.2).
 
 ### H6 — Bootstrap disposition carried into execution (decision D6)
 
+**Rewritten in PR review-fix cycle 1 (staging PR #448, thread
+`PRRT_kwDORzpWpM6h3Tgb`). The cycle-3 formulation is retracted.**
+
 `173-S` is blocked by the very defect it fixes: under current code its absent edges
-cause `172-S` to be synthesised as a predecessor. Operator authorization dated
-2026-09-12, **re-scoped in cycle 2 and corrected in cycle 3**, permits **exactly
-three** audited `pre_claim --force` invocations for `173-S` only:
+cause `172-S` to be synthesised as a predecessor. Cycles 2–3 recorded an
+authorization for "exactly three audited forced `pre_claim` invocations" performed
+**by the Orchestrator and Ship** (U0/U1/U2). **No installed agent contract can
+perform them**, so that grant was never executable:
 
-| # | Invoked by | Invocation point |
+* `_orchestrator.agent.md` step 2a and `_ship.agent.md` step 3 both invoke
+  `autoharness gate pipeline-topology ... --phase pre_claim --json` with **no
+  `--force`**, and both state that exit 1/2 **halts** — "never inferred, never
+  fail-open".
+* No agent template or installed mirror mentions `--force` for this gate anywhere.
+  The only agent-visible force provision is for a *different* gate
+  (`copilot-review`, `_ship.agent.md` L526–527).
+* The shipment record itself forbids an agent self-authorizing a force.
+* `--force` is **stateless**: an operator-run forced invocation exits 0 for that
+  process and appends an audit line; it does not change the verdict any agent's own
+  subsequent **unforced** run computes. Operator force followed by ordinary routing
+  unblocks nothing.
+
+The second half of the finding is also accepted: `_audit_pipeline_topology_force`
+records only `timestamp`, `actor`, `reason`, `mode`, `phase`,
+`target_shipment_id`, `token`, `message` — no invocation label, no full observed
+payload, no HEAD SHA, no manifest identity, no explicit predecessor field, no
+authorizing-decision reference. T10 closes that gap.
+
+**No retroactive authorization.** T10/T11 are shipped *by* `173-S`; their surface is
+not installed until `173-S` merges, and the claim necessarily precedes that merge.
+A future code change cannot authorize an earlier claim, and no artifact in this
+feature may say otherwise. The two mechanisms below are separate and must not be
+conflated.
+
+#### BOOTSTRAP-A — one-time operator-run entry for `173-S` (executable today)
+
+Performed by the **human operator**, not by any agent, using `--force` exactly as
+the CLI documents it ("Operator-only bypass of a failing gate. Audited."). Decision
+D6 is its authorization.
+
+**Vantage correction (empirically verified this cycle; cycle 3 got this wrong).**
+`pre_claim` evaluates `branch_ownership` before `shipment_readiness` and
+short-circuits. Observed at this HEAD: from `chore/stage-173-S` the sole blocking
+check is `branch_ownership`/`BRANCH_MISMATCH` and `PREDECESSOR_NOT_SHIPPED` is
+never reached; from `main` and from the canonical `173-S` shipment branch the sole
+blocking check is `shipment_readiness`/`PREDECESSOR_NOT_SHIPPED` with
+`details.predecessor_id: "172-S"`. Cycle-3 validity condition 3 named the **Stage
+branch** as the required HEAD, which would have forced past a `BRANCH_MISMATCH` D6
+never authorized. Corrected: B0/B1 run from `main`, B2 from the shipment branch,
+never from a Stage branch.
+
+| Step | Vantage | Action |
 |---|---|---|
-| U0 | **Orchestrator** | `pre_claim` route-to-Ship eligibility check, **before Ship is invoked** (`_orchestrator.agent.md` L239–241) |
-| U1 | Ship | `pre_claim` before branch/worktree creation (`_ship.agent.md` L227–229) |
-| U2 | Ship | `pre_claim` immediately before the claim (`_ship.agent.md` L254–255) |
+| B0 | `main` | Run `pre_claim` **unforced**, verify conditions 1–6, then re-run with `--force` (mirrors the Orchestrator route-to-Ship site) |
+| B1 | `main` | Same verify-then-force sequence (mirrors Ship's pre-branch site) |
+| B2 | `173-S` shipment branch (operator creates it) | Same verify-then-force sequence, immediately before the claim (TOCTOU narrowing) |
+| B3 | `173-S` shipment branch | `backlogit shipment claim 173-S` |
+| B4 | `173-S` shipment branch | `--phase post_claim` **unforced**; must exit 0. No force is authorized at `post_claim` — a non-zero verdict halts and the claim is reversed |
+| B5 | `173-S` shipment branch | Commit the durable evidence record (below) |
+| B6 | `173-S` shipment branch | Operator invokes **Ship directly**, with `173-S` already `active` and the branch already created |
 
-Cycle 1's "single-use" grant was **unsatisfiable**, and cycle 2's two-use grant was
-**still short by one**: it counted only Ship's two gate runs and missed the
-Orchestrator's **pre-route** eligibility gate, which runs first and against the same
-shipment. Under a two-use grant the very first gate in the pipeline would have been
-unauthorized — the Orchestrator would have blocked and never routed `173-S` to Ship
-at all, or would have silently stretched an authorization written for Ship across a
-run Ship did not make.
+**Handoff precision at B6.** Ship cannot derive the entry state, so the operator
+states it: `173-S` is already claimed, so Ship performs no claim and runs neither
+step-3 `pre_claim` invocation nor the step-5 `post_claim` verification (done at B4,
+unforced); the `expected_status` for Ship's step-6 `shipment-reconcile` `mode: pre`
+check is the **uniform manifest status the operator observed at B3** (`queued` or
+`active` — read, not assumed), and a **mixed** manifest means the operator skips
+that check per its own Scope note rather than passing a value it would classify
+`status-mismatch`; the B5 evidence commit is the authorization of record; and no
+agent-side force, grant, or gate bypass is authorized anywhere in the run.
 
-The Orchestrator's **cursor-advance** eligibility check (L261–263) evaluates
-`{next_shipment_id}` — a *different* shipment — and is therefore **not** covered by
-this grant and never consumes one of the three invocations.
+**This is not an exemption path.** `_orchestrator.agent.md` (L245–247) and
+`_ship.agent.md` (L232–234, L297–299) carry "Bootstrap exemption" notes that skip
+the topology gate **while the gate is not yet installed**. It *is* installed here,
+so those notes are inapplicable by their own stated condition and must never be
+cited to skip a `pre_claim` evaluation for `173-S`. BOOTSTRAP-A does not skip the
+gate — it runs the gate unforced at every step and forces only a verified,
+condition-matched block.
 
-Each invocation is valid only if, at that moment: the sole blocking token is
-`PREDECESSOR_NOT_SHIPPED`; the inferred predecessor is exactly `172-S`; `HEAD` and
-the `173-S` manifest match the reviewed state; and no other topology, check,
-closure, or secrets violation is present. Each is recorded as an audit event naming
-the invocation, payload, token, predecessor, `HEAD` SHA, and decision D6.
+**Durable evidence (B5).** `.autoharness/gates/` is **gitignored** in this
+repository, so the force audit log is local-only and is not by itself reviewable
+authorization evidence. The operator transcribes the three unforced pre-force JSON
+payloads verbatim, the HEAD SHA at each invocation, the 11 ordered manifest item
+IDs, the blocking token, the inferred predecessor `172-S`, the B4 result, and
+decision D6 into a version-controlled record committed on the shipment branch at
+`docs/bootstrap/2026-09-13-173-S-bootstrap-evidence.md`. **That commit is the
+durable authorization record.**
 
-Authority **expires immediately** on the successful claim or on any mismatch; on
-mismatch the invoking agent halts to the operator. A **fourth** invocation — for
-example the post-claim `CLAIM_NOT_OBSERVED` retry path's `pre_claim` re-run — is
-**not authorized** and must be evaluated without `--force`. Post-claim retry is
-never covered: the grant exists to reach the claim, and it is exhausted by it.
+**Why B6 honours the currently installed contracts** (each proven against installed
+text, not asserted):
 
-The authorization confers no broader force authority, does not change `--force`
-semantics, and becomes unnecessary once T2 lands — `173-S` already carries
-`labels: [dag-root]`, so it will then pass natively as `declared_root`.
+* The Orchestrator's step-2a gate is a precondition of *the Orchestrator routing*
+  to Ship. Direct operator invocation performs no routing, so step 2a is **not
+  reached** — not skipped, waived, or exempted.
+* Ship's step 3 pre_claim runs and step 4 claim are explicitly the **claim path**
+  ("Before claiming (the first workspace mutation)"; "only after both pre_claim
+  gate runs above pass"). Ship performs no claim, so they do not fire.
+* Ship's step 5 states verbatim that post-claim verification "applies only when a
+  shipment was claimed in step 4". The operator performed the equivalent at B4,
+  unforced.
+* Ship's step 6 intake reconciliation **explicitly contemplates this entry**:
+  `expected_status: queued` "(or `active` if already claimed)".
+* Ship's step 1a `SHIPMENT_STATE_INCONSISTENT` halt fires only when the record is
+  `queued` while a manifest task is `active`/`done`. After B3 the record is
+  `active`, so the condition cannot be met whatever the claim did to task statuses.
+* Ship's step 1 P-001 gate holds: `173-S` is the sole active release unit, confirmed
+  by B4.
+* **No agent forces, bypasses, or reinterprets any gate, and no agent
+  self-authorizes.** Every forced invocation is a human act on the operator-only
+  flag.
+
+**Per-invocation validity conditions for B0/B1/B2** (checked on the *unforced* run;
+any failure voids the authorization and the operator halts): (1) exactly one
+blocking check, token `PREDECESSOR_NOT_SHIPPED` — any second check or other token,
+including `BRANCH_MISMATCH`, `PRECLAIM_ACTIVE_SHIPMENT_PRESENT`,
+`SHIPMENT_STATE_INCONSISTENT`, `TARGET_NOT_CLAIMABLE`, `PREDECESSOR_STATE_AMBIGUOUS`,
+`UNSEQUENCED_SHIPMENT`, any closure-evidence block, or any secrets finding, voids
+it; (2) `details.predecessor_id` is exactly `172-S`; (3) correct vantage per the
+table; (4) HEAD contains the merged PR #448 correction set and the live manifest
+matches the 11 stored items exactly; (5) zero active shipments and `173-S` still
+`queued`; (6) the forced run is recorded per B5.
+
+**Bounds.** Exactly three forced invocations (B0/B1/B2), `173-S` only, `pre_claim`
+only, bound to token `PREDECESSOR_NOT_SHIPPED` and predecessor `172-S` only.
+Authority expires on the earlier of the successful B3 claim or any condition
+mismatch. A fourth forced invocation is unauthorized, including the post-claim
+`CLAIM_NOT_OBSERVED` reclaim path's `pre_claim` re-run, which runs unforced and
+halts to the operator if it blocks. `--force` semantics are unchanged; no precedent
+and no broader authority.
+
+#### BOOTSTRAP-B — product behaviour shipped by `173-S` (future migrations only)
+
+T10 (`165.011-T`) and T11 (`165.012-T`), specified in §4. A version-controlled,
+operator-authored, review-gated grant; fail-closed exact matching on shipment id,
+token, predecessor, manifest digest, and an at-most-once invocation label; an
+agent-consumable CLI flag; and a full-provenance audit record. Agents consult the
+grant before invoking the gate and otherwise behave exactly as today — a missing
+grant and a non-matching grant are indistinguishable, and both halt. This applies
+to **future** self-hosted migrations, never to `173-S`'s own claim.
+
+**Self-liquidation (unchanged).** `173-S` carries `labels: [dag-root]`, so once T2
+lands it derives `predecessor_source: declared_root` and passes `pre_claim`
+natively — no force, no grant — on every subsequent evaluation.
 
 **Hardening complete. Plan is ready for `plan-review`.**
 
@@ -769,6 +1011,14 @@ fix loop remains.**
 
 Plan hardening was required and is present, re-performed against the corrected
 contract. The plan is harvest-ready and `173-S` is staging-PR ready.
+
+**PR review-fix cycle 1 (2026-09-13).** Two Copilot review threads on staging PR
+#448 were resolved against this plan; both were accepted as valid same-contract-surface
+findings and applied here in revision 5. This is a **PR review-fix cycle**, distinct
+from the four completed plan-review cycles, and consumes none of them. The
+verification record is the "PR Review-Fix Cycle 1" section of
+`docs/reviews/2026-09-12-dag-authoritative-predecessor-derivation-plan-review.md`:
+**0 P0, 0 P1**.
 
 ### Closure posture for `173-S` (verified, cycle 3)
 

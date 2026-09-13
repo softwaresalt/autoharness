@@ -6,8 +6,8 @@ source: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-delib
 date: 2026-09-12
 status: decided
 deciders: operator, Stage
-revision: 4
-revision_note: "Review-fix cycle 3 (authorized final narrow correction) — D3 re-posed as a pure read-only audit with the migration-ledger subsystem removed in favour of version-controlled migration commits/diffs, D5 narrowed to derivation-state parity only with closure evidence owned exclusively by FD0CCB42, D6 corrected to exactly three audited forced pre_claim invocations (Orchestrator U0 plus Ship U1/U2), the dag-root declaration narrowed to a review-gated non-security boundary, and the intake bug report recorded as a self-contained committed copy."
+revision: 5
+revision_note: "PR review-fix cycle 1 (staging PR #448, Copilot review threads, 2026-09-13) — supersession notes added in place; the prior analysis bodies are preserved unchanged as historical record. Thread PRRT_kwDORzpWpM6h3Tgb: D6's operator authorization (force pre_claim for 173-S only, at most three times, token PREDECESSOR_NOT_SHIPPED, predecessor 172-S) STANDS, but its assumption that the ORCHESTRATOR AND SHIP execute those forced invocations (U0/U1/U2) is RETRACTED as not executable — no installed agent contract passes --force, both halt on exit 1/2, and --force is stateless; the executable replacement is BOOTSTRAP-A (one-time operator-run entry) plus BOOTSTRAP-B (future-facing product grant mechanism, tasks 165.011-T/165.012-T), authoritative in the 173-S record and plan §H6, together with the branch-vantage and 9-to-11-item manifest corrections. Thread PRRT_kwDORzpWpM6h3Tgi: D3's absolute 'writes nothing, persists nothing' claim is narrowed to no backlog mutation and no migration-state/ledger write, with the unconditional, observational, fail-open pipeline-topology telemetry emission explicitly allowed. Prior revision 4 notes retained in git history."
 source_bug_report: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 stash_ids:
   - AF2890B7
@@ -384,8 +384,15 @@ default:
 Operators run the audit once, act on it with ordinary backlogit commands, and the
 workspace is migrated. No workspace is left depending on an inference.
 
-**The audit is a pure report (review-fix cycle 3).** It writes nothing, persists
-nothing, and owns no durable artifact or file format. The cycle-2 requirement for a
+**The audit is a pure report (review-fix cycle 3; narrowed in PR review-fix cycle
+1, thread `PRRT_kwDORzpWpM6h3Tgi`).** It performs **no backlog mutation** and **no
+migration-state or ledger write**, and owns no durable artifact or file format.
+*(The cycle-3 wording here read "it writes nothing, persists nothing". That
+absolute is **false and retracted**: `_gate_pipeline_topology_command` emits an
+ordinary tool-telemetry event unconditionally on every run of every phase when
+telemetry is enabled. That emission is allowed, unchanged, observational, and
+fail-open, and is never read back as authorization or state.)* The cycle-2
+requirement for a
 "durable, append-only migration ledger" is **withdrawn**, together with the field
 that would have recorded the remediation an operator *later* chose — a decision
 that has not occurred at audit time. Building a ledger would have given a phase
@@ -474,6 +481,30 @@ exclusively to `FD0CCB42` (D4).
 every configuration and in every state.
 
 ### D6 — Bootstrap disposition for `173-S` (durable, shipment-specific)
+
+> **SUPERSEDED IN PART — PR review-fix cycle 1 (staging PR #448, thread
+> `PRRT_kwDORzpWpM6h3Tgb`, 2026-09-13).** The **operator authorization** recorded
+> in this section stands: forcing `pre_claim` for `173-S` only, at most three
+> times, bound to token `PREDECESSOR_NOT_SHIPPED` and predecessor `172-S`, is
+> still the authority under which `173-S` is entered. What is **retracted** is the
+> assumption about **who executes those forced invocations**. The U0/U1/U2
+> mapping below assigns them to the **Orchestrator and Ship**, and no installed
+> agent contract can perform them: neither agent passes `--force` to
+> `autoharness gate pipeline-topology`, both halt on exit 1/2, and `--force` is
+> stateless, so an operator force does not change the verdict an agent's own later
+> unforced run computes. Two further errors are corrected downstream: validity
+> condition 3 below names the **Stage branch** as the required HEAD, but
+> `pre_claim` short-circuits on `branch_ownership` before `shipment_readiness`, so
+> a Stage-branch run blocks on `BRANCH_MISMATCH` and never reaches
+> `PREDECESSOR_NOT_SHIPPED`; and condition 3's "9-item manifest" is superseded by
+> the 11-item manifest this cycle records. The executable replacement is
+> **BOOTSTRAP-A** (a one-time operator-run entry path, B0–B6) and **BOOTSTRAP-B**
+> (the product grant mechanism `173-S` ships as `165.011-T`/`165.012-T`, which
+> applies to **future** migrations only and cannot retroactively authorize
+> `173-S`'s own claim). The authoritative, current text is the `173-S` shipment
+> record's BOOTSTRAP DISPOSITION section and plan §H6. **The analysis below is
+> preserved unchanged as the historical record of why the grant was sized at three
+> invocations; do not execute it as written.**
 
 `173-S` is a genuine DAG root: it declares no `blocks` edge, and the urgent
 contract work it carries is independent of the queued `163-S → 164-S → 165-S →
