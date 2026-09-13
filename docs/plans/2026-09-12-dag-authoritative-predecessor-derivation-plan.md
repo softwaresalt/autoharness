@@ -5,8 +5,8 @@ doc_type: plan
 source: docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md
 date: 2026-09-12
 status: decided
-revision: 3
-revision_note: "Review-fix cycle 2 — genesis narrowed to a non-fail-open sole-extancy rule, labels given their own validator (the artifact-ID validator would hard-fail every labelled record), template/mirror work merged into one atomic task, T6 given its missing dependency on T3, legacy-test knowledge re-homed to audit expectations instead of `_prior_shipment_id` pins, the F6 deferral escape hatch removed, closure parity narrowed to the explicit state, rollback re-posed as data-ordered with a migration ledger, and the original intake bug report committed verbatim."
+revision: 4
+revision_note: "Review-fix cycle 3 (authorized final narrow correction) — N7a reclassified as a passing characterization with constrained expected-failure reasons, the audit re-posed as a pure read-only report with the durable-ledger subsystem removed (version-controlled migration commits/diffs are the external record), closure-evidence parity removed entirely from T4/T5 and every acceptance criterion in favour of FD0CCB42's exclusive ownership, bootstrap re-scoped to exactly three audited forced invocations (Orchestrator U0 plus Ship U1/U2), `dag-root` authority narrowed to a version-controlled review-gated declaration that is not a security boundary, `ShipmentState` given a validated immutable labels tuple, the intake bug report made self-contained, and the 173-S closure posture recorded as verified per-item SAFE_CLOSE."
 decision_source: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md
 source_bug_report: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 stash_ids:
@@ -36,18 +36,24 @@ production code, committed tests, committed `docs/compound/` learnings, committe
 `docs/closure/` artifacts, committed backlog records — plus explicit operator
 direction dated 2026-09-12.
 
-**Source integrity corrected (review-fix cycle 2).** The original intake document,
-`docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`,
+**Source integrity corrected (review-fix cycles 2–3).** The original intake
+document, `docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`,
 recommended a presentation-only remedy and classified numeric-fallback removal as
 a future option; operator direction supersedes that recommendation. Cycle 1
 handled the fact that the file was untracked by deleting every reference to it —
 but the archived stash record `AF2890B7` and the cycle-1 session memory still
 named the path, so the durable record referenced a file no reader could resolve.
-Under operator authorization the document is now **committed verbatim and
-unmodified**, so those references resolve. It is a **historical record, not a
-design input**: nothing in this plan depends on it, and where it conflicts with
-the decision, the decision governs. Its substance is also preserved as prose in
-the decision's *Historical context* section.
+Cycle 2 committed the document so those references resolve. **Cycle 3 makes the
+committed copy self-contained**: its frontmatter now declares its own local path
+and `doc_type: bug`, and its transfer note now states its external provenance
+explicitly (`softwaresalt/backlogit#438`, with the source commit and source path
+named as *source-workspace* references that do **not** resolve here) instead of
+describing itself as living under a `docs/scratch/` path it no longer occupies.
+The **analysis body is unchanged** and its historical meaning is preserved; only
+the self-locating metadata and the provenance framing were corrected. It remains
+a **historical record, not a design input**: nothing in this plan depends on it,
+and where it conflicts with the decision, the decision governs. Its substance is
+also preserved as prose in the decision's *Historical context* section.
 
 ### Carried-forward critical correction
 
@@ -69,10 +75,9 @@ task in this plan may claim to fix `163-S`.
 | Predecessor union | `topology.py::_shipment_readiness_check` (L1574–1578) | Derive from explicit edges only; add four-state resolution and provenance |
 | Block tokens | `topology.py` L1585–1628 | Add `predecessor_source` to all payloads; add `UNSEQUENCED_SHIPMENT` |
 | Phase registry | `topology.py` L31–32 (`VALID_PHASES`, `SCOPED_PHASES`) | Add `audit_sequencing` to `VALID_PHASES` only — it is workspace-wide, not target-scoped, and carries no phase status requirement |
-| Shipment reader | `topology.py::ShipmentState` (L91–98) and its frontmatter parser (L560–600) | Add a root-declaration field parsed from the record's `labels` via a **new labels-specific** fail-closed validator (not `_tuple_of_str`) |
-| Advisory readiness | `topology.py::_dag_all_predecessors_finished` (L1873), `compute_dag_readiness` (L1968) | Consume the shared derivation/closure helper; advisory labelling |
+| Shipment reader | `topology.py::ShipmentState` (L91–98) and its frontmatter parser (L560–600) | Add a validated, immutable `labels` tuple parsed from the record's `labels` via a **new labels-specific** fail-closed validator (not `_tuple_of_str`); root classification is **derived** from that tuple |
+| Advisory readiness | `topology.py::_dag_all_predecessors_finished` (L1873), `compute_dag_readiness` (L1968) | Consume the shared **derivation** helper; advisory labelling |
 | Next-eligible | `topology.py::compute_next_eligible` (L2075) | Exclude policy-blocked shipments; non-authorizing disambiguation |
-| Closure evidence | `topology.py::FilesystemTopologyReaders.closure_complete` (L654) | **Read-only reuse** through the shared helper — behaviour unchanged (see fence below) |
 | Engine tests | `tests/test_gates_topology.py::ImplicitNumericPredecessorTests` (L1648–~1750, 5 cases) | Re-expressed atomically with the production change |
 | CLI tests | `tests/test_gate_pipeline_topology_cli.py` | Provenance and remediation text in output |
 | Agent templates | `templates/agents/_orchestrator.agent.md.tmpl`, `templates/agents/_ship.agent.md.tmpl` | Sequencing contract text (same commit as the mirrors below) |
@@ -90,8 +95,15 @@ task in this plan may claim to fix `163-S`.
 * **`.github/instructions/workflows.instructions.md`** — verified by grep to
   contain no `pre_claim`, `PREDECESSOR_`, or `dag-readiness` token. The first-round
   plan listed it in error; that mapping is **removed**, and no task may edit it.
-* **`closure_complete()` semantics** — the closure gate is not weakened, relaxed,
-  or bypassed anywhere in this plan; the naming defect is `FD0CCB42`'s to resolve.
+* **`closure_complete()` and closure-evidence semantics** — **entirely out of scope
+  (cycle 3, strengthened)**. No task in this plan reads, evaluates, reuses,
+  discovers, or asserts parity over closure evidence, and no acceptance criterion
+  in `173-S` references it. The shared helper of §3.4 covers **derivation only**.
+  `FD0CCB42` is the **exclusive** owner of closure-evidence producer/consumer
+  naming and of any test that composes the two halves. Cycle 2 still routed a
+  read-only `closure_complete` reuse through T5 and a closure-variant dimension
+  through T4; both are removed, because a descoped surface that is still evaluated
+  by this shipment's tests is not descoped.
 * **backlogit** — dependency and label data already support the contract; no
   backlogit change is required (validated: `backlogit update 173-S --labels
   "dag-root,topology-gate"` persists `labels:` on a shipment record).
@@ -102,7 +114,7 @@ task in this plan may claim to fix `163-S`.
 |---|---|
 | `2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md` and `2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md` | Three defect cycles all rooted in **directional numeric reasoning**. The replacement contract therefore contains **no** numeric comparison on the claim path in any state, and the audit path is forbidden from inheriting the suppression predicate (T3). |
 | `2026-05-07-backlogit-shipment-status-constraints.md` | Sequencing intent must be recorded explicitly in backlog data (`queued` status plus real `blocks` edges), not inferred. The audit (T3) migrates workspaces onto explicit edges rather than leaving intent implicit. |
-| `2026-09-06-composed-workflow-protocol-state-machine-validation.md` | A producer/consumer pair must be tested as a **composed** state machine — each half can pass its own unit tests while the composition is broken. Applied to advisory/authoritative parity (T4/T5) as a full state matrix, and cited into `FD0CCB42` for the closure naming defect, which is exactly this failure shape. |
+| `2026-09-06-composed-workflow-protocol-state-machine-validation.md` | A producer/consumer pair must be tested as a **composed** state machine — each half can pass its own unit tests while the composition is broken. Applied to advisory/authoritative parity (T4/T5) as a full matrix over the **four derivation states**, and cited into `FD0CCB42`, which **exclusively** owns the closure producer/consumer naming defect and its composed test. |
 | `2026-08-30-157-s-149-f-schema-mutation-in-place-third-occurrence.md` | Never mutate a versioned schema mirror in place. Honoured by needing **no** schema version at all (D2). |
 | `2026-08-18-lifecycle-gate-must-precede-safe-close-mutation.md` | Gate phases carry status preconditions and ordering meaning. The new `audit_sequencing` phase is registered as workspace-wide with **no** status requirement, so it cannot disturb `lifecycle`'s active-target invariant. |
 | `2026-08-09-next-eligible-detail-scoping-and-vacuous-tiebreak-tests.md` | Ordering/tie-break tests pass vacuously when the fixture cannot distinguish outcomes. T1/T4 fixtures must make each asserted state reachable and distinguishable; parity is a total matrix, not a sample. |
@@ -120,10 +132,14 @@ predecessor_ids := ShipmentState.blocking_predecessor_ids   # explicit `blocks` 
 
 | State | Condition | Outcome | `predecessor_source` |
 |---|---|---|---|
-| Explicit | edges present | existing ambiguity / shipped-terminal / closure checks per predecessor | `explicit` |
+| Explicit | edges present | existing per-predecessor ambiguity / shipped-terminal / closure checks run **unchanged** (pre-existing behaviour, not modified, not re-tested here) | `explicit` |
 | Declared root | no edges, record declares `dag-root` | pass | `declared_root` |
 | Genesis | no edges, no declaration, **and G2 ∧ G3 ∧ G4** (below) | pass | `genesis` |
 | Unsequenced | no edges, no declaration, **any** genesis condition fails | **block** `UNSEQUENCED_SHIPMENT` | `unsequenced` |
+
+The `explicit` row's closure check is named only to describe what already happens
+on that path. This plan does **not** touch it, and no task asserts over it
+(`FD0CCB42` owns that surface exclusively).
 
 #### Genesis conditions (narrowed — review-fix cycle 2)
 
@@ -166,20 +182,46 @@ dead end; where genesis was disqualified, it also names which of G2/G3/G4 applie
 
 The declaration is the label `dag-root` on the shipment's own backlogit record,
 read from existing frontmatter. Declaring a root is an operator/Stage act; Ship
-must not self-declare a root to unblock its own claim. Every declared-root pass is
-auditable because provenance names it.
+must not self-declare a root to unblock its own claim.
 
-**Labels get their own validator (review-fix cycle 2).** `labels` must **not** be
-parsed with `_tuple_of_str`. Verified against source: that function (L331)
-validates every member against `_ARTIFACT_ID_PATTERN` (`^\d+(?:\.\d+)*-[A-Z]+$`)
-and raises `BacklogUnavailableError` on any non-match — and `dag-root` does not
-match. Reusing it would turn **every labelled shipment record**, `173-S`
-included, into a hard read failure across the whole gate. A labels-specific
-validator carries over the fail-closed *discipline* (absent field is fine;
-present-but-wrong-shaped container raises; non-string, blank, or traversal-shaped
-member raises; never coerce or drop) while applying label syntax. Reader-level
-tests assert both polarities, including a positive anti-regression that
-`[dag-root, topology-gate]` parses cleanly.
+**What that authority actually is (narrowed, cycle 3).** The declaration is a
+**version-controlled, review-gated statement inside the repository trust
+boundary**. Its force comes from three properties and no others: the label lives
+in a committed backlog record, so applying it produces a **diff**; that diff
+passes through the same review path as any other change to the repository; and
+`predecessor_source: declared_root` names the state on every payload, so each
+such pass is **attributable after the fact**.
+
+It is therefore **auditable but not mechanically permission-enforced**, and it is
+**not a security boundary**. Any actor that can already commit to the repository
+can apply the label, and nothing in this plan detects or prevents that at gate
+time — a permission model would have to live in backlogit, which this plan does
+not modify. The prohibition on Ship self-declaring a root is an **agent-contract
+rule carried in the agent instructions (T8)**, enforced by review and audit, not
+by the gate. No claim is made here that the declaration has no escape hatch, and
+none should be inferred: within the repository trust boundary it is a convention
+backed by review and provenance, and that is the whole of its strength.
+
+**Labels get their own validator, and `ShipmentState` keeps the tuple
+(cycle 2, refined in cycle 3).** `labels` must **not** be parsed with
+`_tuple_of_str`. Verified against source: that function (L331) validates every
+member against `_ARTIFACT_ID_PATTERN` (`^\d+(?:\.\d+)*-[A-Z]+$`) and raises
+`BacklogUnavailableError` on any non-match — and `dag-root` does not match.
+Reusing it would turn **every labelled shipment record**, `173-S` included, into a
+hard read failure across the whole gate. A labels-specific validator carries over
+the fail-closed *discipline* (absent field is fine; present-but-wrong-shaped
+container raises; non-string, blank, or traversal-shaped member raises; never
+coerce or drop) while applying label syntax.
+
+`ShipmentState` **retains the validated, immutable `labels` tuple** as its stored
+field — it does not collapse the parse result into a single boolean. Root
+classification is a **derived** property computed from that tuple (an exact,
+case-sensitive membership test for `dag-root`). Keeping the tuple preserves the
+evidence behind the classification, so audit output can show *which* labels were
+read rather than only the verdict, and a future label-carried contract does not
+require re-plumbing the reader. Reader-level tests assert both polarities,
+including a positive anti-regression that `[dag-root, topology-gate]` parses
+cleanly.
 
 ### 3.3 Sequencing audit (read-only migration path)
 
@@ -187,20 +229,38 @@ tests assert both polarities, including a positive anti-regression that
 For every edge-less shipment it reports the derived state, the raw
 numerically-adjacent candidate the retired heuristic would have inferred, which
 genesis disqualifier applied where the state is `unsequenced`, and the remediation
-choice. It must **not** apply the reverse-dependency suppression predicate.
+options available. It must **not** apply the reverse-dependency suppression
+predicate.
 
-It also emits a durable, append-only **migration ledger** recording each
-shipment's pre-migration edge set and label set. The ledger exists because
-migration mutates backlog *data*, which a code revert cannot undo; it is what
-makes an ordered rollback possible (§H4).
+**It is a pure report and nothing more (cycle 3).** The audit computes from the
+workspace it reads and emits output; it **writes nothing**, persists nothing, and
+owns no storage. The cycle-2 "durable, append-only migration ledger" is
+**removed** — along with every persistence claim, every durable-artifact
+requirement, and the field recording the remediation an operator *would later*
+choose. That field described a decision that has not happened at audit time, so
+the audit could only ever have recorded a guess or an empty slot.
+
+Building a ledger would have given a **read-only gate phase its own write path and
+its own durable file format** — a persistence subsystem inside the component whose
+defining property is that it does not mutate, and a second source of truth about
+backlog state that can itself drift from the backlog. The migration record already
+exists and needs no invention: operators migrate by editing backlog records with
+ordinary backlogit commands, and those edits are **version-controlled commits**.
+The commit history and its diffs are the external migration record and the
+rollback evidence — durable, reviewable, attributable, and already trusted for
+every other change in the repository (§H4).
 
 ### 3.4 Advisory alignment (`dag-readiness`)
 
 `dag-readiness` remains advisory and non-authorizing. It must model **all four**
-states plus closure evidence through the **same shared helper** `pre_claim` uses;
+derivation states through the **same shared derivation helper** `pre_claim` uses;
 must never place a `unsequenced`-blocked shipment in `ready_set`/`next_eligible`;
 must never report a `declared_root` blocked; must label output non-authorizing; and
 must disambiguate `next_eligible` so it cannot read as authorization.
+
+The shared helper covers **derivation only** (cycle 3). Closure evidence is
+**not** part of it, not discovered by it, not evaluated by it, and not asserted
+for parity anywhere in this plan — `FD0CCB42` owns that surface exclusively.
 
 `pipeline-topology --phase pre_claim` remains the **sole claim authority**.
 
@@ -222,27 +282,42 @@ the refactor cannot silently change it). Only genuinely new behaviour is written
 as a failing expectation. Demanding a RED observation for existing behaviour would
 be impossible to satisfy honestly, so it is not required anywhere below.
 
+**Expected-failure reasons are constrained (cycle 3).** Every strict
+expected-failure marker must be scoped to the *specific* expected defect — the
+assertion it is allowed to fail on, and the exception types it is allowed to raise
+— so that an unrelated cause cannot satisfy RED. A fixture/setup error, an import
+or collection error, an unknown or unregistered `--phase` value, a typo in a
+fixture, or any other incidental failure must **not** count as the expected
+failure. Where the harness supports it, pin the marker with an explicit
+`raises=`/reason and assert the expected message or payload shape, so the test
+fails loudly on the wrong failure instead of passing quietly as "still red".
+
+**Task labels track task IDs (cycle 3).** The task numbering below is `T{n}` for
+`165.00{n}-T`; there is no `T7`, because `165.007-T` is archived and descoped.
+Cycle 2 left `165.008-T` labelled "T7" after the merge, which made the plan, the
+review, and the backlog records disagree about which task was which.
+
 | # | Task | ID | Kind | Size | Complexity | Depends on |
 |---|---|---|---|---|---|---|
 | T1 | Derivation test harness: characterization + expected-failure matrix | 165.001-T | test | M | medium | — |
 | T2 | Engine: four-state derivation, provenance, legacy-test re-expression | 165.002-T | impl | M | high | T1 |
-| T3 | Sequencing audit phase + migration ledger + tests | 165.003-T | impl | M | medium | T2 |
+| T3 | Sequencing audit phase (pure read-only report) + tests | 165.003-T | impl | M | medium | T2 |
 | T4 | Advisory parity test matrix (characterization + expected-failure) | 165.004-T | test | S | medium | T2 |
-| T5 | Engine: `dag-readiness` parity via shared helper | 165.005-T | impl | M | high | T4 |
+| T5 | Engine: `dag-readiness` parity via shared derivation helper | 165.005-T | impl | M | high | T4 |
 | T6 | CLI: provenance, remediation, and audit output + tests | 165.006-T | impl | S | low | T2, **T3** |
-| T7 | Agent template sources **and** installed dogfood mirrors (atomic) | 165.008-T | docs | M | medium | T5, T6 |
+| T8 | Agent template sources **and** installed dogfood mirrors (atomic) | 165.008-T | docs | M | medium | T5, T6 |
 | T9 | Gate documentation + audit/migration/rollback guide | 165.009-T | docs | S | low | T5, T6 |
 
-**Cycle-2 structural corrections.**
+**Cycle-2 structural corrections (retained).**
 
-* **T8 is gone.** The cycle-1 split of template sources (T7) from installed
-  dogfood mirrors (T8/`165.010-T`) is **reversed**; `165.010-T` is archived and
-  its work is now part of T7. A dependency edge only *schedules* drift — between
-  the two tasks the repository would hold template sources stating the four-state
-  contract while the installed `.github/agents/` mirrors, which the dogfooded
-  agents in this repository actually read, still stated retired numeric
-  sequencing. That window is a live wrong-contract window at any duration. T7
-  absorbed the size (S → M); no work was descoped.
+* **The source/mirror split is gone.** The cycle-1 split of template sources from
+  installed dogfood mirrors (then `165.010-T`) is **reversed**; `165.010-T` is
+  archived and its work is part of **T8 (`165.008-T`)**. A dependency edge only
+  *schedules* drift — between the two tasks the repository would hold template
+  sources stating the four-state contract while the installed `.github/agents/`
+  mirrors, which the dogfooded agents in this repository actually read, still
+  stated retired numeric sequencing. That window is a live wrong-contract window
+  at any duration. T8 absorbed the size (S → M); no work was descoped.
 * **T6 now depends on T3.** T6 renders `--phase audit_sequencing` output, which T3
   produces; the cycle-1 edge set omitted that, allowing T6 to start against a
   phase that does not exist.
@@ -252,11 +327,25 @@ be impossible to satisfy honestly, so it is not required anywhere below.
 **Characterization (passes on current `main`, must keep passing):**
 
 1. Explicit linear chain blocks correctly on an unshipped explicit predecessor.
-2. Closure evidence is demanded for an actual explicit predecessor.
+2. Closure evidence is demanded for an actual explicit predecessor. *(Pins
+   pre-existing behaviour so the refactor cannot disturb it. This is the only
+   closure-touching test in the plan, and it is a lock, not a new requirement.)*
 3. Converging DAG — two explicit predecessors on one successor; every explicit
    predecessor is evaluated, none skipped.
-4. Malformed/unresolvable dependency IDs fail closed and are never silently
-   dropped.
+4. **Malformed/unresolvable dependency IDs fail closed** and are never silently
+   dropped. This is **existing** behaviour: `_tuple_of_str` already validates
+   dependency members against `_ARTIFACT_ID_PATTERN` and raises, so it is a
+   characterization test and must **not** be written as an expected failure.
+5. **Label parsing does not currently raise (cycle 3 reclassification).** A
+   shipment record carrying `labels: [dag-root, topology-gate]` is read
+   **successfully today** and raises nothing. Verified against source:
+   `ShipmentState` (L91–98) has no `labels` field and `topology.py` contains no
+   reference to `labels` at all, so the field is simply not consulted. This is the
+   **positive anti-regression** against ever validating labels with the artifact-ID
+   validator, and it belongs here as a **passing characterization test** (former
+   N7a). Marking it strict expected-failure would have been wrong twice over: it
+   asserts behaviour that already holds, and under `xfail(strict=True)` it would
+   **XPASS and fail the suite** the moment it ran.
 
 **New expectations (strict expected-failure; flipped by T2):**
 
@@ -276,12 +365,24 @@ be impossible to satisfy honestly, so it is not required anywhere below.
    non-genesis workspace, proving the narrow rule does not deadlock real roots.
 6. Unsequenced shipment blocks with `UNSEQUENCED_SHIPMENT`, and the message names
    both remedies.
-7. **Reader-level label parsing** (cycle 2): `[dag-root, topology-gate]` parses
-   cleanly and raises nothing (the positive anti-regression against artifact-ID
-   validation); absent `labels` is no declaration and no error; a bare-string
-   `labels` raises; non-string, blank, and traversal-shaped members raise;
-   unrelated labels yield no declaration; the `dag-root` match is exact and
-   case-sensitive.
+7. **Label preservation and root classification** — genuinely absent today, so
+   legitimately RED: the reader stores a validated immutable `labels` tuple on
+   `ShipmentState`, and root classification derives from it (exact,
+   case-sensitive `dag-root` membership; unrelated labels yield no declaration).
+8. **Malformed-label rejection** — genuinely absent today, so legitimately RED:
+   labels are currently ignored entirely, so **nothing raises**. A bare-string or
+   scalar `labels` must raise; a non-string member, a blank/whitespace-only
+   member, and a traversal-shaped member (`/`, `\`, or `..`) must each raise.
+
+**Malformed dependency vs. malformed label — do not conflate (cycle 3).**
+Malformed *dependency* IDs already fail closed → characterization (item 4 above).
+Malformed *labels* are currently not validated at all → expected failure (item 8
+above). Writing the first as RED would be dishonest; writing the second as
+characterization would assert behaviour that does not exist.
+
+Every expected-failure marker above must be constrained per the reason rule in
+§4: scoped to its specific assertion and exception type, so a fixture error or an
+unregistered-phase error cannot satisfy RED.
 
 Fixtures must make each state distinguishable — a fixture in which two states
 would produce the same observation cannot assert either (vacuous-test learning).
@@ -290,13 +391,15 @@ carry the rule vacuously.
 
 ### T2 — Engine change (165.002-T)
 
-Implement §3.1: derive from `blocking_predecessor_ids` only; parse the root
-declaration into `ShipmentState` **through a labels-specific fail-closed validator,
-never `_tuple_of_str`** (§3.2); implement the four-state resolution with the
-narrowed genesis rule (G2/G3/G4); attach `predecessor_source` to every payload; add
-`UNSEQUENCED_SHIPMENT` with remedy-naming text; remove `_prior_shipment_id` from
-the claim path (do not delete the function — T3 re-homes it as audit input, so
-deleting it would create a dangling reference).
+Implement §3.1: derive from `blocking_predecessor_ids` only; parse the record's
+`labels` into a **validated, immutable `labels` tuple on `ShipmentState`** through
+a labels-specific fail-closed validator, **never `_tuple_of_str`**, and derive
+root classification from that tuple rather than storing a bare boolean (§3.2);
+implement the four-state resolution with the narrowed genesis rule (G2/G3/G4);
+attach `predecessor_source` to every payload; add `UNSEQUENCED_SHIPMENT` with
+remedy-naming text; remove `_prior_shipment_id` from the claim path (do not delete
+the function — T3 re-homes it as audit input, so deleting it would create a
+dangling reference).
 
 **Atomic legacy-test re-expression (same task, same commit).** The five
 `ImplicitNumericPredecessorTests` cases pin claim-path numeric behaviour that this
@@ -337,11 +440,14 @@ Implement §3.3. Register `audit_sequencing` in `VALID_PHASES` only, **not** in
 `SCOPED_PHASES`, and give it no phase status requirement, so it cannot disturb the
 `lifecycle` phase's active-target invariant. Report per edge-less shipment: derived
 state, raw numeric-adjacency candidate, the applicable genesis disqualifier, and
-remediation choice. Emit the **migration ledger** (pre-migration edge/label state
-per shipment) that makes ordered rollback possible. Tests must assert the audit
-reports a candidate in the exact configuration where the suppression predicate
-would have hidden it, that the audit never blocks or authorizes, and that the
-ledger is well-formed and faithful.
+the remediation options available. **Emit that report and nothing else** — the
+phase performs no write of any kind, owns no durable artifact, and defines no file
+format. The cycle-2 migration-ledger requirement is **removed** (§3.3); the
+external migration record is the version-controlled commit history of the backlog
+records the operator edits, and the rollback evidence is those commits and their
+diffs (§H4). Tests must assert the audit reports a candidate in the exact
+configuration where the suppression predicate would have hidden it, that the audit
+never blocks or authorizes, and that it performs **no mutation and no persistence**.
 
 **T3 also flips the strict-xfail audit expectations inherited from T2** (the
 re-expressed historical directional cases). If any cannot be flipped green, the
@@ -350,46 +456,74 @@ audit has inherited the suppression predicate and T3 is not done.
 ### T4 — Advisory parity matrix (165.004-T)
 
 Characterization for existing agreement; expected-failure for the new parity
-requirements. The matrix is **total over the four derivation states**, but the
-closure-evidence dimension is applied **only to the `explicit` state** (cycle 2
-correction): closure evidence is evaluated per explicit predecessor, and the other
-three states have no predecessor to evaluate it against, so crossing them with
-closure variants would build cells in which the closure dimension cannot change
-the outcome — vacuous by construction, the very failure the vacuous-tiebreak
-learning warns about. `declared_root`, `genesis`, and `unsequenced` are therefore
-each tested **once** for derivation/advisory parity.
+requirements. The matrix is **total over the four derivation states and covers
+nothing else** (cycle 3 correction).
 
-Specifically: a `unsequenced`-blocked shipment must never be `next_eligible` or in
-`ready_set`; a `declared_root` must never be advisory-blocked; a `genesis` case
-built on a **genesis-valid** fixture (sole extant record) is reported consistently,
-and one narrowness case asserts that a genesis-disqualified workspace reads
-`unsequenced` in *both* gates; an `explicit` shipment whose predecessor is
-shipped-terminal but lacks recognized closure evidence must not read as ready while
-`pre_claim` blocks it; advisory output is labelled non-authorizing; and
-`dag-readiness` never authorizes under any configuration.
+**Closure evidence is out of this matrix entirely.** Cycle 2 narrowed the closure
+dimension to the `explicit` state; cycle 3 **removes it**. T4 does not discover,
+read, evaluate, or assert parity over closure evidence in any state, and no
+acceptance criterion here mentions it. Closure-evidence producer/consumer
+behaviour — including any test that composes the two halves — belongs exclusively
+to `FD0CCB42`. Keeping even one closure cell in this shipment would re-import a
+surface that decision D4 descoped and would create a second, competing owner for
+naming semantics `FD0CCB42` must be free to redefine.
+
+Parity is therefore asserted over predecessor **state** only:
+
+* `explicit` — a shipment with edges resolves to the same predecessor state in
+  both gates. Tested with the predecessor **unshipped** and with the predecessor
+  **shipped-terminal**; the assertion is on the derived state and on
+  `ready_set`/`next_eligible` membership, never on closure evidence.
+* `declared_root` — must never be advisory-blocked while `pre_claim` passes it;
+  parity fails in **both** directions, not just the permissive one.
+* `genesis` — built on a **genesis-valid** fixture (sole extant record) and
+  reported consistently with `pre_claim`'s pass.
+* `unsequenced` — must never be `next_eligible` or in `ready_set`.
+* One **genesis-narrowness** case: a genesis-disqualified workspace reads
+  `unsequenced` in *both* gates.
+
+Advisory output is labelled non-authorizing, and `dag-readiness` never authorizes
+under any configuration.
+
+Each edge-less state is asserted **once**; only `explicit` carries more than one
+case, because only it has a predecessor whose shipped-status can vary. Expected
+failures follow the constrained-reason rule in §4.
 
 ### T5 — Advisory engine alignment (165.005-T)
 
-Turn T4 green. The closure-evidence and derivation logic **must** be a single
-shared helper consumed by both gates, reusing `closure_complete` read-only — a
-parallel reimplementation is a review-blocking defect, because independent logic is
-the architectural root cause of the original divergence. The genesis facts
-G2/G3/G4 are computed **once** inside that helper from one snapshot and handed to
-both gates; the advisory side must consume the **same narrow** genesis rule, never
-a broader "nothing shipped yet" notion. State in the task record whether the helper
-lives in `topology.py` or a new module. Exclude policy-blocked shipments from
-`next_eligible`. `pre_claim` remains sole claim authority.
+Turn T4 green. The **derivation** logic **must** be a single shared helper consumed
+by both gates — a parallel reimplementation is a review-blocking defect, because
+independent logic is the architectural root cause of the original divergence.
+
+**The helper is derivation-only (cycle 3).** It does not wrap, call, reuse, or
+re-expose `closure_complete`, and closure evidence is not part of the parity
+contract. Cycle 2's "reusing `closure_complete` read-only" instruction is
+**withdrawn**: read-only reuse still made this shipment a consumer of the exact
+producer/consumer surface `FD0CCB42` exists to redefine, which would force
+`FD0CCB42` to coordinate with an already-shipped consumer it never agreed to.
+`pre_claim`'s own pre-existing closure check on the `explicit` path is untouched
+and stays where it is.
+
+The genesis facts G2/G3/G4 are computed **once** inside that helper from one
+snapshot and handed to both gates; the advisory side must consume the **same
+narrow** genesis rule, never a broader "nothing shipped yet" notion. State in the
+task record whether the helper lives in `topology.py` or a new module. Exclude
+policy-blocked shipments from `next_eligible`. `pre_claim` remains sole claim
+authority.
 
 ### T6 — CLI output (165.006-T)
 
 Surface `predecessor_source` and the selected predecessor IDs in JSON and human
 output on blocked and passed paths; render the `UNSEQUENCED_SHIPMENT` remedy text
-and the applicable genesis disqualifier; render audit-phase output and its ledger
-reference readably. Changes are **additive** — no existing field is renamed or
-removed. Assert in `tests/test_gate_pipeline_topology_cli.py`. **Depends on T3 as
-well as T2**, because deliverable 4 renders a surface T3 creates.
+and the applicable genesis disqualifier; render **audit-phase output** readably.
+The audit rendering is **pure report rendering** — there is no ledger and no
+persisted artifact to reference (§3.3), so the CLI displays only what the audit
+computes. Changes are **additive** — no existing field is renamed or removed.
+Assert in `tests/test_gate_pipeline_topology_cli.py`. **Retains dependencies on
+both T2 and T3**: T2 supplies `predecessor_source` for the provenance
+deliverables, and T3 supplies the audit payload that deliverable renders.
 
-### T7 — Agent contract text, sources and mirrors atomically (165.008-T)
+### T8 — Agent contract text, sources and mirrors atomically (165.008-T)
 
 A **mandatory member of `173-S`** that may not be deferred, split, or partially
 delivered. Template sources and installed dogfood mirrors are updated in **one
@@ -405,8 +539,9 @@ Content: predecessors derive from explicit `blocks` edges; the four states and
 their provenance values; **genesis is narrow** — an agent must not expect a second
 or later-numbered edge-less shipment to pass as `genesis`; `pre_claim` is the sole
 claim authority and `dag-readiness` is advisory/non-authorizing; **Ship must not
-self-declare `dag-root`**; the audit phase and its ledger are the migration path,
-and a code-only rollback does not undo migrated data.
+self-declare `dag-root`**, stated as an agent-contract rule enforced by review and
+audit rather than by the gate (§3.2); and the audit phase is the migration path,
+with a code-only rollback not undoing migrated data.
 
 A source-versus-mirror **parity check is recorded in the task**, performed against
 the final working tree before commit; drift found is fixed, not noted. Introduce no
@@ -417,13 +552,14 @@ clean (P-008).
 
 Document the contract, the four provenance values, the `UNSEQUENCED_SHIPMENT`
 signal and its two remedies, the **narrow genesis rule** and why absence of
-shipped history alone is insufficient, the root-declaration surface and who may use
-it, and the `audit_sequencing` migration procedure end to end. Explain why numeric
-adjacency was retired, citing the three recorded defect cycles. Record the
-**data-ordered rollback posture** (§H4): what is code-reversible, what is not, the
-migration ledger's role, the mandatory data-first ordering, and the narrowed claim
-where no ledger exists. Cross-reference the decision, this plan, and the committed
-intake bug report.
+shipped history alone is insufficient, the root-declaration surface — including
+what its authority is and is not (§3.2) — and the `audit_sequencing` migration
+procedure end to end. Explain why numeric adjacency was retired, citing the three
+recorded defect cycles. Record the **data-ordered rollback posture** (§H4): what is
+code-reversible, what is not, that the operator's own **migration commits and their
+diffs** are the record used to reverse migrated data, the mandatory data-first
+ordering, and the narrowed claim where migration was not committed. Cross-reference
+the decision, this plan, and the committed intake bug report.
 
 ## 5. Risks
 
@@ -431,22 +567,28 @@ intake bug report.
 |---|---|
 | Silent fail-open for prior numeric-reliant workspaces | Unsequenced state blocks in any genesis-disqualified workspace (§3.1); audit phase migrates intent (T3) |
 | Genesis granted too broadly, becoming a back-door fail-open | Genesis narrowed to sole-extancy (G3) plus archived-inclusive shipped history (G2) and abandoned history (G4); each disqualifier asserted independently (T1) |
-| `labels` parsed with the artifact-ID validator, hard-failing every labelled record | Labels-specific fail-closed validator required (§3.2); positive reader-level anti-regression test (T1) |
+| `labels` parsed with the artifact-ID validator, hard-failing every labelled record | Labels-specific fail-closed validator required (§3.2); positive reader-level anti-regression as a **characterization** test (T1) |
 | Blocking posture deadlocks legitimate roots | Declared-root state plus genesis bootstrap; block message names both remedies and the disqualifier |
-| Ship self-declares a root to unblock itself | Declaration authority is operator/Stage; provenance makes it auditable; T7 states the prohibition in both sources and mirrors |
+| Ship self-declares a root to unblock itself | Declaration authority is operator/Stage; the label is a committed, diffable, review-gated record and provenance makes each pass attributable; T8 states the prohibition in both sources and mirrors. **Not mechanically enforced** — see §3.2 and H5 |
 | A task leaves the suite red | Expected-failure harness flipped by its implementer; legacy-test re-expression atomic with removal (T2); T2's audit expectations land strict-xfail and are flipped by T3 |
-| Advisory/authoritative divergence recurs | Shared helper (T5) with one-snapshot genesis facts plus a parity matrix (T4) |
+| **A strict-xfail passes for the wrong reason, or XPASSes** | Expected-failure reasons are constrained to a specific assertion and exception type (§4); behaviour that already exists is characterization, never RED (T1 items 4–5) |
+| Advisory/authoritative divergence recurs | Shared **derivation** helper (T5) with one-snapshot genesis facts plus a state-parity matrix (T4) |
 | Audit inherits the suppression defect | T3 reports raw candidates, asserted by the expectations T2 authors and T3 flips |
-| Template/installed-copy drift | T7 updates sources and mirrors in one commit and records a parity check; no intermediate window exists |
-| Rollback assumed code-only, stranding migrated edges/labels | Migration ledger (T3) plus documented data-first rollback ordering (T9, H4) |
-| Scope creep into closure evidence | Descoped to `FD0CCB42`; no task in this plan touches closure semantics |
+| **A read-only gate phase acquires a write path** | T3 emits a report only; no ledger, no durable artifact, no file format (§3.3); tests assert no mutation and no persistence |
+| Template/installed-copy drift | T8 updates sources and mirrors in one commit and records a parity check; no intermediate window exists |
+| Rollback assumed code-only, stranding migrated edges/labels | Documented data-first rollback ordering against the operator's version-controlled migration commits and diffs (T9, H4) |
+| Scope creep into closure evidence | Descoped to `FD0CCB42`, which owns it **exclusively**; no task reads, evaluates, or asserts parity over closure evidence, and no acceptance criterion references it |
 
 ## 6. Quality Criteria
 
 * Genuinely new behaviour lands as a failing expectation before implementation;
-  existing behaviour is characterized, not faked as RED.
+  existing behaviour is characterized, not faked as RED, and every expected-failure
+  marker is constrained so an incidental error cannot satisfy it.
 * Every task ends with a green suite.
 * `pre_claim` remains sole claim authority in code, output, templates, and docs.
+* The `audit_sequencing` phase writes nothing and persists nothing.
+* No closure-evidence discovery, evaluation, or parity assertion appears in any
+  task or acceptance criterion; `FD0CCB42` owns that surface exclusively.
 * No unresolved template placeholder tokens in touched templates; markdownlint
   clean (P-008).
 * Gate output provenance is deterministic, total, and auditable.
@@ -492,16 +634,19 @@ against the redesigned contract.
 |---|---|---|
 | F1 | Provenance lands only on the blocked path, leaving passes unattributable | `predecessor_source` is REQUIRED on blocked **and** passed payloads; T1 asserts it on a passing case |
 | F2 | A migration posture blocks every DAG root with no way out | Four-state contract: declared roots and genesis pass; the unsequenced block names two concrete remedies; T1 asserts each state independently |
-| F3 | Advisory alignment reimplements closure/derivation logic and re-diverges | T5 MUST consume one shared helper; a parallel implementation is a review-blocking defect |
+| F3 | Advisory alignment reimplements derivation logic and re-diverges | T5 MUST consume one shared **derivation** helper; a parallel implementation is a review-blocking defect. The helper does **not** include closure evidence (cycle 3) |
 | F4 | Legacy safety cases deleted in bulk under cover of "migration" | T2 requires a per-case disposition for all five cases with written rationale for any non-migratable case, and permits only two disposition kinds |
 | F5 | A task ends red because test disposition trails the behaviour change | Expected-failure flip and legacy re-expression both occur inside the task that changes behaviour; T2's audit expectations are strict-xfail until T3 |
 | F6 | Retirement silently inherits the unfixed forward-dependent defect | T2 must **prove** claim-path moot-ness by test, with **no deferral option** — residue blocks the task and the shipment; T3 forbids the audit from inheriting the suppression predicate |
 | F7 | A new config surface is added without schema versioning discipline | No config key is added at all (D2); the schema surface does not exist to mutate |
-| F8 | Installed dogfood copies drift from template sources | Sources and mirrors land in **one task and one commit** (T7) with a recorded parity check; the cycle-1 dependency-only split is reversed because it scheduled drift rather than preventing it |
+| F8 | Installed dogfood copies drift from template sources | Sources and mirrors land in **one task and one commit** (T8) with a recorded parity check; the cycle-1 dependency-only split is reversed because it scheduled drift rather than preventing it |
 | F9 | Closure-gate weakening sneaks in as a way to unblock `163-S` | No task touches closure semantics; the defect is descoped to `FD0CCB42` with an explicit no-weakening, no-competing-artifact constraint |
-| F10 | Parity tests pass vacuously | T4 is total over states but does **not** cross closure evidence with states where it cannot apply; T1 asserts each genesis disqualifier independently with distinguishable fixtures |
+| F10 | Parity tests pass vacuously | T4 is total over the four derivation states and carries no dimension that cannot apply to them; T1 asserts each genesis disqualifier independently with distinguishable fixtures |
 | F11 | Genesis re-entered through a back door (archiving, abandonment, or a populated-but-unshipped workspace) | Three-clause genesis rule (G2/G3/G4) computed from one snapshot, with per-clause tests |
-| F12 | `labels` validation reuses artifact-ID syntax and bricks the gate | Labels-specific validator mandated in §3.2 and T2, with a positive reader-level anti-regression test |
+| F12 | `labels` validation reuses artifact-ID syntax and bricks the gate | Labels-specific validator mandated in §3.2 and T2, with a positive reader-level anti-regression **characterization** test |
+| F13 | A strict-xfail is satisfied by a setup/collection/unknown-phase error, or XPASSes because the behaviour already exists | Expected-failure reasons constrained to a specific assertion and exception type (§4); the label-parse anti-regression reclassified to characterization (T1) |
+| F14 | The read-only audit grows a durable write path and becomes a second source of truth | Ledger removed (§3.3); the audit emits a report only, and version-controlled migration commits/diffs are the external record (H4) |
+| F15 | A descoped surface is re-imported through "read-only reuse" or a single test cell | Closure evidence removed from T4/T5 and every acceptance criterion; `FD0CCB42` is the exclusive owner |
 
 ### H3 — Explicit non-goals (scope fences)
 
@@ -513,7 +658,7 @@ against the redesigned contract.
 * Does **not** touch closure-evidence semantics (`FD0CCB42`).
 * Does **not** add configuration or schema surfaces.
 
-### H4 — Rollback posture (corrected in review-fix cycle 2)
+### H4 — Rollback posture (corrected in cycle 2, re-posed in cycle 3)
 
 Cycle 1 claimed "a full revert of the engine change restores prior behaviour". That
 is **false on its own** and is narrowed here.
@@ -523,17 +668,27 @@ is **false on its own** and is narrowed here.
   `UNSEQUENCED_SHIPMENT` token. No orphaned configuration is left behind, because
   no configuration was introduced.
 * **Not code-reversible**: the `blocks` edges and `dag-root` labels the migration
-  writes into backlog records. These persist after an engine revert, and the
-  restored numeric engine then reads the migrated edges as real explicit
-  predecessors — a state that existed in neither the before nor the after
-  configuration, and the most likely source of a confusing mid-rollback block.
-* **Migration ledger** (T3): the audit records each shipment's pre-migration edge
-  set and label set, so prior state is restored exactly rather than guessed.
-* **Mandatory ordering**: revert **backlog data first** using the ledger, **then**
-  revert the engine. Never the reverse.
-* **Narrowed claim**: for a workspace migrated by hand with no ledger, data
-  rollback is manual reconstruction from record history. It is not automatic, and
-  this plan does not claim otherwise.
+  writes into backlog records. **A code rollback does not undo migration data.**
+  These persist after an engine revert, and the restored numeric engine then reads
+  the migrated edges as real explicit predecessors — a state that existed in
+  neither the before nor the after configuration, and the most likely source of a
+  confusing mid-rollback block.
+* **The migration record is the commit history, not a gate-owned ledger**
+  (cycle 3). Migration is performed by editing backlog records with ordinary
+  backlogit commands, and those records are version-controlled. The **migration
+  commits and their diffs** are therefore the ledger: they show exactly which
+  edges and labels were added, to which records, when, and by whom, and
+  `git revert`/`git diff` reverses them precisely. This plan deliberately does
+  **not** build a persistence subsystem inside the gate to duplicate a record git
+  already keeps — a gate-owned ledger would be a second source of truth that can
+  drift from the backlog it describes, and it would give a phase defined as
+  read-only its own write path.
+* **Mandatory ordering**: revert **backlog data first**, using the migration
+  commits/diffs to restore the recorded pre-migration edge and label state,
+  **then** revert the engine. Never the reverse.
+* **Narrowed claim**: where migration was performed without being committed — hand
+  edits never recorded in version control — data rollback is manual reconstruction
+  from record history. It is not automatic, and this plan does not claim otherwise.
 
 ### H5 — Residual risk accepted
 
@@ -545,22 +700,38 @@ passing by default — is the silent fail-open this design exists to prevent. Cy
 widens this slightly: a workspace that has *never shipped* but holds more than one
 shipment record is also in this posture, by design (G3).
 
+**Also accepted (cycle 3): `dag-root` is not mechanically enforced.** Any actor who
+can commit to the repository can apply the label, and the gate neither detects nor
+prevents that. The declaration is a version-controlled, review-gated statement
+inside the repository trust boundary — auditable through diffs and through
+`predecessor_source: declared_root`, but **not a security boundary** and not
+permission-checked. Mechanical enforcement would require a backlogit-side
+permission model, which is outside this shipment (§3.2).
+
 ### H6 — Bootstrap disposition carried into execution (decision D6)
 
 `173-S` is blocked by the very defect it fixes: under current code its absent edges
 cause `172-S` to be synthesised as a predecessor. Operator authorization dated
-2026-09-12, **re-scoped in review-fix cycle 2**, permits **exactly two** audited
-`pre_claim --force` invocations for `173-S` only:
+2026-09-12, **re-scoped in cycle 2 and corrected in cycle 3**, permits **exactly
+three** audited `pre_claim --force` invocations for `173-S` only:
 
-| # | Invocation point |
-|---|---|
-| U1 | `pre_claim` before branch/worktree creation |
-| U2 | `pre_claim` immediately before the claim |
+| # | Invoked by | Invocation point |
+|---|---|---|
+| U0 | **Orchestrator** | `pre_claim` route-to-Ship eligibility check, **before Ship is invoked** (`_orchestrator.agent.md` L239–241) |
+| U1 | Ship | `pre_claim` before branch/worktree creation (`_ship.agent.md` L227–229) |
+| U2 | Ship | `pre_claim` immediately before the claim (`_ship.agent.md` L254–255) |
 
-Cycle 1's "single-use" grant was **unsatisfiable**: the Ship protocol runs the gate
-twice before claiming and gates the claim on both passing, so a one-use grant would
-either halt Ship at the second gate or invite it to stretch one authorization
-silently across two invocations.
+Cycle 1's "single-use" grant was **unsatisfiable**, and cycle 2's two-use grant was
+**still short by one**: it counted only Ship's two gate runs and missed the
+Orchestrator's **pre-route** eligibility gate, which runs first and against the same
+shipment. Under a two-use grant the very first gate in the pipeline would have been
+unauthorized — the Orchestrator would have blocked and never routed `173-S` to Ship
+at all, or would have silently stretched an authorization written for Ship across a
+run Ship did not make.
+
+The Orchestrator's **cursor-advance** eligibility check (L261–263) evaluates
+`{next_shipment_id}` — a *different* shipment — and is therefore **not** covered by
+this grant and never consumes one of the three invocations.
 
 Each invocation is valid only if, at that moment: the sole blocking token is
 `PREDECESSOR_NOT_SHIPPED`; the inferred predecessor is exactly `172-S`; `HEAD` and
@@ -569,9 +740,10 @@ closure, or secrets violation is present. Each is recorded as an audit event nam
 the invocation, payload, token, predecessor, `HEAD` SHA, and decision D6.
 
 Authority **expires immediately** on the successful claim or on any mismatch; on
-mismatch Ship halts to the operator. A **third** invocation — for example the
-post-claim `CLAIM_NOT_OBSERVED` retry path's `pre_claim` re-run — is **not
-authorized** and must be evaluated without `--force`.
+mismatch the invoking agent halts to the operator. A **fourth** invocation — for
+example the post-claim `CLAIM_NOT_OBSERVED` retry path's `pre_claim` re-run — is
+**not authorized** and must be evaluated without `--force`. Post-claim retry is
+never covered: the grant exists to reach the claim, and it is exhausted by it.
 
 The authorization confers no broader force authority, does not change `--force`
 semantics, and becomes unnecessary once T2 lands — `173-S` already carries
@@ -586,12 +758,34 @@ dispatch_mode: single-agent-declared-degradation
 decision: PASS
 ```
 
-Review-fix cycle 2 re-review recorded in full at
+Cycle-3 correction re-review recorded in full at
 `docs/reviews/2026-09-12-dag-authoritative-predecessor-derivation-plan-review.md`
-(cycle 3): **0 P0, 0 P1, 2 P2, 3 P3**. All twelve operator findings from the
-cycle-2 correction request are verified resolved in the review's "Operator
-Findings Verification" table. Review cycles used: **3 of 3** — this is the final
-normal correction cycle, and no further in-cycle correction budget remains.
+(cycle 4): **0 P0, 0 P1, 2 P2, 4 P3**. All fifteen operator correction items from
+the authorized final narrow correction cycle are verified resolved in the review's
+"Operator Correction Verification" table. This was the **authorized final review**:
+the three normal correction cycles were consumed by cycles 1–3, and cycle 4 is the
+single additional narrow correction cycle the operator authorized. **No further
+fix loop remains.**
 
 Plan hardening was required and is present, re-performed against the corrected
 contract. The plan is harvest-ready and `173-S` is staging-PR ready.
+
+### Closure posture for `173-S` (verified, cycle 3)
+
+`173-S` closes via **per-item `SAFE_CLOSE`**, which is a supported close path and
+is **not** a blocker. This was established empirically by a read-only execution of
+`classify_shipment_close_path` against the live workspace: it returns
+`ClosePath.SAFE_CLOSE`, with the reason naming `165.007-T` and `165.010-T` as
+descendants of feature member `165-F` that sit outside the manifest.
+
+`CASCADE` is **unavailable by design**, because those two archived tasks remain
+off-manifest descendants — which is exactly the intended outcome of descope
+decision D4 and of the cycle-2 merge, not a defect. Restoring `CASCADE` would
+require re-adding both archived tasks to the manifest, which D4 forbids.
+
+Their provenance and off-manifest status are **preserved unchanged**: `165.007-T`
+remains archived and descoped to `FD0CCB42`, `165.010-T` remains archived and
+merged into `165.008-T`, and neither is reparented, re-added to the manifest, or
+moved under an invented holding feature. Any statement that `173-S` cannot be
+closed, or that both close paths are impossible, is **false and is retracted** —
+`SAFE_CLOSE` is the final closure strategy for this shipment.

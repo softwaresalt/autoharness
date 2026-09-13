@@ -1,49 +1,59 @@
 ---
 chunk_strategy: h1-h2-h3
 description: "autoharness advisory-semantics mismatch: dag-readiness is advisory-only visibility/reporting whose ready_set/cursor does NOT authorize a claim, while pipeline-topology --phase pre_claim is the sole claim authority and intentionally blocks 148-S/149-S via the implicit numeric-adjacency predecessor. Differing results are NOT competing claim authorities; the gap is that advisory readiness output can mislead operators when it does not prominently label its non-authorizing model and the implicit predecessors pre_claim may add"
-doc_type: guide
+doc_type: bug
 docline:
   author: Stage
   date: 2026-09-11
-  status: draft-for-transfer
+  status: committed-intake-record
+external_provenance:
+  origin_repository: softwaresalt/backlogit
+  origin_pull_request: softwaresalt/backlogit#438
+  origin_source_path: docs/scratch/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
+  note: "origin_source_path is a SOURCE-WORKSPACE path in softwaresalt/backlogit. It does NOT resolve in this repository."
 ingested_at: "2026-09-11T00:00:00Z"
 schema_version: "1.0"
-source: docs/scratch/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
+source: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 title: "autoharness advisory-semantics mismatch — dag-readiness advisory output can mislead because pipeline-topology pre_claim is the sole claim authority"
 ---
 
 # autoharness advisory-semantics mismatch — `dag-readiness` advisory output can mislead operators because `pipeline-topology pre_claim` is the sole claim authority
 
-> **Transfer note & lifecycle.** This document was authored in the `backlogit`
-> workspace but describes a defect that belongs to the **separate `autoharness`
-> workspace** (the `autoharness` gate binary). It is written to be self-contained
-> so it can be copied verbatim into the `autoharness` workspace as a bug report /
-> issue. No fix is applied in `backlogit`; `backlogit` carries only this
-> documentation and a tracking stash entry (`6D53A33F`) that references this path.
+> **Committed intake record.** This document is the **original intake report** for
+> the defect addressed by feature `165-F` / shipment `173-S`, and it now lives
+> **here**, at `docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`
+> in the `autoharness` repository. The transfer it describes below **has already
+> happened**; this is the durable destination copy, not the ephemeral one.
 >
-> **This file lives under `docs/scratch/`, which is intentionally ephemeral.**
-> Per `.github/instructions/context-efficiency.instructions.md`, scratch files
-> may be archived/compacted once they age past the retention window, so this path
-> is **not** durable and may stop resolving. That placement is deliberate: this is
-> a **temporary transfer artifact** whose only job is to be **manually copied into
-> the `autoharness` workspace** before the next scratch compaction/archive cycle.
-> **Do not treat this path as durable provenance, and do not rely on it surviving.**
-> Durable provenance is preserved independently of this file:
+> **External provenance (authoritative, and not resolvable from here).** The
+> analysis was originally authored in the **separate `softwaresalt/backlogit`
+> workspace**, which carries it in version history:
 >
-> - **PR #438** in `softwaresalt/backlogit` carries this document and the stash
->   entry in version history (recoverable even after scratch compaction).
-> - A prior **source-workspace** analysis lives at
->   `docs/decisions/2026-09-06-queued-shipment-ordered-scope-decision.md`
->   (section 4, "Topology gate: numeric-predecessor behavior", and follow-up 7a).
->   That document is **historical source-workspace analysis, superseded by this
->   report's verified upstream semantics** (see §1 and §9): it predates the
+> - **`softwaresalt/backlogit#438`** — the pull request carrying this document and
+>   its tracking stash entry (`6D53A33F`) in `softwaresalt/backlogit`.
+> - **Source path (source workspace only):**
+>   `docs/scratch/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`
+>   in `softwaresalt/backlogit`. That path is **in a different repository** and
+>   **does not resolve in `autoharness`**; it was also deliberately ephemeral
+>   scratch storage there, so it may no longer resolve in its own repository
+>   either. Recover it from `softwaresalt/backlogit#438` if needed.
+> - **Prior source-workspace analysis (superseded, does not resolve here):**
+>   `docs/decisions/2026-09-06-queued-shipment-ordered-scope-decision.md` §4
+>   ("Topology gate: numeric-predecessor behavior", and follow-up 7a) — again a
+>   path **in `softwaresalt/backlogit`, not in this repository**. It predates the
 >   verification that `dag-readiness` is advisory-only and that
->   `pipeline-topology --phase pre_claim` is the sole claim authority. It is
+>   `pipeline-topology --phase pre_claim` is the sole claim authority, so it is
 >   **not authoritative** for claim decisions and is cited for provenance and
 >   history only.
 >
-> If you are reading this after transfer, copy it into a durable `autoharness`
-> location; do not link back to this `docs/scratch/` path as a stable reference.
+> **Status in this repository: historical record, not a design input.** Its
+> recommendation of a **presentation-only** remedy, and its classification of
+> numeric-fallback removal as a merely *future* option, are **superseded** by
+> operator direction dated 2026-09-12 and by
+> `docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md`.
+> Where this report conflicts with that decision, the decision governs. The
+> analysis body below is preserved unchanged so the supersession remains auditable
+> against the text it supersedes.
 
 ## 1. Summary
 
@@ -351,8 +361,8 @@ stays and the requested remedy is presentation honesty (above).
   - `autoharness gate pipeline-topology --mode agent --shipment 148-S --phase pre_claim --json`:
     `blocked: true`, `predecessor_id: 147-S` (implicit numeric-adjacency
     predecessor, not an explicit `blocks` edge) — the authoritative claim answer.
-- **Historical source-workspace analysis, superseded (does not resolve after transfer).**
-  A prior analysis exists in the *source* `backlogit` workspace at
+- **Historical source-workspace analysis, superseded (does not resolve here).**
+  A prior analysis exists in the *source* `softwaresalt/backlogit` workspace at
   `docs/decisions/2026-09-06-queued-shipment-ordered-scope-decision.md`
   (section 4 "Topology gate: numeric-predecessor behavior" and follow-up 7a). It
   is **historical source-workspace analysis, superseded by this report's verified
