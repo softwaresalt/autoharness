@@ -1,13 +1,13 @@
 ---
-title: "Plan review — DAG-authoritative predecessor derivation (cycle 4, authorized final review; + PR review-fix cycles 1-2)"
-description: "Multi-persona adversarial plan review of docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md, gating harvest. Plan-review cycle 4 was the operator-authorized final narrow correction cycle. Subsequent PR review-fix cycles 1 and 2 (staging PR #448) are recorded in their own sections and consume none of the plan-review cycles."
+title: "Plan review — DAG-authoritative predecessor derivation (cycle 4, authorized final review; + PR review-fix cycles 1-3)"
+description: "Multi-persona adversarial plan review of docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md, gating harvest. Plan-review cycle 4 was the operator-authorized final narrow correction cycle. Subsequent PR review-fix cycles 1, 2 and 3 (staging PR #448) are recorded in their own sections and consume none of the plan-review cycles."
 doc_type: review
 source: docs/reviews/2026-09-12-dag-authoritative-predecessor-derivation-plan-review.md
 date: 2026-09-13
 plan_path: docs/plans/2026-09-12-dag-authoritative-predecessor-derivation-plan.md
-plan_revision: 6
+plan_revision: 7
 review_cycle: 4
-pr_review_fix_cycle: 2
+pr_review_fix_cycle: 3
 pr: 448
 decision: PASS
 ---
@@ -298,9 +298,13 @@ replaced by two explicitly separated mechanisms: **BOOTSTRAP-A**, a one-time
 operator-run entry path for `173-S` that is executable today (operator runs the
 three named gates unforced-then-forced from the correct vantages, commits a
 version-controlled evidence record because the audit log is gitignored, claims
-`173-S`, verifies `post_claim` **unforced**, and invokes Ship directly against an
-already-claimed shipment — a path Ship's own step 6 explicitly contemplates with
-"`expected_status: queued` (or `active` if already claimed)"); and **BOOTSTRAP-B**,
+`173-S`, verifies `post_claim` **unforced**, and hands off to Ship — originally
+described as invoking Ship directly against an already-claimed shipment, citing
+Ship's step 6 "`expected_status: queued` (or `active` if already claimed)". **That
+handoff is retracted in PR review-fix cycle 3** (thread `PRRT_kwDORzpWpM6h3ttV`):
+Ship's Work Intake step 3 runs `pre_claim` unconditionally on a fresh invocation and
+the step-6 parenthetical governs only the `expected_status` argument. The handoff is
+now checkpoint-mediated; see that cycle's Thread 3); and **BOOTSTRAP-B**,
 the product mechanism `173-S` ships for future migrations, added as two new manifest
 tasks `165.011-T` (grant surface + full-provenance audit recording invocation, full
 observed payload, HEAD, manifest identity, token/predecessor, and D6) and
@@ -369,6 +373,16 @@ must be executable" rather than merely describable:
    on unverified claim semantics. A **mixed** manifest means the operator skips
    that check per its own recorded Scope note rather than passing a value
    `shipment-reconcile` would classify `status-mismatch`.
+
+   > **SUPERSEDED IN PART — PR review-fix cycle 3, thread `PRRT_kwDORzpWpM6h3ttV`.**
+   > The *four facts* remain necessary, but **operator narration cannot deliver
+   > them**: Ship's Work Intake step 3 runs `pre_claim` unconditionally on a fresh
+   > invocation, before any already-active state is interpreted, so the instruction
+   > "run neither `pre_claim` invocation" was never executable. Those four facts are
+   > now carried as **recorded checkpoint state** (`resume_hint` + `context`) and
+   > Ship enters at the post-claim cursor via recovery. The `expected_status`
+   > observation and the mixed-manifest skip both survive unchanged, now as
+   > `context.observed_manifest_status`.
 2. **The installed "Bootstrap exemption" clauses are ruled out explicitly.**
    `_orchestrator.agent.md` L245–247 and `_ship.agent.md` L232–234, L297–299 skip
    the topology gate *while the gate is not installed*. It **is** installed here,
@@ -512,7 +526,7 @@ non-zero `post_claim`, but backlogit has no `active` → `queued` transition.
 | Claim | Evidence |
 |---|---|
 | No unclaim/release/abort exists | `backlogit shipment --help` at this HEAD lists exactly `add`, `claim`, `create`, `get`, `list`, `return-blocked`, `ship` |
-| `queued` is not reachable from `active` | Shipment status enum is {`queued`, `blocked`, `active`, `shipped`, `abandoned`}; `queued` is the create-time default only |
+| `queued` is not reachable from `active` | Shipment status vocabulary is {`queued`, `active`, `shipped`, `abandoned`} *(corrected in cycle 3 — cycle 2 wrote a five-value enum including `blocked`; the argument is unaffected)*; `queued` is the create-time default only |
 | `abandoned` *is* reachable | `abandoned` is a member of the shipment status enum; `backlogit update <id> --status <s>` exposes `--status` |
 
 **Assessment.** Valid. A failure branch that terminates in an unexecutable step — at
@@ -575,14 +589,15 @@ missing, and malformed/unrecognized archived statuses must disqualify or fail cl
 
 | Claim | Evidence |
 |---|---|
-| `blocked` is a real shipment status | `backlogit_get_metadata_catalog` → shipment `status` enum = {`queued`, `blocked`, `active`, `shipped`, `abandoned`} |
-| The cycle-2 rule omitted it | G3 enumerated disqualifying nonterminal states as "`queued`/`active`"; G2 covered shipped-terminal only; G4 covered abandoned only. `blocked` appeared in **none** |
-| Therefore a fail-open existed | Candidate + one `blocked` record satisfied G2 ∧ G3 ∧ G4 → returned `genesis` — an unearned pass |
+| ~~`blocked` is a real shipment status~~ **RETRACTED in cycle 3** | Cycle 2 cited `backlogit_get_metadata_catalog` → shipment `status` enum = {`queued`, `blocked`, `active`, `shipped`, `abandoned`}. **That catalog enum is stale.** See PR Review-Fix Cycle 3, Thread 2 — the runtime vocabulary is four values and `blocked` is malformed legacy data |
+| The cycle-2 rule omitted it | G3 enumerated disqualifying nonterminal states as "`queued`/`active`"; G2 covered shipped-terminal only; G4 covered abandoned only. Every value outside those three appeared in **none** |
+| Therefore a fail-open existed | Candidate + one such record satisfied G2 ∧ G3 ∧ G4 → returned `genesis` — an unearned pass |
 
 **Assessment.** Valid, and structurally important beyond the single missing status.
-Enumerating statuses is fragile by construction: every value the enum gains in
+Enumerating statuses is fragile by construction: every value the vocabulary gains in
 future silently re-opens the same hole at a moment nobody is watching for it.
-Counting *records* is status-agnostic and cannot be widened by a new enum member.
+Counting *records* is status-agnostic and cannot be widened by a later vocabulary
+change.
 
 **Correction applied.** G2/G3/G4 are replaced by a single **sole-record** rule:
 genesis requires G1 (no edges, no `dag-root`) **and** G2 (the candidate is the only
@@ -595,8 +610,9 @@ concluding sole-extancy from a partial read. Genesis remains cardinality-1.
 Secondary benefit: the shared-snapshot surface (§3.4) drops from three facts to one,
 strictly lowering divergence risk.
 
-**Regression cases added.** `165.001-T` N5f (a `blocked` record present, live and
-archived), N5g (missing / empty / non-string / unrecognized status / unrecognized
+**Regression cases added.** `165.001-T` N5f (a `blocked` record present — **split by
+location in cycle 3**: live raises, archived is `unsequenced`), N5g (missing / empty
+/ non-string / unrecognized status / unrecognized
 `archived_status`, each asserted independently), N5h (enumeration failure raises);
 N5e extended to prove `dag-root` still passes in every one of those workspaces;
 `165.004-T` P3b widened to two disqualifier shapes including `blocked`. Applied to
@@ -675,3 +691,184 @@ anti-regression note bars any future reintroduction. Applied to `165.006-T` and 
 No new P0 or P1 finding remains open. All five threads are resolved on the same
 contract surface they were raised against, every coupled artifact states the
 corrected contract consistently, and no manifest, edge, or size change was required.
+
+## PR Review-Fix Cycle 3 (staging PR #448, 2026-09-13)
+
+**Scope.** Three current-HEAD Copilot review threads, all unresolved at HEAD
+`867222de`. All three **PASS P-021 C1** as same-contract-surface completions: each
+corrects a claim this shipment already owns, and none expands scope. This is a **PR
+review-fix cycle**, separate from and subsequent to the four completed plan-review
+cycles, and is within the authorized correction-cycle limit. **No manifest, edge,
+dependency, size, or complexity change.**
+
+### Thread 1 — `PRRT_kwDORzpWpM6h3ttF` (`165.011-T` L97, containment) — ACCEPTED
+
+**Finding.** Containment resolved only the child under the resolved root, so a root
+that itself symlinks outside the workspace still appears contained; and an
+intermediate symlink swap remains possible between `resolve()` and `os.open`.
+
+**Verification performed.**
+
+| Claim | Evidence |
+|---|---|
+| The rule was child-relative only | `165.011-T` 6h as written: *"the fully resolved path … MUST be asserted to lie inside the resolved `…/bootstrap-grant-consumption/` root"* — the root is the *reference*, never itself validated |
+| Root-outside-workspace is therefore invisible | `Path.resolve()` follows the link for **both** operands, so child-under-root holds by construction wherever the root points |
+| A TOCTOU window remained | `Path.resolve()` returns a string; `os.open` re-walks it. Cycle 2 forbade read-then-write as TOCTOU (6a) but left this seam open |
+| `O_NOFOLLOW`/`dir_fd` are unavailable on Windows | `os.O_NOFOLLOW` is POSIX-only and `os.open` is absent from `os.supports_dir_fd` on Windows — so a POSIX-only fix would silently no-op on a supported CI platform |
+
+**Assessment.** Valid, and both halves are real. The first is the more serious: a
+containment assertion that is satisfied by construction is worse than none, because
+it reads as a guarantee in review.
+
+**Correction applied.** 6h is rewritten as **6h-1 … 6h-7**. Syntactic validation is
+unchanged (6h-1). The **root must itself resolve inside the resolved workspace**,
+asserted first and *in addition to* the child assertion (6h-2). No component may be
+a link, enforced **at open time** (6h-3). POSIX uses a descriptor-relative
+`O_RDONLY|O_DIRECTORY|O_NOFOLLOW` descent from a workspace anchor fd with the claim
+issued as `O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW` + `dir_fd=`, removing the re-walk
+entirely (6h-4). Windows checks `FILE_ATTRIBUTE_REPARSE_POINT` per component —
+catching directory symlinks **and** `mklink /J` junctions, which need no elevation —
+and re-verifies file identity by `fstat`/`lstat` `st_dev`+`st_ino` after the create,
+failing closed without deleting (6h-5). Strategy selection is by **capability
+probe**, with a **fail-closed default and no `Path.resolve()` fallback** (6h-6).
+**At-most-once and every 6a–6g semantic are preserved** — the claim is still one
+`O_EXCL` create, and a containment rejection never burns a label (6h-7). Seven
+containment test cases added, including the root-escape regression (which passed the
+retired rule), a seam-injected TOCTOU swap, and the junction variants.
+
+**Sizing re-evaluated, both axes.** `complexity` stays `high` (already maximal; the
+platform reasoning is now enumerated rather than open-ended) and `size` stays `M`
+(one helper plus tests inside Deliverable 6's existing envelope). Recorded honestly
+as sitting at the **top of the M band**. No split taken: splitting would move
+containment out of the task owning the claim — re-creating the unenforced-bound gap
+cycle 2 closed — and would alter `173-S` manifest membership, which is out of scope
+for a review-fix cycle. Escalation-to-operator is the recorded path if implementation
+exceeds budget; silent descoping of containment is barred.
+
+### Thread 2 — `PRRT_kwDORzpWpM6h3ttS` (`165.002-T` L45, `blocked` status) — ACCEPTED
+
+**Finding.** The runtime accepts only `queued|active|shipped|abandoned`; `blocked`
+is malformed legacy data, not a current enum member. Claims and fixtures saying
+otherwise must be corrected. Sole-record genesis must still count any other record
+regardless of status, but a `blocked` value must follow existing malformed-input
+fail-closed behaviour rather than reach `unsequenced`.
+
+**Verification performed.**
+
+| Claim | Evidence |
+|---|---|
+| The gate accepts four statuses | `src/autoharness/gates/topology.py` L35: `_VALID_LIVE_SHIPMENT_STATUSES = frozenset({"queued", "active", "shipped", "abandoned"})` |
+| Anything else fails closed at read time | `topology.py` L553–563 raises `BacklogUnavailableError(candidate, "shipment record has a missing or unsupported status: …")` |
+| backlogit defines four constants | `internal/core/shipment.go` L29–35: `ShipmentQueued`, `ShipmentActive`, `ShipmentShipped`, `ShipmentAbandoned` — **no `blocked` constant**; `isValidShipmentTransition` returns false by default |
+| The catalog enum is the stale artifact | `backlogit_get_metadata_catalog` still advertises five values for shipment `status`; `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md` records that `backlogit move` accepted unvalidated writes, which is how `blocked` shipment records were created |
+| Archived values are not vocabulary-validated | `_archived_status` returns the value as an opaque lowercased string with no enum check |
+
+**Assessment.** Valid. The cycle-2 *conclusion* (three-probe enumeration was a
+fail-open) is correct and untouched; the cycle-2 *premise* (`blocked` is an enum
+member) is false. The hole was in fact **wider** than described — it admitted every
+unenumerated value, not one named status.
+
+**Correction applied.** The **status-agnostic sole-record cardinality rule is
+preserved unchanged**: any other shipment record disqualifies genesis regardless of
+status, recognized or not. Every artifact asserting `blocked` is an enum member is
+corrected to the four-value vocabulary with `blocked` named as malformed legacy
+data. The `blocked` fixture is **split by location**: a **live** `status: blocked`
+record raises `BacklogUnavailableError` at reader time under the **existing**
+malformed-input behaviour (preserved, not special-cased) and reaches **no verdict**,
+specifically not `unsequenced`; an **archived** `archived_status: blocked` record
+counts as a disqualifying unclassifiable record so the candidate resolves to
+`unsequenced`. `165.001-T` N5f splits into N5f-1/N5f-2, N5g gains the same
+live/archived mechanism split, N5e excludes the live fail-closed fixtures from the
+`declared_root` set, `165.002-T` case (e) splits into (e1)/(e2) with (h) narrowed
+accordingly, and `165.004-T` P3b's parity fixture moves to the archived form with
+the live form asserted as identical fail-closed behaviour across both gates.
+
+### Thread 3 — `PRRT_kwDORzpWpM6h3ttV` (`173-S` L88, BOOTSTRAP-A B6) — ACCEPTED
+
+**Finding.** B6's direct Ship handoff is not executable: installed Ship Work Intake
+step 3 runs `pre_claim` unconditionally before interpreting already-active state.
+
+**Verification performed.**
+
+| Claim | Evidence |
+|---|---|
+| Step 3 is unconditional | `_ship.agent.md` L226: *"**Pipeline-Topology Pre-Claim Gate + Branch Creation Gate … Before claiming (the first workspace mutation)**"* — L227–229 run `pre_claim` before any branch/worktree creation, L254–257 again immediately before the claim. **No already-claimed branch anywhere in the step** |
+| Ship halts on its result | Same step: *"Exit 1 … or exit 2 …: halt immediately with the reported token/message — never inferred, never fail-open"* |
+| The step-6 parenthetical is not authority | L300–301 directs `mode: pre` with `expected_status: queued` "(or `active` if already claimed)" — it parameterises the **step-6 argument** and is reached only *after* step 3 has already run |
+| Recovery resumes rather than restarts | `_ship.agent.md` L196–199: on operator-confirmed restore Ship *"[r]esume[s] from the recorded phase instead of restarting execution from scratch"*; L185 continues to Work Intake **only** on the zero-candidate path |
+| The Orchestrator routes owner-exclusively | `_orchestrator.agent.md` L155 enumerates **all** summaries with no filter; L158 fails closed on anomalies first; L162 requires explicit operator selection by filename with no auto-pick; L165–167 routes `agent: ship` to Ship |
+| The CLI payload is valid | `backlogit checkpoint create --help`: `--state-dump`; V1 **closed** top level = `schema_version`, `agent`, `session_id`, `phase`, `status`, `created_at`, `updated_at`, `context`, `progress`, `resume_hint`; `agent` is `required,oneof=ship stage`; `context` is **open**; `status:"abandoned"` and the reserved `disposition*` fields are rejected at create |
+
+**Assessment.** Valid and P1-class. An operator instruction cannot suppress a step
+the agent runs unconditionally, so the cycle-1 B6 would have halted at Ship's first
+gate invocation — at the one moment `173-S` is already `active` and the workspace is
+half-entered.
+
+**Correction applied.** B6 is replaced by a **checkpoint-mediated** path that the
+installed contracts support: **B6a** operator creates a ship-owned
+`schema_version: 1` / `agent: ship` / `status: active` checkpoint via
+`backlogit checkpoint create --state-dump`, with `phase: post_claim_verified`, a
+`resume_hint` naming the completed B3/B4 steps and the resume point, and `context`
+carrying `shipment_id`, `feature_id`, `branch`, `bootstrap_evidence_path`,
+`observed_manifest_status` and `authorizing_decision`; **B6b** operator invokes
+Orchestrator Step 0.0b recovery; **B6c** operator explicitly selects that checkpoint
+by filename and confirms restore/prune; **B6d** Ship resumes from the recorded
+post-claim cursor, so Work Intake — and step 3 with it — is **not reached** rather
+than skipped; **B6e** Ship resolves that single ownership-matched checkpoint only
+after a confirmed resume. Fail-closed throughout, with **no fresh-start fallback**
+(a fresh start is exactly what lands Ship back on step 3). Every claim that direct
+Ship invocation, or the step-6 parenthetical alone, authorizes skipping `pre_claim`
+is **removed**. The checkpoint is an **entry cursor, not an authorization**: the B5
+commit remains the authorization of record, and BOOTSTRAP-A's force authority
+already expired at B3. **No checkpoint was created and no shipment claimed** by this
+cycle — the B6a payload is planning text.
+
+### Coupled-artifact sweep (completing this cycle)
+
+| Artifact | Change |
+|---|---|
+| `165.011-T` | 6h rewritten as 6h-1…6h-7; containment test bullet replaced by seven cases; cycle-3 sizing note added to the SIZE/COMPLEXITY paragraph |
+| `165.002-T` | G2 restated status-agnostically; enum correction and the live/archived `blocked` split added; case (e) split into (e1)/(e2) and (h) narrowed |
+| `173-S` | B6 replaced with the checkpoint-mediated path; "WHY B6 HONOURS…" list rewritten; cycle-1 handoff bullet and cycle-2 `frF` bullet given supersession notes; B4 enum correction; B5 cross-reference retargeted to `context.observed_manifest_status`; new "PR REVIEW-FIX CYCLE 3 CHANGES" block |
+| `165-F` | Genesis narrative corrected to the four-value vocabulary with the live/archived split recorded |
+| `165.001-T` | N5f split into N5f-1/N5f-2; N5g mechanism split by location; N5e excludes live fail-closed fixtures; enum correction in the "why the old matrix was a fail-open" paragraph |
+| `165.004-T` | P3b parity fixture moved to the archived form; live form asserted as identical fail-closed behaviour in both gates |
+| `165.005-T` | Shared-helper rule restated status-agnostically; live/archived asymmetry recorded with an explicit bar on bypassing the reader's fail-closed behaviour |
+| `165.008-T` | Agent-text bar extended: contract text must not call `blocked` a shipment status |
+| `165.009-T` | Documented status list corrected to four values; `blocked` documented honestly as malformed legacy data with both dispositions and a compound-doc cross-reference |
+| Plan | §3.1 genesis rules, enum-correction block and disqualifier table; §T1/§T2/§T4/§T5 fixtures; §T10 containment bullet and test list; §H2 F11; §H6 B6 row, handoff paragraph and "why B6 honours" list, B4 enum sentence; frontmatter revision 6 → 7 |
+| Review (this file) | Cycle-2 Thread 4 evidence row retracted; cycle-1 Thread 1 and handoff item 1 given supersession notes; this cycle-3 section added; frontmatter `plan_revision` 6 → 7, `pr_review_fix_cycle` 2 → 3 |
+| Deliberation | `D1` genesis quote annotated with the enum correction; `D6` annotated with the B6 supersession; frontmatter revision 5 → 6 |
+
+### Deterministic checks run this cycle
+
+| Check | Result |
+|---|---|
+| Frontmatter validity (12 backlog records + plan + review + deliberation) | PASS — all parse as YAML; all `id` fields match filenames |
+| Manifest integrity (`173-S` = 11 items, unique, parent first, every item after its prerequisites) | PASS — **unchanged this cycle**, as required |
+| Dependency DAG acyclicity + every edge endpoint on the manifest | PASS — 0 structural errors, **edge set unchanged** |
+| Size + complexity present and enum-valid on all 10 tasks (two independent axes) | PASS — **no value changed this cycle**; `165.011-T` remains M/`high` |
+| 2-hour rule | PASS — no task above `M`; `165.011-T` recorded at the top of the M band with an explicit escalation path rather than a silent overrun |
+| Width isolation | PASS — CLI/audit, engine, agent-contract and docs work remain separate tasks |
+| Evidence claims re-verified against source, not inherited | PASS — `_VALID_LIVE_SHIPMENT_STATUSES`, the L553–563 raise, `_archived_status`, backlogit's `ShipmentStatus` constants, Ship step 3 / step 6 / recovery text, Orchestrator Step 0.0b, and `backlogit checkpoint create --help` all confirmed by direct read this cycle |
+| Residual claims that `blocked` is a valid shipment status | NONE — swept to zero; every surviving mention is explicitly labelled malformed legacy data or retracted history |
+| Residual claims that direct Ship invocation or the step-6 parenthetical authorizes skipping `pre_claim` | NONE — swept to zero |
+| Residual child-relative-only containment assertions | NONE — swept to zero |
+| Status-agnostic sole-record cardinality rule still intact after the sweep | PASS — preserved verbatim in `165-F`, `165.001-T`, `165.002-T`, `165.005-T`, `165.008-T`, `165.009-T` and plan §3.1 |
+| At-most-once and fail-closed semantics intact after the 6h rewrite | PASS — single `O_EXCL` claim retained; 6a–6g unchanged; containment rejection burns no label |
+| Shipment manifest membership / dependencies altered | NO — explicitly out of scope and verified unchanged |
+| Unresolved template placeholders introduced | NONE |
+| P-001 role boundary (no source, test, template, or config file modified) | PASS — planning/backlog/review artifacts only |
+
+### Finding counts
+
+| Severity | Count |
+|---|---|
+| P0 | **0** |
+| P1 | **0** |
+| P2 | 3 (carried unchanged: `9AA34143` rollup member set; `dag-root` not mechanically enforced; bootstrap-grant at-most-once is per-workspace-clone) |
+| P3 | 4 (carried unchanged from cycle 4) |
+
+**Cycle 3 verdict: PASS (P0 = 0, P1 = 0).** All three threads accepted and
+corrected at the source claim plus every coupled artifact. The `173-S` manifest,
+edge set, sizes and complexities are byte-unchanged.

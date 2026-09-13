@@ -6,8 +6,8 @@ source: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-delib
 date: 2026-09-12
 status: decided
 deciders: operator, Stage
-revision: 6
-revision_note: "PR review-fix cycle 1 (staging PR #448, Copilot review threads, 2026-09-13) — supersession notes added in place; the prior analysis bodies are preserved unchanged as historical record. Thread PRRT_kwDORzpWpM6h3Tgb: D6's operator authorization (force pre_claim for 173-S only, at most three times, token PREDECESSOR_NOT_SHIPPED, predecessor 172-S) STANDS, but its assumption that the ORCHESTRATOR AND SHIP execute those forced invocations (U0/U1/U2) is RETRACTED as not executable — no installed agent contract passes --force, both halt on exit 1/2, and --force is stateless; the executable replacement is BOOTSTRAP-A (one-time operator-run entry) plus BOOTSTRAP-B (future-facing product grant mechanism, tasks 165.011-T/165.012-T), authoritative in the 173-S record and plan §H6, together with the branch-vantage and 9-to-11-item manifest corrections. Thread PRRT_kwDORzpWpM6h3Tgi: D3's absolute 'writes nothing, persists nothing' claim is narrowed to no backlog mutation and no migration-state/ledger write, with the unconditional, observational, fail-open pipeline-topology telemetry emission explicitly allowed. PR REVIEW-FIX CYCLE 2 (staging PR #448, 2026-09-13) — further supersession notes added in place; all prior analysis bodies again preserved unchanged as historical record, and EVERY G2/G3/G4 reference anywhere in this document (including the D1 state table, the case-coverage table, and the risk tables) is historical only. Thread PRRT_kwDORzpWpM6h3frF: D1's three-probe genesis rule (G2 shipped-terminal / G3 sole-extant-nonterminal / G4 abandoned) is RETRACTED AS STILL FAIL-OPEN because the shipment status enum includes `blocked`, which appears in none of the three probes; it is replaced by the SOLE-RECORD rule — genesis only when the candidate is the only shipment record across all live and archived records regardless of status or provenance, with absent/empty/non-string/unparseable/unrecognized status counting as disqualifying fail-closed and an enumeration failure raising. The conclusions of the historical analysis (cardinality-1 genesis, archived shipped history disqualifies, abandoned-only history disqualifies, populated-but-never-shipped disqualifies, dag-root always passes, one shared snapshot) are PRESERVED AND STRENGTHENED, not reversed; the shared fact drops from three probes to one count. Authoritative text is plan §3.1. Thread PRRT_kwDORzpWpM6h3fq1: BOOTSTRAP-A B4's reverse-the-claim instruction is REMOVED as unexecutable (no active->queued transition exists in backlogit) and replaced by halt-with-173-S-active plus explicit operator remediation, with the supported and verified active->abandoned transition as the only alternative and no promise of requeue. Thread PRRT_kwDORzpWpM6h3fqf: BOOTSTRAP-B's at-most-once bound gains a concrete durable atomic mechanism (O_EXCL exclusive-create consumption record claimed before the force, audit emitted from the claimed record, fail-closed contention/replay/malformed, no TTL, grant-digest binding, operator-only recovery, per-workspace-clone scope bound), authoritative in 165.011-T Deliverable 6 and plan §T10/§H5. Neither the operator authorization, the three-invocation sizing, nor the 173-S-only binding is changed. Prior revision 4-5 notes retained in git history."
+revision: 7
+revision_note: "PR review-fix cycle 1 (staging PR #448, Copilot review threads, 2026-09-13) — supersession notes added in place; the prior analysis bodies are preserved unchanged as historical record. Thread PRRT_kwDORzpWpM6h3Tgb: D6's operator authorization (force pre_claim for 173-S only, at most three times, token PREDECESSOR_NOT_SHIPPED, predecessor 172-S) STANDS, but its assumption that the ORCHESTRATOR AND SHIP execute those forced invocations (U0/U1/U2) is RETRACTED as not executable — no installed agent contract passes --force, both halt on exit 1/2, and --force is stateless; the executable replacement is BOOTSTRAP-A (one-time operator-run entry) plus BOOTSTRAP-B (future-facing product grant mechanism, tasks 165.011-T/165.012-T), authoritative in the 173-S record and plan §H6, together with the branch-vantage and 9-to-11-item manifest corrections. Thread PRRT_kwDORzpWpM6h3Tgi: D3's absolute 'writes nothing, persists nothing' claim is narrowed to no backlog mutation and no migration-state/ledger write, with the unconditional, observational, fail-open pipeline-topology telemetry emission explicitly allowed. PR REVIEW-FIX CYCLE 2 (staging PR #448, 2026-09-13) — further supersession notes added in place; all prior analysis bodies again preserved unchanged as historical record, and EVERY G2/G3/G4 reference anywhere in this document (including the D1 state table, the case-coverage table, and the risk tables) is historical only. Thread PRRT_kwDORzpWpM6h3frF: D1's three-probe genesis rule (G2 shipped-terminal / G3 sole-extant-nonterminal / G4 abandoned) is RETRACTED AS STILL FAIL-OPEN because the shipment status enum includes `blocked`, which appears in none of the three probes; it is replaced by the SOLE-RECORD rule — genesis only when the candidate is the only shipment record across all live and archived records regardless of status or provenance, with absent/empty/non-string/unparseable/unrecognized status counting as disqualifying fail-closed and an enumeration failure raising. The conclusions of the historical analysis (cardinality-1 genesis, archived shipped history disqualifies, abandoned-only history disqualifies, populated-but-never-shipped disqualifies, dag-root always passes, one shared snapshot) are PRESERVED AND STRENGTHENED, not reversed; the shared fact drops from three probes to one count. Authoritative text is plan §3.1. Thread PRRT_kwDORzpWpM6h3fq1: BOOTSTRAP-A B4's reverse-the-claim instruction is REMOVED as unexecutable (no active->queued transition exists in backlogit) and replaced by halt-with-173-S-active plus explicit operator remediation, with the supported and verified active->abandoned transition as the only alternative and no promise of requeue. Thread PRRT_kwDORzpWpM6h3fqf: BOOTSTRAP-B's at-most-once bound gains a concrete durable atomic mechanism (O_EXCL exclusive-create consumption record claimed before the force, audit emitted from the claimed record, fail-closed contention/replay/malformed, no TTL, grant-digest binding, operator-only recovery, per-workspace-clone scope bound), authoritative in 165.011-T Deliverable 6 and plan §T10/§H5. Neither the operator authorization, the three-invocation sizing, nor the 173-S-only binding is changed. Prior revision 4-5 notes retained in git history. PR REVIEW-FIX CYCLE 3 (staging PR #448, three same-contract-surface Copilot threads, 2026-09-13; annotations only, no decision reversed). Thread PRRT_kwDORzpWpM6h3ttS: the D1 genesis banner's claim that ``blocked`` is a member of the shipment status enum is RETRACTED — the current vocabulary is {queued, active, shipped, abandoned} and ``blocked`` is malformed legacy data; the fail-open finding and the sole-record replacement both stand, and ``blocked`` splits by location (live raises at reader time, archived counts as disqualifying). Thread PRRT_kwDORzpWpM6h3ttV: D6's BOOTSTRAP-A step B6 direct Ship invocation is SUPERSEDED as not executable (Ship Work Intake step 3 runs pre_claim unconditionally) and replaced by a checkpoint-mediated handoff; B0-B5 and D6's authorization are unaffected. Thread PRRT_kwDORzpWpM6h3ttF touches 165.011-T only and lands no deliberation change. Prior revision 4-6 notes retained in git history."
 source_bug_report: docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md
 stash_ids:
   - AF2890B7
@@ -242,17 +242,32 @@ states are total, mutually exclusive, and each emits a distinct
 > **SOLE-RECORD** rule: genesis holds only when the candidate has no `blocks` edges
 > and no `dag-root` label **and** is the **only shipment record in the workspace**,
 > live and archived counted together, **regardless of status or provenance**. The
-> defect: the shipment status enum is
-> {`queued`, `blocked`, `active`, `shipped`, `abandoned`}, and `blocked` appears in
-> **none** of G2/G3/G4 — G3 enumerated nonterminal states as `queued`/`active` only
-> — so a workspace holding one `blocked` record plus an edge-less candidate
+> defect: G2/G3/G4 each enumerated statuses — G3 enumerated nonterminal states as
+> `queued`/`active` only, G2 covered shipped-terminal only, G4 abandoned only — so
+> **any value outside those three enumerations appeared in none of them**, and a
+> workspace holding such a record plus an edge-less candidate
 > satisfied all three probes and returned `genesis`, an unearned pass. Enumerating
-> statuses is fragile by construction: every future enum member silently re-opens
+> statuses is fragile by construction: every future vocabulary member silently
+> re-opens
 > the same hole. Counting **records** is status-agnostic and cannot be widened by a
 > new status. A record whose status is absent, empty, non-string, unparseable, or
 > unrecognized (including an unrecognized `archived_status`) **counts as
 > disqualifying, fail closed**; an enumeration failure raises rather than concluding
-> sole-extancy from a partial read. The **conclusions** of the analysis below are
+> sole-extancy from a partial read.
+>
+> > **ENUM CORRECTION — PR review-fix cycle 3 (thread `PRRT_kwDORzpWpM6h3ttS`,
+> > 2026-09-13).** The cycle-2 banner above originally illustrated this defect with
+> > a `blocked` shipment and asserted "the shipment status enum is {`queued`,
+> > `blocked`, `active`, `shipped`, `abandoned`}". **That assertion is false and is
+> > retracted.** The current shipment status vocabulary is exactly {`queued`,
+> > `active`, `shipped`, `abandoned`} (`_VALID_LIVE_SHIPMENT_STATUSES`,
+> > `topology.py` L35; backlogit declares four `ShipmentStatus` constants), and
+> > `blocked` on a shipment is **malformed legacy data**. The fail-open finding and
+> > the sole-record replacement both **stand**, and the hole was *wider* than
+> > described. `blocked` also **splits by location**: a live record raises
+> > `BacklogUnavailableError` at reader time and reaches no verdict; an archived
+> > `archived_status: blocked` record counts as disqualifying and the candidate
+> > resolves to `unsequenced`. The **conclusions** of the analysis below are
 > preserved and strengthened, not reversed — genesis remains **cardinality-1**,
 > archived shipped history still disqualifies, abandoned-only history still
 > disqualifies, a populated-but-never-shipped workspace still disqualifies, and
@@ -531,6 +546,22 @@ every configuration and in every state.
 > record's BOOTSTRAP DISPOSITION section and plan §H6. **The analysis below is
 > preserved unchanged as the historical record of why the grant was sized at three
 > invocations; do not execute it as written.**
+>
+> > **B6 SUPERSESSION — PR review-fix cycle 3 (thread `PRRT_kwDORzpWpM6h3ttV`,
+> > 2026-09-13).** BOOTSTRAP-A's final step **B6** — "operator invokes Ship
+> > directly against an already-`active` `173-S`" — is **retracted as not
+> > executable**. Ship's Work Intake **step 3 runs `pre_claim` unconditionally** on
+> > a fresh invocation, before any already-active state is interpreted
+> > (`_ship.agent.md` L226–257), and Ship's step-6
+> > `expected_status: queued` "(or `active` if already claimed)" parenthetical
+> > governs only the step-6 argument and confers **no** authority over step 3. B6 is
+> > replaced by a **checkpoint-mediated** handoff: the operator creates a
+> > ship-owned `schema_version: 1` / `agent: ship` / `status: active` checkpoint via
+> > `backlogit checkpoint create --state-dump`, invokes Orchestrator Step 0.0b
+> > recovery, explicitly selects it and confirms restore, and Ship resumes from the
+> > recorded post-claim cursor instead of fresh Work Intake. **B0–B5 and decision
+> > D6's authorization are unaffected.** Current text: `173-S` BOOTSTRAP
+> > DISPOSITION and plan §H6.
 >
 > **AMENDED — PR review-fix cycle 2 (threads `PRRT_kwDORzpWpM6h3fq1` and
 > `PRRT_kwDORzpWpM6h3fqf`, 2026-09-13).** Two further corrections land on the
