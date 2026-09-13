@@ -1759,6 +1759,51 @@ class PostClaimVerifyTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 0)
 
+    def test_active_target_passes_post_claim_despite_unshipped_explicit_predecessor(self) -> None:
+        # Sequencing/predecessor readiness is a claim-ELIGIBILITY check --
+        # it belongs to pre_claim only. Once the target has successfully
+        # claimed (live_status == 'active'), post_claim must never
+        # re-apply predecessor sequencing: a claim that has already
+        # succeeded cannot be un-succeeded by a predecessor that is still
+        # unshipped. The identical fixture must still block at pre_claim,
+        # proving this is a phase-scoping fix and not a removal of the
+        # predecessor check itself.
+        readers = _FakeReaders(shipments=(
+            _shipment('113-S', 'queued'),
+            _shipment('114-S', 'active', deps=('113-S',)),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIsNone(result.primary_token)
+
+        pre_claim_readers = _FakeReaders(shipments=(
+            _shipment('113-S', 'queued'),
+            _shipment('114-S', 'queued', deps=('113-S',)),
+        ))
+        pre_claim_result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=pre_claim_readers,
+        )
+        self.assertEqual(pre_claim_result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+
+    def test_active_target_passes_post_claim_despite_unshipped_implicit_numeric_predecessor(self) -> None:
+        # Same phase-scoping guarantee, but for the implicit
+        # numeric-adjacency predecessor heuristic (`_prior_shipment_id`)
+        # rather than an explicit declared dependency.
+        readers = _FakeReaders(shipments=(
+            _shipment('113-S', 'queued'),
+            _shipment('114-S', 'active'),
+        ))
+        result = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertIsNone(result.primary_token)
+
     def test_target_queued_zero_active_is_retry_required_not_terminal_or_pass(self) -> None:
         # A genuinely-delayed claim (target still `queued`, zero active) is
         # indistinguishable from a genuinely-failed one on a single

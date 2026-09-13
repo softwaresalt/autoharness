@@ -1571,6 +1571,24 @@ def _shipment_readiness_check(
             message="shipment metadata unavailable; readiness check skipped",
         )
 
+    if phase in ("post_claim", "lifecycle"):
+        # Predecessor sequencing is a claim-ELIGIBILITY check: it exists to
+        # keep an unshipped predecessor from being claimed out of order. It
+        # belongs to pre_claim only. post_claim/lifecycle run strictly
+        # AFTER a claim has already succeeded (the phase requirement above
+        # already enforced live_status == "active" for those phases) -- a
+        # predecessor that is still unshipped cannot retroactively un-claim
+        # a target that is already active, so re-applying sequencing here
+        # would incorrectly re-block a claim that has already converged.
+        # `ambient` is intentionally excluded from this bypass: it has no
+        # claim-success precondition of its own (no `_target_phase_requirement`
+        # entry) and its predecessor-check scope is unchanged by this fix.
+        return CheckResult(
+            name="shipment_readiness",
+            status="passed",
+            details={"target_shipment_id": target, "predecessor_ids": []},
+        )
+
     predecessor_ids = list(shipment.blocking_predecessor_ids)
     prior_id = _prior_shipment_id(target, shipments)
     if prior_id and prior_id not in predecessor_ids:
