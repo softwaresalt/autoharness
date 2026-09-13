@@ -9,6 +9,14 @@ agent: stage
 
 # Stage Session — 2026-09-12 — DAG-Authoritative Predecessor Derivation
 
+> **SUPERSEDED in part (review-fix cycle 1).** This record describes plan
+> **revision 1** (commit `4c09e50b`), whose review was later overturned to
+> **BLOCKED** by the operator. The `unsequenced_shipment` config key described
+> below was removed, 165.003-T was repurposed, 165.007-T was descoped and
+> archived, and 165.010-T was added. See
+> `docs/memory/2026-09-12/stage-165f-173s-review-fix-cycle-1.md` for the current
+> state.
+
 ## Outcome
 
 Consumed stash `AF2890B7` into feature **`165-F`**, tasks **`165.001-T` … `165.009-T`**,
