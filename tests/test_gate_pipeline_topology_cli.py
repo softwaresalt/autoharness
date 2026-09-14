@@ -1258,6 +1258,33 @@ class PipelineTopologyBootstrapGrantCliTests(_PipelineTopologyCliMixin, unittest
         )
         self.assertEqual(code, 2)
 
+    def test_bootstrap_grant_invocation_requires_agent_mode_and_pre_claim_phase(self) -> None:
+        # Regression coverage for a prior bug where --bootstrap-grant-invocation
+        # was validated only for a known label value, with no check that the
+        # resolved mode/phase were the documented agent-consumable,
+        # pre-claim-only combination. --mode manual (or --mode ci) with
+        # --phase pre_claim could otherwise supply a matching label and
+        # consume a grant meant only for the agent's own pre_claim gate
+        # re-check, converting a BLOCK into a forced PASS outside the
+        # authority boundary the grant was issued for.
+        cases = (
+            ('manual', 'pre_claim'),
+            ('ci', 'pre_claim'),
+            ('agent', 'post_claim'),
+            ('agent', 'lifecycle'),
+        )
+        for mode, phase in cases:
+            with self.subTest(mode=mode, phase=phase):
+                _, err, code = _run(
+                    'gate', 'pipeline-topology',
+                    '--mode', mode,
+                    '--shipment', '173-S',
+                    '--phase', phase,
+                    '--bootstrap-grant-invocation', 'ship_pre_claim',
+                )
+                self.assertEqual(code, 2)
+                self.assertIn('agent-consumable and pre-claim-only', err)
+
     def test_telemetry_failure_during_forced_grant_run_is_fail_open(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory(dir=repo_root) as tmp:

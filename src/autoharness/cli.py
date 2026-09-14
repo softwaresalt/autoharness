@@ -927,6 +927,20 @@ def _parse_gate_pipeline_topology_args(args: list[str]) -> dict:
                 "--bootstrap-grant-invocation must be one of "
                 f"{VALID_BOOTSTRAP_GRANT_INVOCATIONS}, got {parsed['bootstrap_grant_invocation']!r}"
             )
+        # --bootstrap-grant-invocation is documented (docs/pipeline-topology-gate.md)
+        # as agent-consumable and pre-claim-only. Without this check, `--mode
+        # manual --phase pre_claim` (or `--mode ci`) could still supply a
+        # matching label and consume a grant meant only for the agent's own
+        # pre_claim gate re-check, converting a BLOCK into a forced PASS
+        # outside the authority boundary the grant was issued for. Reject the
+        # combination at parse time rather than relying on downstream
+        # evaluation to happen to reject it.
+        if parsed["mode"] != "agent" or parsed["phase"] != "pre_claim":
+            raise ValueError(
+                "--bootstrap-grant-invocation is agent-consumable and pre-claim-only: "
+                "requires --mode agent --phase pre_claim "
+                f"(got --mode {parsed['mode']!r} --phase {parsed['phase']!r})"
+            )
     return parsed
 
 
@@ -987,13 +1001,27 @@ def _pipeline_topology_blocking_details(observed_payload: dict) -> tuple[str | N
 
 
 
-def _append_pipeline_topology_force_audit(audit_path: Path, payload: dict) -> tuple[str, dict[str, str]]:
-    audit_path.parent.mkdir(parents=True, exist_ok=True)
+def _append_pipeline_topology_force_audit(
+    workspace: Path, audit_path: Path, payload: dict
+) -> tuple[str, dict[str, str]]:
+    # audit_path is always workspace / '.autoharness' / 'gates' /
+    # 'pipeline-topology-force-audit.log' (see the two call sites below).
+    # Opening it by pathname would transparently follow a symlinked
+    # '.autoharness' or 'gates' directory component, or a symlink/reparse
+    # point at the log filename itself, letting a crafted workspace redirect
+    # this append outside the workspace boundary or onto an unexpected
+    # external file. Use the same containment-checked, no-follow open used
+    # for the bootstrap-grant consumption record instead of a plain
+    # pathname-based append.
+    from autoharness.gates.bootstrap_grant import append_no_follow
+
     line = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8') + b'\n'
-    with audit_path.open('ab') as handle:
-        handle.write(line)
-        handle.flush()
-        os.fsync(handle.fileno())
+    append_no_follow(
+        workspace,
+        ('.autoharness', 'gates'),
+        audit_path.name,
+        line,
+    )
     relative_path = str(audit_path).replace('\\', '/')
     return str(audit_path), {
         'path': relative_path,
@@ -1043,7 +1071,7 @@ def _audit_pipeline_topology_force(
                 'consumption_record_path': claim_record.relative_path,
             },
         }
-        return _append_pipeline_topology_force_audit(audit_path, audit_payload)
+        return _append_pipeline_topology_force_audit(workspace, audit_path, audit_payload)
 
     blocking_token, inferred_predecessor_id = _pipeline_topology_blocking_details(payload)
     actor = _pipeline_topology_actor()
@@ -1071,7 +1099,7 @@ def _audit_pipeline_topology_force(
             'consumption_record_path': None,
         },
     }
-    return _append_pipeline_topology_force_audit(audit_path, audit_payload)
+    return _append_pipeline_topology_force_audit(workspace, audit_path, audit_payload)
 
 
 def _pipeline_topology_telemetry_backlog_item_id(result) -> str:

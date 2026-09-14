@@ -815,6 +815,102 @@ def _claim_record_posix(
                 pass
 
 
+def append_no_follow(
+    workspace: Path,
+    relative_dir_components: tuple[str, ...],
+    filename: str,
+    data: bytes,
+) -> Path:
+    """Append ``data`` to ``workspace/<relative_dir_components>/<filename>``
+    via a containment-checked, no-follow directory walk and file open.
+
+    Mirrors ``_claim_record_posix`` / ``_claim_record_windows``'s no-follow
+    directory-descriptor walk so a symlinked directory component -- or the
+    target file itself being a symlink/reparse point -- cannot redirect this
+    write outside the workspace boundary or onto an unexpected external
+    file. Unlike the consumption-record claim path this is a log, not an
+    at-most-once claim: the target file is created if missing and appended
+    to if it already exists, but every directory component and the final
+    file are still verified not to be a symlink/reparse point before being
+    traversed or opened.
+
+    Raises ``OSError``/``ValueError`` on any containment violation or
+    unexpected filesystem condition; callers must fail closed (propagate,
+    not silently widen the write) rather than falling back to an
+    unprotected pathname-based append.
+    """
+    resolved_workspace = Path(workspace).resolve()
+
+    if _supports_posix_claim_strategy():
+        flags_dir = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0)
+        root_fd = os.open(str(resolved_workspace), flags_dir)
+        opened_fds = [root_fd]
+        current_fd = root_fd
+        try:
+            for component in relative_dir_components:
+                try:
+                    os.mkdir(component, 0o700, dir_fd=current_fd)
+                except FileExistsError:
+                    pass
+                next_fd = os.open(component, flags_dir | os.O_NOFOLLOW, dir_fd=current_fd)
+                opened_fds.append(next_fd)
+                current_fd = next_fd
+            flags_file = os.O_CREAT | os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW
+            file_fd = os.open(filename, flags_file, 0o600, dir_fd=current_fd)
+            try:
+                os.write(file_fd, data)
+                os.fsync(file_fd)
+            finally:
+                os.close(file_fd)
+            # fsync the containing directory too, mirroring
+            # _claim_record_posix's durability rationale for a freshly
+            # created (not merely appended-to) log file.
+            os.fsync(current_fd)
+        finally:
+            for fd in reversed(opened_fds):
+                os.close(fd)
+        return resolved_workspace.joinpath(*relative_dir_components, filename)
+
+    if not _supports_windows_claim_strategy():
+        raise OSError(
+            'no-follow append strategy is unavailable on this platform; refusing to fall back '
+            'to an unprotected pathname-based append'
+        )
+
+    handles: list[tuple[Any, Any]] = []
+    partial = resolved_workspace
+    try:
+        for component in relative_dir_components:
+            partial = partial / component
+            if not partial.exists():
+                try:
+                    os.mkdir(partial)
+                except FileExistsError:
+                    pass
+            stat_result = os.lstat(partial)
+            if _is_reparse_point(stat_result):
+                raise ValueError(f'path component {partial} is a reparse point and cannot be used')
+            kernel32, handle = _windows_open_directory_handle(partial)
+            handles.append((kernel32, handle))
+
+        file_path = partial / filename
+        if file_path.exists():
+            stat_result = os.lstat(file_path)
+            if _is_reparse_point(stat_result):
+                raise ValueError(f'{file_path} is a reparse point and cannot be used')
+        flags_file = os.O_CREAT | os.O_WRONLY | os.O_APPEND | os.O_BINARY
+        fd = os.open(file_path, flags_file, 0o600)
+        try:
+            os.write(fd, data)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        return file_path
+    finally:
+        for kernel32, handle in reversed(handles):
+            _windows_close_handle(kernel32, handle)
+
+
 def _claim_record(
     *,
     workspace: Path,

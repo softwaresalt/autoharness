@@ -749,6 +749,55 @@ class BootstrapGrantTests(unittest.TestCase):
         self.assertIn('unreadable', joined)
         self.assertNotIn('invalid JSON', joined)
 
+    def test_append_no_follow_creates_and_appends_normally(self) -> None:
+        from autoharness.gates.bootstrap_grant import append_no_follow
+
+        append_no_follow(self.workspace, ('.autoharness', 'gates'), 'audit.log', b'{"a": 1}\n')
+        append_no_follow(self.workspace, ('.autoharness', 'gates'), 'audit.log', b'{"a": 2}\n')
+
+        audit_path = self.workspace / '.autoharness' / 'gates' / 'audit.log'
+        lines = audit_path.read_text(encoding='utf-8').splitlines()
+        self.assertEqual(lines, ['{"a": 1}', '{"a": 2}'])
+
+    def test_append_no_follow_rejects_symlinked_directory_component(self) -> None:
+        # Regression coverage for a prior bug where the pipeline-topology
+        # force-audit log was appended to by pathname with no symlink
+        # verification, so a symlinked '.autoharness/gates' directory could
+        # redirect the append outside the workspace boundary.
+        from autoharness.gates.bootstrap_grant import append_no_follow
+
+        outside_gates = self.workspace / 'outside-gates'
+        outside_gates.mkdir(parents=True)
+        gates_link = self.workspace / '.autoharness' / 'gates'
+        self._make_symlink_or_skip(gates_link, outside_gates, directory=True)
+
+        with self.assertRaises((OSError, ValueError)):
+            append_no_follow(self.workspace, ('.autoharness', 'gates'), 'audit.log', b'{"a": 1}\n')
+
+        self.assertFalse((outside_gates / 'audit.log').exists())
+
+    def test_append_no_follow_rejects_symlinked_target_file(self) -> None:
+        # Regression coverage for the same finding: a symlink at the final
+        # filename component (rather than a directory component) must also
+        # be refused instead of transparently appended through.
+        from autoharness.gates.bootstrap_grant import append_no_follow
+
+        gates_dir = self.workspace / '.autoharness' / 'gates'
+        gates_dir.mkdir(parents=True)
+        outside_target = self.workspace / 'outside-audit.log'
+        audit_link = gates_dir / 'audit.log'
+        # _make_symlink_or_skip always (re)writes the target's content as
+        # part of provisioning the symlink, so set the "preexisting content
+        # must be untouched" content after the symlink is created, not
+        # before.
+        self._make_symlink_or_skip(audit_link, outside_target, directory=False)
+        outside_target.write_text('preexisting\n', encoding='utf-8')
+
+        with self.assertRaises((OSError, ValueError)):
+            append_no_follow(self.workspace, ('.autoharness', 'gates'), 'audit.log', b'{"a": 1}\n')
+
+        self.assertEqual(outside_target.read_text(encoding='utf-8'), 'preexisting\n')
+
     def test_capability_gate_refuses_plain_fallback(self) -> None:
         _write_grant(self.workspace)
         with mock.patch('autoharness.gates.bootstrap_grant._supports_posix_claim_strategy', return_value=False):
