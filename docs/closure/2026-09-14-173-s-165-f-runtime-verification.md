@@ -2,11 +2,11 @@
 shipment: 173-S
 feature: 165-F
 pr: 450
-merge_commit: null
+merge_commit: 9cc98c41de1cad9175e29b8190dbe4b81c85a1d5
 last_code_affecting_head: 164e06a6bf629b9d14dd0dbe56803c396c33f8be
 surface: cli
 verdict: PASS
-post_merge_reverification: "pending -- to be run against new main immediately after merge, per the Post-Merge Closure protocol"
+post_merge_reverification: "done -- uv run autoharness --help re-run against origin/main at merge commit 9cc98c41de1cad9175e29b8190dbe4b81c85a1d5, exit 0, help text printed"
 ---
 
 # 173-S / 165-F Runtime Verification -- DAG-Authoritative Predecessor Derivation for the Pipeline-Topology `pre_claim` Gate
@@ -170,8 +170,22 @@ above (not restated here as a fixed value).
 
 ## Blocked Prerequisites
 
-None for pre-merge verification. Post-merge re-verification
-(`uv run autoharness --help` against the new `main` HEAD) is recorded as
-`pending` in this artifact's frontmatter and will be performed during
-Post-Merge Closure per the Ship agent contract, after explicit operator
-merge approval and the merge itself.
+None for pre-merge verification or CLI post-merge re-verification.
+
+**Shipment-record closure is blocked** (backlog-tooling prerequisite, not a
+runtime/CLI validation gap): see the companion closure artifact
+(`docs/closure/2026-09-14-173-s-165-f-closure.md`) Post-Merge Update section
+for the two P-021-captured findings (`FBD2F6BE`, `2B42392E`) blocking
+`shipment-reconcile` safe-close of the `173-S` shipment record itself. The
+merge, CLI smoke-test re-verification, and all manifest task/feature
+artifacts are unaffected and already complete.
+
+## Post-Merge Update (2026-09-14)
+
+* PR #450 merged: `state: MERGED`, merge commit
+  `9cc98c41de1cad9175e29b8190dbe4b81c85a1d5` (two parents: `dffb02f9...`
+  pre-merge `main` tip, `7edec371...` PR head), confirmed present on
+  `origin/main` via `git merge-base --is-ancestor` (exit 0).
+* Post-merge CLI re-verification: `uv run autoharness --help` run against
+  `origin/main` at the merge commit -- exit 0, help text printed. No
+  import/packaging/option-parsing regression introduced by this shipment.
