@@ -718,6 +718,43 @@ class BootstrapGrantTests(unittest.TestCase):
         self.assertIn('unreadable', joined)
         self.assertNotIn('invalid', joined)
 
+    def test_load_bootstrap_grant_rejects_symlinked_intermediate_directory(self) -> None:
+        # Regression coverage for a prior bug where load_bootstrap_grant()
+        # verified only the final ``{shipment_id}.yaml`` component for a
+        # symlink (via _read_bytes_no_follow), never the intermediate
+        # ``.autoharness`` or ``bootstrap-grants`` directory components --
+        # so a crafted workspace with either directory swapped for a
+        # symlink could still redirect the read to an arbitrary external
+        # file and have it parsed as YAML. The external target below is
+        # deliberately invalid YAML: if the fix regresses and the read
+        # follows the symlinked directory, yaml.safe_load will run against
+        # it and the warning text will say "invalid" (parser error) rather
+        # than "unreadable" (open refused).
+        from autoharness.gates.bootstrap_grant import load_bootstrap_grant
+
+        for relative in (Path('.autoharness'), Path('.autoharness') / 'bootstrap-grants'):
+            with self.subTest(relative=str(relative)):
+                case_workspace = self.workspace / ('grant-dir-' + relative.name.replace('.', 'root'))
+                outside = case_workspace / 'outside'
+                outside.mkdir(parents=True)
+                outside_grant = outside / f'{_MATCHING_SHIPMENT_ID}.yaml'
+                if relative.name == 'bootstrap-grants':
+                    outside_grant.write_text('not: [valid, yaml', encoding='utf-8')
+                else:
+                    (outside / 'bootstrap-grants').mkdir()
+                    outside_grant = outside / 'bootstrap-grants' / f'{_MATCHING_SHIPMENT_ID}.yaml'
+                    outside_grant.write_text('not: [valid, yaml', encoding='utf-8')
+                link_path = case_workspace / relative
+                self._make_symlink_or_skip(link_path, outside, directory=True)
+
+                grant, warnings = load_bootstrap_grant(case_workspace, _MATCHING_SHIPMENT_ID)
+
+                self.assertIsNone(grant)
+                self.assertTrue(warnings)
+                joined = ' '.join(warnings)
+                self.assertIn('unreadable', joined)
+                self.assertNotIn('invalid', joined)
+
     def test_scan_existing_records_rejects_symlinked_record_file_on_posix(self) -> None:
         # Regression coverage for a prior bug where _scan_existing_records
         # only checked _is_reparse_point() (Windows-only; always False on

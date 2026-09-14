@@ -88,6 +88,87 @@ def _read_bytes_no_follow(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def _read_bytes_no_follow_walked(
+    workspace: Path, relative_dir_components: tuple[str, ...], filename: str
+) -> bytes:
+    """Read ``workspace/<relative_dir_components>/<filename>`` after
+    verifying every directory component -- not just the final file -- is
+    not a symlink/reparse point.
+
+    ``_read_bytes_no_follow`` only protects the final path component: a
+    symlinked intermediate directory (for example a swapped
+    ``.autoharness`` or ``bootstrap-grants`` component) would still be
+    followed before the final-component check ever runs, letting a crafted
+    workspace redirect the read to an arbitrary external file. This walks
+    every directory component relative to a workspace-rooted descriptor
+    with ``O_NOFOLLOW`` (POSIX) -- mirroring ``append_no_follow`` /
+    ``_claim_record_posix`` -- or verifies each component via ``os.lstat``
+    plus a held-open directory handle (Windows), before opening the final
+    file with the same no-follow discipline as ``_read_bytes_no_follow``.
+
+    Raises ``FileNotFoundError`` if any directory component or the target
+    file does not exist (the caller treats this as "no grant present", not
+    a containment violation). Raises ``OSError``/``ValueError`` on any
+    symlink/reparse-point containment violation or unsupported platform;
+    callers must fail closed rather than falling back to an unprotected
+    pathname-based read.
+    """
+    resolved_workspace = Path(workspace).resolve()
+
+    if _supports_posix_claim_strategy():
+        flags_dir = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0)
+        root_fd = os.open(str(resolved_workspace), flags_dir)
+        opened_fds = [root_fd]
+        current_fd = root_fd
+        try:
+            for component in relative_dir_components:
+                next_fd = os.open(component, flags_dir | os.O_NOFOLLOW, dir_fd=current_fd)
+                opened_fds.append(next_fd)
+                current_fd = next_fd
+            flags_file = os.O_RDONLY | os.O_NOFOLLOW
+            if hasattr(os, 'O_BINARY'):
+                flags_file |= os.O_BINARY
+            file_fd = os.open(filename, flags_file, dir_fd=current_fd)
+            try:
+                chunks: list[bytes] = []
+                while True:
+                    chunk = os.read(file_fd, 65536)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                return b''.join(chunks)
+            finally:
+                os.close(file_fd)
+        finally:
+            for fd in reversed(opened_fds):
+                os.close(fd)
+
+    if not _supports_windows_claim_strategy():
+        raise OSError(
+            'no-follow walked-read strategy is unavailable on this platform; refusing to fall '
+            'back to an unprotected pathname-based read'
+        )
+
+    handles: list[tuple[Any, Any]] = []
+    partial = resolved_workspace
+    try:
+        for component in relative_dir_components:
+            partial = partial / component
+            stat_result = os.lstat(partial)
+            if _is_reparse_point(stat_result):
+                raise ValueError(f'path component {partial} is a reparse point and cannot be used')
+            kernel32, handle = _windows_open_directory_handle(partial)
+            handles.append((kernel32, handle))
+        file_path = partial / filename
+        stat_result = os.lstat(file_path)
+        if _is_reparse_point(stat_result) or stat.S_ISLNK(stat_result.st_mode):
+            raise OSError(f'{file_path} is a symlink/reparse point and cannot be read')
+        return file_path.read_bytes()
+    finally:
+        for kernel32, handle in reversed(handles):
+            _windows_close_handle(kernel32, handle)
+
+
 class BootstrapGrantArgumentError(ValueError):
     """Raised when bootstrap-grant CLI inputs are syntactically unsafe."""
 
@@ -263,11 +344,13 @@ def _warning(message: str) -> tuple[str, ...]:
 def load_bootstrap_grant(workspace: Path, shipment_id: str) -> tuple[BootstrapGrant | None, tuple[str, ...]]:
     validate_bootstrap_grant_inputs(shipment_id, VALID_BOOTSTRAP_GRANT_INVOCATIONS[0])
     grant_path = Path(workspace) / _BOOTSTRAP_GRANTS_ROOT / f'{shipment_id}.yaml'
-    if not grant_path.exists():
-        return None, ()
     try:
-        raw_bytes = _read_bytes_no_follow(grant_path)
-    except OSError as exc:
+        raw_bytes = _read_bytes_no_follow_walked(
+            workspace, _BOOTSTRAP_GRANTS_ROOT.parts, f'{shipment_id}.yaml'
+        )
+    except FileNotFoundError:
+        return None, ()
+    except (OSError, ValueError) as exc:
         return None, _warning(f'grant file {grant_path} is unreadable: {exc}')
     try:
         loaded = yaml.safe_load(raw_bytes.decode('utf-8'))
