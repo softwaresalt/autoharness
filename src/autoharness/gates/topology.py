@@ -23,7 +23,7 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
 
@@ -96,6 +96,11 @@ class ShipmentState:
     archived_record_present: bool = False
     manifest_item_ids: tuple[str, ...] = ()
     blocking_predecessor_ids: tuple[str, ...] = ()
+    labels: tuple[str, ...] = ()
+
+    @property
+    def declares_root(self) -> bool:
+        return "dag-root" in self.labels
 
 
 @dataclass(frozen=True)
@@ -328,6 +333,49 @@ def _closure_artifact_complete(fm: dict[str, Any]) -> bool:
     return False
 
 
+def _tuple_of_labels(
+    value: Any,
+    *,
+    source_path: Path | None = None,
+    field_name: str = "labels",
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        if source_path is not None:
+            raise BacklogUnavailableError(
+                source_path,
+                f"{field_name or 'labels'} must be a sequence of labels but got {value!r}",
+            )
+        return ()
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            if source_path is not None:
+                raise BacklogUnavailableError(
+                    source_path,
+                    f"{field_name or 'labels'} contains a non-string member: {item!r}",
+                )
+            continue
+        label = item.strip()
+        if not label:
+            if source_path is not None:
+                raise BacklogUnavailableError(
+                    source_path,
+                    f"{field_name or 'labels'} contains a blank label member",
+                )
+            continue
+        if len(label) > 128 or "/" in label or "\\" in label or ".." in label:
+            if source_path is not None:
+                raise BacklogUnavailableError(
+                    source_path,
+                    f"{field_name or 'labels'} contains an invalid or unsafe label: {item!r}",
+                )
+            continue
+        result.append(label)
+    return tuple(result)
+
+
 def _tuple_of_str(
     value: Any,
     *,
@@ -538,6 +586,13 @@ class FilesystemTopologyReaders:
                 title = fm.get("title")
                 if isinstance(title, str) and title.strip():
                     record["title"] = title.strip()
+                labels = _tuple_of_labels(
+                    fm.get("labels"),
+                    source_path=candidate,
+                    field_name="labels",
+                )
+                if not is_archive or "labels" not in record:
+                    record["labels"] = labels
                 if is_archive:
                     # Track archive-record presence independently of whether
                     # `archived_status` itself parsed to a usable value: a
@@ -595,6 +650,7 @@ class FilesystemTopologyReaders:
                 archived_record_present=bool(record.get("archived_record_present", False)),
                 manifest_item_ids=tuple(record.get("manifest_item_ids", ()) or ()),
                 blocking_predecessor_ids=tuple(record.get("blocking_predecessor_ids", ()) or ()),
+                labels=tuple(record.get("labels", ()) or ()),
             )
             for record in sorted(records.values(), key=lambda item: str(item.get("shipment_id", "")))
         )
@@ -1493,6 +1549,9 @@ def _is_shipped_terminal(shipment: ShipmentState) -> bool:
     return shipment.archived_status in {"shipped", "done"}
 
 
+PredecessorSource = Literal["explicit", "declared_root", "genesis", "unsequenced"]
+
+
 def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
     requirements = {
         "pre_claim": ("queued", "TARGET_NOT_CLAIMABLE", "before claim"),
@@ -1500,6 +1559,29 @@ def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
         "lifecycle": ("active", "TARGET_NOT_ACTIVE", "during lifecycle execution"),
     }
     return requirements.get(phase)
+
+
+def _predecessor_source(shipment: ShipmentState, shipments: Sequence[ShipmentState]) -> PredecessorSource:
+    if shipment.blocking_predecessor_ids:
+        return "explicit"
+    if shipment.declares_root:
+        return "declared_root"
+    return "genesis" if len(shipments) == 1 else "unsequenced"
+
+
+def _shipment_readiness_details(
+    target: str,
+    shipment: ShipmentState,
+    shipments: Sequence[ShipmentState],
+    **extra: Any,
+) -> dict[str, Any]:
+    details = {
+        "target_shipment_id": target,
+        "predecessor_ids": list(shipment.blocking_predecessor_ids),
+        "predecessor_source": _predecessor_source(shipment, shipments),
+    }
+    details.update(extra)
+    return details
 
 
 def _shipment_readiness_check(
@@ -1518,14 +1600,6 @@ def _shipment_readiness_check(
     shipment_map = _shipment_map(shipments)
     shipment = shipment_map.get(target)
     if shipment is not None and _has_ambiguous_shipment_records(shipment):
-        # A duplicated target (live status present AND an archive-folder
-        # record also present) is the same provenance corruption already
-        # rejected for a predecessor via PREDECESSOR_STATE_AMBIGUOUS. The
-        # target's own phase status check below only inspects
-        # `normalized_live_status`, which can still equal the phase's
-        # expected value (e.g. "queued" for pre_claim) even while an
-        # archive-folder duplicate exists -- so this must be rejected
-        # BEFORE the phase requirement is evaluated, not after.
         return CheckResult(
             name="shipment_readiness",
             status="blocked",
@@ -1533,12 +1607,14 @@ def _shipment_readiness_check(
             message=(
                 f"TARGET_STATE_AMBIGUOUS: target {target} has conflicting live and archived shipment records"
             ),
-            details={
-                "phase": phase,
-                "target_shipment_id": target,
-                "live_status": shipment.live_status,
-                "archived_status": shipment.archived_status,
-            },
+            details=_shipment_readiness_details(
+                target,
+                shipment,
+                shipments,
+                phase=phase,
+                live_status=shipment.live_status,
+                archived_status=shipment.archived_status,
+            ),
         )
     requirement = _target_phase_requirement(phase)
     normalized_live_status = _normalized_live_status(shipment) if shipment is not None else None
@@ -1546,6 +1622,16 @@ def _shipment_readiness_check(
         expected_live_status, token, phase_note = requirement
         if normalized_live_status != expected_live_status:
             observed = normalized_live_status or "missing live shipment record"
+            details = {
+                "phase": phase,
+                "target_shipment_id": target,
+                "expected_live_status": expected_live_status,
+                "live_status": shipment.live_status if shipment else None,
+                "normalized_live_status": normalized_live_status,
+                "archived_status": shipment.archived_status if shipment else None,
+            }
+            if shipment is not None:
+                details.update(_shipment_readiness_details(target, shipment, shipments, phase=phase))
             return CheckResult(
                 name="shipment_readiness",
                 status="blocked",
@@ -1554,14 +1640,7 @@ def _shipment_readiness_check(
                     f"{token}: target {target} must have live status {expected_live_status} {phase_note}; "
                     f"found {observed}"
                 ),
-                details={
-                    "phase": phase,
-                    "target_shipment_id": target,
-                    "expected_live_status": expected_live_status,
-                    "live_status": shipment.live_status if shipment else None,
-                    "normalized_live_status": normalized_live_status,
-                    "archived_status": shipment.archived_status if shipment else None,
-                },
+                details=details,
             )
 
     if shipment is None:
@@ -1571,30 +1650,40 @@ def _shipment_readiness_check(
             message="shipment metadata unavailable; readiness check skipped",
         )
 
-    if phase in ("post_claim", "lifecycle"):
-        # Predecessor sequencing is a claim-ELIGIBILITY check: it exists to
-        # keep an unshipped predecessor from being claimed out of order. It
-        # belongs to pre_claim only. post_claim/lifecycle run strictly
-        # AFTER a claim has already succeeded (the phase requirement above
-        # already enforced live_status == "active" for those phases) -- a
-        # predecessor that is still unshipped cannot retroactively un-claim
-        # a target that is already active, so re-applying sequencing here
-        # would incorrectly re-block a claim that has already converged.
-        # `ambient` is intentionally excluded from this bypass: it has no
-        # claim-success precondition of its own (no `_target_phase_requirement`
-        # entry) and its predecessor-check scope is unchanged by this fix.
+    predecessor_source = _predecessor_source(shipment, shipments)
+    details = _shipment_readiness_details(target, shipment, shipments)
+    if phase in ("post_claim", "lifecycle") or (phase == "ambient" and normalized_live_status == "active"):
         return CheckResult(
             name="shipment_readiness",
             status="passed",
-            details={"target_shipment_id": target, "predecessor_ids": []},
+            details=details,
         )
 
-    predecessor_ids = list(shipment.blocking_predecessor_ids)
-    prior_id = _prior_shipment_id(target, shipments)
-    if prior_id and prior_id not in predecessor_ids:
-        predecessor_ids.append(prior_id)
+    if predecessor_source == "declared_root":
+        return CheckResult(
+            name="shipment_readiness",
+            status="passed",
+            details=details,
+        )
+    if predecessor_source == "genesis":
+        return CheckResult(
+            name="shipment_readiness",
+            status="passed",
+            details=details,
+        )
+    if predecessor_source == "unsequenced":
+        return CheckResult(
+            name="shipment_readiness",
+            status="blocked",
+            token="UNSEQUENCED_SHIPMENT",
+            message=(
+                f"UNSEQUENCED_SHIPMENT: target {target} has no explicit blocks edge; "
+                "record the real blocks edge or declare the shipment a root"
+            ),
+            details=details,
+        )
 
-    for predecessor_id in predecessor_ids:
+    for predecessor_id in shipment.blocking_predecessor_ids:
         predecessor = shipment_map.get(predecessor_id)
         if predecessor is not None and _has_ambiguous_shipment_records(predecessor):
             return CheckResult(
@@ -1604,12 +1693,14 @@ def _shipment_readiness_check(
                 message=(
                     f"PREDECESSOR_STATE_AMBIGUOUS: predecessor {predecessor_id} has conflicting live and archived shipment records"
                 ),
-                details={
-                    "target_shipment_id": target,
-                    "predecessor_id": predecessor_id,
-                    "live_status": predecessor.live_status,
-                    "archived_status": predecessor.archived_status,
-                },
+                details=_shipment_readiness_details(
+                    target,
+                    shipment,
+                    shipments,
+                    predecessor_id=predecessor_id,
+                    live_status=predecessor.live_status,
+                    archived_status=predecessor.archived_status,
+                ),
             )
         if predecessor is None or not _is_shipped_terminal(predecessor):
             return CheckResult(
@@ -1619,12 +1710,14 @@ def _shipment_readiness_check(
                 message=(
                     f"PREDECESSOR_NOT_SHIPPED: predecessor {predecessor_id} is not in a shipped terminal state"
                 ),
-                details={
-                    "target_shipment_id": target,
-                    "predecessor_id": predecessor_id,
-                    "live_status": predecessor.live_status if predecessor else None,
-                    "archived_status": predecessor.archived_status if predecessor else None,
-                },
+                details=_shipment_readiness_details(
+                    target,
+                    shipment,
+                    shipments,
+                    predecessor_id=predecessor_id,
+                    live_status=predecessor.live_status if predecessor else None,
+                    archived_status=predecessor.archived_status if predecessor else None,
+                ),
             )
         closure_complete = readers.closure_complete(predecessor_id)
         if closure_complete is not True:
@@ -1635,17 +1728,19 @@ def _shipment_readiness_check(
                 message=(
                     f"PREDECESSOR_CLOSURE_INCOMPLETE: predecessor {predecessor_id} is terminal but missing required closure evidence"
                 ),
-                details={
-                    "target_shipment_id": target,
-                    "predecessor_id": predecessor_id,
-                    "closure_complete": closure_complete,
-                },
+                details=_shipment_readiness_details(
+                    target,
+                    shipment,
+                    shipments,
+                    predecessor_id=predecessor_id,
+                    closure_complete=closure_complete,
+                ),
             )
 
     return CheckResult(
         name="shipment_readiness",
         status="passed",
-        details={"target_shipment_id": target, "predecessor_ids": predecessor_ids},
+        details=details,
     )
 
 

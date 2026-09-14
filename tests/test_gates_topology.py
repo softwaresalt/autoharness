@@ -211,6 +211,12 @@ class _TopologyWorkspaceMixin:
     def _list_shipments(self, workspace: Path) -> tuple[ShipmentState, ...]:
         return tuple(self._reader(workspace).list_shipments())
 
+    def _shipment_from_workspace(self, workspace: Path, shipment_id: str) -> ShipmentState:
+        for shipment in self._list_shipments(workspace):
+            if shipment.shipment_id == shipment_id:
+                return shipment
+        raise AssertionError(f'missing shipment record: {shipment_id}')
+
     def _evaluate_workspace(self, workspace: Path, target: str, *, closure=None, phase: str = 'pre_claim'):
         return evaluate(TopologyInput(mode='agent', phase=phase, target_shipment_id=target), readers=self._reader(workspace, closure=closure))
 
@@ -1921,12 +1927,7 @@ class DagAuthoritativePredecessorCharacterizationTests(unittest.TestCase, _Topol
             self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
 
 
-class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWorkspaceMixin):
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='four-state unsequenced classification is not implemented yet for edge-less adjacent shipments',
-    )
+class DagAuthoritativePredecessorDerivationTests(unittest.TestCase, _TopologyWorkspaceMixin):
     def test_n1_two_adjacent_edge_less_shipments_are_not_blocked_by_numeric_inference(self) -> None:
         result = evaluate(
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='149-S'),
@@ -1934,11 +1935,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
         )
         self._assert_unsequenced_block(result, target='149-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='numeric adjacency still incorrectly triggers closure evidence for a non-predecessor',
-    )
     def test_n2_closure_evidence_is_never_demanded_for_numeric_adjacency_alone(self) -> None:
         class Readers(_FakeReaders):
             def closure_complete(self, shipment_id: str):
@@ -1950,11 +1946,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
         )
         self._assert_unsequenced_block(result, target='149-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='predecessor_source',
-        reason='passing readiness payloads do not yet report predecessor provenance',
-    )
     def test_n3_passing_payload_reports_predecessor_source(self) -> None:
         class Readers(_FakeReaders):
             def closure_complete(self, shipment_id: str):
@@ -1966,11 +1957,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
         )
         self._assert_readiness_pass(result, source='explicit', predecessor_ids=('113-S',))
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='predecessor_source',
-        reason='blocked readiness payloads do not yet report predecessor provenance',
-    )
     def test_n3_blocked_payload_reports_predecessor_source(self) -> None:
         result = evaluate(
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
@@ -1978,33 +1964,18 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
         )
         self._assert_explicit_block(result, predecessor_id='113-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='predecessor_source',
-        reason='declared dag roots are not yet classified distinctly from unlabeled shipments',
-    )
     def test_n4_declared_root_passes_with_declared_root_provenance(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '173-S', status='queued', labels=['dag-root'])
             result = self._evaluate_workspace(workspace, '173-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='predecessor_source',
-        reason='genesis provenance is not yet reported for the sole shipment record',
-    )
     def test_n5a_genesis_passes_only_for_the_sole_record(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_readiness_pass(result, source='genesis')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='archived shipped history is not yet disqualifying edge-less candidates from genesis',
-    )
     def test_n5b_archived_shipped_history_prevents_genesis(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
@@ -2012,11 +1983,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_unsequenced_block(result, target='200-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='result.exit_code',
-        reason='the first of multiple queued edge-less shipments is still incorrectly treated as genesis',
-    )
     def test_n5c_first_of_multiple_queued_shipments_is_not_genesis(self) -> None:
         with self._topology_workspace() as workspace:
             for shipment_id in ('200-S', '201-S', '202-S'):
@@ -2024,11 +1990,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_unsequenced_block(result, target='200-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='later-numbered queued edge-less shipments are still blocked by numeric inference instead of unsequenced classification',
-    )
     def test_n5c_later_numbered_queued_shipment_is_not_genesis(self) -> None:
         with self._topology_workspace() as workspace:
             for shipment_id in ('200-S', '201-S', '202-S'):
@@ -2036,11 +1997,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
             result = self._evaluate_workspace(workspace, '202-S')
         self._assert_unsequenced_block(result, target='202-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='abandoned-only history is not yet counted when disqualifying genesis',
-    )
     def test_n5d_abandoned_only_history_prevents_genesis(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
@@ -2048,11 +2004,6 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_unsequenced_block(result, target='200-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='archived blocked history is not yet counted as a genesis-disqualifying record',
-    )
     def test_n5f2_archived_blocked_history_prevents_genesis(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
@@ -2061,12 +2012,7 @@ class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWo
         self._assert_unsequenced_block(result, target='200-S')
 
 
-class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _TopologyWorkspaceMixin):
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='archived unrecognized status records are not yet counted as genesis-disqualifying history',
-    )
+class DagAuthoritativePredecessorLabelDerivationTests(unittest.TestCase, _TopologyWorkspaceMixin):
     def test_n5g_archived_unrecognized_status_prevents_genesis(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
@@ -2074,11 +2020,6 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_unsequenced_block(result, target='200-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='result.exit_code',
-        reason='declared roots are not yet honored over archived shipped history',
-    )
     def test_n5e_declared_root_overrides_archived_shipped_history(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
@@ -2086,11 +2027,6 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='result.exit_code',
-        reason='declared roots are not yet honored when multiple queued shipments exist',
-    )
     def test_n5e_declared_root_overrides_multiple_queued_shipments(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
@@ -2099,11 +2035,6 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
             result = self._evaluate_workspace(workspace, '202-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='result.exit_code',
-        reason='declared roots are not yet honored over abandoned-only history',
-    )
     def test_n5e_declared_root_overrides_abandoned_only_history(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
@@ -2111,11 +2042,6 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='result.exit_code',
-        reason='declared roots are not yet honored over archived blocked history',
-    )
     def test_n5e_declared_root_overrides_archived_blocked_history(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
@@ -2123,11 +2049,6 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='result.exit_code',
-        reason='declared roots are not yet honored over archived unrecognized-status history',
-    )
     def test_n5e_declared_root_overrides_archived_unrecognized_status_history(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
@@ -2135,11 +2056,6 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='shipment_readiness.token',
-        reason='unsequenced shipments do not yet report the dedicated token and remedies',
-    )
     def test_n6_unsequenced_message_names_both_remedies(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
@@ -2148,231 +2064,218 @@ class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _Topo
         self._assert_unsequenced_block(result, target='200-S')
         self._expect_contains('shipment_readiness.message', self._readiness_check(result).message, 'declare the shipment a root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='ShipmentState.labels',
-        reason='shipment labels are not yet stored on ShipmentState',
-    )
     def test_n7_exact_dag_root_membership_stores_labels_tuple_and_declares_root(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '173-S', status='queued', labels=['dag-root', 'topology-gate'])
-            shipment = self._list_shipments(workspace)[0]
+            shipment = self._shipment_from_workspace(workspace, '173-S')
             self._assert_shipment_labels(shipment, ('dag-root', 'topology-gate'))
             result = self._evaluate_workspace(workspace, '173-S')
         self._assert_readiness_pass(result, source='declared_root')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='ShipmentState.labels',
-        reason='absent labels are not yet materialized as an empty tuple on ShipmentState',
-    )
     def test_n7_absent_labels_yield_empty_tuple_without_declaring_root(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued')
-            shipment = self._list_shipments(workspace)[0]
+            shipment = self._shipment_from_workspace(workspace, '200-S')
             self._assert_shipment_labels(shipment, ())
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_readiness_pass(result, source='genesis')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='ShipmentState.labels',
-        reason='root classification does not yet derive from exact case-sensitive dag-root membership',
-    )
     def test_n7_unrelated_or_case_variant_labels_do_not_declare_root(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['Dag-Root', 'topology-gate'])
             self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
-            shipment = self._list_shipments(workspace)[0]
+            shipment = self._shipment_from_workspace(workspace, '200-S')
             self._assert_shipment_labels(shipment, ('Dag-Root', 'topology-gate'))
             result = self._evaluate_workspace(workspace, '200-S')
         self._assert_unsequenced_block(result, target='200-S')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels declared as a bare string',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_bare_string_labels_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels='dag-root')
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels declared as a bare string')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels declared as a scalar',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_scalar_labels_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=42)
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels declared as a scalar')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels containing a non-string member',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_non_string_label_members_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', 7])
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a non-string member')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels containing a blank member',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_blank_label_members_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', '   '])
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a blank member')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels containing a forward slash',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_labels_with_forward_slashes_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', 'release/train'])
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a forward slash')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels containing a backslash',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_labels_with_backslashes_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', r'release\train'])
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a backslash')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='expected BacklogUnavailableError for labels containing a dotdot segment',
-        reason='label validation is not yet implemented',
-    )
     def test_n8_labels_with_dotdot_segments_are_rejected(self) -> None:
         with self._topology_workspace() as workspace:
             self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', '..root'])
             self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a dotdot segment')
 
 
-class ImplicitNumericPredecessorTests(unittest.TestCase):
-    """`_prior_shipment_id`'s numeric-adjacency heuristic exists to catch an
-    unstated-but-intended sequential predecessor when no shipment declares
-    `dependencies`. It must never override an EXPLICIT reverse dependency
-    edge: when the numerically-lower shipment itself declares the target as
-    its own dependency (i.e. the lower shipment depends on / is blocked by
-    the higher one -- the opposite direction the heuristic assumes), the
-    heuristic must not inject a contradictory implicit predecessor block --
-    and this must hold even across a multi-hop chain where a THIRD,
-    unrelated shipment could otherwise be mistakenly selected once the
-    direct violator is skipped."""
+class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin):
+    """Historical context for the retired claim-path numeric heuristic.
+
+    `_prior_shipment_id` remains in the module for a future audit-only surface,
+    but `_shipment_readiness_check` no longer consults it when deciding whether a
+    shipment may be claimed. The historical defect cycles captured in
+    `docs/compound/2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md`
+    and `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`
+    now live here only as explicit-DAG claim assertions and constrained-red
+    audit-surface placeholders for 165.003-T.
+    """
+
+    def _future_audit_report(self, target: str, shipments: tuple[ShipmentState, ...]):
+        from autoharness.gates import topology
+
+        # 165.003-T will provide this audit-only surface and flip the
+        # expected-red historical-candidate assertions below to green.
+        return topology.audit_sequencing(target_shipment_id=target, shipments=shipments)
 
     def test_lower_numbered_shipment_declaring_target_as_its_own_dependency_is_not_treated_as_predecessor(
         self,
     ) -> None:
-        # 139-S declares zero dependencies (it is the actual predecessor).
-        # 138-S (numerically lower) declares dependencies: [139-S] -- i.e.
-        # 138-S depends on / is blocked by 139-S, the reverse of what the
-        # naive numeric-adjacency heuristic assumes.
-        readers = _FakeReaders(shipments=(
-            _shipment('138-S', 'queued', deps=('139-S',)),
-            _shipment('139-S', 'queued'),
-        ))
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return shipment_id == '137-S'
+
         result = evaluate(
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='139-S'),
-            readers=readers,
+            readers=Readers(
+                shipments=(
+                    _shipment('137-S', 'shipped'),
+                    _shipment('138-S', 'queued', deps=('139-S',)),
+                    _shipment('139-S', 'queued', deps=('137-S',)),
+                ),
+                branch='main',
+            ),
         )
-        self.assertEqual(result.exit_code, 0)
-        self.assertIsNone(result.primary_token)
+        self._assert_readiness_pass(result, source='explicit', predecessor_ids=('137-S',))
 
+    @expect_red(
+        raises=AttributeError,
+        message_contains='audit_sequencing',
+        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
+    )
     def test_implicit_numeric_predecessor_still_blocks_when_no_declared_reverse_dependency(
         self,
     ) -> None:
-        # Preserves the original intent of the heuristic: with no declared
-        # `dependencies` anywhere, an unshipped numerically-prior shipment
-        # is still treated as an implicit predecessor.
-        readers = _FakeReaders(shipments=(
-            _shipment('113-S', 'queued'),
-            _shipment('114-S', 'queued'),
-        ))
-        result = evaluate(
-            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
-            readers=readers,
+        report = self._future_audit_report(
+            '114-S',
+            (
+                _shipment('113-S', 'queued'),
+                _shipment('114-S', 'queued'),
+            ),
         )
-        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+        self._expect_equal(
+            'audit.raw_numeric_candidate_ids',
+            tuple(report['raw_numeric_candidate_ids']),
+            ('113-S',),
+        )
 
+    @expect_red(
+        raises=AttributeError,
+        message_contains='audit_sequencing',
+        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
+    )
     def test_implicit_numeric_predecessor_still_blocks_when_lower_shipment_has_unrelated_deps(
         self,
     ) -> None:
-        # The lower-numbered shipment declaring SOME dependency that is not
-        # the target must not suppress the implicit-predecessor heuristic --
-        # only a declared dependency ON THE TARGET itself is a genuine
-        # reverse-edge contradiction.
-        readers = _FakeReaders(shipments=(
-            _shipment('112-S', 'shipped'),
-            _shipment('113-S', 'queued', deps=('112-S',)),
-            _shipment('114-S', 'queued'),
-        ))
-        result = evaluate(
-            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
-            readers=readers,
+        report = self._future_audit_report(
+            '114-S',
+            (
+                _shipment('112-S', 'shipped'),
+                _shipment('113-S', 'queued', deps=('112-S',)),
+                _shipment('114-S', 'queued'),
+            ),
         )
-        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
-        self.assertEqual(
-            result.checks[0].details.get('predecessor_id'),
-            '113-S',
+        self._expect_equal(
+            'audit.raw_numeric_candidate_ids',
+            tuple(report['raw_numeric_candidate_ids']),
+            ('113-S',),
         )
 
+    @expect_red(
+        raises=AttributeError,
+        message_contains='audit_sequencing',
+        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
+    )
     def test_multi_hop_reverse_dependency_disables_fallback_entirely_not_just_the_violator(
         self,
     ) -> None:
-        # Reproduces the exact multi-hop gap: 137-S is queued and wholly
-        # unrelated to the target; 138-S (numerically closer to the target)
-        # declares dependencies: [139-S], the reverse-edge violator; target
-        # = 139-S. Skipping only 138-S and falling through to the
-        # next-lower numeric candidate (137-S) is still wrong -- 137-S has
-        # no real relationship to 139-S at all. The mere existence of ANY
-        # explicit reverse edge for the target must disable the entire
-        # numeric-adjacency fallback for that target, not just skip the one
-        # violating candidate.
-        readers = _FakeReaders(shipments=(
-            _shipment('137-S', 'queued'),
-            _shipment('138-S', 'queued', deps=('139-S',)),
-            _shipment('139-S', 'queued'),
-        ))
-        result = evaluate(
-            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='139-S'),
-            readers=readers,
+        report = self._future_audit_report(
+            '139-S',
+            (
+                _shipment('137-S', 'queued'),
+                _shipment('138-S', 'queued', deps=('139-S',)),
+                _shipment('139-S', 'queued'),
+            ),
         )
-        self.assertEqual(result.exit_code, 0)
-        self.assertIsNone(result.primary_token)
+        self._expect_equal(
+            'audit.raw_numeric_candidate_ids',
+            tuple(report['raw_numeric_candidate_ids']),
+            ('138-S',),
+        )
 
     def test_higher_numbered_forward_dependent_does_not_suppress_targets_own_predecessor_check(
         self,
     ) -> None:
-        # 113-S (numerically HIGHER than the target) declares
-        # dependencies: [112-S] -- an ordinary forward-order dependency,
-        # not a reverse-edge anomaly. It must not suppress the
-        # numeric-adjacency fallback for the target (112-S), which still
-        # has its own genuinely unshipped, undeclared numeric predecessor
-        # (111-S).
-        readers = _FakeReaders(shipments=(
-            _shipment('111-S', 'queued'),
-            _shipment('112-S', 'queued'),
-            _shipment('113-S', 'queued', deps=('112-S',)),
-        ))
-        result = evaluate(
+        without_forward_dependent = evaluate(
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='112-S'),
-            readers=readers,
+            readers=_FakeReaders(
+                shipments=(
+                    _shipment('111-S', 'queued'),
+                    _shipment('112-S', 'queued'),
+                ),
+                branch='main',
+            ),
         )
-        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
-        self.assertEqual(
-            result.checks[0].details.get('predecessor_id'),
-            '111-S',
+        with_forward_dependent = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='112-S'),
+            readers=_FakeReaders(
+                shipments=(
+                    _shipment('111-S', 'queued'),
+                    _shipment('112-S', 'queued'),
+                    _shipment('113-S', 'queued', deps=('112-S',)),
+                ),
+                branch='main',
+            ),
+        )
+        self._assert_unsequenced_block(without_forward_dependent, target='112-S')
+        self._assert_unsequenced_block(with_forward_dependent, target='112-S')
+
+    @expect_red(
+        raises=AttributeError,
+        message_contains='audit_sequencing',
+        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
+    )
+    def test_higher_numbered_forward_dependent_history_is_preserved_for_future_audit_surface(
+        self,
+    ) -> None:
+        report = self._future_audit_report(
+            '112-S',
+            (
+                _shipment('111-S', 'queued'),
+                _shipment('112-S', 'queued'),
+                _shipment('113-S', 'queued', deps=('112-S',)),
+            ),
+        )
+        self._expect_equal(
+            'audit.raw_numeric_candidate_ids',
+            tuple(report['raw_numeric_candidate_ids']),
+            ('111-S',),
         )
 
 
