@@ -815,10 +815,32 @@ def evaluate_bootstrap_grant(
     inferred_predecessor_id = details.get('predecessor_id')
     if inferred_predecessor_id != grant.expected_predecessor_id:
         return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+    selected_predecessor_ids = details.get('selected_predecessor_ids')
+    if isinstance(selected_predecessor_ids, list) and len(selected_predecessor_ids) > 1:
+        # The topology check's predecessor loop short-circuits and returns
+        # on the first incomplete predecessor it finds; details.predecessor_id
+        # names only that one, while selected_predecessor_ids can carry every
+        # predecessor the target declares. A grant authorizes exactly one
+        # named predecessor -- applying it here would convert the *whole*
+        # blocked result into a pass without ever having evaluated whether
+        # the remaining declared predecessors are also complete. Fail closed
+        # rather than silently widening a single-predecessor authorization
+        # into a bypass of the rest of the DAG prerequisites.
+        return BootstrapGrantMatchResult(
+            applied=False,
+            warnings=warnings + _warning(
+                'grant refused: target declares multiple blocking predecessors '
+                f'{selected_predecessor_ids!r}, but this grant authorizes only '
+                f'{grant.expected_predecessor_id!r} and the topology check never evaluated '
+                'whether the remaining declared predecessors are also complete'
+            ),
+            grant=grant,
+        )
 
     manifest = derive_shipment_manifest(shipments, target)
     if manifest is None or manifest.digest != grant.manifest_digest:
         return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+
 
     normalized_hooks = hooks or BootstrapGrantHooks()
     claimed_record = BootstrapGrantConsumptionRecord(

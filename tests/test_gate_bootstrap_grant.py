@@ -310,6 +310,39 @@ class BootstrapGrantTests(unittest.TestCase):
         success = self._evaluate()
         self.assertTrue(success.applied)
 
+    def test_multiple_selected_predecessors_refuse_grant_even_when_first_matches(self) -> None:
+        # Regression coverage for a prior bug where evaluate_bootstrap_grant
+        # matched only details['predecessor_id'] (the single predecessor
+        # that caused the topology check's fail-fast loop to return) while
+        # ignoring that details['selected_predecessor_ids'] can list several
+        # predecessors the target actually declares. A grant scoped to the
+        # first predecessor must not silently authorize bypassing the whole
+        # blocked result when other declared predecessors were never
+        # evaluated for completeness.
+        _write_grant(self.workspace)
+        matching_check = _matching_payload()['checks'][0]
+        multi_predecessor_check = {
+            **matching_check,
+            'details': {
+                **matching_check['details'],
+                'predecessor_ids': [_MATCHING_PREDECESSOR_ID, '171-S'],
+                'selected_predecessor_ids': [_MATCHING_PREDECESSOR_ID, '171-S'],
+            },
+        }
+        payload = _matching_payload(checks=[multi_predecessor_check])
+
+        result = self._evaluate(observed_payload=payload)
+
+        self.assertFalse(result.applied)
+        self.assertFalse(self._record_path().exists())
+        joined = ' '.join(result.warnings)
+        self.assertIn('multiple blocking predecessors', joined)
+        # A single-predecessor payload with the identical grant still
+        # applies -- proves the refusal is specific to the multi-predecessor
+        # case, not a general regression of grant matching.
+        success = self._evaluate()
+        self.assertTrue(success.applied)
+
     def test_concurrency_allows_exactly_one_claim(self) -> None:
         _write_grant(self.workspace)
         ctx = multiprocessing.get_context('spawn')
