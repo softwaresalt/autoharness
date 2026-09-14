@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import ast
 import os
 import subprocess
@@ -10,9 +11,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 from _env_patch import patched_environ
+from support.red import expect_red
 from autoharness.gates.topology import (
     ArtifactState,
+    BacklogUnavailableError,
+    FilesystemTopologyReaders,
     ShipmentState,
     TopologyInput,
     _active_invariant_check,
@@ -111,6 +117,155 @@ def _check(result, name: str):
 
 def _task(task_id: str, status: str) -> ArtifactState:
     return ArtifactState(artifact_id=task_id, artifact_type='task', live_status=status)
+
+
+_TOPOLOGY_UNSET = object()
+
+
+class _FixtureFilesystemReaders(FilesystemTopologyReaders):
+    def __init__(
+        self,
+        workspace: Path,
+        *,
+        closure=None,
+        branch: str = 'main',
+        default_branch: str = 'main',
+        worktrees: str | None = None,
+    ) -> None:
+        super().__init__(workspace)
+        self._closure = dict(closure or {})
+        self._branch = branch
+        self._default_branch = default_branch
+        self._worktrees = worktrees or (
+            'worktree C:/repo\n'
+            'HEAD 0000000000000000000000000000000000000000\n'
+            f'branch refs/heads/{branch}\n\n'
+        )
+
+    def current_branch(self) -> str:
+        return self._branch
+
+    def default_branch(self) -> str:
+        return self._default_branch
+
+    def worktree_porcelain(self) -> str:
+        return self._worktrees
+
+    def read_worktree_marker(self, worktree_path: str):
+        return None
+
+    def closure_complete(self, shipment_id: str):
+        return self._closure.get(shipment_id)
+
+
+class _TopologyWorkspaceMixin:
+    @contextmanager
+    def _topology_workspace(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as tmp:
+            workspace = Path(tmp)
+            (workspace / '.backlogit' / 'queue').mkdir(parents=True)
+            (workspace / '.backlogit' / 'archive').mkdir()
+            yield workspace
+
+    def _write_shipment_record(
+        self,
+        workspace: Path,
+        shipment_id: str | object,
+        *,
+        folder: str = 'queue',
+        filename: str | None = None,
+        title: str | object = _TOPOLOGY_UNSET,
+        status: object = _TOPOLOGY_UNSET,
+        archived_status: object = _TOPOLOGY_UNSET,
+        dependencies: object = _TOPOLOGY_UNSET,
+        labels: object = _TOPOLOGY_UNSET,
+        artifact_type: str = 'shipment',
+        extra_fields: dict[str, object] | None = None,
+    ) -> Path:
+        payload: dict[str, object] = {'artifact_type': artifact_type}
+        if shipment_id is not _TOPOLOGY_UNSET:
+            payload['id'] = shipment_id
+        if title is not _TOPOLOGY_UNSET:
+            payload['title'] = title
+        if status is not _TOPOLOGY_UNSET:
+            payload['status'] = status
+        if archived_status is not _TOPOLOGY_UNSET:
+            payload['archived_status'] = archived_status
+        if dependencies is not _TOPOLOGY_UNSET:
+            payload['dependencies'] = dependencies
+        if labels is not _TOPOLOGY_UNSET:
+            payload['labels'] = labels
+        if extra_fields:
+            payload.update(extra_fields)
+        record_name = filename
+        if record_name is None:
+            record_name = shipment_id.strip() if isinstance(shipment_id, str) and shipment_id.strip() else 'shipment-record'
+        record_path = workspace / '.backlogit' / folder / f'{record_name}.md'
+        body = yaml.safe_dump(payload, sort_keys=False).strip()
+        record_path.write_text(f'---\n{body}\n---\n', encoding='utf-8')
+        return record_path
+
+    def _reader(self, workspace: Path, *, closure=None) -> _FixtureFilesystemReaders:
+        return _FixtureFilesystemReaders(workspace, closure=closure)
+
+    def _list_shipments(self, workspace: Path) -> tuple[ShipmentState, ...]:
+        return tuple(self._reader(workspace).list_shipments())
+
+    def _evaluate_workspace(self, workspace: Path, target: str, *, closure=None, phase: str = 'pre_claim'):
+        return evaluate(TopologyInput(mode='agent', phase=phase, target_shipment_id=target), readers=self._reader(workspace, closure=closure))
+
+    def _expect_equal(self, label: str, actual, expected) -> None:
+        if actual != expected:
+            raise AssertionError(f'expected {label}={expected!r}, got {actual!r}')
+
+    def _expect_contains(self, label: str, container: str, member: str) -> None:
+        if member not in container:
+            raise AssertionError(f'expected {label} to contain {member!r}, got {container!r}')
+
+    def _expect_backlog_unavailable(self, func, *, description: str) -> None:
+        try:
+            func()
+        except BacklogUnavailableError:
+            return
+        raise AssertionError(f'expected BacklogUnavailableError for {description}')
+
+    def _readiness_check(self, result):
+        return _check(result, 'shipment_readiness')
+
+    def _assert_predecessor_source(self, check, expected: str) -> None:
+        self._expect_equal('predecessor_source', check.details.get('predecessor_source'), expected)
+
+    def _assert_predecessor_ids(self, check, expected) -> None:
+        self._expect_equal('predecessor_ids', tuple(check.details.get('predecessor_ids', ())), tuple(expected))
+
+    def _assert_readiness_pass(self, result, *, source: str, predecessor_ids=()) -> None:
+        self._expect_equal('result.exit_code', result.exit_code, 0)
+        check = self._readiness_check(result)
+        self._expect_equal('shipment_readiness.status', check.status, 'passed')
+        self._assert_predecessor_source(check, source)
+        self._assert_predecessor_ids(check, predecessor_ids)
+
+    def _assert_explicit_block(self, result, *, predecessor_id: str) -> None:
+        self._expect_equal('result.exit_code', result.exit_code, 1)
+        check = self._readiness_check(result)
+        self._expect_equal('shipment_readiness.status', check.status, 'blocked')
+        self._expect_equal('shipment_readiness.token', check.token, 'PREDECESSOR_NOT_SHIPPED')
+        self._expect_equal('shipment_readiness.predecessor_id', check.details.get('predecessor_id'), predecessor_id)
+        self._assert_predecessor_source(check, 'explicit')
+
+    def _assert_unsequenced_block(self, result, *, target: str) -> None:
+        self._expect_equal('result.exit_code', result.exit_code, 1)
+        check = self._readiness_check(result)
+        self._expect_equal('shipment_readiness.status', check.status, 'blocked')
+        self._expect_equal('shipment_readiness.token', check.token, 'UNSEQUENCED_SHIPMENT')
+        self._expect_equal('shipment_readiness.target_shipment_id', check.details.get('target_shipment_id'), target)
+        self._assert_predecessor_source(check, 'unsequenced')
+        self._assert_predecessor_ids(check, ())
+        self._expect_contains('shipment_readiness.message', check.message, 'blocks')
+        self._expect_contains('shipment_readiness.message', check.message, 'root')
+
+    def _assert_shipment_labels(self, shipment: ShipmentState, expected) -> None:
+        self._expect_equal('ShipmentState.labels', getattr(shipment, 'labels', None), tuple(expected))
 
 
 class FilesystemTopologyReadersTests(unittest.TestCase):
@@ -1631,6 +1786,477 @@ class ShipmentReadinessTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+
+class DagAuthoritativePredecessorCharacterizationTests(unittest.TestCase, _TopologyWorkspaceMixin):
+    def test_c1_explicit_linear_chain_blocks_on_unshipped_predecessor(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(
+                shipments=(
+                    _shipment('113-S', 'queued'),
+                    _shipment('114-S', 'queued', deps=('113-S',)),
+                ),
+                branch='main',
+            ),
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+        self.assertEqual(self._readiness_check(result).details['predecessor_id'], '113-S')
+
+    def test_c2_explicit_predecessor_requires_closure_evidence(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return False
+
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=Readers(
+                shipments=(
+                    _shipment('113-S', 'shipped'),
+                    _shipment('114-S', 'queued', deps=('113-S',)),
+                ),
+                branch='main',
+            ),
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+    def test_c3_converging_dag_evaluates_every_explicit_predecessor(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return shipment_id == '112-S'
+
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=Readers(
+                shipments=(
+                    _shipment('112-S', 'shipped'),
+                    _shipment('113-S', 'queued'),
+                    _shipment('114-S', 'queued', deps=('112-S', '113-S')),
+                ),
+                branch='main',
+            ),
+        )
+        self.assertEqual(result.primary_token, 'PREDECESSOR_NOT_SHIPPED')
+        self.assertEqual(self._readiness_check(result).details['predecessor_id'], '113-S')
+
+    def test_c4_malformed_dependency_ids_fail_closed(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '114-S', status='queued', dependencies=['../../outside'])
+            self._expect_backlog_unavailable(
+                lambda: self._list_shipments(workspace),
+                description='a malformed dependency id',
+            )
+
+    def test_c5_labels_frontmatter_currently_reads_without_error(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '173-S', status='queued', labels=['dag-root', 'topology-gate'])
+            shipments = self._list_shipments(workspace)
+            self.assertEqual(len(shipments), 1)
+            self.assertEqual(shipments[0].shipment_id, '173-S')
+            self.assertEqual(shipments[0].live_status, 'queued')
+            result = self._evaluate_workspace(workspace, '173-S')
+            self.assertEqual(result.exit_code, 0)
+
+    def test_n5f1_live_blocked_status_fails_closed_at_reader_time(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', status='blocked')
+            self._expect_backlog_unavailable(
+                lambda: self._list_shipments(workspace),
+                description='a live shipment record with status blocked',
+            )
+
+    def test_n5g_live_record_with_missing_status_fails_closed_at_reader_time(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', filename='199-S-missing-status')
+            self._expect_backlog_unavailable(
+                lambda: self._list_shipments(workspace),
+                description='a live shipment record with a missing status',
+            )
+
+    def test_n5g_live_record_with_blank_status_fails_closed_at_reader_time(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', filename='199-S-blank-status', status='  ')
+            self._expect_backlog_unavailable(
+                lambda: self._list_shipments(workspace),
+                description='a live shipment record with a blank status',
+            )
+
+    def test_n5g_live_record_with_non_string_status_fails_closed_at_reader_time(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', filename='199-S-non-string-status', status=['queued'])
+            self._expect_backlog_unavailable(
+                lambda: self._list_shipments(workspace),
+                description='a live shipment record with a non-string status',
+            )
+
+    def test_n5g_live_record_with_unrecognized_status_fails_closed_at_reader_time(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', filename='199-S-unrecognized-status', status='retired')
+            self._expect_backlog_unavailable(
+                lambda: self._list_shipments(workspace),
+                description='a live shipment record with an unrecognized status',
+            )
+
+    def test_n5h_enumeration_failure_fails_closed(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            reader = self._reader(workspace)
+            original_glob = Path.glob
+
+            def raising_glob(path_obj: Path, pattern: str):
+                if path_obj == workspace / '.backlogit' / 'archive' and pattern == '*.md':
+                    raise OSError('archive directory unreadable')
+                return original_glob(path_obj, pattern)
+
+            with mock.patch('autoharness.gates.topology.Path.glob', autospec=True, side_effect=raising_glob):
+                result = evaluate(
+                    TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='200-S'),
+                    readers=reader,
+                )
+            self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+
+class DagAuthoritativePredecessorExpectedRedTests(unittest.TestCase, _TopologyWorkspaceMixin):
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='four-state unsequenced classification is not implemented yet for edge-less adjacent shipments',
+    )
+    def test_n1_two_adjacent_edge_less_shipments_are_not_blocked_by_numeric_inference(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='149-S'),
+            readers=_FakeReaders(shipments=(_shipment('148-S', 'queued'), _shipment('149-S', 'queued')), branch='main'),
+        )
+        self._assert_unsequenced_block(result, target='149-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='numeric adjacency still incorrectly triggers closure evidence for a non-predecessor',
+    )
+    def test_n2_closure_evidence_is_never_demanded_for_numeric_adjacency_alone(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return False
+
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='149-S'),
+            readers=Readers(shipments=(_shipment('148-S', 'shipped'), _shipment('149-S', 'queued')), branch='main'),
+        )
+        self._assert_unsequenced_block(result, target='149-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='predecessor_source',
+        reason='passing readiness payloads do not yet report predecessor provenance',
+    )
+    def test_n3_passing_payload_reports_predecessor_source(self) -> None:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return shipment_id == '113-S'
+
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=Readers(shipments=(_shipment('113-S', 'shipped'), _shipment('114-S', 'queued', deps=('113-S',))), branch='main'),
+        )
+        self._assert_readiness_pass(result, source='explicit', predecessor_ids=('113-S',))
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='predecessor_source',
+        reason='blocked readiness payloads do not yet report predecessor provenance',
+    )
+    def test_n3_blocked_payload_reports_predecessor_source(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(shipments=(_shipment('113-S', 'queued'), _shipment('114-S', 'queued', deps=('113-S',))), branch='main'),
+        )
+        self._assert_explicit_block(result, predecessor_id='113-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='predecessor_source',
+        reason='declared dag roots are not yet classified distinctly from unlabeled shipments',
+    )
+    def test_n4_declared_root_passes_with_declared_root_provenance(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '173-S', status='queued', labels=['dag-root'])
+            result = self._evaluate_workspace(workspace, '173-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='predecessor_source',
+        reason='genesis provenance is not yet reported for the sole shipment record',
+    )
+    def test_n5a_genesis_passes_only_for_the_sole_record(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_readiness_pass(result, source='genesis')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='archived shipped history is not yet disqualifying edge-less candidates from genesis',
+    )
+    def test_n5b_archived_shipped_history_prevents_genesis(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='result.exit_code',
+        reason='the first of multiple queued edge-less shipments is still incorrectly treated as genesis',
+    )
+    def test_n5c_first_of_multiple_queued_shipments_is_not_genesis(self) -> None:
+        with self._topology_workspace() as workspace:
+            for shipment_id in ('200-S', '201-S', '202-S'):
+                self._write_shipment_record(workspace, shipment_id, status='queued')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='later-numbered queued edge-less shipments are still blocked by numeric inference instead of unsequenced classification',
+    )
+    def test_n5c_later_numbered_queued_shipment_is_not_genesis(self) -> None:
+        with self._topology_workspace() as workspace:
+            for shipment_id in ('200-S', '201-S', '202-S'):
+                self._write_shipment_record(workspace, shipment_id, status='queued')
+            result = self._evaluate_workspace(workspace, '202-S')
+        self._assert_unsequenced_block(result, target='202-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='abandoned-only history is not yet counted when disqualifying genesis',
+    )
+    def test_n5d_abandoned_only_history_prevents_genesis(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='abandoned')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='archived blocked history is not yet counted as a genesis-disqualifying record',
+    )
+    def test_n5f2_archived_blocked_history_prevents_genesis(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='blocked')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+
+
+class DagAuthoritativePredecessorExpectedRedLabelsTests(unittest.TestCase, _TopologyWorkspaceMixin):
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='archived unrecognized status records are not yet counted as genesis-disqualifying history',
+    )
+    def test_n5g_archived_unrecognized_status_prevents_genesis(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='retired')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='result.exit_code',
+        reason='declared roots are not yet honored over archived shipped history',
+    )
+    def test_n5e_declared_root_overrides_archived_shipped_history(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='result.exit_code',
+        reason='declared roots are not yet honored when multiple queued shipments exist',
+    )
+    def test_n5e_declared_root_overrides_multiple_queued_shipments(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '201-S', status='queued')
+            self._write_shipment_record(workspace, '202-S', status='queued', labels=['dag-root'])
+            result = self._evaluate_workspace(workspace, '202-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='result.exit_code',
+        reason='declared roots are not yet honored over abandoned-only history',
+    )
+    def test_n5e_declared_root_overrides_abandoned_only_history(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='abandoned')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='result.exit_code',
+        reason='declared roots are not yet honored over archived blocked history',
+    )
+    def test_n5e_declared_root_overrides_archived_blocked_history(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='blocked')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='result.exit_code',
+        reason='declared roots are not yet honored over archived unrecognized-status history',
+    )
+    def test_n5e_declared_root_overrides_archived_unrecognized_status_history(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root'])
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='retired')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='shipment_readiness.token',
+        reason='unsequenced shipments do not yet report the dedicated token and remedies',
+    )
+    def test_n6_unsequenced_message_names_both_remedies(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+        self._expect_contains('shipment_readiness.message', self._readiness_check(result).message, 'declare the shipment a root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='ShipmentState.labels',
+        reason='shipment labels are not yet stored on ShipmentState',
+    )
+    def test_n7_exact_dag_root_membership_stores_labels_tuple_and_declares_root(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '173-S', status='queued', labels=['dag-root', 'topology-gate'])
+            shipment = self._list_shipments(workspace)[0]
+            self._assert_shipment_labels(shipment, ('dag-root', 'topology-gate'))
+            result = self._evaluate_workspace(workspace, '173-S')
+        self._assert_readiness_pass(result, source='declared_root')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='ShipmentState.labels',
+        reason='absent labels are not yet materialized as an empty tuple on ShipmentState',
+    )
+    def test_n7_absent_labels_yield_empty_tuple_without_declaring_root(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            shipment = self._list_shipments(workspace)[0]
+            self._assert_shipment_labels(shipment, ())
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_readiness_pass(result, source='genesis')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='ShipmentState.labels',
+        reason='root classification does not yet derive from exact case-sensitive dag-root membership',
+    )
+    def test_n7_unrelated_or_case_variant_labels_do_not_declare_root(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['Dag-Root', 'topology-gate'])
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
+            shipment = self._list_shipments(workspace)[0]
+            self._assert_shipment_labels(shipment, ('Dag-Root', 'topology-gate'))
+            result = self._evaluate_workspace(workspace, '200-S')
+        self._assert_unsequenced_block(result, target='200-S')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels declared as a bare string',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_bare_string_labels_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels='dag-root')
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels declared as a bare string')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels declared as a scalar',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_scalar_labels_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=42)
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels declared as a scalar')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels containing a non-string member',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_non_string_label_members_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', 7])
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a non-string member')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels containing a blank member',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_blank_label_members_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', '   '])
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a blank member')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels containing a forward slash',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_labels_with_forward_slashes_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', 'release/train'])
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a forward slash')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels containing a backslash',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_labels_with_backslashes_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', r'release\train'])
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a backslash')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='expected BacklogUnavailableError for labels containing a dotdot segment',
+        reason='label validation is not yet implemented',
+    )
+    def test_n8_labels_with_dotdot_segments_are_rejected(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root', '..root'])
+            self._expect_backlog_unavailable(lambda: self._list_shipments(workspace), description='labels containing a dotdot segment')
 
 
 class ImplicitNumericPredecessorTests(unittest.TestCase):
