@@ -42,6 +42,11 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+try:
+    from _assertion_render import render_source
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests._assertion_render import render_source
+
 _ROOT = Path(__file__).resolve().parents[1]
 
 _SHIP_MIRROR = _ROOT / ".github" / "agents" / "_ship.agent.md"
@@ -63,6 +68,24 @@ _CLAIM_ANCHORS = {
     "ship_template": "claim it using",
 }
 _BRANCH_CREATED = "BRANCH_CREATED"
+
+_ROUTE_LABEL = "orchestrator_pre_route"
+_PRE_BRANCH_LABEL = "ship_pre_branch"
+_PRE_CLAIM_LABEL = "ship_pre_claim"
+
+
+def _extract_between(content: str, start: str, end: str) -> str:
+    start_index = content.index(start)
+    end_index = content.index(end, start_index)
+    return content[start_index:end_index]
+
+
+def _extract_reclaim_note(content: str) -> str:
+    marker = "This reclaim-path `pre_claim` re-run is NOT a bootstrap-grant consumption"
+    end = "already exhausted by that claim."
+    start_index = content.index(marker)
+    end_index = content.index(end, start_index) + len(end)
+    return content[start_index:end_index]
 
 
 def _ship_files():
@@ -264,7 +287,8 @@ class OrchestratorTopologyGateWiringTests(unittest.TestCase):
                 route_idx = content.index(self._ROUTE_MARKER)
                 snippet = content[route_idx : route_idx + 700]
                 self.assertIn("candidate_shipment_id", snippet)
-                self.assertIn("not a bare ambient/no-shipment call", snippet)
+                self.assertIn("before invoking Ship in step 4", snippet)
+                self.assertIn("route-to-Ship", snippet)
 
     def test_cursor_gate_follows_cursor_advance_and_precedes_step_e1(self) -> None:
         for label, content in _orch_files():
@@ -294,6 +318,159 @@ class OrchestratorTopologyGateWiringTests(unittest.TestCase):
         for label, content in _orch_files():
             with self.subTest(file=label):
                 self.assertIn("Bootstrap exemption", content)
+
+
+class BootstrapGrantConsumptionContractTests(unittest.TestCase):
+    _ROUTE_MARKER = OrchestratorTopologyGateWiringTests._ROUTE_MARKER
+    _CURSOR_MARKER = OrchestratorTopologyGateWiringTests._CURSOR_MARKER
+
+    def test_rendered_template_regions_match_installed_mirrors_for_bootstrap_contract_edits(self) -> None:
+        rendered_orch = render_source(".github/agents/_orchestrator.agent.md")
+        mirror_orch = _ORCH_MIRROR.read_text(encoding="utf-8")
+        rendered_ship = render_source(".github/agents/_ship.agent.md")
+        mirror_ship = _SHIP_MIRROR.read_text(encoding="utf-8")
+
+        expected = {
+            "orch_route": _extract_between(
+                rendered_orch,
+                self._ROUTE_MARKER,
+                "3. **Resolve Ship's routed model",
+            ),
+            "orch_cursor": _extract_between(
+                rendered_orch,
+                self._CURSOR_MARKER,
+                "### Step E1:",
+            ),
+            "ship_pre_branch": _extract_between(
+                rendered_ship,
+                _PRE_CLAIM_BEFORE_BRANCH,
+                "   - Check current branch:",
+            ),
+            "ship_pre_claim": _extract_between(
+                rendered_ship,
+                _PRE_CLAIM_BEFORE_CLAIM,
+                "   - **Bootstrap-grant scope rule**:",
+            ),
+            "ship_scope": _extract_between(
+                rendered_ship,
+                "   - **Bootstrap-grant scope rule**:",
+                "4.",
+            ),
+            "ship_reclaim": _extract_reclaim_note(rendered_ship),
+        }
+        actual = {
+            "orch_route": _extract_between(
+                mirror_orch,
+                self._ROUTE_MARKER,
+                "3. **Resolve Ship's routed model",
+            ),
+            "orch_cursor": _extract_between(
+                mirror_orch,
+                self._CURSOR_MARKER,
+                "### Step E1:",
+            ),
+            "ship_pre_branch": _extract_between(
+                mirror_ship,
+                _PRE_CLAIM_BEFORE_BRANCH,
+                "   - Check current branch:",
+            ),
+            "ship_pre_claim": _extract_between(
+                mirror_ship,
+                _PRE_CLAIM_BEFORE_CLAIM,
+                "   - **Bootstrap-grant scope rule**:",
+            ),
+            "ship_scope": _extract_between(
+                mirror_ship,
+                "   - **Bootstrap-grant scope rule**:",
+                "4.",
+            ),
+            "ship_reclaim": _extract_reclaim_note(mirror_ship),
+        }
+        self.assertEqual(actual, expected)
+
+    def test_all_agent_files_forbid_self_authored_bootstrap_grants(self) -> None:
+        required = "No agent may author, edit, extend, re-date, or create a bootstrap grant"
+        violation = "self-authorized force / P-005/P-001 violation"
+        for label, content in (*_orch_files(), *_ship_files()):
+            with self.subTest(file=label):
+                self.assertIn(required, content)
+                self.assertIn(violation, content)
+
+    def test_orchestrator_route_site_uses_only_route_label_and_default_branch_vantage(self) -> None:
+        for label, content in _orch_files():
+            with self.subTest(file=label):
+                snippet = _extract_between(content, self._ROUTE_MARKER, '3. **Resolve Ship\'s routed model')
+                self.assertIn('ONLY Orchestrator bootstrap-grant', snippet)
+                self.assertIn('consumption site', snippet)
+                self.assertIn('.autoharness/bootstrap-grants/{candidate_shipment_id}.yaml', snippet)
+                self.assertIn(f'--bootstrap-grant-invocation {_ROUTE_LABEL}', snippet)
+                self.assertIn('contract-valid default-branch vantage', snippet)
+                self.assertIn('BRANCH_MISMATCH', snippet)
+                self.assertIn('forced: false', snippet)
+                self.assertIn('forced: true', snippet)
+                self.assertIn('force_audit_log', snippet)
+                self.assertIn('MUST NOT substitute `--force`', snippet)
+                self.assertIn('BOOTSTRAP_GRANT_CONSUMED', snippet)
+                self.assertNotIn(_PRE_BRANCH_LABEL, snippet)
+                self.assertNotIn(_PRE_CLAIM_LABEL, snippet)
+
+    def test_orchestrator_cursor_advance_site_is_explicitly_not_a_consumption_site(self) -> None:
+        for label, content in _orch_files():
+            with self.subTest(file=label):
+                snippet = _extract_between(content, self._CURSOR_MARKER, '### Step E1:')
+                self.assertIn('DIFFERENT shipment', snippet)
+                self.assertIn('NOT a bootstrap-grant consumption site', snippet)
+                self.assertIn('never', snippet)
+                self.assertIn('`--bootstrap-grant-invocation` here', snippet)
+                self.assertIn('`post_claim`, `lifecycle`, and `ambient` phases remain unforced grant-free checks', snippet)
+                self.assertNotIn('--bootstrap-grant-invocation orchestrator_pre_route', snippet)
+                self.assertNotIn('--bootstrap-grant-invocation ship_pre_branch', snippet)
+                self.assertNotIn('--bootstrap-grant-invocation ship_pre_claim', snippet)
+
+    def test_ship_preclaim_sites_use_their_exact_labels_and_vantage_constraints(self) -> None:
+        for label, content in _ship_files():
+            with self.subTest(file=label, site='pre-branch'):
+                first = _extract_between(content, _PRE_CLAIM_BEFORE_BRANCH, '   - Check current branch:')
+                self.assertIn('.autoharness/bootstrap-grants/{shipment_id}.yaml', first)
+                self.assertIn(f'--bootstrap-grant-invocation {_PRE_BRANCH_LABEL}', first)
+                self.assertIn('contract-valid default-branch vantage', first)
+                self.assertIn('BRANCH_MISMATCH', first)
+                self.assertIn('forced: false', first)
+                self.assertIn('forced: true', first)
+                self.assertIn('BOOTSTRAP_GRANT_CONSUMED', first)
+                self.assertNotIn(_ROUTE_LABEL, first)
+                self.assertNotIn(_PRE_CLAIM_LABEL, first)
+            with self.subTest(file=label, site='pre-claim'):
+                second = _extract_between(content, _PRE_CLAIM_BEFORE_CLAIM, '   - **Bootstrap-grant scope rule**:')
+                self.assertIn('.autoharness/bootstrap-grants/{shipment_id}.yaml', second)
+                self.assertIn(f'--bootstrap-grant-invocation {_PRE_CLAIM_LABEL}', second)
+                self.assertIn('contract-valid shipment-branch vantage', second)
+                self.assertIn('BRANCH_MISMATCH', second)
+                self.assertIn('forced: false', second)
+                self.assertIn('forced: true', second)
+                self.assertIn('BOOTSTRAP_GRANT_CONSUMED', second)
+                self.assertNotIn(_ROUTE_LABEL, second)
+                self.assertNotIn(_PRE_BRANCH_LABEL, second)
+
+    def test_ship_scope_rule_and_claim_not_observed_reclaim_path_stay_ungranted(self) -> None:
+        scope_marker = '   - **Bootstrap-grant scope rule**:'
+        for label, content in _ship_files():
+            with self.subTest(file=label, area='scope-rule'):
+                scope = _extract_between(content, scope_marker, '4.')
+                self.assertIn('ONLY Ship bootstrap-grant consumption sites', scope)
+                self.assertIn('`CLAIM_NOT_OBSERVED` reclaim-path `pre_claim` re-run below', scope)
+                self.assertIn('`post_claim`, `lifecycle`, and `ambient` invocation', scope)
+                self.assertNotIn(_ROUTE_LABEL, scope)
+                self.assertNotIn(_PRE_BRANCH_LABEL, scope)
+                self.assertNotIn(_PRE_CLAIM_LABEL, scope)
+            with self.subTest(file=label, area='reclaim-path'):
+                snippet = _extract_reclaim_note(content)
+                self.assertIn('no `--bootstrap-grant-invocation`', snippet)
+                self.assertIn('halt to the operator', snippet)
+                self.assertIn('already exhausted by that claim', snippet)
+                self.assertNotIn(_ROUTE_LABEL, snippet)
+                self.assertNotIn(_PRE_BRANCH_LABEL, snippet)
+                self.assertNotIn(_PRE_CLAIM_LABEL, snippet)
 
 
 if __name__ == "__main__":
