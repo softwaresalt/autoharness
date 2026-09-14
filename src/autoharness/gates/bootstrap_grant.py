@@ -52,6 +52,42 @@ def _is_reparse_point(stat_result: os.stat_result) -> bool:
     return bool(attributes & _REPARSE_POINT_ATTRIBUTE)
 
 
+def _read_bytes_no_follow(path: Path) -> bytes:
+    """Read a file's bytes without transparently following a symlink or
+    reparse point at the final path component, failing closed instead of
+    reading through it to an unexpected external file.
+
+    On platforms exposing ``os.O_NOFOLLOW`` (POSIX), the open itself
+    refuses to traverse a final-component symlink, so the check and the
+    read are atomic. Windows' ``os`` module does not expose
+    ``O_NOFOLLOW``, so the fallback there verifies via ``os.lstat`` (both
+    the Windows reparse-point bit and the POSIX-style ``st_mode`` symlink
+    bit, since a Windows Python build's ``lstat`` can in principle report
+    either) immediately before a pathname-based read, matching the
+    verify-then-open convention already used for directory traversal
+    elsewhere in this module (for example ``_windows_open_directory_handle``).
+    """
+    if hasattr(os, 'O_NOFOLLOW'):
+        flags = os.O_RDONLY | os.O_NOFOLLOW
+        if hasattr(os, 'O_BINARY'):
+            flags |= os.O_BINARY
+        fd = os.open(path, flags)
+        try:
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            return b''.join(chunks)
+        finally:
+            os.close(fd)
+    stat_result = os.lstat(path)
+    if _is_reparse_point(stat_result) or stat.S_ISLNK(stat_result.st_mode):
+        raise OSError(f'{path} is a symlink/reparse point and cannot be read')
+    return path.read_bytes()
+
+
 class BootstrapGrantArgumentError(ValueError):
     """Raised when bootstrap-grant CLI inputs are syntactically unsafe."""
 
@@ -230,7 +266,7 @@ def load_bootstrap_grant(workspace: Path, shipment_id: str) -> tuple[BootstrapGr
     if not grant_path.exists():
         return None, ()
     try:
-        raw_bytes = grant_path.read_bytes()
+        raw_bytes = _read_bytes_no_follow(grant_path)
     except OSError as exc:
         return None, _warning(f'grant file {grant_path} is unreadable: {exc}')
     try:
@@ -340,7 +376,7 @@ def _post_create_identity_error(fd: int, path: Path) -> str | None:
 
 def _read_consumption_record(path: Path, *, workspace: Path) -> BootstrapGrantConsumptionRecord:
     try:
-        raw = path.read_bytes()
+        raw = _read_bytes_no_follow(path)
     except OSError as exc:
         raise ValueError(f'record is unreadable: {exc}') from exc
     try:

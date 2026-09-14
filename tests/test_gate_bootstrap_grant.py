@@ -572,6 +572,61 @@ class BootstrapGrantTests(unittest.TestCase):
         self.assertIsInstance(ctx.exception.errno, int)
         self.assertIn('CreateFileW failed', str(ctx.exception))
 
+    def test_load_bootstrap_grant_rejects_symlinked_grant_file(self) -> None:
+        # Regression coverage for a prior bug where load_bootstrap_grant()
+        # read the grant file by pathname with no symlink verification at
+        # all, so a symlinked grant file could make the process read and
+        # parse arbitrary content from outside the workspace. The external
+        # target below is deliberately invalid YAML: if the fix regresses
+        # and the read follows the symlink, yaml.safe_load will run against
+        # it and the warning text will say "invalid" (parser error) rather
+        # than "unreadable" (open refused).
+        from autoharness.gates.bootstrap_grant import load_bootstrap_grant
+
+        grant_path = self.workspace / '.autoharness' / 'bootstrap-grants' / f'{_MATCHING_SHIPMENT_ID}.yaml'
+        outside_target = self.workspace / 'outside-grant.yaml'
+        outside_target.write_text('not: [valid, yaml', encoding='utf-8')
+        self._make_symlink_or_skip(grant_path, outside_target, directory=False)
+
+        grant, warnings = load_bootstrap_grant(self.workspace, _MATCHING_SHIPMENT_ID)
+
+        self.assertIsNone(grant)
+        self.assertTrue(warnings)
+        joined = ' '.join(warnings)
+        self.assertIn('unreadable', joined)
+        self.assertNotIn('invalid', joined)
+
+    def test_scan_existing_records_rejects_symlinked_record_file_on_posix(self) -> None:
+        # Regression coverage for a prior bug where _scan_existing_records
+        # only checked _is_reparse_point() (Windows-only; always False on
+        # POSIX) before handing a consumption-record path to
+        # _read_consumption_record(), so a symlinked .json record could
+        # make the audit scan read arbitrary content from outside the
+        # workspace. The external target below is deliberately invalid
+        # JSON: if the fix regresses and the read follows the symlink,
+        # json.loads will run against it and the warning text will say
+        # "invalid JSON" rather than "unreadable".
+        if not hasattr(os, 'O_NOFOLLOW'):
+            self.skipTest('exercises the POSIX O_NOFOLLOW no-follow read path')
+        from autoharness.gates.bootstrap_grant import _scan_existing_records
+
+        record_path = self._record_path()
+        outside_target = self.workspace / 'outside-record.json'
+        outside_target.write_text('{not valid json', encoding='utf-8')
+        self._make_symlink_or_skip(record_path, outside_target, directory=False)
+
+        disqualifying, warnings = _scan_existing_records(
+            record_path.parent,
+            workspace=self.workspace,
+            grant_digest=_MATCHING_MANIFEST_DIGEST,
+        )
+
+        self.assertTrue(disqualifying)
+        self.assertTrue(warnings)
+        joined = ' '.join(warnings)
+        self.assertIn('unreadable', joined)
+        self.assertNotIn('invalid JSON', joined)
+
     def test_capability_gate_refuses_plain_fallback(self) -> None:
         _write_grant(self.workspace)
         with mock.patch('autoharness.gates.bootstrap_grant._supports_posix_claim_strategy', return_value=False):
