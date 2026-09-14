@@ -23,12 +23,12 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
 
 VALID_MODES = ("agent", "manual", "ci")
-VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient")
+VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient", "audit_sequencing")
 SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
 _NOT_YET_CLAIMED_STATUSES = frozenset({"queued", "blocked"})
 _TASK_ACTIVE_OR_DONE = frozenset({"active", "done"})
@@ -96,6 +96,11 @@ class ShipmentState:
     archived_record_present: bool = False
     manifest_item_ids: tuple[str, ...] = ()
     blocking_predecessor_ids: tuple[str, ...] = ()
+    labels: tuple[str, ...] = ()
+
+    @property
+    def declares_root(self) -> bool:
+        return "dag-root" in self.labels
 
 
 @dataclass(frozen=True)
@@ -328,6 +333,49 @@ def _closure_artifact_complete(fm: dict[str, Any]) -> bool:
     return False
 
 
+def _tuple_of_labels(
+    value: Any,
+    *,
+    source_path: Path | None = None,
+    field_name: str = "labels",
+) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        if source_path is not None:
+            raise BacklogUnavailableError(
+                source_path,
+                f"{field_name or 'labels'} must be a sequence of labels but got {value!r}",
+            )
+        return ()
+    result: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            if source_path is not None:
+                raise BacklogUnavailableError(
+                    source_path,
+                    f"{field_name or 'labels'} contains a non-string member: {item!r}",
+                )
+            continue
+        label = item.strip()
+        if not label:
+            if source_path is not None:
+                raise BacklogUnavailableError(
+                    source_path,
+                    f"{field_name or 'labels'} contains a blank label member",
+                )
+            continue
+        if len(label) > 128 or "/" in label or "\\" in label or ".." in label:
+            if source_path is not None:
+                raise BacklogUnavailableError(
+                    source_path,
+                    f"{field_name or 'labels'} contains an invalid or unsafe label: {item!r}",
+                )
+            continue
+        result.append(label)
+    return tuple(result)
+
+
 def _tuple_of_str(
     value: Any,
     *,
@@ -538,6 +586,13 @@ class FilesystemTopologyReaders:
                 title = fm.get("title")
                 if isinstance(title, str) and title.strip():
                     record["title"] = title.strip()
+                labels = _tuple_of_labels(
+                    fm.get("labels"),
+                    source_path=candidate,
+                    field_name="labels",
+                )
+                if not is_archive or "labels" not in record:
+                    record["labels"] = labels
                 if is_archive:
                     # Track archive-record presence independently of whether
                     # `archived_status` itself parsed to a usable value: a
@@ -595,6 +650,7 @@ class FilesystemTopologyReaders:
                 archived_record_present=bool(record.get("archived_record_present", False)),
                 manifest_item_ids=tuple(record.get("manifest_item_ids", ()) or ()),
                 blocking_predecessor_ids=tuple(record.get("blocking_predecessor_ids", ()) or ()),
+                labels=tuple(record.get("labels", ()) or ()),
             )
             for record in sorted(records.values(), key=lambda item: str(item.get("shipment_id", "")))
         )
@@ -1431,32 +1487,18 @@ def _branch_ownership_check(
     )
 
 def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str | None:
+    """Return the raw numerically-adjacent lower shipment, if any.
+
+    165.003-T re-homes the retired numeric-adjacency heuristic onto the
+    read-only sequencing audit. The audit must show the RAW candidate the
+    old heuristic would have guessed, with NO reverse-dependency suppression:
+    advisory reporting must never silently hide a candidate the operator
+    needs to reconcile explicitly.
+    """
     match = re.match(r"^(\d+)-S$", target)
     if not match:
         return None
     target_num = int(match.group(1))
-    # If any NUMERICALLY LOWER shipment in the full set explicitly declares
-    # the target as one of its own `dependencies` (i.e. that lower-numbered
-    # shipment depends on / is blocked by the higher-numbered target -- the
-    # reverse of what the numeric-adjacency heuristic assumes), the
-    # ordering here is governed by explicit dependencies, not implicit
-    # numeric guessing -- for the WHOLE target, not just the specific
-    # shipment that made the declaration.
-    #
-    # This check MUST be restricted to lower-numbered dependents. A
-    # numerically HIGHER shipment declaring the target as its dependency
-    # (e.g. 113-S depends on 112-S) is the NORMAL forward-order case the
-    # heuristic is designed to support, not an anomaly -- it says nothing
-    # about whether the target itself has an undeclared implicit
-    # predecessor, and must not suppress the fallback for the target.
-    for shipment in shipments:
-        other = re.match(r"^(\d+)-S$", shipment.shipment_id)
-        if not other:
-            continue
-        if int(other.group(1)) >= target_num:
-            continue
-        if target in shipment.blocking_predecessor_ids:
-            return None
     prior: tuple[int, str] | None = None
     for shipment in shipments:
         other = re.match(r"^(\d+)-S$", shipment.shipment_id)
@@ -1493,6 +1535,14 @@ def _is_shipped_terminal(shipment: ShipmentState) -> bool:
     return shipment.archived_status in {"shipped", "done"}
 
 
+PredecessorSource = Literal["explicit", "declared_root", "genesis", "unsequenced"]
+_SEQUENCING_REMEDIATION_OPTIONS = (
+    "record the real blocks edge",
+    "declare the shipment a root",
+)
+_GENESIS_DISQUALIFIER_ANOTHER_RECORD = "another shipment record exists in this workspace"
+
+
 def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
     requirements = {
         "pre_claim": ("queued", "TARGET_NOT_CLAIMABLE", "before claim"),
@@ -1500,6 +1550,178 @@ def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
         "lifecycle": ("active", "TARGET_NOT_ACTIVE", "during lifecycle execution"),
     }
     return requirements.get(phase)
+
+
+def _physical_shipment_record_count(shipments: Sequence[ShipmentState]) -> int:
+    # Genesis requires the candidate to be the ONLY *physical* shipment
+    # record in the workspace, counting live and archived records
+    # separately (per the documented sequencing contract). `shipments` is
+    # already merged one-object-per-shipment-id by list_shipments(), so a
+    # single ambiguous id carrying both a live queue record and an archive
+    # record collapses to exactly one ShipmentState -- counting objects
+    # instead of physical records would silently miscount that id as a
+    # single record and let it pass as genesis.
+    count = 0
+    for shipment in shipments:
+        if shipment.live_status is not None:
+            count += 1
+        if shipment.archived_record_present:
+            count += 1
+    return count
+
+
+def _predecessor_source(shipment: ShipmentState, shipments: Sequence[ShipmentState]) -> PredecessorSource:
+    if shipment.blocking_predecessor_ids:
+        return "explicit"
+    if shipment.declares_root:
+        return "declared_root"
+    return "genesis" if _physical_shipment_record_count(shipments) == 1 else "unsequenced"
+
+
+def _predecessor_sources_by_shipment_id(
+    shipments: Sequence[ShipmentState],
+) -> dict[str, PredecessorSource]:
+    return {
+        shipment.shipment_id: _predecessor_source(shipment, shipments) for shipment in shipments
+    }
+
+
+def _shipment_readiness_details(
+    target: str,
+    shipment: ShipmentState,
+    shipments: Sequence[ShipmentState],
+    **extra: Any,
+) -> dict[str, Any]:
+    predecessor_source = _predecessor_source(shipment, shipments)
+    selected_predecessor_ids = list(shipment.blocking_predecessor_ids)
+    details = {
+        "target_shipment_id": target,
+        "predecessor_ids": selected_predecessor_ids,
+        "selected_predecessor_ids": selected_predecessor_ids,
+        "predecessor_source": predecessor_source,
+        "genesis_disqualifier": None,
+        "genesis_disqualifying_records": [],
+    }
+    if predecessor_source == "unsequenced":
+        details["remediation_options"] = list(_SEQUENCING_REMEDIATION_OPTIONS)
+        details["genesis_disqualifier"] = _GENESIS_DISQUALIFIER_ANOTHER_RECORD
+        details["genesis_disqualifying_records"] = _sequencing_audit_disqualifying_records(
+            target, shipments
+        )
+    details.update(extra)
+    return details
+
+
+def _audit_record_status_text(status: str | None) -> str:
+    if isinstance(status, str) and status.strip():
+        return status.strip()
+    return "missing"
+
+
+def _audit_disqualifying_record_entries(shipment: ShipmentState) -> list[dict[str, str]]:
+    # A single shipment id can itself carry two physical records (a live
+    # queue record and an archive record); emit one disqualifier entry per
+    # physical record actually present, not one merged entry per id.
+    entries: list[dict[str, str]] = []
+    if shipment.live_status is not None:
+        entries.append(
+            {
+                "shipment_id": shipment.shipment_id,
+                "record_provenance": "LIVE",
+                "status": _audit_record_status_text(shipment.live_status),
+            }
+        )
+    if shipment.archived_record_present:
+        entries.append(
+            {
+                "shipment_id": shipment.shipment_id,
+                "record_provenance": "ARCHIVED",
+                "status": _audit_record_status_text(shipment.archived_status),
+            }
+        )
+    return entries
+
+
+def _sequencing_audit_disqualifying_records(
+    target: str,
+    shipments: Sequence[ShipmentState],
+) -> list[dict[str, str]]:
+    records: list[dict[str, str]] = []
+    for shipment in sorted(shipments, key=lambda item: item.shipment_id):
+        physical_count = (1 if shipment.live_status is not None else 0) + (
+            1 if shipment.archived_record_present else 0
+        )
+        if shipment.shipment_id == target and physical_count <= 1:
+            # The target's own sole physical record is the genesis
+            # candidate itself, not disqualifying evidence. When the target
+            # is itself the ambiguous (live+archive) record, both of its
+            # own entries below become the disqualifying evidence instead.
+            continue
+        records.extend(_audit_disqualifying_record_entries(shipment))
+    return records
+
+
+def audit_sequencing(
+    *,
+    target_shipment_id: str,
+    shipments: Sequence[ShipmentState],
+) -> dict[str, Any]:
+    """Build the read-only sequencing-audit report for one shipment."""
+    shipment = _shipment_map(shipments).get(target_shipment_id)
+    if shipment is None:
+        raise ValueError(f"unknown shipment target: {target_shipment_id}")
+
+    derived_state = _predecessor_source(shipment, shipments)
+    raw_candidate = _prior_shipment_id(target_shipment_id, shipments)
+    report: dict[str, Any] = {
+        "target_shipment_id": target_shipment_id,
+        "derived_state": derived_state,
+        "raw_numeric_candidate_ids": [raw_candidate] if raw_candidate is not None else [],
+        "remediation_options": list(_SEQUENCING_REMEDIATION_OPTIONS),
+        "blocking": False,
+        "authorizes_claim": False,
+        "genesis_disqualifier": None,
+        "genesis_disqualifying_records": [],
+    }
+    if derived_state == "unsequenced":
+        report["genesis_disqualifier"] = _GENESIS_DISQUALIFIER_ANOTHER_RECORD
+        report["genesis_disqualifying_records"] = _sequencing_audit_disqualifying_records(
+            target_shipment_id, shipments
+        )
+    return report
+
+
+def _evaluate_audit_sequencing(
+    topology_input: TopologyInput,
+    shipments: Sequence[ShipmentState],
+) -> TopologyResult:
+    reports = [
+        audit_sequencing(target_shipment_id=shipment.shipment_id, shipments=shipments)
+        for shipment in sorted(shipments, key=lambda item: item.shipment_id)
+        if _predecessor_source(shipment, shipments) != "explicit"
+    ]
+    message = (
+        "SEQUENCING_AUDIT: read-only sequencing audit completed; advisory only "
+        "and never authorizes a claim or blocks the gate"
+    )
+    check = CheckResult(
+        name="sequencing_audit",
+        status="passed",
+        message=message,
+        details={
+            "blocking": False,
+            "authorizes_claim": False,
+            "edge_less_shipments": reports,
+        },
+    )
+    return TopologyResult(
+        mode=topology_input.mode,
+        phase="audit_sequencing",
+        resolved_target_shipment_id=None,
+        checks=(check,),
+        exit_code=0,
+        message=message,
+    )
 
 
 def _shipment_readiness_check(
@@ -1518,14 +1740,6 @@ def _shipment_readiness_check(
     shipment_map = _shipment_map(shipments)
     shipment = shipment_map.get(target)
     if shipment is not None and _has_ambiguous_shipment_records(shipment):
-        # A duplicated target (live status present AND an archive-folder
-        # record also present) is the same provenance corruption already
-        # rejected for a predecessor via PREDECESSOR_STATE_AMBIGUOUS. The
-        # target's own phase status check below only inspects
-        # `normalized_live_status`, which can still equal the phase's
-        # expected value (e.g. "queued" for pre_claim) even while an
-        # archive-folder duplicate exists -- so this must be rejected
-        # BEFORE the phase requirement is evaluated, not after.
         return CheckResult(
             name="shipment_readiness",
             status="blocked",
@@ -1533,12 +1747,14 @@ def _shipment_readiness_check(
             message=(
                 f"TARGET_STATE_AMBIGUOUS: target {target} has conflicting live and archived shipment records"
             ),
-            details={
-                "phase": phase,
-                "target_shipment_id": target,
-                "live_status": shipment.live_status,
-                "archived_status": shipment.archived_status,
-            },
+            details=_shipment_readiness_details(
+                target,
+                shipment,
+                shipments,
+                phase=phase,
+                live_status=shipment.live_status,
+                archived_status=shipment.archived_status,
+            ),
         )
     requirement = _target_phase_requirement(phase)
     normalized_live_status = _normalized_live_status(shipment) if shipment is not None else None
@@ -1546,6 +1762,16 @@ def _shipment_readiness_check(
         expected_live_status, token, phase_note = requirement
         if normalized_live_status != expected_live_status:
             observed = normalized_live_status or "missing live shipment record"
+            details = {
+                "phase": phase,
+                "target_shipment_id": target,
+                "expected_live_status": expected_live_status,
+                "live_status": shipment.live_status if shipment else None,
+                "normalized_live_status": normalized_live_status,
+                "archived_status": shipment.archived_status if shipment else None,
+            }
+            if shipment is not None:
+                details.update(_shipment_readiness_details(target, shipment, shipments, phase=phase))
             return CheckResult(
                 name="shipment_readiness",
                 status="blocked",
@@ -1554,14 +1780,7 @@ def _shipment_readiness_check(
                     f"{token}: target {target} must have live status {expected_live_status} {phase_note}; "
                     f"found {observed}"
                 ),
-                details={
-                    "phase": phase,
-                    "target_shipment_id": target,
-                    "expected_live_status": expected_live_status,
-                    "live_status": shipment.live_status if shipment else None,
-                    "normalized_live_status": normalized_live_status,
-                    "archived_status": shipment.archived_status if shipment else None,
-                },
+                details=details,
             )
 
     if shipment is None:
@@ -1571,12 +1790,40 @@ def _shipment_readiness_check(
             message="shipment metadata unavailable; readiness check skipped",
         )
 
-    predecessor_ids = list(shipment.blocking_predecessor_ids)
-    prior_id = _prior_shipment_id(target, shipments)
-    if prior_id and prior_id not in predecessor_ids:
-        predecessor_ids.append(prior_id)
+    predecessor_source = _predecessor_source(shipment, shipments)
+    details = _shipment_readiness_details(target, shipment, shipments)
+    if phase in ("post_claim", "lifecycle") or (phase == "ambient" and normalized_live_status == "active"):
+        return CheckResult(
+            name="shipment_readiness",
+            status="passed",
+            details=details,
+        )
 
-    for predecessor_id in predecessor_ids:
+    if predecessor_source == "declared_root":
+        return CheckResult(
+            name="shipment_readiness",
+            status="passed",
+            details=details,
+        )
+    if predecessor_source == "genesis":
+        return CheckResult(
+            name="shipment_readiness",
+            status="passed",
+            details=details,
+        )
+    if predecessor_source == "unsequenced":
+        return CheckResult(
+            name="shipment_readiness",
+            status="blocked",
+            token="UNSEQUENCED_SHIPMENT",
+            message=(
+                f"UNSEQUENCED_SHIPMENT: target {target} has no explicit blocks edge; "
+                "record the real blocks edge or declare the shipment a root"
+            ),
+            details=details,
+        )
+
+    for predecessor_id in shipment.blocking_predecessor_ids:
         predecessor = shipment_map.get(predecessor_id)
         if predecessor is not None and _has_ambiguous_shipment_records(predecessor):
             return CheckResult(
@@ -1586,12 +1833,14 @@ def _shipment_readiness_check(
                 message=(
                     f"PREDECESSOR_STATE_AMBIGUOUS: predecessor {predecessor_id} has conflicting live and archived shipment records"
                 ),
-                details={
-                    "target_shipment_id": target,
-                    "predecessor_id": predecessor_id,
-                    "live_status": predecessor.live_status,
-                    "archived_status": predecessor.archived_status,
-                },
+                details=_shipment_readiness_details(
+                    target,
+                    shipment,
+                    shipments,
+                    predecessor_id=predecessor_id,
+                    live_status=predecessor.live_status,
+                    archived_status=predecessor.archived_status,
+                ),
             )
         if predecessor is None or not _is_shipped_terminal(predecessor):
             return CheckResult(
@@ -1601,12 +1850,14 @@ def _shipment_readiness_check(
                 message=(
                     f"PREDECESSOR_NOT_SHIPPED: predecessor {predecessor_id} is not in a shipped terminal state"
                 ),
-                details={
-                    "target_shipment_id": target,
-                    "predecessor_id": predecessor_id,
-                    "live_status": predecessor.live_status if predecessor else None,
-                    "archived_status": predecessor.archived_status if predecessor else None,
-                },
+                details=_shipment_readiness_details(
+                    target,
+                    shipment,
+                    shipments,
+                    predecessor_id=predecessor_id,
+                    live_status=predecessor.live_status if predecessor else None,
+                    archived_status=predecessor.archived_status if predecessor else None,
+                ),
             )
         closure_complete = readers.closure_complete(predecessor_id)
         if closure_complete is not True:
@@ -1617,17 +1868,19 @@ def _shipment_readiness_check(
                 message=(
                     f"PREDECESSOR_CLOSURE_INCOMPLETE: predecessor {predecessor_id} is terminal but missing required closure evidence"
                 ),
-                details={
-                    "target_shipment_id": target,
-                    "predecessor_id": predecessor_id,
-                    "closure_complete": closure_complete,
-                },
+                details=_shipment_readiness_details(
+                    target,
+                    shipment,
+                    shipments,
+                    predecessor_id=predecessor_id,
+                    closure_complete=closure_complete,
+                ),
             )
 
     return CheckResult(
         name="shipment_readiness",
         status="passed",
-        details={"target_shipment_id": target, "predecessor_ids": predecessor_ids},
+        details=details,
     )
 
 
@@ -1781,12 +2034,17 @@ class DagReadinessResult:
     ``critical_path`` is the LONGEST CHAIN in the blocks DAG by NODE COUNT
     (shipments are not time-weighted).
 
-    ``ready_set`` contains ONLY LIVE ``queued`` shipments whose EVERY
-    predecessor block has reached a genuine no-longer-blocking terminal
-    closure (valid ``shipped``/``done`` per ``_is_shipped_terminal``). A
-    ``queued`` OR ``active`` predecessor is UNFINISHED and BLOCKS its
-    dependent (an ``active`` shipment is in-progress work -- NOT terminal
-    and NOT non-blocking). A predecessor that is ``abandoned``, has
+    ``ready_set`` contains ONLY LIVE ``queued`` shipments whose shared
+    four-state predecessor derivation agrees they are advisory-ready:
+    ``explicit`` shipments still require EVERY predecessor block to reach a
+    genuine no-longer-blocking terminal closure (valid ``shipped``/``done``
+    per ``_is_shipped_terminal``), ``declared_root`` and ``genesis``
+    shipments are root-ready without predecessor edges, and
+    ``unsequenced`` shipments are excluded entirely so this advisory view
+    never advertises a target ``pre_claim`` will block. A ``queued`` OR
+    ``active`` predecessor is UNFINISHED and BLOCKS its dependent (an
+    ``active`` shipment is in-progress work -- NOT terminal and NOT
+    non-blocking). A predecessor that is ``abandoned``, has
     ambiguous/duplicated live+archive provenance (the same corruption
     ``pipeline-topology``'s ``PREDECESSOR_STATE_AMBIGUOUS``/
     ``TARGET_STATE_AMBIGUOUS`` checks block on), or is simply
@@ -1819,6 +2077,10 @@ class DagReadinessResult:
             },
             "cycle_detected": self.cycle_detected,
             "cycle_nodes": list(self.cycle_nodes),
+            "authorizes_claim": False,
+            "advisory_contract": (
+                "advisory only; non-authorizing; pre_claim remains the sole claim authority"
+            ),
         }
 
 
@@ -1871,8 +2133,17 @@ def _dag_detect_cycle(
 
 
 def _dag_all_predecessors_finished(
-    shipment: "ShipmentState", shipment_map: dict[str, "ShipmentState"]
+    shipment: "ShipmentState",
+    shipment_map: dict[str, "ShipmentState"],
+    predecessor_source: PredecessorSource,
 ) -> bool:
+    if predecessor_source == "declared_root":
+        return True
+    if predecessor_source == "genesis":
+        return True
+    if predecessor_source == "unsequenced":
+        return False
+
     for predecessor_id in shipment.blocking_predecessor_ids:
         predecessor = shipment_map.get(predecessor_id)
         if predecessor is None:
@@ -1974,6 +2245,7 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
     detection (110.001-T AC5).
     """
     shipment_map = _shipment_map(shipments)
+    predecessors_by_shipment_id = _predecessor_sources_by_shipment_id(shipments)
     successors = _dag_successors(shipment_map)
 
     cycle_nodes = _dag_detect_cycle(shipment_map, successors)
@@ -1986,7 +2258,11 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
             for shipment_id, shipment in shipment_map.items()
             if _normalized_live_status(shipment) == "queued"
             and not _has_ambiguous_shipment_records(shipment)
-            and _dag_all_predecessors_finished(shipment, shipment_map)
+            and _dag_all_predecessors_finished(
+                shipment,
+                shipment_map,
+                predecessors_by_shipment_id.get(shipment_id, "unsequenced"),
+            )
         )
     )
     critical_path = _dag_longest_chain(shipment_map, successors)
@@ -1999,6 +2275,11 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
         cycle_detected=False,
         cycle_nodes=(),
     )
+
+
+_NEXT_ELIGIBLE_ADVISORY_CONTRACT = (
+    'advisory cursor only; non-authorizing; claim authorization remains with pre_claim'
+)
 
 
 @dataclass(frozen=True)
@@ -2065,6 +2346,8 @@ class NextEligibleResult:
         return {
             "next_eligible": self.next_eligible,
             "next_eligible_reason": self.next_eligible_reason,
+            "next_eligible_authorizes_claim": False,
+            "next_eligible_advisory_contract": _NEXT_ELIGIBLE_ADVISORY_CONTRACT,
             "next_eligible_detail": {
                 "candidate_ids": list(self.candidate_ids),
                 "offending_ids": list(self.offending_ids),
@@ -2186,6 +2469,9 @@ def evaluate(
             _normalize_target(topology_input.target_shipment_id),
             exc,
         )
+    if resolved_phase == "audit_sequencing":
+        return _evaluate_audit_sequencing(topology_input, target_resolution_shipments)
+
     target, target_error = _resolve_target_shipment(
         topology_input,
         target_resolution_shipments,

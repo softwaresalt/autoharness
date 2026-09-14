@@ -27,6 +27,7 @@ def _shipment(
     *,
     archived_status: str | None = None,
     deps: tuple[str, ...] = (),
+    labels: tuple[str, ...] = (),
 ) -> ShipmentState:
     return ShipmentState(
         shipment_id=shipment_id,
@@ -36,6 +37,7 @@ def _shipment(
         archived_record_present=archived_status is not None,
         manifest_item_ids=(),
         blocking_predecessor_ids=deps,
+        labels=labels,
     )
 
 
@@ -102,7 +104,7 @@ class ComputeDagReadinessLinearChainTests(unittest.TestCase):
 
     def test_queued_dependent_with_queued_predecessor_is_excluded(self) -> None:
         shipments = (
-            _shipment("001-S", "queued"),
+            _shipment("001-S", "queued", labels=("dag-root",)),
             _shipment("002-S", "queued", deps=("001-S",)),
         )
         result = compute_dag_readiness(shipments)
@@ -421,8 +423,8 @@ class ComputeNextEligibleReadySetHeadTests(unittest.TestCase, ComputeNextEligibl
         # regression for the fan-out sort key, not merely a restatement of
         # ascending-id ordering.
         shipments = (
-            _shipment("002-S", "queued"),
-            _shipment("005-S", "queued"),
+            _shipment("002-S", "queued", labels=("dag-root",)),
+            _shipment("005-S", "queued", labels=("dag-root",)),
             _shipment("009-S", "queued", deps=("005-S",)),
         )
         result = self._next_eligible(shipments)
@@ -434,9 +436,9 @@ class ComputeNextEligibleReadySetHeadTests(unittest.TestCase, ComputeNextEligibl
         # Both candidates have zero downstream dependents (equal fan-out):
         # fall back to ascending shipment id.
         shipments = (
-            _shipment("005-S", "queued"),
-            _shipment("002-S", "queued"),
-            _shipment("003-S", "queued"),
+            _shipment("005-S", "queued", labels=("dag-root",)),
+            _shipment("002-S", "queued", labels=("dag-root",)),
+            _shipment("003-S", "queued", labels=("dag-root",)),
         )
         result = self._next_eligible(shipments)
         self.assertEqual(result.next_eligible_reason, "ready_set_head")
@@ -447,9 +449,9 @@ class ComputeNextEligibleReadySetHeadTests(unittest.TestCase, ComputeNextEligibl
         # identical cursor every time -- covers the fan-out tie resolved by
         # the ASC-id fallback.
         base = [
-            _shipment("005-S", "queued"),
-            _shipment("002-S", "queued"),
-            _shipment("003-S", "queued"),
+            _shipment("005-S", "queued", labels=("dag-root",)),
+            _shipment("002-S", "queued", labels=("dag-root",)),
+            _shipment("003-S", "queued", labels=("dag-root",)),
             _shipment("004-S", "queued", deps=("002-S",)),
             _shipment("006-S", "queued", deps=("003-S",)),
         ]
@@ -492,9 +494,10 @@ class ComputeNextEligibleNoCandidatesTests(unittest.TestCase, ComputeNextEligibl
             _shipment("002-S", "queued", deps=("001-S",)),
         )
         result = self._next_eligible(shipments)
-        # 001-S itself IS ready (no predecessors), so this is ready_set_head,
-        # not no_candidates -- use a genuinely blocked-everywhere graph instead.
-        self.assertEqual(result.next_eligible_reason, "ready_set_head")
+        # Under shared four-state derivation parity, 001-S is unsequenced
+        # (not genesis/root/explicit), so the analyzer must now report that
+        # there are no advisory-ready candidates at all.
+        self.assertEqual(result.next_eligible_reason, "no_candidates")
 
     def test_genuinely_all_blocked_returns_no_candidates(self) -> None:
         shipments = (_shipment("002-S", "queued", deps=("999-S",)),)
