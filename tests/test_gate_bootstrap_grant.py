@@ -6,6 +6,7 @@ import json
 import multiprocessing
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -309,6 +310,94 @@ class BootstrapGrantTests(unittest.TestCase):
         self.assertFalse(self._record_path().exists())
         success = self._evaluate()
         self.assertTrue(success.applied)
+
+    def test_claim_fsyncs_containing_directory_for_durability(self) -> None:
+        # Regression coverage for a prior bug where _claim_record_posix
+        # fsynced only the newly-created claim file, not its containing
+        # directory. POSIX does not guarantee a new directory entry is
+        # durable from a file-level fsync alone; without a directory fsync
+        # too, a crash between record creation and the next read could lose
+        # the claim name and allow the same grant label to be consumed
+        # again, contradicting the documented durable at-most-once contract.
+        if not hasattr(os, 'O_NOFOLLOW'):
+            self.skipTest('exercises the POSIX claim strategy (dir-fd O_NOFOLLOW walk)')
+        _write_grant(self.workspace)
+        real_fsync = os.fsync
+        observed_modes: list[int] = []
+
+        def _tracking_fsync(fd: int) -> None:
+            try:
+                observed_modes.append(os.fstat(fd).st_mode)
+            except OSError:
+                pass
+            real_fsync(fd)
+
+        with mock.patch('os.fsync', side_effect=_tracking_fsync):
+            result = self._evaluate()
+
+        self.assertTrue(result.applied)
+        self.assertTrue(
+            any(stat.S_ISREG(mode) for mode in observed_modes),
+            'expected at least one fsync of the claim file itself',
+        )
+        self.assertTrue(
+            any(stat.S_ISDIR(mode) for mode in observed_modes),
+            'expected an fsync of the containing directory for durability of the new entry',
+        )
+
+    def test_scan_existing_records_posix_dir_fd_reads_via_descriptor_not_pathname(self) -> None:
+        # Regression coverage for a prior bug where the POSIX claim path's
+        # existing-record scan re-resolved shipment_dir by pathname after an
+        # O_NOFOLLOW dir-fd walk had already verified it, discarding that
+        # containment guarantee. This test proves the scan reads relative to
+        # the supplied dir_fd rather than re-resolving the shipment_dir
+        # argument: the real record lives under a directory opened as
+        # dir_fd, while shipment_dir points at an unrelated, never-created
+        # decoy path used only for message text.
+        if not hasattr(os, 'O_NOFOLLOW'):
+            self.skipTest('exercises the POSIX descriptor-relative scan')
+        from autoharness.gates.bootstrap_grant import _scan_existing_records_posix_dir_fd
+
+        real_dir = self.workspace / 'real-consumption-dir'
+        real_dir.mkdir(parents=True)
+        record_path = real_dir / f'{_MATCHING_LABEL}.json'
+        payload = {
+            'schema_version': 1,
+            'grant_digest': 'a-different-digest',
+            'grant_path': '.autoharness/bootstrap-grants/173-S.yaml',
+            'shipment_id': _MATCHING_SHIPMENT_ID,
+            'label': _MATCHING_LABEL,
+            'phase': 'pre_claim',
+            'actor': 'agent',
+            'session_id': 'session-1',
+            'head_sha': 'deadbeef',
+            'manifest_digest': _MATCHING_MANIFEST_DIGEST,
+            'manifest_items': list(_MATCHING_ITEMS),
+            'blocking_token': 'PREDECESSOR_NOT_SHIPPED',
+            'claimed_at': '2026-01-01T00:00:00+00:00',
+            'status': 'claimed',
+            'authorizing_decision': 'D6',
+            'operator': 'Casey',
+            'observed_payload': {},
+        }
+        record_path.write_text(json.dumps(payload), encoding='utf-8')
+
+        decoy_shipment_dir = self.workspace / 'decoy-consumption-dir' / _MATCHING_SHIPMENT_ID
+        self.assertFalse(decoy_shipment_dir.exists())
+
+        dir_fd = os.open(str(real_dir), os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0))
+        try:
+            disqualifying, warnings = _scan_existing_records_posix_dir_fd(
+                dir_fd,
+                decoy_shipment_dir,
+                workspace=self.workspace,
+                grant_digest=_MATCHING_MANIFEST_DIGEST,
+            )
+        finally:
+            os.close(dir_fd)
+
+        self.assertTrue(disqualifying)
+        self.assertTrue(any('different grant digest' in warning for warning in warnings))
 
     def test_multiple_selected_predecessors_refuse_grant_even_when_first_matches(self) -> None:
         # Regression coverage for a prior bug where evaluate_bootstrap_grant

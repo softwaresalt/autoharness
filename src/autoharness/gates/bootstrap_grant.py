@@ -374,11 +374,9 @@ def _post_create_identity_error(fd: int, path: Path) -> str | None:
     return None
 
 
-def _read_consumption_record(path: Path, *, workspace: Path) -> BootstrapGrantConsumptionRecord:
-    try:
-        raw = _read_bytes_no_follow(path)
-    except OSError as exc:
-        raise ValueError(f'record is unreadable: {exc}') from exc
+def _parse_consumption_record_bytes(
+    raw: bytes, *, path: Path, workspace: Path
+) -> BootstrapGrantConsumptionRecord:
     try:
         data = json.loads(raw.decode('utf-8'))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -453,6 +451,15 @@ def _read_consumption_record(path: Path, *, workspace: Path) -> BootstrapGrantCo
         operator=str(data['operator']),
         observed_payload=observed_payload,
     )
+
+
+def _read_consumption_record(path: Path, *, workspace: Path) -> BootstrapGrantConsumptionRecord:
+    try:
+        raw = _read_bytes_no_follow(path)
+    except OSError as exc:
+        raise ValueError(f'record is unreadable: {exc}') from exc
+    return _parse_consumption_record_bytes(raw, path=path, workspace=Path(workspace))
+
 
 
 def _existing_record_warning(path: Path, *, workspace: Path, grant_digest: str) -> tuple[str, ...]:
@@ -589,6 +596,58 @@ def _scan_existing_records(shipment_dir: Path, *, workspace: Path, grant_digest:
     return False, ()
 
 
+def _scan_existing_records_posix_dir_fd(
+    dir_fd: int, shipment_dir: Path, *, workspace: Path, grant_digest: str
+) -> tuple[bool, tuple[str, ...]]:
+    """POSIX descriptor-relative variant of ``_scan_existing_records``.
+
+    ``_scan_existing_records`` re-resolves ``shipment_dir`` by pathname,
+    which discards the containment guarantee of an already-verified
+    ``O_NOFOLLOW`` directory-descriptor walk: if a path component is
+    swapped after the walk completes, a pathname-based listing can miss an
+    existing record (or find a different one), letting the caller create a
+    new label file and defeat the documented rule that editing a grant
+    cannot reset consumption. This variant lists and reads every entry
+    relative to ``dir_fd`` -- the exact descriptor the walk produced --
+    instead of re-resolving anything by pathname.
+    """
+    try:
+        names = sorted(os.listdir(dir_fd))
+    except OSError as exc:
+        return True, _warning(f'consumption directory {shipment_dir} is unreadable: {exc}')
+    for name in names:
+        if not name.endswith('.json'):
+            continue
+        entry_path = shipment_dir / name
+        try:
+            entry_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+        except OSError as exc:
+            return True, _warning(
+                f'consumption record {_relative_repo_path(entry_path, Path(workspace))} is unreadable: {exc}'
+            )
+        try:
+            chunks: list[bytes] = []
+            while True:
+                chunk = os.read(entry_fd, 65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            raw = b''.join(chunks)
+        finally:
+            os.close(entry_fd)
+        try:
+            record = _parse_consumption_record_bytes(raw, path=entry_path, workspace=Path(workspace))
+        except ValueError as exc:
+            return True, _warning(
+                f'consumption record {_relative_repo_path(entry_path, Path(workspace))} is malformed and remains disqualifying: {exc}'
+            )
+        if record.grant_digest != grant_digest:
+            return True, _warning(
+                f'consumption record {_relative_repo_path(entry_path, Path(workspace))} was created under a different grant digest and remains disqualifying'
+            )
+    return False, ()
+
+
 def _claim_record_windows(
     *,
     workspace: Path,
@@ -702,7 +761,8 @@ def _claim_record_posix(
             opened_fds.append(next_fd)
             current_fd = next_fd
 
-        disqualifying, warnings = _scan_existing_records(
+        disqualifying, warnings = _scan_existing_records_posix_dir_fd(
+            current_fd,
             shipment_dir,
             workspace=workspace,
             grant_digest=grant_digest,
@@ -722,6 +782,14 @@ def _claim_record_posix(
             os.fsync(record_fd)
         finally:
             os.close(record_fd)
+        # fsync the containing directory too: fsync(record_fd) alone only
+        # guarantees the file's *data* is durable, not that the new
+        # directory entry naming it is durable. Without this, a crash
+        # between record creation and this fsync could lose the claim
+        # name entirely, allowing the same grant label to be consumed
+        # again and contradicting the documented durable at-most-once
+        # contract.
+        os.fsync(current_fd)
         return record_path, ()
     except FileExistsError:
         return None, _existing_record_warning(
