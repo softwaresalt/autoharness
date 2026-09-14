@@ -691,6 +691,16 @@ def _claim_record_posix(
             workspace=workspace,
             grant_digest=grant_digest,
         )
+    except OSError as exc:
+        # O_NOFOLLOW on a path component that is itself a symlink (or any other
+        # unexpected filesystem condition encountered while traversing the
+        # consumption-root path, e.g. a component that is not a directory)
+        # raises here instead of FileExistsError. Fail closed with a warning
+        # rather than letting the containment violation crash the caller,
+        # mirroring _claim_record_windows's reparse-point rejection.
+        return None, _warning(
+            f'bootstrap-grant consumption path could not be safely traversed and remains disqualifying: {exc}'
+        )
     finally:
         for fd in reversed(opened_fds):
             try:
