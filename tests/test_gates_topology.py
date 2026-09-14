@@ -30,7 +30,6 @@ from autoharness.gates.topology import (
     compute_next_eligible,
     evaluate,
 )
-from support.red import expect_red
 
 
 class _FakeReaders:
@@ -2669,11 +2668,6 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
             next_eligible=next_eligible,
         )
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='declared_root parity requires next_eligible 200-S when pre_claim passes it',
-        reason='dag-readiness still lets ready_set ordering advisory-block a declared root target',
-    )
     def test_declared_root_parity_never_advisory_blocks_a_root_target(self) -> None:
         target = '200-S'
         shipments = (
@@ -2726,11 +2720,6 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
             next_eligible=next_eligible,
         )
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='unsequenced parity requires target 200-S absent from ready_set when pre_claim blocks it',
-        reason='dag-readiness still advertises an unsequenced target as ready while pre_claim blocks it',
-    )
     def test_unsequenced_parity_never_advertises_a_blocked_target(self) -> None:
         target = '200-S'
         shipments = (
@@ -2754,11 +2743,6 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
             next_eligible=next_eligible,
         )
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='unsequenced parity requires target 200-S absent from ready_set when pre_claim blocks it',
-        reason='a second queued shipment still leaves the target in dag-readiness ready_set instead of preserving genesis narrowness',
-    )
     def test_genesis_narrowness_second_queued_record_stays_unsequenced_in_both_gates(self) -> None:
         target = '200-S'
         shipments = (
@@ -2782,11 +2766,6 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
             next_eligible=next_eligible,
         )
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='unsequenced parity requires target 200-S absent from ready_set when pre_claim blocks it',
-        reason='an archived blocked legacy record still leaves the target ready instead of preserving genesis narrowness',
-    )
     def test_genesis_narrowness_archived_blocked_record_stays_unsequenced_in_both_gates(self) -> None:
         target = '200-S'
         shipments = (
@@ -2825,22 +2804,12 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
                 description='dag-readiness shipment enumeration with a live blocked legacy record',
             )
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='dag-readiness advisory report must say advisory and non-authorizing',
-        reason='dag-readiness human output is not yet explicitly labelled advisory/non-authorizing',
-    )
     def test_dag_readiness_report_is_explicitly_advisory_and_non_authorizing(self) -> None:
         rendered = _format_dag_readiness_report(self._dag_payload((_shipment('200-S', 'queued'),)))
         lowered = rendered.casefold()
         if 'advisory' not in lowered or 'non-authorizing' not in lowered:
             raise AssertionError('dag-readiness advisory report must say advisory and non-authorizing')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='dag-readiness next_eligible line must disclaim claim authorization',
-        reason='the next_eligible line still reads like an authorization-capable scheduler output',
-    )
     def test_next_eligible_output_is_explicitly_non_authorizing(self) -> None:
         rendered = _format_dag_readiness_report(self._dag_payload((_shipment('200-S', 'queued'),)))
         next_line = next(
@@ -2850,11 +2819,6 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
         if 'advisory' not in lowered or 'authorization' not in lowered:
             raise AssertionError('dag-readiness next_eligible line must disclaim claim authorization')
 
-    @expect_red(
-        raises=AssertionError,
-        message_contains='dag-readiness payload must publish authorizes_claim=false for explicit state',
-        reason='dag-readiness payload does not yet publish a machine-readable non-authorizing contract',
-    )
     def test_dag_readiness_payload_publishes_authorizes_claim_false_for_all_states(self) -> None:
         cases = (
             (
@@ -2862,6 +2826,22 @@ class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin
                 (
                     _shipment('113-S', '', archived_status='done'),
                     _shipment('114-S', 'queued', deps=('113-S',)),
+                ),
+            ),
+            (
+                'declared_root',
+                (
+                    _shipment('199-S', 'queued'),
+                    ShipmentState(
+                        shipment_id='200-S',
+                        title='200-S',
+                        live_status='queued',
+                        archived_status=None,
+                        archived_record_present=False,
+                        manifest_item_ids=(),
+                        blocking_predecessor_ids=(),
+                        labels=('dag-root',),
+                    ),
                 ),
             ),
             ('genesis', (_shipment('200-S', 'queued'),)),

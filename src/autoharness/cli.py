@@ -1096,7 +1096,11 @@ def _parse_gate_dag_readiness_args(args: list[str]) -> dict:
 def _format_dag_readiness_report(payload: dict) -> str:
     """Render a human-readable dag-readiness report."""
     status = payload["status"]
-    lines = [f"DAG readiness — {status.upper()}"]
+    advisory_contract = payload.get(
+        "advisory_contract",
+        "advisory only; non-authorizing; pre_claim remains the sole claim authority",
+    )
+    lines = [f"DAG readiness — {status.upper()} ({advisory_contract})"]
     if status == "degraded":
         lines.append(f"  DEGRADED: {payload.get('degraded_reason') or 'backlog unreachable'}")
         lines.append(_format_next_eligible_line(payload))
@@ -1130,13 +1134,20 @@ def _format_next_eligible_line(payload: dict) -> str:
     """
     reason = payload["next_eligible_reason"]
     cursor = payload["next_eligible"]
+    advisory_contract = payload.get(
+        "next_eligible_advisory_contract",
+        "advisory cursor only; non-authorizing; claim authorization remains with pre_claim",
+    )
     if cursor is not None:
-        return f"  next eligible: {cursor} ({reason})"
+        return f"  next eligible: {cursor} ({reason}) — {advisory_contract}"
     detail = payload["next_eligible_detail"]
     offending_ids = detail["offending_ids"]
     if offending_ids:
-        return f"  next eligible: (none) — {reason}: {', '.join(offending_ids)}"
-    return f"  next eligible: (none) — {reason}"
+        return (
+            f"  next eligible: (none) — {reason}: {', '.join(offending_ids)}"
+            f" — {advisory_contract}"
+        )
+    return f"  next eligible: (none) — {reason} — {advisory_contract}"
 
 
 def _gate_dag_readiness_command(rest: list[str]) -> None:
@@ -1170,9 +1181,17 @@ def _gate_dag_readiness_command(rest: list[str]) -> None:
             "downstream_dependents": {},
             "cycle_detected": False,
             "cycle_nodes": [],
+            "authorizes_claim": False,
+            "advisory_contract": (
+                "advisory only; non-authorizing; pre_claim remains the sole claim authority"
+            ),
             "degraded_reason": str(exc),
             "next_eligible": None,
             "next_eligible_reason": "degraded",
+            "next_eligible_authorizes_claim": False,
+            "next_eligible_advisory_contract": (
+                "advisory cursor only; non-authorizing; claim authorization remains with pre_claim"
+            ),
             "next_eligible_detail": {"candidate_ids": [], "offending_ids": []},
         }
         if parsed["emit_json"]:

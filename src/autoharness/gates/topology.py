@@ -1555,6 +1555,14 @@ def _predecessor_source(shipment: ShipmentState, shipments: Sequence[ShipmentSta
     return "genesis" if len(shipments) == 1 else "unsequenced"
 
 
+def _predecessor_sources_by_shipment_id(
+    shipments: Sequence[ShipmentState],
+) -> dict[str, PredecessorSource]:
+    return {
+        shipment.shipment_id: _predecessor_source(shipment, shipments) for shipment in shipments
+    }
+
+
 def _shipment_readiness_details(
     target: str,
     shipment: ShipmentState,
@@ -1972,12 +1980,17 @@ class DagReadinessResult:
     ``critical_path`` is the LONGEST CHAIN in the blocks DAG by NODE COUNT
     (shipments are not time-weighted).
 
-    ``ready_set`` contains ONLY LIVE ``queued`` shipments whose EVERY
-    predecessor block has reached a genuine no-longer-blocking terminal
-    closure (valid ``shipped``/``done`` per ``_is_shipped_terminal``). A
-    ``queued`` OR ``active`` predecessor is UNFINISHED and BLOCKS its
-    dependent (an ``active`` shipment is in-progress work -- NOT terminal
-    and NOT non-blocking). A predecessor that is ``abandoned``, has
+    ``ready_set`` contains ONLY LIVE ``queued`` shipments whose shared
+    four-state predecessor derivation agrees they are advisory-ready:
+    ``explicit`` shipments still require EVERY predecessor block to reach a
+    genuine no-longer-blocking terminal closure (valid ``shipped``/``done``
+    per ``_is_shipped_terminal``), ``declared_root`` and ``genesis``
+    shipments are root-ready without predecessor edges, and
+    ``unsequenced`` shipments are excluded entirely so this advisory view
+    never advertises a target ``pre_claim`` will block. A ``queued`` OR
+    ``active`` predecessor is UNFINISHED and BLOCKS its dependent (an
+    ``active`` shipment is in-progress work -- NOT terminal and NOT
+    non-blocking). A predecessor that is ``abandoned``, has
     ambiguous/duplicated live+archive provenance (the same corruption
     ``pipeline-topology``'s ``PREDECESSOR_STATE_AMBIGUOUS``/
     ``TARGET_STATE_AMBIGUOUS`` checks block on), or is simply
@@ -2010,6 +2023,10 @@ class DagReadinessResult:
             },
             "cycle_detected": self.cycle_detected,
             "cycle_nodes": list(self.cycle_nodes),
+            "authorizes_claim": False,
+            "advisory_contract": (
+                "advisory only; non-authorizing; pre_claim remains the sole claim authority"
+            ),
         }
 
 
@@ -2062,8 +2079,17 @@ def _dag_detect_cycle(
 
 
 def _dag_all_predecessors_finished(
-    shipment: "ShipmentState", shipment_map: dict[str, "ShipmentState"]
+    shipment: "ShipmentState",
+    shipment_map: dict[str, "ShipmentState"],
+    predecessor_source: PredecessorSource,
 ) -> bool:
+    if predecessor_source == "declared_root":
+        return True
+    if predecessor_source == "genesis":
+        return True
+    if predecessor_source == "unsequenced":
+        return False
+
     for predecessor_id in shipment.blocking_predecessor_ids:
         predecessor = shipment_map.get(predecessor_id)
         if predecessor is None:
@@ -2165,6 +2191,7 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
     detection (110.001-T AC5).
     """
     shipment_map = _shipment_map(shipments)
+    predecessors_by_shipment_id = _predecessor_sources_by_shipment_id(shipments)
     successors = _dag_successors(shipment_map)
 
     cycle_nodes = _dag_detect_cycle(shipment_map, successors)
@@ -2177,7 +2204,11 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
             for shipment_id, shipment in shipment_map.items()
             if _normalized_live_status(shipment) == "queued"
             and not _has_ambiguous_shipment_records(shipment)
-            and _dag_all_predecessors_finished(shipment, shipment_map)
+            and _dag_all_predecessors_finished(
+                shipment,
+                shipment_map,
+                predecessors_by_shipment_id.get(shipment_id, "unsequenced"),
+            )
         )
     )
     critical_path = _dag_longest_chain(shipment_map, successors)
@@ -2190,6 +2221,11 @@ def compute_dag_readiness(shipments: Sequence[ShipmentState]) -> DagReadinessRes
         cycle_detected=False,
         cycle_nodes=(),
     )
+
+
+_NEXT_ELIGIBLE_ADVISORY_CONTRACT = (
+    'advisory cursor only; non-authorizing; claim authorization remains with pre_claim'
+)
 
 
 @dataclass(frozen=True)
@@ -2256,6 +2292,8 @@ class NextEligibleResult:
         return {
             "next_eligible": self.next_eligible,
             "next_eligible_reason": self.next_eligible_reason,
+            "next_eligible_authorizes_claim": False,
+            "next_eligible_advisory_contract": _NEXT_ELIGIBLE_ADVISORY_CONTRACT,
             "next_eligible_detail": {
                 "candidate_ids": list(self.candidate_ids),
                 "offending_ids": list(self.offending_ids),
