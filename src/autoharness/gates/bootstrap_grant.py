@@ -1,0 +1,844 @@
+"""Bootstrap grant matching and atomic at-most-once consumption for pipeline-topology."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import re
+import stat
+import uuid
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Literal
+
+import yaml
+
+VALID_BOOTSTRAP_GRANT_INVOCATIONS = (
+    'orchestrator_pre_route',
+    'ship_pre_branch',
+    'ship_pre_claim',
+)
+_BOOTSTRAP_GRANT_PHASE = 'pre_claim'
+_SHIPMENT_ID_PATTERN = re.compile(r'^\d+(?:\.\d+)*-[A-Z]+$')
+_DRIVE_PREFIX_PATTERN = re.compile(r'^[A-Za-z]:')
+_UNC_PREFIXES = ('\\\\', '//')
+_BOOTSTRAP_GRANTS_ROOT = Path('.autoharness') / 'bootstrap-grants'
+_CONSUMPTION_ROOT = Path('.autoharness') / 'gates' / 'bootstrap-grant-consumption'
+_REPARSE_POINT_ATTRIBUTE = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)
+_UNKNOWN_RECORD_ERROR = 'record schema is malformed or unsupported'
+
+
+class BootstrapGrantArgumentError(ValueError):
+    """Raised when bootstrap-grant CLI inputs are syntactically unsafe."""
+
+
+@dataclass(frozen=True)
+class ShipmentManifest:
+    shipment_id: str
+    ordered_items: tuple[str, ...]
+    digest: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'shipment_id': self.shipment_id,
+            'items': list(self.ordered_items),
+            'digest': self.digest,
+        }
+
+
+@dataclass(frozen=True)
+class BootstrapGrant:
+    path: Path
+    relative_path: str
+    grant_digest: str
+    shipment_id: str
+    authorized_invocations: tuple[str, ...]
+    expected_token: str
+    expected_predecessor_id: str
+    manifest_digest: str
+    authorizing_decision: str
+    operator: str
+    expires_on_claim: bool
+
+
+@dataclass(frozen=True)
+class BootstrapGrantConsumptionRecord:
+    workspace: Path
+    path: Path
+    relative_path: str
+    schema_version: int
+    grant_digest: str
+    grant_path: str
+    shipment_id: str
+    label: str
+    phase: str
+    actor: str
+    session_id: str
+    head_sha: str
+    manifest_digest: str
+    manifest_items: tuple[str, ...]
+    blocking_token: str
+    inferred_predecessor_id: str | None
+    claimed_at: str
+    status: Literal['claimed', 'consumed']
+    audit_ref: dict[str, Any] | None
+    authorizing_decision: str
+    operator: str
+    observed_payload: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            'schema_version': self.schema_version,
+            'grant_digest': self.grant_digest,
+            'grant_path': self.grant_path,
+            'shipment_id': self.shipment_id,
+            'label': self.label,
+            'phase': self.phase,
+            'actor': self.actor,
+            'session_id': self.session_id,
+            'head_sha': self.head_sha,
+            'manifest_digest': self.manifest_digest,
+            'manifest_items': list(self.manifest_items),
+            'blocking_token': self.blocking_token,
+            'inferred_predecessor_id': self.inferred_predecessor_id,
+            'claimed_at': self.claimed_at,
+            'status': self.status,
+            'audit_ref': self.audit_ref,
+            'authorizing_decision': self.authorizing_decision,
+            'operator': self.operator,
+            'observed_payload': self.observed_payload,
+        }
+
+
+@dataclass(frozen=True)
+class BootstrapGrantHooks:
+    before_claim_validation: Callable[[Path], None] | None = None
+    after_claim_persisted: Callable[[BootstrapGrantConsumptionRecord], None] | None = None
+
+
+@dataclass(frozen=True)
+class BootstrapGrantMatchResult:
+    applied: bool
+    warnings: tuple[str, ...] = ()
+    grant: BootstrapGrant | None = None
+    claim_record: BootstrapGrantConsumptionRecord | None = None
+
+
+def compute_manifest_digest(ordered_items: tuple[str, ...] | list[str]) -> str:
+    payload = json.dumps(list(ordered_items), ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    return hashlib.sha256(payload).hexdigest()
+
+
+def derive_shipment_manifest(shipments: list[Any] | tuple[Any, ...], shipment_id: str) -> ShipmentManifest | None:
+    for shipment in shipments:
+        candidate_id = getattr(shipment, 'shipment_id', None)
+        if candidate_id != shipment_id:
+            continue
+        ordered_items = tuple(str(item) for item in getattr(shipment, 'manifest_item_ids', ()) or ())
+        return ShipmentManifest(
+            shipment_id=shipment_id,
+            ordered_items=ordered_items,
+            digest=compute_manifest_digest(ordered_items),
+        )
+    return None
+
+
+def _relative_repo_path(path: Path, workspace: Path) -> str:
+    return path.resolve().relative_to(workspace.resolve()).as_posix()
+
+
+def _utc_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _sha256_bytes(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _json_bytes(payload: dict[str, Any]) -> bytes:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _contains_unsafe_path_syntax(value: str) -> bool:
+    return (
+        '\x00' in value
+        or '/' in value
+        or '\\' in value
+        or '..' in value.split('/')
+        or '..' in value.split('\\')
+        or bool(_DRIVE_PREFIX_PATTERN.match(value))
+        or value.startswith(_UNC_PREFIXES)
+    )
+
+
+def validate_bootstrap_grant_inputs(shipment_id: str, invocation_label: str) -> None:
+    if not isinstance(shipment_id, str) or not shipment_id.strip():
+        raise BootstrapGrantArgumentError('bootstrap grant requires a non-empty shipment id')
+    if not isinstance(invocation_label, str) or not invocation_label.strip():
+        raise BootstrapGrantArgumentError('bootstrap grant requires a non-empty invocation label')
+    normalized_shipment_id = shipment_id.strip()
+    normalized_label = invocation_label.strip()
+    if _contains_unsafe_path_syntax(normalized_shipment_id) or not _SHIPMENT_ID_PATTERN.match(normalized_shipment_id):
+        raise BootstrapGrantArgumentError(
+            f'unsafe bootstrap-grant shipment id: {shipment_id!r}'
+        )
+    if _contains_unsafe_path_syntax(normalized_label) or normalized_label not in VALID_BOOTSTRAP_GRANT_INVOCATIONS:
+        raise BootstrapGrantArgumentError(
+            f'unsafe bootstrap-grant invocation label: {invocation_label!r}'
+        )
+
+
+def _warning(message: str) -> tuple[str, ...]:
+    return (f'bootstrap grant warning: {message}',)
+
+
+def load_bootstrap_grant(workspace: Path, shipment_id: str) -> tuple[BootstrapGrant | None, tuple[str, ...]]:
+    validate_bootstrap_grant_inputs(shipment_id, VALID_BOOTSTRAP_GRANT_INVOCATIONS[0])
+    grant_path = Path(workspace) / _BOOTSTRAP_GRANTS_ROOT / f'{shipment_id}.yaml'
+    if not grant_path.exists():
+        return None, ()
+    try:
+        raw_bytes = grant_path.read_bytes()
+    except OSError as exc:
+        return None, _warning(f'grant file {grant_path} is unreadable: {exc}')
+    try:
+        loaded = yaml.safe_load(raw_bytes.decode('utf-8'))
+    except (UnicodeDecodeError, yaml.YAMLError) as exc:
+        return None, _warning(f'grant file {grant_path} is invalid: {exc}')
+    if not isinstance(loaded, dict):
+        return None, _warning(f'grant file {grant_path} is invalid: expected a mapping')
+
+    required_fields = (
+        'schema_version',
+        'shipment_id',
+        'authorized_invocations',
+        'expected_token',
+        'expected_predecessor_id',
+        'manifest_digest',
+        'authorizing_decision',
+        'operator',
+        'expires_on_claim',
+    )
+    missing = [field for field in required_fields if field not in loaded]
+    if missing:
+        return None, _warning(
+            f'grant file {grant_path} is invalid: missing required fields {", ".join(missing)}'
+        )
+    if loaded.get('schema_version') != 1:
+        return None, _warning(f'grant file {grant_path} is invalid: schema_version must be 1')
+
+    authorized = loaded.get('authorized_invocations')
+    if not isinstance(authorized, list) or not authorized:
+        return None, _warning(
+            f'grant file {grant_path} is invalid: authorized_invocations must be a non-empty list'
+        )
+    normalized_authorized: list[str] = []
+    for label in authorized:
+        if not isinstance(label, str) or label not in VALID_BOOTSTRAP_GRANT_INVOCATIONS:
+            return None, _warning(
+                f'grant file {grant_path} is invalid: unsupported invocation label {label!r}'
+            )
+        if label in normalized_authorized:
+            return None, _warning(
+                f'grant file {grant_path} is invalid: duplicate invocation label {label!r}'
+            )
+        normalized_authorized.append(label)
+
+    string_fields = (
+        'shipment_id',
+        'expected_token',
+        'expected_predecessor_id',
+        'manifest_digest',
+        'authorizing_decision',
+        'operator',
+    )
+    normalized_strings: dict[str, str] = {}
+    for field in string_fields:
+        value = loaded.get(field)
+        if not isinstance(value, str) or not value.strip():
+            return None, _warning(
+                f'grant file {grant_path} is invalid: {field} must be a non-empty string'
+            )
+        normalized_strings[field] = value.strip()
+    if loaded.get('expires_on_claim') is not True:
+        return None, _warning(f'grant file {grant_path} is invalid: expires_on_claim must be true')
+
+    return BootstrapGrant(
+        path=grant_path,
+        relative_path=_relative_repo_path(grant_path, Path(workspace)),
+        grant_digest=_sha256_bytes(raw_bytes),
+        shipment_id=normalized_strings['shipment_id'],
+        authorized_invocations=tuple(normalized_authorized),
+        expected_token=normalized_strings['expected_token'],
+        expected_predecessor_id=normalized_strings['expected_predecessor_id'],
+        manifest_digest=normalized_strings['manifest_digest'],
+        authorizing_decision=normalized_strings['authorizing_decision'],
+        operator=normalized_strings['operator'],
+        expires_on_claim=True,
+    ), ()
+
+
+def _single_blocking_check(observed_payload: dict[str, Any]) -> dict[str, Any] | None:
+    checks = observed_payload.get('checks')
+    if not isinstance(checks, list):
+        return None
+    blocked = [check for check in checks if isinstance(check, dict) and check.get('status') == 'blocked']
+    if len(blocked) != 1:
+        return None
+    return blocked[0]
+
+
+def _record_path_for(workspace: Path, shipment_id: str, label: str) -> Path:
+    return Path(workspace) / _CONSUMPTION_ROOT / shipment_id / f'{label}.json'
+
+
+def _record_relative_path(shipment_id: str, label: str) -> str:
+    return (_CONSUMPTION_ROOT / shipment_id / f'{label}.json').as_posix()
+
+
+def _post_create_identity_error(fd: int, path: Path) -> str | None:
+    stat_fd = os.fstat(fd)
+    stat_path = os.lstat(path)
+    if _REPARSE_POINT_ATTRIBUTE and stat_path.st_file_attributes & _REPARSE_POINT_ATTRIBUTE:
+        return 'created record path unexpectedly resolved to a reparse point'
+    if stat_fd.st_dev != stat_path.st_dev or stat_fd.st_ino != stat_path.st_ino:
+        return 'created record identity did not match the expected path'
+    return None
+
+
+def _read_consumption_record(path: Path, *, workspace: Path) -> BootstrapGrantConsumptionRecord:
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ValueError(f'record is unreadable: {exc}') from exc
+    try:
+        data = json.loads(raw.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f'record is invalid JSON: {exc}') from exc
+    if not isinstance(data, dict):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    if data.get('schema_version') != 1:
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    required = (
+        'grant_digest',
+        'grant_path',
+        'shipment_id',
+        'label',
+        'phase',
+        'actor',
+        'session_id',
+        'head_sha',
+        'manifest_digest',
+        'manifest_items',
+        'blocking_token',
+        'claimed_at',
+        'status',
+        'authorizing_decision',
+        'operator',
+        'observed_payload',
+    )
+    missing = [field for field in required if field not in data]
+    if missing:
+        raise ValueError(f'{_UNKNOWN_RECORD_ERROR}: missing {", ".join(missing)}')
+    shipment_id = data.get('shipment_id')
+    label = data.get('label')
+    if not isinstance(shipment_id, str) or not isinstance(label, str):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    if path.parent.name != shipment_id or path.name != f'{label}.json':
+        raise ValueError('record path does not match its shipment_id/label payload')
+    status = data.get('status')
+    if status not in ('claimed', 'consumed'):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    manifest_items = data.get('manifest_items')
+    if not isinstance(manifest_items, list) or any(not isinstance(item, str) for item in manifest_items):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    observed_payload = data.get('observed_payload')
+    if not isinstance(observed_payload, dict):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    audit_ref = data.get('audit_ref')
+    if audit_ref is not None and not isinstance(audit_ref, dict):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    inferred_predecessor_id = data.get('inferred_predecessor_id')
+    if inferred_predecessor_id is not None and not isinstance(inferred_predecessor_id, str):
+        raise ValueError(_UNKNOWN_RECORD_ERROR)
+    return BootstrapGrantConsumptionRecord(
+        workspace=Path(workspace),
+        path=path,
+        relative_path=_relative_repo_path(path, Path(workspace)),
+        schema_version=1,
+        grant_digest=str(data['grant_digest']),
+        grant_path=str(data['grant_path']),
+        shipment_id=shipment_id,
+        label=label,
+        phase=str(data['phase']),
+        actor=str(data['actor']),
+        session_id=str(data['session_id']),
+        head_sha=str(data['head_sha']),
+        manifest_digest=str(data['manifest_digest']),
+        manifest_items=tuple(manifest_items),
+        blocking_token=str(data['blocking_token']),
+        inferred_predecessor_id=inferred_predecessor_id,
+        claimed_at=str(data['claimed_at']),
+        status=status,
+        audit_ref=audit_ref,
+        authorizing_decision=str(data['authorizing_decision']),
+        operator=str(data['operator']),
+        observed_payload=observed_payload,
+    )
+
+
+def _existing_record_warning(path: Path, *, workspace: Path, grant_digest: str) -> tuple[str, ...]:
+    relative = _relative_repo_path(path, Path(workspace)) if path.exists() else path.as_posix()
+    try:
+        record = _read_consumption_record(path, workspace=workspace)
+    except ValueError as exc:
+        return _warning(f'consumption record {relative} is malformed and remains disqualifying: {exc}')
+    if record.grant_digest != grant_digest:
+        return _warning(
+            f'consumption record {relative} was created under a different grant digest and remains disqualifying'
+        )
+    return _warning(f'consumption record {relative} already exists and remains disqualifying')
+
+
+def _windows_kernel32():
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    invalid_handle = wintypes.HANDLE(-1).value
+
+    class BY_HANDLE_FILE_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ('dwFileAttributes', wintypes.DWORD),
+            ('ftCreationTime', wintypes.FILETIME),
+            ('ftLastAccessTime', wintypes.FILETIME),
+            ('ftLastWriteTime', wintypes.FILETIME),
+            ('dwVolumeSerialNumber', wintypes.DWORD),
+            ('nFileSizeHigh', wintypes.DWORD),
+            ('nFileSizeLow', wintypes.DWORD),
+            ('nNumberOfLinks', wintypes.DWORD),
+            ('nFileIndexHigh', wintypes.DWORD),
+            ('nFileIndexLow', wintypes.DWORD),
+        ]
+
+    kernel32.CreateFileW.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    )
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.GetFileInformationByHandle.argtypes = (
+        wintypes.HANDLE,
+        ctypes.POINTER(BY_HANDLE_FILE_INFORMATION),
+    )
+    kernel32.GetFileInformationByHandle.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    return kernel32, BY_HANDLE_FILE_INFORMATION, invalid_handle
+
+
+def _windows_open_directory_handle(path: Path):
+    kernel32, info_type, invalid_handle = _windows_kernel32()
+    FILE_READ_ATTRIBUTES = 0x0080
+    FILE_SHARE_READ = 0x00000001
+    FILE_SHARE_WRITE = 0x00000002
+    OPEN_EXISTING = 3
+    FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    handle = kernel32.CreateFileW(
+        str(path),
+        FILE_READ_ATTRIBUTES,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        None,
+        OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        None,
+    )
+    if handle == invalid_handle:
+        error_code = os.get_last_error()
+        raise OSError(error_code, f'CreateFileW failed for {path}')
+    info = info_type()
+    if not kernel32.GetFileInformationByHandle(handle, info):
+        error_code = os.get_last_error()
+        kernel32.CloseHandle(handle)
+        raise OSError(error_code, f'GetFileInformationByHandle failed for {path}')
+    if _REPARSE_POINT_ATTRIBUTE and info.dwFileAttributes & _REPARSE_POINT_ATTRIBUTE:
+        kernel32.CloseHandle(handle)
+        raise ValueError(f'path component {path} is a reparse point')
+    return kernel32, handle
+
+
+def _windows_close_handle(kernel32, handle) -> None:
+    kernel32.CloseHandle(handle)
+
+
+def _supports_posix_claim_strategy() -> bool:
+    return (
+        hasattr(os, 'O_NOFOLLOW')
+        and os.open in os.supports_dir_fd
+        and os.mkdir in os.supports_dir_fd
+    )
+
+
+def _supports_windows_claim_strategy() -> bool:
+    return bool(_REPARSE_POINT_ATTRIBUTE) and hasattr(os, 'lstat') and hasattr(os, 'O_BINARY')
+
+
+def _scan_existing_records(shipment_dir: Path, *, workspace: Path, grant_digest: str) -> tuple[bool, tuple[str, ...]]:
+    if not shipment_dir.exists():
+        return False, ()
+    try:
+        entries = sorted(shipment_dir.iterdir(), key=lambda path: path.name)
+    except OSError as exc:
+        return True, _warning(f'consumption directory {shipment_dir} is unreadable: {exc}')
+    for entry in entries:
+        if entry.suffix != '.json':
+            continue
+        try:
+            stat_result = os.lstat(entry)
+        except OSError as exc:
+            return True, _warning(f'consumption record {entry} is unreadable: {exc}')
+        if _REPARSE_POINT_ATTRIBUTE and stat_result.st_file_attributes & _REPARSE_POINT_ATTRIBUTE:
+            return True, _warning(
+                f'consumption record {_relative_repo_path(entry, Path(workspace))} is a reparse point and remains disqualifying'
+            )
+        try:
+            record = _read_consumption_record(entry, workspace=workspace)
+        except ValueError as exc:
+            return True, _warning(
+                f'consumption record {_relative_repo_path(entry, Path(workspace))} is malformed and remains disqualifying: {exc}'
+            )
+        if record.grant_digest != grant_digest:
+            return True, _warning(
+                f'consumption record {_relative_repo_path(entry, Path(workspace))} was created under a different grant digest and remains disqualifying'
+            )
+    return False, ()
+
+
+def _claim_record_windows(
+    *,
+    workspace: Path,
+    shipment_id: str,
+    label: str,
+    raw_payload: bytes,
+    hooks: BootstrapGrantHooks,
+    grant_digest: str,
+) -> tuple[Path | None, tuple[str, ...]]:
+    resolved_workspace = Path(workspace).resolve()
+    resolved_root = (Path(workspace) / _CONSUMPTION_ROOT).resolve()
+    if not _is_relative_to(resolved_root, resolved_workspace):
+        return None, _warning(
+            'bootstrap-grant consumption root resolves outside the workspace and cannot be used'
+        )
+    if hooks.before_claim_validation is not None:
+        hooks.before_claim_validation(Path(workspace))
+
+    components = ('.autoharness', 'gates', 'bootstrap-grant-consumption', shipment_id)
+    partial = resolved_workspace
+    handles: list[tuple[Any, Any]] = []
+    try:
+        for component in components:
+            partial = partial / component
+            if not partial.exists():
+                try:
+                    os.mkdir(partial)
+                except FileExistsError:
+                    pass
+            stat_result = os.lstat(partial)
+            if _REPARSE_POINT_ATTRIBUTE and stat_result.st_file_attributes & _REPARSE_POINT_ATTRIBUTE:
+                return None, _warning(f'path component {partial} is a reparse point and cannot be used')
+            kernel32, handle = _windows_open_directory_handle(partial)
+            handles.append((kernel32, handle))
+
+        shipment_dir = partial
+        disqualifying, warnings = _scan_existing_records(
+            shipment_dir,
+            workspace=workspace,
+            grant_digest=grant_digest,
+        )
+        if disqualifying:
+            return None, warnings
+
+        record_path = shipment_dir / f'{label}.json'
+        if record_path.exists():
+            stat_result = os.lstat(record_path)
+            if _REPARSE_POINT_ATTRIBUTE and stat_result.st_file_attributes & _REPARSE_POINT_ATTRIBUTE:
+                return None, _warning(
+                    f'consumption record {_relative_repo_path(record_path, workspace)} is a reparse point and remains disqualifying'
+                )
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_BINARY
+        fd = os.open(record_path, flags, 0o600)
+        try:
+            os.write(fd, raw_payload)
+            os.fsync(fd)
+            identity_error = _post_create_identity_error(fd, record_path)
+            if identity_error is not None:
+                return None, _warning(
+                    f'consumption record {_relative_repo_path(record_path, workspace)} failed identity verification: {identity_error}'
+                )
+        finally:
+            os.close(fd)
+        return record_path, ()
+    except FileExistsError:
+        return None, _existing_record_warning(
+            _record_path_for(workspace, shipment_id, label),
+            workspace=workspace,
+            grant_digest=grant_digest,
+        )
+    finally:
+        for kernel32, handle in reversed(handles):
+            _windows_close_handle(kernel32, handle)
+
+
+def _claim_record_posix(
+    *,
+    workspace: Path,
+    shipment_id: str,
+    label: str,
+    raw_payload: bytes,
+    hooks: BootstrapGrantHooks,
+    grant_digest: str,
+) -> tuple[Path | None, tuple[str, ...]]:
+    resolved_workspace = Path(workspace).resolve()
+    resolved_root = (Path(workspace) / _CONSUMPTION_ROOT).resolve()
+    if not _is_relative_to(resolved_root, resolved_workspace):
+        return None, _warning(
+            'bootstrap-grant consumption root resolves outside the workspace and cannot be used'
+        )
+    if hooks.before_claim_validation is not None:
+        hooks.before_claim_validation(Path(workspace))
+
+    flags_dir = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0)
+    root_fd = os.open(str(resolved_workspace), flags_dir)
+    current_fd = root_fd
+    opened_fds = [root_fd]
+    components = ('.autoharness', 'gates', 'bootstrap-grant-consumption', shipment_id)
+    shipment_dir = Path(workspace) / _CONSUMPTION_ROOT / shipment_id
+    try:
+        for component in components:
+            try:
+                os.mkdir(component, 0o700, dir_fd=current_fd)
+            except FileExistsError:
+                pass
+            next_fd = os.open(
+                component,
+                flags_dir | os.O_NOFOLLOW,
+                dir_fd=current_fd,
+            )
+            opened_fds.append(next_fd)
+            current_fd = next_fd
+
+        disqualifying, warnings = _scan_existing_records(
+            shipment_dir,
+            workspace=workspace,
+            grant_digest=grant_digest,
+        )
+        if disqualifying:
+            return None, warnings
+
+        record_path = shipment_dir / f'{label}.json'
+        record_fd = os.open(
+            f'{label}.json',
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=current_fd,
+        )
+        try:
+            os.write(record_fd, raw_payload)
+            os.fsync(record_fd)
+        finally:
+            os.close(record_fd)
+        return record_path, ()
+    except FileExistsError:
+        return None, _existing_record_warning(
+            _record_path_for(workspace, shipment_id, label),
+            workspace=workspace,
+            grant_digest=grant_digest,
+        )
+    finally:
+        for fd in reversed(opened_fds):
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+
+def _claim_record(
+    *,
+    workspace: Path,
+    shipment_id: str,
+    label: str,
+    raw_payload: bytes,
+    hooks: BootstrapGrantHooks,
+    grant_digest: str,
+) -> tuple[Path | None, tuple[str, ...]]:
+    if _supports_posix_claim_strategy():
+        return _claim_record_posix(
+            workspace=workspace,
+            shipment_id=shipment_id,
+            label=label,
+            raw_payload=raw_payload,
+            hooks=hooks,
+            grant_digest=grant_digest,
+        )
+    if _supports_windows_claim_strategy():
+        return _claim_record_windows(
+            workspace=workspace,
+            shipment_id=shipment_id,
+            label=label,
+            raw_payload=raw_payload,
+            hooks=hooks,
+            grant_digest=grant_digest,
+        )
+    return None, _warning(
+        'bootstrap-grant claim strategy is unavailable on this platform; refusing to fall back'
+    )
+
+
+def evaluate_bootstrap_grant(
+    *,
+    workspace: Path,
+    shipments: list[Any] | tuple[Any, ...],
+    observed_payload: dict[str, Any],
+    invocation_label: str,
+    actor: str,
+    session_id: str,
+    head_sha: str,
+    hooks: BootstrapGrantHooks | None = None,
+) -> BootstrapGrantMatchResult:
+    target = observed_payload.get('target_shipment_id')
+    if not isinstance(target, str):
+        raise BootstrapGrantArgumentError('bootstrap grant requires a resolved shipment target')
+    validate_bootstrap_grant_inputs(target, invocation_label)
+    if observed_payload.get('phase') != _BOOTSTRAP_GRANT_PHASE or observed_payload.get('exit_code') != 1:
+        return BootstrapGrantMatchResult(applied=False)
+
+    grant, warnings = load_bootstrap_grant(workspace, target)
+    if grant is None:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings)
+    if grant.shipment_id != target:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+    if invocation_label not in grant.authorized_invocations:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+
+    blocking_check = _single_blocking_check(observed_payload)
+    if blocking_check is None:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+    token = blocking_check.get('token')
+    if token != grant.expected_token:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+    details = blocking_check.get('details') if isinstance(blocking_check.get('details'), dict) else {}
+    inferred_predecessor_id = details.get('predecessor_id')
+    if inferred_predecessor_id != grant.expected_predecessor_id:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+
+    manifest = derive_shipment_manifest(shipments, target)
+    if manifest is None or manifest.digest != grant.manifest_digest:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+
+    normalized_hooks = hooks or BootstrapGrantHooks()
+    claimed_record = BootstrapGrantConsumptionRecord(
+        workspace=Path(workspace),
+        path=_record_path_for(workspace, target, invocation_label),
+        relative_path=_record_relative_path(target, invocation_label),
+        schema_version=1,
+        grant_digest=grant.grant_digest,
+        grant_path=grant.relative_path,
+        shipment_id=target,
+        label=invocation_label,
+        phase=_BOOTSTRAP_GRANT_PHASE,
+        actor=actor,
+        session_id=session_id,
+        head_sha=head_sha,
+        manifest_digest=manifest.digest,
+        manifest_items=manifest.ordered_items,
+        blocking_token=str(token),
+        inferred_predecessor_id=str(inferred_predecessor_id),
+        claimed_at=_utc_timestamp(),
+        status='claimed',
+        audit_ref=None,
+        authorizing_decision=grant.authorizing_decision,
+        operator=grant.operator,
+        observed_payload=observed_payload,
+    )
+    record_path, claim_warnings = _claim_record(
+        workspace=workspace,
+        shipment_id=target,
+        label=invocation_label,
+        raw_payload=_json_bytes(claimed_record.to_dict()),
+        hooks=normalized_hooks,
+        grant_digest=grant.grant_digest,
+    )
+    warnings = warnings + claim_warnings
+    if record_path is None:
+        return BootstrapGrantMatchResult(applied=False, warnings=warnings, grant=grant)
+
+    claimed_record = replace(
+        claimed_record,
+        path=record_path,
+        relative_path=_relative_repo_path(record_path, Path(workspace)),
+    )
+    if normalized_hooks.after_claim_persisted is not None:
+        normalized_hooks.after_claim_persisted(claimed_record)
+    return BootstrapGrantMatchResult(
+        applied=True,
+        warnings=warnings,
+        grant=grant,
+        claim_record=claimed_record,
+    )
+
+
+def mark_consumption_record_consumed(
+    record: BootstrapGrantConsumptionRecord,
+    audit_ref: dict[str, Any],
+) -> BootstrapGrantConsumptionRecord:
+    workspace = Path(record.workspace)
+    temp_name = f'.{record.label}.{uuid.uuid4().hex}.tmp'
+    shipment_dir = record.path.parent
+    temp_path = shipment_dir / temp_name
+    updated = replace(record, status='consumed', audit_ref=dict(audit_ref))
+    raw_payload = _json_bytes(updated.to_dict())
+
+    handles: list[tuple[Any, Any]] = []
+    try:
+        if _supports_windows_claim_strategy() and not _supports_posix_claim_strategy():
+            partial = workspace.resolve()
+            for component in ('.autoharness', 'gates', 'bootstrap-grant-consumption', record.shipment_id):
+                partial = partial / component
+                stat_result = os.lstat(partial)
+                if _REPARSE_POINT_ATTRIBUTE and stat_result.st_file_attributes & _REPARSE_POINT_ATTRIBUTE:
+                    raise ValueError(f'path component {partial} is a reparse point')
+                kernel32, handle = _windows_open_directory_handle(partial)
+                handles.append((kernel32, handle))
+        with temp_path.open('xb') as handle:
+            handle.write(raw_payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, record.path)
+        return updated
+    finally:
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
+        for kernel32, handle in reversed(handles):
+            _windows_close_handle(kernel32, handle)
+
+
+def load_consumption_record(path: Path, *, workspace: Path) -> BootstrapGrantConsumptionRecord:
+    return _read_consumption_record(path, workspace=workspace)

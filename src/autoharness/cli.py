@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
 import shutil
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 from autoharness.verify_workspace import verify_workspace
@@ -186,6 +189,7 @@ Usage:
   autoharness gate pipeline-topology [--mode agent|manual|ci]
                         [--shipment <shipment_id>]
                         [--phase pre_claim|post_claim|lifecycle|ambient|audit_sequencing]
+                        [--bootstrap-grant-invocation <label>]
                         [--json] [--force]
   autoharness gate dag-readiness [--workspace <path>] [--json]
 
@@ -237,6 +241,12 @@ pipeline-topology options:
                       meaningful without a target).
   --phase <p>         pre_claim | post_claim | lifecycle | ambient | audit_sequencing. Required in agent
                       mode; defaults to ambient when omitted in manual/ci mode.
+  --bootstrap-grant-invocation <label>
+                      Agent-consumable pre-claim bootstrap grant label:
+                      orchestrator_pre_route | ship_pre_branch | ship_pre_claim.
+                      Loads .autoharness/bootstrap-grants/<shipment_id>.yaml and
+                      forces only on an exact, one-time matching grant. Cannot be
+                      combined with --force.
   --json              Emit the topology gate result as JSON.
   --force             Reserve an operator override for a blocked topology gate.
 
@@ -875,6 +885,7 @@ def _parse_gate_pipeline_topology_args(args: list[str]) -> dict:
         "phase": None,
         "emit_json": False,
         "force": False,
+        "bootstrap_grant_invocation": None,
     }
     index = 0
     while index < len(args):
@@ -894,6 +905,11 @@ def _parse_gate_pipeline_topology_args(args: list[str]) -> dict:
             if index >= len(args):
                 raise ValueError("Missing value for --phase")
             parsed["phase"] = args[index]
+        elif arg == "--bootstrap-grant-invocation":
+            index += 1
+            if index >= len(args):
+                raise ValueError("Missing value for --bootstrap-grant-invocation")
+            parsed["bootstrap_grant_invocation"] = args[index]
         elif arg == "--json":
             parsed["emit_json"] = True
         elif arg == "--force":
@@ -901,17 +917,137 @@ def _parse_gate_pipeline_topology_args(args: list[str]) -> dict:
         else:
             raise ValueError(f"Unknown gate pipeline-topology argument: {arg}")
         index += 1
+    if parsed["force"] and parsed["bootstrap_grant_invocation"] is not None:
+        raise ValueError("--force and --bootstrap-grant-invocation cannot be combined")
+    if parsed["bootstrap_grant_invocation"] is not None:
+        from autoharness.gates.bootstrap_grant import VALID_BOOTSTRAP_GRANT_INVOCATIONS
+
+        if parsed["bootstrap_grant_invocation"] not in VALID_BOOTSTRAP_GRANT_INVOCATIONS:
+            raise ValueError(
+                "--bootstrap-grant-invocation must be one of "
+                f"{VALID_BOOTSTRAP_GRANT_INVOCATIONS}, got {parsed['bootstrap_grant_invocation']!r}"
+            )
     return parsed
 
 
-def _audit_pipeline_topology_force(workspace: Path, result) -> str:
-    """Append an audit line for an operator --force bypass of a blocked topology verdict."""
-    from datetime import datetime, timezone
+def _pipeline_topology_actor() -> str:
+    return os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
 
-    audit_path = Path(workspace) / '.autoharness' / 'gates' / 'pipeline-topology-force-audit.log'
+
+
+def _pipeline_topology_session_id() -> str:
+    for key in ('COPILOT_SESSION', 'COPILOT_SESSION_ID', 'GITHUB_COPILOT_SESSION', 'AGENT_SESSION_ID'):
+        value = os.environ.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return f'pid:{os.getpid()}'
+
+
+
+def _pipeline_topology_head_sha(workspace: Path) -> str:
+    completed = subprocess.run(
+        ['git', 'rev-parse', 'HEAD'],
+        cwd=workspace,
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        shell=False,
+        timeout=30,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stderr_text = (completed.stderr or '').strip()
+        raise RuntimeError(stderr_text or f'git rev-parse HEAD exited with status {completed.returncode}')
+    head_sha = completed.stdout.strip()
+    if not head_sha:
+        raise RuntimeError('git rev-parse HEAD returned an empty revision')
+    return head_sha
+
+
+
+def _pipeline_topology_single_blocking_check(observed_payload: dict) -> dict | None:
+    checks = observed_payload.get('checks')
+    if not isinstance(checks, list):
+        return None
+    blocked = [check for check in checks if isinstance(check, dict) and check.get('status') == 'blocked']
+    if len(blocked) != 1:
+        return None
+    return blocked[0]
+
+
+
+def _pipeline_topology_blocking_details(observed_payload: dict) -> tuple[str | None, str | None]:
+    blocking_check = _pipeline_topology_single_blocking_check(observed_payload)
+    if blocking_check is None:
+        return None, None
+    token = blocking_check.get('token') if isinstance(blocking_check.get('token'), str) else None
+    details = blocking_check.get('details') if isinstance(blocking_check.get('details'), dict) else {}
+    predecessor_id = details.get('predecessor_id') if isinstance(details.get('predecessor_id'), str) else None
+    return token, predecessor_id
+
+
+
+def _append_pipeline_topology_force_audit(audit_path: Path, payload: dict) -> tuple[str, dict[str, str]]:
     audit_path.parent.mkdir(parents=True, exist_ok=True)
-    actor = os.environ.get('USERNAME') or os.environ.get('USER') or 'unknown'
-    payload = {
+    line = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8') + b'\n'
+    with audit_path.open('ab') as handle:
+        handle.write(line)
+        handle.flush()
+        os.fsync(handle.fileno())
+    relative_path = str(audit_path).replace('\\', '/')
+    return str(audit_path), {
+        'path': relative_path,
+        'record_digest': hashlib.sha256(line).hexdigest(),
+    }
+
+
+
+def _audit_pipeline_topology_force(
+    workspace: Path,
+    result,
+    *,
+    observed_payload: dict | None = None,
+    manifest: dict | None = None,
+    claim_record=None,
+) -> tuple[str, dict[str, str]]:
+    """Append an audit line for an operator or bootstrap-grant forced topology verdict."""
+    audit_path = Path(workspace) / '.autoharness' / 'gates' / 'pipeline-topology-force-audit.log'
+    payload = observed_payload or result.to_dict()
+
+    if claim_record is not None:
+        audit_payload = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'actor': claim_record.actor,
+            'reason': 'bootstrap grant override',
+            'mode': result.mode,
+            'phase': result.phase,
+            'target_shipment_id': result.resolved_target_shipment_id,
+            'token': result.primary_token,
+            'message': result.message,
+            'invocation': claim_record.label,
+            'observed_payload': payload,
+            'head_sha': claim_record.head_sha,
+            'manifest': {
+                'shipment_id': claim_record.shipment_id,
+                'items': list(claim_record.manifest_items),
+                'digest': claim_record.manifest_digest,
+            },
+            'blocking_token': claim_record.blocking_token,
+            'inferred_predecessor_id': claim_record.inferred_predecessor_id,
+            'authorization': {
+                'source': 'grant',
+                'decision': claim_record.authorizing_decision,
+                'grant_path': claim_record.grant_path,
+                'operator': claim_record.operator,
+                'grant_digest': claim_record.grant_digest,
+                'consumption_record_path': claim_record.relative_path,
+            },
+        }
+        return _append_pipeline_topology_force_audit(audit_path, audit_payload)
+
+    blocking_token, inferred_predecessor_id = _pipeline_topology_blocking_details(payload)
+    actor = _pipeline_topology_actor()
+    audit_payload = {
         'timestamp': datetime.now(timezone.utc).isoformat(),
         'actor': actor,
         'reason': '--force override',
@@ -920,10 +1056,22 @@ def _audit_pipeline_topology_force(workspace: Path, result) -> str:
         'target_shipment_id': result.resolved_target_shipment_id,
         'token': result.primary_token,
         'message': result.message,
+        'invocation': 'operator_manual',
+        'observed_payload': payload,
+        'head_sha': _pipeline_topology_head_sha(workspace),
+        'manifest': manifest,
+        'blocking_token': blocking_token,
+        'inferred_predecessor_id': inferred_predecessor_id,
+        'authorization': {
+            'source': 'operator_force',
+            'decision': '--force',
+            'grant_path': None,
+            'operator': actor,
+            'grant_digest': None,
+            'consumption_record_path': None,
+        },
     }
-    with audit_path.open('a', encoding='utf-8') as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False) + '\n')
-    return str(audit_path)
+    return _append_pipeline_topology_force_audit(audit_path, audit_payload)
 
 
 def _pipeline_topology_telemetry_backlog_item_id(result) -> str:
@@ -934,7 +1082,13 @@ def _pipeline_topology_telemetry_backlog_item_id(result) -> str:
 
 
 def _emit_pipeline_topology_telemetry(
-    workspace: Path, result, audit_path: str | None = None
+    workspace: Path,
+    result,
+    audit_path: str | None = None,
+    *,
+    invocation: str | None = None,
+    authorization_source: str | None = None,
+    inferred_predecessor_id: str | None = None,
 ) -> tuple[str | None, tuple[str, ...]]:
     """Emit one structured telemetry event for each pipeline-topology gate run."""
     from autoharness.telemetry.record import load_workspace_telemetry_config
@@ -985,6 +1139,9 @@ def _emit_pipeline_topology_telemetry(
             'forced': bool(getattr(result, 'forced', False)),
             'token': result.primary_token,
             'audit_log': audit_ref,
+            'invocation': invocation,
+            'authorization_source': authorization_source,
+            'inferred_predecessor_id': inferred_predecessor_id,
         }
         event = ToolTelemetryEvent(
             tool_surface='cli',
@@ -1171,6 +1328,8 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
 
     from autoharness.gates import topology
 
+    workspace = Path('.')
+    readers = topology.FilesystemTopologyReaders(workspace)
     result = topology.evaluate(
         topology.TopologyInput(
             mode=parsed["mode"],
@@ -1179,17 +1338,90 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
             emit_json=parsed["emit_json"],
             force=parsed["force"],
         ),
-        readers=topology.FilesystemTopologyReaders(Path('.')),
+        readers=readers,
     )
 
+    observed_payload = result.to_dict()
     audit_path = None
-    if result.exit_code == 1 and parsed["force"]:
-        audit_path = _audit_pipeline_topology_force(Path('.'), result)
+    audit_ref = None
+    bootstrap_warnings: list[str] = []
+    telemetry_invocation = None
+    telemetry_authorization_source = None
+    telemetry_inferred_predecessor_id = None
+
+    if result.exit_code == 1 and parsed["bootstrap_grant_invocation"] is not None:
+        from autoharness.gates.bootstrap_grant import (
+            BootstrapGrantArgumentError,
+            evaluate_bootstrap_grant,
+            mark_consumption_record_consumed,
+        )
+
+        try:
+            shipment_snapshot = tuple(readers.list_shipments())
+        except Exception:
+            shipment_snapshot = ()
+        try:
+            grant_match = evaluate_bootstrap_grant(
+                workspace=workspace,
+                shipments=shipment_snapshot,
+                observed_payload=observed_payload,
+                invocation_label=parsed["bootstrap_grant_invocation"],
+                actor=_pipeline_topology_actor(),
+                session_id=_pipeline_topology_session_id(),
+                head_sha=_pipeline_topology_head_sha(workspace),
+            )
+        except BootstrapGrantArgumentError as exc:
+            print(str(exc), file=sys.stderr)
+            print(GATE_USAGE, file=sys.stderr)
+            sys.exit(2)
+        bootstrap_warnings.extend(grant_match.warnings)
+        if grant_match.applied and grant_match.claim_record is not None:
+            audit_path, audit_ref = _audit_pipeline_topology_force(
+                workspace,
+                result,
+                observed_payload=observed_payload,
+                claim_record=grant_match.claim_record,
+            )
+            mark_consumption_record_consumed(grant_match.claim_record, audit_ref)
+            telemetry_invocation = grant_match.claim_record.label
+            telemetry_authorization_source = 'grant'
+            telemetry_inferred_predecessor_id = grant_match.claim_record.inferred_predecessor_id
+            from dataclasses import replace
+
+            result = replace(result, exit_code=0, forced=True, message=f"{result.message} (forced)")
+    elif result.exit_code == 1 and parsed["force"]:
+        from autoharness.gates.bootstrap_grant import derive_shipment_manifest
+
+        try:
+            shipment_snapshot = tuple(readers.list_shipments())
+        except Exception:
+            shipment_snapshot = ()
+        manifest = None
+        if result.resolved_target_shipment_id is not None:
+            target_manifest = derive_shipment_manifest(shipment_snapshot, result.resolved_target_shipment_id)
+            if target_manifest is not None:
+                manifest = target_manifest.to_dict()
+        audit_path, audit_ref = _audit_pipeline_topology_force(
+            workspace,
+            result,
+            observed_payload=observed_payload,
+            manifest=manifest,
+        )
+        telemetry_invocation = 'operator_manual'
+        telemetry_authorization_source = 'operator_force'
+        _blocking_token, telemetry_inferred_predecessor_id = _pipeline_topology_blocking_details(observed_payload)
         from dataclasses import replace
 
         result = replace(result, exit_code=0, forced=True, message=f"{result.message} (forced)")
 
-    telemetry_path, telemetry_errors = _emit_pipeline_topology_telemetry(Path('.'), result, audit_path)
+    telemetry_path, telemetry_errors = _emit_pipeline_topology_telemetry(
+        workspace,
+        result,
+        audit_path,
+        invocation=telemetry_invocation,
+        authorization_source=telemetry_authorization_source,
+        inferred_predecessor_id=telemetry_inferred_predecessor_id,
+    )
 
     payload = result.to_dict()
     payload["telemetry_log"] = telemetry_path
@@ -1200,6 +1432,8 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
     else:
         print(_format_pipeline_topology_result(payload))
 
+    for warning in bootstrap_warnings:
+        print(warning, file=sys.stderr)
     for warning in telemetry_errors:
         print(warning, file=sys.stderr)
 

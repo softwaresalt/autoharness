@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -40,6 +41,7 @@ def _shipment(
     archived_status: str | None = None,
     labels: tuple[str, ...] = (),
     deps: tuple[str, ...] = (),
+    manifest_items: tuple[str, ...] = (),
     archived_record_present: bool | None = None,
 ):
     from autoharness.gates.topology import ShipmentState
@@ -50,6 +52,7 @@ def _shipment(
         live_status=status,
         archived_status=archived_status,
         archived_record_present=(archived_status is not None if archived_record_present is None else archived_record_present),
+        manifest_item_ids=manifest_items,
         blocking_predecessor_ids=deps,
         labels=labels,
     )
@@ -793,7 +796,18 @@ telemetry:
                     # in the fingerprint payload.
                     fingerprint = json.loads(record['argv_fingerprint'])
                     self.assertNotIn('message', fingerprint)
-                    self.assertEqual(set(fingerprint), {'mode', 'forced', 'token', 'audit_log'})
+                    self.assertEqual(
+                        set(fingerprint),
+                        {
+                            'mode',
+                            'forced',
+                            'token',
+                            'audit_log',
+                            'invocation',
+                            'authorization_source',
+                            'inferred_predecessor_id',
+                        },
+                    )
 
 
 class PipelineTopologyForceTests(unittest.TestCase):
@@ -822,7 +836,7 @@ class PipelineTopologyForceTests(unittest.TestCase):
                 return None
 
         with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=FakeReaders()):
-            with mock.patch('autoharness.cli._audit_pipeline_topology_force', return_value='audit.log') as audit_fn:
+            with mock.patch('autoharness.cli._audit_pipeline_topology_force', return_value=('audit.log', {'path': 'audit.log', 'record_digest': 'x'})) as audit_fn:
                 with mock.patch('autoharness.cli._emit_pipeline_topology_telemetry', return_value=('telemetry.jsonl', ())) as telemetry_fn:
                     out, _, code = _run('gate', 'pipeline-topology', '--mode', 'agent', '--shipment', '114-S', '--phase', 'pre_claim', '--force', '--json')
         self.assertEqual(code, 0)
@@ -832,6 +846,334 @@ class PipelineTopologyForceTests(unittest.TestCase):
         self.assertTrue(payload['forced'])
         self.assertEqual(payload['force_audit_log'], 'audit.log')
         self.assertEqual(payload['telemetry_log'], 'telemetry.jsonl')
+
+
+
+class PipelineTopologyBootstrapGrantCliTests(_PipelineTopologyCliMixin, unittest.TestCase):
+    def _grant_path(self, workspace: Path, shipment_id: str = '173-S') -> Path:
+        return workspace / '.autoharness' / 'bootstrap-grants' / f'{shipment_id}.yaml'
+
+    def _write_grant(
+        self,
+        workspace: Path,
+        *,
+        shipment_id: str = '173-S',
+        authorized_invocations: tuple[str, ...] = ('orchestrator_pre_route', 'ship_pre_branch', 'ship_pre_claim'),
+        expected_token: str = 'PREDECESSOR_NOT_SHIPPED',
+        expected_predecessor_id: str = '172-S',
+        manifest_items: tuple[str, ...] = ('165.011-T', '165.012-T'),
+        manifest_digest: str | None = None,
+        authorizing_decision: str = 'D6',
+        operator: str = 'Casey',
+        raw_text: str | None = None,
+    ) -> Path:
+        from autoharness.gates.bootstrap_grant import compute_manifest_digest
+
+        grant_path = self._grant_path(workspace, shipment_id)
+        grant_path.parent.mkdir(parents=True, exist_ok=True)
+        if raw_text is not None:
+            grant_path.write_text(raw_text, encoding='utf-8')
+            return grant_path
+        digest = manifest_digest or compute_manifest_digest(list(manifest_items))
+        lines = [
+            'schema_version: 1',
+            f'shipment_id: {shipment_id}',
+            'authorized_invocations:',
+            *[f'  - {label}' for label in authorized_invocations],
+            f'expected_token: {expected_token}',
+            f'expected_predecessor_id: {expected_predecessor_id}',
+            f'manifest_digest: {digest}',
+            f'authorizing_decision: {authorizing_decision}',
+            f'operator: {operator}',
+            'expires_on_claim: true',
+        ]
+        grant_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+        return grant_path
+
+    def _blocked_readers(self) -> _FakeTopologyReaders:
+        return _FakeTopologyReaders(
+            (
+                _shipment('172-S', 'queued'),
+                _shipment('173-S', 'queued', deps=('172-S',), manifest_items=('165.011-T', '165.012-T')),
+            ),
+            branch='main',
+        )
+
+    def _pass_readers(self) -> _FakeTopologyReaders:
+        return _FakeTopologyReaders(
+            (_shipment('173-S', 'queued', labels=('dag-root',), manifest_items=('165.011-T', '165.012-T')),),
+            branch='main',
+        )
+
+    def test_no_grant_present_is_byte_identical_with_and_without_bootstrap_flag(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            previous = Path.cwd()
+            try:
+                os.chdir(workspace)
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._blocked_readers()):
+                    with mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'):
+                        without_flag = _run(
+                            'gate', 'pipeline-topology',
+                            '--mode', 'agent',
+                            '--shipment', '173-S',
+                            '--phase', 'pre_claim',
+                            '--json',
+                        )
+                        with_flag = _run(
+                            'gate', 'pipeline-topology',
+                            '--mode', 'agent',
+                            '--shipment', '173-S',
+                            '--phase', 'pre_claim',
+                            '--bootstrap-grant-invocation', 'ship_pre_claim',
+                            '--json',
+                        )
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._pass_readers()):
+                    pass_without_flag = _run(
+                        'gate', 'pipeline-topology',
+                        '--mode', 'agent',
+                        '--shipment', '173-S',
+                        '--phase', 'pre_claim',
+                        '--json',
+                    )
+                    pass_with_flag = _run(
+                        'gate', 'pipeline-topology',
+                        '--mode', 'agent',
+                        '--shipment', '173-S',
+                        '--phase', 'pre_claim',
+                        '--bootstrap-grant-invocation', 'ship_pre_claim',
+                        '--json',
+                    )
+            finally:
+                os.chdir(previous)
+
+            self.assertEqual(without_flag, with_flag)
+            self.assertEqual(pass_without_flag, pass_with_flag)
+            self.assertFalse((workspace / '.autoharness' / 'gates').exists())
+
+    def test_exact_match_grant_forces_pass_and_emits_full_provenance_audit(self) -> None:
+        from autoharness.gates.bootstrap_grant import load_consumption_record
+
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            self._write_grant(workspace)
+            previous = Path.cwd()
+            try:
+                os.chdir(workspace)
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._blocked_readers()):
+                    with mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'):
+                        out, err, code = _run(
+                            'gate', 'pipeline-topology',
+                            '--mode', 'agent',
+                            '--shipment', '173-S',
+                            '--phase', 'pre_claim',
+                            '--bootstrap-grant-invocation', 'ship_pre_claim',
+                            '--json',
+                        )
+            finally:
+                os.chdir(previous)
+
+            self.assertEqual(code, 0)
+            self.assertEqual(err, '')
+            payload = json.loads(out)
+            self.assertTrue(payload['forced'])
+            audit_path = workspace / '.autoharness' / 'gates' / 'pipeline-topology-force-audit.log'
+            self.assertTrue(audit_path.exists())
+            audit_record = json.loads(audit_path.read_text(encoding='utf-8').splitlines()[0])
+            self.assertEqual(audit_record['invocation'], 'ship_pre_claim')
+            self.assertEqual(audit_record['head_sha'], 'deadbeef')
+            self.assertEqual(audit_record['blocking_token'], 'PREDECESSOR_NOT_SHIPPED')
+            self.assertEqual(audit_record['inferred_predecessor_id'], '172-S')
+            self.assertEqual(audit_record['manifest']['shipment_id'], '173-S')
+            self.assertEqual(audit_record['manifest']['items'], ['165.011-T', '165.012-T'])
+            self.assertEqual(audit_record['authorization']['source'], 'grant')
+            self.assertEqual(audit_record['authorization']['decision'], 'D6')
+            self.assertEqual(audit_record['authorization']['grant_path'], '.autoharness/bootstrap-grants/173-S.yaml')
+            record_path = workspace / '.autoharness' / 'gates' / 'bootstrap-grant-consumption' / '173-S' / 'ship_pre_claim.json'
+            record = load_consumption_record(record_path, workspace=workspace)
+            self.assertEqual(record.status, 'consumed')
+            self.assertEqual(audit_record['head_sha'], record.head_sha)
+            self.assertEqual(audit_record['manifest']['digest'], record.manifest_digest)
+            self.assertEqual(audit_record['authorization']['consumption_record_path'], record.relative_path)
+            self.assertEqual(audit_record['authorization']['grant_digest'], record.grant_digest)
+            self.assertEqual(audit_record['observed_payload']['exit_code'], 1)
+
+    def test_cli_mismatch_dimensions_remain_blocked(self) -> None:
+        from autoharness.gates.bootstrap_grant import compute_manifest_digest
+
+        repo_root = Path(__file__).resolve().parents[1]
+        cases = (
+            ('wrong_shipment', {'shipment_id': '999-S'}, None),
+            ('unlisted_invocation', {'authorized_invocations': ('ship_pre_branch',)}, None),
+            ('already_consumed', {}, 'preconsume'),
+            ('wrong_token', {'expected_token': 'PRECLAIM_ACTIVE_SHIPMENT_PRESENT'}, None),
+            ('wrong_predecessor', {'expected_predecessor_id': '171-S'}, None),
+            ('stale_manifest', {'manifest_digest': compute_manifest_digest(['999.001-T'])}, None),
+            ('second_blocking_check', {}, 'double_block'),
+        )
+        for name, grant_kwargs, mode in cases:
+            with self.subTest(name=name):
+                with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+                    workspace = Path(tmp)
+                    self._write_grant(workspace, **grant_kwargs)
+                    if mode == 'preconsume':
+                        consumed = workspace / '.autoharness' / 'gates' / 'bootstrap-grant-consumption' / '173-S' / 'ship_pre_claim.json'
+                        consumed.parent.mkdir(parents=True, exist_ok=True)
+                        consumed.write_text(
+                            json.dumps(
+                                {
+                                    'schema_version': 1,
+                                    'grant_digest': hashlib.sha256(self._grant_path(workspace).read_bytes()).hexdigest(),
+                                    'grant_path': '.autoharness/bootstrap-grants/173-S.yaml',
+                                    'shipment_id': '173-S',
+                                    'label': 'ship_pre_claim',
+                                    'phase': 'pre_claim',
+                                    'actor': 'agent',
+                                    'session_id': 'session-1',
+                                    'head_sha': 'deadbeef',
+                                    'manifest_digest': compute_manifest_digest(['165.011-T', '165.012-T']),
+                                    'manifest_items': ['165.011-T', '165.012-T'],
+                                    'blocking_token': 'PREDECESSOR_NOT_SHIPPED',
+                                    'inferred_predecessor_id': '172-S',
+                                    'claimed_at': '2026-09-14T00:00:00+00:00',
+                                    'status': 'consumed',
+                                    'audit_ref': {'path': 'audit.log', 'record_digest': 'x'},
+                                    'authorizing_decision': 'D6',
+                                    'operator': 'Casey',
+                                    'observed_payload': {'exit_code': 1},
+                                }
+                            ),
+                            encoding='utf-8',
+                        )
+                    previous = Path.cwd()
+                    try:
+                        os.chdir(workspace)
+                        readers = self._blocked_readers()
+                        if mode == 'double_block':
+                            from autoharness.gates.topology import CheckResult, TopologyResult
+
+                            patched_result = TopologyResult(
+                                mode='agent',
+                                phase='pre_claim',
+                                resolved_target_shipment_id='173-S',
+                                checks=(
+                                    CheckResult(
+                                        name='shipment_readiness',
+                                        status='blocked',
+                                        token='PREDECESSOR_NOT_SHIPPED',
+                                        message='PREDECESSOR_NOT_SHIPPED: predecessor 172-S is not in a shipped terminal state',
+                                        details={
+                                            'predecessor_id': '172-S',
+                                            'predecessor_ids': ['172-S'],
+                                            'selected_predecessor_ids': ['172-S'],
+                                            'predecessor_source': 'explicit',
+                                            'target_shipment_id': '173-S',
+                                        },
+                                    ),
+                                    CheckResult(
+                                        name='active_shipment_invariant',
+                                        status='blocked',
+                                        token='PRECLAIM_ACTIVE_SHIPMENT_PRESENT',
+                                        message='PRECLAIM_ACTIVE_SHIPMENT_PRESENT: pre-claim requires zero active shipments',
+                                        details={'active_shipment_ids': ['170-S']},
+                                    ),
+                                ),
+                                exit_code=1,
+                                message='topology gate blocked',
+                            )
+                            patches = [
+                                mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=readers),
+                                mock.patch('autoharness.gates.topology.evaluate', return_value=patched_result),
+                                mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'),
+                            ]
+                        else:
+                            patches = [
+                                mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=readers),
+                                mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'),
+                            ]
+                        with patches[0]:
+                            with patches[1]:
+                                context = patches[2] if len(patches) > 2 else mock.patch('builtins.id')
+                                with context:
+                                    out, err, code = _run(
+                                        'gate', 'pipeline-topology',
+                                        '--mode', 'agent',
+                                        '--shipment', '173-S',
+                                        '--phase', 'pre_claim',
+                                        '--bootstrap-grant-invocation', 'ship_pre_claim',
+                                        '--json',
+                                    )
+                    finally:
+                        os.chdir(previous)
+
+                    self.assertEqual(code, 1)
+                    self.assertFalse(json.loads(out)['forced'])
+                    if mode != 'preconsume':
+                        self.assertFalse((workspace / '.autoharness' / 'gates' / 'bootstrap-grant-consumption' / '173-S' / 'ship_pre_claim.json').exists())
+
+    def test_malformed_grant_warns_and_remains_blocked(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            self._write_grant(workspace, raw_text='schema_version: [')
+            previous = Path.cwd()
+            try:
+                os.chdir(workspace)
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._blocked_readers()):
+                    with mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'):
+                        out, err, code = _run(
+                            'gate', 'pipeline-topology',
+                            '--mode', 'agent',
+                            '--shipment', '173-S',
+                            '--phase', 'pre_claim',
+                            '--bootstrap-grant-invocation', 'ship_pre_claim',
+                            '--json',
+                        )
+            finally:
+                os.chdir(previous)
+
+        self.assertEqual(code, 1)
+        self.assertFalse(json.loads(out)['forced'])
+        self.assertIn('bootstrap grant warning:', err)
+
+    def test_bootstrap_grant_invocation_and_force_together_exit_2(self) -> None:
+        _, _, code = _run(
+            'gate', 'pipeline-topology',
+            '--mode', 'agent',
+            '--shipment', '173-S',
+            '--phase', 'pre_claim',
+            '--bootstrap-grant-invocation', 'ship_pre_claim',
+            '--force',
+        )
+        self.assertEqual(code, 2)
+
+    def test_telemetry_failure_during_forced_grant_run_is_fail_open(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            self._write_grant(workspace)
+            previous = Path.cwd()
+            try:
+                os.chdir(workspace)
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._blocked_readers()):
+                    with mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'):
+                        with mock.patch('autoharness.telemetry.record.load_workspace_telemetry_config', side_effect=RuntimeError('telemetry boom')):
+                            out, err, code = _run(
+                                'gate', 'pipeline-topology',
+                                '--mode', 'agent',
+                                '--shipment', '173-S',
+                                '--phase', 'pre_claim',
+                                '--bootstrap-grant-invocation', 'ship_pre_claim',
+                                '--json',
+                            )
+            finally:
+                os.chdir(previous)
+
+        self.assertEqual(code, 0)
+        self.assertTrue(json.loads(out)['forced'])
+        self.assertIn('pipeline-topology telemetry warning: telemetry boom', err)
 
 if __name__ == '__main__':
     unittest.main()
