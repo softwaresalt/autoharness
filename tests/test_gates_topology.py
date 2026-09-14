@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import ast
+import json
 import os
 import subprocess
 import tempfile
@@ -14,7 +15,6 @@ from unittest import mock
 import yaml
 
 from _env_patch import patched_environ
-from support.red import expect_red
 from autoharness.gates.topology import (
     ArtifactState,
     BacklogUnavailableError,
@@ -2128,20 +2128,16 @@ class DagAuthoritativePredecessorLabelDerivationTests(unittest.TestCase, _Topolo
 class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin):
     """Historical context for the retired claim-path numeric heuristic.
 
-    `_prior_shipment_id` remains in the module for a future audit-only surface,
-    but `_shipment_readiness_check` no longer consults it when deciding whether a
-    shipment may be claimed. The historical defect cycles captured in
-    `docs/compound/2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md`
-    and `docs/compound/2026-08-18-topology-gate-forward-dependent-suppression-residual-defect.md`
-    now live here only as explicit-DAG claim assertions and constrained-red
-    audit-surface placeholders for 165.003-T.
+    `_shipment_readiness_check` no longer consults `_prior_shipment_id` when
+    deciding whether a shipment may be claimed. The historical defect cycles
+    captured in the compound entries now live here as explicit-DAG claim
+    assertions plus read-only sequencing-audit expectations over the raw numeric
+    candidate the retired heuristic would have guessed.
     """
 
     def _future_audit_report(self, target: str, shipments: tuple[ShipmentState, ...]):
         from autoharness.gates import topology
 
-        # 165.003-T will provide this audit-only surface and flip the
-        # expected-red historical-candidate assertions below to green.
         return topology.audit_sequencing(target_shipment_id=target, shipments=shipments)
 
     def test_lower_numbered_shipment_declaring_target_as_its_own_dependency_is_not_treated_as_predecessor(
@@ -2164,11 +2160,6 @@ class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin
         )
         self._assert_readiness_pass(result, source='explicit', predecessor_ids=('137-S',))
 
-    @expect_red(
-        raises=AttributeError,
-        message_contains='audit_sequencing',
-        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
-    )
     def test_implicit_numeric_predecessor_still_blocks_when_no_declared_reverse_dependency(
         self,
     ) -> None:
@@ -2185,11 +2176,6 @@ class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin
             ('113-S',),
         )
 
-    @expect_red(
-        raises=AttributeError,
-        message_contains='audit_sequencing',
-        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
-    )
     def test_implicit_numeric_predecessor_still_blocks_when_lower_shipment_has_unrelated_deps(
         self,
     ) -> None:
@@ -2207,11 +2193,6 @@ class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin
             ('113-S',),
         )
 
-    @expect_red(
-        raises=AttributeError,
-        message_contains='audit_sequencing',
-        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
-    )
     def test_multi_hop_reverse_dependency_disables_fallback_entirely_not_just_the_violator(
         self,
     ) -> None:
@@ -2256,11 +2237,6 @@ class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin
         self._assert_unsequenced_block(without_forward_dependent, target='112-S')
         self._assert_unsequenced_block(with_forward_dependent, target='112-S')
 
-    @expect_red(
-        raises=AttributeError,
-        message_contains='audit_sequencing',
-        reason='165.003-T re-homes historical numeric-candidate reporting onto the audit surface',
-    )
     def test_higher_numbered_forward_dependent_history_is_preserved_for_future_audit_surface(
         self,
     ) -> None:
@@ -2277,6 +2253,276 @@ class ImplicitNumericPredecessorTests(unittest.TestCase, _TopologyWorkspaceMixin
             tuple(report['raw_numeric_candidate_ids']),
             ('111-S',),
         )
+
+
+class SequencingAuditTests(unittest.TestCase, _TopologyWorkspaceMixin):
+    _ENABLED_CONFIG = """
+schema_version: "1.0.0"
+telemetry:
+  mode: "sqlite"
+  database_path: ".autoharness/metrics/execution_epochs.db"
+  emit_jsonl: true
+"""
+
+    _DISABLED_CONFIG = """
+schema_version: "1.0.0"
+telemetry:
+  mode: "none"
+"""
+
+    def _audit_entry(self, result, shipment_id: str):
+        check = _check(result, 'sequencing_audit')
+        for entry in check.details.get('edge_less_shipments', ()):
+            if entry.get('target_shipment_id') == shipment_id:
+                return entry
+        raise AssertionError(f'missing sequencing audit entry: {shipment_id}')
+
+    def _render_result(self, result) -> str:
+        return json.dumps(result.to_dict(), sort_keys=True)
+
+    def _snapshot_backlog_tree(self, workspace: Path) -> dict[str, str]:
+        backlog_root = workspace / '.backlogit'
+        return {
+            str(path.relative_to(backlog_root)).replace('\\', '/'): path.read_text(encoding='utf-8')
+            for path in sorted(backlog_root.rglob('*'))
+            if path.is_file()
+        }
+
+    def _write_telemetry_config(self, workspace: Path, text: str) -> None:
+        (workspace / '.autoharness').mkdir(parents=True, exist_ok=True)
+        (workspace / '.autoharness' / 'config.yaml').write_text(text, encoding='utf-8')
+
+    def test_audit_output_reports_declared_root_state_and_raw_candidate(self) -> None:
+        from autoharness.gates import topology
+
+        report = topology.audit_sequencing(
+            target_shipment_id='200-S',
+            shipments=(
+                ShipmentState(
+                    shipment_id='199-S',
+                    title='199-S',
+                    live_status='queued',
+                ),
+                ShipmentState(
+                    shipment_id='200-S',
+                    title='200-S',
+                    live_status='queued',
+                    labels=('dag-root',),
+                ),
+            ),
+        )
+        self._expect_equal('audit.derived_state', report['derived_state'], 'declared_root')
+        self._expect_equal('audit.raw_numeric_candidate_ids', tuple(report['raw_numeric_candidate_ids']), ('199-S',))
+        self._expect_equal('audit.blocking', report['blocking'], False)
+        self._expect_equal('audit.authorizes_claim', report['authorizes_claim'], False)
+        self._expect_equal('audit.genesis_disqualifying_records', tuple(report['genesis_disqualifying_records']), ())
+        self._expect_equal(
+            'audit.remediation_options',
+            tuple(report['remediation_options']),
+            ('record the real blocks edge', 'declare the shipment a root'),
+        )
+
+    def test_audit_output_reports_genesis_state_without_disqualifiers(self) -> None:
+        from autoharness.gates import topology
+
+        report = topology.audit_sequencing(
+            target_shipment_id='200-S',
+            shipments=(
+                ShipmentState(
+                    shipment_id='200-S',
+                    title='200-S',
+                    live_status='queued',
+                ),
+            ),
+        )
+        self._expect_equal('audit.derived_state', report['derived_state'], 'genesis')
+        self._expect_equal('audit.raw_numeric_candidate_ids', tuple(report['raw_numeric_candidate_ids']), ())
+        self._expect_equal('audit.genesis_disqualifier', report['genesis_disqualifier'], None)
+        self._expect_equal('audit.genesis_disqualifying_records', tuple(report['genesis_disqualifying_records']), ())
+
+    def test_audit_output_reports_unsequenced_state_and_names_disqualifying_records(self) -> None:
+        from autoharness.gates import topology
+
+        report = topology.audit_sequencing(
+            target_shipment_id='200-S',
+            shipments=(
+                ShipmentState(
+                    shipment_id='197-S',
+                    title='197-S',
+                    live_status=None,
+                    archived_status='mystery',
+                    archived_record_present=True,
+                ),
+                ShipmentState(
+                    shipment_id='198-S',
+                    title='198-S',
+                    live_status=None,
+                    archived_status=None,
+                    archived_record_present=True,
+                ),
+                ShipmentState(
+                    shipment_id='199-S',
+                    title='199-S',
+                    live_status='blocked',
+                ),
+                ShipmentState(
+                    shipment_id='200-S',
+                    title='200-S',
+                    live_status='queued',
+                ),
+            ),
+        )
+        self._expect_equal('audit.derived_state', report['derived_state'], 'unsequenced')
+        self._expect_equal('audit.raw_numeric_candidate_ids', tuple(report['raw_numeric_candidate_ids']), ('199-S',))
+        self._expect_equal(
+            'audit.genesis_disqualifier',
+            report['genesis_disqualifier'],
+            'another shipment record exists in this workspace',
+        )
+        disqualifiers = tuple(
+            (entry['shipment_id'], entry['record_provenance'], entry['status'])
+            for entry in report['genesis_disqualifying_records']
+        )
+        self._expect_equal(
+            'audit.genesis_disqualifying_records',
+            disqualifiers,
+            (
+                ('197-S', 'ARCHIVED', 'mystery'),
+                ('198-S', 'ARCHIVED', 'missing'),
+                ('199-S', 'LIVE', 'blocked'),
+            ),
+        )
+
+    def test_audit_phase_never_blocks_or_authorizes_for_declared_root_genesis_and_unsequenced(self) -> None:
+        cases = (
+            (
+                'declared_root',
+                '200-S',
+                lambda workspace: (
+                    self._write_shipment_record(workspace, '199-S', status='queued'),
+                    self._write_shipment_record(workspace, '200-S', status='queued', labels=['dag-root']),
+                ),
+            ),
+            (
+                'genesis',
+                '200-S',
+                lambda workspace: self._write_shipment_record(workspace, '200-S', status='queued'),
+            ),
+            (
+                'unsequenced',
+                '200-S',
+                lambda workspace: (
+                    self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped'),
+                    self._write_shipment_record(workspace, '200-S', status='queued'),
+                ),
+            ),
+        )
+        for expected_state, shipment_id, setup in cases:
+            with self.subTest(state=expected_state):
+                with self._topology_workspace() as workspace:
+                    setup(workspace)
+                    result = evaluate(
+                        TopologyInput(mode='manual', phase='audit_sequencing', target_shipment_id=None),
+                        readers=self._reader(workspace),
+                    )
+                self._expect_equal('result.exit_code', result.exit_code, 0)
+                self._expect_equal('result.primary_token', result.primary_token, None)
+                self._expect_equal('result.target', result.resolved_target_shipment_id, None)
+                check = _check(result, 'sequencing_audit')
+                self._expect_equal('sequencing_audit.status', check.status, 'passed')
+                self._expect_equal('sequencing_audit.blocking', check.details.get('blocking'), False)
+                self._expect_equal('sequencing_audit.authorizes_claim', check.details.get('authorizes_claim'), False)
+                entry = self._audit_entry(result, shipment_id)
+                self._expect_equal('audit.derived_state', entry['derived_state'], expected_state)
+                self._expect_equal('audit.blocking', entry['blocking'], False)
+                self._expect_equal('audit.authorizes_claim', entry['authorizes_claim'], False)
+
+    def test_audit_phase_registration_does_not_change_preclaim_postclaim_lifecycle_or_ambient_behavior(self) -> None:
+        pre_claim = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='112-S'),
+            readers=_FakeReaders(
+                shipments=(
+                    _shipment('111-S', 'queued'),
+                    _shipment('112-S', 'queued'),
+                ),
+                branch='main',
+            ),
+        )
+        self._assert_unsequenced_block(pre_claim, target='112-S')
+
+        post_claim = evaluate(
+            TopologyInput(mode='agent', phase='post_claim', target_shipment_id='112-S'),
+            readers=_FakeReaders(shipments=(_shipment('112-S', 'active'),), branch='main'),
+        )
+        self._expect_equal('post_claim.exit_code', post_claim.exit_code, 0)
+
+        lifecycle = evaluate(
+            TopologyInput(mode='agent', phase='lifecycle', target_shipment_id='112-S'),
+            readers=_FakeReaders(shipments=(_shipment('112-S', 'active'),), branch='main'),
+        )
+        self._expect_equal('lifecycle.exit_code', lifecycle.exit_code, 0)
+
+        ambient = evaluate(
+            TopologyInput(mode='manual', phase='ambient', target_shipment_id=None),
+            readers=_FakeReaders(shipments=(_shipment('112-S', 'active'),), branch='main'),
+        )
+        self._expect_equal('ambient.exit_code', ambient.exit_code, 0)
+        self._expect_equal('ambient.target', ambient.resolved_target_shipment_id, '112-S')
+
+    def test_audit_phase_is_read_only_and_telemetry_is_observational_and_fail_open(self) -> None:
+        from autoharness.cli import _emit_pipeline_topology_telemetry
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+        from autoharness.telemetry.tool_event_jsonl import journal_path_for_config
+
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            backlog_before = self._snapshot_backlog_tree(workspace)
+
+            disabled_result = evaluate(
+                TopologyInput(mode='manual', phase='audit_sequencing', target_shipment_id=None),
+                readers=FilesystemTopologyReaders(workspace),
+            )
+            disabled_rendered = self._render_result(disabled_result)
+            self._write_telemetry_config(workspace, self._DISABLED_CONFIG)
+            disabled_path, disabled_warnings = _emit_pipeline_topology_telemetry(workspace, disabled_result)
+            self._expect_equal('disabled.telemetry_path', disabled_path, None)
+            self._expect_equal('disabled.telemetry_warnings', disabled_warnings, ())
+            self._expect_equal('disabled.backlog_snapshot', self._snapshot_backlog_tree(workspace), backlog_before)
+
+            enabled_result = evaluate(
+                TopologyInput(mode='manual', phase='audit_sequencing', target_shipment_id=None),
+                readers=FilesystemTopologyReaders(workspace),
+            )
+            enabled_rendered = self._render_result(enabled_result)
+            self._expect_equal('audit.rendered_output', enabled_rendered, disabled_rendered)
+            self._expect_equal('audit.exit_code', enabled_result.exit_code, disabled_result.exit_code)
+
+            self._write_telemetry_config(workspace, self._ENABLED_CONFIG)
+            enabled_path, enabled_warnings = _emit_pipeline_topology_telemetry(workspace, enabled_result)
+            self._expect_equal('enabled.telemetry_warnings', enabled_warnings, ())
+            config = load_workspace_telemetry_config(workspace)
+            journal_path = journal_path_for_config(config)
+            self.assertIsNotNone(journal_path)
+            self._expect_equal('enabled.telemetry_path', enabled_path, str(journal_path))
+            self.assertTrue(journal_path.exists())
+            event = json.loads(journal_path.read_text(encoding='utf-8').splitlines()[0])
+            self._expect_equal('event.phase', event['phase'], 'audit_sequencing')
+            self._expect_equal('event.status', event['status'], 'success')
+            self._expect_equal('event.shipment_id', event['shipment_id'], None)
+            self._expect_equal('enabled.backlog_snapshot', self._snapshot_backlog_tree(workspace), backlog_before)
+
+            with mock.patch(
+                'autoharness.telemetry.record.load_workspace_telemetry_config',
+                side_effect=RuntimeError('telemetry boom'),
+            ):
+                failure_path, failure_warnings = _emit_pipeline_topology_telemetry(workspace, enabled_result)
+            self._expect_equal('failure.telemetry_path', failure_path, None)
+            self.assertEqual(len(failure_warnings), 1)
+            self.assertIn('pipeline-topology telemetry warning: telemetry boom', failure_warnings[0])
+            self._expect_equal('failure.rendered_output', self._render_result(enabled_result), enabled_rendered)
+            self._expect_equal('failure.exit_code', enabled_result.exit_code, disabled_result.exit_code)
+            self._expect_equal('failure.backlog_snapshot', self._snapshot_backlog_tree(workspace), backlog_before)
 
 
 class PostClaimVerifyTests(unittest.TestCase):

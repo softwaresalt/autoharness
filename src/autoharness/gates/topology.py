@@ -28,7 +28,7 @@ from typing import Any, Literal, Protocol
 from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
 
 VALID_MODES = ("agent", "manual", "ci")
-VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient")
+VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient", "audit_sequencing")
 SCOPED_PHASES = ("pre_claim", "post_claim", "lifecycle")
 _NOT_YET_CLAIMED_STATUSES = frozenset({"queued", "blocked"})
 _TASK_ACTIVE_OR_DONE = frozenset({"active", "done"})
@@ -1487,32 +1487,18 @@ def _branch_ownership_check(
     )
 
 def _prior_shipment_id(target: str, shipments: Sequence[ShipmentState]) -> str | None:
+    """Return the raw numerically-adjacent lower shipment, if any.
+
+    165.003-T re-homes the retired numeric-adjacency heuristic onto the
+    read-only sequencing audit. The audit must show the RAW candidate the
+    old heuristic would have guessed, with NO reverse-dependency suppression:
+    advisory reporting must never silently hide a candidate the operator
+    needs to reconcile explicitly.
+    """
     match = re.match(r"^(\d+)-S$", target)
     if not match:
         return None
     target_num = int(match.group(1))
-    # If any NUMERICALLY LOWER shipment in the full set explicitly declares
-    # the target as one of its own `dependencies` (i.e. that lower-numbered
-    # shipment depends on / is blocked by the higher-numbered target -- the
-    # reverse of what the numeric-adjacency heuristic assumes), the
-    # ordering here is governed by explicit dependencies, not implicit
-    # numeric guessing -- for the WHOLE target, not just the specific
-    # shipment that made the declaration.
-    #
-    # This check MUST be restricted to lower-numbered dependents. A
-    # numerically HIGHER shipment declaring the target as its dependency
-    # (e.g. 113-S depends on 112-S) is the NORMAL forward-order case the
-    # heuristic is designed to support, not an anomaly -- it says nothing
-    # about whether the target itself has an undeclared implicit
-    # predecessor, and must not suppress the fallback for the target.
-    for shipment in shipments:
-        other = re.match(r"^(\d+)-S$", shipment.shipment_id)
-        if not other:
-            continue
-        if int(other.group(1)) >= target_num:
-            continue
-        if target in shipment.blocking_predecessor_ids:
-            return None
     prior: tuple[int, str] | None = None
     for shipment in shipments:
         other = re.match(r"^(\d+)-S$", shipment.shipment_id)
@@ -1582,6 +1568,98 @@ def _shipment_readiness_details(
     }
     details.update(extra)
     return details
+
+
+def _audit_record_provenance(shipment: ShipmentState) -> str:
+    return "LIVE" if shipment.live_status is not None else "ARCHIVED"
+
+
+def _audit_record_status(shipment: ShipmentState) -> str:
+    status = shipment.live_status if shipment.live_status is not None else shipment.archived_status
+    if isinstance(status, str) and status.strip():
+        return status.strip()
+    return "missing"
+
+
+def _sequencing_audit_disqualifying_records(
+    target: str,
+    shipments: Sequence[ShipmentState],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "shipment_id": shipment.shipment_id,
+            "record_provenance": _audit_record_provenance(shipment),
+            "status": _audit_record_status(shipment),
+        }
+        for shipment in sorted(shipments, key=lambda item: item.shipment_id)
+        if shipment.shipment_id != target
+    ]
+
+
+def audit_sequencing(
+    *,
+    target_shipment_id: str,
+    shipments: Sequence[ShipmentState],
+) -> dict[str, Any]:
+    """Build the read-only sequencing-audit report for one shipment."""
+    shipment = _shipment_map(shipments).get(target_shipment_id)
+    if shipment is None:
+        raise ValueError(f"unknown shipment target: {target_shipment_id}")
+
+    derived_state = _predecessor_source(shipment, shipments)
+    raw_candidate = _prior_shipment_id(target_shipment_id, shipments)
+    report: dict[str, Any] = {
+        "target_shipment_id": target_shipment_id,
+        "derived_state": derived_state,
+        "raw_numeric_candidate_ids": [raw_candidate] if raw_candidate is not None else [],
+        "remediation_options": [
+            "record the real blocks edge",
+            "declare the shipment a root",
+        ],
+        "blocking": False,
+        "authorizes_claim": False,
+        "genesis_disqualifier": None,
+        "genesis_disqualifying_records": [],
+    }
+    if derived_state == "unsequenced":
+        report["genesis_disqualifier"] = "another shipment record exists in this workspace"
+        report["genesis_disqualifying_records"] = _sequencing_audit_disqualifying_records(
+            target_shipment_id, shipments
+        )
+    return report
+
+
+def _evaluate_audit_sequencing(
+    topology_input: TopologyInput,
+    shipments: Sequence[ShipmentState],
+) -> TopologyResult:
+    reports = [
+        audit_sequencing(target_shipment_id=shipment.shipment_id, shipments=shipments)
+        for shipment in sorted(shipments, key=lambda item: item.shipment_id)
+        if _predecessor_source(shipment, shipments) != "explicit"
+    ]
+    message = (
+        "SEQUENCING_AUDIT: read-only sequencing audit completed; advisory only "
+        "and never authorizes a claim or blocks the gate"
+    )
+    check = CheckResult(
+        name="sequencing_audit",
+        status="passed",
+        message=message,
+        details={
+            "blocking": False,
+            "authorizes_claim": False,
+            "edge_less_shipments": reports,
+        },
+    )
+    return TopologyResult(
+        mode=topology_input.mode,
+        phase="audit_sequencing",
+        resolved_target_shipment_id=None,
+        checks=(check,),
+        exit_code=0,
+        message=message,
+    )
 
 
 def _shipment_readiness_check(
@@ -2299,6 +2377,9 @@ def evaluate(
             _normalize_target(topology_input.target_shipment_id),
             exc,
         )
+    if resolved_phase == "audit_sequencing":
+        return _evaluate_audit_sequencing(topology_input, target_resolution_shipments)
+
     target, target_error = _resolve_target_shipment(
         topology_input,
         target_resolution_shipments,
