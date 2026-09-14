@@ -185,7 +185,7 @@ Usage:
                         [--json] [--force] [--workspace <path>] [--gh <path>]
   autoharness gate pipeline-topology [--mode agent|manual|ci]
                         [--shipment <shipment_id>]
-                        [--phase pre_claim|post_claim|lifecycle|ambient]
+                        [--phase pre_claim|post_claim|lifecycle|ambient|audit_sequencing]
                         [--json] [--force]
   autoharness gate dag-readiness [--workspace <path>] [--json]
 
@@ -235,7 +235,7 @@ pipeline-topology options:
                       required in any mode whenever --phase resolves to
                       pre_claim, post_claim, or lifecycle (only ambient is
                       meaningful without a target).
-  --phase <p>         pre_claim | post_claim | lifecycle | ambient. Required in agent
+  --phase <p>         pre_claim | post_claim | lifecycle | ambient | audit_sequencing. Required in agent
                       mode; defaults to ambient when omitted in manual/ci mode.
   --json              Emit the topology gate result as JSON.
   --force             Reserve an operator override for a blocked topology gate.
@@ -1008,6 +1008,154 @@ def _emit_pipeline_topology_telemetry(
         return None, (f'pipeline-topology telemetry warning: {exc}',)
 
 
+def _pipeline_topology_status_label(exit_code: int) -> str:
+    if exit_code == 0:
+        return "PASS"
+    if exit_code == 1:
+        return "BLOCK"
+    if exit_code == 3:
+        return "RETRY_REQUIRED"
+    return "INVALID"
+
+
+def _pipeline_topology_check_label(check: dict) -> str:
+    status = str(check.get("status", "")).upper() or "UNKNOWN"
+    token = check.get("token")
+    return f"{status} ({token})" if token else status
+
+
+def _pipeline_topology_selected_predecessor_ids(details: dict) -> str:
+    predecessor_ids = details.get("selected_predecessor_ids")
+    if not isinstance(predecessor_ids, list):
+        predecessor_ids = details.get("predecessor_ids")
+    if not isinstance(predecessor_ids, list):
+        return "(none)"
+    selected = [item for item in predecessor_ids if isinstance(item, str) and item.strip()]
+    return ", ".join(selected) if selected else "(none)"
+
+
+def _pipeline_topology_disqualifying_record_lines(
+    records: object,
+    *,
+    indent: str,
+) -> list[str]:
+    if not isinstance(records, list) or not records:
+        return []
+    lines = [f"{indent}disqualifying records:"]
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        shipment_id = str(record.get("shipment_id") or "(unknown)")
+        provenance = str(record.get("record_provenance") or "unknown").strip().lower()
+        status = record.get("status")
+        status_text = status.strip() if isinstance(status, str) and status.strip() else "missing"
+        lines.append(f"{indent}  - {shipment_id} ({provenance}, status: {status_text})")
+    return lines
+
+
+def _format_pipeline_topology_shipment_readiness(check: dict) -> list[str]:
+    details = check.get("details") if isinstance(check.get("details"), dict) else {}
+    predecessor_source = str(details.get("predecessor_source") or "unknown")
+    selected_predecessors = _pipeline_topology_selected_predecessor_ids(details)
+    lines = [
+        (
+            f"  shipment_readiness: {_pipeline_topology_check_label(check)}"
+            f" — predecessor provenance={predecessor_source}; "
+            f"selected predecessor ids={selected_predecessors}"
+        )
+    ]
+    if predecessor_source != "unsequenced":
+        return lines
+
+    remedies = details.get("remediation_options")
+    if isinstance(remedies, list) and remedies:
+        remedy_text = "; ".join(
+            remedy for remedy in remedies if isinstance(remedy, str) and remedy.strip()
+        )
+        if remedy_text:
+            lines.append(f"    remedies: {remedy_text}")
+    disqualifier = details.get("genesis_disqualifier")
+    if isinstance(disqualifier, str) and disqualifier.strip():
+        lines.append(f"    genesis did not apply: {disqualifier.strip()}")
+    lines.extend(
+        _pipeline_topology_disqualifying_record_lines(
+            details.get("genesis_disqualifying_records"),
+            indent="    ",
+        )
+    )
+    return lines
+
+
+def _format_pipeline_topology_sequencing_audit(check: dict) -> list[str]:
+    details = check.get("details") if isinstance(check.get("details"), dict) else {}
+    reports = details.get("edge_less_shipments") if isinstance(details.get("edge_less_shipments"), list) else []
+    count = len(reports)
+    noun = "shipment" if count == 1 else "shipments"
+    lines = [
+        f"  sequencing_audit: {_pipeline_topology_check_label(check)} — current run examined {count} edge-less {noun}"
+    ]
+    for report in reports:
+        if not isinstance(report, dict):
+            continue
+        shipment_id = str(report.get("target_shipment_id") or "(unknown)")
+        derived_state = str(report.get("derived_state") or "unknown")
+        raw_candidate_ids = report.get("raw_numeric_candidate_ids")
+        if isinstance(raw_candidate_ids, list):
+            raw_candidates = ", ".join(
+                item for item in raw_candidate_ids if isinstance(item, str) and item.strip()
+            ) or "(none)"
+        else:
+            raw_candidates = "(none)"
+        lines.append(
+            f"    - {shipment_id} — derived state={derived_state}; raw numeric candidate ids={raw_candidates}"
+        )
+        remedies = report.get("remediation_options")
+        if isinstance(remedies, list) and remedies:
+            remedy_text = "; ".join(
+                remedy for remedy in remedies if isinstance(remedy, str) and remedy.strip()
+            )
+            if remedy_text:
+                lines.append(f"      remedies: {remedy_text}")
+        disqualifier = report.get("genesis_disqualifier")
+        if isinstance(disqualifier, str) and disqualifier.strip():
+            lines.append(f"      genesis did not apply: {disqualifier.strip()}")
+        lines.extend(
+            _pipeline_topology_disqualifying_record_lines(
+                report.get("genesis_disqualifying_records"),
+                indent="      ",
+            )
+        )
+    return lines
+
+
+def _format_pipeline_topology_result(payload: dict) -> str:
+    lines = [
+        f"Pipeline-topology gate — {_pipeline_topology_status_label(int(payload.get('exit_code', 0)))}",
+        (
+            f"  mode={payload.get('mode')} phase={payload.get('phase')} "
+            f"target={payload.get('target_shipment_id')}"
+        ),
+    ]
+    message = payload.get("message")
+    if isinstance(message, str) and message.strip():
+        lines.append(f"  {message}")
+    for check in payload.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        if check.get("name") == "shipment_readiness":
+            lines.extend(_format_pipeline_topology_shipment_readiness(check))
+        elif check.get("name") == "sequencing_audit":
+            lines.extend(_format_pipeline_topology_sequencing_audit(check))
+    if payload.get("phase") == "audit_sequencing":
+        lines.append("  telemetry: observational only; does not affect the audit render")
+    else:
+        lines.append(f"  telemetry: {payload.get('telemetry_log') or 'disabled'}")
+    audit_path = payload.get("force_audit_log")
+    if isinstance(audit_path, str) and audit_path.strip():
+        lines.append(f"  --force override recorded: {audit_path}")
+    return "\n".join(lines)
+
+
 def _gate_pipeline_topology_command(rest: list[str]) -> None:
     """Run the deterministic shipment/worktree topology gate."""
     if any(flag in ("help", "--help", "-h") for flag in rest):
@@ -1050,19 +1198,7 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
     if parsed["emit_json"]:
         print(json.dumps(payload, indent=2))
     else:
-        status = (
-            "PASS" if result.exit_code == 0
-            else "BLOCK" if result.exit_code == 1
-            else "RETRY_REQUIRED" if result.exit_code == 3
-            else "INVALID"
-        )
-        print(f"Pipeline-topology gate — {status}")
-        print(f"  mode={result.mode} phase={result.phase} target={result.resolved_target_shipment_id}")
-        if result.message:
-            print(f"  {result.message}")
-        print(f"  telemetry: {telemetry_path or 'disabled'}")
-        if audit_path:
-            print(f"  --force override recorded: {audit_path}")
+        print(_format_pipeline_topology_result(payload))
 
     for warning in telemetry_errors:
         print(warning, file=sys.stderr)

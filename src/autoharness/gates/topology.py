@@ -1536,6 +1536,11 @@ def _is_shipped_terminal(shipment: ShipmentState) -> bool:
 
 
 PredecessorSource = Literal["explicit", "declared_root", "genesis", "unsequenced"]
+_SEQUENCING_REMEDIATION_OPTIONS = (
+    "record the real blocks edge",
+    "declare the shipment a root",
+)
+_GENESIS_DISQUALIFIER_ANOTHER_RECORD = "another shipment record exists in this workspace"
 
 
 def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
@@ -1569,11 +1574,22 @@ def _shipment_readiness_details(
     shipments: Sequence[ShipmentState],
     **extra: Any,
 ) -> dict[str, Any]:
+    predecessor_source = _predecessor_source(shipment, shipments)
+    selected_predecessor_ids = list(shipment.blocking_predecessor_ids)
     details = {
         "target_shipment_id": target,
-        "predecessor_ids": list(shipment.blocking_predecessor_ids),
-        "predecessor_source": _predecessor_source(shipment, shipments),
+        "predecessor_ids": selected_predecessor_ids,
+        "selected_predecessor_ids": selected_predecessor_ids,
+        "predecessor_source": predecessor_source,
+        "genesis_disqualifier": None,
+        "genesis_disqualifying_records": [],
     }
+    if predecessor_source == "unsequenced":
+        details["remediation_options"] = list(_SEQUENCING_REMEDIATION_OPTIONS)
+        details["genesis_disqualifier"] = _GENESIS_DISQUALIFIER_ANOTHER_RECORD
+        details["genesis_disqualifying_records"] = _sequencing_audit_disqualifying_records(
+            target, shipments
+        )
     details.update(extra)
     return details
 
@@ -1620,17 +1636,14 @@ def audit_sequencing(
         "target_shipment_id": target_shipment_id,
         "derived_state": derived_state,
         "raw_numeric_candidate_ids": [raw_candidate] if raw_candidate is not None else [],
-        "remediation_options": [
-            "record the real blocks edge",
-            "declare the shipment a root",
-        ],
+        "remediation_options": list(_SEQUENCING_REMEDIATION_OPTIONS),
         "blocking": False,
         "authorizes_claim": False,
         "genesis_disqualifier": None,
         "genesis_disqualifying_records": [],
     }
     if derived_state == "unsequenced":
-        report["genesis_disqualifier"] = "another shipment record exists in this workspace"
+        report["genesis_disqualifier"] = _GENESIS_DISQUALIFIER_ANOTHER_RECORD
         report["genesis_disqualifying_records"] = _sequencing_audit_disqualifying_records(
             target_shipment_id, shipments
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +24,137 @@ def _run(*argv: str) -> tuple[str, str, int | None]:
     except SystemExit as exc:  # noqa: PERF203 - CLI harness
         code = exc.code
     return out.getvalue(), err.getvalue(), code
+
+
+def _check(payload: dict, name: str) -> dict:
+    for check in payload['checks']:
+        if check['name'] == name:
+            return check
+    raise AssertionError(f'missing check: {name}')
+
+
+def _shipment(
+    shipment_id: str,
+    status: str | None,
+    *,
+    archived_status: str | None = None,
+    labels: tuple[str, ...] = (),
+    deps: tuple[str, ...] = (),
+    archived_record_present: bool | None = None,
+):
+    from autoharness.gates.topology import ShipmentState
+
+    return ShipmentState(
+        shipment_id=shipment_id,
+        title=shipment_id,
+        live_status=status,
+        archived_status=archived_status,
+        archived_record_present=(archived_status is not None if archived_record_present is None else archived_record_present),
+        blocking_predecessor_ids=deps,
+        labels=labels,
+    )
+
+
+class _FakeTopologyReaders:
+    def __init__(
+        self,
+        shipments,
+        *,
+        branch: str = 'main',
+        closure_complete_ids: tuple[str, ...] = (),
+    ) -> None:
+        self._shipments = tuple(shipments)
+        self._branch = branch
+        self._closure_complete_ids = set(closure_complete_ids)
+
+    def list_shipments(self):
+        return self._shipments
+
+    def read_artifact(self, artifact_id: str):
+        return None
+
+    def current_branch(self) -> str:
+        return self._branch
+
+    def default_branch(self) -> str:
+        return 'main'
+
+    def worktree_porcelain(self) -> str:
+        return f'worktree C:/repo\nHEAD 0\nbranch refs/heads/{self._branch}\n\n'
+
+    def read_worktree_marker(self, worktree_path: str):
+        return None
+
+    def closure_complete(self, shipment_id: str):
+        return shipment_id in self._closure_complete_ids
+
+
+class _PipelineTopologyCliMixin:
+    def _run_with_readers(self, readers, *argv: str) -> tuple[str, str, int | None]:
+        with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=readers):
+            with mock.patch('autoharness.cli._emit_pipeline_topology_telemetry', return_value=(None, ())):
+                return _run(*argv)
+
+    def _run_in_workspace(self, workspace: Path, *argv: str) -> tuple[str, str, int | None]:
+        previous = Path.cwd()
+        try:
+            os.chdir(workspace)
+            return _run(*argv)
+        finally:
+            os.chdir(previous)
+
+    def _write_shipment_record(
+        self,
+        workspace: Path,
+        shipment_id: str,
+        *,
+        folder: str = 'queue',
+        status: str | None = None,
+        archived_status: str | None = None,
+        labels: tuple[str, ...] = (),
+        dependencies: tuple[str, ...] = (),
+    ) -> None:
+        target = workspace / '.backlog' / folder
+        target.mkdir(parents=True, exist_ok=True)
+        lines = [
+            '---',
+            f'id: {shipment_id}',
+            'artifact_type: shipment',
+            f'title: {shipment_id}',
+        ]
+        if status is not None:
+            lines.append(f'status: {status}')
+        if archived_status is not None:
+            lines.append(f'archived_status: {archived_status}')
+        if labels:
+            lines.append('labels:')
+            lines.extend(f'  - {label}' for label in labels)
+        if dependencies:
+            lines.append('dependencies:')
+            lines.extend(f'  - {dependency}' for dependency in dependencies)
+        lines.extend(['---', '', shipment_id])
+        (target / f'{shipment_id}.md').write_text('\n'.join(lines), encoding='utf-8')
+
+    def _snapshot_backlog(self, workspace: Path) -> dict[str, str]:
+        result: dict[str, str] = {}
+        backlog_root = workspace / '.backlog'
+        for candidate in sorted(backlog_root.rglob('*')):
+            if candidate.is_file():
+                relative = str(candidate.relative_to(workspace)).replace('\\', '/')
+                result[relative] = candidate.read_text(encoding='utf-8')
+        return result
+
+    def _snapshot_files(self, workspace: Path, *, exclude: tuple[str, ...] = ()) -> dict[str, str]:
+        excluded = set(exclude)
+        result: dict[str, str] = {}
+        for candidate in sorted(workspace.rglob('*')):
+            if not candidate.is_file():
+                continue
+            relative = str(candidate.relative_to(workspace)).replace('\\', '/')
+            if relative in excluded:
+                continue
+            result[relative] = candidate.read_text(encoding='utf-8')
+        return result
 
 
 class PipelineTopologyHelpTests(unittest.TestCase):
@@ -216,6 +348,277 @@ class PipelineTopologyArgTests(unittest.TestCase):
         self.assertEqual(text_code, 3)
         self.assertIn('RETRY_REQUIRED', text_out)
         self.assertNotIn('INVALID', text_out)
+
+
+class PipelineTopologyRenderingTests(_PipelineTopologyCliMixin, unittest.TestCase):
+    def test_json_output_surfaces_predecessor_provenance_and_selected_ids(self) -> None:
+        cases = (
+            (
+                'explicit',
+                _FakeTopologyReaders(
+                    (
+                        _shipment('113-S', 'shipped'),
+                        _shipment('114-S', 'queued', deps=('113-S',)),
+                    ),
+                    closure_complete_ids=('113-S',),
+                ),
+                '114-S',
+                0,
+                ['113-S'],
+            ),
+            (
+                'declared_root',
+                _FakeTopologyReaders((_shipment('173-S', 'queued', labels=('dag-root',)),)),
+                '173-S',
+                0,
+                [],
+            ),
+            (
+                'genesis',
+                _FakeTopologyReaders((_shipment('200-S', 'queued'),)),
+                '200-S',
+                0,
+                [],
+            ),
+            (
+                'unsequenced',
+                _FakeTopologyReaders(
+                    (
+                        _shipment('199-S', 'blocked'),
+                        _shipment('200-S', 'queued'),
+                    )
+                ),
+                '200-S',
+                1,
+                [],
+            ),
+        )
+        for source, readers, shipment_id, expected_code, expected_ids in cases:
+            with self.subTest(source=source):
+                out, _, code = self._run_with_readers(
+                    readers,
+                    'gate', 'pipeline-topology',
+                    '--mode', 'agent',
+                    '--shipment', shipment_id,
+                    '--phase', 'pre_claim',
+                    '--json',
+                )
+                self.assertEqual(code, expected_code)
+                payload = json.loads(out)
+                check = _check(payload, 'shipment_readiness')
+                self.assertEqual(check['details']['predecessor_source'], source)
+                self.assertEqual(check['details']['predecessor_ids'], expected_ids)
+                self.assertEqual(check['details']['selected_predecessor_ids'], expected_ids)
+
+    def test_human_output_states_provenance_alongside_outcome(self) -> None:
+        cases = (
+            (
+                'explicit',
+                _FakeTopologyReaders(
+                    (
+                        _shipment('113-S', 'shipped'),
+                        _shipment('114-S', 'queued', deps=('113-S',)),
+                    ),
+                    closure_complete_ids=('113-S',),
+                ),
+                '114-S',
+                0,
+                'shipment_readiness: PASSED — predecessor provenance=explicit; selected predecessor ids=113-S',
+            ),
+            (
+                'declared_root',
+                _FakeTopologyReaders((_shipment('173-S', 'queued', labels=('dag-root',)),)),
+                '173-S',
+                0,
+                'shipment_readiness: PASSED — predecessor provenance=declared_root; selected predecessor ids=(none)',
+            ),
+            (
+                'genesis',
+                _FakeTopologyReaders((_shipment('200-S', 'queued'),)),
+                '200-S',
+                0,
+                'shipment_readiness: PASSED — predecessor provenance=genesis; selected predecessor ids=(none)',
+            ),
+            (
+                'unsequenced',
+                _FakeTopologyReaders(
+                    (
+                        _shipment('199-S', 'blocked'),
+                        _shipment('200-S', 'queued'),
+                    )
+                ),
+                '200-S',
+                1,
+                'shipment_readiness: BLOCKED (UNSEQUENCED_SHIPMENT) — predecessor provenance=unsequenced; selected predecessor ids=(none)',
+            ),
+        )
+        for source, readers, shipment_id, expected_code, expected_line in cases:
+            with self.subTest(source=source):
+                out, _, code = self._run_with_readers(
+                    readers,
+                    'gate', 'pipeline-topology',
+                    '--mode', 'agent',
+                    '--shipment', shipment_id,
+                    '--phase', 'pre_claim',
+                )
+                self.assertEqual(code, expected_code)
+                self.assertIn(expected_line, out)
+
+    def test_unsequenced_rendering_names_both_remedies_and_disqualifying_records(self) -> None:
+        readers = _FakeTopologyReaders(
+            (
+                _shipment('197-S', None, archived_status='mystery', archived_record_present=True),
+                _shipment('198-S', None, archived_status=None, archived_record_present=True),
+                _shipment('199-S', 'blocked'),
+                _shipment('200-S', 'queued'),
+            )
+        )
+        out, _, code = self._run_with_readers(
+            readers,
+            'gate', 'pipeline-topology',
+            '--mode', 'agent',
+            '--shipment', '200-S',
+            '--phase', 'pre_claim',
+        )
+        self.assertEqual(code, 1)
+        self.assertIn('record the real blocks edge', out)
+        self.assertIn('declare the shipment a root', out)
+        self.assertIn('genesis did not apply: another shipment record exists in this workspace', out)
+        self.assertIn('197-S (archived, status: mystery)', out)
+        self.assertIn('198-S (archived, status: missing)', out)
+        self.assertIn('199-S (live, status: blocked)', out)
+
+
+class PipelineTopologyAuditRenderingTests(_PipelineTopologyCliMixin, unittest.TestCase):
+    _ENABLED_CONFIG = """
+schema_version: "1.0.0"
+telemetry:
+  mode: "sqlite"
+  database_path: ".autoharness/metrics/execution_epochs.db"
+  emit_jsonl: true
+"""
+
+    _DISABLED_CONFIG = """
+schema_version: "1.0.0"
+telemetry:
+  mode: "none"
+"""
+
+    def _write_config(self, workspace: Path, text: str) -> None:
+        (workspace / '.autoharness').mkdir(parents=True, exist_ok=True)
+        (workspace / '.autoharness' / 'config.yaml').write_text(text, encoding='utf-8')
+
+    def test_audit_phase_json_output_surfaces_read_only_report(self) -> None:
+        readers = _FakeTopologyReaders(
+            (
+                _shipment('199-S', None, archived_status='shipped', archived_record_present=True),
+                _shipment('200-S', 'queued'),
+            )
+        )
+        out, _, code = self._run_with_readers(
+            readers,
+            'gate', 'pipeline-topology',
+            '--phase', 'audit_sequencing',
+            '--json',
+        )
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload['phase'], 'audit_sequencing')
+        check = _check(payload, 'sequencing_audit')
+        self.assertEqual(check['status'], 'passed')
+        self.assertFalse(check['details']['blocking'])
+        self.assertFalse(check['details']['authorizes_claim'])
+        self.assertEqual(check['details']['edge_less_shipments'][0]['derived_state'], 'unsequenced')
+        self.assertEqual(
+            check['details']['edge_less_shipments'][0]['genesis_disqualifier'],
+            'another shipment record exists in this workspace',
+        )
+
+    def test_audit_phase_human_output_renders_current_run_audit_details(self) -> None:
+        readers = _FakeTopologyReaders(
+            (
+                _shipment('199-S', None, archived_status='shipped', archived_record_present=True),
+                _shipment('200-S', 'queued'),
+            )
+        )
+        out, _, code = self._run_with_readers(
+            readers,
+            'gate', 'pipeline-topology',
+            '--phase', 'audit_sequencing',
+        )
+        self.assertEqual(code, 0)
+        self.assertIn('sequencing_audit: PASSED — current run examined 2 edge-less shipments', out)
+        self.assertIn('200-S — derived state=unsequenced; raw numeric candidate ids=199-S', out)
+        self.assertIn('genesis did not apply: another shipment record exists in this workspace', out)
+        self.assertIn('199-S (archived, status: shipped)', out)
+        self.assertNotIn('ledger', out.lower())
+        self.assertNotIn('persisted audit artifact', out.lower())
+
+    def test_audit_render_preserves_output_when_telemetry_is_enabled_or_fails_open(self) -> None:
+        from autoharness.telemetry.record import load_workspace_telemetry_config
+        from autoharness.telemetry.tool_event_jsonl import journal_path_for_config
+
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            (workspace / '.backlog' / 'queue').mkdir(parents=True)
+            (workspace / '.backlog' / 'archive').mkdir(parents=True)
+            self._write_shipment_record(workspace, '199-S', folder='archive', archived_status='shipped')
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            backlog_before = self._snapshot_backlog(workspace)
+
+            self._write_config(workspace, self._DISABLED_CONFIG)
+            disabled_out, disabled_err, disabled_code = self._run_in_workspace(
+                workspace,
+                'gate', 'pipeline-topology',
+                '--phase', 'audit_sequencing',
+            )
+            self.assertEqual(disabled_code, 0)
+            self.assertEqual(disabled_err, '')
+            self.assertEqual(self._snapshot_backlog(workspace), backlog_before)
+
+            self._write_config(workspace, self._ENABLED_CONFIG)
+            config = load_workspace_telemetry_config(workspace)
+            journal_path = journal_path_for_config(config)
+            self.assertIsNotNone(journal_path)
+            before_enabled = self._snapshot_files(
+                workspace,
+                exclude=(str(journal_path.relative_to(workspace)).replace('\\', '/'),),
+            )
+            enabled_out, enabled_err, enabled_code = self._run_in_workspace(
+                workspace,
+                'gate', 'pipeline-topology',
+                '--phase', 'audit_sequencing',
+            )
+            self.assertEqual(enabled_code, disabled_code)
+            self.assertEqual(enabled_out, disabled_out)
+            self.assertEqual(enabled_err, '')
+            self.assertEqual(self._snapshot_backlog(workspace), backlog_before)
+            self.assertTrue(journal_path.exists())
+            event = json.loads(journal_path.read_text(encoding='utf-8').splitlines()[0])
+            self.assertEqual(event['operation'], 'gate pipeline-topology')
+            self.assertEqual(event['phase'], 'audit_sequencing')
+            self.assertEqual(event['status'], 'success')
+            after_enabled = self._snapshot_files(
+                workspace,
+                exclude=(str(journal_path.relative_to(workspace)).replace('\\', '/'),),
+            )
+            self.assertEqual(after_enabled, before_enabled)
+            self.assertFalse((workspace / '.autoharness' / 'gates').exists())
+
+            with mock.patch(
+                'autoharness.telemetry.record.load_workspace_telemetry_config',
+                side_effect=RuntimeError('telemetry boom'),
+            ):
+                failure_out, failure_err, failure_code = self._run_in_workspace(
+                    workspace,
+                    'gate', 'pipeline-topology',
+                    '--phase', 'audit_sequencing',
+                )
+            self.assertEqual(failure_code, disabled_code)
+            self.assertEqual(failure_out, disabled_out)
+            self.assertIn('pipeline-topology telemetry warning: telemetry boom', failure_err)
+            self.assertEqual(self._snapshot_backlog(workspace), backlog_before)
 
 
 class PipelineTopologyStorageRootResolutionTests(unittest.TestCase):
