@@ -1138,6 +1138,79 @@ class PipelineTopologyBootstrapGrantCliTests(_PipelineTopologyCliMixin, unittest
         self.assertFalse(json.loads(out)['forced'])
         self.assertIn('bootstrap grant warning:', err)
 
+    def test_evaluate_bootstrap_grant_unexpected_error_fails_closed_without_crashing(self) -> None:
+        """A reparse-point/symlink swap (or any other OS-level surprise) raised
+        out of evaluate_bootstrap_grant must never crash the CLI process or
+        widen authority -- it must fail closed to the original BLOCK verdict
+        with a warning, exactly like a non-matching grant."""
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            self._write_grant(workspace)
+            previous = Path.cwd()
+            try:
+                os.chdir(workspace)
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._blocked_readers()):
+                    with mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'):
+                        with mock.patch(
+                            'autoharness.gates.bootstrap_grant.evaluate_bootstrap_grant',
+                            side_effect=OSError('simulated reparse-point swap'),
+                        ):
+                            out, err, code = _run(
+                                'gate', 'pipeline-topology',
+                                '--mode', 'agent',
+                                '--shipment', '173-S',
+                                '--phase', 'pre_claim',
+                                '--bootstrap-grant-invocation', 'ship_pre_claim',
+                                '--json',
+                            )
+            finally:
+                os.chdir(previous)
+
+            self.assertEqual(code, 1)
+            self.assertFalse(json.loads(out)['forced'])
+            self.assertIn('bootstrap-grant evaluation failed closed', err)
+            self.assertFalse(
+                (workspace / '.autoharness' / 'gates' / 'bootstrap-grant-consumption' / '173-S' / 'ship_pre_claim.json').exists()
+            )
+
+    def test_mark_consumed_unexpected_error_still_applies_force_without_crashing(self) -> None:
+        """The claim record is already durably written (the at-most-once
+        guarantee is already in force) by the time mark_consumption_record_consumed
+        runs. A failure to flip it to `consumed` is a bookkeeping degradation,
+        not a security or authority issue -- the CLI must surface a warning
+        and complete the already-authorized force rather than crash."""
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(dir=repo_root) as tmp:
+            workspace = Path(tmp)
+            self._write_grant(workspace)
+            previous = Path.cwd()
+            try:
+                os.chdir(workspace)
+                with mock.patch('autoharness.gates.topology.FilesystemTopologyReaders', return_value=self._blocked_readers()):
+                    with mock.patch('autoharness.cli._pipeline_topology_head_sha', return_value='deadbeef'):
+                        with mock.patch(
+                            'autoharness.gates.bootstrap_grant.mark_consumption_record_consumed',
+                            side_effect=OSError('simulated disk full'),
+                        ):
+                            out, err, code = _run(
+                                'gate', 'pipeline-topology',
+                                '--mode', 'agent',
+                                '--shipment', '173-S',
+                                '--phase', 'pre_claim',
+                                '--bootstrap-grant-invocation', 'ship_pre_claim',
+                                '--json',
+                            )
+            finally:
+                os.chdir(previous)
+
+            self.assertEqual(code, 0)
+            payload = json.loads(out)
+            self.assertTrue(payload['forced'])
+            self.assertIn('failed to mark bootstrap-grant consumption record consumed', err)
+            record_path = workspace / '.autoharness' / 'gates' / 'bootstrap-grant-consumption' / '173-S' / 'ship_pre_claim.json'
+            self.assertTrue(record_path.exists())
+
     def test_bootstrap_grant_invocation_and_force_together_exit_2(self) -> None:
         _, _, code = _run(
             'gate', 'pipeline-topology',

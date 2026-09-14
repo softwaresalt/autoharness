@@ -1358,8 +1358,12 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
 
         try:
             shipment_snapshot = tuple(readers.list_shipments())
-        except Exception:
+        except Exception as exc:
             shipment_snapshot = ()
+            bootstrap_warnings.append(
+                f"warning: unable to read shipment snapshot for bootstrap-grant manifest "
+                f"digest ({exc}); treating manifest as empty (fails closed: grant will not match)"
+            )
         try:
             grant_match = evaluate_bootstrap_grant(
                 workspace=workspace,
@@ -1374,28 +1378,54 @@ def _gate_pipeline_topology_command(rest: list[str]) -> None:
             print(str(exc), file=sys.stderr)
             print(GATE_USAGE, file=sys.stderr)
             sys.exit(2)
-        bootstrap_warnings.extend(grant_match.warnings)
-        if grant_match.applied and grant_match.claim_record is not None:
-            audit_path, audit_ref = _audit_pipeline_topology_force(
-                workspace,
-                result,
-                observed_payload=observed_payload,
-                claim_record=grant_match.claim_record,
+        except (OSError, ValueError, RuntimeError) as exc:
+            # Fail closed: an unexpected error while evaluating/claiming a
+            # bootstrap grant (e.g. a reparse-point/symlink swap detected
+            # mid-walk) must never crash the CLI process or widen authority.
+            # Treat it exactly like a non-matching grant -- the original
+            # BLOCK verdict stands and the failure is surfaced as a warning.
+            grant_match = None
+            bootstrap_warnings.append(
+                f"warning: bootstrap-grant evaluation failed closed ({exc}); no grant applied"
             )
-            mark_consumption_record_consumed(grant_match.claim_record, audit_ref)
-            telemetry_invocation = grant_match.claim_record.label
-            telemetry_authorization_source = 'grant'
-            telemetry_inferred_predecessor_id = grant_match.claim_record.inferred_predecessor_id
-            from dataclasses import replace
+        if grant_match is not None:
+            bootstrap_warnings.extend(grant_match.warnings)
+            if grant_match.applied and grant_match.claim_record is not None:
+                audit_path, audit_ref = _audit_pipeline_topology_force(
+                    workspace,
+                    result,
+                    observed_payload=observed_payload,
+                    claim_record=grant_match.claim_record,
+                )
+                try:
+                    mark_consumption_record_consumed(grant_match.claim_record, audit_ref)
+                except (OSError, ValueError, RuntimeError) as exc:
+                    # The claim record is already durably written (the
+                    # at-most-once guarantee is already in force); failing to
+                    # flip it to `consumed` is a bookkeeping degradation, not
+                    # a security or authority issue, so it must not crash the
+                    # process -- surface it and continue.
+                    bootstrap_warnings.append(
+                        f"warning: failed to mark bootstrap-grant consumption record "
+                        f"consumed ({exc}); record remains claimed (at-most-once guarantee preserved)"
+                    )
+                telemetry_invocation = grant_match.claim_record.label
+                telemetry_authorization_source = 'grant'
+                telemetry_inferred_predecessor_id = grant_match.claim_record.inferred_predecessor_id
+                from dataclasses import replace
 
-            result = replace(result, exit_code=0, forced=True, message=f"{result.message} (forced)")
+                result = replace(result, exit_code=0, forced=True, message=f"{result.message} (forced)")
     elif result.exit_code == 1 and parsed["force"]:
         from autoharness.gates.bootstrap_grant import derive_shipment_manifest
 
         try:
             shipment_snapshot = tuple(readers.list_shipments())
-        except Exception:
+        except Exception as exc:
             shipment_snapshot = ()
+            bootstrap_warnings.append(
+                f"warning: unable to read shipment snapshot for force-audit manifest "
+                f"({exc}); recording audit without a manifest"
+            )
         manifest = None
         if result.resolved_target_shipment_id is not None:
             target_manifest = derive_shipment_manifest(shipment_snapshot, result.resolved_target_shipment_id)
