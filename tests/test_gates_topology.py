@@ -15,6 +15,7 @@ from unittest import mock
 import yaml
 
 from _env_patch import patched_environ
+from autoharness.cli import _format_dag_readiness_report
 from autoharness.gates.topology import (
     ArtifactState,
     BacklogUnavailableError,
@@ -24,8 +25,12 @@ from autoharness.gates.topology import (
     _active_invariant_check,
     _run_git,
     _shipment_readiness_check,
+    audit_sequencing,
+    compute_dag_readiness,
+    compute_next_eligible,
     evaluate,
 )
+from support.red import expect_red
 
 
 class _FakeReaders:
@@ -2523,6 +2528,358 @@ telemetry:
             self._expect_equal('failure.rendered_output', self._render_result(enabled_result), enabled_rendered)
             self._expect_equal('failure.exit_code', enabled_result.exit_code, disabled_result.exit_code)
             self._expect_equal('failure.backlog_snapshot', self._snapshot_backlog_tree(workspace), backlog_before)
+
+
+class DagReadinessPreClaimParityTests(unittest.TestCase, _TopologyWorkspaceMixin):
+    @staticmethod
+    def _pre_claim_readers(
+        shipments: tuple[ShipmentState, ...], *, closure_complete: bool = True
+    ) -> _FakeReaders:
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return closure_complete
+
+        return Readers(shipments=shipments, branch='main')
+
+    def _dag_payload(self, shipments: tuple[ShipmentState, ...]) -> dict[str, object]:
+        readiness = compute_dag_readiness(shipments)
+        payload = readiness.to_dict()
+        payload['status'] = 'empty' if not shipments else 'ok'
+        payload['degraded_reason'] = None
+        payload.update(compute_next_eligible(shipments, readiness).to_dict())
+        return payload
+
+    def _parity_snapshot(
+        self,
+        *,
+        target: str,
+        shipments: tuple[ShipmentState, ...],
+        closure_complete: bool = True,
+    ) -> tuple[dict[str, object], object, object, object]:
+        audit = audit_sequencing(target_shipment_id=target, shipments=shipments)
+        pre_claim = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id=target),
+            readers=self._pre_claim_readers(shipments, closure_complete=closure_complete),
+        )
+        readiness = compute_dag_readiness(shipments)
+        next_eligible = compute_next_eligible(shipments, readiness)
+        return audit, pre_claim, readiness, next_eligible
+
+    def _assert_pre_claim_matches_authoritative_state(
+        self,
+        pre_claim,
+        *,
+        expected_state: str,
+        expected_token: str | None,
+    ) -> None:
+        check = self._readiness_check(pre_claim)
+        self._expect_equal(
+            'shipment_readiness.predecessor_source',
+            check.details.get('predecessor_source'),
+            expected_state,
+        )
+        self._expect_equal('pre_claim.primary_token', pre_claim.primary_token, expected_token)
+        if expected_token is None:
+            self._expect_equal('shipment_readiness.status', check.status, 'passed')
+            self._expect_equal('pre_claim.exit_code', pre_claim.exit_code, 0)
+        else:
+            self._expect_equal('shipment_readiness.status', check.status, 'blocked')
+            self._expect_equal('pre_claim.exit_code', pre_claim.exit_code, 1)
+
+    def _assert_target_advertised(
+        self,
+        *,
+        target: str,
+        state: str,
+        readiness,
+        next_eligible,
+    ) -> None:
+        if target not in readiness.ready_set:
+            raise AssertionError(
+                f'{state} parity requires target {target} in ready_set when pre_claim passes it'
+            )
+        if next_eligible.next_eligible != target:
+            raise AssertionError(
+                f'{state} parity requires next_eligible {target} when pre_claim passes it'
+            )
+
+    def _assert_target_suppressed(
+        self,
+        *,
+        target: str,
+        state: str,
+        readiness,
+        next_eligible,
+    ) -> None:
+        if target in readiness.ready_set:
+            raise AssertionError(
+                f'{state} parity requires target {target} absent from ready_set when pre_claim blocks it'
+            )
+        if next_eligible.next_eligible == target:
+            raise AssertionError(
+                f'{state} parity requires next_eligible to exclude blocked target {target}'
+            )
+
+    def test_explicit_unshipped_predecessor_parity_suppresses_target(self) -> None:
+        target = '114-S'
+        shipments = (
+            _shipment('113-S', 'queued'),
+            _shipment(target, 'queued', deps=('113-S',)),
+        )
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'explicit')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='explicit',
+            expected_token='PREDECESSOR_NOT_SHIPPED',
+        )
+        self._assert_target_suppressed(
+            target=target,
+            state='explicit',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    def test_explicit_shipped_terminal_predecessor_parity_advertises_target(self) -> None:
+        target = '114-S'
+        shipments = (
+            _shipment('113-S', '', archived_status='done'),
+            _shipment(target, 'queued', deps=('113-S',)),
+        )
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+            # Closure evidence is out of scope for this matrix; force it
+            # complete so the predecessor-state parity signal is isolated.
+            closure_complete=True,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'explicit')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='explicit',
+            expected_token=None,
+        )
+        self._assert_target_advertised(
+            target=target,
+            state='explicit',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='declared_root parity requires next_eligible 200-S when pre_claim passes it',
+        reason='dag-readiness still lets ready_set ordering advisory-block a declared root target',
+    )
+    def test_declared_root_parity_never_advisory_blocks_a_root_target(self) -> None:
+        target = '200-S'
+        shipments = (
+            _shipment('199-S', 'queued'),
+            ShipmentState(
+                shipment_id=target,
+                title=target,
+                live_status='queued',
+                archived_status=None,
+                archived_record_present=False,
+                manifest_item_ids=(),
+                blocking_predecessor_ids=(),
+                labels=('dag-root',),
+            ),
+        )
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'declared_root')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='declared_root',
+            expected_token=None,
+        )
+        self._assert_target_advertised(
+            target=target,
+            state='declared_root',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    def test_genesis_parity_advertises_the_sole_record(self) -> None:
+        target = '200-S'
+        shipments = (_shipment(target, 'queued'),)
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'genesis')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='genesis',
+            expected_token=None,
+        )
+        self._assert_target_advertised(
+            target=target,
+            state='genesis',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='unsequenced parity requires target 200-S absent from ready_set when pre_claim blocks it',
+        reason='dag-readiness still advertises an unsequenced target as ready while pre_claim blocks it',
+    )
+    def test_unsequenced_parity_never_advertises_a_blocked_target(self) -> None:
+        target = '200-S'
+        shipments = (
+            _shipment('199-S', '', archived_status='shipped'),
+            _shipment(target, 'queued'),
+        )
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'unsequenced')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='unsequenced',
+            expected_token='UNSEQUENCED_SHIPMENT',
+        )
+        self._assert_target_suppressed(
+            target=target,
+            state='unsequenced',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='unsequenced parity requires target 200-S absent from ready_set when pre_claim blocks it',
+        reason='a second queued shipment still leaves the target in dag-readiness ready_set instead of preserving genesis narrowness',
+    )
+    def test_genesis_narrowness_second_queued_record_stays_unsequenced_in_both_gates(self) -> None:
+        target = '200-S'
+        shipments = (
+            _shipment('199-S', 'queued'),
+            _shipment(target, 'queued'),
+        )
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'unsequenced')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='unsequenced',
+            expected_token='UNSEQUENCED_SHIPMENT',
+        )
+        self._assert_target_suppressed(
+            target=target,
+            state='unsequenced',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='unsequenced parity requires target 200-S absent from ready_set when pre_claim blocks it',
+        reason='an archived blocked legacy record still leaves the target ready instead of preserving genesis narrowness',
+    )
+    def test_genesis_narrowness_archived_blocked_record_stays_unsequenced_in_both_gates(self) -> None:
+        target = '200-S'
+        shipments = (
+            _shipment('199-S', '', archived_status='blocked'),
+            _shipment(target, 'queued'),
+        )
+        audit, pre_claim, readiness, next_eligible = self._parity_snapshot(
+            target=target,
+            shipments=shipments,
+        )
+        self._expect_equal('audit.derived_state', audit['derived_state'], 'unsequenced')
+        self._assert_pre_claim_matches_authoritative_state(
+            pre_claim,
+            expected_state='unsequenced',
+            expected_token='UNSEQUENCED_SHIPMENT',
+        )
+        self._assert_target_suppressed(
+            target=target,
+            state='unsequenced',
+            readiness=readiness,
+            next_eligible=next_eligible,
+        )
+
+    def test_live_blocked_record_fails_closed_identically_before_state_derivation(self) -> None:
+        with self._topology_workspace() as workspace:
+            self._write_shipment_record(workspace, '199-S', status='blocked')
+            self._write_shipment_record(workspace, '200-S', status='queued')
+            self._expect_backlog_unavailable(
+                lambda: tuple(self._reader(workspace).list_shipments()),
+                description='pre-claim shipment enumeration with a live blocked legacy record',
+            )
+            pre_claim = self._evaluate_workspace(workspace, '200-S')
+            self._expect_equal('pre_claim.primary_token', pre_claim.primary_token, 'BACKLOG_UNAVAILABLE')
+            self._expect_backlog_unavailable(
+                lambda: self._dag_payload(tuple(self._reader(workspace).list_shipments())),
+                description='dag-readiness shipment enumeration with a live blocked legacy record',
+            )
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='dag-readiness advisory report must say advisory and non-authorizing',
+        reason='dag-readiness human output is not yet explicitly labelled advisory/non-authorizing',
+    )
+    def test_dag_readiness_report_is_explicitly_advisory_and_non_authorizing(self) -> None:
+        rendered = _format_dag_readiness_report(self._dag_payload((_shipment('200-S', 'queued'),)))
+        lowered = rendered.casefold()
+        if 'advisory' not in lowered or 'non-authorizing' not in lowered:
+            raise AssertionError('dag-readiness advisory report must say advisory and non-authorizing')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='dag-readiness next_eligible line must disclaim claim authorization',
+        reason='the next_eligible line still reads like an authorization-capable scheduler output',
+    )
+    def test_next_eligible_output_is_explicitly_non_authorizing(self) -> None:
+        rendered = _format_dag_readiness_report(self._dag_payload((_shipment('200-S', 'queued'),)))
+        next_line = next(
+            line for line in rendered.splitlines() if 'next eligible' in line.casefold()
+        )
+        lowered = next_line.casefold()
+        if 'advisory' not in lowered or 'authorization' not in lowered:
+            raise AssertionError('dag-readiness next_eligible line must disclaim claim authorization')
+
+    @expect_red(
+        raises=AssertionError,
+        message_contains='dag-readiness payload must publish authorizes_claim=false for explicit state',
+        reason='dag-readiness payload does not yet publish a machine-readable non-authorizing contract',
+    )
+    def test_dag_readiness_payload_publishes_authorizes_claim_false_for_all_states(self) -> None:
+        cases = (
+            (
+                'explicit',
+                (
+                    _shipment('113-S', '', archived_status='done'),
+                    _shipment('114-S', 'queued', deps=('113-S',)),
+                ),
+            ),
+            ('genesis', (_shipment('200-S', 'queued'),)),
+            (
+                'unsequenced',
+                (
+                    _shipment('199-S', '', archived_status='shipped'),
+                    _shipment('200-S', 'queued'),
+                ),
+            ),
+        )
+        for state, shipments in cases:
+            payload = self._dag_payload(shipments)
+            if payload.get('authorizes_claim') is not False:
+                raise AssertionError(
+                    f'dag-readiness payload must publish authorizes_claim=false for {state} state'
+                )
+
 
 
 class PostClaimVerifyTests(unittest.TestCase):
