@@ -3,7 +3,7 @@ shipment: 173-S
 feature: 165-F
 pr: 450
 merge_commit: null
-last_code_affecting_head: 408ae4a2322876d736c195a80e79347c30697c26
+last_code_affecting_head: 1dac0613c09bba099d3e06c49777988208465e53
 surface: cli
 verdict: PASS
 post_merge_reverification: "pending -- to be run against new main immediately after merge, per the Post-Merge Closure protocol"
@@ -67,46 +67,55 @@ environment).
 
 * `uv run autoharness --help` -- exit 0, CLI help text printed (re-run
   immediately before this artifact was written, against
-  `last_code_affecting_head` `408ae4a2`).
+  `last_code_affecting_head` `1dac0613`).
 * `PYTHONPATH=src python -m unittest discover -s tests` (full suite, no
   filters) -- run to completion after every commit in this PR, including
-  immediately after `last_code_affecting_head` `408ae4a2`: 2302 tests,
+  immediately after `last_code_affecting_head` `1dac0613`: 2303 tests,
   `OK (skipped=54)`. Also re-confirmed by the pre-push git hook's own
   independent full-suite re-run before the push landed.
 * Targeted CLI-subcommand exercise (the actual changed surface):
   `tests/test_gate_pipeline_topology_cli.py` (33 tests, all passing, 4 new
-  regression tests added this session) drives the real `autoharness.cli.main()`
-  entrypoint end-to-end for `gate pipeline-topology` in every mode
-  (`agent`/`manual`/`ci`), every phase, `--force`, `--bootstrap-grant-invocation`,
-  and `--json`/human output, including the newly-added
+  regression tests added across this shipment's review cycles) drives the
+  real `autoharness.cli.main()` entrypoint end-to-end for
+  `gate pipeline-topology` in every mode (`agent`/`manual`/`ci`), every
+  phase, `--force`, `--bootstrap-grant-invocation`, and `--json`/human
+  output, including the
   `test_bootstrap_grant_invocation_requires_agent_mode_and_pre_claim_phase`
-  regression covering this round's mode/phase authority-boundary fix.
-* `tests/test_gate_bootstrap_grant.py` (31 tests, all passing, 6 new
-  regression tests added this session) directly exercises the new
-  `bootstrap_grant.py` module's claim/consume/scan/append primitives,
-  including the new `append_no_follow()` helper's symlink-containment
-  behavior (`test_append_no_follow_rejects_symlinked_directory_component`,
-  `test_append_no_follow_rejects_symlinked_target_file`).
+  regression covering round 4's mode/phase authority-boundary fix.
+* `tests/test_gate_bootstrap_grant.py` (32 tests, all passing, 7 new
+  regression tests added across this shipment's review cycles) directly
+  exercises the `bootstrap_grant.py` module's claim/consume/scan/append/read
+  primitives, including `append_no_follow()`'s and
+  `_read_bytes_no_follow_walked()`'s symlink-containment behavior
+  (`test_append_no_follow_rejects_symlinked_directory_component`,
+  `test_append_no_follow_rejects_symlinked_target_file`,
+  `test_load_bootstrap_grant_rejects_symlinked_intermediate_directory`).
 * Cross-platform validation: the bootstrap-grant module has structurally
   distinct POSIX (`O_NOFOLLOW` + `dir_fd`) and Windows
   (`lstat`/reparse-point + held-open `CreateFileW` handles) claim strategies.
   Both `tests/test_gate_bootstrap_grant.py` and
-  `tests/test_gate_pipeline_topology_cli.py` were run on native Windows (31/31
+  `tests/test_gate_pipeline_topology_cli.py` were run on native Windows (32/32
   and 33/33 passing) and on native POSIX via WSL Ubuntu on a non-DrvFs
-  filesystem (31/31, 8 skipped as Windows-only; and 32/33, 1 confirmed
+  filesystem (32/32, 8 skipped as Windows-only; and 32/33, 1 confirmed
   pre-existing environment-artifact failure unrelated to this PR's diff --
   see below).
 * Hosted CI (`test`, `ci gate`, `pipeline-topology (ambient)`,
-  `detect code changes`) -- green at `last_code_affecting_head` `408ae4a2`
+  `detect code changes`) -- green at `last_code_affecting_head` `1dac0613`
   on `ubuntu-latest`, an independent OS/Python environment from local
   Windows validation.
-* Hosted Copilot review -- completed across 4 rounds on this PR; all 9
-  distinct findings investigated, 7 were genuine in-scope bugs (fixed, each
-  with a new regression test) and 2 were process/hygiene items (a stale PR
-  body readiness reference, addressed by updating the body); all review
-  threads now resolved (`autoharness gate copilot-review 450 --enforcement
-  auto --json` returns `verdict: SATISFIED`, `exit_code: 0` at HEAD
-  `408ae4a2`).
+* Hosted Copilot review -- completed across 5 rounds on this PR (the 5th
+  round triggered by a docs-only closure-artifact commit, since hosted
+  review re-arms on every push regardless of content); all 10 distinct
+  findings investigated, 8 were genuine in-scope bugs (fixed, each with a
+  new regression test) and 2 were process/hygiene items (a stale PR body
+  readiness reference, and a stale hardcoded-HEAD reference inside this
+  shipment's own closure artifact, both addressed by rewriting the affected
+  prose to defer to live external state rather than a fixed HEAD); all
+  review threads resolved through round 4
+  (`autoharness gate copilot-review 450 --enforcement auto --json` returned
+  `verdict: SATISFIED`, `exit_code: 0` at HEAD `408ae4a2`); round 5's
+  thread-resolution state is tracked live via that same command and the PR
+  body, not restated here as a fixed value.
 
 ## One Confirmed Environment-Artifact Test Failure (Not a Regression)
 
@@ -145,8 +154,10 @@ code paths.
 subcommand this shipment changes) is confirmed working via direct end-to-end
 CLI-entrypoint test exercise, the full local test suite is green on two
 independent operating systems (Windows and POSIX/WSL), hosted CI is green on
-a third independent environment (`ubuntu-latest`), and all 4 rounds of
-hosted Copilot review are fully resolved.
+a third independent environment (`ubuntu-latest`), and hosted Copilot
+review has completed 5 rounds, with round 5's thread-resolution state
+tracked live per the Hosted Copilot Review evidence above (not restated
+here as a fixed value).
 
 ## Blocked Prerequisites
 
