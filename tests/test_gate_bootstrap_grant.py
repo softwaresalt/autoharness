@@ -835,6 +835,44 @@ class BootstrapGrantTests(unittest.TestCase):
 
         self.assertEqual(outside_target.read_text(encoding='utf-8'), 'preexisting\n')
 
+    def test_write_all_loops_through_short_writes(self) -> None:
+        # Regression coverage for a prior bug where every claim/append/consume
+        # write path called a single bare os.write() and trusted it to
+        # persist the full payload, even though os.write() may legally
+        # return fewer bytes than requested without raising. A short write
+        # followed by fsync would durably persist a truncated, corrupt
+        # record while still reporting success.
+        from autoharness.gates.bootstrap_grant import _write_all
+
+        payload = b'0123456789'
+        written_chunks: list[bytes] = []
+
+        def _short_write(fd: int, data) -> int:
+            chunk = bytes(data)[:3] or b''
+            written_chunks.append(chunk)
+            return len(chunk)
+
+        fd = os.open(str(self.workspace / 'scratch.bin'), os.O_CREAT | os.O_WRONLY | os.O_TRUNC)
+        try:
+            with mock.patch('autoharness.gates.bootstrap_grant.os.write', side_effect=_short_write):
+                _write_all(fd, payload)
+        finally:
+            os.close(fd)
+
+        self.assertEqual(b''.join(written_chunks), payload)
+        self.assertGreater(len(written_chunks), 1)
+
+    def test_write_all_raises_on_non_positive_write(self) -> None:
+        from autoharness.gates.bootstrap_grant import _write_all
+
+        fd = os.open(str(self.workspace / 'scratch2.bin'), os.O_CREAT | os.O_WRONLY | os.O_TRUNC)
+        try:
+            with mock.patch('autoharness.gates.bootstrap_grant.os.write', return_value=0):
+                with self.assertRaises(OSError):
+                    _write_all(fd, b'payload')
+        finally:
+            os.close(fd)
+
     def test_capability_gate_refuses_plain_fallback(self) -> None:
         _write_grant(self.workspace)
         with mock.patch('autoharness.gates.bootstrap_grant._supports_posix_claim_strategy', return_value=False):

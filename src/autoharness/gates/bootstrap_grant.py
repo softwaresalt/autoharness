@@ -300,6 +300,31 @@ def _json_bytes(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
 
 
+def _write_all(fd: int, data: bytes) -> None:
+    """Write every byte of ``data`` to ``fd``, looping until fully written.
+
+    ``os.write()`` may legally return fewer bytes than requested without
+    raising (a short write). Every caller in this module treats a completed
+    write as proof the full payload was persisted before the subsequent
+    ``os.fsync()`` and before returning success -- silently accepting a
+    short write would let a truncated, corrupt record be fsynced and
+    reported as a successful claim/append/consume. Raises ``OSError`` if a
+    write returns a non-positive byte count without raising, since that
+    can never represent forward progress.
+    """
+    view = memoryview(data)
+    total = 0
+    length = len(view)
+    while total < length:
+        written = os.write(fd, view[total:])
+        if written <= 0:
+            raise OSError(
+                f'os.write() returned {written} bytes for a {length}-byte payload; '
+                'refusing to treat a non-positive write as progress'
+            )
+        total += written
+
+
 def _is_relative_to(path: Path, root: Path) -> bool:
     try:
         path.relative_to(root)
@@ -785,7 +810,7 @@ def _claim_record_windows(
         flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_BINARY
         fd = os.open(record_path, flags, 0o600)
         try:
-            os.write(fd, raw_payload)
+            _write_all(fd, raw_payload)
             os.fsync(fd)
             identity_error = _post_create_identity_error(fd, record_path)
             if identity_error is not None:
@@ -861,7 +886,7 @@ def _claim_record_posix(
             dir_fd=current_fd,
         )
         try:
-            os.write(record_fd, raw_payload)
+            _write_all(record_fd, raw_payload)
             os.fsync(record_fd)
         finally:
             os.close(record_fd)
@@ -941,7 +966,7 @@ def append_no_follow(
             flags_file = os.O_CREAT | os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW
             file_fd = os.open(filename, flags_file, 0o600, dir_fd=current_fd)
             try:
-                os.write(file_fd, data)
+                _write_all(file_fd, data)
                 os.fsync(file_fd)
             finally:
                 os.close(file_fd)
@@ -984,7 +1009,7 @@ def append_no_follow(
         flags_file = os.O_CREAT | os.O_WRONLY | os.O_APPEND | os.O_BINARY
         fd = os.open(file_path, flags_file, 0o600)
         try:
-            os.write(fd, data)
+            _write_all(fd, data)
             os.fsync(fd)
         finally:
             os.close(fd)
@@ -1171,7 +1196,7 @@ def _write_consumed_record_posix(
             dir_fd=current_fd,
         )
         try:
-            os.write(temp_fd, raw_payload)
+            _write_all(temp_fd, raw_payload)
             os.fsync(temp_fd)
         finally:
             os.close(temp_fd)
