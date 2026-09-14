@@ -474,6 +474,8 @@ def _windows_kernel32():
 
 
 def _windows_open_directory_handle(path: Path):
+    import ctypes
+
     kernel32, info_type, invalid_handle = _windows_kernel32()
     FILE_READ_ATTRIBUTES = 0x0080
     FILE_SHARE_READ = 0x00000001
@@ -491,11 +493,11 @@ def _windows_open_directory_handle(path: Path):
         None,
     )
     if handle == invalid_handle:
-        error_code = os.get_last_error()
+        error_code = ctypes.get_last_error()
         raise OSError(error_code, f'CreateFileW failed for {path}')
     info = info_type()
     if not kernel32.GetFileInformationByHandle(handle, info):
-        error_code = os.get_last_error()
+        error_code = ctypes.get_last_error()
         kernel32.CloseHandle(handle)
         raise OSError(error_code, f'GetFileInformationByHandle failed for {path}')
     if _REPARSE_POINT_ATTRIBUTE and info.dwFileAttributes & _REPARSE_POINT_ATTRIBUTE:
@@ -834,20 +836,76 @@ def evaluate_bootstrap_grant(
     )
 
 
+def _write_consumed_record_posix(
+    *,
+    workspace: Path,
+    shipment_id: str,
+    record_name: str,
+    raw_payload: bytes,
+) -> None:
+    # Mirrors _claim_record_posix's O_NOFOLLOW dir-fd traversal so that
+    # finalization is verified against the same descriptor-relative path the
+    # claim step established, instead of trusting a plain pathname lookup
+    # that could resolve through a directory swapped in after claim.
+    resolved_workspace = Path(workspace).resolve()
+    flags_dir = os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0)
+    root_fd = os.open(str(resolved_workspace), flags_dir)
+    current_fd = root_fd
+    opened_fds = [root_fd]
+    components = ('.autoharness', 'gates', 'bootstrap-grant-consumption', shipment_id)
+    temp_name = f'.{record_name}.{uuid.uuid4().hex}.tmp'
+    try:
+        for component in components:
+            next_fd = os.open(component, flags_dir | os.O_NOFOLLOW, dir_fd=current_fd)
+            opened_fds.append(next_fd)
+            current_fd = next_fd
+        temp_fd = os.open(
+            temp_name,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+            0o600,
+            dir_fd=current_fd,
+        )
+        try:
+            os.write(temp_fd, raw_payload)
+            os.fsync(temp_fd)
+        finally:
+            os.close(temp_fd)
+        os.rename(temp_name, record_name, src_dir_fd=current_fd, dst_dir_fd=current_fd)
+    finally:
+        try:
+            os.unlink(temp_name, dir_fd=current_fd)
+        except OSError:
+            pass
+        for fd in reversed(opened_fds):
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+
+
 def mark_consumption_record_consumed(
     record: BootstrapGrantConsumptionRecord,
     audit_ref: dict[str, Any],
 ) -> BootstrapGrantConsumptionRecord:
     workspace = Path(record.workspace)
-    temp_name = f'.{record.label}.{uuid.uuid4().hex}.tmp'
-    shipment_dir = record.path.parent
-    temp_path = shipment_dir / temp_name
     updated = replace(record, status='consumed', audit_ref=dict(audit_ref))
     raw_payload = _json_bytes(updated.to_dict())
 
+    if _supports_posix_claim_strategy():
+        _write_consumed_record_posix(
+            workspace=workspace,
+            shipment_id=record.shipment_id,
+            record_name=record.path.name,
+            raw_payload=raw_payload,
+        )
+        return updated
+
+    temp_name = f'.{record.label}.{uuid.uuid4().hex}.tmp'
+    shipment_dir = record.path.parent
+    temp_path = shipment_dir / temp_name
     handles: list[tuple[Any, Any]] = []
     try:
-        if _supports_windows_claim_strategy() and not _supports_posix_claim_strategy():
+        if _supports_windows_claim_strategy():
             partial = workspace.resolve()
             for component in ('.autoharness', 'gates', 'bootstrap-grant-consumption', record.shipment_id):
                 partial = partial / component

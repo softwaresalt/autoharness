@@ -557,6 +557,42 @@ telemetry:
         self.assertNotIn('ledger', out.lower())
         self.assertNotIn('persisted audit artifact', out.lower())
 
+    def test_sole_ambiguous_shipment_is_not_reported_as_genesis(self) -> None:
+        # A shipment id can carry BOTH a live queue record and an archive
+        # record (an ambiguous/duplicated provenance). Even when it is the
+        # ONLY shipment id in the workspace, that is two physical records,
+        # not one -- it must never be reported as `genesis` for the audit,
+        # since the documented contract counts live and archived records
+        # separately.
+        readers = _FakeTopologyReaders(
+            (
+                _shipment('200-S', 'queued', archived_status='shipped', archived_record_present=True),
+            )
+        )
+        out, _, code = self._run_with_readers(
+            readers,
+            'gate', 'pipeline-topology',
+            '--phase', 'audit_sequencing',
+            '--json',
+        )
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        check = _check(payload, 'sequencing_audit')
+        report = check['details']['edge_less_shipments'][0]
+        self.assertEqual(report['derived_state'], 'unsequenced')
+        self.assertEqual(
+            report['genesis_disqualifier'],
+            'another shipment record exists in this workspace',
+        )
+        disqualifying_ids = {
+            (record['shipment_id'], record['record_provenance'])
+            for record in report['genesis_disqualifying_records']
+        }
+        self.assertEqual(
+            disqualifying_ids,
+            {('200-S', 'LIVE'), ('200-S', 'ARCHIVED')},
+        )
+
     def test_audit_render_preserves_output_when_telemetry_is_enabled_or_fails_open(self) -> None:
         from autoharness.telemetry.record import load_workspace_telemetry_config
         from autoharness.telemetry.tool_event_jsonl import journal_path_for_config

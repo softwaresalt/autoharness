@@ -1552,12 +1552,30 @@ def _target_phase_requirement(phase: str) -> tuple[str, str, str] | None:
     return requirements.get(phase)
 
 
+def _physical_shipment_record_count(shipments: Sequence[ShipmentState]) -> int:
+    # Genesis requires the candidate to be the ONLY *physical* shipment
+    # record in the workspace, counting live and archived records
+    # separately (per the documented sequencing contract). `shipments` is
+    # already merged one-object-per-shipment-id by list_shipments(), so a
+    # single ambiguous id carrying both a live queue record and an archive
+    # record collapses to exactly one ShipmentState -- counting objects
+    # instead of physical records would silently miscount that id as a
+    # single record and let it pass as genesis.
+    count = 0
+    for shipment in shipments:
+        if shipment.live_status is not None:
+            count += 1
+        if shipment.archived_record_present:
+            count += 1
+    return count
+
+
 def _predecessor_source(shipment: ShipmentState, shipments: Sequence[ShipmentState]) -> PredecessorSource:
     if shipment.blocking_predecessor_ids:
         return "explicit"
     if shipment.declares_root:
         return "declared_root"
-    return "genesis" if len(shipments) == 1 else "unsequenced"
+    return "genesis" if _physical_shipment_record_count(shipments) == 1 else "unsequenced"
 
 
 def _predecessor_sources_by_shipment_id(
@@ -1594,30 +1612,53 @@ def _shipment_readiness_details(
     return details
 
 
-def _audit_record_provenance(shipment: ShipmentState) -> str:
-    return "LIVE" if shipment.live_status is not None else "ARCHIVED"
-
-
-def _audit_record_status(shipment: ShipmentState) -> str:
-    status = shipment.live_status if shipment.live_status is not None else shipment.archived_status
+def _audit_record_status_text(status: str | None) -> str:
     if isinstance(status, str) and status.strip():
         return status.strip()
     return "missing"
+
+
+def _audit_disqualifying_record_entries(shipment: ShipmentState) -> list[dict[str, str]]:
+    # A single shipment id can itself carry two physical records (a live
+    # queue record and an archive record); emit one disqualifier entry per
+    # physical record actually present, not one merged entry per id.
+    entries: list[dict[str, str]] = []
+    if shipment.live_status is not None:
+        entries.append(
+            {
+                "shipment_id": shipment.shipment_id,
+                "record_provenance": "LIVE",
+                "status": _audit_record_status_text(shipment.live_status),
+            }
+        )
+    if shipment.archived_record_present:
+        entries.append(
+            {
+                "shipment_id": shipment.shipment_id,
+                "record_provenance": "ARCHIVED",
+                "status": _audit_record_status_text(shipment.archived_status),
+            }
+        )
+    return entries
 
 
 def _sequencing_audit_disqualifying_records(
     target: str,
     shipments: Sequence[ShipmentState],
 ) -> list[dict[str, str]]:
-    return [
-        {
-            "shipment_id": shipment.shipment_id,
-            "record_provenance": _audit_record_provenance(shipment),
-            "status": _audit_record_status(shipment),
-        }
-        for shipment in sorted(shipments, key=lambda item: item.shipment_id)
-        if shipment.shipment_id != target
-    ]
+    records: list[dict[str, str]] = []
+    for shipment in sorted(shipments, key=lambda item: item.shipment_id):
+        physical_count = (1 if shipment.live_status is not None else 0) + (
+            1 if shipment.archived_record_present else 0
+        )
+        if shipment.shipment_id == target and physical_count <= 1:
+            # The target's own sole physical record is the genesis
+            # candidate itself, not disqualifying evidence. When the target
+            # is itself the ambiguous (live+archive) record, both of its
+            # own entries below become the disqualifying evidence instead.
+            continue
+        records.extend(_audit_disqualifying_record_entries(shipment))
+    return records
 
 
 def audit_sequencing(

@@ -554,6 +554,24 @@ class BootstrapGrantTests(unittest.TestCase):
         self.assertTrue(self._record_path().exists())
         self.assertTrue(any('failed identity verification' in warning for warning in result.warnings))
 
+    def test_windows_open_directory_handle_raises_oserror_not_attributeerror_on_failure(self) -> None:
+        if os.name != 'nt':
+            self.skipTest(
+                'exercises _windows_open_directory_handle, which uses CreateFileW/'
+                'GetFileInformationByHandle -- Windows-only ctypes APIs'
+            )
+        from autoharness.gates.bootstrap_grant import _windows_open_directory_handle
+
+        # CreateFileW must genuinely fail here (nonexistent path) so the
+        # code reaches ctypes.get_last_error(). Regression coverage for a
+        # prior bug where this line called the nonexistent os.get_last_error(),
+        # which raised AttributeError instead of a clean OSError.
+        missing_path = self.workspace / 'does-not-exist' / 'still-missing'
+        with self.assertRaises(OSError) as ctx:
+            _windows_open_directory_handle(missing_path)
+        self.assertIsInstance(ctx.exception.errno, int)
+        self.assertIn('CreateFileW failed', str(ctx.exception))
+
     def test_capability_gate_refuses_plain_fallback(self) -> None:
         _write_grant(self.workspace)
         with mock.patch('autoharness.gates.bootstrap_grant._supports_posix_claim_strategy', return_value=False):
