@@ -183,6 +183,8 @@ class BootstrapGrantTests(unittest.TestCase):
         return json.loads(self._record_path(label=label, workspace=workspace).read_text(encoding='utf-8'))
 
     def _make_junction(self, link: Path, target: Path) -> None:
+        if os.name != 'nt':
+            self.skipTest('NTFS junctions are a Windows-only filesystem feature')
         link.parent.mkdir(parents=True, exist_ok=True)
         target.mkdir(parents=True, exist_ok=True)
         completed = subprocess.run(
@@ -539,6 +541,12 @@ class BootstrapGrantTests(unittest.TestCase):
         self.assertFalse(any(outside.rglob('*.json')))
 
     def test_windows_identity_mismatch_fails_closed_and_leaves_created_file(self) -> None:
+        if os.name != 'nt':
+            self.skipTest(
+                'exercises _post_create_identity_error, which is only reached by the '
+                'Windows-only claim strategy (_claim_record_posix uses O_NOFOLLOW+dir_fd '
+                'containment instead and never calls it)'
+            )
         _write_grant(self.workspace)
         with mock.patch('autoharness.gates.bootstrap_grant._post_create_identity_error', return_value='identity mismatch'):
             result = self._evaluate()

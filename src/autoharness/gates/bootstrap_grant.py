@@ -30,6 +30,28 @@ _REPARSE_POINT_ATTRIBUTE = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0)
 _UNKNOWN_RECORD_ERROR = 'record schema is malformed or unsupported'
 
 
+def _is_reparse_point(stat_result: os.stat_result) -> bool:
+    """Return True only when the stat result actually carries Windows file
+    attributes and the reparse-point bit is set.
+
+    ``stat.FILE_ATTRIBUTE_REPARSE_POINT`` is exposed as a plain integer
+    constant by CPython's ``stat`` module on every platform (it is not
+    gated to Windows), so ``_REPARSE_POINT_ATTRIBUTE`` is truthy even on
+    POSIX. The ``st_file_attributes`` attribute on ``os.stat_result`` is
+    the part that is genuinely Windows-only; probe for it explicitly
+    instead of assuming its presence, so shared code paths reached from
+    both ``_claim_record_posix`` and ``_claim_record_windows`` (for
+    example ``_scan_existing_records``) do not raise ``AttributeError``
+    on POSIX.
+    """
+    if not _REPARSE_POINT_ATTRIBUTE:
+        return False
+    attributes = getattr(stat_result, 'st_file_attributes', None)
+    if attributes is None:
+        return False
+    return bool(attributes & _REPARSE_POINT_ATTRIBUTE)
+
+
 class BootstrapGrantArgumentError(ValueError):
     """Raised when bootstrap-grant CLI inputs are syntactically unsafe."""
 
@@ -512,7 +534,7 @@ def _scan_existing_records(shipment_dir: Path, *, workspace: Path, grant_digest:
             stat_result = os.lstat(entry)
         except OSError as exc:
             return True, _warning(f'consumption record {entry} is unreadable: {exc}')
-        if _REPARSE_POINT_ATTRIBUTE and stat_result.st_file_attributes & _REPARSE_POINT_ATTRIBUTE:
+        if _is_reparse_point(stat_result):
             return True, _warning(
                 f'consumption record {_relative_repo_path(entry, Path(workspace))} is a reparse point and remains disqualifying'
             )
