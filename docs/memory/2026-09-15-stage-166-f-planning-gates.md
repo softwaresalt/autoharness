@@ -5,15 +5,77 @@ doc_type: memory
 agent: stage
 feature_id: 166-F
 shipment_id: 174-S
-status: complete
-related_stash_ids: [FBD2F6BE, 2B42392E]
+status: superseded
+superseded_by: docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md
+superseded_on: 2026-09-15
+related_stash_ids: [FBD2F6BE, 2B42392E, 3CA122AC, 7F9CB5E9, 63363CF5]
 references:
-  - docs/plans/2026-09-15-terminal-shipment-closure-plan.md
+  - docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md
+  - docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md
+  - docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md
+superseded_references:
   - docs/decisions/2026-09-15-173-s-terminal-shipment-closure-deliberation.md
+  - docs/plans/2026-09-15-terminal-shipment-closure-plan.md
   - docs/memory/2026-09-15-stage-173-s-closure-deadlock-deliberation.md
+tags:
+  - shipment-closure
+  - planning-gates
+  - superseded
+  - historical
 ---
 
 # Stage session — 166-F planning gates
+
+> ## ⛔ HISTORICAL / SUPERSEDED — DO NOT EXECUTE
+>
+> **This memory records the planning gates run against the SUPERSEDED
+> `TERMINAL_CLOSE` premise. Do NOT implement, plan, or take any action from it.**
+> It is retained **unmodified below this banner** for historical traceability.
+>
+> | | |
+> |---|---|
+> | **Authoritative decision** | `docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md` |
+> | **Authoritative reviewed plan** | `docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md` |
+> | **Successor memory** | `docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md` |
+> | **Superseded decision (do not implement)** | `docs/decisions/2026-09-15-173-s-terminal-shipment-closure-deliberation.md` |
+> | **Superseded plan (do not implement)** | `docs/plans/2026-09-15-terminal-shipment-closure-plan.md` |
+>
+> **Reference hygiene (corrected 2026-09-16).** This file's machine-readable
+> `references` list previously pointed at the **superseded** plan, decision, and
+> memory. It now points at the **authoritative** artifacts; the superseded paths
+> are retained in a separate `superseded_references` key as **provenance only**,
+> never as guidance.
+>
+> **What is stale below:**
+>
+> * The entire **gate-outcome table** describes gates run against
+>   `docs/plans/2026-09-15-terminal-shipment-closure-plan.md`, which is
+>   superseded. Its `PASS` **no longer authorizes execution**. The authoritative
+>   plan carries its own hardening and a **cycle-2** `PASS` (revision 2,
+>   2026-09-16).
+> * **`TERMINAL_CLOSE`, the Terminal-Close Sub-Procedure, E1/E2 preconditions,
+>   and the three-way verdict framing are all WITHDRAWN.** `ClosePath` keeps
+>   exactly `SAFE_CLOSE` and `CASCADE`.
+> * **The terminality vocabulary note is inverted under the successor design.**
+>   "Accept `done|archived|shipped`" belonged to `TERMINAL_CLOSE`. Engine-inertness
+>   now requires an **exact canonical `status: archived`** — no normalization, no
+>   synonyms — and torn/duplicate IDs fail closed.
+> * **`166.002-T`'s Part A / Part B split survived**, but its scope was
+>   rewritten; read the task record and the authoritative plan's unit U1, not
+>   this summary.
+> * **The `174-S` claimability list is stale.** Conditions 1–3 are satisfied
+>   against the **new** plan, condition 4 remains satisfied by the existing
+>   operator-authorized `dag-root` label, and condition 5 (P-001 overlap) is
+>   **discharged by state**: `173-S` was closed on 2026-09-16 by an
+>   **operator-executed, explicitly authorized administrative close** after a
+>   Ship read-only preview, then verified in-workspace by Ship. `pre_claim` now
+>   **PASSES**. This was **not** a Stage close and is **not** a P-010 violation.
+> * **Deferred findings P2-1/P2-2/P3-1..P3-3 below belong to the superseded
+>   review.** The authoritative plan's cycle-2 review supersedes them.
+>
+> **What remains valid:** the record that all three gates were run in order, the
+> P-012 declared-degradation dispatch mode, the `backlogit update` tooling
+> limitation (no `--references` flag), and the constraint-compliance record.
 
 ## Scope
 

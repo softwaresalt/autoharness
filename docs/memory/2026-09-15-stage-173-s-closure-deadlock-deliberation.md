@@ -1,4 +1,75 @@
+---
+title: "Stage session — coupled deliberation of FBD2F6BE + 2B42392E (173-S closure deadlock)"
+date: 2026-09-15
+doc_type: memory
+agent: stage
+feature_id: 166-F
+shipment_id: 174-S
+status: superseded
+superseded_by: docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md
+superseded_on: 2026-09-15
+related_stash_ids: [FBD2F6BE, 2B42392E, 3CA122AC, 7F9CB5E9, 63363CF5]
+references:
+  - docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md
+  - docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md
+  - docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md
+superseded_references:
+  - docs/decisions/2026-09-15-173-s-terminal-shipment-closure-deliberation.md
+  - docs/plans/2026-09-15-terminal-shipment-closure-plan.md
+tags:
+  - shipment-closure
+  - superseded
+  - historical
+---
+
 # Stage session — 2026-09-15 — coupled deliberation of FBD2F6BE + 2B42392E (173-S closure deadlock)
+
+> ## ⛔ HISTORICAL / SUPERSEDED — DO NOT EXECUTE
+>
+> **This session memory records a superseded premise. Do NOT implement, plan,
+> or take any action from it.** It is retained **unmodified below this banner**
+> for historical traceability only.
+>
+> | | |
+> |---|---|
+> | **Authoritative decision** | `docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md` |
+> | **Authoritative reviewed plan** | `docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md` |
+> | **Successor memory** | `docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md` |
+> | **Superseded decision (do not implement)** | `docs/decisions/2026-09-15-173-s-terminal-shipment-closure-deliberation.md` |
+> | **Superseded plan (do not implement)** | `docs/plans/2026-09-15-terminal-shipment-closure-plan.md` |
+>
+> **What is stale below:**
+>
+> * **`TERMINAL_CLOSE` and the terminal-descope exemption are WITHDRAWN.** An
+>   operator architectural correction established that a shipment manifest is a
+>   **flat manifest of exactly what is delivered**. No third close verdict exists.
+> * **The "Decision" section below is void as guidance.** The real design is the
+>   engine-inertness blast-radius containment model (INV-1..INV-11).
+> * **"`173-S` still `active`" is stale.** `173-S` was closed on 2026-09-16 by an
+>   **operator-executed, explicitly authorized administrative close** performed
+>   after a Ship read-only preview, then verified in-workspace by Ship
+>   (`archived_status: shipped`, SHA `9cc98c41`, exactly 12 changed paths,
+>   excluded siblings byte-identical, zero active shipments, `174-S` `pre_claim`
+>   **PASS**). This was **not** a Stage close and is **not** a P-010 violation.
+> * **The "`174-S` claimability conditions" list below is stale.** Conditions 1–4
+>   are satisfied and condition 5 (P-001 overlap) is **discharged by state** —
+>   the overlap no longer exists.
+> * **Terminality vocabulary is stale.** The note that a check must accept
+>   `done|archived|shipped` belonged to `TERMINAL_CLOSE`. Under the successor
+>   design, **engine-inertness requires an exact canonical `status: archived`**
+>   and nothing else.
+> * **Stash disposition is partly stale.** `2B42392E` was archived **too
+>   broadly**: only its `173-S`-specific aspect was consumed. Its unresolved
+>   general scope is carried by durable active entry **`7F9CB5E9`**; the
+>   separately discovered `parent_id`-clearing defect is **`63363CF5`**.
+> * **Spike evidence below is NON-AUTHORITATIVE.** The `%TEMP%` spike is recorded
+>   as a **P-005 containment and destructive-approval violation**; authoritative
+>   confidence comes from the operator close plus Ship's in-workspace
+>   verification.
+>
+> **What remains valid:** the verified live state of the blocking artifacts at
+> that date, the archive-provenance survey, and the class-scope finding
+> (`3CA122AC` / `168-S`).
 
 ## Scope
 

@@ -8,13 +8,17 @@ superseded_by: "docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliber
 superseded_on: "2026-09-15"
 promoted_to: "queue"
 linked_artifacts:
-  - "docs/decisions/2026-09-15-173-s-terminal-shipment-closure-deliberation.md"
   - "docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md"
+  - "docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md"
+superseded_artifacts:
+  - "docs/plans/2026-09-15-terminal-shipment-closure-plan.md"
 stash_entries:
   - "FBD2F6BE"
   - "2B42392E"
 related_entries:
   - "3CA122AC"
+  - "7F9CB5E9"
+  - "63363CF5"
 tags:
   - "shipment-closure"
   - "safe-close"
@@ -22,18 +26,30 @@ tags:
   - "p-015"
   - "p-021"
   - "backlogit-tooling"
+  - "superseded"
+  - "historical"
 ---
 
----
+# Terminal-Shipment Closure — Deliberation (SUPERSEDED)
 
-> ## ⛔ SUPERSEDED — 2026-09-15
+> ## ⛔ SUPERSEDED — 2026-09-15 — DO NOT EXECUTE
 >
 > **This decision's core premise has been superseded by an operator
-> architectural correction.** It is retained **unmodified below this banner**
-> for historical traceability. Do **NOT** implement from it.
+> architectural correction. Do NOT implement, plan, or take any action from
+> it.** It is retained **unmodified below this banner** for historical
+> traceability. This document is **provenance only**; it is never guidance.
 >
-> **Superseded by:**
+> **Superseded by decision:**
 > `docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md`
+>
+> **Authoritative reviewed plan:**
+> `docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md`
+>
+> **Successor session memory:**
+> `docs/memory/2026-09-15-stage-flat-manifest-closure-supersession.md`
+>
+> **Also superseded (do not implement):**
+> `docs/plans/2026-09-15-terminal-shipment-closure-plan.md`
 >
 > **What was superseded and why:**
 >
@@ -58,8 +74,25 @@ tags:
 > `move --status shipped` is refused by backlogit 1.10.1.
 >
 > **Superseded handoff conditions.** The five `174-S` claimability conditions
-> stated at the end of this document are superseded by the successor decision;
-> only the operator-owned **P-001 overlap authority** remains outstanding.
+> stated at the end of this document are superseded by the successor decision.
+> Conditions 1–4 are satisfied against the successor plan, and condition 5
+> (operator-owned **P-001 overlap authority**) is **DISCHARGED BY STATE** as of
+> 2026-09-16: `173-S` was closed by an **operator-executed, explicitly
+> authorized administrative close** performed after a Ship read-only preview and
+> verified in-workspace by Ship (`archived_status: shipped`, SHA `9cc98c41`,
+> exactly 12 changed paths, excluded siblings byte-identical, zero active
+> shipments, `174-S` `pre_claim` **PASS**). There is no sequencing overlap left
+> to authorize. This was **not** a Stage close and is **not** a P-010 violation.
+>
+> **Evidence caveat.** The spike evidence recorded below was produced in an
+> external `%TEMP%` workspace and is **NON-AUTHORITATIVE**; that containment and
+> destructive-approval breach is recorded as a **P-005 violation** in the
+> successor decision (D7).
+>
+> **Residual-defect identity.** `2B42392E` was archived too broadly — only its
+> `173-S`-specific aspect was consumed. Its unresolved general scope is carried
+> by durable active entry **`7F9CB5E9`**; the separately discovered
+> `parent_id`-clearing defect is **`63363CF5`**.
 
 ---
 
