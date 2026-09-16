@@ -42,6 +42,13 @@ whole manifest. A torn or duplicate out-of-manifest descendant is especially
 important: its declared status is ambiguous, so it can never satisfy the exact
 match inertness rule.
 
+A symlinked backlog entry also fails closed, for both a manifest item
+(``_read_artifact_record``) and any out-of-manifest descendant discovered by
+the whole-backlog scan (``_scan_backlog``): a symlink can point outside the
+backlog tree, so its declared frontmatter cannot be trusted for a
+cascade/safe-close decision. Neither function follows a symlink to read its
+target; both treat the symlink itself as a failure of classification.
+
 This is a pure, read-only classification: it never mutates the backlog, never
 calls out to ``backlogit``, and reuses
 ``autoharness.gates.topology._frontmatter`` for the repository's existing
@@ -141,7 +148,21 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
         base = backlog_dir / folder
         if not base.exists():
             continue
-        for candidate in sorted(base.glob(f"{_glob_escape(artifact_id)}.*")):
+        try:
+            glob_candidates = sorted(base.glob(f"{_glob_escape(artifact_id)}.*"))
+        except OSError as exc:
+            raise BacklogUnavailableError(
+                backlog_dir,
+                f"could not scan {base} for manifest item {artifact_id!r}: {exc}",
+            ) from exc
+        for candidate in glob_candidates:
+            if candidate.is_symlink():
+                raise BacklogUnavailableError(
+                    backlog_dir,
+                    f"manifest item {artifact_id!r} resolved to a symlinked backlog "
+                    f"entry ({candidate}); a symlink may escape the backlog tree and "
+                    "cannot be trusted for classification",
+                )
             if not candidate.is_file():
                 continue
             fm = _frontmatter(candidate)
@@ -194,6 +215,8 @@ def _scan_backlog(backlog_dir: Path) -> _BacklogScan | None:
         except OSError:
             return None
         for candidate in candidates:
+            if candidate.is_symlink():
+                return None
             try:
                 fm = _frontmatter(candidate)
             except BacklogUnavailableError:

@@ -499,6 +499,65 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.SAFE_CLOSE
 
+    def _symlink_manifest_item(self, feature_id: str) -> None:
+        """Write a real ``feature_id`` record outside the backlog tree, then
+        replace its ``queue/`` entry with a symlink pointing at that real file."""
+
+        real_target = self.scratch_dir / f"{feature_id}-real.md"
+        real_target.write_text(
+            f"---\nid: {feature_id}\nartifact_type: feature\nstatus: queued\n---\n",
+            encoding="utf-8",
+        )
+        symlink_path = self.backlog_dir / "queue" / f"{feature_id}.md"
+        symlink_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(real_target, symlink_path)
+        except OSError:
+            self.skipTest("symlink creation is not permitted in this environment")
+
+    def test_symlinked_manifest_item_falls_back_to_safe_close(self) -> None:
+        self._symlink_manifest_item("309-F")
+
+        decision = classify_shipment_close_path(["309-F"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
+    def test_symlinked_manifest_item_reason_names_symlink(self) -> None:
+        self._symlink_manifest_item("310-F")
+
+        decision = classify_shipment_close_path(["310-F"], self.backlog_dir)
+
+        assert "symlink" in decision.reason.lower()
+
+    def _symlink_out_of_manifest_descendant(self, feature_id: str, manifest_child_id: str) -> None:
+        """Feature + in-manifest child are real files; an out-of-manifest
+        descendant is a symlink pointing at a real ``status: archived`` file."""
+
+        _write_artifact(self.backlog_dir, "queue", feature_id, "feature")
+        _write_artifact(
+            self.backlog_dir, "queue", manifest_child_id, "task", parent_id=feature_id
+        )
+        descendant_id = f"{feature_id}-symlinked-child"
+        real_target = self.scratch_dir / f"{descendant_id}-real.md"
+        real_target.write_text(
+            f"---\nid: {descendant_id}\nartifact_type: task\nparent_id: {feature_id}\n"
+            "status: archived\n---\n",
+            encoding="utf-8",
+        )
+        symlink_path = self.backlog_dir / "archive" / f"{descendant_id}.md"
+        symlink_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(real_target, symlink_path)
+        except OSError:
+            self.skipTest("symlink creation is not permitted in this environment")
+
+    def test_symlinked_out_of_manifest_descendant_falls_back_to_safe_close(self) -> None:
+        self._symlink_out_of_manifest_descendant("311-F", "311.001-T")
+
+        decision = classify_shipment_close_path(["311-F", "311.001-T"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
 
 if __name__ == "__main__":
     unittest.main()
