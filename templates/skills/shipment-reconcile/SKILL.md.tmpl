@@ -422,33 +422,57 @@ completion.
       `classify_shipment_close_path(manifest_items, workspace_backlog_dir)`-shaped
       function (this self-hosting repository's own implementation lives at
       `src/autoharness/gates/shipment_closure.py`); other workspaces implement
-      the equivalent check directly against `{{BACKLOG_DIRECTORY}}/queue/` +
-      `{{BACKLOG_DIRECTORY}}/archive/`. The cascade close path is permitted
-      **only** when, for **every** feature member of the manifest: it is a
-      root (no `parent_id`); it is fully covered (every one of its
-      **descendants — at every depth, not only direct children** —
-      enumerated by walking the full `parent_id` graph live from
-      `{{BACKLOG_DIRECTORY}}/queue/` + `{{BACKLOG_DIRECTORY}}/archive/`
-      starting at the feature, is also a manifest member); and, if it
-      enumerates to zero descendants, that childlessness is **positively
-      verified** against the live workspace (never inferred from an
-      incomplete or failed enumeration) and the feature is additionally
-      terminal (no manifest member declares it as parent). **A
-      direct-children-only check is insufficient** (155-S, PR #407 review,
-      thread PRRT_kwDORzpWpM6b2MJv): Backlogit's own `releaseScopeItemIDs`
-      recursively adds every descendant of each manifest item — not just
-      the feature's immediate children — before `collectArchiveCandidateIDs`
-      archives terminal descendants, so a manifest such as `[feature, task]`
-      where that task has an out-of-manifest subtask (of any
-      `artifact_type`, not only `task`) would otherwise wrongly qualify for
-      `CASCADE`, and the destructive cascade would archive that subtask
-      before the Cascade Close Sub-Procedure's step 3 gate ever sees it —
-      halting only **after** the mutation. The manifest must contain nothing
-      beyond the qualifying root feature(s) and their descendants at every
-      depth. If **any** feature member fails **any** precondition, the
-      **whole manifest** falls back to safe-close (steps 1–10 below) —
-      qualification is never per-member, and no feature ID is ever
-      special-cased.
+      the equivalent check directly against `.backlogit/queue/` +
+      `.backlogit/archive/`. The classifier has exactly two outcomes here:
+      `CASCADE` and `SAFE_CLOSE`.
+
+      This is the **INV-6 engine-inertness containment gate**. The descendant
+      walk stays in place because it measures the cascade instrument's reachable
+      blast radius, but it does **not** define closure scope: `manifest_scope(S)`
+      remains exactly `items(S)`, `closure_scope(S)` remains `items(S) ∪ {S}`,
+      `allowed_ids(S)` and `required_ids(S)` remain the flat postcondition sets,
+      and an inert out-of-manifest descendant enters none of
+      `manifest_scope(S)`, `closure_scope(S)`, `allowed_ids(S)`, or
+      `required_ids(S)`.
+
+      `CASCADE` is permitted only when every artifact reachable from `items(S)`
+      but outside `closure_scope(S)` is engine-inert. Engine inertness requires
+      the record's own parsed frontmatter value to satisfy
+      `isinstance(status, str) and status == "archived"`. This is an exact
+      parsed-scalar match: no .lower(), no .strip(), no casefold, no alias
+      table, and no str() coercion may broaden it. Non-string parses such as
+      `status: yes` or a bare `status:` fail closed and force `SAFE_CLOSE`;
+      `Archived`, `ARCHIVED`, and the YAML-quoted literal
+      `status: " archived "` also force `SAFE_CLOSE`. Because the comparison
+      happens after YAML parsing, lexically distinct but YAML-equivalent values
+      that parse to exactly `"archived"` are treated as inert; that is correct
+      because the engine also YAML-parses the field.
+
+      Any id that resolves to more than one record, whether torn across
+      `queue/` + `archive/` or duplicated within a single root, fails closed and
+      forces `SAFE_CLOSE`; a torn or duplicate out-of-manifest descendant can
+      never satisfy the inertness predicate because its declared status is
+      ambiguous.
+
+      **Engine-behavior rationale (evidence-class labelled; only the first row
+      is proven).**
+
+      | Manifest shape | Out-of-manifest descendant | Engine effect | Evidence class |
+      |---|---|---|---|
+      | has feature member | declares exact canonical `status: archived` | inert — skipped, byte-identical | **PROVEN (ENGINE LAW)** — path-scoped `git diff --stat 358b63b4 e4ca20e5 -- .backlogit/archive/165.007-T.md .backlogit/archive/165.010-T.md` is empty, and `git rev-parse 358b63b4:<path>` / `git rev-parse e4ca20e5:<path>` return identical blob OIDs for both paths. This is the **only** proven row |
+      | has feature member | `status: done` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
+      | has feature member | live `queued` | archived, with `returned_ids` reported `[]` | **INDICATIVE / UNPROVEN** — rationale only; may never be stated as measured fact and may never authorize `CASCADE` |
+      | no feature member | live sibling | returned, with `parent_id` cleared | **INDICATIVE / UNPROVEN** — follow-up `63363CF5`; may never authorize `CASCADE`. For a genuine split-delivery intermediate shipment, see **INV-11** and safe-close step 8's `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt, tracked by durable active stash entry `7F9CB5E9` |
+      | any | ancestor/parent of a manifest item | untouched (no upward walk) | **INDICATIVE / UNPROVEN** |
+
+      An unproven row may never authorize `CASCADE`. Where engine behavior is
+      unproven, the dependent autoharness behavior is the fail-closed one.
+      `returned_ids` remains a **secondary, insufficient** verification check:
+      it is still checked after a live cascade runs, but it cannot stand as the
+      primary guard because the live archival row above reportedly returned `[]`
+      while still mutating an out-of-manifest descendant. That report is
+      indicative and unproven only; it justifies the pre-mutation inertness gate
+      and never authorizes the cascade path.
 
       **When this classification identifies qualifying feature members**
       (i.e. selects `CASCADE`): extend the same pre-close declared-status
