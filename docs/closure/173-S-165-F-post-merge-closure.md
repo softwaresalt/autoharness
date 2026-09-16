@@ -182,11 +182,16 @@ finding in the superseded 2026-09-14 pre-merge/pre-close artifact.
   tracked as durable follow-up work under `166-F`/`174-S`; it is why this
   specific `173-S` close required an operator manual action rather than a
   Ship-executed `shipment-reconcile` safe-close.
-* `63363CF5` (active, bug, high) -- newly discovered defect (R2): the
-  backlogit cascade `shipment ship` operation silently clears `parent_id` on
-  out-of-manifest siblings it returns, orphaning them. Not triggered by this
-  `173-S` close (no cascade operation was invoked here); tracked as durable
-  follow-up work under `166-F`/`174-S`.
+* `63363CF5` (active, bug, high) -- newly captured follow-up (R2): the
+  backlogit cascade `shipment ship` operation is suspected of silently
+  clearing `parent_id` on out-of-manifest siblings it returns, orphaning
+  them. Per `63363CF5`'s own evidence-provenance note, this observation
+  originates solely from a non-authoritative external spike and is
+  classified INDICATIVE/UNPROVEN, not confirmed, pending in-workspace
+  hermetic reproduction -- consistent with the same classification used
+  throughout the reviewed `166-F`/`174-S` planning package. Not triggered by
+  this `173-S` close (no cascade operation was invoked here); tracked as
+  durable follow-up work under `166-F`/`174-S`.
 * `FBD2F6BE` and `2B42392E` (archived stash, consumed 2026-09-15 by Stage,
   deliberated in `docs/decisions/2026-09-15-173-s-terminal-shipment-closure-deliberation.md`)
   -- fully disposed of by promotion into feature `166-F` (tasks `166.001-T`
