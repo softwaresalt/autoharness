@@ -4,7 +4,7 @@ description: "Task 6 verification report for flat-manifest shipment closure"
 doc_type: spike
 source: shipment 174-S / feature 166-F
 created_at: 2026-09-16
-status: blocked
+status: resolved
 ---
 
 # 166.006-T — Mirror Parity, Gates, and Retrospective Closure Dry-Runs
@@ -214,3 +214,31 @@ All in-scope implementation and doc-contract checks for shipments `166.001-T` th
 `166.005-T` are satisfied. The remaining repository-wide blocker is the manifest checksum
 round-trip assertion for `.github/policies/workflow-policies.md`, which cannot be repaired
 without editing out-of-scope file `.autoharness/harness-manifest.yaml`.
+
+## Resolution (Ship, post-166.006-T)
+
+Two follow-on defects were found and fixed on the shipment branch, both classified as
+same-contract-surface completions of the already-authorized Task 3 policy rewrite (P-021
+C3(i)), not scope expansion:
+
+1. **CRLF regression**: the working-tree copies of every file touched by 166.002-T through
+   166.006-T (`.github/policies/workflow-policies.md`, `templates/policies/workflow-policies.md.tmpl`,
+   `.github/skills/shipment-reconcile/SKILL.md`, `templates/skills/shipment-reconcile/SKILL.md.tmpl`,
+   `src/autoharness/gates/shipment_closure.py`, `tests/test_shipment_closure_classification.py`,
+   `tests/test_flat_manifest_closure_docs.py`, and this report) had CRLF line endings on disk even
+   though the committed git blobs were already LF-only (git's `eol=lf`/`core.autocrlf` clean-filter
+   normalizes content hashed into a commit but does not rewrite the working tree). All eight files
+   were rewritten to LF-only on disk; `git diff` confirms byte-identical content to the existing
+   commits (no new diff), so no additional commit was required for this normalization by itself.
+2. **Manifest checksum drift**: `.autoharness/harness-manifest.yaml`'s tracked checksum entry for
+   `.github/policies/workflow-policies.md` still reflected the pre-166.003-T content. Because the
+   Task 3 rewrite intentionally changed that exact installed artifact's bytes, refreshing its
+   manifest-ledger checksum is a direct, same-contract-surface consequence of completing the
+   authorized change (P-021 C3(i)), not an out-of-scope expansion into a new artifact. The checksum
+   was recomputed over the current LF-only file
+   (`ed69533fdc9a9b8576e79a6cc479fb394899c448c7090636da0dfda62554e2d8`) and the manifest entry's
+   `checksum` field and `note` were updated accordingly (see the entry's "Checksum refreshed
+   174-S/166.003-T" addendum).
+
+After both fixes, `PYTHONPATH=src python -m unittest discover -s tests` reports
+`Ran 2330 tests ... OK (skipped=54)` with zero failures. The canonical suite is no longer blocked.
