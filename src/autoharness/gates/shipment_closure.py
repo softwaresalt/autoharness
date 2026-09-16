@@ -1,53 +1,51 @@
-"""Shipment-closure path classification for the P-015 verified fully-covered-root exception.
+"""Shipment-closure path classification for the P-015 flat-manifest exception.
 
-This module implements the MACHINE-CHECKABLE precondition check described in
-the "VERIFIED FULLY-COVERED-ROOT EXCEPTION" subsection of P-015
-(``templates/policies/workflow-policies.md.tmpl``). It decides, given a
-shipment manifest's declared item ids, whether the manifest is eligible for
-the narrow cascade-close exception or whether the default single-artifact
-safe-close prohibition still governs.
+This module implements the machine-checkable selector between the default
+``safe_close`` path and the narrow ``cascade`` exception described by P-015.
+The authoritative contract uses four set names:
 
-This is a pure, read-only classification: it never mutates the backlog and
-never calls out to ``backlogit`` itself. It reuses
-``autoharness.gates.topology._frontmatter`` for the identical fail-closed
-YAML-frontmatter parsing convention already established there, rather than
-re-deriving backlog-artifact parsing logic in a second place.
+* ``manifest_scope(S)`` — exactly ``items(S)``.
+* ``closure_scope(S)`` — exactly ``items(S) ∪ {S}``.
+* ``allowed_ids(S)`` — ``closure_scope(S) ∪ validated_linked_deliberations(S)``.
+* ``required_ids(S)`` — the members of ``closure_scope(S)`` that were not
+  already truly archived in the pre-close snapshot.
 
-Design summary (mirrors the policy text precisely -- see P-015 for the
-authoritative wording):
+The descendant walk in this module is a BLAST-RADIUS containment check on the
+cascade instrument, not a definition of closure scope. An out-of-manifest
+artifact remains outside ``manifest_scope(S)``, ``closure_scope(S)``,
+``allowed_ids(S)``, and ``required_ids(S)`` even when it is reachable from a
+manifest feature via ``parent_id``.
 
-* The predicate is quantified over EVERY feature member of the manifest, not
-  a single covering feature.
-* Each feature member MUST be a ROOT (no ``parent_id``) AND MUST be FULLY
-  COVERED (every one of its DESCENDANTS -- at every depth, not just direct
-  children -- enumerated by walking the live backlog's full ``parent_id``
-  graph from the feature, is also a manifest member). Backlogit's own
-  ``releaseScopeItemIDs`` recursively adds every descendant of each manifest
-  item before ``collectArchiveCandidateIDs`` archives terminal descendants,
-  so a check that only inspected direct children could wrongly qualify a
-  manifest such as ``[feature, task]`` when that task has an out-of-manifest
-  subtask (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv) -- see
-  ``_enumerate_descendants`` for the full rationale.
-* Childlessness for a root feature member with zero descendants is
-  POSITIVELY VERIFIED against the live workspace (enumerate the full
-  descendant tree, assert the count is exactly zero) -- NEVER inferred from
-  "no missing descendants found". A feature whose descendant tree cannot be
-  enumerated (unreadable backlog directory, a malformed record encountered
-  during the scan, etc.) is NOT verified childless, and the WHOLE manifest
-  falls back to safe-close.
-* A childless-root member must additionally be TERMINAL: it parents nothing
-  (already implied by zero enumerated descendants), and no member also
-  declares it as ``parent_id`` (a redundant safety net over the
-  backlog-wide index).
-* The manifest MUST contain NOTHING beyond qualifying root feature members
-  and their descendants (at every depth). Any other manifest member (a
-  non-root feature, or a task whose ancestry does not lead back to one of
-  the qualifying root features) forces the whole manifest back to
-  safe-close.
-* If ANY feature member fails ANY precondition, the WHOLE MANIFEST falls back
-  to the default safe-close prohibition -- qualification is never per-member.
-* There is NO id-specific special case for any particular feature id
-  anywhere in this module.
+INV-6 is therefore narrower than the superseded "fully covered" framing:
+``cascade`` is permitted only when every out-of-manifest descendant reachable
+from each manifest feature member is ENGINE-INERT. Engine inertness is granted
+only when the record's own parsed frontmatter value satisfies
+``isinstance(status, str) and status == "archived"``. No post-parse
+normalization broadens that authorization: no ``.lower()``, no ``.strip()``, no
+``.casefold()``, no alias table, and no ``str()`` coercion of non-string
+values. ``"Archived"``, ``"ARCHIVED"``, the YAML-quoted literal
+``status: " archived "``, missing ``status``, and non-string YAML parses such
+as ``status: yes`` or a bare ``status:`` all fail closed.
+
+Accepted YAML-equivalence limitation: the comparison happens after
+``yaml.safe_load`` via ``autoharness.gates.topology._frontmatter``, so lexically
+separate but YAML-equivalent values collapse to the same parsed scalar. An
+unquoted ``status: archived   `` therefore parses to the canonical string
+``"archived"`` and is treated as inert. That is correct, not a compromise,
+because the backlog engine reads the same field through YAML parsing and agrees
+on the parsed scalar even when the raw bytes differ.
+
+Torn/duplicate identity also fails closed. The backlog-wide queue+archive scan
+builds the descendant/status indexes in one pass, and any id that resolves to
+more than one record anywhere in that scan invalidates cascade selection for the
+whole manifest. A torn or duplicate out-of-manifest descendant is especially
+important: its declared status is ambiguous, so it can never satisfy the exact
+match inertness rule.
+
+This is a pure, read-only classification: it never mutates the backlog, never
+calls out to ``backlogit``, and reuses
+``autoharness.gates.topology._frontmatter`` for the repository's existing
+fail-closed YAML-frontmatter parsing convention.
 """
 
 from __future__ import annotations
@@ -64,6 +62,8 @@ from autoharness.gates.topology import (
     _frontmatter,
 )
 
+CANONICAL_INERT_STATUS = "archived"
+
 
 class ClosePath(str, Enum):
     """The two possible shipment-closure operations P-015 governs."""
@@ -78,7 +78,7 @@ class ClosePathDecision:
 
     ``qualifying_feature_ids`` is populated only when ``close_path`` is
     :attr:`ClosePath.CASCADE`; it lists every root feature member whose
-    full-coverage precondition was verified.
+    blast-radius containment check passed.
     """
 
     close_path: ClosePath
@@ -88,47 +88,46 @@ class ClosePathDecision:
 
 @dataclass(frozen=True)
 class _ArtifactRecord:
-    """The minimal backlog fields this module needs: type and parent linkage."""
+    """The minimal backlog fields this module needs for classification."""
 
     artifact_id: str
     artifact_type: str
     parent_id: str | None
+    status: object | None
+
+
+@dataclass(frozen=True)
+class _BacklogScan:
+    """Backlog-wide descendant/status indexes plus duplicate-id diagnostics."""
+
+    children_index: dict[str, list[str]]
+    status_index: dict[str, object | None]
+    ambiguous_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
 def _normalize_id(value: object) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
+def _is_engine_inert(status: object) -> bool:
+    return isinstance(status, str) and status == CANONICAL_INERT_STATUS
+
+
+def _format_status(status: object) -> str:
+    return repr(status)
+
+
+def _format_status_observations(
+    artifact_ids: Sequence[str], status_index: dict[str, object | None]
+) -> str:
+    return ", ".join(
+        f"{artifact_id} (status={_format_status(status_index.get(artifact_id))})"
+        for artifact_id in artifact_ids
+    )
+
+
 def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecord | None:
-    """Read one backlog artifact's ``artifact_type``/``parent_id`` from queue or archive.
-
-    Returns ``None`` when the artifact cannot be found at all. Raises
-    :class:`~autoharness.gates.topology.BacklogUnavailableError` when a
-    candidate file is found but its frontmatter is malformed, or when the
-    lookup itself is ambiguous -- callers convert that into a fail-closed
-    safe-close decision rather than letting it propagate as an unhandled
-    exception.
-
-    Two hardening checks beyond a bare glob match:
-
-    * ``artifact_id`` MUST match the same safe backlog-artifact-id shape
-      enforced elsewhere (``gates.topology._ARTIFACT_ID_PATTERN``) before it
-      is ever interpolated into a filesystem glob pattern. ``glob.escape``
-      alone neutralizes ``*``/``?``/``[`` metacharacters but does NOT reject
-      path separators or ``..`` segments, so an id shaped like
-      ``"../../outside"`` could otherwise resolve a glob outside
-      ``queue``/``archive`` entirely.
-    * The broad ``id.*`` glob pattern matches by FILENAME PREFIX only, which
-      could silently select a differently-named file (or, if both a queue
-      and an archive copy exist for the same id, an arbitrary one of the
-      two) without ever confirming the file's own frontmatter ``id`` field
-      actually equals ``artifact_id``. Since a false match can authorize a
-      destructive cascade close, every candidate across BOTH ``queue`` and
-      ``archive`` is collected, each candidate's frontmatter ``id`` is
-      verified to match, and more than one verified match is treated as an
-      ambiguous/torn backlog state -- fail closed rather than silently
-      preferring whichever location happened to be scanned first.
-    """
+    """Read one backlog artifact's ``artifact_type``/``parent_id``/``status``."""
 
     if not _ARTIFACT_ID_PATTERN.match(artifact_id):
         raise BacklogUnavailableError(
@@ -148,25 +147,11 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
             fm = _frontmatter(candidate)
             fm_id = _normalize_id(fm.get("id"))
             if fm_id != artifact_id:
-                # The record must DECLARE a normalized frontmatter id that
-                # equals artifact_id. Never fall back to the filename stem
-                # when the id field is missing/blank -- doing so would let a
-                # malformed record with no declared id authorize the
-                # destructive cascade path purely because its filename
-                # happens to match.
                 continue
             artifact_type = str(fm.get("artifact_type") or "").strip().lower()
             raw_parent_id = fm.get("parent_id")
             parent_id = _normalize_id(raw_parent_id)
             if raw_parent_id is not None and parent_id is None:
-                # The frontmatter DECLARES a parent_id field, but it does not
-                # normalize to a valid non-empty string (e.g. a bare YAML
-                # integer, or a blank string). `_normalize_id` maps that to
-                # the SAME `None` sentinel used for "no parent declared at
-                # all" -- silently treating a malformed declared parent_id as
-                # "this is a root" would let a non-root feature with a
-                # corrupted field wrongly qualify for cascade close. Fail
-                # closed instead of guessing.
                 raise BacklogUnavailableError(
                     backlog_dir,
                     f"artifact {artifact_id!r} has a malformed parent_id field "
@@ -174,7 +159,10 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
                 )
             matches.append(
                 _ArtifactRecord(
-                    artifact_id=artifact_id, artifact_type=artifact_type, parent_id=parent_id
+                    artifact_id=artifact_id,
+                    artifact_type=artifact_type,
+                    parent_id=parent_id,
+                    status=fm.get("status"),
                 )
             )
 
@@ -190,27 +178,16 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
     return matches[0]
 
 
-def _build_children_index(backlog_dir: Path) -> dict[str, list[str]] | None:
-    """Scan the FULL backlog once and return a ``parent_id -> [child_id, ...]`` index.
+def _scan_backlog(backlog_dir: Path) -> _BacklogScan | None:
+    """Scan queue+archive once for descendant edges, status values, and ambiguity."""
 
-    This is the shared basis for :func:`_enumerate_descendants` below: rather
-    than re-scanning ``queue``/``archive`` once per feature member for direct
-    children only, the whole backlog's parent/child edges are indexed a
-    single time and then walked transitively per qualifying-root candidate.
+    children_index: dict[str, list[str]] = {}
+    status_index: dict[str, object | None] = {}
+    ambiguous_ids: set[str] = set()
 
-    Returns ``None`` (rather than raising or returning a partial index) when
-    the scan itself could not be trusted -- an unreadable backlog directory,
-    or a malformed record encountered anywhere during the full queue+archive
-    scan. Coverage/childlessness must be POSITIVELY VERIFIED against a
-    complete index; it must never be inferred from a partial or failed scan.
-    """
-
-    index: dict[str, list[str]] = {}
     for folder in ("queue", "archive"):
         base = backlog_dir / folder
         if not base.exists() or not base.is_dir():
-            # A missing/unreadable backlog directory can never positively
-            # prove coverage or childlessness for any feature.
             return None
         try:
             candidates = sorted(base.glob("*.md"))
@@ -224,49 +201,32 @@ def _build_children_index(backlog_dir: Path) -> dict[str, list[str]] | None:
             raw_parent_id = fm.get("parent_id")
             parent_id = _normalize_id(raw_parent_id)
             if raw_parent_id is not None and parent_id is None:
-                # A record declares a parent_id field that does not
-                # normalize to a valid non-empty string. Silently treating
-                # this the same as "no parent declared" could hide a
-                # malformed-but-real descendant edge from this index,
-                # letting a feature with actual descendants be wrongly
-                # verified fully covered/childless. Coverage must be
-                # POSITIVELY verified, so a record whose parentage cannot be
-                # trusted makes the whole index untrustworthy.
                 return None
+
+            artifact_id = _normalize_id(fm.get("id")) or candidate.stem
+            if artifact_id in status_index:
+                ambiguous_ids.add(artifact_id)
+            else:
+                status_index[artifact_id] = fm.get("status")
+
             if parent_id is None:
                 continue
-            child_id = _normalize_id(fm.get("id")) or candidate.stem
-            index.setdefault(parent_id, []).append(child_id)
-    for parent_id, child_ids in index.items():
-        index[parent_id] = sorted(set(child_ids))
-    return index
+            children_index.setdefault(parent_id, []).append(artifact_id)
+
+    for parent_id, child_ids in children_index.items():
+        children_index[parent_id] = sorted(set(child_ids))
+
+    return _BacklogScan(
+        children_index=children_index,
+        status_index=status_index,
+        ambiguous_ids=tuple(sorted(ambiguous_ids)),
+    )
 
 
 def _enumerate_descendants(
     children_index: dict[str, list[str]], root_id: str
 ) -> tuple[str, ...]:
-    """Return every backlog artifact id transitively descended from ``root_id``.
-
-    This walks the FULL descendant tree (children, grandchildren, ... at
-    every depth) via ``children_index``, not just direct children of
-    ``root_id``. Backlogit's own ``releaseScopeItemIDs`` recursively adds
-    every descendant of each manifest item before
-    ``collectArchiveCandidateIDs`` archives terminal descendants (155-S, PR
-    #407 review, thread PRRT_kwDORzpWpM6b2MJv) -- a "fully covered" check
-    that only inspected direct children of the feature could accept a
-    manifest such as ``[feature, task]`` even when that task has an
-    out-of-manifest subtask, wrongly select CASCADE, and let the destructive
-    cascade archive that subtask before the Cascade Close Sub-Procedure's
-    step 3 post-condition gate ever sees it -- halting only AFTER the
-    mutation. Walking the full descendant tree here, before CASCADE is ever
-    selected, closes that gap for descendants of ANY type at ANY depth, not
-    only direct task children of the feature.
-
-    A visited-set guard makes this robust against a malformed cyclic
-    ``parent_id`` chain: it can never loop forever, and a cycle can never
-    cause a genuine descendant to be silently omitted either, since every id
-    reachable from ``root_id`` is visited exactly once.
-    """
+    """Return every backlog artifact id transitively descended from ``root_id``."""
 
     visited: set[str] = set()
     frontier = [root_id]
@@ -285,35 +245,18 @@ def classify_shipment_close_path(
     manifest_items: Sequence[str],
     workspace_backlog_dir: Path | str,
 ) -> ClosePathDecision:
-    """Classify whether the P-015 verified fully-covered-root exception applies.
+    """Classify whether the P-015 flat-manifest cascade exception applies.
 
-    Parameters:
-        manifest_items: the shipment manifest's ``custom_fields.items`` ids,
-            in whatever order the manifest declares them.
-        workspace_backlog_dir: path to the workspace's backlog directory
-            (containing ``queue/`` and ``archive/`` subdirectories, e.g.
-            ``.backlog`` for new installs or legacy ``.backlogit`` for
-            existing workspaces).
-
-    Returns a :class:`ClosePathDecision` naming the permitted close operation
-    and the reason. Any ambiguity, read failure, or precondition violation
-    for ANY feature member falls back to :attr:`ClosePath.SAFE_CLOSE` for the
-    ENTIRE manifest -- this function never grants a partial/per-member
-    exception.
+    Any ambiguity, read failure, or containment-precondition violation for any
+    feature member falls back to :attr:`ClosePath.SAFE_CLOSE` for the entire
+    manifest. Qualification is never partial or per-member.
     """
 
     backlog_dir = Path(workspace_backlog_dir)
     raw_items = list(manifest_items)
     normalized = [_normalize_id(item) for item in raw_items]
-    invalid = [
-        raw for raw, norm in zip(raw_items, normalized) if norm is None
-    ]
+    invalid = [raw for raw, norm in zip(raw_items, normalized) if norm is None]
     if invalid:
-        # A manifest item that cannot be normalized (empty/blank, or not a
-        # string at all) must never be silently dropped from consideration --
-        # doing so could let an otherwise-disqualifying member vanish from
-        # the "extras" check below and let the manifest wrongly qualify for
-        # cascade. Reject the WHOLE manifest instead.
         return ClosePathDecision(
             close_path=ClosePath.SAFE_CLOSE,
             reason=f"manifest contains unnormalizable item(s): {invalid!r}",
@@ -344,29 +287,22 @@ def classify_shipment_close_path(
 
     feature_members = [record for record in records.values() if record.artifact_type == "feature"]
     if not feature_members:
-        # No feature member at all means this manifest is not shaped as the
-        # fully-covered-root pattern (which requires the covering feature to
-        # be listed FIRST in `items`) -- it falls back to whatever the
-        # Durable Rule (task-only, per-item safe-close) already governs.
         return ClosePathDecision(
             close_path=ClosePath.SAFE_CLOSE,
             reason="manifest contains no feature member; the exception requires at least one",
         )
 
-    # Build the full parent/child index ONCE, up front, for the whole
-    # manifest -- it is the single trusted basis every feature member's
-    # coverage check below walks transitively (all depths), not just direct
-    # children (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv).
-    children_index = _build_children_index(backlog_dir)
-    if children_index is None:
+    scan = _scan_backlog(backlog_dir)
+    if scan is None:
         return ClosePathDecision(
             close_path=ClosePath.SAFE_CLOSE,
             reason=(
-                "descendant coverage/childlessness could not be verified against the "
+                "descendant containment/childlessness could not be verified against the "
                 "live workspace; falling back to safe-close"
             ),
         )
 
+    ambiguous_id_set = set(scan.ambiguous_ids)
     qualifying_feature_ids: list[str] = []
     accounted_ids: set[str] = {feature.artifact_id for feature in feature_members}
 
@@ -380,29 +316,42 @@ def classify_shipment_close_path(
                 ),
             )
 
-        # Walks the FULL descendant tree (children, grandchildren, ... at
-        # every depth), never just direct children -- see
-        # `_enumerate_descendants` for why a direct-children-only check is
-        # unsafe here.
-        descendants = _enumerate_descendants(children_index, feature.artifact_id)
+        descendants = _enumerate_descendants(scan.children_index, feature.artifact_id)
 
-        missing = tuple(
-            descendant for descendant in descendants if descendant not in manifest_id_set
+        torn_out_of_manifest = tuple(
+            descendant
+            for descendant in descendants
+            if descendant not in manifest_id_set and descendant in ambiguous_id_set
         )
-        if missing:
+        if torn_out_of_manifest:
             return ClosePathDecision(
                 close_path=ClosePath.SAFE_CLOSE,
                 reason=(
-                    f"feature member {feature.artifact_id!r} has descendants outside the "
-                    f"manifest: {missing}"
+                    f"feature member {feature.artifact_id!r} has torn/ambiguous descendants "
+                    f"outside the manifest that resolve to more than one record: "
+                    f"{torn_out_of_manifest}"
+                ),
+            )
+
+        out_of_manifest = tuple(
+            descendant for descendant in descendants if descendant not in manifest_id_set
+        )
+        non_inert = tuple(
+            descendant
+            for descendant in out_of_manifest
+            if not _is_engine_inert(scan.status_index.get(descendant))
+        )
+        if non_inert:
+            return ClosePathDecision(
+                close_path=ClosePath.SAFE_CLOSE,
+                reason=(
+                    f"feature member {feature.artifact_id!r} has out-of-manifest descendants "
+                    f"that are not engine-inert: "
+                    f"{_format_status_observations(non_inert, scan.status_index)}"
                 ),
             )
 
         if not descendants:
-            # Verified-childless root: additionally require it be TERMINAL --
-            # no manifest member declares it as parent either (a redundant
-            # cross-check over the backlog-wide index above, guarding
-            # against a scan/manifest inconsistency).
             declared_as_parent_by = tuple(
                 record.artifact_id
                 for record in records.values()
@@ -421,18 +370,30 @@ def classify_shipment_close_path(
         qualifying_feature_ids.append(feature.artifact_id)
         accounted_ids.update(descendants)
 
+    if ambiguous_id_set:
+        return ClosePathDecision(
+            close_path=ClosePath.SAFE_CLOSE,
+            reason=(
+                "descendant containment/childlessness could not be fully verified because "
+                f"these ids resolve to more than one record: {tuple(sorted(ambiguous_id_set))}"
+            ),
+        )
+
     extras = tuple(item_id for item_id in manifest_ids if item_id not in accounted_ids)
     if extras:
         return ClosePathDecision(
             close_path=ClosePath.SAFE_CLOSE,
             reason=(
                 "manifest contains member(s) outside the qualifying root feature(s) "
-                f"and their children: {extras}"
+                f"and their descendants: {extras}"
             ),
         )
 
     return ClosePathDecision(
         close_path=ClosePath.CASCADE,
-        reason="every feature member is a verified fully-covered root; cascade close is permitted",
+        reason=(
+            "every feature member is a root whose out-of-manifest descendants are "
+            "engine-inert; cascade close is permitted"
+        ),
         qualifying_feature_ids=tuple(qualifying_feature_ids),
     )
