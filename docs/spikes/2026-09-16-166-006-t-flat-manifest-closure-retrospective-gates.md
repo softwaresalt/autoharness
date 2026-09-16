@@ -242,3 +242,62 @@ C3(i)), not scope expansion:
 
 After both fixes, `PYTHONPATH=src python -m unittest discover -s tests` reports
 `Ran 2330 tests ... OK (skipped=54)` with zero failures. The canonical suite is no longer blocked.
+
+## Resolution (Ship, review-fix cycle 1 — multi-persona local review)
+
+A local report-only review (Constitution, Python, Correctness, Maintainability, and
+Learnings-Researcher personas) surfaced three P1 findings, all classified as
+same-contract-surface completions of the already-authorized 166.004-T/166.005-T rewrite
+(P-021 C3(i)), not scope expansion:
+
+1. **Stale "fully-covered-root" framing survived the rewrite.** `.github/skills/shipment-reconcile/SKILL.md`
+   and its template mirror still described the close-path exception as "the narrow, machine-verified
+   P-015 fully-covered-root case" (frontmatter `description`), "the P-015 verified fully-covered-root
+   classification" (Step 0 intro paragraph), and "the narrow P-015 verified fully-covered-root case"
+   (Safe-Close Mode intro), in all three cases contradicting the fully-rewritten Step 0(c) body and
+   "P-015 Vocabulary and Invariant Summary" section, which correctly describe an INV-6
+   engine-inertness containment gate. All three occurrences in both the installed skill and its
+   template mirror were corrected to "P-015 engine-inertness case" / "P-015 verified engine-inertness
+   classification". The two remaining hyphenated occurrences in `.github/policies/workflow-policies.md`
+   and its template mirror (Amendment Log rows 1.19.0/1.21.0) are unaffected: those are immutable
+   historical audit-log entries describing a past revision by name, not current-framing prose, and
+   the Amendment Log's own convention is "corrects, and does not delete or edit" prior rows.
+2. **Sanity Checks table was inaccurate.** The table above reports `0` occurrences of `fully covered`
+   (space-separated substring) across all four contract surfaces, which was true but incomplete: it did
+   not search for the hyphenated form `fully-covered-root` that was actually present in two of the four
+   files (see finding 1). After the finding-1 fix, `Select-String -Pattern "fully.covered"` (a
+   regex `.` matching either a space or a hyphen) now returns zero matches in both `SKILL.md` files and
+   only the two expected historical Amendment Log matches in the two policy files — the claim this
+   table originally made is now true under the more complete search.
+3. **`.github/skills/shipment-reconcile/SKILL.md`'s manifest checksum was also stale**, for the same
+   reason as `.github/policies/workflow-policies.md` (finding 2 of the prior resolution section): this
+   file's content was intentionally changed by 166.004-T/166.005-T, and finding 1 above changed it
+   further. Recomputed over the current LF-only file
+   (`47f1e25536b090c71233f02b53a16faddacdfd9c87448b24faa493105e034b4d`) and updated the
+   `.autoharness/harness-manifest.yaml` entry's `checksum` and `note` fields accordingly. Unlike
+   `workflow-policies.md`, this file's checksum is not covered by
+   `test_s0_policy_registry_and_persona_layer.ManifestChecksumRoundTripTests`, so no test failure
+   flagged the staleness; it was found only through the Learnings-Researcher persona's cross-reference
+   against `docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md`.
+4. **Doc-contract regression guard hardened.** `tests/test_flat_manifest_closure_docs.py`'s
+   `test_contract_files_omit_withdrawn_or_unsound_claims` asserted only
+   `assertNotIn("fully covered", text.casefold())`, which — per finding 2 — cannot catch the hyphenated
+   form. Added `assertNotRegex(text, re.compile(r"(?i)P-015 (?:verified )?fully-covered-root"))`, a
+   pattern specific enough to catch the stale current-framing phrase (finding 1) without matching the
+   legitimate historical Amendment Log prose (verified: zero matches for this exact pattern in either
+   policy file before or after this change).
+
+Also independently checked and confirmed NOT a defect: the classifier module docstring's mention of
+`allowed_ids(S) = closure_scope(S) ∪ validated_linked_deliberations(S)` is implemented at the
+`shipment-reconcile` skill layer (Safe-Close Mode Step 0(c)'s linked-deliberation snapshot extension
+and the Cascade Close Sub-Procedure's post-condition check), not inside
+`classify_shipment_close_path` itself — the classifier's job is the pre-mutation CASCADE/SAFE_CLOSE
+containment decision, and the skill's job is validating the actual post-cascade archive set against
+the full `allowed_ids`/`required_ids` gate. This mirrors the architecture already documented in
+`docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`
+and is not a regression.
+
+After these fixes, `PYTHONPATH=src python -m unittest discover -s tests` was re-run and still
+reports `OK (skipped=54)` with zero failures (2330 tests; no new test cases were added by this
+cycle, only one existing assertion in `test_contract_files_omit_withdrawn_or_unsound_claims`
+was strengthened).

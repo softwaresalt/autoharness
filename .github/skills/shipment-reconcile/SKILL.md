@@ -1,6 +1,6 @@
 ---
 name: shipment-reconcile
-description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade backlogit_ship_shipment — except for the narrow, machine-verified P-015 fully-covered-root case, where the cascade op is the permitted and independently-verified close path."
+description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade backlogit_ship_shipment — except for the narrow, machine-verified P-015 engine-inertness case, where the cascade op is the permitted and independently-verified close path."
 ---
 
 # Shipment Reconcile
@@ -11,7 +11,7 @@ restore steps complete. Run `mode: safe-close` **in place of** the destructive
 cascade `backlogit_ship_shipment` call to archive only the shipment manifest's
 explicit item IDs one artifact at a time, verifying after each that the parent
 feature and any unshipped sibling tasks survive — safe-close's own Step 0 first
-runs the P-015 verified fully-covered-root classification and, only when every
+runs the P-015 verified engine-inertness classification and, only when every
 precondition holds, delegates to the Cascade Close Sub-Procedure instead.
 
 > **Why safe-close exists.** `backlogit_ship_shipment` treats a shipment as a
@@ -365,7 +365,7 @@ mutated or repaired by this mode.
 ### Safe-Close Mode
 
 Runs **in place of** the destructive cascade `backlogit_ship_shipment` call —
-**except** in the narrow P-015 verified fully-covered-root case selected by
+**except** in the narrow P-015 verified engine-inertness case selected by
 Step 0 below, where the cascade op is the *permitted* close path and safe-close
 steps 1–10 are skipped entirely. Archives only the shipment manifest's explicit
 item IDs, one artifact at a time, verifying after each archival that the parent

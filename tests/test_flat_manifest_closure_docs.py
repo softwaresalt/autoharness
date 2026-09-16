@@ -90,6 +90,10 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
             with self.subTest(path=label):
                 self.assertNotIn("VERIFIED FULLY-COVERED-ROOT EXCEPTION", text)
                 self.assertNotIn("fully covered", text.casefold())
+                self.assertNotRegex(
+                    text,
+                    re.compile(r"(?i)P-015 (?:verified )?fully-covered-root"),
+                )
                 self.assertNotIn("git show --stat e4ca20e5", text)
                 self.assertNotIn("close-only", text)
                 self.assertNotRegex(text, re.compile(r"(?i)fixture[^\n]{0,120}prove[^\n]{0,120}engine"))
