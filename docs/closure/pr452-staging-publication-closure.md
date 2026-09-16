@@ -110,6 +110,12 @@ Checked via direct inspection of `.backlogit/queue/174-S.md`,
 a `custom_fields.source_stash_id` or `custom_fields.source_deliberation_id`.
 No source-artifact cleanup is applicable for this closure.
 
+## Closure Index Resync
+
+`backlogit sync` run at this closure: `Indexed 1237 artifacts`,
+`parse_failures=0`, `unresolved=0`, `write_failed=0` —
+**`CLOSURE_INDEX_SYNC_OK`**.
+
 ## Releasability Evidence
 
 * This is a documentation/backlog-only publication merge: no CLI behavior,

@@ -88,16 +88,21 @@ instruction.
 * `git checkout main` + `git pull --ff-only` -> fast-forwarded
   `e4ca20e5..18b229e7` cleanly.
 * `git checkout -b post-merge/173-s-165-f-staging-publication 18b229e7` —
-  this closure's own artifacts (this memory file, its archived copy, the
-  compacted summary, and the `docs/closure/pr452-staging-publication-closure.md`
+  this closure's own artifacts (this archived memory file, the compacted
+  summary, and the `docs/closure/pr452-staging-publication-closure.md`
   record) are committed on this branch, never directly on `main`, and will
   be submitted via a closure PR for operator approval before merge.
+
+## Closure Index Resync
+
+`backlogit sync` run at closure: `Indexed 1237 artifacts`, `parse_failures=0`,
+`unresolved=0`, `write_failed=0` — **`CLOSURE_INDEX_SYNC_OK`**.
 
 ## Outcome
 
 PR #452 lifecycle closure complete. `174-S`/`166-F` untouched (queued).
 Compact-context invoked per P-020 (see compacted summary). Closure index
-resync to be run as part of this same closure branch's work. Control
-returns to the Orchestrator after this closure PR's own lifecycle
-concludes; the only remaining gate before `174-S` routing is this closure
-PR's own merge approval.
+resync completed (`CLOSURE_INDEX_SYNC_OK`, see above). Control returns to
+the Orchestrator after this closure PR's own lifecycle concludes; the only
+remaining gate before `174-S` routing is this closure PR's own merge
+approval.
