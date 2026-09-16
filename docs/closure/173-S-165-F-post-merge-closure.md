@@ -197,10 +197,18 @@ finding in the superseded 2026-09-14 pre-merge/pre-close artifact.
   -- fully disposed of by promotion into feature `166-F` (tasks `166.001-T`
   through `166.006-T`) and shipment `174-S`. Not reopened by this artifact.
 * `166-F` / `174-S` (Stage-owned, in planning, revision 5 as of this artifact's
-  creation) remain queued and not yet claimed or executed by Ship. This
-  artifact's creation is recorded by Stage as clearing readiness prerequisite
-  (2) for `174-S` (`docs/memory/2026-09-16-stage-revision-5-p1-c4-1-correction.md`);
-  Ship does not claim or execute `174-S` as part of producing this record.
+  creation) remain queued and not yet claimed or executed by Ship.
+  `docs/memory/2026-09-16-stage-revision-5-p1-c4-1-correction.md` (written
+  before this artifact existed) names "a superseding `173-S` closure record
+  of record" as the still-outstanding, Ship/operator-owned readiness
+  prerequisite (2) for `174-S`; that record does not and cannot record this
+  artifact's creation, since this artifact postdates it. Rather, THIS
+  artifact -- once it exists and is independently verified by
+  `topology.closure_complete("173-S") == True` -- IS the satisfaction of
+  that named prerequisite. Ship does not claim or execute `174-S` as part
+  of producing this record; a future Stage session resuming `174-S` claim
+  readiness is expected to independently re-verify `closure_complete("173-S")`
+  rather than rely on this artifact's own self-report.
 
 ## Compaction Status (P-020)
 
