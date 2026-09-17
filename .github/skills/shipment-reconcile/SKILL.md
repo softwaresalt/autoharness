@@ -785,15 +785,42 @@ cascade operation in step 1 below performs all remaining archival
 itself, consistent with the "no partial mixing of the two paths" rule
 above.
 
+**Pre-invocation classifier revalidation (immediately before
+Baseline-fingerprint capture, INV-6/INV-7).** A fingerprint of the
+current files, by itself, does not prove Step 0(c)'s `CASCADE`
+classification still holds: a descendant's declared `status` can change,
+or a new live descendant can appear under a qualifying feature, in the
+window between Step 0(c)'s classification-time scan and this
+pre-invocation point — fingerprinting that already-drifted state would
+silently adopt the new state as "baseline" instead of detecting the
+drift, and step 5's post-invocation check only guards the window *after*
+this point, not the one before it. Immediately before capturing the
+baseline fingerprint below, re-run `classify_shipment_close_path` (or the
+equivalent full re-scan) **fresh** against the current
+`.backlogit/queue/` + `.backlogit/archive/` state — never reusing Step
+0(c)'s enumeration for this check — and require the result to be
+**identical** to Step 0(c)'s: the same `CASCADE` verdict, the same
+qualifying root feature member set, and the same
+`out_of_manifest_descendant_ids` set (compared as a set, not merely by
+cardinality). Any drift in any of the three halts with
+`HALT — cascade pre-invocation revalidation drift detected` and emits a
+**P-005** violation; do NOT invoke either close path. This is a halt, not
+a substitution to safe-close, and does not conflict with the
+No-substitution rule above (which forbids switching to manual safe-close
+after a `CASCADE` verdict) — refusing to proceed at all is not a
+substitution. Only on an exact match does the Baseline-fingerprint
+capture below proceed, using the now-reconfirmed descendant set.
+
 **Baseline-fingerprint capture (INV-7, before invocation).** Immediately
 before step 1's invocation — using the SAME observation set of
-out-of-manifest descendants Step 0(c)'s classification scan already
-enumerated as reachable-and-engine-inert, never a fresh or narrower
-re-scan — record each such descendant's baseline location (`queue` or
+out-of-manifest descendants the pre-invocation revalidation above just
+reconfirmed as reachable-and-engine-inert (identical to Step 0(c)'s
+original enumeration), never a fresh or narrower re-scan at this specific
+step — record each such descendant's baseline location (`queue` or
 `archive`) plus a content hash of its file. This is the identical
 baseline-invariance snapshot P-015's own Precondition already requires to
 exist before a cascade invocation; capturing it here, rather than assuming
-Step 0(c)'s classification-time read still holds, is required because
+the revalidation's read still holds an instant later, is required because
 classification and invocation are not atomic. Retain this snapshot in
 memory for step 5's verification below; it is never reconstructed after
 the fact.
