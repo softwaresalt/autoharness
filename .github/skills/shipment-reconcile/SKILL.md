@@ -1,6 +1,6 @@
 ---
 name: shipment-reconcile
-description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade backlogit_ship_shipment — except for the narrow, machine-verified P-015 fully-covered-root case, where the cascade op is the permitted and independently-verified close path."
+description: "GI/GR reconciliation gate for shipment manifests — verifies every manifest item exists in queue (pre-mode) or archive (post-mode) with the expected status, and closes shipments with the single-artifact safe-close procedure that archives ONLY manifest item IDs and closes the shipment record via live `shipped` -> verify -> explicit archive -> verify `archived_status: shipped`, instead of the destructive cascade backlogit_ship_shipment — except for the narrow, machine-verified P-015 engine-inertness case, where the cascade op is the permitted and independently-verified close path."
 ---
 
 # Shipment Reconcile
@@ -11,7 +11,7 @@ restore steps complete. Run `mode: safe-close` **in place of** the destructive
 cascade `backlogit_ship_shipment` call to archive only the shipment manifest's
 explicit item IDs one artifact at a time, verifying after each that the parent
 feature and any unshipped sibling tasks survive — safe-close's own Step 0 first
-runs the P-015 verified fully-covered-root classification and, only when every
+runs the P-015 verified engine-inertness classification and, only when every
 precondition holds, delegates to the Cascade Close Sub-Procedure instead.
 
 > **Why safe-close exists.** `backlogit_ship_shipment` treats a shipment as a
@@ -29,7 +29,7 @@ precondition holds, delegates to the Cascade Close Sub-Procedure instead.
   Safe-close's own Step 0 selects the close path from the machine-checkable
   P-015 classification; it archives manifest item IDs individually and never
   calls the cascade op directly **unless** that classification confirms the
-  narrow verified fully-covered-root exception, in which case the Cascade
+  narrow P-015 `CASCADE` exception, in which case the Cascade
   Close Sub-Procedure runs (and is itself independently verified) instead.
 * **Ship Step 0.5** (sanity check): pre-mode at intake with `expected_status: queued`
   (or `active` if the shipment was already claimed in a prior session)
@@ -138,12 +138,12 @@ The report ends with a `recommendation`:
 * `HALT — operator reconcile required` — one or more missing, status-mismatch, or orphan items, OR a non-`record-consistent` shipment-record-status classification (pre-mode)
 * `HALT — restore archives` — missing archive files or unrestored deletions (post-mode)
 * `CLOSED` — safe-close archived every manifest item individually, archived the
-  shipment record itself, and the protected set (parent feature + unshipped siblings)
-  is intact
-* `HALT — cascade detected, revert required` — safe-close found a non-manifest artifact (parent feature or a sibling task) archived or deleted; the unintended change must be reverted before any commit
+  shipment record itself, and the observation set (parent feature + unshipped siblings)
+  remained baseline-invariant
+* `HALT — cascade detected, revert required` — safe-close found an observation-set artifact changed outside `closure_scope(S)`; D6 governs any rollback before any commit
 
-For `mode: safe-close`, the report also records the **protected set** (the parent
-feature file and every unshipped sibling task file that must survive closure) and,
+For `mode: safe-close`, the report also records the **observation set** (the parent
+feature file and every unshipped sibling task file watched for baseline invariance) and,
 per manifest item, whether it was `matched` (archived by this run) or
 `pre-archived` (already archived before this run; skipped to avoid
 double-archival and false-positive cascade flags).
@@ -365,7 +365,7 @@ mutated or repaired by this mode.
 ### Safe-Close Mode
 
 Runs **in place of** the destructive cascade `backlogit_ship_shipment` call —
-**except** in the narrow P-015 verified fully-covered-root case selected by
+**except** in the narrow P-015 verified engine-inertness case selected by
 Step 0 below, where the cascade op is the *permitted* close path and safe-close
 steps 1–10 are skipped entirely. Archives only the shipment manifest's explicit
 item IDs, one artifact at a time, verifying after each archival that the parent
@@ -375,7 +375,7 @@ standalone, acquire the lock per pre-mode step 1 first and release it on
 completion.
 
 0. **Load manifest, snapshot pre-close state, then select close path (P-015
-   verified fully-covered-root exception — select from the verified check,
+   flat-manifest `CASCADE` exception — select from the verified check,
    never from prose alone)**: safe-close is the default.
    a. **Load the manifest first**, regardless of which path is ultimately
       selected: invoke `backlogit_get_shipment(shipment_id)` and extract the
@@ -423,32 +423,68 @@ completion.
       function (this self-hosting repository's own implementation lives at
       `src/autoharness/gates/shipment_closure.py`); other workspaces implement
       the equivalent check directly against `.backlogit/queue/` +
-      `.backlogit/archive/`. The cascade close path is permitted
-      **only** when, for **every** feature member of the manifest: it is a
-      root (no `parent_id`); it is fully covered (every one of its
-      **descendants — at every depth, not only direct children** —
-      enumerated by walking the full `parent_id` graph live from
-      `.backlogit/queue/` + `.backlogit/archive/`
-      starting at the feature, is also a manifest member); and, if it
-      enumerates to zero descendants, that childlessness is **positively
-      verified** against the live workspace (never inferred from an
-      incomplete or failed enumeration) and the feature is additionally
-      terminal (no manifest member declares it as parent). **A
-      direct-children-only check is insufficient** (155-S, PR #407 review,
-      thread PRRT_kwDORzpWpM6b2MJv): Backlogit's own `releaseScopeItemIDs`
-      recursively adds every descendant of each manifest item — not just
-      the feature's immediate children — before `collectArchiveCandidateIDs`
-      archives terminal descendants, so a manifest such as `[feature, task]`
-      where that task has an out-of-manifest subtask (of any
-      `artifact_type`, not only `task`) would otherwise wrongly qualify for
-      `CASCADE`, and the destructive cascade would archive that subtask
-      before the Cascade Close Sub-Procedure's step 3 gate ever sees it —
-      halting only **after** the mutation. The manifest must contain nothing
-      beyond the qualifying root feature(s) and their descendants at every
-      depth. If **any** feature member fails **any** precondition, the
-      **whole manifest** falls back to safe-close (steps 1–10 below) —
-      qualification is never per-member, and no feature ID is ever
-      special-cased.
+      `.backlogit/archive/`. The classifier has exactly two outcomes here:
+      `CASCADE` and `SAFE_CLOSE`.
+
+      This is the **INV-6 engine-inertness containment gate**. The descendant
+      walk stays in place because it measures the cascade instrument's reachable
+      blast radius, but it does **not** define closure scope: `manifest_scope(S)`
+      remains exactly `items(S)`, `closure_scope(S)` remains `items(S) ∪ {S}`,
+      `allowed_ids(S)` and `required_ids(S)` remain the flat postcondition sets,
+      and an inert out-of-manifest descendant enters none of
+      `manifest_scope(S)`, `closure_scope(S)`, `allowed_ids(S)`, or
+      `required_ids(S)`.
+
+      `CASCADE` is permitted only when every artifact in the `parent_id`
+      descendant set enumerated for each qualifying root feature member —
+      i.e., every artifact transitively reachable from that feature via
+      `parent_id`, exactly the set `classify_shipment_close_path` returns as
+      `out_of_manifest_descendant_ids` — that lies outside `closure_scope(S)`
+      is engine-inert. This gate is scoped precisely to that `parent_id`
+      descendant set and never to `validated_linked_deliberations(S)`: a
+      validated linked deliberation is reached through the engine's
+      linked-deliberation expansion described below (a feature's
+      `source_deliberation_id`, an embedded description reference, or a
+      referenced deliberation), never through `parent_id` descent, so it may
+      be live/required and `CASCADE` archiving it is expected and permitted
+      per `required_ids(S)` — this gate never forces `SAFE_CLOSE` on that
+      account. Engine inertness requires
+      the record's own parsed frontmatter value to satisfy
+      `isinstance(status, str) and status == "archived"`. This is an exact
+      parsed-scalar match: no .lower(), no .strip(), no casefold, no alias
+      table, and no str() coercion may broaden it. Non-string parses such as
+      `status: yes` or a bare `status:` fail closed and force `SAFE_CLOSE`;
+      `Archived`, `ARCHIVED`, and the YAML-quoted literal
+      `status: " archived "` also force `SAFE_CLOSE`. Because the comparison
+      happens after YAML parsing, lexically distinct but YAML-equivalent values
+      that parse to exactly `"archived"` are treated as inert; that is correct
+      because the engine also YAML-parses the field.
+
+      Any id that resolves to more than one record, whether torn across
+      `queue/` + `archive/` or duplicated within a single root, fails closed and
+      forces `SAFE_CLOSE`; a torn or duplicate out-of-manifest descendant can
+      never satisfy the inertness predicate because its declared status is
+      ambiguous.
+
+      **Engine-behavior rationale (evidence-class labelled; only the first row
+      is proven).**
+
+      | Manifest shape | Out-of-manifest descendant | Engine effect | Evidence class |
+      |---|---|---|---|
+      | has feature member | declares exact canonical `status: archived` | inert — skipped, byte-identical | **PROVEN (ENGINE LAW)** — path-scoped `git diff --stat 358b63b4 e4ca20e5 -- .backlogit/archive/165.007-T.md .backlogit/archive/165.010-T.md` is empty, and `git rev-parse 358b63b4:<path>` / `git rev-parse e4ca20e5:<path>` return identical blob OIDs for both paths. This is the **only** proven row |
+      | has feature member | `status: done` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
+      | has feature member | live `queued` | archived, with `returned_ids` reported `[]` | **INDICATIVE / UNPROVEN** — rationale only; may never be stated as measured fact and may never authorize `CASCADE` |
+      | no feature member | live sibling | returned, with `parent_id` cleared | **INDICATIVE / UNPROVEN** — follow-up `63363CF5`; may never authorize `CASCADE`. For a genuine split-delivery intermediate shipment, see **INV-11** and safe-close step 8's `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt, tracked by durable active stash entry `7F9CB5E9` |
+      | any | ancestor/parent of a manifest item | untouched (no upward walk) | **INDICATIVE / UNPROVEN** |
+
+      An unproven row may never authorize `CASCADE`. Where engine behavior is
+      unproven, the dependent autoharness behavior is the fail-closed one.
+      `returned_ids` remains a **secondary, insufficient** verification check:
+      it is still checked after a live cascade runs, but it cannot stand as the
+      primary guard because the live archival row above reportedly returned `[]`
+      while still mutating an out-of-manifest descendant. That report is
+      indicative and unproven only; it justifies the pre-mutation inertness gate
+      and never authorizes the cascade path.
 
       **When this classification identifies qualifying feature members**
       (i.e. selects `CASCADE`): extend the same pre-close declared-status
@@ -526,38 +562,36 @@ completion.
    `items` list. These IDs are the **only** artifacts safe-close may move or
    archive.
 
-2. **Compute the protected set** (partial-feature detection):
+2. **Compute the observation set** (partial-feature detection and baseline watching):
    * Derive the covering feature ID from the manifest item hierarchy
      (e.g. a task `055.002-T` belongs to feature `055-F`).
    * If the covering feature ID is **not** in the manifest `items`, this is a
-     **partial-feature shipment**. Add the covering feature to the protected set.
+     **partial-feature shipment**. Add the covering feature to the observation set.
    * Enumerate every task sharing the covering feature's hierarchy prefix whose ID
      is **not** in the manifest `items` (the unshipped siblings) by scanning **both**
-     `.backlogit/queue/` **and** `.backlogit/archive/` (plus the
-     feature file's declared children when available). Add each to the protected set.
-   * **Sequence-aware exclusion (serial partial-feature shipments)**: when a sibling
-     belongs to a predecessor shipment in the same feature-split sequence, exclude it
-     from the protected set **ONLY** when that predecessor shipment record itself has
-     **verified archived provenance** `archived_status: shipped` (or normalized legacy
-     `done`). Mere archive-file presence, `archived_status: active|queued|blocked|abandoned`,
-     generic `status: archived` without shipped/done provenance, or missing/ambiguous
-     provenance are **NOT** sufficient — in those cases the sibling stays protected
-     fail-closed.
-   * The **protected set** is the parent feature plus every unshipped sibling task
-     that MUST remain in `.backlogit/queue/` after closure. It is computed
-     from **expected IDs**, not merely the files currently present in queue, so a
-     sibling or parent that was already wrongly archived is still detected.
+     `.backlogit/queue/` **and** `.backlogit/archive/` (plus the feature file's
+     declared children when available). Add each to the observation set.
+   * The **observation set** is the parent feature plus every unshipped sibling task
+     outside `closure_scope(S)`. It is computed from **expected IDs**, not merely the
+     files currently present, because INV-7 watches for change relative to baseline,
+     not for presence in one preferred directory. Do **NOT** treat sequence position,
+     ancestry, or predecessor-shipment folklore as a substitute for this set, and do
+     **NOT** exclude a member merely because a prior shipment is believed to have
+     handled it. **Sequence-aware exclusion is WITHDRAWN here**: the older
+     predecessor-provenance rule (`archived_status: shipped` or normalized legacy
+     `done`, with Mere archive-file presence insufficient) no longer subtracts items
+     from the observation set.
 
-3. **Baseline integrity gate** (before archiving anything): Run
+3. **Baseline-invariance gate** (before archiving anything): Run
    `git status --short -- ".backlogit/"` and record the pre-closure
-   working-tree state so any later archival or deletion of a protected-set path can be
-   attributed to this procedure. Then confirm **every** protected-set member currently
-   exists in `.backlogit/queue/`. If any protected-set member is already in
-   `.backlogit/archive/` or missing from the working tree, a cascade has
-   **already** occurred (or the shipment scope is wrong): halt immediately with
-   `HALT — cascade detected, revert required`, name the affected artifact IDs, and do
-   NOT archive any manifest item. The `pre-archived` exemption (step 4) applies to
-   **manifest items only** — never to the protected set.
+   working-tree state so any later queue/archive move, deletion, or content drift of an
+   observation-set path can be attributed to this procedure. Then fingerprint **every**
+   observation-set member by recording its baseline location (`queue`, `archive`, or
+   `missing`) plus the content hash of each present file. An artifact already archived,
+   descoped, or missing **at baseline** is recorded as baseline state and is explicitly
+   **NOT** a halt. Halt fail-closed only if an observation-set id resolves to more than
+   one record, cannot be fingerprinted, or otherwise cannot be read consistently enough
+   to compare against baseline.
 
 4. **Archive each manifest item individually** (loop over `items` ONLY):
    * If the item's file is in `.backlogit/queue/`: move it to
@@ -574,34 +608,49 @@ completion.
      `RECONCILE_FAIL`, and do not continue archiving.
 
 5. **Verify-after-each invariant** (run immediately after each item's archival):
-   * Confirm **every** protected-set member is still present in
-     `.backlogit/queue/` — not moved to `.backlogit/archive/`,
-     not deleted from the working tree.
+   * Compare **every** observation-set member against the Step 3 baseline fingerprint:
+     same baseline location, same content hash, and no new queue/archive twin.
    * Run `git status --short -- ".backlogit/"` and confirm no
-     protected-set path appears as a deletion, rename into `archive/`, or new
-     `archive/` addition beyond the baseline captured in step 3.
-   * The protected set was proven fully present in queue at the baseline gate
-     (step 3), so **any** protected-set member now found in `archive/` or missing from
-     the working tree is a cascade. There is **no** pre-archived exemption for the
-     protected set — the exemption in step 4 covers manifest items only.
+     observation-set path shows a queue/archive move, deletion, or content change
+     beyond the baseline captured in step 3.
+   * Any relative change outside `closure_scope(S)` is a cascade or collateral
+     mutation. This includes the indicative `parent_id`-cleared shape tracked by
+     `63363CF5`: even if the file still exists, changed frontmatter content violates
+     INV-7 and halts fail-closed.
 
-6. **git-revert-on-cascade**: If the invariant fails (a protected-set artifact was
-   archived or deleted by the preceding archival):
-   * **Cascade detected.** Immediately restore the unintended change:
-     `git restore -- .backlogit/queue/ .backlogit/archive/`
-     for working-tree moves/deletions, or `git revert <commit>` if the cascade was
-     already committed.
-   * Re-run the invariant to confirm the protected set is intact again.
-   * Halt with `HALT — cascade detected, revert required`, emit a **P-005**
-     violation event (naming the cascaded artifact IDs), and do **NOT** commit the
-     backlog state. Do not auto-prune the manifest.
+6. **Approval-gated rollback on cascade detection** (D6, exact sequence): If the
+   invariant fails:
+   1. **capture evidence** first: record the diverging artifact id(s), each
+      artifact's baseline vs observed location/hash, the full
+      `git status --short -- ".backlogit/"` output, and the exact causing command.
+   2. **HALT** immediately. Perform no further mutation of any kind until approval is
+      granted.
+   3. Emit a **P-005** violation with the captured evidence attached.
+   4. Request **EXPLICIT operator approval**, naming the exact paths and what would be
+      lost. Notification, silence, or a previous generic instruction is **NOT** approval.
+   5. **REVALIDATE** after approval: re-read the workspace and confirm the paths and
+      state still match what was approved. If anything changed, **HALT** again and
+      request fresh approval.
+   6. Execute **ONLY the approved rollback**, restricted to the revalidated paths.
 
-7. **Final invariant re-check**: After the loop completes, re-confirm the full
-   protected set is intact in `.backlogit/queue/`.
+7. **Final invariant re-check**: After the loop completes, re-confirm that every
+   observation-set member still matches its Step 3 baseline fingerprint.
 
 8. **Close the shipment record itself** (single artifact, non-cascading; authoritative order):
    * Move **ONLY** the live shipment record to `status: shipped` via the generic,
      non-cascading `backlogit move <shipment_id> --status shipped`.
+   * If `backlogit move <shipment_id> --status shipped` is refused (exit 9) while the
+     manifest is not `CASCADE`-eligible under Step 0(c), halt fail-closed with
+     `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. This is **INV-11**: multi-shipment /
+     split delivery is **contract-complete** but **operationally blocked** for backlogit
+     1.10.1, tracked by durable active stash entry `7F9CB5E9`. There is no known safe
+     path from this shape to `archived_status: shipped` without new upstream tooling.
+     The cascade op must **NOT** be substituted: the belief that it can return live
+     out-of-manifest siblings and clear their `parent_id` remains **INDICATIVE /
+     UNPROVEN** rationale only (follow-up `63363CF5`), never measured fact and never
+     authorization for a workaround. Archiving an active shipment record instead would
+     stamp `archived_status: active` and fail provenance. Escalate to the operator; no
+     silent workaround, no retry, no hand-edit.
    * Re-read and verify the live shipment record now reports `status: shipped`. If the
      record remains `active`, is already `archived`, is missing, or resolves to any other
      shape, halt fail-closed with `RECONCILE_FAIL_SHIPMENT_RECORD_LIVE_STATUS`. Do **NOT**
@@ -613,20 +662,19 @@ completion.
      already-correct terminal provenance. Missing archive, live+archived duplication,
      generic archived-without-provenance, or any non-shipped archived provenance halt
      fail-closed with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
-   * Re-run the verify-after-each invariant (step 5) to confirm the protected set is still
-     intact after the shipment-record close sequence.
-
-9. **Produce safe-close report** per the same schema, recording the protected set,
+   * Re-run the verify-after-each invariant (step 5) to confirm the observation set is
+     still baseline-invariant after the shipment-record close sequence.
+9. **Produce safe-close report** per the same schema, recording the observation set,
    each item's classification, the shipment-record move-to-shipped verification, the
    shipment-record archived-provenance verification, and the recommendation.
 
 10. **Gate decision**:
     * All manifest items `matched` or `pre-archived`, the shipment record archived,
-      and the protected set intact → `recommendation: CLOSED`. Proceed to post-mode.
+      and the observation set still baseline-invariant → `recommendation: CLOSED`. Proceed to post-mode.
     * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
       (see step 6). Do not proceed to the commit step.
 
-### Cascade Close Sub-Procedure (P-015 verified fully-covered-root exception ONLY)
+### Cascade Close Sub-Procedure (P-015 `CASCADE` exception ONLY)
 
 Runs **only** when Step 0 of Safe-Close Mode above selects `CASCADE`, and
 reuses the manifest and pre-close `parent_id`/declared-`status` snapshot
@@ -639,7 +687,7 @@ partial mixing of the two paths.
 step 1 below, classify each manifest member's **location** as `queued` or
 `pre-archived` by checking whether its record currently resides in
 `.backlogit/queue/` or `.backlogit/archive/`, and
-retain that location set for the cascade-close report (step 5 below). This
+retain that location set for the cascade-close report (step 6 below). This
 location label is **descriptive only** — it names where the record
 currently resides, and is **never** a substitute for, nor evidence of, the
 record's own declared `status` field. A record residing in
@@ -660,11 +708,31 @@ of that fact and does not add a new classifier precondition; Step 0(c)'s
 precondition wording is unchanged.
 
 This tolerance applies to **manifest members only** — it does not
-restate, weaken, or cross-apply to the protected set, which has no
-pre-archived exemption (see Safe-Close Mode steps 3/5 above). A manifest
-that qualifies for `CASCADE` has no protected set by construction (full
-coverage is itself a Step 0(c) precondition), so no protected set arises
-on this path.
+restate, weaken, or cross-apply to the observation set (the Safe-Close
+Mode step 2/3 "protected set"): the Safe-Close Mode step 3 baseline-
+invariance gate already tolerates an already-archived observation-set
+member as baseline state (explicitly "not a halt"), so this sub-procedure
+does not additionally claim the observation set has "no pre-archived
+exemption" — that older claim is withdrawn as contradicting step 3. The
+distinct rule that does apply here is: the observation set is never
+manifest-scope, is never itself archived by this procedure, and remains
+subject to the same baseline-invariance enforcement — byte-identical to
+its captured baseline for the duration of this closure — regardless of
+whether that baseline happens to be `archive` or `queue`. A manifest
+that qualifies for `CASCADE` has no protected set **in the Safe-Close
+sense** (full `CASCADE` eligibility is itself a Step 0(c) precondition,
+and this sub-procedure never computes or archives against a Safe-Close-style
+protected set on this path) — **this is not the same as saying no
+out-of-manifest state requires safeguarding here.** Under the flat-manifest
+engine-inertness model, `CASCADE` qualifies precisely in the presence of
+out-of-manifest descendants that Step 0(c) found already truly
+`status: archived`; those descendants still require an explicit
+safeguard, filling exactly the role the protected set fills for
+Safe-Close. That safeguard is the baseline-fingerprint capture (before
+step 1) and the post-invocation baseline-invariance verification (step 5)
+below: every such descendant MUST remain byte-identical to its
+classification-time snapshot for the duration of this closure, or the
+closure halts fail-closed.
 
 **`archived_ids` is a transition log, not a manifest echo.** The cascade
 operation invoked in step 1 below reports, in `archived_ids`, only the
@@ -725,6 +793,70 @@ Ship performs **no** manual per-item archive loop on this path: the
 cascade operation in step 1 below performs all remaining archival
 itself, consistent with the "no partial mixing of the two paths" rule
 above.
+
+**Pre-invocation classifier revalidation (immediately before
+Baseline-fingerprint capture, INV-6/INV-7).** A fingerprint of the
+current files, by itself, does not prove Step 0(c)'s `CASCADE`
+classification still holds: a descendant's declared `status` can change,
+or a new live descendant can appear under a qualifying feature, in the
+window between Step 0(c)'s classification-time scan and this
+pre-invocation point — fingerprinting that already-drifted state would
+silently adopt the new state as "baseline" instead of detecting the
+drift, and step 5's post-invocation check only guards the window *after*
+this point, not the one before it. Immediately before capturing the
+baseline fingerprint below, re-run `classify_shipment_close_path` (or the
+equivalent full re-scan) **fresh** against the current
+`.backlogit/queue/` + `.backlogit/archive/` state — never reusing Step
+0(c)'s enumeration for this check — and require the result to be
+**identical** to Step 0(c)'s: the same `CASCADE` verdict, the same
+qualifying root feature member set, and the same
+`out_of_manifest_descendant_ids` set (compared as a set, not merely by
+cardinality). Any drift in any of the three halts with
+`HALT — cascade pre-invocation revalidation drift detected` and emits a
+**P-005** violation; do NOT invoke either close path. This is a halt, not
+a substitution to safe-close, and does not conflict with the
+No-substitution rule above (which forbids switching to manual safe-close
+after a `CASCADE` verdict) — refusing to proceed at all is not a
+substitution.
+
+**This classifier re-run does not, by itself, cover the Linked-deliberation
+snapshot extension above**: `classify_shipment_close_path` intentionally
+never inspects `validated_linked_deliberations(S)` (see the INV-6 gate's
+own scoping above), so a linked deliberation gained or changed by a
+qualifying feature after Step 0(c) — a new `custom_fields.source_deliberation_id`,
+a newly added description reference matching the engine's
+`deliberationIDPattern`, or a location/status change to an already-validated
+one — would leave all three classifier-compared values identical while
+still letting the engine reach and archive a not-yet-authorized artifact.
+Immediately alongside the classifier re-run above, independently
+re-collect each qualifying feature member's linked deliberation IDs using
+the identical three engine-defined sources and the identical
+existence/`artifact_type: deliberation` validation the Linked-deliberation
+snapshot extension already specifies, and re-resolve each validated ID's
+location and declared `status` the same way. Require this freshly
+re-collected set — IDs, locations, and declared statuses together — to be
+**identical** to Step 0(c)'s captured linked-deliberation snapshot. Any
+drift halts with the same
+`HALT — cascade pre-invocation revalidation drift detected` message and
+**P-005** violation as the classifier-output drift above; do NOT invoke
+either close path. Only when both the classifier re-run and this
+linked-deliberation re-collection match Step 0(c)'s snapshot exactly does
+the Baseline-fingerprint capture below proceed, using the now-reconfirmed
+descendant set.
+
+**Baseline-fingerprint capture (INV-7, before invocation).** Immediately
+before step 1's invocation — using the SAME observation set of
+out-of-manifest descendants the pre-invocation revalidation above just
+reconfirmed as reachable-and-engine-inert (identical to Step 0(c)'s
+original enumeration), never a fresh or narrower re-scan at this specific
+step — record each such descendant's baseline location (`queue` or
+`archive`) plus a content hash of its file. This is the identical
+baseline-invariance snapshot P-015's own Precondition already requires to
+exist before a cascade invocation; capturing it here, rather than assuming
+the revalidation's read still holds an instant later, is required because
+classification and invocation are not atomic. Retain this snapshot in
+memory for step 5's verification below; it is never reconstructed after
+the fact.
 
 1. Invoke `backlogit_ship_shipment(shipment_id, merge_commit_sha)` directly
    (CLI: `backlogit shipment ship <shipment_id> --sha <merge_commit_sha>
@@ -829,20 +961,38 @@ above.
    cascade-detection failure equivalent to step 6 of safe-close: halt with
    `HALT — cascade cleared parent_id on {id}, revert required` and emit a
    **P-005** violation; do NOT commit the mutated backlog state.
-5. **Produce cascade-close report** recording the classifier's verdict,
+5. **Verify out-of-manifest descendant baseline invariance (INV-7/INV-10,
+   after invocation)**: re-scan every descendant captured in the
+   baseline-fingerprint snapshot above and compare its current location
+   plus content hash against that snapshot. Any change relative to
+   baseline — location change, content-hash change, deletion, rename, new
+   archive presence, or `parent_id` drift on any of these
+   descendants — is a cascade signal exactly as INV-7/the Required Check
+   defines for safe-close: halt with
+   `HALT — cascade modified out-of-manifest descendant {id}, revert
+   required` and emit a **P-005** violation; do NOT commit the mutated
+   backlog state. This is the CASCADE-side counterpart of safe-close's
+   verify-after-each invariant, closing the gap the classification-time
+   INV-6 engine-inertness gate alone does not cover: INV-6 governs whether
+   `CASCADE` may be selected, this step governs whether the postcondition
+   it promised (`allowed_ids(S)`-external byte-identity) actually held once
+   the engine ran.
+6. **Produce cascade-close report** recording the classifier's verdict,
    qualifying feature IDs, and their validated linked deliberation IDs
    (all Step 0(c)), the pre-close declared-status
    snapshot (Step 0(b)/(c)), the `backlogit_ship_shipment` result
    (`shipment_status`, `archived_ids`, `returned_ids`, `commit_sha`),
    `allowed_ids`, `required_ids`, and both set differences
    (`archived_ids - allowed_ids` and `required_ids - archived_ids`) — so a
-   vacuous `required_ids` is visible in the report rather than silent — and
+   vacuous `required_ids` is visible in the report rather than silent —
    the parent_id-preservation verification outcome (against the Step 0(b)
-   snapshot).
-6. **Gate decision**: `returned_ids` empty, `archived_ids - allowed_ids`
+   snapshot), and the out-of-manifest descendant baseline-invariance
+   verification outcome from step 5 above.
+7. **Gate decision**: `returned_ids` empty, `archived_ids - allowed_ids`
    empty (no unexpected artifact archived), `required_ids - archived_ids`
-   empty (no required artifact left unarchived), and every `parent_id`
-   preserved (against the Step 0(b) snapshot) →
+   empty (no required artifact left unarchived), every `parent_id`
+   preserved (against the Step 0(b) snapshot), and every out-of-manifest
+   descendant byte-identical to its step-5 baseline fingerprint →
    `recommendation: CLOSED`. Proceed to
    post-mode. Any verification failure above → the corresponding `HALT`; do
    not proceed to post-mode or any commit step.
@@ -1010,28 +1160,54 @@ If pre-mode cannot acquire the lock because another process holds it:
 
 
 
+## P-015 Vocabulary and Invariant Summary
+
+* D1a vocabulary used by this skill: `manifest_scope`, `closure_scope`, `allowed_ids`, `required_ids`, `validated_linked_deliberations`.
+* This list mirrors the policy's own `INV-1`..`INV-11` numbering and meaning exactly (`.github/policies/workflow-policies.md`, P-015 Invariants) — it is a condensed restatement, never a second/parallel numbering.
+* `INV-1` (Flat closure scope): `closure_scope(S) = items(S) ∪ {S}`. Ancestry never adds a member; linked deliberations are accounted for only in `allowed_ids(S)`, never in `closure_scope(S)`.
+* `INV-2` (Membership is explicit and exhaustive): an artifact is in `manifest_scope(S)` iff its ID appears in `items(S)`.
+* `INV-3` (Exclusion is never a gate): an out-of-manifest descendant may hold any status. Ancestry alone never makes it a closure blocker or closure-scope member.
+* `INV-4` (Multi-shipment feature delivery): a feature may be delivered across `S1..Sn`; contract-complete but operationally blocked pending external prerequisite `7F9CB5E9`.
+* `INV-5` (Feature terminality precondition): the final shipment in a delivery sequence may carry the feature only once every task actually delivered by `S1..Sn` is terminal; contract-complete but operationally blocked pending `7F9CB5E9`.
+* `INV-6` (Engine-inertness containment gate): `CASCADE` is permitted only when every artifact in the `parent_id` descendant set the classifier enumerates (`out_of_manifest_descendant_ids`) that lies outside `closure_scope(S)` is engine-inert — an exact parsed-scalar `isinstance(status, str) and status == "archived"` match, with no `.lower()`, no `.strip()`, no `casefold`, no alias, and no `str()` coercion, and with any id resolving to more than one record (torn or duplicate) failing closed; this gate never reaches `validated_linked_deliberations(S)`.
+* `INV-7` (Baseline invariance replaces baseline presence): safe-close records each observed artifact's baseline location plus content hash and requires nothing outside `closure_scope(S)` changes relative to baseline.
+* `INV-8` (Manifest ordering is a Stage assembly convention, NOT a closure precondition).
+* `INV-9` (DAG orthogonality): shipment sequencing and pipeline topology are orthogonal to closure scope; closure never consults the DAG when deciding what this shipment may transition.
+* `INV-10` (Postconditions): `archived_ids ⊆ allowed_ids(S)`; `required_ids(S) ⊆ archived_ids`; every artifact outside `allowed_ids(S)` is byte-identical to baseline, including `parent_id`; the shipment record declares `status: archived` plus `archived_status: shipped`.
+* `INV-11` (External runtime prerequisite): multi-shipment / split delivery is **contract-complete** but **operationally blocked** for backlogit 1.10.1; when a shipment record cannot safely reach `archived_status: shipped` without `CASCADE` eligibility, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` and track the external prerequisite in stash entry `7F9CB5E9`.
+
 ## Deterministic Safe-Close Scenario Matrix
 
-* **114-S -> 115-S -> 116-S serial-close success chain**: 114-S safely closes while 115-S/116-S remain protected; once 114-S carries verified `archived_status: shipped` (or legacy `done`), 115-S may exclude 114-S-owned siblings from its protected set; once 115-S carries the same verified provenance, 116-S may exclude 115-S-owned siblings.
+* **114-S -> 115-S -> 116-S serial-close success chain**: 114-S safely closes while 115-S/116-S remain in the observation set; once 114-S carries verified `archived_status: shipped` (or legacy `done`), later runs may record that new baseline and continue watching only the still-out-of-scope artifacts.
+* **Negative — done-not-archived out-of-manifest child**: a descendant outside `closure_scope(S)` declaring `status: done` selects `SAFE_CLOSE`; the reason must name the observed status, and indicative engine folklore may never authorize `CASCADE`.
+* **Negative — live out-of-manifest child**: a descendant outside `closure_scope(S)` declaring a live status such as `queued` selects `SAFE_CLOSE`.
+* **Negative — archive-without-status out-of-manifest child**: a record physically in `.backlogit/archive/` but lacking its own declared `status` still selects `SAFE_CLOSE`; location is never a substitute for inertness.
+* **Negative — live out-of-manifest grandchild**: a live grandchild outside `closure_scope(S)` selects `SAFE_CLOSE`; ancestry explains blast radius but never expands closure scope.
+* **Negative — baseline-archived observation member**: an observation-set artifact already archived, descoped, or missing at baseline is recorded as baseline state and does **NOT** halt by itself.
+* **Negative — changed during run**: any observation-set location/hash drift relative to baseline halts and enters the D6 sequence: capture evidence -> HALT -> emit P-005 -> request EXPLICIT operator approval -> REVALIDATE -> execute ONLY the approved rollback.
+* **Negative — refused transition with no safe substitution**: if `backlogit move <shipment_id> --status shipped` is refused while Step 0(c) did not select `CASCADE`, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; the cascade op must NOT be substituted.
+* **Negative — non-canonical archived variant**: `Archived`, `ARCHIVED`, or the quoted padded YAML scalar `status: " archived "` all select `SAFE_CLOSE`; exact parsed-scalar matching has no normalization path.
+* **Negative — torn descendant**: any out-of-manifest id that resolves to more than one record selects `SAFE_CLOSE`.
 * **Negative — archive-while-active**: if the shipment record is archived while still `status: active`, producing `archived_status: active`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
 * **Negative — non-shipped-live-before-archive**: if the shipment record cannot be re-read and verified as live `status: shipped` before the archive step, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_LIVE_STATUS`.
 * **Negative — missing archive**: if the archive file for the shipment record is missing after `backlogit archive <shipment_id>`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
 * **Negative — archived abandoned**: if the shipment record archives with `archived_status: abandoned`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
-* **Negative — missing provenance**: if the shipment record is archived but lacks `archived_status: shipped|done`, keep predecessor siblings protected and halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+* **Negative — missing provenance**: if the shipment record is archived but lacks `archived_status: shipped|done`, keep out-of-scope artifacts outside `closure_scope(S)` unchanged relative to baseline and halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
 
 ## Quality Criteria
 
 * `mode: pre` runs before closing a shipment in Ship Step 6
 * `mode: pre` with `expected_status: queued` (or `active` for already-claimed shipments) runs at Ship Step 0.5 intake
-* `mode: safe-close` runs **in place of** the cascade `backlogit_ship_shipment` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 verified fully-covered-root classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
+* `mode: safe-close` runs **in place of** the cascade `backlogit_ship_shipment` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 flat-manifest classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
 * Close-path selection is made **only** from the machine-checkable classification result (Step 0), never inferred from prose or manifest shape alone; any classifier error, ambiguity, or unresolved precondition falls back to safe-close
-* Step 0(c)'s "fully covered" check walks the qualifying feature's **full descendant tree, at every depth** (via a full `parent_id` graph, not a single-level scan of direct children only) — a manifest such as `[feature, task]` where that task has an out-of-manifest subtask must fall back to safe-close, never wrongly qualify for `CASCADE` (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv)
+* Step 0(c)'s engine-inertness containment walk traverses the qualifying feature's **full descendant tree, at every depth** (via a full `parent_id` graph, not a single-level scan of direct children only) — a manifest such as `[feature, task]` where that task has an out-of-manifest subtask must fall back to safe-close, never wrongly qualify for `CASCADE` (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv)
 * The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = manifest tasks + qualifying feature members + each qualifying feature member's validated linked deliberation IDs (Step 0(c), same engine-defined `source_deliberation_id` (taken as a complete literal string, never regex-scanned) / description / references sources — the latter two scanned with the exact `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` matcher Backlogit's own `internal/core.deliberationIDPattern` uses, never a broader "any embedded deliberation ID" reading — and existence-and-`artifact_type: deliberation` validation Backlogit's own `collectArchiveCandidateIDs` uses — never a blanket allowance for arbitrary IDs) + the shipment record; `required_ids` = the shipment record and every qualifying feature member, both unconditionally, plus every other allowed member (a manifest task item, or a qualifying feature member's validated linked deliberation) NOT truly `status: archived` in the Step 0(b)/(c) pre-close declared-status snapshot; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}`, `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived **non-shipment, non-feature** allowed member (i.e. a manifest task item, or a qualifying feature's linked deliberation, e.g. 147-F's already-archived 027-DL) has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch, but this tolerance never extends to the shipment record itself, which remains unconditionally required regardless of its own pre-close declared status, nor does it extend to a qualifying feature member itself, which is likewise unconditionally required regardless of its own pre-close declared status — since Backlogit's own `ShipShipment` forces every explicit qualifying feature member through `status: done` before archive-candidate collection ever runs, so it is never still `archived` by that point either), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
-* Safe-close computes the protected set (parent feature + unshipped siblings) from expected IDs and proves it is fully present in queue at a baseline gate before archiving anything
-* Safe-close verifies the protected set survives after every single-item archival (verify-after-each invariant), with no pre-archived exemption for protected-set members
+* Safe-close computes an observation set (parent feature + unshipped siblings outside `closure_scope(S)`) from expected IDs and records each member's baseline location/hash before archiving anything
+* Safe-close verifies the observation set remains baseline-invariant after every single-item archival and after the shipment-record close sequence
 * Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes
 * Safe-close archives the shipment record as its own single artifact and never via the cascade op
-* Safe-close reverts on cascade detection (`git restore`/`git revert`) and halts with a P-005 violation; it never auto-prunes the manifest
+* Safe-close detects off-scope drift, then follows the D6 approval-gated rollback sequence; it never auto-prunes the manifest
+* If `backlogit move <shipment_id> --status shipped` is refused and Step 0(c) did not select `CASCADE`, safe-close halts with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; no substitution, no retry, no hand-edit
 * `mode: post` runs after the safe-close archive sequence in Ship Step 6
 * All five item classifications are represented in the schema
 * Pre-mode adds a shipment-record-status classification (`record-consistent` /
@@ -1049,7 +1225,6 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: detect-mixed-role` is operator-invoked and strictly READ-ONLY: it
   requires NO `file-lock` acquisition, NEVER mutates any shipment record or
   task, and NEVER calls `backlogit_claim_shipment` or any other status-write
-  operation
 * `mode: detect-mixed-role` classifies each task-artifact manifest item into
   exactly one per-task ROLE (`live-queued` / `live-active` /
   `archived-completed(done)` — either the terminal-relocation `status: done`
@@ -1082,7 +1257,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `.github/skills/file-lock/SKILL.md` — lock acquisition/release primitives
 * `.github/agents/_ship.agent.md` — integration points (Step 0.5, Step 6 safe-close)
 * `.github/agents/_stage.agent.md` — scope guard (Step 5.5)
-* `.github/policies/workflow-policies.md` — P-007 archive integrity policy; P-015 single-artifact closure (cascade prohibition) plus the verified fully-covered-root exception
+* `.github/policies/workflow-policies.md` — P-007 archive integrity policy; P-015 single-artifact closure (cascade prohibition) plus the flat-manifest `CASCADE` exception
 * `src/autoharness/gates/shipment_closure.py` — this self-hosting repository's own `classify_shipment_close_path` implementation, reused by Step 0 of Safe-Close Mode
 
 ## Model Routing
