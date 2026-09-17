@@ -101,9 +101,10 @@ correctness is covered by the dedicated unit-test suite
 symlink-traversal regressions, 5 `out_of_manifest_descendant_ids`/multi-root-
 union tests added in round 8, and 2 malformed-UTF-8 fail-closed tests added
 in round 11) and by the Step 3 multi-persona local review gate, not by a
-runtime-adapter probe. The classifier itself will be exercised live and
-observed at Step 5 post-merge closure (`shipment-reconcile
-safe-close`/cascade determination for 174-S's own manifest).
+runtime-adapter probe. The classifier was subsequently exercised live and
+observed at Step 5 post-merge closure (`shipment-reconcile`
+safe-close/cascade determination for 174-S's own manifest); see the
+Post-Merge Addendum below for the confirmed outcome.
 
 ## Verdict
 
@@ -125,6 +126,29 @@ preserve-invariant violation occurred.
   finding is genuine but its fix requires editing a deliberation artifact,
   which is outside Ship's Role Boundary.
 
+## Post-Merge Addendum — Live Classifier Exercise (Step 5 closure, confirmed)
+
+The classifier was subsequently exercised live at Step 5 post-merge closure,
+as anticipated above. `classify_shipment_close_path` returned `CASCADE` for
+shipment 174-S's own manifest (qualifying feature `166-F`, empty
+out-of-manifest descendant set, empty linked-deliberation set — both
+re-confirmed via the round-12/13-hardened pre-invocation revalidation step
+immediately before invocation, with no drift from the initial classification).
+The cascade operation (`backlogit shipment ship 174-S --sha
+d8615e9d5eb93a1d1616a735ca1433236868bee1 ...`) archived all 8 manifest+record
+artifacts with `returned_ids: []`, and all Cascade Close Sub-Procedure
+postcondition checks (two-set `allowed_ids`/`required_ids` gate, `parent_id`
+preservation, out-of-manifest baseline invariance) passed. Full report:
+`.backlogit/reconcile/174-S-safe-close-20260917-062522.md`. This confirms the
+classifier's destructive-path correctness held under a genuine, non-test
+invocation, corroborating the unit-test-suite coverage referenced above.
+
+## Verdict (reconfirmed post-merge)
+
+**PASS** (unchanged) — the live post-merge classifier exercise did not
+surface any regression or unexpected behavior relative to the pre-merge
+verdict.
+
 ## Handoff to Operational Closure
 
 * Verification verdict: **PASS**
@@ -135,7 +159,8 @@ preserve-invariant violation occurred.
 * Blocked prerequisites: none
 * Risky action state: shipment-closure classifier's own destructive-path
   correctness is covered by unit tests + local review, not this runtime
-  probe; classifier will be exercised live at Step 5 closure
+  probe; the classifier was subsequently exercised live at Step 5 closure
+  and confirmed correct (see Post-Merge Addendum above)
 * Follow-up recommendations: none blocking; 17 deferred findings tracked via
   stash for Stage deliberation
 * Releasability handoff: `runtime_validation.releasability.required: false`
