@@ -435,8 +435,20 @@ completion.
       `manifest_scope(S)`, `closure_scope(S)`, `allowed_ids(S)`, or
       `required_ids(S)`.
 
-      `CASCADE` is permitted only when every artifact reachable from `items(S)`
-      but outside `closure_scope(S)` is engine-inert. Engine inertness requires
+      `CASCADE` is permitted only when every artifact in the `parent_id`
+      descendant set enumerated for each qualifying root feature member —
+      i.e., every artifact transitively reachable from that feature via
+      `parent_id`, exactly the set `classify_shipment_close_path` returns as
+      `out_of_manifest_descendant_ids` — that lies outside `closure_scope(S)`
+      is engine-inert. This gate is scoped precisely to that `parent_id`
+      descendant set and never to `validated_linked_deliberations(S)`: a
+      validated linked deliberation is reached through the engine's
+      linked-deliberation expansion described below (a feature's
+      `source_deliberation_id`, an embedded description reference, or a
+      referenced deliberation), never through `parent_id` descent, so it may
+      be live/required and `CASCADE` archiving it is expected and permitted
+      per `required_ids(S)` — this gate never forces `SAFE_CLOSE` on that
+      account. Engine inertness requires
       the record's own parsed frontmatter value to satisfy
       `isinstance(status, str) and status == "archived"`. This is an exact
       parsed-scalar match: no .lower(), no .strip(), no casefold, no alias

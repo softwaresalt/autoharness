@@ -174,6 +174,7 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.CASCADE
         assert decision.qualifying_feature_ids == ("200-F",)
+        assert decision.out_of_manifest_descendant_ids == ()
 
     def test_verified_childless_terminal_root_feature_also_qualifies(self) -> None:
         _write_artifact(self.backlog_dir, "queue", "201-F", "feature")
@@ -182,6 +183,7 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.CASCADE
         assert decision.qualifying_feature_ids == ("201-F",)
+        assert decision.out_of_manifest_descendant_ids == ()
 
     def test_root_feature_missing_child_falls_back_to_safe_close(self) -> None:
         _write_artifact(self.backlog_dir, "queue", "202-F", "feature")
@@ -402,6 +404,15 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
         assert decision.close_path is ClosePath.CASCADE
         assert decision.qualifying_feature_ids == ("300-F",)
 
+    def test_archived_out_of_manifest_child_reports_descendant_id(self) -> None:
+        """``ClosePathDecision`` must expose the exact out-of-manifest descendant
+        set the classifier verified inert, so a CASCADE caller can baseline/
+        fingerprint it without re-deriving the walk (P-018 round-8 finding)."""
+        decision = self._classify_out_of_manifest_child(status="archived", folder="archive")
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.out_of_manifest_descendant_ids == ("300.002-T",)
+
     def test_done_but_not_archived_out_of_manifest_child_falls_back_to_safe_close(self) -> None:
         decision = self._classify_out_of_manifest_child(status="done")
 
@@ -434,6 +445,14 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.CASCADE
         assert decision.qualifying_feature_ids == ("301-F",)
+
+    def test_archived_out_of_manifest_grandchild_reports_descendant_id(self) -> None:
+        """Same P-018 round-8 coverage as the direct-child case, for a
+        transitively-reachable (grandchild) out-of-manifest descendant."""
+        decision = self._classify_out_of_manifest_grandchild(status="archived", folder="archive")
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.out_of_manifest_descendant_ids == ("301.001.001-T",)
 
     def test_live_out_of_manifest_grandchild_falls_back_to_safe_close(self) -> None:
         decision = self._classify_out_of_manifest_grandchild(status="queued")
@@ -473,6 +492,40 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
         decision = self._classify_out_of_manifest_child(status='" archived "', feature_id="306-F")
 
         assert " archived " in decision.reason
+
+    def test_multiple_qualifying_features_union_out_of_manifest_descendant_ids(self) -> None:
+        """When more than one manifest feature root qualifies for CASCADE, the
+        reported ``out_of_manifest_descendant_ids`` must be the UNION of each
+        root's independently-verified inert descendants, not just the last
+        root's set (P-018 round-8 finding: callers cannot re-derive this)."""
+        _write_artifact(self.backlog_dir, "queue", "320-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "320.001-T", "task", parent_id="320-F")
+        _write_artifact(
+            self.backlog_dir,
+            "archive",
+            "320.002-T",
+            "task",
+            parent_id="320-F",
+            status="archived",
+        )
+        _write_artifact(self.backlog_dir, "queue", "321-F", "feature")
+        _write_artifact(self.backlog_dir, "queue", "321.001-T", "task", parent_id="321-F")
+        _write_artifact(
+            self.backlog_dir,
+            "archive",
+            "321.002-T",
+            "task",
+            parent_id="321-F",
+            status="archived",
+        )
+
+        decision = classify_shipment_close_path(
+            ["320-F", "320.001-T", "321-F", "321.001-T"], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.CASCADE
+        assert decision.qualifying_feature_ids == ("320-F", "321-F")
+        assert decision.out_of_manifest_descendant_ids == ("320.002-T", "321.002-T")
 
     def test_torn_out_of_manifest_descendant_falls_back_to_safe_close(self) -> None:
         decision = self._classify_torn_out_of_manifest_descendant()

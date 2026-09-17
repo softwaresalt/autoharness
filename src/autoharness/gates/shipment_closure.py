@@ -139,11 +139,21 @@ class ClosePathDecision:
     ``qualifying_feature_ids`` is populated only when ``close_path`` is
     :attr:`ClosePath.CASCADE`; it lists every root feature member whose
     blast-radius containment check passed.
+
+    ``out_of_manifest_descendant_ids`` is likewise populated only on
+    :attr:`ClosePath.CASCADE`. It is the union, across every qualifying
+    feature member, of the exact out-of-manifest ``parent_id`` descendant
+    IDs this classification independently verified engine-inert (the
+    INV-6 containment set). A ``CASCADE`` caller MUST baseline/fingerprint
+    exactly this set before invocation and MUST NOT re-derive it by
+    walking the backlog a second time -- the classifier's own read, at
+    this snapshot, is the sole authoritative source for that set.
     """
 
     close_path: ClosePath
     reason: str
     qualifying_feature_ids: tuple[str, ...] = field(default_factory=tuple)
+    out_of_manifest_descendant_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -410,6 +420,7 @@ def classify_shipment_close_path(
 
     ambiguous_id_set = set(scan.ambiguous_ids)
     qualifying_feature_ids: list[str] = []
+    out_of_manifest_descendant_ids: set[str] = set()
     accounted_ids: set[str] = {feature.artifact_id for feature in feature_members}
 
     for feature in feature_members:
@@ -475,6 +486,7 @@ def classify_shipment_close_path(
 
         qualifying_feature_ids.append(feature.artifact_id)
         accounted_ids.update(descendants)
+        out_of_manifest_descendant_ids.update(out_of_manifest)
 
     if ambiguous_id_set:
         return ClosePathDecision(
@@ -502,4 +514,5 @@ def classify_shipment_close_path(
             "engine-inert; cascade close is permitted"
         ),
         qualifying_feature_ids=tuple(qualifying_feature_ids),
+        out_of_manifest_descendant_ids=tuple(sorted(out_of_manifest_descendant_ids)),
     )
