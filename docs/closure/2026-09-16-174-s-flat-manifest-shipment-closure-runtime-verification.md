@@ -101,9 +101,10 @@ correctness is covered by the dedicated unit-test suite
 symlink-traversal regressions, 5 `out_of_manifest_descendant_ids`/multi-root-
 union tests added in round 8, and 2 malformed-UTF-8 fail-closed tests added
 in round 11) and by the Step 3 multi-persona local review gate, not by a
-runtime-adapter probe. The classifier itself will be exercised live and
-observed at Step 5 post-merge closure (`shipment-reconcile
-safe-close`/cascade determination for 174-S's own manifest).
+runtime-adapter probe. The classifier was subsequently exercised live and
+observed at Step 5 post-merge closure (`shipment-reconcile`
+safe-close/cascade determination for 174-S's own manifest); see the
+Post-Merge Addendum below for the confirmed outcome.
 
 ## Verdict
 
@@ -148,7 +149,7 @@ invocation, corroborating the unit-test-suite coverage referenced above.
 surface any regression or unexpected behavior relative to the pre-merge
 verdict.
 
-
+## Handoff to Operational Closure
 
 * Verification verdict: **PASS**
 * Runtime surfaces verified: `cli` (command adapter, `cli-help` probe)
@@ -158,7 +159,8 @@ verdict.
 * Blocked prerequisites: none
 * Risky action state: shipment-closure classifier's own destructive-path
   correctness is covered by unit tests + local review, not this runtime
-  probe; classifier will be exercised live at Step 5 closure
+  probe; the classifier was subsequently exercised live at Step 5 closure
+  and confirmed correct (see Post-Merge Addendum above)
 * Follow-up recommendations: none blocking; 17 deferred findings tracked via
   stash for Stage deliberation
 * Releasability handoff: `runtime_validation.releasability.required: false`
