@@ -6,9 +6,14 @@ docline:
   author: Stage
   date: 2026-09-17
   status: draft-for-transfer
+external_provenance:
+  origin_repository: softwaresalt/backlogit
+  origin_pull_request: "N/A - authored directly in the backlogit workspace during Stage session stage-2026-09-17-fd0ccb42; not opened as a backlogit-side PR"
+  origin_source_path: docs/scratch/bugs/2026-09-17-autoharness-shipment-claim-wave-admission-contract-conflict.md
+  note: "origin_source_path is a SOURCE-WORKSPACE path in softwaresalt/backlogit. It does NOT resolve in this repository."
 ingested_at: "2026-09-17T00:00:00Z"
 schema_version: "1.0"
-source: docs/scratch/bugs/2026-09-17-autoharness-shipment-claim-wave-admission-contract-conflict.md
+source: docs/bugs/2026-09-17-autoharness-shipment-claim-wave-admission-contract-conflict.md
 title: "autoharness shipment-claim vs wave-admission contract conflict — ClaimShipment activates every member, P-002.6 halts on active residual"
 ---
 

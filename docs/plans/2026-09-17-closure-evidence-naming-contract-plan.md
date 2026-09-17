@@ -88,7 +88,7 @@ Predecessor derivation is correct; only discovery fails.
 | RQ-15 | Path construction is anchored to the **resolved workspace root**. `workspace_root` resolves first; a relative `closure_dir` is anchored as `workspace_root / closure_dir` and is **never** resolved against the process CWD. Separators, traversal, absolute, drive, UNC, and malformed IDs are rejected, and the resolved closure directory, the resolved output path, and the output's parent are all asserted against the resolved root, including through symlinks and Windows junctions | U10 |
 | RQ-16 | The contract change adds **no** member to the `TopologyReaders` protocol and modifies **no** existing implementer or test double | U2, U3 |
 | RQ-17 | There is exactly **one** canonical ID domain. The write grammars are uppercase-only and case-sensitive; the canonical read pattern **R1** is composed from them and is uppercase-only, so R1's accepted domain and the builder's accepted domain are identical **in both directions**. Lowercase tolerance exists **only** in the legacy read pattern **R2** and its case-folded comparison | U1, U10 |
-| RQ-18 | Candidate attribution parses the shipment ID from its **designated filename position** under the anchored R1/R2 grammar and compares the parsed identifier. A requested shipment token is **never** searched for elsewhere in a filename, and in particular never inside an R2 free-form suffix | U1, U3 |
+| RQ-18 | Candidate attribution parses the shipment ID from its **designated filename position** under the anchored R1/R2 grammar and compares the parsed identifier using **that position's own comparison rule** — exact, case-sensitive for the canonical position, `str.casefold()` for the legacy position, mirroring RQ-17 so casefold tolerance never leaks onto the canonical position. A requested shipment token is **never** searched for elsewhere in a filename, and in particular never inside an R2 free-form suffix | U1, U3 |
 | RQ-19 | The **authoritative contract module itself** is a registered member of the contract-owned runtime surface, so the runtime-scope non-drift scan is satisfiable without creating a second narrative allowlist | U1, U9 |
 | RQ-20 | Write-time and read-time validity are proven identical across **every** consumer-predicate branch. Because the authoritative predicate returns a boolean, the CLI's frontmatter rejection is a **generic authoritative-predicate rejection**; field- and reason-specific diagnostics are emitted only for the checks the CLI itself owns | U4, U11 |
 
@@ -164,7 +164,17 @@ not a search:
    reserves for the identifier.
 3. If neither position parses, the file is **not attributed**.
 4. Otherwise compare the **single parsed group** to the requested identifier
-   under `str.casefold()`.
+   using the comparison rule **of the position that matched**: **exact,
+   case-sensitive** whole-captured-group equality when the **canonical**
+   position (step 2) matched, and **`str.casefold()`** equality when the
+   **legacy** position (step 1) matched.
+
+This mirrors C2/RQ-17 exactly: lowercase tolerance exists **only** in the
+legacy position's comparison. A canonically-positioned name such as
+`162-S-167-F-post-merge-closure.md` is **not** attributed to a differently-cased
+request such as `162-s`, because the canonical position's comparison is exact —
+casefold tolerance does not leak from the legacy position onto the canonical
+one.
 
 The requested shipment token is never looked for anywhere else in the filename.
 In particular it is never looked for inside an R2 free-form suffix: a foreign
@@ -339,8 +349,12 @@ workspace containment, and ID validation are U10's surface.
    **designated primary position** of both grammars, in both directions;
    `16-S` versus `162-S` where the requested token appears **only in a
    free-form suffix** (`2026-09-11-16-S-supersedes-162-S-closure.md` requested
-   as `162-S`, and the R1-shaped equivalent) — **not attributed**; and an
-   **absent requested shipment in a non-empty directory**, which yields
+   as `162-S`, and the R1-shaped equivalent) — **not attributed**; a
+   **canonical-position name requested under a differently-cased token**
+   (`162-S-167-F-post-merge-closure.md` requested as `162-s`) — **not
+   attributed**, proving the legacy position's casefold tolerance does not leak
+   onto the canonical position's exact comparison (RQ-17); and an **absent
+   requested shipment in a non-empty directory**, which yields
    `outcome == absent` with **empty** `unrecognized_candidates` (RQ-18).
 3. **Deterministic ordering** under multiple matches.
 4. `RECOGNIZED_CLOSURE_PATTERNS` has exactly two members (H1.4 cardinality pin).
