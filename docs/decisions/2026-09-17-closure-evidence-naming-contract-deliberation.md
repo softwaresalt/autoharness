@@ -9,7 +9,8 @@ depth: deep
 deciders: operator, Stage
 decision_status: decided
 promoted_to: plan
-revision: 1
+revision: 4
+revision_note: "Decisions D1-D9 and risks R1-R9 are stated in their current, authoritative form. No decision has been reopened, reversed, added, or removed since adoption; where a decision body has been refined, it is edited in place so this record presents exactly one binding statement per decision rather than a succession of variants. The `## Options Evaluated`, `## Trade-off Comparison`, and `## Rejected Alternatives` sections are retained as explicitly non-binding historical analysis — the binding output of this deliberation is the `## Decision` section alone."
 source_stash_id: FD0CCB42
 stash_ids:
   - FD0CCB42
@@ -62,13 +63,21 @@ until its deliberation exists.
 Post-merge closure evidence has a **producer** and a **consumer**, and they
 specify the artifact's filename incompatibly.
 
-| Role | Location | Contract |
-|---|---|---|
-| Producer (template — the product) | `templates/skills/operational-closure/SKILL.md.tmpl:23` | `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure.md` |
-| Producer (installed dogfood mirror) | `.github/skills/operational-closure/SKILL.md:23` | `docs/closure/{YYYY-MM-DD}-{slug}-closure.md` |
-| Consumer | `src/autoharness/gates/topology.py:718` (`FilesystemTopologyReaders.closure_complete`) | `docs/closure/` glob `{shipment_id}-*-post-merge-closure.md` |
-| Consumer predicate | `src/autoharness/gates/topology.py:303` (`_closure_artifact_complete`) | `compaction_status ∈ {done, degraded}` **and** (`closure_status == READY` or `READY_WITH_CONDITIONS` with a fully-satisfied `conditions:` block) |
-| Gate | `src/autoharness/gates/topology.py:1866-1882` (`_shipment_readiness_check`) | emits `PREDECESSOR_CLOSURE_INCOMPLETE` whenever the reader returns anything other than `True` |
+**Baseline producer/consumer surfaces**, as they stand in the committed tree.
+The template column carries the unrendered `{{DOCS_CLOSURE}}` placeholder
+because templates are the product; the installed dogfood mirror carries the
+rendered literal `docs/closure`. That difference is correct and is preserved by
+this decision — it is not part of the drift.
+
+| Role | Location | Contract as committed | Placeholder or literal |
+|---|---|---|---|
+| Producer skill (template — the product) | `templates/skills/operational-closure/SKILL.md.tmpl:23` | `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure.md` | `{{DOCS_CLOSURE}}` placeholder |
+| Producer skill (installed dogfood mirror) | `.github/skills/operational-closure/SKILL.md:23` | `docs/closure/{YYYY-MM-DD}-{slug}-closure.md` | rendered literal |
+| Ship agent (template — the product) | `templates/agents/_ship.agent.md.tmpl:863` | names the output **directory** `{{DOCS_CLOSURE}}/` only, with no filename contract, and lists `compaction status` without `closure_status` | `{{DOCS_CLOSURE}}` placeholder |
+| Ship agent (installed dogfood mirror) | `.github/agents/_ship.agent.md` (post-merge closure step) | same omission, rendered | rendered literal |
+| Consumer | `src/autoharness/gates/topology.py:718` (`FilesystemTopologyReaders.closure_complete`) | `docs/closure/` glob `{shipment_id}-*-post-merge-closure.md` | literal in source |
+| Consumer predicate | `src/autoharness/gates/topology.py:303` (`_closure_artifact_complete`) | `compaction_status ∈ {done, degraded}` **and** (`closure_status == READY` or `READY_WITH_CONDITIONS` with a fully-satisfied `conditions:` block); returns a **boolean**, never a reason | — |
+| Gate | `src/autoharness/gates/topology.py:1866-1882` (`_shipment_readiness_check`) | emits `PREDECESSOR_CLOSURE_INCOMPLETE` whenever the reader returns anything other than `True` | — |
 
 No string satisfies both the producer's date-prefixed/`-closure.md` shape and
 the consumer's ID-anchored/`-post-merge-closure.md` glob. Discovery is
@@ -178,7 +187,7 @@ non-drift guard between the documented pattern and the code constant.
 * A full canonical closure-artifact **writer** (generating body content and the
   complete frontmatter document). The contract module exposes a path builder and
   a validator; generating the artifact's prose remains the skill's job. Recorded
-  as follow-up **OQ-1**.
+  as follow-up **OQ-1** and captured as deferred stash `AE612665`.
 * Unification of the closure-evidence **frontmatter schema** into
   `schemas/`. Recorded as follow-up **OQ-2**.
 * Adjacent closure-hygiene stash entries (`24E3E464`, `C395CFE3`, `0C094AED`,
@@ -268,6 +277,12 @@ with criteria 2 and the frontmatter half of 3 bounded per the scope fence above.
 
 ## Options Evaluated
 
+> **Non-binding historical analysis.** This section, `## Trade-off Comparison`,
+> and `## Rejected Alternatives` record how the decision was reached. They are
+> **superseded by the `## Decision` section**, which is the only binding output
+> of this deliberation. Where an option sketch below differs in detail from
+> D1-D9, **D1-D9 govern**.
+
 ### Option A — Widen the consumer glob only
 
 Extend `closure_complete`'s discovery to also match the date-prefixed shape;
@@ -321,9 +336,9 @@ Revert `operational-closure`'s documented output to
    the canonical pattern **in one atomic change**, and the Ship agent template +
    installed mirror are aligned the same way.
 6. A **composed producer/consumer state-machine test** drives the documented
-   producer path's constructed filename into the real consumer reader, plus a
-   real-corpus assertion over `docs/closure/`, plus regression coverage for each
-   historical failure shape.
+   producer path's constructed filename into the real consumer reader, using
+   temporary fixtures only, plus regression coverage for each historical
+   failure shape.
 7. A **non-drift guard** asserts the pattern text documented in the skill files
    equals the constant in the contract module, so prose and code cannot diverge.
 
@@ -336,7 +351,10 @@ Revert `operational-closure`'s documented output to
   CLI subcommand, two template families, and a new test class. Requires
   `plan-harden`. Introduces an asymmetry (write one pattern, read several) that
   must be documented precisely or it will itself become the next ambiguity.
-* **Effort**: medium-high (8 bounded tasks). **Fit**: full.
+* **Effort**: medium-high (**12 bounded tasks** in the reviewed plan; estimated
+  as 8 during deliberation, before planning split the path builder, the
+  write-time validator's semantic battery, and the regression battery into
+  separately bounded units). **Fit**: full.
 
 ## Trade-off Comparison
 
@@ -403,10 +421,21 @@ transitional?
 
 **Permanent, for read only.** The recognized-read set is:
 
-| # | Pattern | Purpose |
-|---|---|---|
-| R1 | `{shipment_id}-{suffix}-post-merge-closure.md` | canonical (also the write pattern) |
-| R2 | `{YYYY-MM-DD}-{shipment_id}-{suffix}-closure.md`, shipment ID matched case-insensitively and delimiter-anchored | legacy date-prefixed corpus (`162-S`, `174-S`, `159-S`, `173-S`) |
+| # | Pattern | Identifier match rule | Purpose |
+|---|---|---|---|
+| R1 | `{shipment_id}-{feature_id}-post-merge-closure.md`, both identifiers **uppercase-only** and composed from the write grammars | **exact, case-sensitive** whole-captured-group equality | canonical (also the write pattern) |
+| R2 | `{YYYY-MM-DD}-{shipment_id}-{suffix}-closure.md`, shipment kind letter `[Ss]`, suffix free-form | **case-folded** whole-captured-group equality | legacy date-prefixed corpus (`162-S`, `174-S`, `159-S`, `173-S`) |
+
+**There is exactly one canonical identifier domain.** The write grammars are
+uppercase-only and case-sensitive, and R1 is composed from them, so R1's
+accepted domain and the path builder's accepted domain are the same set in
+**both** directions. **Lowercase tolerance exists only in R2**, because the
+legacy corpus lowercases identifiers (`2026-09-11-162-s-154-f-closure.md`). No
+claim of domain coincidence is made for R2 in either direction; the only
+cross-pattern property asserted for it is one-directional and structurally
+provable — **no builder output can ever match R2**, because R2's second
+hyphen-delimited token must satisfy `\d{2}` while a builder name's second token
+is the literal kind letter.
 
 Reasons the read set is permanent rather than transitional:
 
@@ -423,8 +452,13 @@ Reasons this does **not** weaken the gate:
   wildcard. An unrecognized name is still not evidence, and still blocks.
 * The **write** contract stays singular. Recognition is read-side tolerance of
   history; it never authorizes writing R2.
-* R2's ID match is **delimiter-anchored and case-insensitive**, never a
-  substring search, so `16-S` cannot match a `162-S` record.
+* Candidate attribution **parses the shipment identifier from the position the
+  anchored grammar reserves for it** — immediately after the date prefix for R2,
+  leading for R1 — and compares that single parsed group. The requested
+  identifier is never searched for elsewhere in a filename, and in particular
+  never inside an R2 free-form suffix, so neither `16-S` nor `162-S` can be
+  attributed to the other's record in either direction, and a foreign record
+  whose suffix happens to contain the requested token is not attributed at all.
 * The validity predicate `_closure_artifact_complete` is untouched. A recognized
   filename still must carry passing `compaction_status` **and** `closure_status`.
 
@@ -481,11 +515,60 @@ Given a shipment ID, discovery resolves to exactly one effective verdict:
 
 ### D6 — Write-time validation, invoked by the producer
 
-`autoharness gate closure-evidence --path <file> [--shipment <id>] [--json]`
-validates (a) the filename against the canonical write pattern, (b) the presence
-and permitted values of the required frontmatter keys `closure_status` and
-`compaction_status`, and (c) that the artifact is discoverable for its declared
-shipment. It exits non-zero with a message naming the offending field or path.
+`autoharness gate closure-evidence --path <file> [--shipment <id>]
+[--workspace <path>] [--json]` validates (a) the filename against the canonical
+write pattern, (b) that the artifact's frontmatter satisfies the **complete
+consumer acceptance predicate** — not a scalar key/enum check — and (c) that the
+artifact is discoverable for its declared shipment. It exits non-zero on any
+failure.
+
+**(b) is binding in its complete form.** A scalar-only formulation — checking
+only "the presence and permitted values of the required frontmatter keys
+`closure_status` and `compaction_status`" — is **rejected**: it accepts a
+`closure_status: READY_WITH_CONDITIONS` artifact whose `conditions:` block is
+absent or unsatisfied, which the consumer rejects. That is a second, weaker
+definition of validity for the same contract, which is precisely the generative
+failure this feature exists to remove. The write-time gate MUST therefore accept
+an artifact **if and only if** the read-time consumer would accept it, which
+means (b) covers the whole predicate:
+
+* `compaction_status` present, a string, and — after stripping and case-folding
+  — one of `done` / `degraded`; including the consumer's **legacy `compaction:`
+  alias** fallback, because rejecting an alias the consumer honours is itself a
+  divergent second definition;
+* `closure_status` present, a string, and non-blank;
+* `closure_status: READY` accepted;
+* `closure_status: READY_WITH_CONDITIONS` accepted **only** when the
+  `conditions:` block is a **non-empty list**, every entry is a mapping, every
+  entry's `satisfied` is the **literal boolean `True`** (not a truthy string),
+  and every entry's `evidence` is a non-empty string;
+* every other `closure_status` value, including `BLOCKED`, rejected.
+
+**The predicate itself is not changed by this decision.** The gate reuses the
+consumer's existing `_closure_artifact_complete` / `_closure_conditions_satisfied`
+**by import**, leaving them byte-identical; this decision specifies *what the
+gate must check*, not a new or altered rule. Equivalence is proven across every
+branch enumerated above rather than at a single sampled point.
+
+**Diagnostic granularity follows from that reuse.** The authoritative predicate
+returns a **boolean**: it reports whether an artifact is acceptable, not why it
+was refused. A field- or reason-specific explanation of a frontmatter rejection
+could therefore only be produced by a second implementation of the validity
+logic — the exact defect this decision removes. The gate's diagnostics are
+consequently partitioned by ownership:
+
+* checks the gate itself owns — filename pattern (a), discoverability (c), and
+  an absent, unreadable, or unparseable `--path` — emit **specific** messages
+  naming the offending filename, shipment, or path;
+* the frontmatter check (b) emits a **generic authoritative-predicate
+  rejection**: it names the artifact path, names the deciding predicate, and
+  quotes a single contract-owned summary of the predicate's documented
+  requirements, without asserting which field or which condition failed.
+
+This is the minimal-scope resolution and is binding. Introducing a structured
+validator that reports per-field reasons would be a widening of this decision,
+not an implementation detail of it, and would require a new deliberation.
+
 The producer skill is amended to require this invocation before the closure
 artifact is committed. This satisfies criterion 3 and moves failure from a
 successor's gate back to the author's keyboard.
@@ -494,13 +577,38 @@ successor's gate back to the author's keyboard.
 
 A hand-written conforming fixture **does not satisfy** this decision; such a
 test would have passed throughout the entire six-occurrence history of this
-defect. The composed test must construct the closure filename **through the
-contract module's path builder as the producer documentation directs**, feed the
-result to the **real** `FilesystemTopologyReaders.closure_complete`, and assert
-acceptance — so that changing either side alone breaks it. It additionally
-asserts against the **real committed corpus** that `closure_complete("162-S")`
-and `closure_complete("174-S")` are `True`, which is the concrete,
-non-simulatable proof that `163-S` is unblocked.
+defect. The composed test must construct the canonical closure filename
+**through the contract module's path builder as the producer documentation
+directs**, feed the result to the **real**
+`FilesystemTopologyReaders.closure_complete`, and assert acceptance — so that
+changing either side alone breaks it.
+
+**Fixture provenance.** The composed test's fixtures are built into a
+**temporary scratch workspace**. Durable tests do **not** assert against the
+committed `docs/closure/` corpus: that couples the normal suite to mutable
+repository history which unrelated shipments continue to archive, rename, and
+extend, and it is unsatisfiable as written —
+`docs/closure/138-S-129-F-cancellation-closure.md` matches neither recognized
+pattern. The non-simulatable proof that `closure_complete("162-S")` and
+`closure_complete("174-S")` are `True` against the real corpus is **retained**,
+but as **one-time publication/runtime evidence** captured at execution time into
+this work's post-merge closure artifact, which is where point-in-time proof
+belongs.
+
+**Explicit legacy-shape exception.** The construction rule binds the
+**canonical** half of the contract only, because the canonical builder cannot
+emit an R2 name — by D3 no builder output can ever match R2. Requiring a
+builder-created legacy fixture would therefore be an unsatisfiable demand.
+Instead:
+
+* **R1 (canonical) fixture names MUST come from the path builder.** A
+  hand-written canonical literal remains a defect.
+* **R2 (legacy) fixture names come from exactly one dedicated, test-only legacy
+  filename helper**, defined once in the test tree, never part of the contract
+  module, and never imported by production code.
+
+Both halves remain temporary fixtures in scratch workspaces; no durable test
+reads or writes `docs/closure/`.
 
 ### D8 — Zero closure artifacts are modified
 
@@ -574,7 +682,7 @@ so the reasoning survives.
   write-side canonicity is singular. That asymmetry is the decision.
 * **Fold this into `165-F` / `173-S`** — rejected; already settled. `FD0CCB42`
   holds exclusive ownership of this surface per decision D4 of the DAG
-  deliberation and Stage review-fix cycle 3. `173-S` shipped with every closure
+  deliberation. `173-S` shipped with every closure
   cell removed, including read-only reuse, precisely so this work is free to
   redefine the surface without negotiating with an installed dependent.
 
@@ -582,7 +690,7 @@ so the reasoning survives.
 
 | ID | Question | Disposition |
 |---|---|---|
-| **OQ-1** | Should Ship emit closure artifacts through a full canonical **writer** (path *and* body *and* frontmatter generated from the shared definition), per the source report's criterion 2? | **Deferred, out of scope.** This decision delivers a path builder and a validator, which closes the naming axis. A full writer is a content-generation surface with its own design space. Follow-up candidate; not captured as a stash entry by this session. |
+| **OQ-1** | Should Ship emit closure artifacts through a full canonical **writer** (path *and* body *and* frontmatter generated from the shared definition), per the source report's criterion 2? | **Deferred, out of scope.** This decision delivers a path builder and a validator, which closes the naming axis. A full writer is a content-generation surface with its own design space. **Captured as deferred stash entry `AE612665`** under P-021 C1, `REQUIRES DELIBERATION: yes`, after an unconditional duplicate scan returned `DISCOVERY-STATUS: CLEAN`. |
 | **OQ-2** | Should the closure-evidence **frontmatter schema** move into `schemas/` as a versioned JSON schema alongside the other seven? | **Deferred, out of scope.** The metadata axis is currently satisfied (all live artifacts carry valid keys). Bundling schema work would cross into schema evolution and materially widen blast radius. |
 | **OQ-3** | `dag-readiness` reports `163-S` in `ready_set` while `pre_claim` blocks it, because the advisory view does not consult closure evidence. Should the advisory view be closure-aware? | **Observed, not repaired here.** Recorded as a real divergence. `165.004-T` already flagged it as a motivating divergence; touching it would re-import a surface `173-S` was deliberately cleared of. |
 | **OQ-4** | Should `PREDECESSOR_CLOSURE_UNRECOGNIZED` be a **blocking** token or a **warning** when a valid legacy artifact also exists? | **Resolved by D5**: recognition is attempted first; `UNRECOGNIZED` is emitted only when *no* recognized candidate exists, so it is unambiguously blocking. Recorded here because it was a live ambiguity during deliberation. |
@@ -593,10 +701,10 @@ so the reasoning survives.
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | R1 | Widening read recognition silently weakens a fail-closed gate | Medium | **High** | Read set is a **closed enumeration of two anchored regexes**, never a wildcard. `_closure_artifact_complete` is byte-unchanged. Regression tests assert an unrecognized name still blocks and that `closure_status: BLOCKED` still fails. Plan-harden must re-verify this specifically. |
-| R2 | R2's in-filename ID match false-positives across shipments (`16-S` vs `162-S`) | Medium | High | Delimiter-anchored, case-insensitive, full-filename regex — never a substring or loose glob. A dedicated adversarial test asserts `16-S` does not match `162-S`'s artifact and vice versa. |
+| R2 | R2's in-filename ID match false-positives across shipments (`16-S` vs `162-S`) | Medium | High | Fully-anchored, full-filename regexes with whole-captured-group comparison — never a substring or loose glob. Candidate attribution additionally **parses the identifier at the position the grammar reserves for it** and compares that single parsed group, so a requested token appearing in a foreign record's free-form suffix is never attributed. A dedicated bidirectional adversarial test asserts `16-S` does not match `162-S`'s artifact and vice versa, in primary positions and in foreign suffixes. |
 | R3 | Rewiring a fail-closed gate regresses `BACKLOG_UNAVAILABLE` on malformed frontmatter into a silent skip | Low | **High** | Explicit non-goal, carried from the source report. `_frontmatter`'s raise path is untouched; a regression test asserts malformed frontmatter still raises. |
 | R4 | Template and installed dogfood mirror land in separate commits, opening a wrong-contract window | Medium | Medium | Producer-spec change is **one atomic task** covering `.tmpl` + installed mirror, per the `165.008-T`/`165.010-T` precedent. Same rule for the Ship agent pair. |
-| R5 | The composed test degenerates into another hand-written fixture and pins nothing | Medium | **High** | D7 makes the construction path binding: the filename must come from the contract module's builder. Plus a real-corpus assertion on `162-S`/`174-S` that no fixture can fake. Called out as a mandatory plan-review check. |
+| R5 | The composed test degenerates into another hand-written fixture and pins nothing | Medium | **High** | D7 makes the construction path binding for the canonical half: the canonical filename must come from the contract module's builder, so a hand-written canonical literal cannot satisfy the test. The legacy half — which the builder cannot emit by construction — comes from one dedicated, test-only legacy filename helper whose non-builder provenance is explicit. **All durable fixtures are temporary**, written to scratch workspaces; no durable test reads `docs/closure/`. The real-corpus proof for `162-S`/`174-S` is retained as **one-time publication/runtime evidence** captured into this work's closure artifact, not as a durable assertion. Called out as a mandatory plan-review check. |
 | R6 | Scope creep into closure artifact content, frontmatter schema, or adjacent stash entries | Medium | Medium | D8 (zero artifact modifications, verified) plus the explicit OUT-of-scope list plus named excluded stash IDs. Plan-review must verify no task touches `docs/closure/`. |
 | R7 | The new `blocks` edge on `163-S` introduces a cycle or an unsatisfiable wait | Low | High | The fix's shipment is `dag-root` with **no outgoing** blocks edges, so no cycle is topologically possible. Validated by re-running `dag-readiness` (`cycle_detected` must stay `false`) after the edge is added. D9's bootstrap note establishes the wait is satisfiable. |
 | R8 | A future producer convention change drifts again | Medium | High | The non-drift guard asserts the documented pattern text equals the contract constant, so the change fails CI unless made at the single source. |

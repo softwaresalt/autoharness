@@ -1,226 +1,351 @@
-# Stage session — closure-evidence producer/consumer naming contract (FD0CCB42)
+---
+title: "Stage session — closure-evidence producer/consumer naming contract (FD0CCB42)"
+description: "Current-state Stage handoff for stash FD0CCB42: the closure-evidence producer/consumer naming contract, deliberated, planned, hardened, reviewed and harvested into covering feature 167-F plus twelve bounded tasks, assembled as queued dag-root shipment 175-S — the direct and only unblocker for 163-S. Records the staged artifact set, the backlog hierarchy with sizes and dependencies, the eligibility and dependency evidence as observed, the checkpoint payload shape, and the open handoff to Ship."
+doc_type: memory
+source: docs/memory/2026-09-17-stage-closure-evidence-naming-contract.md
+date: 2026-09-17
+updated: 2026-09-17
+agent: stage
+feature_id: 167-F
+shipment_id: 175-S
+source_stash_id: FD0CCB42
+deferred_scope_expansions:
+  - AE612665
+source_decision: docs/decisions/2026-09-17-closure-evidence-naming-contract-deliberation.md
+decision_revision: 4
+plan_source: docs/plans/2026-09-17-closure-evidence-naming-contract-plan.md
+plan_revision: 5
+linked_review: docs/reviews/2026-09-17-closure-evidence-naming-contract-plan-review.md
+review_cycle: 4
+decision: PASS
+dispatch_mode: single-agent-declared-degradation
+revision: 4
+revision_note: >-
+  This memory is maintained as a rewritten current-state handoff, not as an
+  accreting session log. It describes the staged package exactly as it stands
+  now; superseded narrative has been removed rather than appended to. Review
+  history is preserved in the review artifact's clearly segregated audit trail,
+  which is the single place it lives.
+---
 
-- **Date**: 2026-09-17
-- **Agent**: Stage
-- **Operation**: `stage next`, scoped to a single stash entry
-- **Branch**: `main` (single worktree; P-016 preserved — no spike/research worktree was created)
-- **Outcome**: reviewed plan harvested into `167-F` + 9 tasks, assembled as queued shipment `175-S`
+# Stage session — closure-evidence producer/consumer naming contract
 
-## Scope
+## Purpose of this document
 
-Operator restricted this session to stash `FD0CCB42` — "Align closure-artifact producer
-naming with topology-gate lookup" — identified as the highest-value direct unblocker for
-queued shipment `163-S`.
+This is the **current-state handoff** from Stage to Ship for stash `FD0CCB42`.
+It states what exists now, what it means, and what the next owner must do. It
+deliberately does **not** narrate how the package evolved: that belongs to the
+review artifact's audit trail.
 
-Explicitly **not** consumed, archived, edited, triaged, deliberated, or harvested:
-stash `3EF5AAF2` (shipment-claim vs wave-admission contract conflict). Verified still
-active at end of session.
+## Outcome
 
-Explicitly **not** absorbed (adjacent closure-hygiene entries left in stash):
-`24E3E464`, `C395CFE3`, `0C094AED`, `63C5C305`, `5A537510`, `9E404C49`, `4702E1F6`,
-`71200CBB`.
+| Field | Value |
+|---|---|
+| Source stash | `FD0CCB42` (archived as consumed) |
+| Covering feature | `167-F` |
+| Tasks | 12 (`167.001-T` … `167.012-T`) |
+| Shipment | `175-S`, status `queued`, `dag-root: true`, 13 manifest items |
+| Plan | `docs/plans/2026-09-17-closure-evidence-naming-contract-plan.md` (revision 5) |
+| Decision | `docs/decisions/2026-09-17-closure-evidence-naming-contract-deliberation.md` (revision 4) |
+| Review | `docs/reviews/2026-09-17-closure-evidence-naming-contract-plan-review.md` (cycle 4, **PASS**, 0 P0, 0 P1 open) |
+| Deferred expansion captured | `AE612665` (canonical closure-artifact *writer*, OQ-1) |
+| Next owner | **Ship** |
+
+## Scope and boundary compliance
+
+Stage authored planning and backlog artifacts only. Within this session Stage
+did **not**:
+
+* write, modify, or delete any source, test, template, schema, or config file;
+* run build systems, test suites, or linters;
+* commit, push, create a branch, or open a pull request;
+* claim, close, or advance any shipment;
+* create or use an implementation worktree (no P-016 spike worktree was needed);
+* consume or edit stash `3EF5AAF2`, or triage/harvest stash `AE612665`;
+* touch unrelated untracked bug reports present in the working tree.
+
+Branch `chore/stage-175-S` carries the staged artifacts as **uncommitted
+working-tree changes**. `git rev-parse HEAD` is unchanged for the whole session.
+
+All source inspection (`src/autoharness/gates/topology.py`, the producer
+template and its installed mirror, the `tests/` naming conventions) was
+**read-only**, for planning fidelity.
 
 ## Capability posture
 
-| Gate | Result |
+| Capability | Status |
 |---|---|
-| Step 0.0 Tool availability | backlogit `ALL_TOOLS_OK`; `DEGRADED_MODE: agent-engram, agent-intercom, graphtor-docs` |
-| Step 0.1 Index sync | `INDEX_SYNC_OK` (1256 indexed at start) |
-| Step 0.1b Engram | `ENGRAM_DEGRADED` — fell back to grep/glob/view |
-| Step 0.1c Intercom | `INTERCOM_DEGRADED` — phase broadcasts skipped, non-destructive work continued |
-| Step 0.1d Graphtor-docs | `GRAPHTOR_UNAVAILABLE` — file-based doc search |
-| Step 0 Crash resumption | ZERO-CANDIDATE NORMAL STARTUP — 47 checkpoints enumerated unfiltered, 0 anomalies, 0 quarantined, 0 active `stage`-owned |
+| backlogit MCP | `TOOL_OK` — all backlog, shipment, dependency, stash and checkpoint mutations went through official operations |
+| Index sync | `INDEX_SYNC_OK` at session start and at session end |
+| agent-engram | not installed — file-based exploration used throughout |
+| agent-intercom | not installed — `dispatch_mode: single-agent-declared-degradation`; operator interaction was direct |
+| graphtor-docs | not installed — `docs/` searched with grep/view |
 
-## Triage obligations (P-021 C5/C6)
+`backlogit_stash_archive` is not exposed as an MCP tool in this workspace; the
+CLI `backlogit stash archive` is the canonical non-destructive fallback and is
+what was used. `backlogit_stash_remove` (deprecated) was not used.
 
-`FD0CCB42` carries the literal `DEFERRED SCOPE EXPANSION` marker, which **forced** the
-`deliberate` route regardless of shape or size, and barred Step 3 planning until the
-deliberation artifact existed.
+## The defect being staged
 
-- **(A) Duplicate detection — UNCONDITIONAL**: scanned all 110 active stash entries on
-  six keys. Also specifically checked `7F93FA0C` (the tracking identity the compound
-  learning assigns to this defect class) — not present in this workspace's active stash;
-  it belongs to the sibling harness. **DISCOVERY-STATUS: CLEAN — no duplicate.**
-- **(B) Late-identifier reconciliation — triggered** by `pr_number: N/A` and
-  `review_thread_id: N/A`. Searched all Ship-owned residual-risk records citing
-  `FD0CCB42`. The expansion originated in a pre-PR Stage staging session from an
-  operator-delivered plan-review finding, so no PR and no hosted thread ever existed.
-  **Reconciliation = NO-OP; the `N/A` values STAND as truthful terminal records.**
-  This is not a C3 or C6 shortfall.
+The closure-evidence **producer** and **consumer** name the same artifact
+differently, and nothing in the repository holds them together.
 
-Step 1.5 grouping was **skipped** (single entry; deferred-expansion entries are excluded
-from grouping pre-deliberation). Step 1.8 learnings retrieval returned a **HIGH**
-confidence direct hit.
+* Producer skill template `templates/skills/operational-closure/SKILL.md.tmpl:23`
+  documents `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure.md`; its installed
+  dogfood mirror `.github/skills/operational-closure/SKILL.md:23` renders the
+  same shape with the literal `docs/closure`.
+* The Ship agent template `templates/agents/_ship.agent.md.tmpl:863` names the
+  output **directory** only — no filename contract — and lists `compaction
+  status` without `closure_status`.
+* The consumer `FilesystemTopologyReaders.closure_complete`
+  (`src/autoharness/gates/topology.py:718`) globs
+  `docs/closure/{shipment_id}-*-post-merge-closure.md`.
 
-## The defect (verified, reproducible, read-only)
+The two shapes cannot intersect, so conforming producer output is invisible to
+the gate, which then emits `PREDECESSOR_CLOSURE_INCOMPLETE`. This has recurred
+six times and has been repaired per-artifact every time. The staged work
+replaces per-artifact repair with **one shared contract module** that both sides
+consume, a **write-time validator gate**, and a **composed producer→consumer
+test** that fails if either side drifts again.
 
-Producer and consumer specify the closure filename incompatibly, so valid closure
-evidence is never opened.
+Observed live consumer state (read-only probes of
+`topology._shipment_readiness_check` and `closure_complete`):
 
-- **Consumer**: `src/autoharness/gates/topology.py:718` globs
-  `docs/closure/{shipment_id}-*-post-merge-closure.md`, returns `None` on no match.
-- **Producer**: `.github/skills/operational-closure/SKILL.md:23` and
-  `templates/skills/operational-closure/SKILL.md.tmpl:23` specify
-  `{DOCS_CLOSURE}/{YYYY-MM-DD}-{slug}-closure.md`.
+| Shipment | `closure_complete` | Note |
+|---|---|---|
+| `162-S` | `None` | legacy date-prefixed name, unrecognized |
+| `174-S` | `None` | legacy date-prefixed name, unrecognized |
+| `173-S` | `True` | canonical name, recognized |
 
-No string satisfies both. Discovery is filename-first, so a conforming artifact is never
-read; the silent `None` collapses into `PREDECESSOR_CLOSURE_INCOMPLETE`.
+## Decision summary (binding — D1…D9)
 
-Live probes on the committed tree:
+* **D1** One shared contract module owns the grammar; producer docs and consumer
+  reader both consume it. No second definition anywhere.
+* **D2** The canonical **write** name is
+  `{shipment_id}-{feature_id}-post-merge-closure.md`, uppercase kind letters,
+  case-sensitive.
+* **D3** The **read** set is a permanent, closed enumeration of two anchored
+  regexes: **R1** canonical (uppercase-only, exact case-sensitive comparison)
+  and **R2** legacy date-prefixed (`[Ss]` kind letter, case-folded comparison).
+  Lowercase tolerance is confined to R2. R1's accepted domain and the path
+  builder's accepted domain are identical in **both** directions; for R2 only
+  the one-directional, structurally provable property is asserted — no builder
+  output can ever match R2.
+* **D4** Attribution **parses** the shipment identifier from the position the
+  anchored grammar reserves for it (after the date prefix for R2, leading for
+  R1) and compares that single parsed group. A requested token is never searched
+  for elsewhere in a filename, and never inside an R2 free-form suffix.
+* **D5** `PREDECESSOR_CLOSURE_UNRECOGNIZED` is emitted only when no recognized
+  candidate exists, so it is unambiguously blocking.
+* **D6** A write-time `autoharness gate closure-evidence` reuses the consumer's
+  **complete** acceptance predicate by import. Because that predicate is
+  **boolean**, the frontmatter rejection diagnostic is a **generic
+  authoritative-predicate rejection** (path + deciding predicate + one
+  contract-owned requirements summary). Field/reason-specific diagnostics exist
+  only for gate-owned checks: filename pattern, discoverability, and
+  absent/unreadable input.
+* **D7** The composed test must build the **canonical** filename through the
+  contract module's path builder. Because the builder cannot emit R2 by
+  construction, **legacy** fixture names come from exactly one dedicated,
+  test-only legacy filename helper. All durable fixtures are **temporary**; no
+  durable test reads `docs/closure/`.
+* **D8** Path construction resolves `workspace_root` **first**, anchors a
+  relative `closure_dir` as `workspace_root / closure_dir`, and never resolves
+  it against the process CWD; absolute/out-of-root inputs and symlink/junction
+  escapes are rejected.
+* **D9** The real-corpus proof that `162-S` and `174-S` become recognized is
+  **one-time publication/runtime evidence** captured into this work's own
+  post-merge closure artifact — not a durable test assertion.
 
-```
-closure_complete('162-S') -> None   # artifact EXISTS and is valid
-closure_complete('174-S') -> None   # same shape
-closure_complete('173-S') -> True   # only because an ID-anchored artifact was hand-authored
-closure_complete('161-S') -> True
-closure_complete('160-S') -> True
+## Backlog hierarchy
 
-autoharness gate pipeline-topology --mode manual --shipment 163-S --phase pre_claim --json
-  -> exit_code 1, token PREDECESSOR_CLOSURE_INCOMPLETE,
-     details.predecessor_source "explicit", details.closure_complete null
-```
+Twelve tasks, 1:1 with the plan's twelve implementation units, each ≤ 4 named
+scenarios and each within the 2-hour rule.
 
-Predecessor derivation for `163-S` is **correct and explicit**; the sole failing condition
-is closure-artifact discovery. This is the direct and only unblocker.
-
-## Decision
-
-Adopted **Option C** (contract module) over A (widen the glob) and B (revert the
-producer). Binding decisions `D1`–`D9` in the deliberation. Key points:
-
-- `D1` single authoritative definition in a **new** module
-  `src/autoharness/gates/closure_contract.py` — deliberately not inside `topology.py`,
-  which is a *consumer*; co-locating the definition with one consumer is the generative
-  cause of this defect class.
-- `D2` canonical **write** pattern `{shipment_id}-{feature_id}-post-merge-closure.md`
-  (29/30 shipment-scoped records already conform; the repo converged here de facto when
-  repairing `173-S`). Date moves to frontmatter.
-- `D3` recognized **read** set is **permanent, closed, exactly two** anchored regexes.
-  Read tolerance of immutable history; never write permission.
-- `D4` new **blocking** token `PREDECESSOR_CLOSURE_UNRECOGNIZED`.
-- `D7` composed test must build the filename through the contract module's path builder —
-  a hand-written fixture is a **defect**, since such a test would have passed through all
-  six historical occurrences.
-- `D8` **zero** files under `docs/closure/` created, renamed, edited, or deleted.
-
-## Sequencing decision (D9) — why `dag-root` is truthful, not convenience
-
-The gate enumerates exactly two remediations (`_SEQUENCING_REMEDIATION_OPTIONS`,
-`topology.py:1543-1546`): record a real `blocks` edge, or declare the shipment a root.
-
-There is **no real blocking edge**: this work depends on no queued shipment. Manufacturing
-an edge on `174-S` would be **self-defeating** — `closure_complete('174-S')` returns `None`
-*because of the very defect under repair*, producing a bootstrap deadlock. Leaving the
-shipment unlabelled yields `unsequenced` (19 live shipment records, so `genesis` cannot
-apply), which is excluded from `ready_set` and blocked with `UNSEQUENCED_SHIPMENT`.
-
-Therefore `dag-root` is the accurate declaration. Precedent: `173-S`, `174-S`.
-
-## Artifacts created
-
-| Path | Purpose |
-|---|---|
-| `docs/decisions/2026-09-17-closure-evidence-naming-contract-deliberation.md` | Mandatory P-021 C6 deliberation; D1–D9, OQ-1…OQ-5, R1–R9, both triage obligations recorded |
-| `docs/plans/2026-09-17-closure-evidence-naming-contract-plan.md` | Reviewed plan, revision 2: RQ-1…RQ-14, units U1–U9, `## Plan Hardening` H1–H7, `## Plan Review` cycle 1 PASS |
-| `docs/reviews/2026-09-17-closure-evidence-naming-contract-plan-review.md` | Standalone review record: PASS, 0 P0 / 0 P1 open, 2 cycles remaining |
-
-Plan hardening was **required** (`Requires plan hardening: yes`, 3/5 signals present) and
-ran before review, per P-006.
-
-## Backlog produced
-
-- Feature **`167-F`** — Closure-evidence producer/consumer naming contract reconciliation
-- Tasks **`167.001-T` … `167.009-T`** (one per plan unit U1–U9), all `queued`, all carrying
-  both `size` and `complexity`
-
-| Task | Unit | Domain | Size | Complexity |
+| Task | Plan unit | Size | Complexity | Concern |
 |---|---|---|---|---|
-| 167.001-T | U1 contract module | Python src | M | medium |
-| 167.002-T | U2 reader rewire | Python src | M | high |
-| 167.003-T | U3 gate diagnostics | Python src | S | medium |
-| 167.004-T | U4 validation CLI | Python CLI | M | medium |
-| 167.005-T | U5 producer spec (atomic pair) | skill docs | S | low |
-| 167.006-T | U6 Ship agent alignment (atomic pair) | agent docs | S | low |
-| 167.007-T | U7 composed test | tests | M | high |
-| 167.008-T | U8 adversarial regression | tests | S | medium |
-| 167.009-T | U9 non-drift guard | tests | S | medium |
+| `167.001-T` | U1 | M | medium | Contract module — grammars, read set, attribution, constants |
+| `167.010-T` | U10 | M | medium | Path builder — root-first resolution, anchoring, containment |
+| `167.002-T` | U2 | M | medium | Consumer reader rewired onto the contract module |
+| `167.003-T` | U3 | S | medium | Gate diagnostics — `UNRECOGNIZED` vs `INCOMPLETE`, attribution |
+| `167.004-T` | U4 | M | medium | `gate closure-evidence` CLI surface and `--json` shape |
+| `167.011-T` | U11 | S | medium | Write/read parity battery and diagnostic-ownership proof |
+| `167.005-T` | U5 | S | low | Producer skill template updated to the canonical contract |
+| `167.006-T` | U6 | S | low | Ship agent template — filename contract and `closure_status` |
+| `167.007-T` | U7 | S | medium | Composed producer→consumer test + legacy filename helper |
+| `167.008-T` | U8 | S | medium | Regression battery for the six historical failure shapes |
+| `167.012-T` | U12 | XS | low | Fixture-provenance guard (temporary fixtures; helper exception) |
+| `167.009-T` | U9 | S | medium | Documentation and cross-reference reconciliation |
 
-Width isolation holds: no task mixes Python source with template work, and none touches
-`schemas/`.
+`size_composition`: `M × 4`, `S × 7`, `XS × 1`.
 
-## Shipment
+**Shipment `175-S` manifest order** (topological, 13 items):
 
-**`175-S`** — "SHIP-17 - Closure-evidence producer/consumer naming contract reconciliation
-(FD0CCB42, unblocks 163-S)", status `queued`, labels
-`dag-root, topology-gate, closure, contract-drift, p-021`.
-
-Manifest is exactly the 10 harvested IDs — `167-F` first, then the 9 tasks in dependency
-order. No pre-existing queue item was pulled in.
-
-Human SHIP-number is **17** because `173-S` already holds "SHIP-15" and `174-S` holds
-"SHIP-16"; the initially created title said SHIP-15 and was corrected.
-
-## DAG edges added
-
-Intra-feature (transitive reduction of the plan's graph; the full declared set is recorded
-in each task description):
-
-```
-167.002-T <- 167.001-T
-167.003-T <- 167.002-T
-167.004-T <- 167.001-T
-167.005-T <- 167.001-T
-167.006-T <- 167.005-T
-167.007-T <- 167.003-T, 167.004-T
-167.008-T <- 167.002-T
-167.009-T <- 167.006-T
+```text
+167-F, 167.001-T, 167.010-T, 167.002-T, 167.003-T, 167.004-T,
+167.011-T, 167.005-T, 167.006-T, 167.007-T, 167.008-T, 167.012-T, 167.009-T
 ```
 
-Cross-shipment: **`163-S` now depends on `175-S`** (in addition to its pre-existing
-`162-S`). `163-S` remains `queued` — no `blocked` shipment status was invented.
+**Live dependency edges** (task ← its predecessors):
 
-## Validation evidence
-
-```
-gate dag-readiness --json
-  cycle_detected: false, cycle_nodes: []
-  ready_set: ["175-S"]
-  next_eligible: "175-S" (ready_set_head)
-  downstream_dependents["175-S"]: [163-S, 164-S, 165-S, 166-S, 167-S, 168-S]
-
-gate pipeline-topology --mode manual --shipment 175-S --phase pre_claim --json
-  exit_code: 0, blocked: false, "topology gate pass"
-  shipment_readiness.predecessor_source: "declared_root"
-  predecessor_ids: []
-
-gate pipeline-topology --mode manual --shipment 163-S --phase pre_claim --json
-  exit_code: 1, PREDECESSOR_CLOSURE_INCOMPLETE  (expected — the defect is not yet fixed;
-  Stage does not implement. The 175-S edge is additive and did not mask this.)
+```text
+167.002-T ← 167.001-T
+167.003-T ← 167.002-T
+167.004-T ← 167.001-T, 167.010-T
+167.005-T ← 167.001-T
+167.006-T ← 167.005-T
+167.007-T ← 167.001-T, 167.002-T, 167.003-T, 167.004-T, 167.010-T
+167.008-T ← 167.002-T, 167.007-T
+167.009-T ← 167.001-T, 167.005-T, 167.006-T
+167.010-T ← 167.001-T
+167.011-T ← 167.004-T
+167.012-T ← 167.002-T, 167.008-T
 ```
 
-Stash: active count 110 → 109. `FD0CCB42` archived non-destructively (present in
-`.backlogit/archive/stash.jsonl`); `3EF5AAF2` verified still active, unmodified.
+Cross-shipment: `163-S` depends on `175-S`. `dag-readiness` reports
+`cycle_detected: false`.
 
-## Notes / follow-ups
+### Dependency-edit statement (precise)
 
-- **Registry drift**: `.autoharness/backlog-registry.yaml` does not declare
-  `features.sizing`, and its `create_task`/`update_task` params omit size/complexity — yet
-  the live `backlogit_update_item` tool *does* accept `size`, `size_source`,
-  `size_ruleset_version`, and `complexity`, and shipments render `size_composition`. The
-  structured path was used (it works) and prose was mirrored in descriptions. The registry
-  should be reconciled with the live tool surface.
-- **`backlogit_stash_archive` MCP tool is not exposed** in this workspace; only the
-  deprecated `backlogit_stash_remove`. Used the canonical CLI `backlogit stash archive`
-  as the P-012 fallback.
-- **`create_shipment --items` takes a comma-separated string**, not a JSON array. A JSON
-  array is silently split on commas and fails with a confusing `not_found` naming
-  `["167-F"` as the missing ID.
-- Deferred to future sessions (out of scope, recorded as OQ-1…OQ-3): a full canonical
-  closure *writer*; promoting closure frontmatter into `schemas/`; the
-  dag-readiness/pre_claim closure-awareness divergence.
+The live dependency edges **match the plan-declared predecessor sets for every
+task**. Two edits produced that state, and they are the only edits:
 
-## Next step
+* the edge `167.008-T → 167.001-T` was **removed**. It was **not declared** by
+  the plan's dependency sets — it was redundant relative to the declared set,
+  which already reaches `167.001-T` through `167.002-T`;
+* the edge `167.008-T → 167.007-T` was **added**, because the plan makes
+  `167.008-T` consume the dedicated legacy filename helper that `167.007-T`
+  creates.
 
-Orchestrator performs the staging-artifact publication gate. Stage did **not** commit,
-push, merge, claim `175-S`, build, run tests, create a PR, or invoke Ship. No source,
-template, or schema file was modified.
+This is **not** a transitive reduction of the graph and must not be described as
+one. No general redundancy-elimination pass was run, and no other edge was
+removed. The manifest's topological order is unchanged by these edits.
+
+## Eligibility evidence (as observed — read-only)
+
+`autoharness gate dag-readiness --json` reports:
+
+* `ready_set: ["169-S", "175-S"]`
+* `candidate_ids: ["169-S", "175-S"]`
+* `next_eligible: "175-S"`, `next_eligible_reason: "ready_set_head"`
+* `cycle_detected: false`
+
+**Stage's claim is narrower than that gate output.** Stage asserts only that
+`175-S` is **eligible and claimable under its declared `dag-root` and scope**:
+a read-only probe of `topology._shipment_readiness_check("pre_claim", "175-S", …)`
+returns `passed` with `predecessor_ids: []`.
+
+Stage does **not** claim `175-S` is the global `ready_set` head. `169-S`
+precedes `175-S` in the global `ready_set`, and global queue ordering may select
+a different head. The `ready_set_head` token above is the gate's own emitted
+reason string, reproduced verbatim as observed output — it is not Stage's
+characterisation of `175-S`.
+
+For completeness, and **without acting on it**: a read-only probe shows `169-S`
+currently blocked with `PREDECESSOR_NOT_SHIPPED` (predecessor `168-S` is
+`queued`). `169-S` was not altered in any way by this session.
+
+**CLI caveat for the next owner:** `autoharness gate pipeline-topology`
+short-circuits at `branch_ownership` with `BRANCH_MISMATCH` while the working
+tree is on `chore/stage-175-S`, before `shipment_readiness` is ever evaluated.
+All readiness evidence above therefore comes from direct read-only Python probes
+of `topology`, not from that CLI path. Ship should re-derive readiness from its
+own claim branch.
+
+## Checkpoint contract
+
+`backlogit_create_checkpoint` `schema_version: 1` exposes a **closed** top-level
+namespace (`schema_version`, `agent`, `session_id`, `phase`, `status`,
+`created_at`, `updated_at`, `context`, `progress`, `resume_hint`) and an **open**
+`context` object whose arbitrary keys survive round-trip.
+
+The binding rule for this workspace is that **progress data belongs inside
+`context`**. The final checkpoint of this session was therefore created through
+the official operation with top-level keys limited to `schema_version`, `agent`,
+`session_id`, `phase`, `resume_hint` (plus engine-populated lifecycle fields),
+and **all** domain, progress and supersession data nested under `context`,
+including `context.progress`.
+
+The persisted JSON was retrieved back through `backlogit_get_checkpoint` and
+verified to contain **no top-level `progress` key** and a present
+`context.progress`. It supersedes `checkpoint-20260917-213419.json` by reference
+in `context.supersession`. Superseded checkpoint records were **never**
+hand-edited or deleted; supersession is recorded in the new record only, and the
+new checkpoint was resolved through `backlogit_resolve_checkpoint` before session
+end so no active recovery candidate is left behind for completed work.
+
+## Artifact inventory
+
+| Artifact | State |
+|---|---|
+| `docs/decisions/2026-09-17-closure-evidence-naming-contract-deliberation.md` | revision 4 — binding D1…D9 and risks stated once, in current form; option analysis explicitly labelled non-binding historical |
+| `docs/plans/2026-09-17-closure-evidence-naming-contract-plan.md` | revision 5 — single canonical document; no correction log, revision delta, or reviewer chronology in the body |
+| `docs/reviews/2026-09-17-closure-evidence-naming-contract-plan-review.md` | cycle 4, **PASS** — consolidated final reviewed contract above a divider, bounded historical audit trail below it, explicitly non-binding |
+| `docs/memory/2026-09-17-stage-closure-evidence-naming-contract.md` | this file, revision 4 — current-state handoff |
+| `.backlogit/queue/167-F.md` + 12 task files | current-state descriptions and acceptance criteria matching plan revision 5 exactly |
+| `.backlogit/queue/175-S.md` | `queued`, `dag-root: true`, 13 items in topological order |
+| `.backlogit/stash.jsonl` | `FD0CCB42` archived as consumed; `AE612665` appended as a deferred expansion (1 insertion, 0 deletions); `3EF5AAF2` untouched |
+
+**Maintenance policy for these artifacts:** they are **rewritten**, not appended
+to. Corrections are folded into the canonical body so each document states its
+contract once. Only the review artifact retains history, and only below an
+explicit `SUPERSEDED — NON-BINDING` divider.
+
+## Deferred expansion
+
+`AE612665` — a full canonical closure-artifact **writer** (path *and* body *and*
+frontmatter generated from the shared definition), recorded as OQ-1 and captured
+under P-021 C1 with `REQUIRES DELIBERATION: yes`. An unconditional duplicate scan
+returned `DISCOVERY-STATUS: CLEAN`. All source refs were available at capture, so
+no late-identifier reconciliation is outstanding. **It has not been triaged or
+harvested** and must not be, by this session's scope fence.
+
+## Files the plan expects Ship to create
+
+These paths do not exist yet and are expected non-resolving cross-references in
+the plan and review. They are the exhaustive list of new files the 12 tasks
+introduce:
+
+| Path | Created by |
+|---|---|
+| `src/autoharness/gates/closure_contract.py` | `167.001-T` (extended by `167.010-T`) |
+| `tests/test_closure_contract.py` | `167.001-T` |
+| `tests/test_closure_contract_path.py` | `167.010-T` |
+| `tests/test_cli_gate_closure_evidence.py` | `167.004-T` (extended by `167.011-T`) |
+| `tests/test_closure_contract_compose.py` | `167.007-T` |
+| `tests/_closure_legacy_names.py` | `167.007-T` |
+| `tests/test_closure_contract_nondrift.py` | `167.009-T` |
+
+`tests/test_closure_contract_compose.py` follows this repository's existing
+`_compose` convention for composed-behaviour tests
+(`tests/test_telemetry_record_compose.py`,
+`tests/test_telemetry_tool_event_compose.py`).
+`tests/_closure_legacy_names.py` follows the existing `tests/_*.py` shared
+test-helper convention (`tests/_assertion_render.py`, `tests/_env_patch.py`,
+`tests/_git_env.py`). This repository has no `tests/conftest.py` and no
+`tests/__init__.py`; the helper is imported directly.
+
+## Handoff to Ship
+
+1. Claim `175-S` on its own implementation branch. Re-derive readiness there —
+   the `BRANCH_MISMATCH` caveat above makes readiness CLI output unusable from
+   `chore/stage-175-S`.
+2. Execute the 12 tasks in the manifest's topological order, honouring the live
+   dependency edges.
+3. Plan revision 5's `## Contract Specification` (C1–C6) is the normative source
+   for identifier grammars, the recognized read set, attribution, path
+   construction and containment, the diagnostic contract, and the durable-test
+   fixture policy. Where a task body and the plan appear to differ, the plan
+   governs and the divergence is a defect to report.
+4. Capture the one-time real-corpus proof (D9) — that `closure_complete("162-S")`
+   and `closure_complete("174-S")` return `True` against the committed corpus —
+   into this work's post-merge closure artifact at execution time.
+5. `163-S` unblocks on `175-S` shipping with complete closure evidence. Do not
+   alter `169-S`.
+
+## Open items for the next session
+
+* Nothing is blocked on Stage. The package is review-PASS with 0 P0 and 0 P1
+  open.
+* The staged changes remain **uncommitted** on `chore/stage-175-S`; publication
+  is Ship's, or the operator's, to perform.
