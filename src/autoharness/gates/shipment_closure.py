@@ -297,6 +297,19 @@ def _scan_backlog(backlog_dir: Path) -> _BacklogScan | None:
                 # (e.g. one that happens to match a genuinely archived status).
                 # Fail closed for the whole scan instead.
                 return None
+            if not _ARTIFACT_ID_PATTERN.match(artifact_id):
+                # A malformed or unsafe-shaped declared id (e.g. containing path
+                # separators or traversal segments such as "../invalid") must be
+                # rejected exactly as manifest-item resolution already rejects it
+                # in _read_artifact_record above. Without this check, a record
+                # with such an id and an exact status: archived match could be
+                # counted as an engine-inert out-of-manifest descendant and help
+                # authorize the destructive CASCADE path from a malformed record
+                # the P-015 contract requires to fail closed. Fail closed for the
+                # whole scan rather than silently excluding just this record,
+                # consistent with every other backlog-wide integrity violation
+                # this function already treats as a whole-scan failure.
+                return None
             if artifact_id in status_index:
                 ambiguous_ids.add(artifact_id)
             else:

@@ -698,9 +698,20 @@ precondition wording is unchanged.
 This tolerance applies to **manifest members only** — it does not
 restate, weaken, or cross-apply to the protected set, which has no
 pre-archived exemption (see Safe-Close Mode steps 3/5 above). A manifest
-that qualifies for `CASCADE` has no protected set by construction (full
-`CASCADE` eligibility is itself a Step 0(c) precondition), so no protected set arises
-on this path.
+that qualifies for `CASCADE` has no protected set **in the Safe-Close
+sense** (full `CASCADE` eligibility is itself a Step 0(c) precondition,
+and this sub-procedure never computes or archives against a Safe-Close-style
+protected set on this path) — **this is not the same as saying no
+out-of-manifest state requires safeguarding here.** Under the flat-manifest
+engine-inertness model, `CASCADE` qualifies precisely in the presence of
+out-of-manifest descendants that Step 0(c) found already truly
+`status: archived`; those descendants still require an explicit
+safeguard, filling exactly the role the protected set fills for
+Safe-Close. That safeguard is the baseline-fingerprint capture (before
+step 1) and the post-invocation baseline-invariance verification (step 5)
+below: every such descendant MUST remain byte-identical to its
+classification-time snapshot for the duration of this closure, or the
+closure halts fail-closed.
 
 **`archived_ids` is a transition log, not a manifest echo.** The cascade
 operation invoked in step 1 below reports, in `archived_ids`, only the

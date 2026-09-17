@@ -583,6 +583,37 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.SAFE_CLOSE
 
+    def test_out_of_manifest_descendant_with_malformed_declared_id_falls_back_to_safe_close(
+        self,
+    ) -> None:
+        """A scanned record whose declared ``id`` does not match the same
+        ``_ARTIFACT_ID_PATTERN`` shape manifest-item resolution already
+        enforces (e.g. a path-traversal-shaped ``../invalid``) must never be
+        trusted as an engine-inert out-of-manifest descendant, even when it
+        declares an exact ``status: archived`` match — a malformed/unsafe id
+        is exactly the kind of unresolvable record the P-015 contract
+        requires to fail closed (Copilot review, PR #454, round 6)."""
+
+        feature_id = "313-F"
+        manifest_child_id = "313.001-T"
+        _write_artifact(self.backlog_dir, "queue", feature_id, "feature")
+        _write_artifact(
+            self.backlog_dir, "queue", manifest_child_id, "task", parent_id=feature_id
+        )
+        # A malformed, path-traversal-shaped declared id on an otherwise
+        # exact-status-archived descendant must not be trusted.
+        (self.backlog_dir / "archive" / "313.002-T.md").write_text(
+            f"---\nid: ../invalid\nartifact_type: task\nparent_id: "
+            f"{feature_id}\nstatus: archived\n---\n",
+            encoding="utf-8",
+        )
+
+        decision = classify_shipment_close_path(
+            [feature_id, manifest_child_id], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
     def _symlink_directory_component(self, feature_id: str, symlinked_folder: str) -> None:
         """Replace an entire ``queue``/``archive`` directory with a symlink
         pointing at a real, out-of-tree directory containing a valid root

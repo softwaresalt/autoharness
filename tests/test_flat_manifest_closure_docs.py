@@ -160,6 +160,20 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
                     text,
                 )
                 self.assertIn("byte-identical to its step-5 baseline fingerprint", text)
+                # The withdrawn claim that CASCADE-qualifying manifests have
+                # "no protected set" and therefore need no descendant
+                # safeguard is no longer true under the flat-manifest
+                # engine-inertness model (Copilot review, PR #454, round 6):
+                # CASCADE can now qualify precisely when out-of-manifest
+                # descendants exist but are already archived, and those
+                # descendants are safeguarded by the baseline-fingerprint
+                # capture/verify pair above, not left unprotected.
+                self.assertNotIn("so no protected set arises\non this path", text)
+                self.assertIn("no protected set **in the Safe-Close\nsense**", text)
+                self.assertIn(
+                    "this is not the same as saying no\nout-of-manifest state requires safeguarding here",
+                    text,
+                )
 
     def test_contract_files_omit_withdrawn_or_unsound_claims(self) -> None:
         for label, text in self._read_contract_texts():
