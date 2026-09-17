@@ -583,6 +583,42 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.SAFE_CLOSE
 
+    def _symlink_directory_component(self, feature_id: str, symlinked_folder: str) -> None:
+        """Replace an entire ``queue``/``archive`` directory with a symlink
+        pointing at a real, out-of-tree directory containing a valid root
+        feature -- the untrusted-directory-component variant of the leaf-file
+        symlink tests above."""
+
+        real_dir = self.scratch_dir / f"{symlinked_folder}-real"
+        real_dir.mkdir(parents=True, exist_ok=True)
+        (real_dir / f"{feature_id}.md").write_text(
+            f"---\nid: {feature_id}\nartifact_type: feature\nstatus: queued\n---\n",
+            encoding="utf-8",
+        )
+        symlink_path = self.backlog_dir / symlinked_folder
+        # setUp() pre-creates queue/ and archive/ as real (empty) directories;
+        # remove that placeholder before replacing it with a symlink.
+        symlink_path.rmdir()
+        try:
+            os.symlink(real_dir, symlink_path, target_is_directory=True)
+        except OSError:
+            self.skipTest("symlink creation is not permitted in this environment")
+
+    def test_symlinked_queue_directory_falls_back_to_safe_close(self) -> None:
+        self._symlink_directory_component("313-F", "queue")
+
+        decision = classify_shipment_close_path(["313-F"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
+    def test_symlinked_archive_directory_falls_back_to_safe_close(self) -> None:
+        _write_artifact(self.backlog_dir, "queue", "314-F", "feature")
+        self._symlink_directory_component("314-F-other", "archive")
+
+        decision = classify_shipment_close_path(["314-F"], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
 
 if __name__ == "__main__":
     unittest.main()

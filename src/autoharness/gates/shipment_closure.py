@@ -7,8 +7,13 @@ The authoritative contract uses four set names:
 * ``manifest_scope(S)`` — exactly ``items(S)``.
 * ``closure_scope(S)`` — exactly ``items(S) ∪ {S}``.
 * ``allowed_ids(S)`` — ``closure_scope(S) ∪ validated_linked_deliberations(S)``.
-* ``required_ids(S)`` — the members of ``closure_scope(S)`` that were not
-  already truly archived in the pre-close snapshot.
+* ``required_ids(S)`` — ``{S} ∪ {qualifying feature members of S}`` (both
+  unconditionally required regardless of their own pre-close declared
+  status) ``∪ {x ∈ allowed_ids(S) : x is not already truly archived in the
+  pre-close snapshot}`` (every other ``allowed_ids(S)`` member — a manifest
+  task item, or a qualifying feature member's validated linked
+  deliberation — is required only when it was not already truly archived
+  pre-close).
 
 The descendant walk in this module is a BLAST-RADIUS containment check on the
 cascade instrument, not a definition of closure scope. An out-of-manifest
@@ -47,7 +52,13 @@ A symlinked backlog entry also fails closed, for both a manifest item
 the whole-backlog scan (``_scan_backlog``): a symlink can point outside the
 backlog tree, so its declared frontmatter cannot be trusted for a
 cascade/safe-close decision. Neither function follows a symlink to read its
-target; both treat the symlink itself as a failure of classification.
+target; both treat the symlink itself as a failure of classification. This
+check also covers a symlinked or (on Windows) junctioned *directory*
+component -- ``backlog_dir`` itself, or its ``queue``/``archive``
+subdirectory -- not only a symlinked leaf file: without it, a ``queue/``
+symlink to an external directory containing crafted frontmatter could be
+followed by the glob and used to authorize ``CASCADE`` from untrusted,
+out-of-tree data.
 
 This is a pure, read-only classification: it never mutates the backlog, never
 calls out to ``backlogit``, and reuses
@@ -57,6 +68,8 @@ fail-closed YAML-frontmatter parsing convention.
 
 from __future__ import annotations
 
+import os
+import stat
 from dataclasses import dataclass, field
 from enum import Enum
 from glob import escape as _glob_escape
@@ -68,6 +81,46 @@ from autoharness.gates.topology import (
     BacklogUnavailableError,
     _frontmatter,
 )
+
+_REPARSE_POINT_ATTRIBUTE = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+
+
+def _is_symlink_or_reparse_point(path: Path) -> bool:
+    """Return True when ``path`` itself (not a target it may point to) is a
+    symlink or, on Windows, a directory-junction reparse point.
+
+    ``Path.is_symlink()`` covers the POSIX symlink bit but does not
+    reliably detect a Windows junction, which carries the reparse-point
+    file attribute without necessarily setting ``S_ISLNK`` in ``lstat``.
+    This mirrors the reparse-point detection already used by
+    ``autoharness.gates.bootstrap_grant._is_reparse_point``: probe
+    ``st_file_attributes`` (Windows-only) in addition to the POSIX
+    symlink bit, and fail closed (treat an unreadable path as untrusted)
+    rather than raising past the caller.
+    """
+    try:
+        stat_result = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(stat_result.st_mode):
+        return True
+    if not _REPARSE_POINT_ATTRIBUTE:
+        return False
+    attributes = getattr(stat_result, "st_file_attributes", None)
+    if attributes is None:
+        return False
+    return bool(attributes & _REPARSE_POINT_ATTRIBUTE)
+
+
+def _directory_component_is_untrusted(*components: Path) -> bool:
+    """Return True if any of ``components`` is itself a symlink/reparse point.
+
+    Callers pass every directory component leading to a glob root (for
+    example ``backlog_dir`` and ``backlog_dir / "queue"``) so a symlinked
+    or junctioned intermediate directory -- not just a symlinked leaf file
+    -- cannot redirect a scan to out-of-tree, untrusted frontmatter.
+    """
+    return any(_is_symlink_or_reparse_point(component) for component in components)
 
 CANONICAL_INERT_STATUS = "archived"
 
@@ -146,6 +199,13 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
     matches: list[_ArtifactRecord] = []
     for folder in ("queue", "archive"):
         base = backlog_dir / folder
+        if _directory_component_is_untrusted(backlog_dir, base):
+            raise BacklogUnavailableError(
+                backlog_dir,
+                f"{base} (or {backlog_dir}) is a symlink/reparse-point directory "
+                "component; a symlinked or junctioned backlog directory may escape "
+                "the backlog tree and cannot be trusted for classification",
+            )
         if not base.exists():
             continue
         try:
@@ -156,7 +216,7 @@ def _read_artifact_record(backlog_dir: Path, artifact_id: str) -> _ArtifactRecor
                 f"could not scan {base} for manifest item {artifact_id!r}: {exc}",
             ) from exc
         for candidate in glob_candidates:
-            if candidate.is_symlink():
+            if _is_symlink_or_reparse_point(candidate):
                 raise BacklogUnavailableError(
                     backlog_dir,
                     f"manifest item {artifact_id!r} resolved to a symlinked backlog "
@@ -208,6 +268,8 @@ def _scan_backlog(backlog_dir: Path) -> _BacklogScan | None:
 
     for folder in ("queue", "archive"):
         base = backlog_dir / folder
+        if _directory_component_is_untrusted(backlog_dir, base):
+            return None
         if not base.exists() or not base.is_dir():
             return None
         try:
@@ -215,7 +277,7 @@ def _scan_backlog(backlog_dir: Path) -> _BacklogScan | None:
         except OSError:
             return None
         for candidate in candidates:
-            if candidate.is_symlink():
+            if _is_symlink_or_reparse_point(candidate):
                 return None
             try:
                 fm = _frontmatter(candidate)
