@@ -762,6 +762,19 @@ cascade operation in step 1 below performs all remaining archival
 itself, consistent with the "no partial mixing of the two paths" rule
 above.
 
+**Baseline-fingerprint capture (INV-7, before invocation).** Immediately
+before step 1's invocation — using the SAME observation set of
+out-of-manifest descendants Step 0(c)'s classification scan already
+enumerated as reachable-and-engine-inert, never a fresh or narrower
+re-scan — record each such descendant's baseline location (`queue` or
+`archive`) plus a content hash of its file. This is the identical
+baseline-invariance snapshot P-015's own Precondition already requires to
+exist before a cascade invocation; capturing it here, rather than assuming
+Step 0(c)'s classification-time read still holds, is required because
+classification and invocation are not atomic. Retain this snapshot in
+memory for step 5's verification below; it is never reconstructed after
+the fact.
+
 1. Invoke `{{OP_SHIP_SHIPMENT_MCP}}(shipment_id, merge_commit_sha)` directly
    (CLI: `backlogit shipment ship <shipment_id> --sha <merge_commit_sha>
    --message <merge_commit_message> --author <merge_commit_author>`).
@@ -865,20 +878,38 @@ above.
    cascade-detection failure equivalent to step 6 of safe-close: halt with
    `HALT — cascade cleared parent_id on {id}, revert required` and emit a
    **P-005** violation; do NOT commit the mutated backlog state.
-5. **Produce cascade-close report** recording the classifier's verdict,
+5. **Verify out-of-manifest descendant baseline invariance (INV-7/INV-10,
+   after invocation)**: re-scan every descendant captured in the
+   baseline-fingerprint snapshot above and compare its current location
+   plus content hash against that snapshot. Any change relative to
+   baseline — location change, content-hash change, deletion, rename, new
+   archive presence, or `parent_id` drift on any of these
+   descendants — is a cascade signal exactly as INV-7/the Required Check
+   defines for safe-close: halt with
+   `HALT — cascade modified out-of-manifest descendant {id}, revert
+   required` and emit a **P-005** violation; do NOT commit the mutated
+   backlog state. This is the CASCADE-side counterpart of safe-close's
+   verify-after-each invariant, closing the gap the classification-time
+   INV-6 engine-inertness gate alone does not cover: INV-6 governs whether
+   `CASCADE` may be selected, this step governs whether the postcondition
+   it promised (`allowed_ids(S)`-external byte-identity) actually held once
+   the engine ran.
+6. **Produce cascade-close report** recording the classifier's verdict,
    qualifying feature IDs, and their validated linked deliberation IDs
    (all Step 0(c)), the pre-close declared-status
    snapshot (Step 0(b)/(c)), the `{{OP_SHIP_SHIPMENT_MCP}}` result
    (`shipment_status`, `archived_ids`, `returned_ids`, `commit_sha`),
    `allowed_ids`, `required_ids`, and both set differences
    (`archived_ids - allowed_ids` and `required_ids - archived_ids`) — so a
-   vacuous `required_ids` is visible in the report rather than silent — and
+   vacuous `required_ids` is visible in the report rather than silent —
    the parent_id-preservation verification outcome (against the Step 0(b)
-   snapshot).
-6. **Gate decision**: `returned_ids` empty, `archived_ids - allowed_ids`
+   snapshot), and the out-of-manifest descendant baseline-invariance
+   verification outcome from step 5 above.
+7. **Gate decision**: `returned_ids` empty, `archived_ids - allowed_ids`
    empty (no unexpected artifact archived), `required_ids - archived_ids`
-   empty (no required artifact left unarchived), and every `parent_id`
-   preserved (against the Step 0(b) snapshot) →
+   empty (no required artifact left unarchived), every `parent_id`
+   preserved (against the Step 0(b) snapshot), and every out-of-manifest
+   descendant byte-identical to its step-5 baseline fingerprint →
    `recommendation: CLOSED`. Proceed to
    post-mode. Any verification failure above → the corresponding `HALT`; do
    not proceed to post-mode or any commit step.

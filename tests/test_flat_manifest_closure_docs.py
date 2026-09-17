@@ -132,6 +132,35 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
                 self.assertRegex(text, r"must NOT be substituted|no substitution")
                 self.assertIn("archived_status: shipped", text)
 
+    def test_cascade_procedure_defines_baseline_fingerprint_invariance_check(self) -> None:
+        """The Cascade Close Sub-Procedure's INV-7/INV-10 baseline-fingerprint
+        capture-and-verify pair must be present, in full, in BOTH the
+        installed ``SKILL.md`` and its ``.tmpl`` mirror. This guards against
+        exactly the divergence Copilot review flagged on PR #454 (round 5):
+        a fix landed in the installed copy without being mirrored into the
+        generic template, so freshly-installed workspaces would silently
+        lack the post-invocation invariance gate entirely."""
+
+        skill_paths = tuple(
+            path for path in CONTRACT_FILES if "shipment-reconcile" in str(path)
+        )
+        self.assertEqual(len(skill_paths), 2)
+        repo_root = Path.cwd().resolve(strict=True)
+        for path in skill_paths:
+            label = str(path).replace("\\", "/")
+            text = (repo_root / path).read_text(encoding="utf-8")
+            with self.subTest(path=label):
+                self.assertIn("Baseline-fingerprint capture (INV-7, before invocation)", text)
+                self.assertIn(
+                    "Verify out-of-manifest descendant baseline invariance (INV-7/INV-10,",
+                    text,
+                )
+                self.assertIn(
+                    "HALT — cascade modified out-of-manifest descendant {id}, revert",
+                    text,
+                )
+                self.assertIn("byte-identical to its step-5 baseline fingerprint", text)
+
     def test_contract_files_omit_withdrawn_or_unsound_claims(self) -> None:
         for label, text in self._read_contract_texts():
             with self.subTest(path=label):
