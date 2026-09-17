@@ -667,6 +667,48 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.SAFE_CLOSE
 
+    def test_manifest_item_with_malformed_utf8_falls_back_to_safe_close(self) -> None:
+        """A manifest item file containing bytes that cannot be decoded as
+        UTF-8 must fail closed to SAFE_CLOSE via BacklogUnavailableError,
+        never escape as an uncaught UnicodeDecodeError (Copilot review,
+        PR #454, round 11)."""
+
+        feature_id = "320-F"
+        (self.backlog_dir / "queue" / f"{feature_id}.md").write_bytes(
+            b"---\nid: " + feature_id.encode("utf-8") + b"\nartifact_type: feature\n"
+            b"status: \xff\xfe invalid utf-8 \n---\n"
+        )
+
+        decision = classify_shipment_close_path([feature_id], self.backlog_dir)
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
+    def test_out_of_manifest_descendant_with_malformed_utf8_falls_back_to_safe_close(
+        self,
+    ) -> None:
+        """An out-of-manifest descendant file containing bytes that cannot be
+        decoded as UTF-8 must fail closed to SAFE_CLOSE via the backlog-scan
+        error path, never escape as an uncaught UnicodeDecodeError (Copilot
+        review, PR #454, round 11)."""
+
+        feature_id = "321-F"
+        manifest_child_id = "321.001-T"
+        _write_artifact(self.backlog_dir, "queue", feature_id, "feature")
+        _write_artifact(
+            self.backlog_dir, "queue", manifest_child_id, "task", parent_id=feature_id
+        )
+        (self.backlog_dir / "archive" / "321.002-T.md").write_bytes(
+            b"---\nid: 321.002-T\nartifact_type: task\nparent_id: "
+            + feature_id.encode("utf-8")
+            + b"\nstatus: \xff\xfe archived \n---\n"
+        )
+
+        decision = classify_shipment_close_path(
+            [feature_id, manifest_child_id], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
     def _symlink_directory_component(self, feature_id: str, symlinked_folder: str) -> None:
         """Replace an entire ``queue``/``archive`` directory with a symlink
         pointing at a real, out-of-tree directory containing a valid root

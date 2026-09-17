@@ -262,6 +262,10 @@ def _frontmatter(path: Path) -> dict[str, Any]:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
         raise BacklogUnavailableError(path, "artifact is unreadable") from exc
+    except UnicodeDecodeError as exc:
+        raise BacklogUnavailableError(
+            path, "artifact is not valid UTF-8 and cannot be parsed"
+        ) from exc
     match = re.match(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", raw, flags=re.DOTALL)
     if not match:
         raise BacklogUnavailableError(path, "artifact frontmatter is missing or malformed")

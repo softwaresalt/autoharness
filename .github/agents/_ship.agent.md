@@ -695,9 +695,13 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       withdrawn "fully-covered-root" children-walk. The classifier has
       exactly two outcomes: `CASCADE` and `SAFE_CLOSE`.
    b. **`SAFE_CLOSE` (the default)**: archives only the shipment manifest's
-      explicit item IDs, one artifact at a time, via the non-cascading
-      sequence `backlogit move <shipment_id> --status shipped` -> verify
-      live `status: shipped` -> `backlogit archive <shipment_id>` -> verify
+      explicit item IDs, one artifact at a time, via `backlogit move {item_id}
+      --status done` -> `backlogit archive {item_id}` for each item — never
+      the shipment-record commands below. Only after every manifest item is
+      individually archived does the skill close the shipment record itself
+      as its own single artifact, via the separate non-cascading sequence
+      `backlogit move <shipment_id> --status shipped` -> verify live
+      `status: shipped` -> `backlogit archive <shipment_id>` -> verify
       `archived_status: shipped`, then re-verifies the observation set of
       out-of-manifest artifacts is still baseline-invariant.
    c. **`CASCADE` (the narrow P-015 exception)**: permitted only when every

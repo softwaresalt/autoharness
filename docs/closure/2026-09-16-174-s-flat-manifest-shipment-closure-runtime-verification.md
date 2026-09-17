@@ -71,14 +71,14 @@ separate runtime surface, but corroborating that `shipment_closure.py`
 imports cleanly and integrates correctly):
 
 * `python -m py_compile src/autoharness/cli.py src/autoharness/gates/shipment_closure.py` — exit 0.
-* `PYTHONPATH=src python -m unittest discover -s tests` — 2339 tests, 0
-  failures, 54 skipped (re-verified after all P-018 review-fix rounds; also
-  independently re-run by the repository's pre-push hook at every push,
-  which additionally ran `markdownlint '**/*.md'` — all local quality gates
-  passed).
-* CI workflow run `35174617814` on PR #454 at final reviewed HEAD `00b96730`:
-  `detect code changes` pass, `pipeline-topology (ambient)` pass, `test`
-  pass, `ci gate` pass.
+* `PYTHONPATH=src python -m unittest discover -s tests` — 2342 tests, 0
+  failures, 54 skipped (re-verified after all P-018 review-fix rounds through
+  round 11; also independently re-run by the repository's pre-push hook at
+  every push, which additionally ran `markdownlint '**/*.md'` — all local
+  quality gates passed).
+* CI green on all required checks (`detect code changes`, `pipeline-topology
+  (ambient)`, `test`, `ci gate`) on PR #454 at every push through round 11,
+  including this round's commit.
 
 ## Manual Checkpoints
 
@@ -97,10 +97,12 @@ environment.
 (cascade archive vs. safe-close), but this verification report covers the
 *module import/CLI-integration* surface only — the classifier's own
 correctness is covered by the dedicated unit-test suite
-(`tests/test_shipment_closure_classification.py`, 47 tests including 3 new
-symlink-traversal regressions) and by the Step 3 multi-persona local review
-gate, not by a runtime-adapter probe. The classifier itself will be exercised
-live and observed at Step 5 post-merge closure (`shipment-reconcile
+(`tests/test_shipment_closure_classification.py`, 53 tests including 3
+symlink-traversal regressions, 5 `out_of_manifest_descendant_ids`/multi-root-
+union tests added in round 8, and 2 malformed-UTF-8 fail-closed tests added
+in round 11) and by the Step 3 multi-persona local review gate, not by a
+runtime-adapter probe. The classifier itself will be exercised live and
+observed at Step 5 post-merge closure (`shipment-reconcile
 safe-close`/cascade determination for 174-S's own manifest).
 
 ## Verdict
@@ -113,12 +115,15 @@ preserve-invariant violation occurred.
 
 ## Follow-Up Recommendations
 
-* None required to proceed to merge. The 16 out-of-scope review findings
+* None required to proceed to merge. The 17 out-of-scope review findings
   deferred across Step 3 local review and the Copilot P-018 gate (stash IDs
   `AD0F128D`, `25B0D5F2`, `2E31C659`, `4E4C54DE`, `429E3F7F`, `815830AB`,
   `A0FAE77A`, `CC2E9329`, `85BFB54C`, `9D8C4949`, `AF0CC40E`, `46A985E5`,
-  `F6330460`, `25E10837`, `AD01B943`, `92FC85DD`) are tracked for Stage
-  deliberation, not runtime-verification follow-ups.
+  `F6330460`, `25E10837`, `AD01B943`, `92FC85DD`, `7667738E`) are tracked for
+  Stage deliberation, not runtime-verification follow-ups. `7667738E` (round
+  10) is a role-boundary deferral, not a P-021 contract-surface deferral: the
+  finding is genuine but its fix requires editing a deliberation artifact,
+  which is outside Ship's Role Boundary.
 
 ## Handoff to Operational Closure
 
@@ -131,7 +136,7 @@ preserve-invariant violation occurred.
 * Risky action state: shipment-closure classifier's own destructive-path
   correctness is covered by unit tests + local review, not this runtime
   probe; classifier will be exercised live at Step 5 closure
-* Follow-up recommendations: none blocking; 16 deferred findings tracked via
+* Follow-up recommendations: none blocking; 17 deferred findings tracked via
   stash for Stage deliberation
 * Releasability handoff: `runtime_validation.releasability.required: false`
   in the workspace profile — no monitoring/rollback/owner/validation-window
