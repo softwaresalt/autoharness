@@ -17,7 +17,7 @@ status: resolved
 - Skill mirror parity (rendered full file): `False` (expected; unchanged templateized sections outside Tasks 4-5 still differ before render)
 - Skill changed-block parity: `True`
 - `uv run autoharness gate check --base 9474c577405d4756104926c63b4329d464aaea6d --head HEAD --no-count`: passed (`No validation gates configured; nothing to check.`)
-- Canonical suite status: **BLOCKED** by one out-of-scope manifest checksum assertion.
+- Canonical suite status: **PASSING** (2333 tests, 0 failures) as of the final resolution below; the initial dry-run recorded a **BLOCKED** result from one out-of-scope manifest checksum assertion, which was resolved — see "Resolution (Ship, post-166.006-T)" below.
 
 ## Canonical Suite Gate
 

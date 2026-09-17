@@ -422,8 +422,8 @@ completion.
       `classify_shipment_close_path(manifest_items, workspace_backlog_dir)`-shaped
       function (this self-hosting repository's own implementation lives at
       `src/autoharness/gates/shipment_closure.py`); other workspaces implement
-      the equivalent check directly against `.backlogit/queue/` +
-      `.backlogit/archive/`. The classifier has exactly two outcomes here:
+      the equivalent check directly against `{{BACKLOG_DIRECTORY}}/queue/` +
+      `{{BACKLOG_DIRECTORY}}/archive/`. The classifier has exactly two outcomes here:
       `CASCADE` and `SAFE_CLOSE`.
 
       This is the **INV-6 engine-inertness containment gate**. The descendant
@@ -459,10 +459,10 @@ completion.
 
       | Manifest shape | Out-of-manifest descendant | Engine effect | Evidence class |
       |---|---|---|---|
-      | has feature member | declares exact canonical `status: archived` | inert — skipped, byte-identical | **PROVEN (ENGINE LAW)** — path-scoped `git diff --stat 358b63b4 e4ca20e5 -- .backlogit/archive/165.007-T.md .backlogit/archive/165.010-T.md` is empty, and `git rev-parse 358b63b4:<path>` / `git rev-parse e4ca20e5:<path>` return identical blob OIDs for both paths. This is the **only** proven row |
+      | has feature member | declares exact canonical `status: archived` | inert — skipped, byte-identical | **PROVEN (ENGINE LAW)** — verify via a path-scoped `git diff --stat <verified-commit-a> <verified-commit-b> -- <archived-artifact-path-a> <archived-artifact-path-b>` returning empty, and `git rev-parse <verified-commit-a>:<path>` / `git rev-parse <verified-commit-b>:<path>` returning identical blob OIDs for each path in this workspace's own history. This is the **only** proven row |
       | has feature member | `status: done` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
       | has feature member | live `queued` | archived, with `returned_ids` reported `[]` | **INDICATIVE / UNPROVEN** — rationale only; may never be stated as measured fact and may never authorize `CASCADE` |
-      | no feature member | live sibling | returned, with `parent_id` cleared | **INDICATIVE / UNPROVEN** — follow-up `63363CF5`; may never authorize `CASCADE`. For a genuine split-delivery intermediate shipment, see **INV-11** and safe-close step 8's `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt, tracked by durable active stash entry `7F9CB5E9` |
+      | no feature member | live sibling | returned, with `parent_id` cleared | **INDICATIVE / UNPROVEN** — follow-up `63363CF5`; may never authorize `CASCADE`. For a genuine split-delivery intermediate shipment, see **INV-11** and safe-close step 8's `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt, tracked by a durable active stash entry local to this workspace's own backlog |
       | any | ancestor/parent of a manifest item | untouched (no upward walk) | **INDICATIVE / UNPROVEN** |
 
       An unproven row may never authorize `CASCADE`. Where engine behavior is
@@ -631,7 +631,7 @@ completion.
      manifest is not `CASCADE`-eligible under Step 0(c), halt fail-closed with
      `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. This is **INV-11**: multi-shipment /
      split delivery is **contract-complete** but **operationally blocked** for backlogit
-     1.10.1, tracked by durable active stash entry `7F9CB5E9`. There is no known safe
+     1.10.1, tracked by a durable active stash entry local to this workspace's own backlog. There is no known safe
      path from this shape to `archived_status: shipped` without new upstream tooling.
      The cascade op must **NOT** be substituted: the belief that it can return live
      out-of-manifest siblings and clear their `parent_id` remains **INDICATIVE /
@@ -1059,7 +1059,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `INV-8`: manifest ordering is a Stage assembly convention, NOT a closure precondition.
 * `INV-9`: exact parsed-scalar inertness is `isinstance(status, str) and status == "archived"`; non-string values such as `status: yes` or bare `status:` fail closed, with no `.lower()`, no `.strip()`, no `casefold`, no alias, and no `str()` coercion.
 * `INV-10`: any id that resolves to more than one record (torn or duplicate) forces `SAFE_CLOSE`.
-* `INV-11`: multi-shipment / split delivery is **contract-complete** but **operationally blocked** for backlogit 1.10.1; when a shipment record cannot safely reach `archived_status: shipped` without `CASCADE` eligibility, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` and track the external prerequisite in stash entry `7F9CB5E9`.
+* `INV-11`: multi-shipment / split delivery is **contract-complete** but **operationally blocked** for backlogit 1.10.1; when a shipment record cannot safely reach `archived_status: shipped` without `CASCADE` eligibility, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` and track the external prerequisite in a durable active stash entry local to this workspace's own backlog.
 
 ## Deterministic Safe-Close Scenario Matrix
 

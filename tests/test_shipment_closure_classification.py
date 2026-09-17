@@ -558,6 +558,31 @@ class ShipmentClosureClassificationTests(unittest.TestCase):
 
         assert decision.close_path is ClosePath.SAFE_CLOSE
 
+    def test_out_of_manifest_descendant_with_no_declared_id_falls_back_to_safe_close(self) -> None:
+        """A scanned record with a missing/non-string ``id`` must never be trusted
+        via its filename stem, even when that stem happens to declare
+        ``status: archived``: falling back to the filename would let a forged or
+        malformed record masquerade as an engine-inert out-of-manifest descendant."""
+
+        feature_id = "312-F"
+        manifest_child_id = "312.001-T"
+        _write_artifact(self.backlog_dir, "queue", feature_id, "feature")
+        _write_artifact(
+            self.backlog_dir, "queue", manifest_child_id, "task", parent_id=feature_id
+        )
+        # No declared `id:` field at all; the filename stem happens to look like
+        # a plausible archived descendant, which must NOT be trusted.
+        (self.backlog_dir / "archive" / "312.002-T.md").write_text(
+            f"---\nartifact_type: task\nparent_id: {feature_id}\nstatus: archived\n---\n",
+            encoding="utf-8",
+        )
+
+        decision = classify_shipment_close_path(
+            [feature_id, manifest_child_id], self.backlog_dir
+        )
+
+        assert decision.close_path is ClosePath.SAFE_CLOSE
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,6 +14,19 @@ CONTRACT_FILES = (
     Path("templates") / "skills" / "shipment-reconcile" / "SKILL.md.tmpl",
 )
 
+# The Ship agent files are deliberate "thin pointer" surfaces: they reference
+# the authoritative P-015/shipment-reconcile contract rather than re-deriving
+# its full invariant/vocabulary set (D1A_TERMS, INVARIANT_TOKENS, the exact
+# parsed-scalar rule, etc. are intentionally NOT restated here). They are kept
+# out of CONTRACT_FILES for that reason, but they still embed a summary of the
+# close-path decision and MUST NOT retain the withdrawn fully-covered-root
+# predicate that summary once described — see
+# ``test_ship_agent_files_omit_withdrawn_fully_covered_root_claims`` below.
+SHIP_AGENT_CONTRACT_FILES = (
+    Path(".github") / "agents" / "_ship.agent.md",
+    Path("templates") / "agents" / "_ship.agent.md.tmpl",
+)
+
 D1A_TERMS = (
     "manifest_scope",
     "closure_scope",
@@ -33,6 +46,30 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
             for path in CONTRACT_FILES
         ]
 
+    def _read_ship_agent_texts(self) -> list[tuple[str, str]]:
+        repo_root = Path.cwd().resolve(strict=True)
+        return [
+            (str(path).replace("\\", "/"), (repo_root / path).read_text(encoding="utf-8"))
+            for path in SHIP_AGENT_CONTRACT_FILES
+        ]
+
+    def test_ship_agent_files_omit_withdrawn_fully_covered_root_claims(self) -> None:
+        """The Ship agent's own closure-tasks summary must reflect the P-015
+        flat-manifest/engine-inertness model, never the withdrawn
+        fully-covered-root children-walk predicate it previously described."""
+
+        for label, text in self._read_ship_agent_texts():
+            with self.subTest(path=label):
+                self.assertNotIn("VERIFIED FULLY-COVERED-ROOT EXCEPTION", text)
+                self.assertNotIn("fully covered", text.casefold())
+                self.assertNotRegex(
+                    text,
+                    re.compile(r"(?i)P-015 (?:verified )?fully-covered-root"),
+                )
+                self.assertIn("classify_shipment_close_path", text)
+                self.assertIn("CASCADE", text)
+                self.assertIn("SAFE_CLOSE", text)
+
     def test_contract_files_define_scope_vocabulary_and_invariants(self) -> None:
         for label, text in self._read_contract_texts():
             with self.subTest(path=label):
@@ -49,7 +86,17 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
                 self.assertRegex(text, r"Ancestry[^\n]+(?:never|NOT)")
                 self.assertIn("contract-complete", text)
                 self.assertIn("operationally blocked", text)
-                self.assertIn("7F9CB5E9", text)
+                if label.endswith(".tmpl"):
+                    # Generic templates MUST NOT hardcode a workspace-local stash
+                    # ID: target workspaces will not have `7F9CB5E9`, so the
+                    # tracking reference must instead be resolvable/generic.
+                    self.assertNotIn("7F9CB5E9", text)
+                    self.assertIn(
+                        "durable active stash entry local to this workspace's own backlog",
+                        text,
+                    )
+                else:
+                    self.assertIn("7F9CB5E9", text)
                 self.assertRegex(text, r"INV-8[^\n]+(?:assembly convention|Stage assembly)")
                 self.assertRegex(text, r"INV-8[^\n]+NOT a closure precondition")
 

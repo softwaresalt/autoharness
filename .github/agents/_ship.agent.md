@@ -688,47 +688,32 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    is resolved and the template fallback is obsolete; preferring the templates now would
    bypass the manifest-tracked artifacts and their checksum verification.)
    At the summary level, the skill:
-   a. archives only the shipment manifest's explicit item IDs;
-   b. closes only the shipment record via the non-cascading sequence
-      `backlogit move <shipment_id> --status shipped` -> verify live `status: shipped`
-      -> `backlogit archive <shipment_id>` -> verify `archived_status: shipped`;
-   c. proves the protected set and halts fail-closed on any cascade or provenance
-      ambiguity.
-   d. **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`** unless the
-      P-015 **VERIFIED FULLY-COVERED-ROOT EXCEPTION** below applies. Outside that narrow
-      exception, this cascade operation requeues + detaches unshipped descendant tasks
-      back to the backlog with `parent_id` cleared, archives release-scope members
-      outside the manifest-scoped ordering, and preserves/restores a non-member covering
-      feature via snapshot. It is P-015-forbidden for partial-feature shipments because
-      it can requeue/detach downstream siblings and close outside the safe-close
-      ordering.
-   e. **P-015 verified fully-covered-root exception (select the close path from the
-      verified check, never from prose alone)**: safe-close remains the default. Before
-      closing, run the machine-checkable classification described in P-015 (see
-      `src/autoharness/gates/shipment_closure.py`'s
-      `classify_shipment_close_path(manifest_items, workspace_backlog_dir)` for this
-      self-hosting repository's own implementation) over the shipment manifest's items.
-      The cascade close path is permitted **only** when, for **every** feature member of
-      the manifest: it is a root (no `parent_id`); it is fully covered (every one of its
-      children, enumerated live from the resolved backlog root's `queue/` +
-      `archive/` directories (`.backlog/` is the default for new installs;
-      legacy `.backlogit/` remains supported, and both-roots-present must fail
-      closed) is also a manifest member); and, if it enumerates to zero children, that
-      childlessness is **positively verified** against the live workspace (never
-      inferred from an incomplete or failed enumeration) and the feature is additionally
-      terminal (no manifest member declares it as parent). The manifest must contain
-      nothing beyond the qualifying root feature(s) and their children. If **any**
-      feature member fails **any** precondition, the **whole manifest** falls back to
-      safe-close — qualification is never per-member, and no feature ID is ever
-      special-cased. When (and only when) the classification confirms every
-      precondition holds, invoke the cascade `backlogit shipment ship` /
-      `backlogit_ship_shipment` operation in place of steps a-d above for this
-      shipment's closure.
-   f. If the skill returns `HALT — cascade detected, revert required`, restore
-      the resolved backlog root's `queue/` + `archive/` directories (`.backlog/`
-      is the default for new installs; legacy `.backlogit/` remains supported,
-      and both-roots-present must fail closed), surface the protected-set
-      violation, and halt. Do NOT commit a corrupt backlog.
+   a. classifies the close path via the P-015 flat-manifest, engine-inertness
+      containment gate (`classify_shipment_close_path(manifest_items,
+      workspace_backlog_dir)` in `src/autoharness/gates/shipment_closure.py`
+      for this self-hosting repository's own implementation) — never a
+      withdrawn "fully-covered-root" children-walk. The classifier has
+      exactly two outcomes: `CASCADE` and `SAFE_CLOSE`.
+   b. **`SAFE_CLOSE` (the default)**: archives only the shipment manifest's
+      explicit item IDs, one artifact at a time, via the non-cascading
+      sequence `backlogit move <shipment_id> --status shipped` -> verify
+      live `status: shipped` -> `backlogit archive <shipment_id>` -> verify
+      `archived_status: shipped`, then re-verifies the observation set of
+      out-of-manifest artifacts is still baseline-invariant.
+   c. **`CASCADE` (the narrow P-015 exception)**: permitted only when every
+      artifact reachable from the manifest but outside `closure_scope(S)` is
+      engine-inert (a parsed frontmatter `status` of exactly `"archived"`).
+      **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`**
+      directly — only the skill's own classification may select this path.
+      When selected, the skill invokes the cascade operation and
+      independently verifies `returned_ids` is empty, the two-set
+      `allowed_ids(S)` / `required_ids(S)` postcondition gate, `parent_id`
+      preservation, and out-of-manifest descendant baseline-fingerprint
+      invariance (captured before invocation, re-verified after).
+   d. halts fail-closed — `HALT — cascade detected, revert required` (or the
+      corresponding cascade-specific `HALT`) — on any baseline drift,
+      postcondition violation, or provenance ambiguity on either path; do
+      NOT commit a corrupt backlog.
 3. Write compound learnings for hard-won solutions.
 4. Update documentation if templates changed significantly.
 5. Write session memory to `docs/memory/`. When the `backlogit` capability pack is

@@ -226,7 +226,15 @@ def _scan_backlog(backlog_dir: Path) -> _BacklogScan | None:
             if raw_parent_id is not None and parent_id is None:
                 return None
 
-            artifact_id = _normalize_id(fm.get("id")) or candidate.stem
+            artifact_id = _normalize_id(fm.get("id"))
+            if artifact_id is None:
+                # A missing or non-string declared id cannot be trusted: falling
+                # back to the filename stem would let a filename substitute for
+                # declared identity, and a record here could then be silently
+                # treated as an out-of-manifest descendant with a fabricated id
+                # (e.g. one that happens to match a genuinely archived status).
+                # Fail closed for the whole scan instead.
+                return None
             if artifact_id in status_index:
                 ambiguous_ids.add(artifact_id)
             else:

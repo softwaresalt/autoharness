@@ -67,14 +67,25 @@ class ShipSafeClosePointerTests(unittest.TestCase):
                 self.assertIn('backlogit archive <shipment_id>', content)
                 self.assertIn('archived_status: shipped', content)
 
-    def test_forbidden_cascade_behavior_is_described_accurately(self) -> None:
+    def test_cascade_path_is_gated_by_classification_not_prose(self) -> None:
+        """The Ship agent's cascade-path summary must reflect the P-015
+        flat-manifest/engine-inertness gate: cascade is selected only by the
+        classifier, verified against postconditions, and never invoked
+        directly from prose judgment."""
+
         for label, content in _files():
             normalized = ' '.join(content.split())
             with self.subTest(file=label):
-                self.assertIn('requeues + detaches unshipped descendant tasks', normalized)
-                self.assertIn('`parent_id` cleared', normalized)
-                self.assertIn('preserves/restores a non-member covering feature via snapshot', normalized)
-                self.assertIn('P-015-forbidden', normalized)
+                self.assertIn('classif', normalized)
+                self.assertIn('engine-inert', normalized)
+                self.assertIn('Do NOT call', normalized)
+                self.assertIn('only the skill', normalized)
+                self.assertIn('returned_ids', normalized)
+                self.assertIn('parent_id', normalized)
+                self.assertIn('baseline-fingerprint', normalized)
+                self.assertIn('halts fail-closed', normalized)
+                self.assertNotIn('requeues + detaches unshipped descendant tasks', normalized)
+                self.assertNotIn('VERIFIED FULLY-COVERED-ROOT EXCEPTION', normalized)
 
 
 if __name__ == '__main__':
