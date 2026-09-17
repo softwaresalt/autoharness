@@ -125,7 +125,30 @@ preserve-invariant violation occurred.
   finding is genuine but its fix requires editing a deliberation artifact,
   which is outside Ship's Role Boundary.
 
-## Handoff to Operational Closure
+## Post-Merge Addendum — Live Classifier Exercise (Step 5 closure, confirmed)
+
+The classifier was subsequently exercised live at Step 5 post-merge closure,
+as anticipated above. `classify_shipment_close_path` returned `CASCADE` for
+shipment 174-S's own manifest (qualifying feature `166-F`, empty
+out-of-manifest descendant set, empty linked-deliberation set — both
+re-confirmed via the round-12/13-hardened pre-invocation revalidation step
+immediately before invocation, with no drift from the initial classification).
+The cascade operation (`backlogit shipment ship 174-S --sha
+d8615e9d5eb93a1d1616a735ca1433236868bee1 ...`) archived all 8 manifest+record
+artifacts with `returned_ids: []`, and all Cascade Close Sub-Procedure
+postcondition checks (two-set `allowed_ids`/`required_ids` gate, `parent_id`
+preservation, out-of-manifest baseline invariance) passed. Full report:
+`.backlogit/reconcile/174-S-safe-close-20260917-062522.md`. This confirms the
+classifier's destructive-path correctness held under a genuine, non-test
+invocation, corroborating the unit-test-suite coverage referenced above.
+
+## Verdict (reconfirmed post-merge)
+
+**PASS** (unchanged) — the live post-merge classifier exercise did not
+surface any regression or unexpected behavior relative to the pre-merge
+verdict.
+
+
 
 * Verification verdict: **PASS**
 * Runtime surfaces verified: `cli` (command adapter, `cli-help` probe)
