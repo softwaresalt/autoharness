@@ -1103,17 +1103,18 @@ If pre-mode cannot acquire the lock because another process holds it:
 ## P-015 Vocabulary and Invariant Summary
 
 * D1a vocabulary used by this skill: `manifest_scope`, `closure_scope`, `allowed_ids`, `required_ids`, `validated_linked_deliberations`.
-* `INV-1`: `manifest_scope(S)` is exactly `items(S)`.
-* `INV-2`: `closure_scope(S)` is exactly `items(S) ∪ {S}`.
-* `INV-3`: Ancestry may explain blast radius, but it never expands `closure_scope(S)`.
-* `INV-4`: `allowed_ids` is the flat postcondition set defined by P-015.
-* `INV-5`: `required_ids` is the must-transition subset of `allowed_ids`.
-* `INV-6`: out-of-manifest descendants matter only through the engine-inertness containment check; any non-inert or ambiguous descendant forces `SAFE_CLOSE`.
-* `INV-7`: safe-close watches every observation-set artifact for baseline invariance outside `closure_scope(S)`.
-* `INV-8`: manifest ordering is a Stage assembly convention, NOT a closure precondition.
-* `INV-9`: exact parsed-scalar inertness is `isinstance(status, str) and status == "archived"`; non-string values such as `status: yes` or bare `status:` fail closed, with no `.lower()`, no `.strip()`, no `casefold`, no alias, and no `str()` coercion.
-* `INV-10`: any id that resolves to more than one record (torn or duplicate) forces `SAFE_CLOSE`.
-* `INV-11`: multi-shipment / split delivery is **contract-complete** but **operationally blocked** for backlogit 1.10.1; when a shipment record cannot safely reach `archived_status: shipped` without `CASCADE` eligibility, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` and track the external prerequisite in a durable active stash entry local to this workspace's own backlog.
+* This list mirrors the policy's own `INV-1`..`INV-11` numbering and meaning exactly (`.github/policies/workflow-policies.md`, P-015 Invariants) — it is a condensed restatement, never a second/parallel numbering.
+* `INV-1` (Flat closure scope): `closure_scope(S) = items(S) ∪ {S}`. Ancestry never adds a member; linked deliberations are accounted for only in `allowed_ids(S)`, never in `closure_scope(S)`.
+* `INV-2` (Membership is explicit and exhaustive): an artifact is in `manifest_scope(S)` iff its ID appears in `items(S)`.
+* `INV-3` (Exclusion is never a gate): an out-of-manifest descendant may hold any status. Ancestry alone never makes it a closure blocker or closure-scope member.
+* `INV-4` (Multi-shipment feature delivery): a feature may be delivered across `S1..Sn`; contract-complete but operationally blocked pending an external prerequisite tracked in a durable active stash entry local to this workspace's own backlog.
+* `INV-5` (Feature terminality precondition): the final shipment in a delivery sequence may carry the feature only once every task actually delivered by `S1..Sn` is terminal; contract-complete but operationally blocked pending that same prerequisite.
+* `INV-6` (Engine-inertness containment gate): `CASCADE` is permitted only when every artifact in the `parent_id` descendant set the classifier enumerates (`out_of_manifest_descendant_ids`) that lies outside `closure_scope(S)` is engine-inert — an exact parsed-scalar `isinstance(status, str) and status == "archived"` match, with no `.lower()`, no `.strip()`, no `casefold`, no alias, and no `str()` coercion, and with any id resolving to more than one record (torn or duplicate) failing closed; this gate never reaches `validated_linked_deliberations(S)`.
+* `INV-7` (Baseline invariance replaces baseline presence): safe-close records each observed artifact's baseline location plus content hash and requires nothing outside `closure_scope(S)` changes relative to baseline.
+* `INV-8` (Manifest ordering is a Stage assembly convention, NOT a closure precondition).
+* `INV-9` (DAG orthogonality): shipment sequencing and pipeline topology are orthogonal to closure scope; closure never consults the DAG when deciding what this shipment may transition.
+* `INV-10` (Postconditions): `archived_ids ⊆ allowed_ids(S)`; `required_ids(S) ⊆ archived_ids`; every artifact outside `allowed_ids(S)` is byte-identical to baseline, including `parent_id`; the shipment record declares `status: archived` plus `archived_status: shipped`.
+* `INV-11` (External runtime prerequisite): multi-shipment / split delivery is **contract-complete** but **operationally blocked** for backlogit 1.10.1; when a shipment record cannot safely reach `archived_status: shipped` without `CASCADE` eligibility, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` and track the external prerequisite in a durable active stash entry local to this workspace's own backlog.
 
 ## Deterministic Safe-Close Scenario Matrix
 
