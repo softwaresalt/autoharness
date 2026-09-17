@@ -86,13 +86,22 @@ closure_dir`. A relative `closure_dir` is never resolved against the process
 CWD. The resolved closure directory, the resolved output path, and the output's
 parent are each asserted against the resolved root, so an absolute out-of-root
 directory, a traversal escape, and a symlink or Windows junction whose target
-leaves the tree are all rejected.
+leaves the tree are all rejected. The same containment logic is extracted as
+`assert_path_within_workspace` and reused, by import, for the CLI's
+caller-supplied `--path` candidate against `--workspace` — a canonical-looking
+file reached from outside the workspace root, directly or through an escaping
+symlink/junction, is rejected before the filename, predicate, or
+discoverability checks run, rather than being checked by a second,
+independently-written containment rule.
 
-*Verified*: plan `C4` and `U10`; task `167.010-T`. The containment scenario is
-required to run with the process CWD set to a temporary directory **outside**
-the workspace root, and to assert the built path lies under `workspace_root`
-and **not** under the CWD — without that condition the anchoring rule would be
-untestable by construction.
+*Verified*: plan `C4`, `RQ-15`, `U4`, and `U10`; tasks `167.004-T` and
+`167.010-T`. The containment scenario is required to run with the process CWD
+set to a temporary directory **outside** the workspace root, and to assert the
+built path lies under `workspace_root` and **not** under the CWD — without that
+condition the anchoring rule would be untestable by construction. `U4` test 5
+extends the same assertion to the `--path` input, parametrized over an
+absolute out-of-root path, a traversal escape, and a symlink/junction that
+resolves outside the root.
 
 ### 2. There is exactly one canonical identifier domain
 
@@ -218,7 +227,7 @@ re-labelled, or re-sequenced by this session.
 | Architecture | PASS | The contract module is the sole definition; `workspace_root` is an explicit dependency rather than ambient state; `CONTRACT_DEFINITION_SITE` keeps the scan surface contract-owned; the reader protocol is unchanged and the hardening table says so. The new `## Contract Specification` section gives every unit one place to consume rather than restate. |
 | Scope-boundary | PASS | D8's zero-artifact invariant intact; `3EF5AAF2` and `AE612665` untouched and unconsumed; no source, test, or config file written; unit count held at 12. |
 | Standards | PASS | All 12 units remain within the 2-hour rule and width isolation; no unit exceeds 4 named scenarios (U10, U11 and U1 use parametrized rows inside a single named scenario); every task carries both `size` and `complexity`. |
-| Fail-closed / safety | PASS | Containment anchors to the resolved workspace root and is proven from an out-of-root CWD; one identifier domain with lowercase tolerance confined to the legacy read path; attribution cannot be defeated by a foreign suffix; write/read parity proven across every consumer branch with no second validity definition anywhere. |
+| Fail-closed / safety | PASS | Containment anchors to the resolved workspace root and is proven from an out-of-root CWD, and the same primitive gates the CLI's caller-supplied `--path` before any other write-time check runs; one identifier domain with lowercase tolerance confined to the legacy read path; attribution cannot be defeated by a foreign suffix; write/read parity proven across every consumer branch with no second validity definition anywhere. |
 | Test-efficacy | PASS | The durable suite depends on no repository history; the legacy-fixture exception is stated explicitly instead of demanding an impossible builder output; the one real-corpus claim that cannot be simulated is preserved as point-in-time runtime evidence. |
 | Dependency / sequencing | PASS | Graph acyclic; manifest topological; live edges match plan-declared sets, including the `167.008-T → 167.007-T` edge the legacy-helper precondition introduces. |
 | Implementability | PASS | Every constant, parameter, position-anchored pattern, and assertion named in the plan is constructible as specified, and the two previously impossible demands (a builder-created R2 fixture, a field-specific diagnostic from a boolean predicate) are removed rather than restated. |

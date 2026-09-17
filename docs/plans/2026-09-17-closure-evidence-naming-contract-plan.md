@@ -85,7 +85,7 @@ Predecessor derivation is correct; only discovery fails.
 | RQ-12 | A non-drift guard ties documented pattern text to the code constant, and the documented constant is **derived** from the machine template (R8; criterion 1) | U1, U9 |
 | RQ-13 | The gate remains fail-closed: validity predicate byte-unchanged, malformed frontmatter still raises (D3, R1, R3; criterion 6, non-goals) | U2, U8, U12 |
 | RQ-14 | Zero files under `docs/closure/` are created, renamed, edited, or deleted (D8) | verification step (all units) |
-| RQ-15 | Path construction is anchored to the **resolved workspace root**. `workspace_root` resolves first; a relative `closure_dir` is anchored as `workspace_root / closure_dir` and is **never** resolved against the process CWD. Separators, traversal, absolute, drive, UNC, and malformed IDs are rejected, and the resolved closure directory, the resolved output path, and the output's parent are all asserted against the resolved root, including through symlinks and Windows junctions | U10 |
+| RQ-15 | Path construction is anchored to the **resolved workspace root**. `workspace_root` resolves first; a relative `closure_dir` is anchored as `workspace_root / closure_dir` and is **never** resolved against the process CWD. Separators, traversal, absolute, drive, UNC, and malformed IDs are rejected, and the resolved closure directory, the resolved output path, and the output's parent are all asserted against the resolved root, including through symlinks and Windows junctions. The **same** containment primitive also gates any caller-supplied candidate path (U4's `--path`) against `--workspace` before further processing, so a canonical-looking file reached from outside the workspace root — directly or through an escaping symlink/junction — is rejected before filename, predicate, or discoverability checks run | U10, U4 |
 | RQ-16 | The contract change adds **no** member to the `TopologyReaders` protocol and modifies **no** existing implementer or test double | U2, U3 |
 | RQ-17 | There is exactly **one** canonical ID domain. The write grammars are uppercase-only and case-sensitive; the canonical read pattern **R1** is composed from them and is uppercase-only, so R1's accepted domain and the builder's accepted domain are identical **in both directions**. Lowercase tolerance exists **only** in the legacy read pattern **R2** and its case-folded comparison | U1, U10 |
 | RQ-18 | Candidate attribution parses the shipment ID from its **designated filename position** under the anchored R1/R2 grammar and compares the parsed identifier using **that position's own comparison rule** — exact, case-sensitive for the canonical position, `str.casefold()` for the legacy position, mirroring RQ-17 so casefold tolerance never leaks onto the canonical position. A requested shipment token is **never** searched for elsewhere in a filename, and in particular never inside an R2 free-form suffix | U1, U3 |
@@ -242,6 +242,7 @@ Diagnostics are therefore partitioned by ownership:
 
 | Check | Owner | Diagnostic granularity |
 |---|---|---|
+| `--path` resolves within the resolved `--workspace` root | CLI (U4, via U10's `assert_path_within_workspace`) | Specific — names the escaping path and the workspace root; exit `2` |
 | Filename matches the canonical write pattern | CLI (U4) | Specific — names the filename and the canonical pattern |
 | Artifact is discoverable for the declared shipment | CLI (U4) | Specific — names the path, the filename-encoded shipment, and the declared shipment |
 | Path is absent, unreadable, or unparseable | CLI (U4) | Specific — names the path; exit `2` |
@@ -389,6 +390,18 @@ input-validation obligation the rest of the module does not.
   process CWD, then assert directory containment, output containment, and parent
   equality in that order. This is the **only** construction path U7's composed
   test may use for canonical names.
+* `assert_path_within_workspace(path, *, workspace_root) -> Path` — the
+  containment primitive `build_closure_path` already applies to the resolved
+  closure directory and the resolved output path, extracted as its own
+  reusable function rather than duplicated. It resolves `workspace_root`
+  first, resolves `path` (following any symlink/junction), and raises
+  `ClosureContractError` naming the escaping path and the root when the
+  resolved `path` does not lie under the resolved root. `build_closure_path`
+  itself is refactored to call this primitive for both its directory and
+  output containment assertions, and **U4 imports it directly** to validate
+  the caller-supplied `--path` against `--workspace` (RQ-15) — a second,
+  independent containment check for the CLI's own input would be a second,
+  weaker definition of the same containment rule.
 
 **Scope guard**: no frontmatter parsing and no validity judgement. The builder
 never creates a directory, never writes a file, and never touches
@@ -531,11 +544,17 @@ still carries `closure_complete`.
   passed as U10's required `workspace_root` argument whenever the command
   constructs or validates a closure path (RQ-15).
 * Validation, in order:
-  1. the filename matches the **canonical write pattern** from U1 — a
+  1. the resolved `--path` lies within the resolved `--workspace` root —
+     `assert_path_within_workspace` (U10) is imported and reused directly, not
+     reimplemented, so a canonical-looking candidate reached from outside the
+     workspace (an absolute out-of-root path, a traversal, or a symlink/junction
+     resolving outside the root) is rejected **before** any of the checks below
+     run;
+  2. the filename matches the **canonical write pattern** from U1 — a
      legacy-named artifact is a **write-time failure**, because recognition is
      read-side only (D3);
-  2. the artifact satisfies the **complete consumer acceptance predicate**;
-  3. the artifact is discoverable for its declared shipment via
+  3. the artifact satisfies the **complete consumer acceptance predicate**;
+  4. the artifact is discoverable for its declared shipment via
      `classify_closure_candidates`.
 * **Single validity definition.** Step 2 MUST call the existing consumer
   predicate `topology._closure_artifact_complete` (and, through it,
@@ -546,25 +565,33 @@ still carries `closure_complete`.
   would certify an artifact the read-time gate blocks — a second, weaker
   definition of validity for the same contract. Reuse is import-only; the
   predicate is **not modified**, preserving H1.1 byte-identity.
-* **Diagnostic granularity follows C5.** Steps 1 and 3, and an absent or
+* **Diagnostic granularity follows C5.** Steps 1, 2, and 4, and an absent or
   unreadable `--path`, are CLI-owned checks and emit **specific** diagnostics
-  naming the offending filename, shipment, or path. Step 2 emits a **generic
-  authoritative-predicate rejection**: it names the artifact path, names
-  `topology._closure_artifact_complete` as the deciding authority, and quotes
-  `CLOSURE_PREDICATE_REQUIREMENT_DOC`. It does **not** assert which field or
-  which condition caused the refusal, because the predicate returns a boolean
-  and deriving a cause would require duplicating validity logic.
+  naming the offending path, workspace root, filename, or shipment. Step 3
+  emits a **generic authoritative-predicate rejection**: it names the artifact
+  path, names `topology._closure_artifact_complete` as the deciding authority,
+  and quotes `CLOSURE_PREDICATE_REQUIREMENT_DOC`. It does **not** assert which
+  field or which condition caused the refusal, because the predicate returns a
+  boolean and deriving a cause would require duplicating validity logic.
 * Exit codes follow the established gate convention: `0` pass, `1` validation
-  failure, `2` invalid input.
+  failure, `2` invalid input (an absent, unreadable, or workspace-escaping
+  `--path` is invalid input).
 
 **Scope guard**: validation only. This command never writes, renames, or repairs
 an artifact (D8). It is not wired into any pre-existing gate path.
 
-**Tests (4)**: canonical filename + acceptable frontmatter passes with exit `0`;
+**Tests (5)**: canonical filename + acceptable frontmatter passes with exit `0`;
 a legacy filename fails with exit `1` and the canonical pattern quoted; an
-absent or unparseable path exits `2` naming the path; the `--json` payload
-carries a `failed_check` discriminator (`filename`, `frontmatter_predicate`,
-`discoverability`, `input`) together with the path. The semantic battery is U11.
+absent or unparseable path exits `2` naming the path; a `--path` outside the
+resolved `--workspace` root — parametrized over an absolute out-of-root path, a
+traversal (`../`), and a symlink/junction that resolves outside the root (the
+symlink/junction row is skipped with an explicit reason on platforms where the
+test process cannot create them, and is never silently passed) — exits `2`
+naming the escaping path and the workspace root, reusing U10's
+`assert_path_within_workspace` rather than a second implementation; the
+`--json` payload carries a `failed_check` discriminator (`workspace_containment`,
+`filename`, `frontmatter_predicate`, `discoverability`, `input`) together with
+the path. The semantic battery is U11.
 
 **Posture**: test-first.
 
@@ -972,6 +999,12 @@ following be demonstrated, with captured evidence, and not merely asserted:
    branch** of the consumer predicate, not agreeing at a single sampled point,
    and no caller derives a second field-level judgement from the boolean
    predicate. **Discharged by U11 tests 1, 2, and 4** (RQ-20).
+9. A caller-supplied candidate path (`--path`) is contained to the resolved
+   workspace root before any other write-time check runs, reusing the same
+   `assert_path_within_workspace` primitive item 6 relies on rather than a
+   second implementation, so an out-of-workspace candidate — absolute,
+   traversal, or reached through a symlink/junction — can never satisfy the
+   write-time gate. **Discharged by U4 test 5** (RQ-15).
 
 ### H2 — Ordering constraint: the gate must not change before the contract exists
 
