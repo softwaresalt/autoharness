@@ -708,8 +708,17 @@ of that fact and does not add a new classifier precondition; Step 0(c)'s
 precondition wording is unchanged.
 
 This tolerance applies to **manifest members only** — it does not
-restate, weaken, or cross-apply to the protected set, which has no
-pre-archived exemption (see Safe-Close Mode steps 3/5 above). A manifest
+restate, weaken, or cross-apply to the observation set (the Safe-Close
+Mode step 2/3 "protected set"): the Safe-Close Mode step 3 baseline-
+invariance gate already tolerates an already-archived observation-set
+member as baseline state (explicitly "not a halt"), so this sub-procedure
+does not additionally claim the observation set has "no pre-archived
+exemption" — that older claim is withdrawn as contradicting step 3. The
+distinct rule that does apply here is: the observation set is never
+manifest-scope, is never itself archived by this procedure, and remains
+subject to the same baseline-invariance enforcement — byte-identical to
+its captured baseline for the duration of this closure — regardless of
+whether that baseline happens to be `archive` or `queue`. A manifest
 that qualifies for `CASCADE` has no protected set **in the Safe-Close
 sense** (full `CASCADE` eligibility is itself a Step 0(c) precondition,
 and this sub-procedure never computes or archives against a Safe-Close-style
@@ -808,8 +817,32 @@ cardinality). Any drift in any of the three halts with
 a substitution to safe-close, and does not conflict with the
 No-substitution rule above (which forbids switching to manual safe-close
 after a `CASCADE` verdict) — refusing to proceed at all is not a
-substitution. Only on an exact match does the Baseline-fingerprint
-capture below proceed, using the now-reconfirmed descendant set.
+substitution.
+
+**This classifier re-run does not, by itself, cover the Linked-deliberation
+snapshot extension above**: `classify_shipment_close_path` intentionally
+never inspects `validated_linked_deliberations(S)` (see the INV-6 gate's
+own scoping above), so a linked deliberation gained or changed by a
+qualifying feature after Step 0(c) — a new `custom_fields.source_deliberation_id`,
+a newly added description reference matching the engine's
+`deliberationIDPattern`, or a location/status change to an already-validated
+one — would leave all three classifier-compared values identical while
+still letting the engine reach and archive a not-yet-authorized artifact.
+Immediately alongside the classifier re-run above, independently
+re-collect each qualifying feature member's linked deliberation IDs using
+the identical three engine-defined sources and the identical
+existence/`artifact_type: deliberation` validation the Linked-deliberation
+snapshot extension already specifies, and re-resolve each validated ID's
+location and declared `status` the same way. Require this freshly
+re-collected set — IDs, locations, and declared statuses together — to be
+**identical** to Step 0(c)'s captured linked-deliberation snapshot. Any
+drift halts with the same
+`HALT — cascade pre-invocation revalidation drift detected` message and
+**P-005** violation as the classifier-output drift above; do NOT invoke
+either close path. Only when both the classifier re-run and this
+linked-deliberation re-collection match Step 0(c)'s snapshot exactly does
+the Baseline-fingerprint capture below proceed, using the now-reconfirmed
+descendant set.
 
 **Baseline-fingerprint capture (INV-7, before invocation).** Immediately
 before step 1's invocation — using the SAME observation set of
