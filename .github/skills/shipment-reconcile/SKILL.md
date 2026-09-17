@@ -795,7 +795,7 @@ baseline-invariance snapshot P-015's own Precondition already requires to
 exist before a cascade invocation; capturing it here, rather than assuming
 Step 0(c)'s classification-time read still holds, is required because
 classification and invocation are not atomic. Retain this snapshot in
-memory for step 4's verification below; it is never reconstructed after
+memory for step 5's verification below; it is never reconstructed after
 the fact.
 
 1. Invoke `backlogit_ship_shipment(shipment_id, merge_commit_sha)` directly

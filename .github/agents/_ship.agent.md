@@ -701,8 +701,13 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       `archived_status: shipped`, then re-verifies the observation set of
       out-of-manifest artifacts is still baseline-invariant.
    c. **`CASCADE` (the narrow P-015 exception)**: permitted only when every
-      artifact reachable from the manifest but outside `closure_scope(S)` is
-      engine-inert (a parsed frontmatter `status` of exactly `"archived"`).
+      artifact in the `parent_id` descendant set the classifier enumerates
+      from each qualifying root feature member — never every artifact
+      reachable from the manifest broadly, and never
+      `validated_linked_deliberations(S)`, which the engine reaches through
+      its separate linked-deliberation expansion and may be live/required
+      for `CASCADE` to archive — is engine-inert (a parsed frontmatter
+      `status` of exactly `"archived"`).
       **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`**
       directly — only the skill's own classification may select this path.
       When selected, the skill invokes the cascade operation and
