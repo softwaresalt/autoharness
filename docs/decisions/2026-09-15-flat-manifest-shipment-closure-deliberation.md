@@ -4,8 +4,8 @@ description: "A shipment manifest is a flat list of exactly what is delivered, n
 topic: "Shipment closure scope semantics: flat manifest vs. hierarchical closure"
 depth: "deep"
 decision_status: "decided"
-revision: 4
-revision_note: "Revision 4 (2026-09-16) resolves the four deduplicated P1 groups of the THIRD AND FINAL permitted external review-fix cycle over the revision-3 package. All four narrow a claim, delete a false claim, or add a proof obligation; none widens an authorization. (A) Test-granularity contradiction: D11 mandated exactly one class per test while assigning two classes (CLASS 4 verdict, must start green; CLASS 1 reason text, must start red) to a single named test for A2/A3/A9/A10 — the observables are now SPLIT into separately named single-class tests, and class is gated at test-function granularity. (B) Evidence-honesty propagation completed: the residual 'classifier fixtures become the authoritative record of engine law' claims and the 'measured engine' phrasings for returned_ids and parent_id clearing are withdrawn on every remaining surface; those effects are INDICATIVE/UNPROVEN and cannot authorize cascade. (C) Historical replay/evidence correctness: D4's current-recorded-manifest 12-ID must-language is explicitly superseded by D10 G1/G2/G3; G1 now materializes the COMPLETE pre-close shape including the excluded descendants 165.007-T and 165.010-T, blob-OID-pinned, with non-vacuous discovered->parsed-canonical-archived->excluded-as-inert assertions; G3 no longer claims the unfiltered `git show --stat e4ca20e5` contains 12 paths nor that e4ca20e5 is close-only (it is the COMBINED PUBLICATION COMMIT, 34 paths) and is replaced by explicit path-scoped before/after evidence between 358b63b4 and e4ca20e5. (D) Constitutional workspace containment: the revision-3 permission for tempfile.TemporaryDirectory() under OS %TEMP% is WITHDRAWN as a Constitution IV containment violation and its automatic cleanup as a Principle VII destructive-approval violation; ALL fixture/scratch/replay workspaces must resolve under the repository-internal git-ignored root .autoharness/staging/tmp/ with canonical resolved-realpath containment checks, no writes outside cwd, and operator-controlled (D6-routed) deletion only. Revision 3 (2026-09-16) resolves the five deduplicated P1 blockers from the completed local fix-verification review, all of which narrow a claim or state an existing limit honestly: the red matrix is corrected to four classes because most revision-2 CLASS 1 cases are already green on current main (D11); engine-law and classifier-law evidence are separated into disjoint classes so no classifier fixture is claimed to prove engine behaviour, and the containment rule is re-scoped (SUPERSEDED BY REVISION 4) (D7a, D7b); the 173-S retrospective gate is pinned to the immutable pre-close revision 358b63b4 and split into replay/current-state/engine-effect gates (D10); the contradictory 2026-09-14 closure artifact is recorded as a historical blocked-phase record that Stage may not rewrite, with a Ship/operator-owned superseding closure record recorded as a 174-S readiness prerequisite and the unqualified P-001 discharge claim withdrawn (D8a); and the unimplementable byte-for-byte status contract is replaced by exact parsed-scalar equality with non-string fail-closed, since every record reaches the predicate through yaml.safe_load (D1b). Revision 2 (2026-09-16) resolved consolidated local-review blockers: INV-1/INV-2 reconciled against explicit manifest/closure/allowed/required set definitions (D1a); INV-6 tightened to an exact canonical status match with torn/duplicate-ID fail-closed (D1b); multi-shipment delivery honestly split into contract-complete vs. operationally-blocked with INV-11 and an external runtime prerequisite; destructive-rollback language replaced by the capture-halt-P-005-approve-revalidate sequence; spike evidence downgraded to non-authoritative with a recorded P-005 containment violation; 173-S recorded as operator-closed and verified."
+revision: 5
+revision_note: "Revision 5 (2026-09-16) resolves a single P1 raised by the Copilot P-018 review gate on 174-S/PR #454: D1a's `required_ids(S)` formula (as stated in this document) contradicted the already-established, tested, and shipped 155-S/PR #407 correction -- the shipment record and every qualifying feature member are required UNCONDITIONALLY regardless of their own pre-close declared status, not merely `x is not already truly archived`; `validated_linked_deliberations(S)` DOES enter `required_ids(S)` (conditionally, when not already truly archived), contrary to this document's prior 'never enters `required_ids(S)`' claim. `.github/policies/workflow-policies.md`, `.github/skills/shipment-reconcile/SKILL.md`, and `src/autoharness/gates/shipment_closure.py` already implement and test the 155-S-corrected rule; this document's D1a table was the stale surface and is now reconciled to match, not the other way around -- no closure-scope behavior changes as a result of this revision, only this document's own description of already-shipped behavior. Revision 4 (2026-09-16) resolves the four deduplicated P1 groups of the THIRD AND FINAL permitted external review-fix cycle over the revision-3 package. All four narrow a claim, delete a false claim, or add a proof obligation; none widens an authorization. (A) Test-granularity contradiction: D11 mandated exactly one class per test while assigning two classes (CLASS 4 verdict, must start green; CLASS 1 reason text, must start red) to a single named test for A2/A3/A9/A10 — the observables are now SPLIT into separately named single-class tests, and class is gated at test-function granularity. (B) Evidence-honesty propagation completed: the residual 'classifier fixtures become the authoritative record of engine law' claims and the 'measured engine' phrasings for returned_ids and parent_id clearing are withdrawn on every remaining surface; those effects are INDICATIVE/UNPROVEN and cannot authorize cascade. (C) Historical replay/evidence correctness: D4's current-recorded-manifest 12-ID must-language is explicitly superseded by D10 G1/G2/G3; G1 now materializes the COMPLETE pre-close shape including the excluded descendants 165.007-T and 165.010-T, blob-OID-pinned, with non-vacuous discovered->parsed-canonical-archived->excluded-as-inert assertions; G3 no longer claims the unfiltered `git show --stat e4ca20e5` contains 12 paths nor that e4ca20e5 is close-only (it is the COMBINED PUBLICATION COMMIT, 34 paths) and is replaced by explicit path-scoped before/after evidence between 358b63b4 and e4ca20e5. (D) Constitutional workspace containment: the revision-3 permission for tempfile.TemporaryDirectory() under OS %TEMP% is WITHDRAWN as a Constitution IV containment violation and its automatic cleanup as a Principle VII destructive-approval violation; ALL fixture/scratch/replay workspaces must resolve under the repository-internal git-ignored root .autoharness/staging/tmp/ with canonical resolved-realpath containment checks, no writes outside cwd, and operator-controlled (D6-routed) deletion only. Revision 3 (2026-09-16) resolves the five deduplicated P1 blockers from the completed local fix-verification review, all of which narrow a claim or state an existing limit honestly: the red matrix is corrected to four classes because most revision-2 CLASS 1 cases are already green on current main (D11); engine-law and classifier-law evidence are separated into disjoint classes so no classifier fixture is claimed to prove engine behaviour, and the containment rule is re-scoped (SUPERSEDED BY REVISION 4) (D7a, D7b); the 173-S retrospective gate is pinned to the immutable pre-close revision 358b63b4 and split into replay/current-state/engine-effect gates (D10); the contradictory 2026-09-14 closure artifact is recorded as a historical blocked-phase record that Stage may not rewrite, with a Ship/operator-owned superseding closure record recorded as a 174-S readiness prerequisite and the unqualified P-001 discharge claim withdrawn (D8a); and the unimplementable byte-for-byte status contract is replaced by exact parsed-scalar equality with non-string fail-closed, since every record reaches the predicate through yaml.safe_load (D1b). Revision 2 (2026-09-16) resolved consolidated local-review blockers: INV-1/INV-2 reconciled against explicit manifest/closure/allowed/required set definitions (D1a); INV-6 tightened to an exact canonical status match with torn/duplicate-ID fail-closed (D1b); multi-shipment delivery honestly split into contract-complete vs. operationally-blocked with INV-11 and an external runtime prerequisite; destructive-rollback language replaced by the capture-halt-P-005-approve-revalidate sequence; spike evidence downgraded to non-authoritative with a recorded P-005 containment violation; 173-S recorded as operator-closed and verified."
 promoted_to: "both"
 linked_artifacts:
   - "docs/plans/2026-09-15-flat-manifest-shipment-closure-plan.md"
@@ -29,11 +29,26 @@ tags:
   - "revision-2"
   - "revision-3"
   - "revision-4"
+  - "revision-5"
 ---
 
 # Flat-Manifest Shipment Closure — Deliberation
 
-> ## 🔄 REVISION 4 — 2026-09-16 — AUTHORITATIVE
+> ## 🔄 REVISION 5 — 2026-09-16 — AUTHORITATIVE
+>
+> Revision 5 resolves a **single P1** raised by the **Copilot P-018 review
+> gate** on `174-S`/PR #454 against D1a's `required_ids(S)` table below.
+>
+> | Blocker | Disposition | Where |
+> |---|---|---|
+> | D1a's `required_ids(S)` formula — `{ x ∈ closure_scope(S) : x is not already truly archived }`, with linked deliberations stated to "never enter `required_ids(S)`" — contradicted the already-established, tested, and shipped **155-S/PR #407** correction, creating two authoritative-looking but mutually incompatible destructive-close postcondition surfaces | `required_ids(S)` is restated to match the **already-shipped** rule: `{S} ∪ {qualifying feature members of S}` (both **unconditionally** required regardless of their own pre-close declared status) `∪ {x ∈ allowed_ids(S) : x is not already truly archived in the pre-close snapshot}` (every other member — a manifest task item, or a qualifying feature member's validated linked deliberation — required only when not already truly archived). `.github/policies/workflow-policies.md`, `.github/skills/shipment-reconcile/SKILL.md`, and `src/autoharness/gates/shipment_closure.py` already implement and test this rule; **this document's table was the stale surface**, not the implementation | **D1a** |
+>
+> **No closure-scope behavior changes as a result of this revision.** This
+> revision corrects this document's own description of already-shipped,
+> already-tested behavior to match reality; it does not authorize, widen, or
+> narrow anything the implementation does.
+
+> ## 🔄 REVISION 4 — 2026-09-16 — superseded in part by Revision 5
 >
 > Revision 4 resolves the **four deduplicated P1 groups** raised by the **third
 > and final permitted external review-fix cycle** against the revision-3
@@ -475,7 +490,7 @@ R1. The prior decision's `TERMINAL_CLOSE` (E1) and terminal-descope exemption
 
 Let `S` be a shipment with declared manifest `items(S)`.
 
-#### D1a — Scope vocabulary (REVISION 2, normative and exhaustive)
+#### D1a — Scope vocabulary (REVISION 2, normative and exhaustive; `required_ids(S)` CORRECTED in REVISION 5)
 
 Four sets are defined, and **they are not interchangeable**. Revision 1 stated
 INV-1 with a linked-deliberation extension and INV-2 with a bare `iff`, which
@@ -483,12 +498,27 @@ were mutually inconsistent and left INV-10's `validated_linked_deliberations`
 term undefined. The four sets below replace that reading; no set is widened
 relative to revision 1's intent.
 
+> **⚠️ REVISION 5 CORRECTION.** The `required_ids(S)` row below previously read
+> `{ x ∈ closure_scope(S) : x is not already truly archived in the pre-close
+> snapshot }`, and the paragraph following the table claimed
+> `validated_linked_deliberations(S)` "never enters `required_ids(S)`". Both
+> statements are **withdrawn**: they contradicted the already-established,
+> tested, and shipped 155-S/PR #407 correction (the shipment record and every
+> qualifying feature member are required *unconditionally*, regardless of
+> their own pre-close declared status) and were never true of the actual
+> implementation, which already applied the corrected rule in
+> `.github/policies/workflow-policies.md` item 7,
+> `.github/skills/shipment-reconcile/SKILL.md`'s Cascade Close Sub-Procedure,
+> and `src/autoharness/gates/shipment_closure.py`. The row and paragraph are
+> restated below to match that already-shipped behavior; this is a
+> documentation reconciliation only and changes no runtime behavior.
+
 | Set | Definition | Role |
 |---|---|---|
 | **`manifest_scope(S)`** | exactly `items(S)` | what is **delivered**. Membership is declared, explicit, and exhaustive. |
 | **`closure_scope(S)`** | `items(S) ∪ {S}` | what this closure **is about** and the only artifacts it may **deliberately** transition. |
 | **`allowed_ids(S)`** | `closure_scope(S) ∪ validated_linked_deliberations(S)` | the **maximal permitted postcondition set** — the only IDs that MAY appear in `archived_ids`. |
-| **`required_ids(S)`** | `{ x ∈ closure_scope(S) : x is not already truly `archived` in the pre-close snapshot }` | the **minimal mandatory postcondition set** — every member MUST appear in `archived_ids`. |
+| **`required_ids(S)`** (REVISION 5) | `{ S } ∪ { qualifying feature members of S }` (both **unconditionally** required regardless of their own pre-close declared status) `∪ { x ∈ allowed_ids(S) : x is not already truly `archived` in the pre-close snapshot }` (every other `allowed_ids(S)` member — a manifest task item, or a qualifying feature member's validated linked deliberation — required only when not already truly archived) | the **minimal mandatory postcondition set** — every member MUST appear in `archived_ids`. |
 
 `validated_linked_deliberations(S)` is admitted **only** under all four of:
 
@@ -503,8 +533,13 @@ relative to revision 1's intent.
    unvalidatable or newly-appearing linked deliberation fails closed.
 
 `validated_linked_deliberations(S)` **never** enters `manifest_scope(S)`,
-**never** enters `closure_scope(S)`, **never** enters `required_ids(S)`, and
-**never** makes any out-of-manifest *work item* closable. It exists only to keep
+**never** enters `closure_scope(S)`, and **never** makes any out-of-manifest
+*work item* closable. **(REVISION 5 CORRECTION: it DOES enter `required_ids(S)`**
+whenever it is not already truly archived in the pre-close snapshot, exactly
+like any other `allowed_ids(S)` member that is not the shipment record or a
+qualifying feature member — the prior "never enters `required_ids(S)`" claim
+above is withdrawn as false; this is a postcondition-check participation only
+and widens `allowed_ids(S)` by zero *work items*.) It exists only to keep
 `allowed_ids(S)` honest about an engine-forced side effect that would otherwise
 trip the postcondition gate. It is therefore an **allowed-set widening of
 exactly zero work items**.
