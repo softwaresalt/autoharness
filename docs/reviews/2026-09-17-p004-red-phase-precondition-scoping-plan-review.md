@@ -1,96 +1,95 @@
 ---
-title: "Plan review — P-004 red-phase precondition scoping"
-description: "Multi-persona plan review of docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md, gating harvest. Inline persona coverage under declared subagent-dispatch degradation. Gate decision: PASS, 0 P0 / 0 P1 open."
-doc_type: review
+title: "Plan review verdict manifest — P-004 red-phase precondition scoping"
+description: "Latest-verdict manifest for docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03. Verdict: PASS at plan revision 3."
+doc_type: review-manifest
 source: docs/reviews/2026-09-17-p004-red-phase-precondition-scoping-plan-review.md
-date: 2026-09-17
+date: 2026-09-18
 plan_path: docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md
-plan_revision: 2
+plan_revision: 3
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 1
+decision_revision: 2
 source_stash_id: 76EBDE6D
-review_cycle: 2
-review_cycles_remaining: 1
-dispatch_mode: declared-degradation
+feature_id: 168-F
+shipment_id: 176-S
+latest_attempt: 3
+latest_attempt_artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md
+verdict: PASS
 decision: PASS
 p0_open: 0
 p1_open: 0
+review_cycles_used: 3
+review_cycles_remaining: 0
+plan_hardening_status: complete
+plan_hardening_evidence: "docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md#plan-hardening-record-p-006"
+attempts:
+  - attempt: "01-02"
+    artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempts-01-02-combined.md
+    conformance: non-conforming-combined
+    plan_revision: 2
+    verdict: PASS
+    superseded_by: 3
+    note: "Two review cycles recorded in one mutable file. Preserved verbatim as evidence; only classification keys added."
+  - attempt: 3
+    artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md
+    conformance: conforming
+    plan_revision: 3
+    verdict: PASS
+    superseded_by: null
+    note: "Remediation-cycle-1 re-review. All consolidated blocking findings verified closed."
 tags:
   - "plan-review"
-  - "policy"
-  - "p-004"
+  - "verdict-manifest"
+  - "remediation-cycle-1"
 ---
 
-# Plan review — P-004 red-phase precondition scoping
+# Plan review verdict manifest — P-004 red-phase precondition scoping
 
-## Dispatch mode
+## What this file is
 
-`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent
-persona pass`. Cross-model dispatch unavailable in this CLI session; the anchor
-review route could not be dispatched. Every selected persona rubric was applied
-inline with a separate finding list, so coverage is complete and auditable. No
-persona was skipped.
+A **selection surface**, not a review. It answers one question — *which review
+attempt is authoritative right now* — and nothing else.
 
-Personas applied: Constitution Reviewer, Python Reviewer, Scope Boundary
-Auditor, Learnings Researcher (always-on); Architecture Strategist
-(cross-model, inline). Security Lens Reviewer and Agent-Native Parity Reviewer
-**not triggered** — the plan touches no auth/authz, API surface, secrets store,
-external trust boundary, or MCP/agent-parity surface.
+The review records themselves are immutable, one file per attempt, under
+`docs/reviews/review-history/`. They are never edited after they are written.
+This manifest is the only mutable part of the review surface, and the only
+thing it ever changes is which attempt it points at.
 
-Plan hardening: the plan declares `requires_plan_hardening: "no"`. Confirmed
-correct — single policy clause plus one schema field, one template family, no
-schema-distribution or CLI-distribution blast radius. `plan-harden` not invoked.
+This split is the contract that
+`docs/plans/2026-09-17-single-governing-plan-contract-plan.md` specifies. It is
+applied here to the whole portfolio, including to that plan's own review
+history.
 
-## Final Reviewed Contract
+## Current verdict
 
-The reviewed contract is: replace P-004's whole-suite every-function-red
-precondition with a precondition over a **declared harness set** carrying two
-disjoint classes (`expected_red`, `expected_green_characterization`), addressed
-by explicit test ID, asserted by **exact set equality in both directions**, with
-seven distinguishable fail-closed tokens. The default-branch whole-suite CI gate
-is unmodified and must continue to exit zero. Six tasks; T3 blocks on T2 for
-template/mirror atomicity.
+| Field | Value |
+|---|---|
+| Plan | `docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
+| Plan revision | 3 |
+| Latest attempt | **03** |
+| Authoritative artifact | `docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md` |
+| Verdict | **PASS** |
+| P0 open | 0 |
+| P1 open | 0 |
+| Plan hardening (P-006) | complete, persisted at `## Plan Hardening Record (P-006)` |
+| Feature | `168-F` (7 tasks) |
+| Shipment | `176-S` |
 
-## Findings
+**What attempt 03 changed:** Typed expected_red entry shape and a stdlib-unittest TestResult observation contract replace the unimplementable bare-identifier gate.
 
-### Cycle 1 — findings raised and remediated in place
+## Attempt history
 
-| ID | Persona | Sev | Finding | Resolution |
-|---|---|---|---|---|
-| F1 | Scope Boundary Auditor | **P0** | Cycle-1 draft scoped the precondition to "newly authored test functions", which the source stash entry itself identifies as still obstructed by characterization cases. | **Resolved.** Plan now adopts the declared-set disposition and explicitly rejects the newly-authored framing **on its own terms**, naming why (a newly authored characterization test is both newly authored and green by construction). |
-| F2 | Constitution Reviewer | **P0** | Cycle-1 draft allowed a subset check ("every declared red test failed"), which passes vacuously when collection silently drops tests. | **Resolved.** Predicate is now exact set equality in both directions, with `P004_MISSING_OBSERVATION` and `P004_UNDECLARED_OBSERVATION` as distinct tokens. |
-| F3 | Python Reviewer | **P1** | Selector was specified by marker/naming convention, which re-introduces implicit discovery. | **Resolved.** Selector is explicit test-ID addressing; the plan states the rationale (confirmed set == declared set). |
-| F4 | Architecture Strategist | **P1** | No constraint prevented an empty `expected_red` set, making the gate vacuously satisfiable. | **Resolved.** `P004_EMPTY_RED_SET` token added; non-empty red is a schema constraint (T1). |
-| F5 | Learnings Researcher | **P1** | Plan did not address template/installed-mirror drift, the class recorded in `docs/compound/2026-08-15-checksum-drift-fix-correctly-surfaces-preexisting-self-hosted-customization.md`. | **Resolved.** T2/T3 split with an explicit `blocks` edge plus a byte-identity check promoted into Verification as a gate. |
-| F6 | Scope Boundary Auditor | P2 | Disjointness of the two declared sets was implied, not required. | **Resolved.** `P004_SET_OVERLAP` token added. |
-| F7 | Constitution Reviewer | P2 | Risk table did not address a red test authored trivially to satisfy the gate. | **Resolved.** R1 added; marker review at the existing operator approval gate is the control. |
+| Attempt | Artifact | Plan rev | Conformance | Verdict | Status |
+|---|---|---|---|---|---|
+| 01–02 | `2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempts-01-02-combined.md` | 2 | non-conforming-combined | PASS | superseded by 03 |
+| 03 | `2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md` | 3 | conforming | PASS | **authoritative** |
 
-### Cycle 2 — verification pass
+Attempts 01–02 were written as a single mutable document covering two cycles.
+That file is preserved verbatim rather than retroactively split — fabricating
+two independently-authored records from a document never authored that way
+would be a provenance forgery. Only classification frontmatter keys were added.
 
-No new P0 or P1. Two P3 observations recorded and **accepted without change**:
+## Selection rule
 
-* **P3-1** (Python Reviewer): the branch-name-style validation vocabulary in the
-  companion branch-resolution plan and the token vocabulary here are
-  independently specified. Accepted: different contract surfaces, deliberately
-  not coupled.
-* **P3-2** (Architecture Strategist): the harness-manifest schema change could
-  in principle be shared with a future shipment-scoped test selector. Accepted
-  as YAGNI; no speculative generalization.
-
-## Persona coverage
-
-| Persona | Findings | Open P0/P1 |
-|---|---|---|
-| Constitution Reviewer | F2, F7 | 0 |
-| Python Reviewer | F3, P3-1 | 0 |
-| Scope Boundary Auditor | F1, F6 | 0 |
-| Learnings Researcher | F5 | 0 |
-| Architecture Strategist | F4, P3-2 | 0 |
-
-## Gate decision
-
-**PASS.** 0 P0 open, 0 P1 open. Cleared for harvest.
-
-Explicitly verified before passing: the plan adds no command to CI, removes
-none, authorizes no bypass or waiver for P-004, and does not modify `168-S`'s
-manifest.
+Consumers resolve the governing verdict by reading `latest_attempt` and
+`latest_attempt_artifact` from this file's frontmatter. Superseded attempts are
+history: readable for provenance, never operative input to a later review.

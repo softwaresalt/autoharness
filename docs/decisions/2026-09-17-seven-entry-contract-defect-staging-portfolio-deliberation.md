@@ -5,6 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 date: 2026-09-17
 status: decided
+revision: 2
+revision_note: "Revision 2 applies remediation-cycle-1 corrections to two factual records without reopening any decision D1-D8: the provenance of the operator-repaired checkpoint-20260916-064310.json is restated precisely (operator-authored, operator-authorized pre-existing repair included for durable startup consistency — not an agent migration and not proof of an official repair mechanism), with its residual policy risk recorded; and the session-start checkpoint enumeration of 51 records is labelled as the point-in-time observation it is, with the current corpus size noted. All decisions remain as decided in revision 1."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -83,14 +85,21 @@ both.
 
 ### Recovery gate
 
-Full unfiltered checkpoint enumeration: 51 records. Zero validation or
-quarantine anomalies; zero empty `agent`/`status` fields. Status histogram:
-50 `resolved`, 1 `abandoned`. The single non-resolved record
+Full unfiltered checkpoint enumeration **at session start**: 51 records. Zero
+validation or quarantine anomalies; zero empty `agent`/`status` fields. Status
+histogram: 50 `resolved`, 1 `abandoned`. The single non-resolved record
 (`checkpoint-20260914-210050.json`) is `ship`-owned and `abandoned`, therefore
 neither a Stage candidate nor Stage's to touch (P-001). **Zero active
 `stage`-owned checkpoints** — zero-candidate normal startup, not a failure.
 `checkpoint-20260916-064310.json` is valid and carries a non-empty
 `resume_hint`; it was read only and is not modified by this session.
+
+*(Remediation cycle 1 note: the count above is a point-in-time session-start
+observation and is correct as such. The corpus is 52 as of the remediation
+cycle, because this session's own checkpoints were written after the
+enumeration. Any downstream artifact that pins this number as a durable
+inventory figure is wrong — see the checkpoint plan's T7, which is
+invariant-based and pins no count for exactly this reason.)*
 
 ## Research Findings
 
@@ -239,9 +248,22 @@ excluded and already written up at
 `docs/scratch/bugs/2026-09-17-backlogit-checkpoint-v1-resume-hint-validation-gap.md`.
 
 Directly related provenance observed in the dirty worktree: the
-already-repaired `checkpoint-20260916-064310.json` now carries a `resume_hint`.
-That repair is evidence for item 3 (what a migrated historical record looks
-like) and is preserved unmodified.
+`checkpoint-20260916-064310.json` record carries a populated `resume_hint`.
+**Provenance, stated precisely (corrected in remediation cycle 1):** this is an
+**operator-authored, operator-authorized pre-existing repair**, performed by
+the human operator outside the agent pipeline and explicitly directed to be
+preserved. It was included in the publication diff of commit `1b6a312d` for
+durable startup consistency. It is **not** an agent-performed migration and
+**not** evidence that an official repair mechanism for resolved checkpoints
+exists — no such mechanism exists, which is precisely why item 3 (the
+historical-record policy) is needed. Revision 1 of this deliberation described
+it as "what a migrated historical record looks like"; that framing overstated
+it, because no migration ran. **Residual policy risk, recorded not waived:**
+the repair was a direct edit to a file under `.backlogit/checkpoints/`, which
+`.github/instructions/backlogit.instructions.md` rule 2 reserves to the
+official create operation. Operator authorship and authorization is the only
+authority under which that is permissible. No agent may cite it as precedent.
+The file is preserved unmodified by this session.
 
 ### F9 — `C9CD24F3` is corroborated by this repository's own artifacts
 

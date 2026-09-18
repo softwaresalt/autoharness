@@ -1,14 +1,14 @@
 ---
 title: "Canonical post-claim member-status contract and downstream-conformance verification"
-description: "Implementation plan naming the post-claim manifest-member status expectation as a versioned canonical policy clause with the backlogit claim-cascade attribution inline, cross-linking it to the existing Ship-agent tolerance note so the two cannot drift, adding a verify-workspace check that fails closed when an installed policy registry declares a wave-admission rule treating post-claim member active as a blocking residual, and pinning the claim-to-admission transition with a composed state-machine test."
+description: "Implementation plan naming the post-claim manifest-member status expectation as a versioned canonical policy clause with the backlogit claim-cascade attribution inline, cross-linking it bidirectionally to the existing Ship-agent tolerance note so the two cannot drift, and pinning the claim-to-admission transition with a composed state-machine test. Downstream detection of a contradictory workspace-authored admission rule is explicitly NOT delivered here: it presupposes a typed, machine-readable policy-clause representation that does not exist, and speculative free-text parsing of policy prose is rejected."
 doc_type: plan
 source: docs/plans/2026-09-17-post-claim-member-status-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 2
-revision_note: "Revision 2 is the canonical statement of the intended design. Review findings were remediated in place; this document states exactly one binding requirement per topic. The bounded audit trail lives in `linked_review`."
+revision: 3
+revision_note: "Revision 3 is the canonical statement of the intended design. Review findings were remediated in place; this document states exactly one binding requirement per topic. Revision 3 closes the remediation-cycle-1 P1 scope-honesty finding: revision 2 promised a machine-readable structured-clause contradiction detector while the delivered surface was Markdown prose with no typed clause representation to match against. The detector is removed from this release unit rather than restated, and the typed-policy-representation prerequisite is deferred as separate Stage work. The bounded audit trail lives in `linked_review`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 1
+decision_revision: 2
 source_spike: docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md
 source_bug_report: docs/bugs/2026-09-17-autoharness-shipment-claim-wave-admission-contract-conflict.md
 source_stash_id: 3EF5AAF2
@@ -18,10 +18,20 @@ prior_learnings:
   - docs/compound/2026-08-21-backlogit-1-10-shipment-claim-cascades-to-children.md
   - docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md
 linked_review: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
+review_history:
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact."
+latest_review_attempt: 3
+latest_review_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
+latest_review_verdict: PASS
 covering_feature: 169-F
 shipment: 177-S
 requires_plan_hardening: "yes"
 plan_hardening_status: complete
+plan_hardening_section: "## Plan Hardening Record (P-006)"
+deferred_followup_stash_ids:
+  - "pending: typed policy-clause representation for downstream conformance detection"
 tags:
   - "policy"
   - "shipment-claim"
@@ -88,22 +98,45 @@ note in both the template and the installed mirror, so the tolerance prose and
 the policy clause name each other. A structural test asserts the cross-
 reference resolves in both directions and in both copies.
 
-### Part 3 — Detect the contradiction downstream
+### Part 3 — downstream contradiction detection: NOT delivered here
 
-Extend `src/autoharness/verify_workspace.py` with a fail-closed check over the
-installed policy registry:
+Revision 2 specified a `verify-workspace` check emitting
+`POST_CLAIM_CONTRACT_MISSING`, `POST_CLAIM_CONTRACT_CONTRADICTED`, and
+`POST_CLAIM_CONTRACT_UNVERSIONED`, and asserted that detection would be
+"declarative and conservative … matches on the policy registry's own
+structured clause vocabulary, not on free prose."
 
-| Token | Condition |
-|---|---|
-| `POST_CLAIM_CONTRACT_MISSING` | The installed registry has P-002 but no post-claim member-status clause |
-| `POST_CLAIM_CONTRACT_CONTRADICTED` | The installed registry declares an admission rule treating post-claim member `active` as blocking |
-| `POST_CLAIM_CONTRACT_UNVERSIONED` | The clause is present but carries no observed-version attribution |
+**That premise is false in this repository, and the check is removed from this
+release unit.** The observable facts:
 
-Detection is **declarative and conservative**: it matches on the policy
-registry's own structured clause vocabulary, not on free prose. A workspace
-that has authored a genuine mid-execution residual gate (the preserved
-distinction above) must **not** trip `POST_CLAIM_CONTRACT_CONTRADICTED`; the
-regression suite carries that exact negative case.
+* `.github/policies/workflow-policies.md` and its template are Markdown prose.
+  There is no typed clause record, no clause schema, no clause ID index, and
+  no "structured clause vocabulary" for a matcher to consume.
+* Parts 1 and 2 of this plan add **more Markdown prose**. They do not create
+  the representation the detector was specified against.
+* A detector implemented against this surface could only be a heuristic over
+  free text. `POST_CLAIM_CONTRACT_CONTRADICTED` in particular would have to
+  distinguish a prohibited post-claim residual rule from a legitimate
+  mid-execution residual gate by reading English. That is precisely the
+  speculative free-text parsing the revision-2 text disclaimed while
+  simultaneously requiring.
+
+Shipping a prose change under a machine-readable-detector description is a
+scope-honesty defect regardless of whether the prose itself is correct. The
+honest release unit is naming and cross-linking, which is what this plan now
+delivers.
+
+**Deferred prerequisite, recorded not discarded.** A typed policy-clause
+representation — clause identity, versioned attribution, machine-readable
+prohibition/permission predicates, and a schema the installed registry must
+satisfy — is real work with its own blast radius across `schemas/`,
+`templates/policies/`, and `src/autoharness/verify_workspace.py`. It is
+captured as a separate Stage stash entry and is **not** a member of `177-S`.
+Downstream conformance detection becomes plannable only after that
+representation exists. Until then, a consuming workspace authoring a
+contradictory admission rule is caught by human review of the canonical clause,
+not by a gate — which is the current state, stated truthfully rather than
+overclaimed.
 
 ### Part 4 — Pin the transition
 
@@ -117,7 +150,10 @@ one that fails:
 | Record `active`, all members `active`, claim just issued | **admit** |
 | Record `queued`, one member `active` | **halt** `SHIPMENT_STATE_INCONSISTENT` |
 | Record `active`, mixed `done`/`active`/`queued` mid-execution | **admit**, not an intake-reconciliation case |
-| Registry declaring post-claim-active-is-residual | **halt** `POST_CLAIM_CONTRACT_CONTRADICTED` |
+
+The fourth revision-2 row — "registry declaring post-claim-active-is-residual →
+halt `POST_CLAIM_CONTRACT_CONTRADICTED`" — is removed with Part 3. There is no
+token to assert.
 
 ## Work Breakdown
 
@@ -126,35 +162,113 @@ one that fails:
 | T1 | Author the `P-002.7` clause in the policy **template** | `templates/policies/workflow-policies.md.tmpl` |
 | T2 | Apply the identical clause to the installed mirror, atomically with T1 | `.github/policies/workflow-policies.md` |
 | T3 | Add the bidirectional cross-reference in the Ship template and installed mirror | `templates/agents/_ship.agent.md.tmpl`, `.github/agents/_ship.agent.md` |
-| T4 | Implement the three `verify-workspace` tokens with declarative clause-vocabulary matching | `src/autoharness/verify_workspace.py` |
-| T5 | Composed state-machine regression test for the four transition states | `tests/` |
-| T6 | Negative-case suite: a legitimate mid-execution residual gate must not trip the contradiction token | `tests/` |
-| T7 | Document the contract and the downstream-conformance check | `docs/` |
+| T4 | Structural test asserting the cross-reference resolves in both directions and in both copies, and that the clause carries its observed-version attribution | `tests/` |
+| T5 | Composed state-machine regression test for the three transition states | `tests/` |
+| T6 | Document the contract, its preserved distinction, and the explicitly-undelivered downstream detection | `docs/` |
+
+Removed from this release unit with Part 3: the `verify-workspace` token
+implementation and its negative-case suite. Their scope moves to the deferred
+typed-policy-representation entry.
+
+T4 replaces the assertion the removed detector would have made, at the only
+level this surface actually supports: a structural check that the two prose
+sites name each other and that the attribution paragraph is present. It makes
+no judgement about a consuming workspace's rules, because it cannot.
 
 ## Verification
 
 * `PYTHONPATH=src python -m unittest discover -s tests` exits 0.
-* `autoharness verify-workspace` on this repository reports the clause present,
-  versioned, and uncontradicted.
 * `autoharness gate check` passes on every modified file.
 * Cross-reference resolution asserted in both directions, both copies.
+* The clause's observed-version attribution paragraph is present in both copies.
+* No new `verify-workspace` token is introduced by this release unit, and no
+  document in it claims one is.
 
 ## Risks
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | The contradiction check false-positives on a legitimate mid-execution residual gate | T6 is a dedicated negative suite; matching is on structured clause vocabulary, never free prose |
-| R2 | The version attribution becomes stale as backlogit moves | The clause records an *observed* range and mandates re-verification; `POST_CLAIM_CONTRACT_UNVERSIONED` makes the absence of attribution itself a failure |
-| R3 | Adding a verify-workspace failure mode blocks existing consumer workspaces on upgrade | The three tokens are introduced in report-only severity for one release, then promoted; the promotion is a declared follow-up, not silent |
-| R4 | The clause is read as licence to weaken a genuine stalled-wave gate | The Preserved distinction paragraph is normative text in the clause itself, and R1's negative suite enforces it |
+| R1 | The clause is read as licence to weaken a genuine stalled-wave gate | The Preserved distinction paragraph is normative text in the clause itself; T6 restates it in the documentation surface |
+| R2 | The version attribution becomes stale as backlogit moves | The clause records an *observed* range and mandates re-verification; T4 asserts the attribution paragraph exists, so its silent deletion is caught even though its staleness is not |
+| R3 | The deferred detector is quietly forgotten | It is recorded as a named Stage stash entry, restated in this plan's Out of scope, and named in the covering feature body; it is not merely absent |
+| R4 | A future reader assumes downstream conformance is enforced | Part 3 states the non-delivery explicitly and gives the reason; the documentation task T6 carries the same statement into `docs/` |
+| R5 | Template/mirror drift between T1 and T2, or T3's two copies | T2 blocks on T1; T4 asserts both copies |
 
 ## Out of scope
 
 * Any change to backlogit. The upstream contract is correct and no upstream
   request is filed for this entry (spike Q3).
+* **Downstream conformance detection in `verify-workspace`**, and the typed
+  policy-clause representation it requires. Deferred to a separate Stage entry
+  (see Part 3). No token, no matcher, and no `src/autoharness/verify_workspace.py`
+  change is delivered by `177-S`.
 * Editing, weakening, or removing `P-002.6` in any consuming workspace.
   autoharness publishes a canonical clause; it does not reach into consumers.
 * The report's Option A and Option B, both of which presuppose changing what
   claim does.
 * `149-S`, `140-S`, and `CC0EBB59`, which live in another workspace's history
   and are cited as evidence only.
+
+## Plan Hardening Record (P-006)
+
+Hardening applied 2026-09-17, re-run 2026-09-18 during remediation cycle 1.
+Revision 2 declared `plan_hardening_status: complete` without persisting this
+record, so the declaration was unverifiable — that gap is itself H0 below.
+
+**Hardening trigger.** Elevated blast radius on three axes: the change edits a
+policy registry that every downstream consumer workspace installs; it edits an
+agent template *and* its installed mirror, a pair with a recorded drift class;
+and revision 2 proposed a new fail-closed `verify-workspace` failure mode that
+would have fired on existing consumer workspaces at upgrade time.
+
+**Protected invariants.**
+
+* `SHIPMENT_STATE_INCONSISTENT` must keep firing on the inverse condition
+  (record `queued`, member `active`/`done`). Nothing here may suppress it.
+* A genuine mid-execution partial-active residual gate must remain valid. The
+  discriminator is the claim boundary, never member status alone.
+* Template and installed mirror must not diverge.
+* autoharness publishes a canonical clause; it never mutates a consumer
+  workspace's policy file.
+
+**Instructions and learnings consulted.**
+`.github/policies/workflow-policies.md` (P-002 numbering and clause style),
+`.github/instructions/backlogit.instructions.md`,
+`docs/compound/2026-08-21-backlogit-1-10-shipment-claim-cascades-to-children.md`,
+`docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md`,
+`docs/compound/2026-08-15-checksum-drift-fix-correctly-surfaces-preexisting-self-hosted-customization.md`,
+and `docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md`.
+
+| # | Hardening finding | Resolution |
+|---|---|---|
+| H0 | Revision 2 asserted `plan_hardening_status: complete` with no persisted hardening record, so P-006 compliance rested on a frontmatter claim alone | This section is the record; `plan_hardening_section` in frontmatter now names it so the claim is checkable |
+| H1 | The revision-2 `verify-workspace` detector had no typed representation to match against and would necessarily have been a free-text heuristic | Detector removed from the release unit (Part 3); the typed-representation prerequisite is deferred as named Stage work rather than assumed |
+| H2 | `POST_CLAIM_CONTRACT_CONTRADICTED` would have had to distinguish a prohibited rule from a legitimate mid-execution gate by reading English — a false-positive that blocks a *correct* consumer gate | Eliminated with H1. The preserved distinction is now carried by normative clause prose and T6 documentation, with no automated judgement claimed |
+| H3 | Revision 2's R3 mitigation ("report-only for one release, then promoted") described a rollout no task implemented and no artifact recorded | Removed with the detector. No staged-severity rollout is claimed |
+| H4 | Removing the detector removes the only assertion that the two prose sites stay coupled | New T4 structural test asserts bidirectional cross-reference resolution in both copies and the presence of the version-attribution paragraph |
+| H5 | Clause version attribution could rot silently as backlogit moves | Attribution records an **observed** range with a re-verification instruction, not a universal claim; T4 pins its presence. Staleness detection is explicitly not claimed |
+| H6 | Scope creep risk back into backlogit or consumer policy files | Out of scope restated with the detector deferral named; spike Q3 already established no upstream request is warranted |
+
+**Risky actions (`ProposedAction` / `ActionRisk`).**
+
+| ProposedAction | ActionRisk | Approval | Rollback |
+|---|---|---|---|
+| Edit `templates/policies/workflow-policies.md.tmpl` (add `P-002.7`) | Medium — consumer-installed surface | Standard PR review | Revert the clause block; additive, no existing clause renumbered |
+| Edit `.github/policies/workflow-policies.md` (mirror) | Medium — must land with T1 | Standard PR review | Revert together with T1; T2 blocks on T1 |
+| Edit `templates/agents/_ship.agent.md.tmpl` + installed mirror (cross-reference) | Low — additive reference text | Standard PR review | Revert the reference lines |
+| *(withdrawn)* Add fail-closed `verify-workspace` tokens | **High** — new blocking failure mode on every consumer workspace at upgrade | Would have required operator sign-off | Not applicable: action withdrawn from this release unit |
+
+**Rollback coupling.** T1+T2 revert together (mirror pair). T3's two copies
+revert together. T4/T5 are test-only and revert independently. No data
+migration, no state mutation, no destructive action anywhere in the unit.
+
+**Operator checkpoints.** None required. The withdrawal of the high-risk
+action is what removes the one checkpoint revision 2 would have needed.
+
+**Review-gate capability risk (P-012).** Reviewer-subagent dispatch was
+degraded in the authoring session. Plan review MUST emit a literal
+`dispatch_mode:` marker declaring the fallback and a literal `decision:`
+marker, and MUST apply the Agent-Native Parity persona inline because this plan
+edits agent-template contract text.
+
+**Unresolved operator decisions blocking safe execution.** None.

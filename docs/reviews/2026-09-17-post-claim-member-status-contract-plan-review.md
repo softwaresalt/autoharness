@@ -1,103 +1,95 @@
 ---
-title: "Plan review — Canonical post-claim member-status contract"
-description: "Multi-persona plan review of docs/plans/2026-09-17-post-claim-member-status-contract-plan.md, gating harvest. Inline persona coverage under declared subagent-dispatch degradation. Plan hardening confirmed complete before review. Gate decision: PASS, 0 P0 / 0 P1 open."
-doc_type: review
+title: "Plan review verdict manifest — Canonical post-claim member-status contract"
+description: "Latest-verdict manifest for docs/plans/2026-09-17-post-claim-member-status-contract-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03. Verdict: PASS at plan revision 3."
+doc_type: review-manifest
 source: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
-date: 2026-09-17
+date: 2026-09-18
 plan_path: docs/plans/2026-09-17-post-claim-member-status-contract-plan.md
-plan_revision: 2
+plan_revision: 3
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 1
-source_spike: docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md
+decision_revision: 2
 source_stash_id: 3EF5AAF2
-review_cycle: 2
-review_cycles_remaining: 1
-dispatch_mode: declared-degradation
+feature_id: 169-F
+shipment_id: 177-S
+latest_attempt: 3
+latest_attempt_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
+verdict: PASS
 decision: PASS
 p0_open: 0
 p1_open: 0
+review_cycles_used: 3
+review_cycles_remaining: 0
+plan_hardening_status: complete
+plan_hardening_evidence: "docs/plans/2026-09-17-post-claim-member-status-contract-plan.md#plan-hardening-record-p-006"
+attempts:
+  - attempt: "01-02"
+    artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md
+    conformance: non-conforming-combined
+    plan_revision: 2
+    verdict: PASS
+    superseded_by: 3
+    note: "Two review cycles recorded in one mutable file. Preserved verbatim as evidence; only classification keys added."
+  - attempt: 3
+    artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
+    conformance: conforming
+    plan_revision: 3
+    verdict: PASS
+    superseded_by: null
+    note: "Remediation-cycle-1 re-review. All consolidated blocking findings verified closed."
 tags:
   - "plan-review"
-  - "shipment-claim"
-  - "contract-drift"
+  - "verdict-manifest"
+  - "remediation-cycle-1"
 ---
 
-# Plan review — Canonical post-claim member-status contract
+# Plan review verdict manifest — Canonical post-claim member-status contract
 
-## Dispatch mode
+## What this file is
 
-`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent
-persona pass`. Cross-model dispatch unavailable; anchor review route not
-dispatchable. Every selected persona rubric applied inline with a separate
-finding list. No persona skipped.
+A **selection surface**, not a review. It answers one question — *which review
+attempt is authoritative right now* — and nothing else.
 
-Personas applied: Constitution Reviewer, Python Reviewer, Scope Boundary
-Auditor, Learnings Researcher (always-on); Architecture Strategist and
-**Agent-Native Parity Reviewer** (cross-model, inline — triggered because the
-plan changes an agent-facing contract clause and adds a `verify-workspace`
-check consumed by agents). Security Lens Reviewer **not triggered**.
+The review records themselves are immutable, one file per attempt, under
+`docs/reviews/review-history/`. They are never edited after they are written.
+This manifest is the only mutable part of the review surface, and the only
+thing it ever changes is which attempt it points at.
 
-## Plan hardening (P-006)
+This split is the contract that
+`docs/plans/2026-09-17-single-governing-plan-contract-plan.md` specifies. It is
+applied here to the whole portfolio, including to that plan's own review
+history.
 
-Plan declares `requires_plan_hardening: "yes"`, `plan_hardening_status:
-complete`. Confirmed warranted: the change spans the policy registry, two agent
-template families with installed mirrors, and the `verify-workspace` CLI
-surface — elevated blast radius on all three counts. Hardening outputs visible
-in the reviewed plan: the report-only-then-promote rollout for the three new
-tokens (R3), the declarative-vocabulary matching constraint (R1), and the
-explicit non-suppression statement toward `SHIPMENT_STATE_INCONSISTENT`.
+## Current verdict
 
-## Final Reviewed Contract
+| Field | Value |
+|---|---|
+| Plan | `docs/plans/2026-09-17-post-claim-member-status-contract-plan.md` |
+| Plan revision | 3 |
+| Latest attempt | **03** |
+| Authoritative artifact | `docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md` |
+| Verdict | **PASS** |
+| P0 open | 0 |
+| P1 open | 0 |
+| Plan hardening (P-006) | complete, persisted at `## Plan Hardening Record (P-006)` |
+| Feature | `169-F` (6 tasks) |
+| Shipment | `177-S` |
 
-Name the post-claim manifest-member status expectation as canonical clause
-`P-002.7` with inline, **versioned** backlogit claim-cascade attribution;
-cross-link it bidirectionally with the existing Ship-agent tolerance note in
-both template and installed mirror; add three fail-closed `verify-workspace`
-tokens detecting a missing, unversioned, or contradicted clause using
-structured clause vocabulary rather than free prose; pin the claim→admission
-transition with a four-state composed state-machine test plus a dedicated
-negative suite for legitimate mid-execution residual gates. Seven tasks.
+**What attempt 03 changed:** The undeliverable structured-clause contradiction detector is withdrawn; scope is narrowed to naming and cross-linking the existing tolerance.
 
-## Findings
+## Attempt history
 
-### Cycle 1 — findings raised and remediated in place
+| Attempt | Artifact | Plan rev | Conformance | Verdict | Status |
+|---|---|---|---|---|---|
+| 01–02 | `2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md` | 2 | non-conforming-combined | PASS | superseded by 03 |
+| 03 | `2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md` | 3 | conforming | PASS | **authoritative** |
 
-| ID | Persona | Sev | Finding | Resolution |
-|---|---|---|---|---|
-| F1 | Constitution Reviewer | **P0** | Cycle-1 draft proposed "correcting P-002.6". The spike proves P-002.6 does not exist in this repository; the plan would have specified an edit to a non-existent artifact. | **Resolved.** Plan re-scoped to the actual autoharness-owned defect (unnamed/unenforced canonical tolerance). The Problem section now states the existence proof and its method. |
-| F2 | Scope Boundary Auditor | **P0** | Cycle-1 draft proposed reaching into consumer workspaces to remove contradictory policies. | **Resolved.** Out of scope now states explicitly that autoharness publishes a canonical clause and does not reach into consumers. |
-| F3 | Learnings Researcher | **P1** | Plan ignored `docs/compound/2026-08-21-backlogit-1-10-shipment-claim-cascades-to-children.md`, which already concluded the contract's tolerance was correct and that the gap was causal attribution. | **Resolved.** That learning is now the plan's load-bearing evidence, cited in the Problem section and in the clause's inline attribution requirement. |
-| F4 | Agent-Native Parity Reviewer | **P1** | The contradiction check risked false-positives against a legitimate mid-execution residual gate, which would block conforming workspaces. | **Resolved.** Preserved-distinction paragraph is normative clause text; T6 is a dedicated negative suite; matching is restricted to structured clause vocabulary. |
-| F5 | Architecture Strategist | **P1** | A new fail-closed `verify-workspace` failure mode would break existing consumer workspaces on upgrade with no migration path. | **Resolved.** R3: tokens ship report-only for one release, then promote; the promotion is a declared follow-up, not silent. |
-| F6 | Python Reviewer | P2 | Version attribution risked asserting the cascade behaviour for all backlogit versions. | **Resolved.** Clause records an *observed* range and mandates re-verification; `POST_CLAIM_CONTRACT_UNVERSIONED` makes missing attribution itself a failure. |
-| F7 | Constitution Reviewer | P2 | Relationship to the existing `SHIPMENT_STATE_INCONSISTENT` halt was unstated, risking an inferred suppression. | **Resolved.** Explicit non-suppression statement added to the clause design. |
+Attempts 01–02 were written as a single mutable document covering two cycles.
+That file is preserved verbatim rather than retroactively split — fabricating
+two independently-authored records from a document never authored that way
+would be a provenance forgery. Only classification frontmatter keys were added.
 
-### Cycle 2 — verification pass
+## Selection rule
 
-No new P0 or P1. Two P3 observations, **accepted without change**:
-
-* **P3-1** (Scope Boundary Auditor): the plan declines to adopt the source
-  report's Option A / Option B. Accepted — the spike's Q3 finding makes both
-  options presuppose a change that is not needed.
-* **P3-2** (Architecture Strategist): `P-002.7` numbering assumes no other
-  consumer has claimed that number. Accepted as unavoidable and low-impact;
-  the `POST_CLAIM_CONTRACT_MISSING` token keys on clause semantics, not number.
-
-## Persona coverage
-
-| Persona | Findings | Open P0/P1 |
-|---|---|---|
-| Constitution Reviewer | F1, F7 | 0 |
-| Python Reviewer | F6 | 0 |
-| Scope Boundary Auditor | F2, P3-1 | 0 |
-| Learnings Researcher | F3 | 0 |
-| Architecture Strategist | F5, P3-2 | 0 |
-| Agent-Native Parity Reviewer | F4 | 0 |
-
-## Gate decision
-
-**PASS.** 0 P0 open, 0 P1 open. Cleared for harvest.
-
-Explicitly verified: no upstream backlogit change is requested by this plan; no
-existing active-residual gate is weakened; `149-S`/`140-S`/`CC0EBB59` are cited
-as external evidence only and no autoharness test asserts against them.
+Consumers resolve the governing verdict by reading `latest_attempt` and
+`latest_attempt_artifact` from this file's frontmatter. Superseded attempts are
+history: readable for provenance, never operative input to a later review.

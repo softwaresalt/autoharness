@@ -1,119 +1,95 @@
 ---
-title: "Plan review — Checkpoint resume_hint producer, validation, and migration"
-description: "Multi-persona plan review of docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md, gating harvest. Inline persona coverage under declared subagent-dispatch degradation. Gate decision: PASS, 0 P0 / 0 P1 open."
-doc_type: review
+title: "Plan review verdict manifest — Checkpoint resume-hint / payload-shape contract"
+description: "Latest-verdict manifest for docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03. Verdict: PASS at plan revision 3."
+doc_type: review-manifest
 source: docs/reviews/2026-09-17-checkpoint-resume-hint-contract-plan-review.md
-date: 2026-09-17
+date: 2026-09-18
 plan_path: docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md
-plan_revision: 2
+plan_revision: 3
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 1
-source_stash_id: 71200CBB
-deferred_scope_expansions:
-  - 71200CBB
-review_cycle: 2
-review_cycles_remaining: 1
-dispatch_mode: declared-degradation
+decision_revision: 2
+source_stash_id: 24D4E0F8
+feature_id: 172-F
+shipment_id: 180-S
+latest_attempt: 3
+latest_attempt_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md
+verdict: PASS
 decision: PASS
 p0_open: 0
 p1_open: 0
+review_cycles_used: 3
+review_cycles_remaining: 0
+plan_hardening_status: complete
+plan_hardening_evidence: "docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md#plan-hardening-record-p-006"
+attempts:
+  - attempt: "01-02"
+    artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempts-01-02-combined.md
+    conformance: non-conforming-combined
+    plan_revision: 2
+    verdict: PASS
+    superseded_by: 3
+    note: "Two review cycles recorded in one mutable file. Preserved verbatim as evidence; only classification keys added."
+  - attempt: 3
+    artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md
+    conformance: conforming
+    plan_revision: 3
+    verdict: PASS
+    superseded_by: null
+    note: "Remediation-cycle-1 re-review. All consolidated blocking findings verified closed."
 tags:
   - "plan-review"
-  - "checkpoint"
-  - "recovery-contract"
-  - "migration"
+  - "verdict-manifest"
+  - "remediation-cycle-1"
 ---
 
-# Plan review — Checkpoint `resume_hint` contract
+# Plan review verdict manifest — Checkpoint resume-hint / payload-shape contract
 
-## Dispatch mode
+## What this file is
 
-`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent
-persona pass`. Every selected persona rubric applied inline with a separate
-finding list. No persona skipped.
+A **selection surface**, not a review. It answers one question — *which review
+attempt is authoritative right now* — and nothing else.
 
-Personas applied: Constitution Reviewer, Python Reviewer, Scope Boundary
-Auditor, Learnings Researcher (always-on); Architecture Strategist and
-**Agent-Native Parity Reviewer** (cross-model, inline — triggered because the
-plan changes the agent-facing startup recovery contract and the checkpoint
-payload that agents author and consume).
+The review records themselves are immutable, one file per attempt, under
+`docs/reviews/review-history/`. They are never edited after they are written.
+This manifest is the only mutable part of the review surface, and the only
+thing it ever changes is which attempt it points at.
 
-## Plan hardening (P-006)
+This split is the contract that
+`docs/plans/2026-09-17-single-governing-plan-contract-plan.md` specifies. It is
+applied here to the whole portfolio, including to that plan's own review
+history.
 
-Declares `requires_plan_hardening: "no"`. **Reviewed and upheld.** The change is
-bounded to one instruction family, two agent templates with mirrors, and one
-validation module; it introduces no schema-distribution or CLI-distribution
-blast radius, and the one genuine hazard (validator-before-migration) is
-already encoded as a `blocks` dependency rather than as narrative caution.
-`plan-harden` not invoked.
+## Current verdict
 
-## P-021 obligations verified
+| Field | Value |
+|---|---|
+| Plan | `docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md` |
+| Plan revision | 3 |
+| Latest attempt | **03** |
+| Authoritative artifact | `docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md` |
+| Verdict | **PASS** |
+| P0 open | 0 |
+| P1 open | 0 |
+| Plan hardening (P-006) | complete, persisted at `## Plan Hardening Record (P-006)` |
+| Feature | `172-F` (7 tasks) |
+| Shipment | `180-S` |
 
-* **Obligation A — unconditional duplicate detection.** Re-run this session
-  over the active stash. **Clean scan, no duplicate.** `904C47BC` is a
-  different defect class (top-level `progress` context-nesting) on a different
-  field; `445C1DFB` / `032-DL` is a distinct already-repaired earlier instance
-  on a different file. Not merged. Recorded in the plan's Provenance section.
-* **Obligation B — late-identifier reconciliation.** Triggered by the `N/A`
-  task/feature/shipment values. Run over the Ship-owned residual-risk records;
-  **no late identifier surfaced**. The `N/A` values stand as truthful terminal
-  records. Non-blocking, correctly not treated as a gate.
-* **C6 deliberation requirement.** Satisfied by
-  `docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md`,
-  which the entry's own annotation correctly noted was still unmet.
+**What attempt 03 changed:** A named callable author-time validation boundary wired into both producer paths, policy-then-producers-then-validation ordering, invariant-based corpus tests, and truthful operator-repair provenance.
 
-## Final Reviewed Contract
+## Attempt history
 
-Land in order **policy → producer → validation**. Historical resolved records
-lacking `resume_hint` are classified `LEGACY_HINTLESS_RESOLVED`, enumerated and
-reported by count and filename, and excluded from the candidate set; `active`
-records are **never** exempt. Every harness checkpoint producer emits a
-specific top-level `resume_hint`, including the minimal completion shape.
-Author-time validation implements three tokens. Seven tasks; T5 blocks on T1
-and T2. Upstream backlogit half excluded.
+| Attempt | Artifact | Plan rev | Conformance | Verdict | Status |
+|---|---|---|---|---|---|
+| 01–02 | `2026-09-17-checkpoint-resume-hint-contract-plan-review-attempts-01-02-combined.md` | 2 | non-conforming-combined | PASS | superseded by 03 |
+| 03 | `2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md` | 3 | conforming | PASS | **authoritative** |
 
-## Findings
+Attempts 01–02 were written as a single mutable document covering two cycles.
+That file is preserved verbatim rather than retroactively split — fabricating
+two independently-authored records from a document never authored that way
+would be a provenance forgery. Only classification frontmatter keys were added.
 
-### Cycle 1 — findings raised and remediated in place
+## Selection rule
 
-| ID | Persona | Sev | Finding | Resolution |
-|---|---|---|---|---|
-| F1 | Architecture Strategist | **P0** | Cycle-1 draft ordered the work producer → validation → policy, which is exactly the ordering the source entry identifies as converting a latent gap into a hard startup deadlock. | **Resolved.** Order is now policy → producer → validation, stated as a binding correctness constraint, with T5 declaring `blocks` on T1 and T2 so the ordering is machine-enforced rather than narrative. |
-| F2 | Constitution Reviewer | **P0** | Cycle-1 draft's legacy exemption applied to any record missing the field, which would have grandfathered an `active` record and silently disabled fail-closed recovery. | **Resolved.** Exemption is restricted to `status: resolved`; `active` records are explicitly not exempt; T6 carries a dedicated active-record-not-exempt case. |
-| F3 | Agent-Native Parity Reviewer | **P1** | A generic or empty hint would satisfy a naive producer guarantee while providing no recovery value. | **Resolved.** The guarantee requires the hint to name the next actionable step or state explicitly that no re-entry is required; `CHECKPOINT_RESUME_HINT_EMPTY` is a distinct token. |
-| F4 | Scope Boundary Auditor | **P1** | Cycle-1 draft included the backlogit CheckpointV1 validator change, which the entry explicitly excludes and which is already written up separately. | **Resolved.** Exclusion stated in frontmatter, in the Ownership boundary section, and in Out of scope, with the upstream report path recorded. R4 guards against re-inclusion. |
-| F5 | Learnings Researcher | **P1** | Plan did not cite `docs/compound/2026-08-18-stage-agent-checkpoint-index-sync-ordering-self-contradiction.md`, a prior instance of the same ordering-contradiction class in the same contract family. | **Resolved.** Added to `prior_learnings` and reflected in the binding ordering statement. |
-| F6 | Python Reviewer | P2 | The legacy classification risked becoming an open-ended silent tolerance. | **Resolved.** Closed, enumerable classification; the scan reports count and filenames; T7 pins the current inventory. |
-| F7 | Constitution Reviewer | P2 | Validation could be read as retroactively invalidating records this harness did not author. | **Resolved.** Validation is explicitly author-time on harness-produced payloads. |
-
-### Cycle 2 — verification pass
-
-No new P0 or P1. Two P3 observations, **accepted without change**:
-
-* **P3-1** (Scope Boundary Auditor): the plan records that
-  `checkpoint-20260916-064310.json` in the working tree now carries a populated
-  `resume_hint` from operator repair, and treats it as a read-only worked
-  example. Accepted — the plan explicitly does not modify it, and this session
-  did not.
-* **P3-2** (Architecture Strategist): priority stays `medium`. Accepted —
-  neither of the entry's own recorded escalation triggers has fired, and this
-  plan's ordering is what guarantees trigger (b) cannot fire.
-
-## Persona coverage
-
-| Persona | Findings | Open P0/P1 |
-|---|---|---|
-| Constitution Reviewer | F2, F7 | 0 |
-| Python Reviewer | F6 | 0 |
-| Scope Boundary Auditor | F4, P3-1 | 0 |
-| Learnings Researcher | F5 | 0 |
-| Architecture Strategist | F1, P3-2 | 0 |
-| Agent-Native Parity Reviewer | F3 | 0 |
-
-## Gate decision
-
-**PASS.** 0 P0 open, 0 P1 open. Cleared for harvest.
-
-Explicitly verified: no committed checkpoint file is modified by this release
-unit; no upstream backlogit change is in scope; this release unit is not
-blocked on the upstream report landing.
+Consumers resolve the governing verdict by reading `latest_attempt` and
+`latest_attempt_artifact` from this file's frontmatter. Superseded attempts are
+history: readable for provenance, never operative input to a later review.

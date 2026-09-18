@@ -1,122 +1,95 @@
 ---
-title: "Plan review — SAFE_CLOSE record-transition disposition"
-description: "Multi-persona plan review of docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md, gating harvest. Inline persona coverage under declared subagent-dispatch degradation. Plan hardening confirmed complete before review. Gate decision: PASS, 0 P0 / 0 P1 open."
-doc_type: review
+title: "Plan review verdict manifest — SAFE_CLOSE record-transition disposition"
+description: "Latest-verdict manifest for docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03. Verdict: PASS at plan revision 3."
+doc_type: review-manifest
 source: docs/reviews/2026-09-17-safe-close-record-transition-disposition-plan-review.md
-date: 2026-09-17
+date: 2026-09-18
 plan_path: docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md
-plan_revision: 2
+plan_revision: 3
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 1
+decision_revision: 2
 source_stash_id: 7F9CB5E9
-deferred_scope_expansions:
-  - 7F9CB5E9
-review_cycle: 2
-review_cycles_remaining: 1
-dispatch_mode: declared-degradation
+feature_id: 173-F
+shipment_id: 181-S
+latest_attempt: 3
+latest_attempt_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
+verdict: PASS
 decision: PASS
 p0_open: 0
 p1_open: 0
+review_cycles_used: 3
+review_cycles_remaining: 0
+plan_hardening_status: complete
+plan_hardening_evidence: "docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md#plan-hardening-record-p-006"
+attempts:
+  - attempt: "01-02"
+    artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempts-01-02-combined.md
+    conformance: non-conforming-combined
+    plan_revision: 2
+    verdict: PASS
+    superseded_by: 3
+    note: "Two review cycles recorded in one mutable file. Preserved verbatim as evidence; only classification keys added."
+  - attempt: 3
+    artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
+    conformance: conforming
+    plan_revision: 3
+    verdict: PASS
+    superseded_by: null
+    note: "Remediation-cycle-1 re-review. All consolidated blocking findings verified closed."
 tags:
   - "plan-review"
-  - "shipment-closure"
-  - "upstream-dependency"
-  - "evidence-provenance"
+  - "verdict-manifest"
+  - "remediation-cycle-1"
 ---
 
-# Plan review — SAFE_CLOSE record-transition disposition
+# Plan review verdict manifest — SAFE_CLOSE record-transition disposition
 
-## Dispatch mode
+## What this file is
 
-`TOOL_DEGRADED: reviewer-subagent-dispatch — declared fallback: single-agent
-persona pass`. Every selected persona rubric applied inline with a separate
-finding list. No persona skipped.
+A **selection surface**, not a review. It answers one question — *which review
+attempt is authoritative right now* — and nothing else.
 
-Personas applied: Constitution Reviewer, Python Reviewer, Scope Boundary
-Auditor, Learnings Researcher (always-on); Architecture Strategist,
-**Security Lens Reviewer** (triggered — the plan documents a privileged
-operator-only administrative-close procedure that mutates terminal release
-records), and **Agent-Native Parity Reviewer** (triggered — the procedure must
-be non-executable by agents while remaining discoverable by operators).
+The review records themselves are immutable, one file per attempt, under
+`docs/reviews/review-history/`. They are never edited after they are written.
+This manifest is the only mutable part of the review surface, and the only
+thing it ever changes is which attempt it points at.
 
-## Plan hardening (P-006)
+This split is the contract that
+`docs/plans/2026-09-17-single-governing-plan-contract-plan.md` specifies. It is
+applied here to the whole portfolio, including to that plan's own review
+history.
 
-Declares `requires_plan_hardening: "yes"`, `plan_hardening_status: complete`.
-Warranted: the plan documents a privileged mutation path adjacent to a
-fail-closed halt, and re-derives evidence whose prior provenance is a recorded
-P-005 violation. Hardening outputs visible: the four binding constraints on the
-interim procedure, the `blocks` edges forcing every documentation and
-escalation task behind the hermetic fixtures, and the explicit prohibition on
-re-running the measurements in `%TEMP%`.
+## Current verdict
 
-## Ownership review (P-021 C1)
+| Field | Value |
+|---|---|
+| Plan | `docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md` |
+| Plan revision | 3 |
+| Latest attempt | **03** |
+| Authoritative artifact | `docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md` |
+| Verdict | **PASS** |
+| P0 open | 0 |
+| P1 open | 0 |
+| Plan hardening (P-006) | complete, persisted at `## Plan Hardening Record (P-006)` |
+| Feature | `173-F` (11 tasks) |
+| Shipment | `181-S` |
 
-The Scope Boundary Auditor confirmed the boundary is drawn correctly. The
-record-transition capability is in the backlogit Go binary and cannot be
-implemented here. The plan does **not** claim to fix the gap. The three
-autoharness-owned obligations it does deliver — hermetic evidence, escalation
-route and portable report, operator-only procedure, and documentation truth —
-are each genuinely in-repository work and none of them depends on the upstream
-change landing.
+**What attempt 03 changed:** A durable external-dependency tracker held outside the shipment, local-disposition classification, and reconciliation against CI's pinned backlogit v1.9.0.
 
-The operator's explicit direction that this entry not be discarded merely
-because part of the fix is upstream is honored: the entry is retained, and the
-plan's Out of scope states plainly that the remedy itself is external.
+## Attempt history
 
-## Final Reviewed Contract
+| Attempt | Artifact | Plan rev | Conformance | Verdict | Status |
+|---|---|---|---|---|---|
+| 01–02 | `2026-09-17-safe-close-record-transition-disposition-plan-review-attempts-01-02-combined.md` | 2 | non-conforming-combined | PASS | superseded by 03 |
+| 03 | `2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md` | 3 | conforming | PASS | **authoritative** |
 
-Four hermetic in-workspace fixtures replacing the P-005-tainted external
-`%TEMP%` measurements, each asserting exact exit code and refusal message and
-recording the observed backlogit version; a portable upstream report generated
-**from those fixtures** plus the decided escalation route (file upstream;
-vendor-wrapper and pin-and-patch rejected with reasons); an operator-only
-approval-gated interim close procedure under four binding constraints; and a
-documentation-truth audit with an `INV-11` back-pointer. Seven tasks; T5/T6/T7
-each block on T1–T4.
+Attempts 01–02 were written as a single mutable document covering two cycles.
+That file is preserved verbatim rather than retroactively split — fabricating
+two independently-authored records from a document never authored that way
+would be a provenance forgery. Only classification frontmatter keys were added.
 
-## Findings
+## Selection rule
 
-### Cycle 1 — findings raised and remediated in place
-
-| ID | Persona | Sev | Finding | Resolution |
-|---|---|---|---|---|
-| F1 | Constitution Reviewer | **P0** | Cycle-1 draft specified an agent-invocable administrative-close command, which would have created exactly the substitution path `166.005-T`'s halt exists to prevent. | **Resolved.** The procedure is operator-only. Stated in its title, first paragraph, and telemetry requirement; T6's acceptance criteria include a negative assertion that no agent template references it as executable. |
-| F2 | Scope Boundary Auditor | **P0** | Cycle-1 draft proposed re-running the measurements in a disposable external workspace for speed — the exact P-005 containment violation the entry already records. | **Resolved.** Re-derivation is hermetic and in-workspace; external `%TEMP%` arms are prohibited in both Verification and Out of scope, and R4 names the hazard. |
-| F3 | Security Lens Reviewer | **P1** | The interim procedure could be read as weakening `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. | **Resolved.** Binding constraint: the halt still fires; the procedure is what an operator may do *after* the halt with explicit approval. Manifest-scope verification is required before any record mutation and is recorded as closure evidence. |
-| F4 | Agent-Native Parity Reviewer | **P1** | An operator-only path that agents can read risks being treated as implicit authorization. | **Resolved.** Every invocation logs a P-005 telemetry event, so an administrative close is observable as a deviation even when authorized; R1 carries the negative assertion. |
-| F5 | Architecture Strategist | **P1** | Cycle-1 draft filed the upstream report from the tainted measurements, so the first external artifact would have carried the provenance defect outward. | **Resolved.** T5 blocks on T1–T4; the report is generated from the fixtures. |
-| F6 | Learnings Researcher | P2 | Plan did not cite `docs/compound/2026-08-18-lifecycle-gate-must-precede-safe-close-mutation.md`, directly on point for ordering a gate ahead of a close mutation. | **Resolved.** Added to `prior_learnings` and reflected in F3's ordering constraint. |
-| F7 | Python Reviewer | P2 | Fixtures risked mutating live `.backlogit/` shipment records. | **Resolved.** Fixtures operate on disposable in-`tests/` records only; Verification asserts `.backlogit/` is unmodified (R2). |
-
-### Cycle 2 — verification pass
-
-No new P0 or P1. Three P3 observations, **accepted without change**:
-
-* **P3-1** (Scope Boundary Auditor): `63363CF5` shares the escalation channel
-  but the entry itself is untouched. Accepted and correct.
-* **P3-2** (Constitution Reviewer): archived predecessor `2B42392E` is not
-  rewritten; traceability runs forward from `7F9CB5E9` to it. Accepted — this
-  is the append-only-archive discipline working as intended.
-* **P3-3** (Architecture Strategist): the entry stays open against the external
-  prerequisite after this shipment closes. Accepted as the honest state; R3
-  records it explicitly rather than pretending closure.
-
-## Persona coverage
-
-| Persona | Findings | Open P0/P1 |
-|---|---|---|
-| Constitution Reviewer | F1, P3-2 | 0 |
-| Python Reviewer | F7 | 0 |
-| Scope Boundary Auditor | F2, P3-1, ownership review | 0 |
-| Learnings Researcher | F6 | 0 |
-| Architecture Strategist | F5, P3-3 | 0 |
-| Security Lens Reviewer | F3 | 0 |
-| Agent-Native Parity Reviewer | F4 | 0 |
-
-## Gate decision
-
-**PASS.** 0 P0 open, 0 P1 open. Cleared for harvest.
-
-Explicitly verified: the plan implements no record transition; it does not
-weaken `166.005-T`'s halt or its no-substitution prohibition; it creates no
-agent-executable administrative close; and it creates no external workspace.
+Consumers resolve the governing verdict by reading `latest_attempt` and
+`latest_attempt_artifact` from this file's frontmatter. Superseded attempts are
+history: readable for provenance, never operative input to a later review.
