@@ -6,6 +6,9 @@ source: docs/memory/2026-09-17-stage-seven-entry-contract-defect-portfolio.md
 date: 2026-09-17
 updated: 2026-09-17
 agent: stage
+doc_status: superseded
+superseded_by: docs/memory/2026-09-19-stage-remediation-cycle-3-current-state.md
+superseded_note: "EXPLICITLY SUPERSEDED as a CURRENT-STATE surface. Preserved verbatim for provenance: it is an accurate record of what was true on 2026-09-17. It is NOT operative current-state input - its task count (48), serial shipment sequencing, decision_revision (1) and review state are all stale, and it predates the 168-S -> 176-S edge. Read docs/memory/2026-09-19-stage-remediation-cycle-3-current-state.md instead."
 status: complete
 scope_kind: portfolio
 feature_ids:

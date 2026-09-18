@@ -1,23 +1,23 @@
 ---
 title: "Plan review verdict manifest — Canonical post-claim member-status contract"
-description: "Latest-verdict manifest for docs/plans/2026-09-17-post-claim-member-status-contract-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 04. Verdict: REMEDIATED-PENDING-REVIEW at plan revision 4. Local review cycle 2 returned BLOCKED at revision 3 because the revision-3 design had not been propagated into the executable backlog records; Stage remediation cycle 2 propagated it. Stage does not review its own remediation, so no PASS is asserted at revision 4."
+description: "Latest-verdict manifest for docs/plans/2026-09-17-post-claim-member-status-contract-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 05. Verdict: REMEDIATED-PENDING-REVIEW at plan revision 5. Independent review cycle 3 - the final authorized review-fix cycle - returned BLOCKED at revision 4; Stage remediation cycle 3 closed every finding and raised the plan to revision 5. No PASS is asserted at revision 5; the next independent reviewer pass is attempt 06. Local review cycle 2 returned BLOCKED at revision 3 because the revision-3 design had not been propagated into the executable backlog records; Stage remediation cycle 2 propagated it. Stage does not review its own remediation, so no PASS is asserted at revision 4."
 doc_type: review-manifest
 source: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
-date: 2026-09-18
+date: 2026-09-19
 plan_path: docs/plans/2026-09-17-post-claim-member-status-contract-plan.md
-plan_revision: 4
+plan_revision: 5
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 3EF5AAF2
 feature_id: 169-F
 shipment_id: 177-S
-latest_attempt: 4
-latest_attempt_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
+latest_attempt: 5
+latest_attempt_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
 verdict: REMEDIATED-PENDING-REVIEW
 decision: REMEDIATED-PENDING-REVIEW
 p0_open: 0
 p1_open: 0
-review_cycles_used: 4
+review_cycles_used: 5
 review_cycles_remaining: 0
 plan_hardening_status: complete
 plan_hardening_evidence: "docs/plans/2026-09-17-post-claim-member-status-contract-plan.md#plan-hardening-record-p-006"
@@ -41,8 +41,15 @@ attempts:
     conformance: conforming
     plan_revision: 4
     verdict: REMEDIATED-PENDING-REVIEW
-    superseded_by: null
+    superseded_by: 5
     note: "Local review cycle 2: BLOCKED at plan revision 3 because the revision-3 design was never propagated into the executable backlog records. Stage remediation cycle 2 propagated it and raised the plan to revision 4. Stage does not review its own remediation; awaiting reviewer attempt 05."
+  - attempt: 5
+    artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
+    conformance: conforming
+    plan_revision: 5
+    verdict: REMEDIATED-PENDING-REVIEW
+    superseded_by: null
+    note: "Independent review cycle 3 (final authorized cycle): BLOCKED at plan revision 4 because the WITHDRAWN downstream-conformance detector was still advertised as a deliverable in the plan title, the review title and the source_spike reference, and because deferred_followup_stash_ids held an unresolvable prose placeholder instead of the captured stash ID E770139B. Stage remediation cycle 3 populated E770139B, de-advertised every surface, added a source_spike_note recording the D3 withdrawal and deferral, propagated the revision label into 169-F, 177-S and all live 169.* bodies, and raised the plan to revision 5. Stage does not review its own remediation; awaiting independent reviewer attempt 06."
 tags:
   - "plan-review"
   - "verdict-manifest"
@@ -71,15 +78,23 @@ history.
 | Field | Value |
 |---|---|
 | Plan | `docs/plans/2026-09-17-post-claim-member-status-contract-plan.md` |
-| Plan revision | 4 |
-| Latest attempt | **04** |
-| Authoritative artifact | `docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md` |
+| Plan revision | 5 |
+| Latest attempt | **05** |
+| Authoritative artifact | `docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md` |
 | Verdict | **REMEDIATED-PENDING-REVIEW** |
 | P0 open | 0 |
 | P1 open | 0 |
 | Plan hardening (P-006) | complete, persisted at `## Plan Hardening Record (P-006)` |
 | Feature | `169-F` (6 tasks) |
 | Shipment | `177-S` |
+
+**What attempt 05 changed:** Independent review cycle 3 - the **final**
+authorized review-fix cycle - returned **BLOCKED** at plan revision 4 on
+the WITHDRAWN downstream-conformance detector still being advertised as a deliverable in the plan title, the review title and the `source_spike` reference, and `deferred_followup_stash_ids` holding an unresolvable prose placeholder. Stage remediation cycle 3 populated the exact stash ID `E770139B`, de-advertised every surface, recorded the D3 withdrawal and deferral in a `source_spike_note`, and propagated the revision label into `169-F`, `177-S` and all live `169.*` bodies. Stage does not review its own
+remediation, so the verdict is `REMEDIATED-PENDING-REVIEW` rather than PASS;
+the next reviewer pass is **attempt 06**, which must be independent.
+`review_cycles_remaining: 0` records that no further *Stage fix cycle* is
+authorized - it does not authorize skipping attempt 06.
 
 **What attempt 04 changed:** Local review cycle 2 returned **BLOCKED** at plan
 revision 3 — not because the design was wrong, but because it had never been
@@ -98,7 +113,8 @@ reviewer pass is attempt 05.
 |---|---|---|---|---|---|
 | 01–02 | `2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md` | 2 | non-conforming-combined | PASS | superseded by 03 |
 | 03 | `2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md` | 3 | conforming | PASS | superseded by 04 |
-| 04 | `2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md` | 4 | conforming | REMEDIATED-PENDING-REVIEW | **authoritative** |
+| 04 | `2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md` | 4 | conforming | REMEDIATED-PENDING-REVIEW | superseded by 05 |
+| 05 | `2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md` | 5 | conforming | REMEDIATED-PENDING-REVIEW | **authoritative** |
 
 Attempts 01–02 were written as a single mutable document covering two cycles.
 That file is preserved verbatim rather than retroactively split — fabricating

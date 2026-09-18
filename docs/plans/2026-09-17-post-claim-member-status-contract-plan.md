@@ -1,15 +1,16 @@
 ---
-title: "Canonical post-claim member-status contract and downstream-conformance verification"
+title: "Canonical post-claim member-status contract (downstream-conformance detection withdrawn)"
 description: "Implementation plan naming the post-claim manifest-member status expectation as a versioned canonical policy clause with the backlogit claim-cascade attribution inline, cross-linking it bidirectionally to the existing Ship-agent tolerance note so the two cannot drift, and pinning the claim-to-admission transition with a composed state-machine test. Downstream detection of a contradictory workspace-authored admission rule is explicitly NOT delivered here: it presupposes a typed, machine-readable policy-clause representation that does not exist, and speculative free-text parsing of policy prose is rejected."
 doc_type: plan
 source: docs/plans/2026-09-17-post-claim-member-status-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 4
-revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3, which formally withdraws the downstream-conformance detector in D3 rather than leaving it as an open spike question. The design is otherwise unchanged from revision 3 — this release unit still delivers contract-naming plus cross-surface structural evidence only. Revision 4 exists because the withdrawn claims had NOT been propagated out of the executable backlog records: feature, task and shipment bodies still described a detector, a fourth `POST_CLAIM_CONTRACT_CONTRADICTED` transition state, and a verify-workspace surface that this plan explicitly does not deliver. Those claims are removed at the record level and the task titles, references and dependencies are reconciled. The two withdrawn tasks are re-homed to a deferred feature under P-021 capture rather than left inside the covering feature, so the shipment can close without implementing deferred scope. The bounded audit trail lives in `linked_review`."
+revision: 5
+revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on three coupled defects, all of which left the WITHDRAWN downstream-conformance detector still advertised as deliverable. (1) `deferred_followup_stash_ids` held the unresolvable prose placeholder `pending: typed policy-clause representation for downstream conformance detection` instead of a backlog-resolvable identifier, so the deferral had no traceable destination; it is now the exact stash ID **E770139B**. (2) The plan title still read `... and downstream-conformance verification`, advertising as a deliverable the very capability decision revision 3 (D3) withdrew; the title now reads `(downstream-conformance detection withdrawn)` and the description already stated the withdrawal. (3) The `source_spike` reference pointed at a spike whose body still treats the detector as an open in-scope question, with nothing marking it superseded; a `source_spike_note` now states that D3 withdrew the detector and deferred it to E770139B. Revision 5 also propagates the revision label and the withdrawn/deferred wording into the executable records (169-F, 177-S and every live 169.* task body). Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. Revision 4 (remediation cycle 2) adopted decision revision 3, which formally withdraws the downstream-conformance detector in D3 rather than leaving it as an open spike question. The design is otherwise unchanged from revision 3 — this release unit still delivers contract-naming plus cross-surface structural evidence only. Revision 4 exists because the withdrawn claims had NOT been propagated out of the executable backlog records: feature, task and shipment bodies still described a detector, a fourth `POST_CLAIM_CONTRACT_CONTRADICTED` transition state, and a verify-workspace surface that this plan explicitly does not deliver. Those claims are removed at the record level and the task titles, references and dependencies are reconciled. The two withdrawn tasks are re-homed to a deferred feature under P-021 capture rather than left inside the covering feature, so the shipment can close without implementing deferred scope. The bounded audit trail lives in `linked_review`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_spike: docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md
+source_spike_note: "The spike explored a downstream contradiction detector for workspace-authored admission rules. Decision revision 3 (D3) WITHDREW that detector from this release unit and DEFERRED it to stash entry E770139B (typed, machine-readable policy-clause representation). Any spike text describing the detector as in-scope is superseded history; this plan delivers contract naming plus cross-surface structural evidence only."
 source_bug_report: docs/bugs/2026-09-17-autoharness-shipment-claim-wave-admission-contract-conflict.md
 source_stash_id: 3EF5AAF2
 stash_ids:
@@ -22,17 +23,20 @@ review_history:
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
-latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
-latest_review_verdict: PASS
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response. Attempt 05 records the final independent review cycle (BLOCKED at revision 4) and the Stage remediation cycle 3 response that produced revision 5."
+latest_review_attempt: 5
+latest_review_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
+latest_review_verdict: REMEDIATED-PENDING-REVIEW
+latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4 on the unpopulated deferred_followup_stash_ids placeholder and the residual downstream-conformance advertising in the title and spike reference. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
 covering_feature: 169-F
 shipment: 177-S
 requires_plan_hardening: "yes"
 plan_hardening_status: complete
 plan_hardening_section: "## Plan Hardening Record (P-006)"
 deferred_followup_stash_ids:
-  - "pending: typed policy-clause representation for downstream conformance detection"
+  - "E770139B"
+deferred_followup_stash_note: "E770139B is the live stash entry carrying the WITHDRAWN downstream contradiction detector and its prerequisite, a typed machine-readable policy-clause representation. Revision 4 left this field holding an unresolvable prose placeholder rather than a real stash ID; revision 5 replaces it with the exact captured entry."
 tags:
   - "policy"
   - "shipment-claim"

@@ -5,8 +5,8 @@ doc_type: plan
 source: docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 4
-revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3 and closes the propagation findings from local review cycle 2. The revision-3 design was correct but was not encoded into the executable backlog records: the v1.9.0 baseline task existed without being a predecessor of anything, so a fixture could have been executed first and pinned its assertions to the local dirty 1.10.1 build; and the tracker back-pointer tasks referenced the tracker by the plan-relative label `T8` rather than by a resolvable backlog ID. Revision 4 requires the baseline task to block all four hermetic fixtures, the portable upstream report and the version-aware fixture contract; requires the documentation-truth audit and the tracker regression to reference chore `002-C` and task `173.010-T` by exact resolvable ID; and states the task count precisely as TEN feature tasks plus ONE external tracker that is deliberately neither a child of the covering feature nor a shipment member. Revision 4 also records that the tracker linkage is a `relates_to` edge and NOT a `blocks` edge: the tracker is designed never to close during this portfolio, so a blocking edge would make the shipment permanently unclosable and would, for the regression, demand the very terminal state it exists to forbid. The bounded audit trail lives in `review_history`."
+revision: 5
+revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on the work-breakdown table. Revision 4 stated the binding rule correctly in prose — tracker linkage onto chore 002-C is `relates_to` and NEVER `blocks`, because 002-C is designed never to close during this portfolio — and the harvested records (173.007-T, 173.010-T) have always carried `relates_to`. But the table's `Blocked by` column still listed **T8** for both T7 and T9, contradicting both. Revision 5 corrects the table: T7 is blocked by T1-T4 (`blocks`) and relates_to 002-C; T9 has NO blocking predecessor and relates_to 002-C. Revision 5 additionally ENCODES the T8 row's long-declared but never-encoded predecessor set: chore 002-C now carries `blocks` dependencies on the four hermetic fixture tasks 173.001-T, 173.002-T, 173.003-T and 173.004-T, so the tracker cannot be filed on indicative evidence. That outgoing edge set is independent of, and preserves, the incoming `relates_to` semantics from 173.007-T and 173.010-T. Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. Revision 4 (remediation cycle 2) adopted decision revision 3 and closed the propagation findings from local review cycle 2. The revision-3 design was correct but was not encoded into the executable backlog records: the v1.9.0 baseline task existed without being a predecessor of anything, so a fixture could have been executed first and pinned its assertions to the local dirty 1.10.1 build; and the tracker back-pointer tasks referenced the tracker by the plan-relative label `T8` rather than by a resolvable backlog ID. Revision 4 requires the baseline task to block all four hermetic fixtures, the portable upstream report and the version-aware fixture contract; requires the documentation-truth audit and the tracker regression to reference chore `002-C` and task `173.010-T` by exact resolvable ID; and states the task count precisely as TEN feature tasks plus ONE external tracker that is deliberately neither a child of the covering feature nor a shipment member. Revision 4 also records that the tracker linkage is a `relates_to` edge and NOT a `blocks` edge: the tracker is designed never to close during this portfolio, so a blocking edge would make the shipment permanently unclosable and would, for the regression, demand the very terminal state it exists to forbid. The bounded audit trail lives in `review_history`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 7F9CB5E9
@@ -25,10 +25,12 @@ review_history:
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
-latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
-latest_review_verdict: PASS
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response. Attempt 05 records the final independent review cycle (BLOCKED at revision 4) and the Stage remediation cycle 3 response that produced revision 5."
+latest_review_attempt: 5
+latest_review_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
+latest_review_verdict: REMEDIATED-PENDING-REVIEW
+latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4 on the work-breakdown table still blocking T7/T9 on T8 against the binding relates_to rule. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
 covering_feature: 173-F
 shipment: 181-S
 shipment_disposition_class: local-disposition
@@ -277,9 +279,9 @@ entry so the blocked status is discoverable from the invariant itself.
 | T4 | Hermetic fixture: `shipment ship` is the sole `archived_status: shipped` producer and exposes no `--no-cascade`, version-aware | `tests/` | T0 |
 | T5 | Generate the portable upstream report from T0–T4 and record the decided escalation route, carrying both observation sets | `docs/` | T1, T2, T3, T4 |
 | T6 | Document the operator-only approval-gated interim close procedure with its four binding constraints | `docs/` | T1, T2, T3, T4 |
-| T7 | Documentation-truth audit; `INV-11` back-pointer targeting the **durable tracker** chore `002-C`, not `181-S` | `docs/` | T8 |
+| T7 | Documentation-truth audit; `INV-11` back-pointer targeting the **durable tracker** chore `002-C`, not `181-S` | `docs/` | T1, T2, T3, T4 (`blocks`); `002-C` (`relates_to`, never `blocks`) |
 | T8 | Create the durable external-dependency tracker item — chore **`002-C`** — with its stated closure condition, outside `181-S`'s manifest and not parented to `173-F` | backlog data + `docs/` | T1, T2, T3, T4 |
-| T9 | Regression assertion: the tracker `002-C` exists and is non-terminal while the fixtures still observe the refusals | `tests/` | T8 |
+| T9 | Regression assertion: the tracker `002-C` exists and is non-terminal while the fixtures still observe the refusals | `tests/` | — (`blocks`: none); `002-C` (`relates_to`, never `blocks`) |
 | T10 | Record the backlogit version contract: pinned CI version, observation baseline, and the re-observation obligation when the pin moves | `docs/` | T0 |
 
 **Task count (revision 4, stated precisely).** This feature carries **TEN
@@ -310,10 +312,29 @@ that regression asserts the tracker **remains open**, so blocking on its
 closure would demand the very terminal state the assertion forbids. Both edges
 are therefore `relates_to` reference edges.
 
-T5, T6, T7, and T8 all block on T1–T4: nothing may be filed, documented,
-corrected, or tracked on indicative evidence. T7 additionally references `002-C`
-because its `INV-11` back-pointer must resolve to a tracker that already
-exists — as a `relates_to` edge, per the paragraph above.
+**Work-breakdown table corrected (revision 5).** Through revision 4 the table's
+`Blocked by` column still listed **T8** for T7 and T9, contradicting the binding
+`relates_to` rule stated in the paragraph above and contradicting the harvested
+records, which have always carried `relates_to` edges onto `002-C`. Revision 5
+corrects both rows: T7 is blocked by **T1–T4** and merely *relates to* `002-C`;
+T9 has **no blocking predecessor at all** and merely *relates to* `002-C`. No
+`blocks` edge onto `002-C` exists anywhere, in the table or in the records.
+
+**`002-C` is blocked by the four hermetic fixtures (revision 5).** The T8 row
+has always declared `Blocked by: T1, T2, T3, T4`, but that edge set was never
+encoded. Revision 5 encodes it: `002-C` carries `blocks` dependencies on
+`173.001-T`, `173.002-T`, `173.003-T` and `173.004-T`, so the tracker cannot be
+filed on indicative evidence — it is created only once all four refusal
+behaviours have been observed hermetically. This is an **outgoing** edge set on
+`002-C` and changes nothing about the **incoming** `relates_to` edges from
+`173.007-T` and `173.010-T`, which remain `relates_to` for the reasons above.
+The two directions are independent: `002-C` may be blocked by evidence tasks
+while the tasks that *reference* it are not blocked by its closure.
+
+T5, T6, T7, and the `002-C` tracker all block on T1–T4: nothing may be filed,
+documented, corrected, or tracked on indicative evidence. T7 additionally
+references `002-C` because its `INV-11` back-pointer must resolve to a tracker
+that already exists — as a `relates_to` edge, per the paragraph above.
 
 ## Verification
 

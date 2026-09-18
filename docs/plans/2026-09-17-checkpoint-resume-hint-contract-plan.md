@@ -5,8 +5,8 @@ doc_type: plan
 source: docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 4
-revision_note: "Revision 4 (remediation cycle 2) closes four findings and supersedes revision 3. (1) The word 'migration' is removed from the title and throughout: no migration mechanism ships, so the surface is renamed to a historical-record COMPATIBILITY POLICY. (2) The volatile inventory count pin is eliminated in fact, not just in intent — the corpus enumerated 53 records at this session against the 51 pinned in the harvested task and the 52 noted in revision 3, which is itself the proof that a cardinality literal is the wrong assertion; the audit is re-specified over three invariants (classification totality, active-never-exempt, no-new-legacy-after-enforcement). (3) Validator IMPLEMENTATION and ENFORCEMENT ENABLEMENT are split into separate tasks, because revision 3 had one task both implement and wire the validator while its prose promised enforcement would wait for the producers — a contradiction that no dependency graph could express. Enablement now blocks on both producer tasks plus the implementation plus the green suite. (4) A red-phase task is added ahead of the implementation so the three-token contract tests are authored and observed failing before the boundary exists. Revision 4 also adopts decision revision 3. The bounded audit trail lives in `review_history`."
+revision: 5
+revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on two findings. (1) NOT AN ENFORCEABLE BOUNDARY. Revision 4 named a package-local Python function, `validate_checkpoint_payload()` in `src/autoharness/`, as the boundary both producer paths must route through — but Stage and Ship are MARKDOWN AGENT TEMPLATES that call `backlogit_create_checkpoint` (MCP) or `backlogit checkpoint create` (CLI) DIRECTLY and import no Python. A library function beside that call path cannot intercept it, so 'both producer paths call this exact function' was an instruction with no mechanism, and T6's structural assertion had no wiring to assert. Revision 5 replaces it with an EXECUTABLE ADAPTER, `autoharness checkpoint create --state-dump <payload> [--origin harness]`, which producers invoke INSTEAD OF the raw create operation: it validates pre-write, writes NOTHING on a failing outcome, and performs the official backlogit create call itself on a clean one. `validate_checkpoint_payload()` remains the single predicate and the adapter is its only producer-side caller, so instruction rule 2 is preserved and 'did this template invoke the adapter or the raw tool?' becomes a decidable property of the template text. (2) DEPENDENCY INVERSION. Revision 4 encoded `T5c -> T3, T4, T5, T6` while T6 was specified to assert the producer call sites that T5c CREATES — a structural assertion preceding its own wiring, which could only have failed or been quietly weakened. Revision 5 swaps the edges: `T5c -> T3, T4, T5` and `T6 -> T5c`, with `T7 -> T6`. Final order: policy -> producers -> red -> implementation -> enable -> green/structural -> live audit. Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. Revision 4 (remediation cycle 2) closed four findings and superseded revision 3. (1) The word 'migration' is removed from the title and throughout: no migration mechanism ships, so the surface is renamed to a historical-record COMPATIBILITY POLICY. (2) The volatile inventory count pin is eliminated in fact, not just in intent — the corpus enumerated 53 records at this session against the 51 pinned in the harvested task and the 52 noted in revision 3, which is itself the proof that a cardinality literal is the wrong assertion; the audit is re-specified over three invariants (classification totality, active-never-exempt, no-new-legacy-after-enforcement). (3) Validator IMPLEMENTATION and ENFORCEMENT ENABLEMENT are split into separate tasks, because revision 3 had one task both implement and wire the validator while its prose promised enforcement would wait for the producers — a contradiction that no dependency graph could express. Enablement now blocks on both producer tasks plus the implementation plus the green suite. (4) A red-phase task is added ahead of the implementation so the three-token contract tests are authored and observed failing before the boundary exists. Revision 4 also adopts decision revision 3. The bounded audit trail lives in `review_history`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 71200CBB
@@ -23,10 +23,12 @@ review_history:
   - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-04.md
+  - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-05.md
 review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
-latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-04.md
-latest_review_verdict: PASS
+latest_review_attempt: 5
+latest_review_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-05.md
+latest_review_verdict: REMEDIATED-PENDING-REVIEW
+latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
 covering_feature: 172-F
 shipment: 180-S
 requires_plan_hardening: "yes"
@@ -143,51 +145,65 @@ Validation applies at **author time** on payloads this harness produces. It
 does not retroactively invalidate records it did not author, which is precisely
 what Part 3 makes safe.
 
-#### The validation boundary (remediation-cycle-1 addition)
+#### The validation boundary (revision 5 — an executable adapter, not a library call)
 
-Revision 2 specified the three tokens but named no callable surface and no
-wiring, so "author-time validation" had no place to run and the two producer
-paths it was meant to guard were never connected to it. A token table is not a
-gate.
+Revision 2 specified the three tokens but named no callable surface. Revision 4
+named one — `validate_checkpoint_payload(payload, *, origin)` in
+`src/autoharness/` — but review attempt 05 found that **it is not an enforceable
+boundary for the two producers it is supposed to guard.** Stage and Ship are
+**Markdown agent templates**. They do not import Python; they call
+`backlogit_create_checkpoint` (MCP) or `backlogit checkpoint create` (CLI)
+**directly**. A package-local Python function sitting beside that call path
+cannot intercept it. "Both producer paths call this exact function" was
+therefore an instruction an agent had no mechanism to obey, and T6's structural
+assertion would have been asserting a wiring that could not exist.
 
-**The boundary is one function**, in `src/autoharness/`:
+**The boundary is an executable adapter command** that producers invoke
+*instead of* the backlogit create operation:
 
-```python
-validate_checkpoint_payload(payload: dict, *, origin: str) -> ValidationOutcome
+```text
+autoharness checkpoint create --state-dump <path-or-json> [--origin harness]
 ```
 
-* **Single definition.** Both producer paths call this exact function. No
-  second implementation, no per-agent copy, no re-stated rule in an agent
-  template. An agent template may *describe* the requirement, but the
-  enforcing predicate exists once.
-* **Input is the payload, pre-write.** It is evaluated on the `state_dump`
-  dictionary **before** the payload is handed to
-  `backlogit_create_checkpoint` / `backlogit checkpoint create`. Validating
-  after the write would make the malformed record exist first, and a written
-  checkpoint cannot be repaired through the official create operation — the
-  same trap Part 3 exists to avoid.
-* **`origin` distinguishes authorship.** `origin="harness"` for payloads this
-  harness produces; `origin="historical"` for records read off disk during the
-  startup scan. Only `origin="harness"` can emit
-  `CHECKPOINT_RESUME_HINT_MISSING` / `_EMPTY`; only `origin="historical"` can
-  emit `CHECKPOINT_LEGACY_HINTLESS_RESOLVED`. This is what makes "does not
-  retroactively invalidate records it did not author" a structural property of
-  the boundary rather than a convention.
-* **Outcome is data, not an exception.** `ValidationOutcome` carries the token
-  list and the offending key paths, so the caller decides whether to halt. The
-  startup scan reports; the producer path halts.
+* **It is the only create path a harness producer may use.** The adapter
+  validates the payload and, only on a clean outcome, performs the
+  `backlogit checkpoint create` call itself. A producer that reaches
+  `backlogit_create_checkpoint` / `backlogit checkpoint create` directly has
+  bypassed the gate — and because the adapter is a *command*, "did this
+  template invoke the adapter or the raw tool?" is a decidable, greppable
+  property of the template text rather than an unverifiable intention.
+* **Validation is strictly pre-write.** The adapter evaluates the payload
+  before any create call is issued. On `CHECKPOINT_RESUME_HINT_MISSING` or
+  `CHECKPOINT_RESUME_HINT_EMPTY` it exits non-zero and **writes nothing**, so
+  no malformed record is created — which matters because a written checkpoint
+  cannot be repaired through the official create operation.
+* **`validate_checkpoint_payload(payload, *, origin) -> ValidationOutcome`
+  remains the single predicate**, in `src/autoharness/`, and the adapter is its
+  only producer-side caller. The startup recovery scan calls the same predicate
+  with `origin="historical"`. One definition, two callers, no per-agent copy
+  and no re-stated rule in an agent template.
+* **`origin` still partitions the token space structurally.** Only
+  `origin="harness"` can emit the missing/empty tokens; only
+  `origin="historical"` can emit `CHECKPOINT_LEGACY_HINTLESS_RESOLVED`.
+* **Outcome is data, not an exception**, so the scan can report while the
+  adapter halts.
+* The adapter **adds no capability** beyond backlogit's own create operation
+  and introduces no second checkpoint store. It is a gate in front of one call,
+  nothing more. `.github/instructions/backlogit.instructions.md` rule 2 —
+  checkpoints are written only through the official create operation — is
+  preserved, because the adapter *is* how that operation is reached.
 
 **Wiring — both producer paths, named explicitly:**
 
 | Producer path | Call site | Enforced by |
 |---|---|---|
-| Stage checkpoint author | Immediately before the Step 6 `create_checkpoint` invocation, in `templates/agents/_stage.agent.md.tmpl` + installed mirror | T3 |
-| Ship checkpoint author | Immediately before its closure-step `create_checkpoint` invocation, in `templates/agents/_ship.agent.md.tmpl` + installed mirror | T4 |
-| Startup recovery scan | Inside the enumeration loop, `origin="historical"` | T2 |
+| Stage checkpoint author | The Step 6 checkpoint write becomes an `autoharness checkpoint create` invocation, in `templates/agents/_stage.agent.md.tmpl` + installed mirror | T3 (text) / T5c (adapter wiring) |
+| Ship checkpoint author | The closure-step checkpoint write becomes an `autoharness checkpoint create` invocation, in `templates/agents/_ship.agent.md.tmpl` + installed mirror | T4 (text) / T5c (adapter wiring) |
+| Startup recovery scan | Inside the enumeration loop, calling the predicate with `origin="historical"` | T2 |
 
-A producer path that constructs a payload without routing it through
-`validate_checkpoint_payload` is itself the defect; T6 asserts both call sites
-exist and that neither template re-states the predicate inline.
+A producer path that constructs a payload and writes it without going through
+the adapter is itself the defect. **T6 asserts that**, and T6 therefore runs
+**after** T5c — see the ordering section.
 
 ## Evidence recorded this session (read-only)
 
@@ -234,22 +250,22 @@ exist and that neither template re-states the predicate inline.
 | T2 | Wire the classification into the startup recovery scan contract in the agent templates and installed mirrors | `templates/agents/` + `.github/agents/` | T1 |
 | T3 | **Producer 1 of 2** — guarantee for the Stage checkpoint author, including the minimal completion shape | `templates/agents/_stage.agent.md.tmpl` + installed mirror | T1 |
 | T4 | **Producer 2 of 2** — guarantee for the Ship checkpoint author, including the minimal completion shape | `templates/agents/_ship.agent.md.tmpl` + installed mirror | T1 |
-| T5a | **RED** — author the three-token contract tests against `validate_checkpoint_payload` and observe them failing before it exists | `tests/` | T1, T2 |
-| T5 | **IMPLEMENTATION** — implement `validate_checkpoint_payload()` and the three tokens as a callable boundary, **not wired into any write path** | `src/autoharness/` | T5a |
-| T6 | **GREEN** — observe the suite passing, plus the active-record-not-exempt regression | `tests/` | T5 |
-| T5c | **ENABLE** — wire the validator into both producer pre-write paths | `src/autoharness/` + both call sites | T3, T4, T5, T6 |
-| T7 | Invariant-based **live-corpus audit** over the committed checkpoint corpus | `tests/` | T5c |
+| T5a | **RED** — author the three-token contract tests against `validate_checkpoint_payload` and the `autoharness checkpoint create` adapter, and observe them failing before either exists | `tests/` | T1, T2 |
+| T5 | **IMPLEMENTATION** — implement `validate_checkpoint_payload()`, the three tokens, and the `autoharness checkpoint create` adapter command as a callable/invocable boundary, **not yet referenced by either agent template** | `src/autoharness/` | T5a |
+| T5c | **ENABLE** — route both producer templates through `autoharness checkpoint create`, replacing their direct `backlogit_create_checkpoint` / `backlogit checkpoint create` invocations | `templates/agents/` + both installed mirrors | T3, T4, T5 |
+| T6 | **GREEN + structural verifier** — observe the token suite passing against the shipped adapter, plus the active-record-not-exempt regression, **plus the structural assertion that both producer templates invoke the adapter and that neither retains a direct backlogit create call or re-states the predicate inline** | `tests/` | T5c |
+| T7 | Invariant-based **live-corpus audit** over the committed checkpoint corpus | `tests/` | T6 |
 
-### Ordering enforcement (revision 4)
+### Ordering enforcement (revision 5)
 
-The binding order is **policy → producers → red → implementation → green →
-enable → live audit**. Revision 3 encoded policy-before-validation but left a
-contradiction at the validator itself: a single task T5 both implemented the
-boundary **and** wired it into the producer call sites, while its prose claimed
-enforcement would wait until the producers landed. A single node cannot be both
-"before the producers" (so the implementation is available to them) and "after
-the producers" (so enforcement is safe). Revision 4 resolves this by **splitting
-the node**, which lets the graph state the real semantics:
+The binding order is **policy → producers → red → implementation → enable →
+green/structural → live audit**. Revision 4 encoded
+`T5c → T3, T4, T5, T6` and `T6 → T5`, which inverted the last two steps: T6 was
+specified to assert that both producer call sites exist, while T5c — the task
+that *creates* those call sites — was blocked by T6. A structural assertion
+cannot precede the wiring it asserts; as encoded, T6 could only ever have
+failed, or have been quietly weakened until it asserted nothing. Revision 5
+swaps the two edges:
 
 * `T2 → T1`: the recovery scan cannot reference a classification the policy has
   not defined.
@@ -260,16 +276,19 @@ the node**, which lets the graph state the real semantics:
   against them. **T5a does not depend on T5** — that is what makes it a genuine
   red phase.
 * `T5 → T5a`: the implementation turns an existing, observed-failing suite
-  green.
-* `T6 → T5`: green is observed against the shipped boundary, not a model of it.
-* `T5c → T3, T4, T5, T6`: **enforcement cannot be switched on before BOTH
-  producers are updated.** This is the correctness constraint, not a preference:
-  it is the difference between closing a gap and manufacturing a startup
-  deadlock, and it is the entry's own recorded escalation trigger (b). Because
-  enablement is its own node, there is no window in which a live producer is
-  validated against a contract it has not yet adopted.
-* `T7 → T5c`: auditing the live corpus is only meaningful once enforcement is
-  actually on.
+  green. The adapter ships here but nothing invokes it yet, so it is inert.
+* `T5c → T3, T4, T5`: **enforcement cannot be switched on before BOTH producers
+  are updated and the adapter exists.** This is the correctness constraint, not
+  a preference: it is the difference between closing a gap and manufacturing a
+  startup deadlock, and it is the entry's own recorded escalation trigger (b).
+  T5c no longer depends on T6.
+* `T6 → T5c`: **green and the structural verifier observe the wired system.**
+  The token suite is asserted against the shipped adapter, and the structural
+  assertion — both templates invoke `autoharness checkpoint create`, neither
+  retains a direct backlogit create call, neither re-states the predicate —
+  is made against wiring that now exists.
+* `T7 → T6`: auditing the live corpus is only meaningful once enforcement is on
+  and verified.
 
 ### T7 — invariant-based, not count-pinned
 
@@ -314,8 +333,12 @@ to hold on a given day.
 * The startup scan over the committed corpus produces zero fail-closed
   handoffs and reports its `LEGACY_HINTLESS_RESOLVED` set by filename.
 * No test asserts a checkpoint record count.
-* Both producer call sites route through `validate_checkpoint_payload`, and
-  neither agent template re-states the predicate inline.
+* Both producer templates invoke `autoharness checkpoint create`, neither
+  retains a direct `backlogit_create_checkpoint` / `backlogit checkpoint create`
+  invocation on the producer path, and neither agent template re-states the
+  predicate inline.
+* The adapter exits non-zero and writes **nothing** on
+  `CHECKPOINT_RESUME_HINT_MISSING` / `_EMPTY`; no record is created.
 * Validation runs **before** the create call, never after.
 * No committed checkpoint file is modified by this release unit.
 * `autoharness gate check` passes on every modified file.
@@ -324,13 +347,15 @@ to hold on a given day.
 
 | ID | Risk | Mitigation |
 |---|---|---|
-| R1 | Validator lands before policy and deadlocks startup | T5 blocks on T1, T2, T3, and T4 — every functional predecessor, not just the policy pair. This is the entry's own recorded escalation trigger (b) |
+| R1 | Validator lands before policy and deadlocks startup | T5c blocks on T1, T2 (via T3/T4), T3, T4 and T5 — every functional predecessor, not just the policy pair. This is the entry's own recorded escalation trigger (b) |
 | R2 | The legacy exemption silently grows into a permanent tolerance | The classification is enumerated and reported by filename at every scan, and T7 asserts the fail-closed bucket stays empty |
 | R3 | An `active` record is accidentally grandfathered | T6 carries an explicit active-record-not-exempt case; T7 invariant 3 asserts it over the live corpus |
 | R4 | Someone pulls the upstream validator change into this scope | Stated as excluded in frontmatter, in the Ownership boundary section, and in Out of scope |
-| R5 | A producer path constructs a payload without validating it | T5 defines one boundary; T6 asserts both call sites exist. A second implementation is a review-visible defect |
+| R5 | A producer path constructs a payload without validating it | The adapter command is the only create path; T6 asserts structurally that neither template retains a direct backlogit create call. A second implementation is a review-visible defect |
 | R6 | The inventory test fails for reasons unrelated to the contract | T7 pins no count and no filename set; it asserts totality, emptiness of the fail-closed bucket, and determinism |
-| R7 | Validation after write leaves a malformed record on disk that cannot be repaired | The boundary takes the pre-write payload dict; Verification asserts ordering explicitly |
+| R7 | Validation after write leaves a malformed record on disk that cannot be repaired | The adapter validates the pre-write payload and writes nothing on a failing outcome; Verification asserts ordering explicitly |
+| R8 | The adapter is treated as a second checkpoint store or drifts from backlogit's create semantics | The adapter adds no capability: it validates, then performs the official `backlogit checkpoint create` call. Instruction rule 2 is preserved because the adapter *is* how that operation is reached |
+| R9 | A structural assertion is written against wiring that does not yet exist and is quietly weakened until it asserts nothing | T6 blocks on T5c, so the wiring exists before it is asserted; the revision-4 inversion (`T5c → T6`) is removed |
 
 ## Priority
 
@@ -390,10 +415,10 @@ the Stage and Ship Crash-Resumption / Startup Recovery Protocol sections, and
 | # | Hardening finding | Resolution |
 |---|---|---|
 | H0 | Revision 2 declared `requires_plan_hardening: "no"` despite two template families, two installed mirrors, and a startup-path validator | Corrected to `yes`; this section is the record |
-| H1 | The binding policy→producers→validation order existed as prose plus one partial edge (`T5 → T1, T2`), leaving the producers unordered against the validator — the half that actually deadlocks | Every edge encoded. **Superseded in revision 4**, which found the remaining contradiction: T5 both implemented and enabled the validator while claiming enforcement would wait for the producers. Split into `T5a` (red) → `T5` (implement) → `T6` (green) → `T5c` (enable, blocked by `T3, T4, T5, T6`) → `T7` (live audit) |
-| H2 | "Author-time validation" named no callable surface and no wiring, so the two producer paths it was meant to guard were connected to nothing | `validate_checkpoint_payload(payload, *, origin)` defined as the single boundary, with both producer call sites and the scan call site named explicitly in a table |
-| H3 | Nothing prevented each agent template from re-stating the predicate inline, producing two drifting definitions of the same rule | Single-definition constraint stated normatively; T6 asserts both call sites exist and that neither template re-states the predicate |
-| H4 | Validation position relative to the write was unspecified; validating after the create call would leave a malformed record on disk that cannot be repaired through the official operation | Boundary takes the pre-write payload dict; Verification asserts ordering |
+| H1 | The binding policy→producers→validation order existed as prose plus one partial edge (`T5 → T1, T2`), leaving the producers unordered against the validator — the half that actually deadlocks | Every edge encoded. **Superseded in revision 4**, which split `T5a` (red) → `T5` (implement) → `T6` (green) → `T5c` (enable). **Further corrected in revision 5**: that split inverted the last two steps, because T6 asserts producer wiring that T5c creates. Final order is `T5a → T5 → T5c → T6 → T7` |
+| H2 | "Author-time validation" named no callable surface and no wiring, so the two producer paths it was meant to guard were connected to nothing | `validate_checkpoint_payload(payload, *, origin)` defined as the single predicate. **Superseded in revision 5**: a package-local Python function is not enforceable against Markdown producers that call backlogit MCP/CLI directly. The enforceable boundary is the executable `autoharness checkpoint create` adapter, which producers invoke *instead of* the raw create operation, with the predicate as its single implementation |
+| H3 | Nothing prevented each agent template from re-stating the predicate inline, producing two drifting definitions of the same rule | Single-definition constraint stated normatively; T6 asserts both templates invoke the adapter, retain no direct backlogit create call, and re-state nothing |
+| H4 | Validation position relative to the write was unspecified; validating after the create call would leave a malformed record on disk that cannot be repaired through the official operation | The adapter validates the pre-write payload and writes nothing on a failing outcome; Verification asserts ordering |
 | H5 | "Does not retroactively invalidate records it did not author" was a convention with no mechanism | `origin` parameter partitions the token space structurally: harness-origin cannot emit the legacy token, historical-origin cannot emit the missing/empty tokens |
 | H6 | T7 pinned a record count (51) that was already stale when written and changes on every checkpoint-writing session — a test that fails for reasons unrelated to its contract | T7 re-specified with no cardinality pinned; synthetic fixtures cover shapes the live corpus may lack. **Revision 4** records the decisive evidence (51 → 52 → 53 across three readings), adds the no-new-legacy-after-enforcement invariant, and requires the count be observed and reported but never asserted |
 | H7 | The `checkpoint-20260916-064310.json` evidence was described as "a worked example of a migrated historical record", implying a migration ran and an official repair mechanism exists — neither is true | Provenance restated precisely as an operator-authored, operator-authorized pre-existing repair, with the residual policy risk recorded and precedent-use explicitly denied |
@@ -406,7 +431,7 @@ the Stage and Ship Crash-Resumption / Startup Recovery Protocol sections, and
 | Change the startup recovery scan contract in both agent templates and both mirrors (T2) | **High** — a defect is discovered only during crash recovery, when nothing else is working | Operator review; T2 blocks on T1 so the classification exists first | Revert all four copies together; contract is prose, no persisted state |
 | Change the instruction file and its template (T1) | Medium — mirrored pair, consumer-installed | Standard PR review | Revert both together |
 | Add producer-guarantee wiring to Stage and Ship templates + mirrors (T3, T4) | Medium — two mirrored pairs | Standard PR review | Revert each pair together; T3 and T4 are mutually independent |
-| Enable `validate_checkpoint_payload` on the producer paths (**T5c**) | **High** — mis-ordered, it deadlocks every agent's startup | Standard PR review; ordering enforced by four `blocks` edges into T5c (`T3, T4, T5, T6`) | Remove the two call sites; the function is inert without them |
+| Enable `autoharness checkpoint create` on both producer paths (**T5c**) | **High** — mis-ordered, it deadlocks every agent's startup | Standard PR review; ordering enforced by three `blocks` edges into T5c (`T3, T4, T5`) and by `T6 → T5c` | Restore the direct create invocations in the two templates; the adapter is inert without them |
 | *(explicitly excluded)* Repair any committed checkpoint record | High — prohibited by instruction rule 2 | Operator-only, outside this plan | Not applicable: out of scope |
 
 **Rollback coupling.** T1's pair, T2's four copies, T3's pair, and T4's pair
@@ -414,10 +439,10 @@ each revert atomically. T5 is inert until its call sites exist. T6/T7 are
 test-only. Nothing in the unit writes, edits, or deletes a checkpoint file.
 
 **Monitoring and validation window.** The first agent session after merge is
-the live signal: its end-of-session checkpoint must pass
-`validate_checkpoint_payload` before the create call, and the next session's
-startup scan must report a `LEGACY_HINTLESS_RESOLVED` set with an empty
-fail-closed bucket. T7 asserts the latter on every CI run.
+the live signal: its end-of-session checkpoint must be written through
+`autoharness checkpoint create`, which validates before the create call, and
+the next session's startup scan must report a `LEGACY_HINTLESS_RESOLVED` set
+with an empty fail-closed bucket. T7 asserts the latter on every CI run.
 
 **Operator checkpoints.** One: review of the startup-recovery contract change
 (T2) before merge, because a defect in it is only observable during recovery.

@@ -5,8 +5,8 @@ doc_type: plan
 source: docs/plans/2026-09-17-single-governing-plan-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 4
-revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3 and closes the propagation findings from local review cycle 2. Revision 3 reduced scope correctly but the reduction was never enforced in the executable backlog records: the four descoped surfaces (repository-wide migration, its regression suite, compact-context auto-consolidation, harvest rewiring) were left as blocked children INSIDE the covering feature while being excluded from the shipment manifest, and the pre-dispatch verifier still carried `blocks` edges onto the deferred migration and its suite. That combination made the shipment unclosable without executing deferred scope. Revision 4 removes those two edges, re-homes all four descoped tasks out of the covering feature into a deferred feature via the supported backlog lifecycle with P-021 linkage preserved, and states that NO in-manifest task may depend on, gate upon, or emit a token belonging to a deferred surface. `PLAN_BUDGET_BREACH` is removed from the verifier entirely: the budget contract is deferred. Revision 4 also adds a red-phase task so the six-blocking-token contract tests are authored and observed failing before the verifier exists, resolves the duplicate `T8` task label, and fixes the T4a/T4b and T5a/T5b ownership boundaries so the assembly/judgement and authoring/linkage halves do not overlap. The bounded audit trail lives in `review_history`; `linked_review` names the current verdict manifest."
+revision: 5
+revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on wire-format conflicts. TWO CONTRACTS EXISTED FOR ONE SURFACE: the plan required `plan_role` with path-valued `supersedes`, `source_history` and `review_manifest`, while task 171.001-T required `status`-valued role with `(plan_id, revision)`-valued `supersedes`/`superseded_by` and named neither `source_history` nor `review_manifest`; and task 171.003-T required `plan_revision_reviewed` while every live verdict manifest in docs/reviews/ carries `plan_revision`. That is precisely the duplicate-definition defect this plan exists to eliminate, reproduced inside the plan itself. Revision 5 declares ONE EXACT CONTRACT and propagates it to every plan, task, test and verdict surface: the role field is `plan_role` (NEVER `status`, which is already used on a different axis); `supersedes` and `superseded_by` are REPO-RELATIVE PATHS (never (plan_id, revision) pairs) because PLAN_SUPERSEDES_CYCLE is specified as cyclic OR UNRESOLVABLE and only a path resolves; `plan_id` remains what the single-active constraint keys on; the manifest field is `plan_revision` and `plan_revision_reviewed` is declared NOT a field name anywhere. Revision 5 also closes the second attempt-05 finding: T4a required 'carried-forward context' that T3 defined no field for. `carried_forward_context[]` is now a defined manifest field, and the assembler emits a TWO-BAND typed value ReviewInputSet(operative, context) whose `operative` band holds exactly the one plan_role: active document — so carried-forward context is STRUCTURALLY incapable of becoming operative input, and REVIEW_INPUT_HISTORY_LEAK has a band to be a leak INTO. Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. Revision 4 (remediation cycle 2) adopted decision revision 3 and closed the propagation findings from local review cycle 2. Revision 3 reduced scope correctly but the reduction was never enforced in the executable backlog records: the four descoped surfaces (repository-wide migration, its regression suite, compact-context auto-consolidation, harvest rewiring) were left as blocked children INSIDE the covering feature while being excluded from the shipment manifest, and the pre-dispatch verifier still carried `blocks` edges onto the deferred migration and its suite. That combination made the shipment unclosable without executing deferred scope. Revision 4 removes those two edges, re-homes all four descoped tasks out of the covering feature into a deferred feature via the supported backlog lifecycle with P-021 linkage preserved, and states that NO in-manifest task may depend on, gate upon, or emit a token belonging to a deferred surface. `PLAN_BUDGET_BREACH` is removed from the verifier entirely: the budget contract is deferred. Revision 4 also adds a red-phase task so the six-blocking-token contract tests are authored and observed failing before the verifier exists, resolves the duplicate `T8` task label, and fixes the T4a/T4b and T5a/T5b ownership boundaries so the assembly/judgement and authoring/linkage halves do not overlap. The bounded audit trail lives in `review_history`; `linked_review` names the current verdict manifest."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_bug_report: docs/bugs/2026-09-13-autoharness-append-only-plan-review-loop-bug-report.md
@@ -23,10 +23,12 @@ review_history:
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-04.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
-latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-04.md
-latest_review_verdict: PASS
+  - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-05.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response. Attempt 05 records the final independent review cycle (BLOCKED at revision 4, on the plan/task/manifest wire-format conflicts and the undefined carried-forward-context field) and the Stage remediation cycle 3 response that produced revision 5."
+latest_review_attempt: 5
+latest_review_artifact: docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-05.md
+latest_review_verdict: REMEDIATED-PENDING-REVIEW
+latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
 covering_feature: 171-F
 shipment: 179-S
 requires_plan_hardening: "yes"
@@ -116,16 +118,37 @@ human design judgment, no reopening of any resolved upstream decomposition.
 
 ### Plan identity metadata
 
-Every plan carries durable frontmatter identity:
+Every plan carries durable frontmatter identity. **This table is the single
+normative wire format.** Revision 4 stated one set of field names here while the
+harvested task records stated a different, incompatible set
+(`status`-valued instead of `plan_role`, `(plan_id, revision)`-valued
+`supersedes` instead of a path, no `source_history`, no `review_manifest`) —
+two contracts for one surface, which is the exact defect class this plan
+exists to remove. Revision 5 resolves it by **adopting the plan's field names
+as canonical** and propagating them into every task, test, and manifest surface.
 
-| Field | Meaning |
-|---|---|
-| `plan_id` | Stable identity across revisions and rewrites |
-| `plan_role` | `active` \| `superseded` \| `history` |
-| `revision` | Monotonic integer |
-| `supersedes` | Path of the revision this replaces, if any |
-| `source_history` | Ordered paths of the immutable review artifacts consumed |
-| `review_manifest` | Path of the structured verdict record |
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `plan_id` | string | yes | Stable identity across renames and revisions |
+| `plan_role` | enum `active` \| `superseded` \| `history` | yes | Governance role of **this document** |
+| `revision` | integer, monotonic | yes | Revision number within the `plan_id` |
+| `supersedes` | **repo-relative path**, or `null` | yes (may be `null`) | The document this revision replaces |
+| `superseded_by` | **repo-relative path**, or `null` | yes (`null` iff `plan_role: active`) | Inverse pointer; the document that replaced this one |
+| `source_history` | ordered list of **repo-relative paths** | yes (may be empty) | The immutable review artifacts consumed, in attempt order |
+| `review_manifest` | **repo-relative path** | yes | The structured latest-verdict record for this `plan_id` |
+
+**Two naming decisions, stated so they cannot drift again:**
+
+* The role field is **`plan_role`, never `status`.** Plan frontmatter already
+  carries a `status` key on a different axis (`draft` / `reviewed`), and
+  overloading it would make the single-active constraint undecidable on
+  exactly the documents it governs.
+* `supersedes` / `superseded_by` are **path-valued, never
+  `(plan_id, revision)`-valued.** `PLAN_SUPERSEDES_CYCLE` is specified as
+  "cyclic **or unresolvable**", which requires a pointer that resolves to a
+  document. `plan_id` is still what the single-active constraint keys on, so
+  renaming or copying a file cannot manufacture a second governing plan; the
+  path is the edge, `plan_id` is the identity.
 
 **Exactly one** `plan_role: active` document may exist per `plan_id`. Two
 actives is a fail-closed authoring error, not a warning.
@@ -143,10 +166,12 @@ artifact is itself the diagnostic record of what changed and why.
 ### Manifest-driven review-input assembly
 
 The reviewer input set is assembled **from the manifest**, not by reading a
-directory or a file range. Archived history is excluded by default. If a
-document whose `plan_role` is `superseded` or `history` appears in the
-operative input set, assembly **fails closed** with
+directory or a file range. Archived history is excluded from the `operative`
+band by construction. If a document whose `plan_role` is `superseded` or
+`history` appears in the **operative** band, assembly **fails closed** with
 `REVIEW_INPUT_HISTORY_LEAK` rather than proceeding with a polluted input.
+Carried-forward context is carried in the separate `context` band defined
+above and is never operative input.
 
 ### Regenerate, do not patch
 
@@ -158,9 +183,65 @@ by the verifier, not by convention.
 ### Structured latest-verdict record
 
 Latest attempt and verdict are read from a structured record, never discovered
-by scanning inline markers or narrative. Tokens:
-`REVIEW_VERDICT_AMBIGUOUS` when two records claim latest;
+by scanning inline markers or narrative. **This table is the single normative
+manifest wire format**, and it deliberately matches the key names the verdict
+manifests in `docs/reviews/` already carry, so the contract can be verified
+against live records rather than against a parallel vocabulary:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `plan_id` | string | The identity this manifest selects for |
+| `plan_path` | repo-relative path | The `plan_role: active` document |
+| `plan_revision` | integer | The revision of that document. **The field is `plan_revision`. `plan_revision_reviewed` is NOT a field name in this contract** and must not appear on any surface |
+| `latest_attempt` | integer | Attempt number of the authoritative artifact |
+| `latest_attempt_artifact` | repo-relative path | The immutable artifact for `latest_attempt` |
+| `verdict` | enum | The verdict carried by that artifact |
+| `attempts[]` | list | Roster; each entry `{attempt, artifact, plan_revision, verdict, superseded_by}` |
+| `carried_forward_context[]` | list | See below. May be empty; never absent |
+
+Tokens: `REVIEW_VERDICT_AMBIGUOUS` when two records claim latest;
 `REVIEW_VERDICT_MISSING` when the manifest names an attempt with no record.
+
+#### Carried-forward context — a representation that cannot become operative input
+
+Revision 4's T4a required assembly to emit "the current plan revision plus
+exactly the artifacts the manifest explicitly names as carried-forward
+context", while T3 defined **no field** for that set. An undefined input is
+either silently empty — in which case T4a's requirement is vacuous — or
+improvised per caller, which is the drift the contract forbids. Revision 5
+defines it, and defines it so that it is **structurally incapable** of being
+read as operative contract text:
+
+`carried_forward_context[]` entries are
+`{artifact: <repo-relative path>, reason: <non-empty string>}`.
+
+The assembler's output is a **two-band typed value**, not a flat list:
+
+```text
+ReviewInputSet(
+    operative = [ <the single plan_role: active document> ],
+    context   = [ <every carried_forward_context artifact, in manifest order> ],
+)
+```
+
+The bands are **disjoint and differently typed at the boundary**, which is what
+makes the guarantee structural rather than conventional:
+
+* The `operative` band holds **exactly one** document: the `plan_role: active`
+  plan named by `plan_path`. Never zero, never two, and never a review artifact.
+* The `context` band may hold documents whose `plan_role` is `superseded` or
+  `history`, and review artifacts from `source_history`. That is the **only**
+  band in which such a document may legally appear.
+* A `superseded` / `history` document appearing in the **`operative`** band is
+  `REVIEW_INPUT_HISTORY_LEAK` — which is precisely the judgement T4b makes.
+  Without the two-band shape the token has nothing to be a leak *into*.
+* The context band is passed to the reviewer under an explicit
+  non-authoritative label, and no verifier token is ever evaluated against its
+  contents.
+
+A consumer that flattens the two bands into one list has violated the contract;
+the typed boundary exists so that flattening is a visible code change rather
+than an accident.
 
 ### Pre-dispatch verifier
 
@@ -205,13 +286,13 @@ label.
 
 | # | Task | Scope | Size / Complexity | Blocked by |
 |---|---|---|---|---|
-| T1 | Plan identity schema: `plan_id`, `plan_role`, `revision`, `supersedes`, `source_history`, `review_manifest`; enums and field requiredness | `schemas/` | S / low | — |
+| T1 | Plan identity schema: the **seven** normative fields `plan_id`, `plan_role`, `revision`, `supersedes`, `superseded_by`, `source_history`, `review_manifest`; enums, field requiredness, and the path-valued supersession edges | `schemas/` | S / low | — |
 | T2 | Review-artifact schema and the `review-history/` path and naming contract | `schemas/` + `docs/` | S / low | — |
-| T3 | Structured latest-verdict manifest record and its two ambiguity tokens | `schemas/` + `src/autoharness/` | S / medium | T2 |
-| T4a | **ASSEMBLY only** — resolve the operative review-input set from identity metadata and the manifest, excluding archived history by default. T4a **produces a set and makes no verdict**; it emits no token | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T1, T3 |
-| T4b | **JUDGEMENT only** — apply the superseded/history classification predicate to the set T4a produced and emit `REVIEW_INPUT_HISTORY_LEAK`. T4b **does not assemble, re-resolve, or widen the set**; it consumes T4a's output as given | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T4a |
+| T3 | Structured latest-verdict manifest record — `plan_id`, `plan_path`, `plan_revision`, `latest_attempt`, `latest_attempt_artifact`, `verdict`, `attempts[]`, **and `carried_forward_context[]`** — plus its two ambiguity tokens | `schemas/` + `src/autoharness/` | S / medium | T2 |
+| T4a | **ASSEMBLY only** — resolve the operative review-input set from identity metadata and the manifest, emitting the **two-band `ReviewInputSet(operative, context)`** typed value, with `operative` holding exactly the one `plan_role: active` document and `context` holding the manifest's `carried_forward_context[]` artifacts. T4a **produces a set and makes no verdict**; it emits no token | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T1, T3 |
+| T4b | **JUDGEMENT only** — apply the superseded/history classification predicate to the **`operative` band** of the set T4a produced and emit `REVIEW_INPUT_HISTORY_LEAK`. T4b **does not assemble, re-resolve, or widen the set**, and never evaluates a token against the `context` band; it consumes T4a's output as given | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T4a |
 | T5a | **DOCUMENT PRODUCTION only** — regenerate-not-patch: emit the next revision as a normalized standalone document. T5a **writes exactly one file and mutates no other artifact** | `.github/skills/plan-review/` + `templates/skills/` | M / medium | T1 |
-| T5b | **CROSS-SURFACE LINKAGE only** — mark the prior revision `superseded`, append to `source_history`, update the verdict manifest. T5b **generates no document content**; it only records relationships between documents T5a already produced | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T5a, T3 |
+| T5b | **CROSS-SURFACE LINKAGE only** — set the prior revision's `plan_role: superseded` and its `superseded_by` path, set the new revision's `supersedes` path, append to `source_history`, and update the verdict manifest. T5b **generates no document content**; it only records relationships between documents T5a already produced | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T5a, T3 |
 | T6a | **RED** — author the pre-dispatch verifier contract tests (one passing and one failing concrete state per blocking token, plus a `plan_id`-rename case and a `PLAN_LEGACY_UNIDENTIFIED` non-blocking case) against the not-yet-existing verifier, and observe them failing | `tests/` | M / medium | T1, T2, T3 |
 | T6 | **IMPLEMENTATION** — pre-dispatch verifier implementing the **six** blocking tokens and the one reported signal | `src/autoharness/` | M / medium | T6a |
 | T6b | **GREEN** — observe the full token contract passing against the shipped verifier and add the regression cases that only make sense against a real implementation | `tests/` | M / medium | T6 |

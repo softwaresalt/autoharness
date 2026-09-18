@@ -8,6 +8,9 @@ agent: stage
 session_id: stage-2026-09-18-remediation-cycle-1
 checkpoint: .backlogit/checkpoints/checkpoint-20260918-065902.json
 supersedes_memory: docs/memory/2026-09-17-stage-seven-entry-contract-defect-portfolio.md
+superseded_by: docs/memory/2026-09-19-stage-remediation-cycle-3-current-state.md
+superseded_note: "EXPLICITLY SUPERSEDED as a CURRENT-STATE surface. This document remains an accurate record of what was true when it was written and is preserved verbatim for provenance, but its task count, shipment topology, decision revision and review state are stale. Do not use it as operative current-state input; read docs/memory/2026-09-19-stage-remediation-cycle-3-current-state.md instead."
+doc_status: superseded
 tags:
   - "stage"
   - "remediation"
