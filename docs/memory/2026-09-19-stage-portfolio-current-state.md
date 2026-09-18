@@ -11,6 +11,8 @@ supersedes_memory:
   - docs/memory/2026-09-18-stage-remediation-cycle-1.md
   - docs/memory/2026-09-19-stage-remediation-cycle-3-current-state.md
 supersession_note: "The three superseded documents are PRESERVED, not deleted. They remain accurate records of what was true when they were written and are readable for provenance. They are NOT operative current-state input. This document is the single current-state surface."
+superseded_by: docs/memory/2026-09-18-stage-terminal-review-attempt-07-blocked-handoff.md
+superseded_note: "This document is no longer the current-state surface. It is preserved unedited as an accurate record of what was true when it was written, before the terminal attempt-07 review. Its commit binding (parent e17a977a, uncommitted) and its review state (REMEDIATED-PENDING-REVIEW awaiting attempt 07) are both stale. Read docs/memory/2026-09-18-stage-terminal-review-attempt-07-blocked-handoff.md instead."
 decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 branch: chore/stage-176-s-workflow-defects

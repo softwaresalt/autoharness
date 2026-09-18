@@ -16,6 +16,7 @@ source_history:
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-06.md
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-07.md
   - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
 review_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
 revision_note: "Revision 6 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."

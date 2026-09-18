@@ -1,15 +1,24 @@
 ---
 title: "Plan review verdict manifest — P-004 red-phase precondition scoping"
-description: "Mutable verdict manifest for docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 06. Plan revision: 6. Verdict: REMEDIATED-PENDING-REVIEW, derived from the roster - the attempt-06 reviewer verdict was BLOCKED and the revision now governing was produced by operator-authorized Stage remediation, which no reviewer has evaluated. The next independent pass is attempt 07."
+description: "Mutable verdict manifest for docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 07 (terminal). Plan revision: 6. Verdict: BLOCKED, gate result FAIL, taken directly from the attempt-07 reviewer verdict against content HEAD 22bca5c8. Seven P1 findings are open. The authorized extra remediation cycle is exhausted, so no remediation followed and no further Stage fix cycle is authorized."
 doc_type: review-manifest
 source: docs/reviews/2026-09-17-p004-red-phase-precondition-scoping-plan-review.md
-date: 2026-09-19
+date: 2026-09-18
 plan_id: p004-red-phase-precondition-scoping
 plan_path: docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md
 plan_revision: 6
-latest_attempt: 6
-verdict: REMEDIATED-PENDING-REVIEW
-latest_artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-06.md
+latest_attempt: 7
+review_terminal: true
+reviewed_content_head: 22bca5c8
+gate_result: FAIL
+verdict: BLOCKED
+p0_open: 0
+p1_open: 7
+p2_open: 0
+remediation_authorization: none-exhausted
+latest_remediation_revision: null
+latest_disposition: null
+latest_artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-07.md
 attempts:
   - attempt: "01-02"
     artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempts-01-02-combined.md
@@ -41,6 +50,16 @@ attempts:
     verdict: BLOCKED
     remediation_revision: 6
     disposition: REMEDIATED-PENDING-REVIEW
+  - attempt: 7
+    artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-07.md
+    reviewed_revision: 6
+    reviewed_content_head: 22bca5c8
+    verdict: BLOCKED
+    p1_open: 7
+    p2_open: 0
+    remediation_revision: null
+    disposition: null
+    terminal: true
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
     reason: "Attempt-05 records conflate the reviewed revision 4 with the Stage-produced revision 5; this erratum states the corrected reading without editing the immutable records."
@@ -77,20 +96,24 @@ name.
 | `plan_id` | `p004-red-phase-precondition-scoping` |
 | `plan_path` | `docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
 | `plan_revision` | 6 |
-| `latest_attempt` | **06** |
-| `latest_artifact` | `docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-06.md` |
-| `verdict` | **REMEDIATED-PENDING-REVIEW** (derived) |
+| `latest_attempt` | **07** (terminal) |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-07.md` |
+| `reviewed_content_head` | `22bca5c8` |
+| `gate_result` | **FAIL** |
+| `verdict` | **BLOCKED** (derived) |
+| `p1_open` | **7** |
+| `p2_open` | 0 |
 
 **The top-level `verdict` is derived, not authored.** Take the
-highest-numbered roster entry — attempt 06. Its `remediation_revision` is
-6, which equals `plan_revision`, so the top-level `verdict` is that
-entry's `disposition`: `REMEDIATED-PENDING-REVIEW`. A reviewer's `PASS` is
-therefore not something this manifest can assert while the governing revision
-is one Stage produced.
+highest-numbered roster entry — attempt 07. Its `remediation_revision` is
+`null`, so no Stage-produced revision supersedes what the reviewer judged, and
+the top-level `verdict` is that entry's reviewer `verdict`: `BLOCKED`. The
+authorized extra remediation cycle is exhausted; there is no further Stage fix
+cycle, and no `PASS` exists anywhere in this record.
 
-## What attempt 06 records
+## What attempt 07 records
 
-Independent attempt-06 review opened against plan revision 5 and returned BLOCKED on four coupled defects: a bootstrap task (168.009-T) that substituted a future declared-set criterion for the installed P-004 precondition and had no policy-compliant claim path of its own; residual positional-correspondence language in the unittest loader contract; an unspecified addSubTest failure path in P004Result; and an unassigned mapping from Draft-07 shape failures to the required P004_MARKER_MISPLACED and P004_EMPTY_RED_SET tokens. The portfolio-wide plan-identity wire-format finding also applied. Operator-authorized remediation removed and archived 168.009-T after grounding the package in the existing Ship lifecycle, corrected every loader surface, specified the addSubTest contract, assigned the token mapping to a concrete Python validation boundary, and applied the seven identity fields - raising the plan to revision 6. Stage does not review its own remediation; awaiting independent attempt 07.
+Terminal independent review opened against plan revision 6 at content HEAD `22bca5c8`; gate result FAIL, decision BLOCKED, seven P1 findings open. Persona coverage was complete (Constitution, Python, Scope Boundary, Learnings, Architecture, Agent-Native Parity, Security Lens); the anchor route was absent so the cross-model rubric ran under same-model declared degradation, the Learnings persona was degraded because it could not inspect the diff, and Scope Boundary returned no P0/P1. The seven open P1s are: the root shipment still cannot bootstrap lawfully because reachability depends on an out-of-DAG operator policy edit; RED tests treat import/load failure as valid red while the P-004 contract would classify those runs as missing observations, and RED tasks are sequenced after schema/policy implementation in places; the declared harness set is assigned to the singleton installation harness-manifest with no shipment-scoped storage, lifecycle or reader ownership; loaded TestCase.id() must be enforced equal to the requested test_id independently of object-identity attribution; expectedFailure/unexpectedSuccess outcome combinations have no deterministic fail-closed tokens; harness-architect and vanilla unittest invocation bypass P004Result and manifest validation, so one atomic public P004 gate/runner parity boundary is required; and the "every token names a test_id" invariant is impossible for an empty collection or a malformed entry and needs a truthful collection/error subject model. No remediation followed.
 
 ## Attempt roster
 
@@ -109,6 +132,12 @@ the record — the exact defect the attempt-05 artifacts carry, documented in
 | 04 | `...-plan-review-attempt-04.md` | 3 | BLOCKED | 4 | REMEDIATED-PENDING-REVIEW |
 | 05 | `...-plan-review-attempt-05.md` | 4 | BLOCKED | 5 | REMEDIATED-PENDING-REVIEW |
 | 06 | `...-plan-review-attempt-06.md` | 5 | BLOCKED | 6 | REMEDIATED-PENDING-REVIEW |
+| **07** (terminal) | `...-plan-review-attempt-07.md` | 6 @ `22bca5c8` | **BLOCKED** (7 P1 open) | — | — |
+
+Attempt 07 has no `remediation_revision` and no `disposition` because the
+operator-authorized extra remediation cycle was **exhausted** before it ran. The
+empty remediation columns are a fact about what Stage did — nothing — not a
+placeholder awaiting a later fill.
 
 Attempts 01–02 were written as a single document covering two cycles. That
 file is preserved verbatim rather than retroactively split — fabricating two
