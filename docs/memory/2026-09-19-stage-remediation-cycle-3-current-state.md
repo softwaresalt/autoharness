@@ -9,7 +9,9 @@ session_id: stage-2026-09-19-remediation-cycle-3-final
 supersedes_memory:
   - docs/memory/2026-09-17-stage-seven-entry-contract-defect-portfolio.md
   - docs/memory/2026-09-18-stage-remediation-cycle-1.md
-supersession_note: "Both superseded documents are PRESERVED, not deleted. They remain accurate records of what was true at the time they were written and are readable for provenance. They are NOT operative current-state input: their task count, shipment topology, decision revision and review state are all stale. This document is the single current-state surface."
+supersession_note: "Both superseded documents are PRESERVED, not deleted. They remain accurate records of what was true at the time they were written and are readable for provenance. They are NOT operative current-state input: their task count, shipment topology, decision revision and review state are all stale."
+superseded_by: docs/memory/2026-09-19-stage-portfolio-current-state.md
+superseded_note: "This document is no longer the current-state surface. It is preserved as an accurate record of what was true when it was written. Read docs/memory/2026-09-19-stage-portfolio-current-state.md instead."
 decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 tags:

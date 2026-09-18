@@ -5,8 +5,20 @@ doc_type: plan
 source: docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 5
-revision_note: "Revision 5 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in `review_history` and the mutable verdict manifest named by `linked_review` are the authoritative record of that chronology."
+plan_id: workspace-authoritative-branch-resolution
+plan_role: active
+revision: 6
+supersedes: null
+superseded_by: null
+source_history:
+  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempts-01-02-combined.md
+  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md
+  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md
+  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-05.md
+  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-06.md
+  - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
+review_manifest: docs/reviews/2026-09-17-workspace-authoritative-branch-resolution-plan-review.md
+revision_note: "Revision 6 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_prior_deliberation: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md
@@ -28,16 +40,6 @@ prior_learnings:
   - docs/compound/2026-08-18-topology-gate-multi-hop-reverse-dependency-fallback.md
   - docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md
   - docs/compound/2026-08-17-branch-rename-after-pr-open-auto-closes-pr.md
-linked_review: docs/reviews/2026-09-17-workspace-authoritative-branch-resolution-plan-review.md
-review_history:
-  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempts-01-02-combined.md
-  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md
-  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md
-  - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-05.md
-latest_review_attempt: 5
-latest_review_artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-05.md
-latest_review_verdict: REMEDIATED-PENDING-REVIEW
-latest_review_verdict_note: "REMEDIATED-PENDING-REVIEW at revision 5. Stage does not review its own remediation, so no PASS is asserted; the next independent reviewer pass is attempt 06. Attempt classification and roster live in the verdict manifest named by `linked_review`."
 covering_feature: 170-F
 shipment: 178-S
 requires_plan_hardening: "yes"
@@ -364,9 +366,26 @@ the one that shipped.
   and no such value ever appears as `selected_branch` in gate JSON.
 * The resolver-exit invariant holds: no returned `selected_branch` begins with
   `-` on any rung.
-* Exactly two `resolution_source` values are reachable; no
-  `workspace_convention` string appears anywhere in the shipped code, tests,
-  docs, **or backlog records**.
+* Exactly two `resolution_source` values are reachable. The absence of the
+  third rung is asserted by a **scoped, executable criterion**, not by a
+  repository-wide string ban — a ban on the literal token is unsatisfiable by
+  construction, because this plan, this release unit's own backlog records, and
+  the review history all have to name the rung in order to state that it does
+  not exist. The criterion is:
+  1. **No resolver, config, or runtime source declares it.** The literal
+     `workspace_convention` appears in no file under `src/autoharness/`, in no
+     `schemas/*.json`, and in no `.autoharness/config.yaml` key path.
+  2. **No fallback path can reach it.** `resolve_expected_branches()` returns a
+     `resolution_source` drawn from a frozen two-member enum
+     `{explicit_contract, title_alias}`; any other value is unconstructible, and
+     the enum's membership is asserted directly rather than inferred from a
+     text scan.
+  3. **Any remaining textual occurrence is confined to an explicitly identified
+     historical set** — this plan, the `170-*` backlog records, `docs/reviews/`,
+     `docs/decisions/`, and `docs/memory/` — where every occurrence is a
+     statement that the rung was removed and stays removed. The scan asserts
+     that occurrences outside that identified set are zero, which is decidable,
+     auditable, and does not require the token to be unmentionable.
 * A shipment with no `implementation_branch` produces byte-identical gate JSON
   to `main` except for the three additive fields.
 * `autoharness gate check` passes on every modified file.
@@ -436,7 +455,7 @@ and the verbatim `86498B64` design summary in `.backlogit/archive/stash.jsonl`.
 | H3 | The git-driven arm passes vacuously on a machine without `git` | The test skips loudly and still asserts the frozen expected-outcome corpus |
 | H4 | Task ordering carried only by table position lets the integration task execute before the resolver and reader it integrates | `blocks` edges encoded: T0 → T1 → T2 → T3 → T4 → T5; rationale recorded in the plan body |
 | H5 | Workaround retirement "sequenced last" in prose only lets a reordering strand `025-S`/`020-S` with no non-`--force` route back | T10 blocked by T6, T7, **and** T8 — every proving test family including the CLI surface |
-| H6 | A reserved-but-unreachable precedence rung for the deferred declarative tier is an unauthorized contract surface: no config key, no schema, no decision authorizing it, and only a tautological test | No such rung exists; the ladder is exactly two rungs; Verification asserts no `workspace_convention` token appears anywhere |
+| H6 | A reserved-but-unreachable precedence rung for the deferred declarative tier is an unauthorized contract surface: no config key, no schema, no decision authorizing it, and only a tautological test | No such rung exists; the ladder is exactly two rungs. Absence is asserted by a scoped executable criterion — no `workspace_convention` occurrence under `src/autoharness/`, `schemas/`, or `.autoharness/config.yaml`; a frozen two-member `resolution_source` enum making a third value unconstructible; and zero occurrences outside an explicitly identified historical documentation set. A repository-wide ban on the literal token would be unsatisfiable, since the contract has to name the rung to state that it is gone |
 | H7 | A cited design document that has never existed at any ref leaves a reader unable to verify any requirement traced to it | Recorded as `unavailable-external` provenance with the verification method stated; durable source redirected to the archived stash entry |
 | H8 | T10 mutates live backlog records for two shipments — the only non-additive action in the unit | Classified below as a Medium-risk `ProposedAction` with an explicit rollback and an operator checkpoint |
 

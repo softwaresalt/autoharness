@@ -5,8 +5,20 @@ doc_type: plan
 source: docs/plans/2026-09-17-post-claim-member-status-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 5
-revision_note: "Revision 5 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in `review_history` and the mutable verdict manifest named by `linked_review` are the authoritative record of that chronology."
+plan_id: post-claim-member-status-contract
+plan_role: active
+revision: 6
+supersedes: null
+superseded_by: null
+source_history:
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-06.md
+  - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
+review_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
+revision_note: "Revision 6 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_spike: docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md
@@ -18,16 +30,6 @@ stash_ids:
 prior_learnings:
   - docs/compound/2026-08-21-backlogit-1-10-shipment-claim-cascades-to-children.md
   - docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md
-linked_review: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
-review_history:
-  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md
-  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
-  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
-  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
-latest_review_attempt: 5
-latest_review_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-05.md
-latest_review_verdict: REMEDIATED-PENDING-REVIEW
-latest_review_verdict_note: "REMEDIATED-PENDING-REVIEW at revision 5. Stage does not review its own remediation, so no PASS is asserted; the next independent reviewer pass is attempt 06. Attempt classification and roster live in the verdict manifest named by `linked_review`."
 covering_feature: 169-F
 shipment: 177-S
 requires_plan_hardening: "yes"

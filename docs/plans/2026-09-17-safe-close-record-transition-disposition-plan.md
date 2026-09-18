@@ -5,8 +5,21 @@ doc_type: plan
 source: docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 6
-revision_note: "Revision 6 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in `review_history` and the mutable verdict manifest named by `linked_review` are the authoritative record of that chronology."
+plan_id: safe-close-record-transition-disposition
+plan_role: active
+revision: 7
+supersedes: null
+superseded_by: null
+source_history:
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempts-01-02-combined.md
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06.md
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06-supplement.md
+  - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
+review_manifest: docs/reviews/2026-09-17-safe-close-record-transition-disposition-plan-review.md
+revision_note: "Revision 7 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 7F9CB5E9
@@ -20,17 +33,6 @@ prior_learnings:
   - docs/compound/2026-09-17-174-s-cascade-close-and-14-round-review-lessons.md
   - docs/compound/2026-08-02-backlogit-done-move-vs-explicit-archive.md
   - docs/compound/2026-08-01-shipment-record-status-integrity.md
-linked_review: docs/reviews/2026-09-17-safe-close-record-transition-disposition-plan-review.md
-review_history:
-  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempts-01-02-combined.md
-  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
-  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
-  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
-  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06.md
-latest_review_attempt: 6
-latest_review_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06.md
-latest_review_verdict: REMEDIATED-PENDING-REVIEW
-latest_review_verdict_note: "REMEDIATED-PENDING-REVIEW at revision 6. Attempt 06 returned BLOCKED at revision 5 on three tracker defects: tracker eligibility (a blocked, never-closing external tracker encoded as an ordinary queued backlog item carrying blocks edges onto in-portfolio tasks), tracker relationship encoding (relates_to dependency edges used where non-blocking related_to links are required), and tracker existence ordering (the plan treated T8 as a task that creates 002-C during Ship while 173.007-T's back-pointer already required it to exist). The operator authorized the revision-6 remediation directly. Stage does not review its own remediation, so no PASS is asserted; the next independent reviewer pass is attempt 07. Attempt classification and roster live in the verdict manifest named by `linked_review`."
 covering_feature: 173-F
 shipment: 181-S
 shipment_disposition_class: local-disposition
@@ -176,6 +178,66 @@ unrelated to the defect, and in neither case would it be evidence.
   obligation when the pin moves — in `docs/`, so a future pin bump is a
   known, checklisted action rather than a silent invalidation of every fixture.
 
+### Part A0 — acquiring the pinned binary is an ELEVATED, APPROVAL-GATED action
+
+`T0` re-derives the baseline against `v1.9.0`, and the authoring workstation
+does **not** have `v1.9.0` installed — it has an unreproducible
+`1.10.1+dirty` local build. T0 therefore has to **acquire and install a
+different backlogit binary**, which is an elevated and potentially destructive
+action: the tool being replaced is the one that owns every backlog record in
+this workspace, and a wrong install can leave the workspace unable to read its
+own queue. Treating that as ordinary test setup is the defect this section
+closes. **Ordinary PR review does not satisfy this gate**, and nothing in this
+plan may be read as claiming it does: PR review approves a *merged diff*, while
+this action mutates the *executing machine* before any diff exists.
+
+The following are **binding preconditions on T0**, each of which must hold
+before a single byte is written:
+
+1. **Explicit operator approval, obtained in-session, for the specific
+   action.** The approval must name the version being installed and the fact
+   that a binary is being placed or replaced. A standing authorization, an
+   autopilot directive, or an approved pull request is **not** sufficient and
+   may not be cited as sufficient.
+2. **Workspace-contained installation.** The binary is installed **into a
+   path inside this repository's working tree** (a git-ignored tool directory)
+   and invoked by explicit path. It **must not** replace, shadow, or modify any
+   machine-global, user-global, or `PATH`-resolved backlogit installation, and
+   it must not write outside the working tree. No `%TEMP%` workspace is created
+   — that is the P-005 violation this whole plan exists to correct.
+3. **Checksum verification before use.** The downloaded artifact's SHA-256 is
+   verified against the value pinned in `.github/workflows/ci.yml`
+   (`sha256 5bf29fda…87de`) **before** the binary is made executable or
+   invoked. A mismatch **halts**; it is never retried past, never warned
+   through, and never resolved by re-downloading.
+4. **Bounded execution mode — `careful` or `investigate-first`.** T0 runs in a
+   bounded mode with an explicit step budget and an operator-visible log of
+   every command issued. It does not run in an unattended or autopilot mode.
+5. **No live backlog mutation, enforced by construction.** Every observation
+   command runs against **disposable fixture records inside `tests/`**, never
+   against `.backlogit/`. The pinned binary is never invoked with this
+   workspace as its `--cwd`. A pre-flight assertion records the `.backlogit/`
+   tree state and a post-flight assertion proves it unchanged.
+6. **Rollback and restoration are defined before the action, not after.** The
+   pre-existing binary's location and version are recorded first. Rollback is:
+   delete the workspace-contained binary directory; no global state was
+   touched, so nothing needs restoring outside the working tree. If the
+   recorded pre-state cannot be captured, T0 **halts rather than proceeding**.
+7. **Cleanup is part of the task, not a follow-up.** The workspace-contained
+   binary directory is removed at the end of T0 unless the operator explicitly
+   directs it be retained for T1–T4. If retained, it is git-ignored and named
+   in the task's completion record so it cannot become undeclared state.
+
+**If operator approval is withheld, T0 halts and reports.** It does not
+silently fall back to asserting the `1.10.1+dirty` observations — that
+substitution is exactly the unsound claim the binary-version divergence section
+prohibits — and it does not degrade to a skip, which would delete the release
+unit's evidentiary value. A halted T0 blocks `T1`–`T4` and `T10` by the
+existing edges, which is the correct outcome: with no authoritative baseline
+there is nothing sound for the fixtures to assert.
+
+
+
 ## Evidence provenance defect (P-005) — the first deliverable
 
 The four measurements originate from Stage spike arms run in **external
@@ -297,7 +359,7 @@ The ten rows below are the executable tasks of `173-F`, harvested as
 
 | # | Task | Scope | Blocked by |
 |---|---|---|---|
-| T0 | Establish the `v1.9.0` observation baseline: install the pinned checksum-verified binary and re-derive all four behaviours against it, recording any divergence from the `1.10.1+dirty` corroboration | `tests/` + `docs/` | — |
+| T0 | Establish the `v1.9.0` observation baseline. **Acquiring and installing the pinned checksum-verified binary is an ELEVATED, APPROVAL-GATED action** governed by Part A0: explicit in-session operator approval naming the version and the install/replacement, workspace-contained install invoked by explicit path (never replacing a global or `PATH`-resolved backlogit), SHA-256 verified against the CI pin **before** first invocation with a halt on mismatch, bounded `careful` / `investigate-first` execution, **no live `.backlogit/` mutation** (pre- and post-flight assertions), pre-recorded rollback, and cleanup inside the task. Then re-derive all four behaviours against `v1.9.0`, recording any divergence from the `1.10.1+dirty` corroboration. **Ordinary PR review does not satisfy this gate.** Approval withheld ⇒ **halt and report**, never a fallback to `+dirty` observations and never a skip | `tests/` + `docs/` | — |
 | T1 | Hermetic fixture: `move --status shipped` refusal, exit 9, exact message, version-aware | `tests/` | T0 |
 | T2 | Hermetic fixture: `update --status shipped` refusal, exit 9, exact message, version-aware | `tests/` | T0 |
 | T3 | Hermetic fixture: `archive` on active stamps `archived_status: active` and fails the Step 8 provenance gate, version-aware | `tests/` | T0 |
@@ -366,8 +428,18 @@ edge is needed or permitted to guarantee it.
   version in the assertion output.
 * A fixture run against an undeclared binary version fails with an explicit
   version-mismatch message; it never skips and never assumes.
-* No live shipment record in `.backlogit/` is mutated by any fixture.
+* No live shipment record in `.backlogit/` is mutated by any fixture, and T0's
+  pre-flight and post-flight assertions prove the `.backlogit/` tree is
+  byte-identical across the baseline derivation.
 * No external `%TEMP%` workspace is created at any point.
+* T0's binary acquisition is recorded with: the operator approval (naming the
+  version and the install/replacement), the verified SHA-256 matching the CI
+  pin, the workspace-contained install path, the pre-existing binary's location
+  and version, and the cleanup or explicitly-authorized retention of the
+  installed binary. A checksum mismatch is asserted to **halt**, never to warn
+  or retry. No artifact claims that PR review satisfies this gate.
+* A withheld approval is asserted to produce a **halt and report**, never a
+  fallback to the `1.10.1+dirty` observations and never a skip.
 * `autoharness gate check` passes on every modified file.
 * A repository-wide search finds no remaining claim that split delivery is
   operationally complete, and none that `181-S` resolves `7F9CB5E9` or
@@ -390,6 +462,8 @@ edge is needed or permitted to guarantee it.
 | R6 | `181-S` shipping is read as resolving the defect | Disposition class is normative frontmatter (`shipment_disposition_class: local-disposition`, `underlying_defect_status: unresolved-external`) and a dedicated plan section; T7 audits for the mis-statement; T9 fails if the tracker closes prematurely |
 | R7 | Fixture expectations are asserted against a binary they were not observed on | T0 establishes `v1.9.0` as the authoritative baseline; `+dirty` observations are corroboration only and are never asserted; version mismatch fails loudly |
 | R8 | The CI pin moves and silently invalidates every fixture | T10 records the version contract and the re-observation obligation; the version-aware fixtures fail on an undeclared version rather than passing against it |
+| R9 | T0's binary acquisition is treated as ordinary test setup and performed unapproved, replacing the backlogit installation that owns this workspace's backlog | Part A0 makes it an elevated, approval-gated action with seven binding preconditions: in-session approval naming the version, workspace-contained install, pre-use checksum verification with a halt on mismatch, bounded `careful`/`investigate-first` mode, no live `.backlogit/` mutation with pre/post assertions, pre-recorded rollback, and in-task cleanup. Ordinary PR review is explicitly stated not to satisfy it |
+| R10 | Approval is withheld and T0 quietly falls back to the `+dirty` observations or skips | Part A0 requires a halt and report; asserting a `+dirty` observation as a `v1.9.0` expectation is already prohibited by the binary-version divergence section, and a skip is prohibited by H4. The halt propagates through the existing T0 edges, which is the correct outcome |
 
 ## Out of scope
 
@@ -444,18 +518,25 @@ an **external binary dependency at a moving, partly unreproducible version**.
 | H6 | The interim procedure is the highest-risk artifact in the unit — it describes a terminal-state mutation | Operator-only stated in title, first paragraph, and telemetry requirement; T6 carries a negative assertion that no agent template references it as executable; classified High-risk below |
 | H7 | Re-derivation could regress to `%TEMP%` for convenience, repeating the P-005 violation being corrected | Prohibited in Verification and Out of scope; fixtures operate on disposable in-`tests/` records only |
 | H8 | A future CI pin bump would silently invalidate every fixture observation | T10 records the re-observation obligation as a checklisted action tied to the pin |
+| H10 | T0 has to install a *different* backlogit binary than the one present, and the tool being replaced is the one that owns every backlog record in this workspace — a wrong install can leave the workspace unable to read its own queue, yet it reads as ordinary test setup | Part A0 classifies it **elevated and destructive** with seven binding preconditions and classifies it **High** in the risky-actions table. Install is workspace-contained and invoked by explicit path; no global or `PATH`-resolved installation is replaced, shadowed, or modified |
+| H11 | "Standard PR review" would be cited as the approval for a machine-mutating action | Part A0 states explicitly that ordinary PR review does **not** satisfy the gate, because PR review approves a merged diff while this action mutates the executing machine before any diff exists. Explicit in-session operator approval naming the version is required, and a standing authorization or autopilot directive is expressly insufficient |
+| H12 | A checksum mismatch is warned through or retried, defeating the only integrity control on a downloaded executable | Verification asserts the mismatch path **halts**; it is never retried past, never warned through, and never resolved by re-downloading |
 
 **Risky actions (`ProposedAction` / `ActionRisk`).**
 
 | ProposedAction | ActionRisk | Approval | Rollback |
 |---|---|---|---|
 | Document the operator-only administrative-close procedure (T6) | **High** — describes a terminal shipment-state mutation; mis-reading it as agent-executable would be a P-001/P-005 violation | Operator review required before merge | Remove the document; it is descriptive only and grants no capability |
-| Re-derive refusal behaviours against a real binary (T0–T4) | Medium — executes backlogit commands | Standard PR review; hermetic in-`tests/` records only | Delete fixtures; no live state touched |
+| Acquire and install the pinned `v1.9.0` backlogit binary (**T0**, Part A0) | **High** — installs or replaces the tool that owns every backlog record in this workspace; a wrong install can leave the workspace unable to read its own queue | **Explicit in-session operator approval naming the version and the install/replacement. Ordinary PR review does NOT satisfy this gate, and a standing authorization or autopilot directive is expressly insufficient.** SHA-256 verified against the CI pin before first invocation (mismatch ⇒ halt). Bounded `careful` / `investigate-first` mode with an operator-visible command log | Delete the workspace-contained, git-ignored binary directory. No global or `PATH`-resolved installation is touched, so nothing outside the working tree needs restoring. Pre-existing binary location and version are recorded **before** the action; if they cannot be captured, T0 halts instead of proceeding. Cleanup runs inside T0 unless retention is explicitly authorized |
+| Re-derive refusal behaviours against the installed binary (T0 observation phase, T1–T4) | Medium — executes backlogit commands | Standard PR review; hermetic in-`tests/` records only; the pinned binary is never invoked with this workspace as its `--cwd`, and pre/post-flight assertions prove `.backlogit/` unchanged | Delete fixtures; no live state touched |
 | Create the durable tracker backlog item `002-C` (plan label `T8`) | Low — additive backlog record outside every manifest | **Already performed by Stage at publication time under explicit operator authorization**; not a Ship action and not agent-executable during execution | Archive the item |
 | Generate and file the upstream report (T5) | Low locally; **filing is an operator action** | Plan produces the report; it does **not** authorize an agent to open the issue | Do not file |
 | Correct in-repository completeness claims (T7) | Low — documentation truth | Standard PR review | Revert |
 
-**Rollback coupling.** T0–T4 and T9 are test-only. T5/T6/T7/T10 are docs-only.
+**Rollback coupling.** T0's binary acquisition is reversed by deleting the
+workspace-contained, git-ignored binary directory; no global state was
+modified. T0's observation output, T1–T4 and T9 are otherwise test-only.
+T5/T6/T7/T10 are docs-only.
 **No task in this plan creates or mutates persisted backlog state**: the only
 such record, tracker `002-C`, was created by Stage before execution and is
 reversible by archiving it. No task mutates a shipment record, a closure
@@ -468,9 +549,12 @@ upstream behaviour changes. That flip is the signal that the upstream half of
 requires advancing this workspace's CI version pin, and both are performed in a
 future separate Stage cycle. Nothing in this portfolio unblocks it.
 
-**Operator checkpoints.** Two. (1) Review and approval of T6's interim
-procedure before merge. (2) Filing the T5 upstream report, which is explicitly
-an operator action and is never agent-initiated.
+**Operator checkpoints.** Three. (1) **Explicit in-session approval of T0's
+binary acquisition and install before it is performed** — the version, the
+install/replacement, and the workspace-contained path are named in the request;
+withheld approval halts T0 and, through its edges, T1–T4 and T10. (2) Review
+and approval of T6's interim procedure before merge. (3) Filing the T5 upstream
+report, which is explicitly an operator action and is never agent-initiated.
 
 **Review-gate capability risk (P-012).** Reviewer-subagent dispatch was
 degraded in the authoring session. Plan review MUST emit literal
