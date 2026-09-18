@@ -556,7 +556,7 @@ still carries `closure_complete`.
   3. the artifact satisfies the **complete consumer acceptance predicate**;
   4. the artifact is discoverable for its declared shipment via
      `classify_closure_candidates`.
-* **Single validity definition.** Step 2 MUST call the existing consumer
+* **Single validity definition.** Step 3 MUST call the existing consumer
   predicate `topology._closure_artifact_complete` (and, through it,
   `_closure_conditions_satisfied`) directly, by import. Re-implementing a
   scalar-enum check here is a **defect**, not a simplification: such a check
