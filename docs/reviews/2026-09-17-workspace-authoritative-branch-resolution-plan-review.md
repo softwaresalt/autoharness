@@ -1,23 +1,23 @@
 ---
 title: "Plan review verdict manifest — Workspace-authoritative implementation-branch resolution"
-description: "Latest-verdict manifest for docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03. Verdict: PASS at plan revision 3."
+description: "Latest-verdict manifest for docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md. This file is NOT a review record; it is the small mutable selection surface that names which immutable attempt artifact is authoritative. The reviews themselves live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 04. Verdict: REMEDIATED-PENDING-REVIEW at plan revision 4. Local review cycle 2 returned BLOCKED at revision 3 because the revision-3 design had not been propagated into the executable backlog records; Stage remediation cycle 2 propagated it. Stage does not review its own remediation, so no PASS is asserted at revision 4."
 doc_type: review-manifest
 source: docs/reviews/2026-09-17-workspace-authoritative-branch-resolution-plan-review.md
 date: 2026-09-18
 plan_path: docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md
-plan_revision: 3
+plan_revision: 4
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 2
+decision_revision: 3
 source_stash_id: 86498B64
 feature_id: 170-F
 shipment_id: 178-S
-latest_attempt: 3
-latest_attempt_artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md
-verdict: PASS
-decision: PASS
+latest_attempt: 4
+latest_attempt_artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md
+verdict: REMEDIATED-PENDING-REVIEW
+decision: REMEDIATED-PENDING-REVIEW
 p0_open: 0
 p1_open: 0
-review_cycles_used: 3
+review_cycles_used: 4
 review_cycles_remaining: 0
 plan_hardening_status: complete
 plan_hardening_evidence: "docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md#plan-hardening-record-p-006"
@@ -34,8 +34,15 @@ attempts:
     conformance: conforming
     plan_revision: 3
     verdict: PASS
-    superseded_by: null
+    superseded_by: 4
     note: "Remediation-cycle-1 re-review. All consolidated blocking findings verified closed."
+  - attempt: 4
+    artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md
+    conformance: conforming
+    plan_revision: 4
+    verdict: REMEDIATED-PENDING-REVIEW
+    superseded_by: null
+    note: "Local review cycle 2: BLOCKED at plan revision 3 because the revision-3 design was never propagated into the executable backlog records. Stage remediation cycle 2 propagated it and raised the plan to revision 4. Stage does not review its own remediation; awaiting reviewer attempt 05."
 tags:
   - "plan-review"
   - "verdict-manifest"
@@ -64,24 +71,34 @@ history.
 | Field | Value |
 |---|---|
 | Plan | `docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md` |
-| Plan revision | 3 |
-| Latest attempt | **03** |
-| Authoritative artifact | `docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md` |
-| Verdict | **PASS** |
+| Plan revision | 4 |
+| Latest attempt | **04** |
+| Authoritative artifact | `docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md` |
+| Verdict | **REMEDIATED-PENDING-REVIEW** |
 | P0 open | 0 |
 | P1 open | 0 |
 | Plan hardening (P-006) | complete, persisted at `## Plan Hardening Record (P-006)` |
-| Feature | `170-F` (10 tasks) |
+| Feature | `170-F` (11 tasks) |
 | Shipment | `178-S` |
 
-**What attempt 03 changed:** Leading-hyphen/option-like rejection with git check-ref-format equivalence, encoded task ordering, the speculative rung removed, and truthful design-source provenance.
+**What attempt 04 changed:** Local review cycle 2 returned **BLOCKED** at plan
+revision 3 — not because the design was wrong, but because it had never been
+propagated into the executable backlog records. Stage remediation cycle 2
+propagated it: task bodies, titles, dependency edges, shipment manifests and
+stash provenance were rewritten to match plan revision 4 and decision revision
+3, descoped or blocked children were re-homed out of the covering features so
+every shipment can genuinely close, and the TDD orderings were machine-encoded
+as `blocks` edges instead of prose. Stage does not review its own remediation,
+so the verdict is `REMEDIATED-PENDING-REVIEW` rather than PASS; the next
+reviewer pass is attempt 05.
 
 ## Attempt history
 
 | Attempt | Artifact | Plan rev | Conformance | Verdict | Status |
 |---|---|---|---|---|---|
 | 01–02 | `2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempts-01-02-combined.md` | 2 | non-conforming-combined | PASS | superseded by 03 |
-| 03 | `2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md` | 3 | conforming | PASS | **authoritative** |
+| 03 | `2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md` | 3 | conforming | PASS | superseded by 04 |
+| 04 | `2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md` | 4 | conforming | REMEDIATED-PENDING-REVIEW | **authoritative** |
 
 Attempts 01–02 were written as a single mutable document covering two cycles.
 That file is preserved verbatim rather than retroactively split — fabricating

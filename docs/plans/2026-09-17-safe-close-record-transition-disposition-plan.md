@@ -5,10 +5,10 @@ doc_type: plan
 source: docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 3
-revision_note: "Revision 3 is the canonical statement of the intended design. Review findings were remediated in place; this document states exactly one binding requirement per topic. Revision 3 closes three remediation-cycle-1 findings: there was no durable artifact keeping the external dependency active once the local deliverables close, so archiving 181-S would have left 7F9CB5E9 looking resolved; 181-S was not explicitly classified as a local disposition distinct from defect resolution; and the plan asserted behaviour measured on a dirty local 1.10.1 build while CI runs a checksum-pinned v1.9.0 binary, with no reconciliation between the two. The bounded audit trail lives in `review_history`."
+revision: 4
+revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3 and closes the propagation findings from local review cycle 2. The revision-3 design was correct but was not encoded into the executable backlog records: the v1.9.0 baseline task existed without being a predecessor of anything, so a fixture could have been executed first and pinned its assertions to the local dirty 1.10.1 build; and the tracker back-pointer tasks referenced the tracker by the plan-relative label `T8` rather than by a resolvable backlog ID. Revision 4 requires the baseline task to block all four hermetic fixtures, the portable upstream report and the version-aware fixture contract; requires the documentation-truth audit and the tracker regression to reference chore `002-C` and task `173.010-T` by exact resolvable ID; and states the task count precisely as TEN feature tasks plus ONE external tracker that is deliberately neither a child of the covering feature nor a shipment member. Revision 4 also records that the tracker linkage is a `relates_to` edge and NOT a `blocks` edge: the tracker is designed never to close during this portfolio, so a blocking edge would make the shipment permanently unclosable and would, for the regression, demand the very terminal state it exists to forbid. The bounded audit trail lives in `review_history`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 2
+decision_revision: 3
 source_stash_id: 7F9CB5E9
 stash_ids:
   - 7F9CB5E9
@@ -24,9 +24,10 @@ linked_review: docs/reviews/2026-09-17-safe-close-record-transition-disposition-
 review_history:
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact."
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
 latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
+latest_review_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
 latest_review_verdict: PASS
 covering_feature: 173-F
 shipment: 181-S
@@ -276,15 +277,43 @@ entry so the blocked status is discoverable from the invariant itself.
 | T4 | Hermetic fixture: `shipment ship` is the sole `archived_status: shipped` producer and exposes no `--no-cascade`, version-aware | `tests/` | T0 |
 | T5 | Generate the portable upstream report from T0–T4 and record the decided escalation route, carrying both observation sets | `docs/` | T1, T2, T3, T4 |
 | T6 | Document the operator-only approval-gated interim close procedure with its four binding constraints | `docs/` | T1, T2, T3, T4 |
-| T7 | Documentation-truth audit; `INV-11` back-pointer targeting the **durable tracker**, not `181-S` | `docs/` | T8 |
-| T8 | Create the durable external-dependency tracker item with its stated closure condition, outside `181-S`'s manifest | backlog data + `docs/` | T1, T2, T3, T4 |
-| T9 | Regression assertion: the tracker exists and is non-terminal while the fixtures still observe the refusals | `tests/` | T8 |
+| T7 | Documentation-truth audit; `INV-11` back-pointer targeting the **durable tracker** chore `002-C`, not `181-S` | `docs/` | T8 |
+| T8 | Create the durable external-dependency tracker item — chore **`002-C`** — with its stated closure condition, outside `181-S`'s manifest and not parented to `173-F` | backlog data + `docs/` | T1, T2, T3, T4 |
+| T9 | Regression assertion: the tracker `002-C` exists and is non-terminal while the fixtures still observe the refusals | `tests/` | T8 |
 | T10 | Record the backlogit version contract: pinned CI version, observation baseline, and the re-observation obligation when the pin moves | `docs/` | T0 |
 
+**Task count (revision 4, stated precisely).** This feature carries **TEN
+feature tasks** — T0–T7 and T9–T10, harvested as `173.001-T` … `173.010-T` —
+**plus ONE external tracker**, chore `002-C`, which is deliberately neither a
+child of the covering feature nor a member of `181-S`. The plan-relative label
+`T8` names that external tracker, not an eleventh feature task. Revision 3
+stated the count ambiguously and referenced the tracker only by the
+plan-relative label `T8`; revision 4 requires every record that references it
+to use the **exact resolvable backlog ID `002-C`**, and requires the
+documentation-truth audit and the tracker regression — harvested as
+`173.007-T` and `173.010-T` respectively — to name `002-C` and `173.010-T` by
+exact ID rather than by plan-relative label.
+
+**T0 is a hard predecessor (revision 4).** Revision 3 defined the `v1.9.0`
+baseline task but left it unwired, so a fixture could have been executed first
+and pinned its assertions to the local dirty `1.10.1` build. T0 now blocks all
+four hermetic fixtures (T1–T4), the portable upstream report (T5), and the
+version-aware fixture contract (T10) as machine-encoded `blocks` edges.
+
+**Tracker linkage is `relates_to`, NOT `blocks` (revision 4).** `002-C`'s only
+closure condition is an upstream backlogit release, so it is designed never to
+close during this portfolio. A `blocks` edge from `173.007-T` or `173.010-T`
+onto it would make both tasks permanently unstartable and `181-S` permanently
+unclosable — reintroducing the exact partial-closure deadlock this remediation
+exists to remove. For `173.010-T` it would additionally be self-contradictory:
+that regression asserts the tracker **remains open**, so blocking on its
+closure would demand the very terminal state the assertion forbids. Both edges
+are therefore `relates_to` reference edges.
+
 T5, T6, T7, and T8 all block on T1–T4: nothing may be filed, documented,
-corrected, or tracked on indicative evidence. T7 additionally blocks on T8
+corrected, or tracked on indicative evidence. T7 additionally references `002-C`
 because its `INV-11` back-pointer must resolve to a tracker that already
-exists.
+exists — as a `relates_to` edge, per the paragraph above.
 
 ## Verification
 

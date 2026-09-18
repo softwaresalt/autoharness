@@ -5,10 +5,10 @@ doc_type: plan
 source: docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 3
-revision_note: "Revision 3 is the canonical statement of the intended design. Review findings were remediated by editing the affected requirements in place rather than appending correction notes, so this document states exactly one binding requirement per topic. Revision 3 closes the remediation-cycle-1 P1 that `expected_red` was declared as a bare identifier list while the gate predicate required a per-test marker, leaving the identifier-to-marker mapping undefined: the declaration is now a typed per-entry shape and observation is specified against `unittest.TestResult` rather than against merged runner output. The bounded audit trail lives in `linked_review`."
+revision: 4
+revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3 and closes the propagation findings from local review cycle 2. The revision-3 design was never encoded into the executable backlog records: the nine-token contract was harvested as seven tokens, the typed `{test_id, marker}` entry shape was absent from the task bodies, no `P004Result` boundary was named, and the red/implementation/green ordering existed only as prose. Revision 4 restates the token set as exactly NINE, names `P004Result` as the real per-test observation boundary, and requires the TDD triple to be encoded as dependency edges — red contract tests authored and observed failing BEFORE the boundary exists, implementation blocked on the red task, green verification blocked on the implementation, and the red task explicitly NOT depending on the implementation. Revision 4 also corrects two stdlib facts that revision 3 stated inaccurately: `TestResult.addFailure`/`addError` receive an `exc_info` TUPLE (not a formatted string) and traceback formatting is INHERITED via `TestResult._exc_info_to_string`; and `unittest.loader._FailedTest.id()` is NOT guaranteed to equal the requested name, so placeholder correlation must use the positional correspondence of `loadTestsFromNames(names)` corroborated by `isinstance` and `loader.errors`. The bounded audit trail lives in `linked_review`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 2
+decision_revision: 3
 source_stash_id: 76EBDE6D
 stash_ids:
   - 76EBDE6D
@@ -19,9 +19,10 @@ linked_review: docs/reviews/2026-09-17-p004-red-phase-precondition-scoping-plan-
 review_history:
   - docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact."
+  - docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-04.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
 latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md
+latest_review_artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-04.md
 latest_review_verdict: PASS
 covering_feature: 168-F
 shipment: 176-S
@@ -140,20 +141,39 @@ unusable. Observation is instead defined against the stdlib result object:
    against a loader rooted so that `PYTHONPATH=src` and the repository root
    resolve identically to the CI invocation. `loadTestsFromNames` does not
    raise on an unresolvable name; it substitutes a `unittest.loader._FailedTest`
-   placeholder whose `id()` is the requested name and which errors at run time.
-   The runner therefore records, **before running**, the set of names that
-   produced a placeholder and classifies each as
-   `P004_MISSING_OBSERVATION` — never as a genuine red observation. This
-   distinction is load-time, not traceback-text-derived.
+   placeholder that errors at run time.
+
+   **Correlation is positional, not name-derived.** Revision 3 asserted that the
+   placeholder's `id()` equals the requested name. That is **not guaranteed** by
+   the stdlib and must not be relied on: `_FailedTest` is constructed from a
+   derived method name, and for a name that fails to resolve at the *module*
+   level the reported `id()` can differ from the string that was requested.
+   The runner therefore correlates by the **positional correspondence of
+   `loadTestsFromNames(names)`** — the returned suite yields one top-level test
+   per input name, in input order — and corroborates each suspected placeholder
+   two further ways:
+   * `isinstance(test, unittest.loader._FailedTest)`, and
+   * presence of the requested name as a key in `loader.errors` /
+     the loader's recorded load failures.
+
+   The runner records, **before running**, the set of requested names that
+   produced a placeholder and classifies each as `P004_MISSING_OBSERVATION` —
+   never as a genuine red observation. This distinction is load-time and
+   structural, not traceback-text-derived and not `id()`-string-derived.
 2. **Run.** `unittest.TextTestRunner(resultclass=P004Result, verbosity=0)` over
    the loaded suite. `P004Result` subclasses `unittest.TextTestResult` and
    overrides `addSuccess`, `addFailure`, `addError`, `addSkip`,
    `addExpectedFailure`, and `addUnexpectedSuccess` to record, per test, the
    tuple `(test.id(), outcome, detail_text)`.
-   * `detail_text` for a failure or error is the **per-test** formatted
-     traceback string that `unittest` hands to `addFailure` / `addError` — the
-     same string that lands in `result.failures` / `result.errors` — and
-     nothing else. It is never the concatenated run output.
+   * **`addFailure(test, err)` and `addError(test, err)` receive an `exc_info`
+     TUPLE** `(type, value, traceback)` — **not** a formatted string. Revision 3
+     stated this inaccurately. The formatted per-test traceback string is
+     produced by the **inherited** `TestResult._exc_info_to_string(err, test)`,
+     which the overrides call (or which the base implementation calls when the
+     override delegates via `super()`); it is the same string that lands in
+     `result.failures` / `result.errors`. `detail_text` is exactly that
+     per-test string and nothing else. It is never the concatenated run output,
+     and the overrides must not attempt to treat `err` as text.
    * `addSkip`, `addExpectedFailure`, and `addUnexpectedSuccess` are recorded
      as their own outcomes and are **not** silently folded into pass or fail.
      A skipped declared test is `P004_MISSING_OBSERVATION`: it produced no
@@ -216,25 +236,39 @@ The compile precondition (`python -m py_compile`) is unchanged and still exits 0
 
 ## Work Breakdown
 
-| # | Task | Scope |
-|---|---|---|
-| T1 | Add `harness.expected_red` and `harness.expected_green_characterization` to the harness-manifest schema as **typed entry lists** (`{test_id, marker}` / `{test_id}`) with the marker-placement, uniqueness, disjointness, and non-empty-red constraints | `schemas/` |
-| T2 | Rewrite the P-004 precondition, postcondition, and violation action in the policy **template** | `templates/policies/workflow-policies.md.tmpl` |
-| T3 | Apply the identical rewrite to the installed mirror, atomically with T2 | `.github/policies/workflow-policies.md` |
-| T4 | Update the harness-architect skill to declare typed entries and run the ID-addressed selector | `.github/skills/` + `templates/skills/` |
-| T5 | Composed state-machine regression test: one legitimate passing state, one failing state per token | `tests/` |
-| T6 | CI-invariant regression test asserting the whole-suite gate is unmodified and still green | `tests/` |
-| T7 | Implement the `P004Result` / runner entry point: `loadTestsFromNames` placeholder detection, per-test outcome and per-test `detail_text` capture, and the observed-map builder | `src/autoharness/` |
+| # | Task | Scope | Blocked by |
+|---|---|---|---|
+| T1 | Add `harness.expected_red` and `harness.expected_green_characterization` to the harness-manifest schema as **typed entry lists** (`{test_id, marker}` / `{test_id}`) with the marker-placement, uniqueness, disjointness, and non-empty-red constraints | `schemas/` | — |
+| T2 | Rewrite the P-004 precondition, postcondition, and violation action in the policy **template**, enumerating all **nine** tokens | `templates/policies/workflow-policies.md.tmpl` | T1 |
+| T3 | Apply the byte-identical rewrite to the installed mirror, atomically with T2 | `.github/policies/workflow-policies.md` | T2 |
+| T4 | Update the harness-architect skill to declare typed entries and run the ID-addressed selector | `.github/skills/` + `templates/skills/` | T1, T2 |
+| T5a | **RED** — author the composed state-machine contract tests (one legitimate passing state, one failing state per token, all nine) against the not-yet-existing `P004Result` entry point, and **observe them failing** | `tests/` | T1 |
+| T6 | CI-invariant regression test asserting the whole-suite gate is unmodified and still green | `tests/` | T3 |
+| T7 | **IMPLEMENTATION** — the `P004Result` / runner entry point: positional placeholder correlation, `exc_info`-tuple handling with inherited `_exc_info_to_string` formatting, per-test outcome and per-test `detail_text` capture, and the observed-map builder | `src/autoharness/` | T5a |
+| T5b | **GREEN** — observe the full nine-token contract suite passing against the shipped `P004Result`, and add the regression cases that only make sense against a real implementation | `tests/` | T7 |
 
 T2 and T3 are separate tasks but a single atomic change set: an installed
 mirror that disagrees with its template is the exact drift class recorded in
 `docs/compound/2026-08-15-checksum-drift-fix-correctly-surfaces-preexisting-self-hosted-customization.md`.
 T3 declares a `blocks` dependency on T2 so ordering is explicit.
 
-T7 is the executable observation boundary the schema (T1) and the policy text
-(T2/T3) both describe. T5 declares a `blocks` dependency on T7 and on T1: the
-token matrix is exercised against the real runner, never against a test-local
-re-implementation of it.
+### TDD ordering (revision 4 — machine-encoded)
+
+Revision 3 inverted the TDD relationship: it made the token-matrix test (T5)
+block on the implementation (T7), which is a test-**after** ordering wearing a
+red-phase label. Revision 4 splits the test surface and encodes the triple as
+`blocks` edges in the backlog, not as prose:
+
+* **T5a (RED) blocks on T1 only.** It is authored against the schema's typed
+  entry shape and the *declared* nine-token contract, and is observed failing
+  because `P004Result` does not yet exist. **T5a does NOT depend on T7.** That
+  asymmetry is the whole content of the red phase; reversing it reproduces the
+  revision-3 defect.
+* **T7 (IMPLEMENTATION) blocks on T5a.** The executable observation boundary the
+  schema (T1) and the policy text (T2/T3) both describe is written to turn an
+  already-failing, already-reviewed contract green.
+* **T5b (GREEN) blocks on T7.** The token matrix is then observed passing
+  against the real runner, never against a test-local re-implementation of it.
 
 ## Verification
 

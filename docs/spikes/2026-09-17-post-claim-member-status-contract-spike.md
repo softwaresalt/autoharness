@@ -86,11 +86,19 @@ here and cannot be edited here.
 
 `templates/agents/_ship.agent.md.tmpl` line 274 and its installed mirror
 `.github/agents/_ship.agent.md` line 322 carry the same intake-reconciliation
-scope note:
+scope note. Quoted below as **verbatim template source**: the `{{STATUS_QUEUED}}`
+and `{{STATUS_ACTIVE}}` tokens are unrendered template variables in the excerpt,
+reproduced exactly as they appear in the source file. They are **not** leaked
+placeholders in this document and must not be substituted when reading it.
 
-> every manifest task still shares one uniform status (all `{{STATUS_QUEUED}}`
-> pre-claim, or all `{{STATUS_ACTIVE}}` immediately after this session's own
-> claim in item 4 above)
+```text
+every manifest task still shares one uniform status (all {{STATUS_QUEUED}}
+pre-claim, or all {{STATUS_ACTIVE}} immediately after this session's own
+claim in item 4 above)
+```
+
+At install time those two tokens render to the workspace's configured queued
+and active status strings (`queued` and `active` in this workspace).
 
 The adjacent `SHIPMENT_STATE_INCONSISTENT` early-warning (template line 166,
 installed line 214) is deliberately scoped to the **inverse** condition — a

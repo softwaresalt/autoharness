@@ -5,10 +5,10 @@ doc_type: plan
 source: docs/plans/2026-09-17-post-claim-member-status-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 3
-revision_note: "Revision 3 is the canonical statement of the intended design. Review findings were remediated in place; this document states exactly one binding requirement per topic. Revision 3 closes the remediation-cycle-1 P1 scope-honesty finding: revision 2 promised a machine-readable structured-clause contradiction detector while the delivered surface was Markdown prose with no typed clause representation to match against. The detector is removed from this release unit rather than restated, and the typed-policy-representation prerequisite is deferred as separate Stage work. The bounded audit trail lives in `linked_review`."
+revision: 4
+revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3, which formally withdraws the downstream-conformance detector in D3 rather than leaving it as an open spike question. The design is otherwise unchanged from revision 3 — this release unit still delivers contract-naming plus cross-surface structural evidence only. Revision 4 exists because the withdrawn claims had NOT been propagated out of the executable backlog records: feature, task and shipment bodies still described a detector, a fourth `POST_CLAIM_CONTRACT_CONTRADICTED` transition state, and a verify-workspace surface that this plan explicitly does not deliver. Those claims are removed at the record level and the task titles, references and dependencies are reconciled. The two withdrawn tasks are re-homed to a deferred feature under P-021 capture rather than left inside the covering feature, so the shipment can close without implementing deferred scope. The bounded audit trail lives in `linked_review`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 2
+decision_revision: 3
 source_spike: docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md
 source_bug_report: docs/bugs/2026-09-17-autoharness-shipment-claim-wave-admission-contract-conflict.md
 source_stash_id: 3EF5AAF2
@@ -21,9 +21,10 @@ linked_review: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-re
 review_history:
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact."
+  - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
 latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-03.md
+latest_review_artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-04.md
 latest_review_verdict: PASS
 covering_feature: 169-F
 shipment: 177-S

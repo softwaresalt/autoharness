@@ -1,12 +1,12 @@
 ---
 title: "Seven-entry contract-defect staging portfolio: grouping, ownership boundaries, and execution sequence"
-description: "Stage deliberation over the operator-selected stash scope 3EF5AAF2, 14F4D6F3, 86498B64, 76EBDE6D, C9CD24F3, 7F9CB5E9, and 71200CBB. Establishes per-entry disposition, one evidence-backed merge (14F4D6F3 into 86498B64), five further single-entry groups held apart under width isolation, the autoharness-versus-upstream ownership boundary for each, and a six-shipment serial execution sequence rooted at the P-004 policy correction because that correction is a precondition of 168-S, which already sits inside the existing 175-S dependency chain."
+description: "Stage deliberation over the operator-selected stash scope 3EF5AAF2, 14F4D6F3, 86498B64, 76EBDE6D, C9CD24F3, 7F9CB5E9, and 71200CBB. Establishes per-entry disposition, one evidence-backed merge (14F4D6F3 into 86498B64), five further single-entry groups held apart under width isolation, the autoharness-versus-upstream ownership boundary for each, and a six-shipment fan-out execution DAG rooted at the P-004 policy correction because that correction is a precondition of 168-S, which already sits inside the existing 175-S dependency chain."
 doc_type: decision
 source: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 date: 2026-09-17
 status: decided
-revision: 2
-revision_note: "Revision 2 applies remediation-cycle-1 corrections to two factual records without reopening any decision D1-D8: the provenance of the operator-repaired checkpoint-20260916-064310.json is restated precisely (operator-authored, operator-authorized pre-existing repair included for durable startup consistency — not an agent migration and not proof of an official repair mechanism), with its residual policy risk recorded; and the session-start checkpoint enumeration of 51 records is labelled as the point-in-time observation it is, with the current corpus size noted. All decisions remain as decided in revision 1."
+revision: 3
+revision_note: "Revision 3 is a BINDING revision issued in remediation cycle 2. Unlike revision 2 (which corrected two factual records without reopening any decision), revision 3 AMENDS FOUR DECISIONS so the decision record truthfully governs the remediated backlog state rather than describing a shape that no longer exists. (1) D8 is amended from a six-shipment SERIAL CHAIN to a SIX-SHIPMENT FAN-OUT DAG: 176-S is the single declared root and 177-S through 181-S are five parallel-eligible successors of it with no edges among themselves. The serial-chain rationale in revision 1/2 was a P-016 single-branch argument, but P-016 constrains concurrent EXECUTION, not the recorded dependency graph; encoding execution policy as false technical edges made the decision contradict the shipment records, which have always carried only a 176-S edge. (2) D1's branch-resolver ladder is amended from three rungs to EXACTLY TWO: explicit_contract then title_alias. The reserved empty workspace_convention rung is withdrawn -- an empty precedence rung is untestable and its presence invited consumers to depend on a tier that resolves nothing. (3) D5's scope ceiling is TIGHTENED: repository-wide plan migration, its regression suite, compact-context auto-consolidation, backlog-reference atomicity/harvest rewiring, and the plan budget contract are moved OUT of the C9CD24F3 feature and deferred to their own feature with P-021 capture. Revision 1/2 declared them 'in scope of this feature but as their own tasks', which kept the highest-blast-radius surface inside a unit whose shipment then could not close. (4) D3's contemplated downstream-conformance detector is WITHDRAWN: the spike concluded the remedy is contract-naming plus cross-surface structural evidence only, and no detector, fourth transition state, or POST_CLAIM_CONTRACT_CONTRADICTED token ships. Revision 2's two factual corrections are retained. D2, D4, D6, D7 and D9 are unchanged."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -295,11 +295,25 @@ as the design-doc synonym so the design doc remains readable.
 
 Open decision carried forward by `86498B64` and resolved here: the declarative
 workspace-level branch-template tier in `.autoharness/config.yaml` is
-**deferred**, per the design doc's own recommendation. The resolver ships with
-the tier present as an explicit, tested, empty middle precedence rung so adding
-it later is additive. Adjacency to `165-F`'s new
-`gates.pipeline_topology.unsequenced_shipment` key is noted; no config key is
-added by this release unit.
+**deferred**.
+
+**AMENDED IN REVISION 3 — the ladder is exactly two rungs.** Revision 1/2
+directed that the resolver ship "with the tier present as an explicit, tested,
+empty middle precedence rung so adding it later is additive". That is
+withdrawn. The precedence ladder is **exactly `explicit_contract` >
+`title_alias`**, with no third rung present in any form.
+
+Rationale for the amendment: an empty precedence rung cannot be meaningfully
+tested — there is no input that makes it fire, so any "test" of it asserts only
+that it is skipped, which is indistinguishable from the rung not existing. Worse,
+a named-but-empty tier is a public affordance: a consuming workspace can read the
+rung name, believe a workspace-convention tier is supported, and author
+configuration against a tier that resolves nothing. Adding a third rung later
+remains additive whether or not a placeholder exists today, so the placeholder
+bought nothing and carried a real misreading risk.
+
+Adjacency to `165-F`'s new `gates.pipeline_topology.unsequenced_shipment` key is
+noted; no config key is added by this release unit.
 
 ### D2 — No other merge. Five single-entry groups held apart
 
@@ -342,6 +356,27 @@ template and the installed mirror, and decide whether the remedy is
 contract-naming only or also needs a downstream-conformance check. The spike is
 read-only and in-workspace; no external `%TEMP%` arm is permitted (P-005).
 
+**AMENDED IN REVISION 3 — the detector is withdrawn; the spike's open question
+is now closed.** The spike ran and resolved the "or also needs a
+downstream-conformance check" branch in the **negative**. The delivered remedy
+is **contract-naming plus cross-surface structural evidence only**:
+
+* The canonical post-claim member-status contract is **named and versioned**
+  (P-002.7) and the claim-to-admission transition is stated as **exactly three
+  states** — no fourth "contradicted" state exists.
+* **No downstream-conformance detector ships.** No scanner, linter, or gate
+  inspects consuming workspaces for contradictory admission gates.
+* **No `POST_CLAIM_CONTRACT_CONTRADICTED` token ships**, in any artifact, at any
+  severity.
+
+Rationale for the amendment: detecting a contradictory admission gate in a
+consuming workspace requires a typed, machine-comparable representation of the
+policy clause to compare against. No such representation exists, so any detector
+built now would have to pattern-match prose and would produce false verdicts about
+other people's repositories. That prerequisite is captured as deferred work rather
+than dropped. The contract-naming half is fully deliverable on its own and is what
+this unit ships.
+
 The report's Option A / Option B framing is **not adopted as stated**, because
 both options presuppose changing what `ClaimShipment` does. backlogit is
 behaving per its documented and unit-tested contract and per this repository's
@@ -372,13 +407,33 @@ not the report's seven-step decomposition**. This release unit delivers the
 load-bearing minimum: durable plan identity metadata, exactly one active
 `*-decided-plan` per plan identity, immutable per-attempt review artifacts
 outside the plan file, manifest-driven review-input assembly that fails closed
-if history leaks into the operative set, and a pre-dispatch verifier. Auto-
-consolidation triggers, backlog-reference atomicity, and the migration of
-existing append-only plans are declared **in scope of this feature but as their
-own tasks**, and the migration explicitly never deletes historical evidence and
-fails closed on ambiguity. Nothing in the report's out-of-scope list is
-reopened: no new service, no database, no non-Git storage, no prompt-wording-
-only fix.
+if history leaks into the operative set, and a pre-dispatch verifier.
+
+**AMENDED IN REVISION 3 — the ceiling is tightened; four surfaces move out of
+the feature entirely.** Revision 1/2 declared auto-consolidation triggers,
+backlog-reference atomicity, and the migration of existing append-only plans
+"**in scope of this feature but as their own tasks**". That is withdrawn. The
+following are **out of scope of the `C9CD24F3` feature** and are deferred to a
+separate feature with P-021 capture, preserving provenance and linkage:
+
+* repository-wide migration of existing append-only plans, and its regression suite
+* compact-context auto-consolidation triggers
+* backlog-reference atomicity / harvest rewiring
+* the plan budget contract and its `PLAN_BUDGET_BREACH` token
+
+Rationale for the amendment: "in scope but as its own task" kept the
+highest-blast-radius surface in the portfolio — a routine that rewrites
+committed, history-bearing artifacts — inside a release unit that had to close.
+Because the in-unit pre-dispatch verifier was made to block on that migration, the
+unit's shipment could not reach a closable state without executing the migration,
+which is precisely the partial-closure trap this portfolio exists to remove. The
+in-unit replacement for migration is the **non-blocking `PLAN_LEGACY_UNIDENTIFIED`
+classification signal**: pre-existing plans without a `plan_id` are *classified and
+reported*, never converted, so the verifier can enforce at blocking severity
+immediately and no in-scope task depends on any deferred surface.
+
+Nothing in the report's out-of-scope list is reopened: no new service, no
+database, no non-Git storage, no prompt-wording-only fix.
 
 ### D6 — `71200CBB` ships items (3) then (2) then (1), and stays at `medium`
 
@@ -409,16 +464,29 @@ remains untouched and outside scope.
 **No agent-executable administrative close is created.** The interim procedure
 is documented as operator-only.
 
-### D8 — Sequence: six serial shipments rooted at the P-004 correction
+### D8 — Sequence: a six-shipment fan-out DAG rooted at the P-004 correction
+
+**AMENDED IN REVISION 3.** Revision 1/2 recorded a six-shipment *serial chain*
+(`176-S → 177-S → 178-S → 179-S → 180-S → 181-S`). That encoding is withdrawn as
+factually wrong: the shipment records have only ever carried a single `blocks`
+edge each, onto `176-S`. The binding shape is a **fan-out**:
 
 ```text
-  176-S (dag-root, justified)   P-004 red-phase precondition scoping        [76EBDE6D]
-    └─ 177-S                    post-claim member-status contract           [3EF5AAF2]
-        └─ 178-S                workspace-authoritative branch resolution   [86498B64 + 14F4D6F3]
-            └─ 179-S            single-governing-plan contract              [C9CD24F3]
-                └─ 180-S        checkpoint resume_hint contract             [71200CBB]
-                    └─ 181-S    SAFE_CLOSE record-transition disposition    [7F9CB5E9]
+                          176-S (dag-root, justified)
+                    P-004 red-phase precondition scoping        [76EBDE6D]
+                                    │
+        ┌───────────┬───────────────┼───────────────┬───────────┐
+        │           │               │               │           │
+      177-S       178-S           179-S           180-S       181-S
+   post-claim    branch        single-plan      checkpoint   SAFE_CLOSE
+    contract    resolution       contract      resume_hint   disposition
+   [3EF5AAF2]  [86498B64+      [C9CD24F3]      [71200CBB]   [7F9CB5E9]
+                14F4D6F3]
 ```
+
+`176-S` is the **single declared root**. `177-S`, `178-S`, `179-S`, `180-S` and
+`181-S` are **five parallel-eligible successors**, each depending only on
+`176-S`, with **no edges among themselves**.
 
 **Why `176-S` is a declared root and not a successor of `167-S`.** Per **F4**,
 `168-S` is inside chain A and is blocked at harness-ready by the very P-004
@@ -431,14 +499,32 @@ in diffs and attributable to a commit, exactly as the sequencing contract
 prescribes. **No bootstrap grant is authored** — grants are operator-authored
 and review-gated, and a self-authored grant would be a P-005/P-001 violation.
 
-**Why the remaining five are serial rather than parallel roots.** They have no
-technical inter-dependency, but P-016 permits only one implementation branch at
-a time, so a serial chain is the honest encoding of how they will actually
-execute and avoids creating five concurrently-eligible heads. Order is by
-unblocking power, then priority: `177-S` (external consumers blocked) before
-`178-S` (claim-path correctness) before `179-S` (`high`) before `180-S`
-(`medium`) before `181-S` (autoharness surface is evidence and documentation;
-the real remedy is external).
+**Why the remaining five are recorded as parallel successors and not as a serial
+chain.** They have **no technical inter-dependency** — that was true in revision 1
+and is restated here. Revision 1/2 nonetheless serialized them, reasoning that
+P-016 permits only one implementation branch at a time and that a chain was "the
+honest encoding of how they will actually execute". That reasoning is rejected on
+amendment for three reasons:
+
+1. **P-016 constrains concurrent execution, not the recorded graph.** Encoding an
+   execution-concurrency policy as technical `blocks` edges asserts a dependency
+   that does not exist. A single-branch policy is satisfied by claiming one
+   successor at a time out of five eligible heads; it does not require pretending
+   `180-S` needs `179-S`.
+2. **It contradicted the actual records.** The shipment artifacts encode the
+   fan-out. A decision document that describes a chain while the data encodes a
+   fan-out is not a governing record — it is a second, conflicting source of truth.
+3. **It manufactured false blast radius.** Under the chain, a fault anywhere in
+   `177-S`–`180-S` transitively blocks everything after it, even though none of
+   those units touches the others' surfaces. The fan-out isolates failures to the
+   single affected successor.
+
+**Recommended claim order remains a preference, not an edge.** When the operator
+chooses which eligible successor to claim next, order by unblocking power then
+priority: `177-S` (external consumers blocked), `178-S` (claim-path correctness),
+`179-S` (`high`), `180-S` (`medium`), `181-S` (evidence and documentation; the
+real remedy is external). This is guidance for sequencing attention under P-016,
+and it is deliberately **not** recorded as `blocks` edges.
 
 **Existing scope is not rewritten.** Each `blocks` edge is recorded on the new
 shipment, so no existing shipment record is mutated.
@@ -458,6 +544,11 @@ shipment, so no existing shipment record is mutated.
 
 Neither blocker prevents the newly staged sequence from being fully queued and
 claimable: `176-S` is a declared root and `177-S`–`181-S` derive `explicit`.
+
+*Revision 3 note: `168-S` was subsequently observed to carry
+`dependencies: [166-S, 176-S]`, so the BLOCKER-2 edge appears to have been applied
+under separate operator authorization. This is recorded as an observation only;
+no shipment outside the selected scope was mutated by any Stage session.*
 
 ## Options Evaluated
 

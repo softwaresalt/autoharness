@@ -1,14 +1,14 @@
 ---
-title: "Checkpoint resume_hint: producer guarantee, deterministic validation, and historical-record migration"
-description: "Implementation plan closing the autoharness-owned half of the checkpoint resume_hint gap: a historical-record policy for pre-existing resolved checkpoints lacking the field, a producer guarantee that every harness checkpoint author emits a specific top-level resume_hint including the minimal end-of-session shape, and deterministic author-time validation exposed as one callable boundary wired into both the Stage and Ship producer paths, with invariant-based regression tests rather than a pinned record count — ordered policy-first so the validator cannot deadlock startup on an unrepairable historical record, with that ordering encoded as explicit task dependencies rather than prose. The upstream backlogit validator, schema, and CLI-help change is explicitly excluded."
+title: "Checkpoint resume_hint: producer guarantee, deterministic validation, and historical-record compatibility policy"
+description: "Implementation plan closing the autoharness-owned half of the checkpoint resume_hint gap: a historical-record COMPATIBILITY POLICY for pre-existing resolved checkpoints lacking the field (classification and reporting only — no migration mechanism ships and no committed checkpoint file is ever rewritten), a producer guarantee that every harness checkpoint author emits a specific top-level resume_hint including the minimal end-of-session shape, and deterministic author-time validation exposed as one callable boundary, implemented as its own task and ENABLED by a separate task that cannot run until both producer paths are updated, with invariant-based regression tests rather than a pinned record count — ordered policy-first so the validator cannot deadlock startup on an unrepairable historical record, with that ordering encoded as explicit task dependencies rather than prose. The upstream backlogit validator, schema, and CLI-help change is explicitly excluded."
 doc_type: plan
 source: docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 3
-revision_note: "Revision 3 is the canonical statement of the intended design. Review findings were remediated in place; this document states exactly one binding requirement per topic. Revision 3 closes three remediation-cycle-1 findings: the binding policy-then-producers-then-validation ordering existed as prose plus a single partial `blocks` edge and is now fully encoded across all seven tasks; the validation surface named no callable boundary and no wiring into the two producer paths it was supposed to guard, and now names one; and the recorded historical inventory of 51 records was stale (52 as of this session) and brittle by construction, so the inventory test is re-specified as invariant-based with no pinned count. The bounded audit trail lives in `review_history`."
+revision: 4
+revision_note: "Revision 4 (remediation cycle 2) closes four findings and supersedes revision 3. (1) The word 'migration' is removed from the title and throughout: no migration mechanism ships, so the surface is renamed to a historical-record COMPATIBILITY POLICY. (2) The volatile inventory count pin is eliminated in fact, not just in intent — the corpus enumerated 53 records at this session against the 51 pinned in the harvested task and the 52 noted in revision 3, which is itself the proof that a cardinality literal is the wrong assertion; the audit is re-specified over three invariants (classification totality, active-never-exempt, no-new-legacy-after-enforcement). (3) Validator IMPLEMENTATION and ENFORCEMENT ENABLEMENT are split into separate tasks, because revision 3 had one task both implement and wire the validator while its prose promised enforcement would wait for the producers — a contradiction that no dependency graph could express. Enablement now blocks on both producer tasks plus the implementation plus the green suite. (4) A red-phase task is added ahead of the implementation so the three-token contract tests are authored and observed failing before the boundary exists. Revision 4 also adopts decision revision 3. The bounded audit trail lives in `review_history`."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 2
+decision_revision: 3
 source_stash_id: 71200CBB
 stash_ids:
   - 71200CBB
@@ -22,9 +22,10 @@ linked_review: docs/reviews/2026-09-17-checkpoint-resume-hint-contract-plan-revi
 review_history:
   - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact."
+  - docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-04.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
 latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-03.md
+latest_review_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-04.md
 latest_review_verdict: PASS
 covering_feature: 172-F
 shipment: 180-S
@@ -40,7 +41,7 @@ source_refs:
 tags:
   - "checkpoint"
   - "recovery-contract"
-  - "migration"
+  - "compatibility-policy"
   - "fail-closed-design"
 ---
 
@@ -213,11 +214,11 @@ exist and that neither template re-states the predicate inline.
   may cite it as precedent. This plan modifies neither the file nor its
   archived history.
 * Full unfiltered checkpoint enumeration at this session's remediation cycle:
-  **52** records under `.backlogit/checkpoints/`, plus 75 under
+  **53** records under `.backlogit/checkpoints/`, plus 75 under
   `.backlogit/archive/checkpoints/`. Zero validation anomalies, zero active
-  `stage`-owned candidates. The count was recorded as 51 in revision 2 and was
-  already stale when written — the portfolio session's own
-  `checkpoint-20260918-052706.json` is the 52nd. **This is exactly why the
+  `stage`-owned candidates. The count was recorded as **51** in revision 2 and
+  **52** in revision 3, and was already stale at each writing. **Three
+  successive readings, three different values — this is exactly why the
   inventory test is invariant-based and pins no count** (see T7).
 * backlogit version `1.10.1-0.20260823032255-b07729386a31+dirty` locally.
   CI installs a **different** binary: pinned `v1.9.0`, checksum-verified
@@ -229,45 +230,57 @@ exist and that neither template re-states the predicate inline.
 
 | # | Task | Scope | Blocked by |
 |---|---|---|---|
-| T1 | Author the historical-record policy and the `LEGACY_HINTLESS_RESOLVED` classification | `.github/instructions/backlogit.instructions.md` + `templates/instructions/` | — |
+| T1 | Author the historical-record **compatibility policy** and the `LEGACY_HINTLESS_RESOLVED` classification | `.github/instructions/backlogit.instructions.md` + `templates/instructions/` | — |
 | T2 | Wire the classification into the startup recovery scan contract in the agent templates and installed mirrors | `templates/agents/` + `.github/agents/` | T1 |
-| T3 | Producer guarantee for the Stage checkpoint author, including the minimal completion shape, wired to `validate_checkpoint_payload` | `templates/agents/_stage.agent.md.tmpl` + installed mirror | T1, T2 |
-| T4 | Producer guarantee for the Ship checkpoint author, including the minimal completion shape, wired to `validate_checkpoint_payload` | `templates/agents/_ship.agent.md.tmpl` + installed mirror | T1, T2 |
-| T5 | Implement `validate_checkpoint_payload()` and the three tokens at the single author-time boundary | `src/autoharness/` | T1, T2, T3, T4 |
-| T6 | Regression suite: one passing and one failing concrete state per token, an active-record-not-exempt case, and both-producer-call-site assertions | `tests/` | T5 |
-| T7 | Invariant-based inventory test over the committed checkpoint corpus | `tests/` | T5 |
+| T3 | **Producer 1 of 2** — guarantee for the Stage checkpoint author, including the minimal completion shape | `templates/agents/_stage.agent.md.tmpl` + installed mirror | T1 |
+| T4 | **Producer 2 of 2** — guarantee for the Ship checkpoint author, including the minimal completion shape | `templates/agents/_ship.agent.md.tmpl` + installed mirror | T1 |
+| T5a | **RED** — author the three-token contract tests against `validate_checkpoint_payload` and observe them failing before it exists | `tests/` | T1, T2 |
+| T5 | **IMPLEMENTATION** — implement `validate_checkpoint_payload()` and the three tokens as a callable boundary, **not wired into any write path** | `src/autoharness/` | T5a |
+| T6 | **GREEN** — observe the suite passing, plus the active-record-not-exempt regression | `tests/` | T5 |
+| T5c | **ENABLE** — wire the validator into both producer pre-write paths | `src/autoharness/` + both call sites | T3, T4, T5, T6 |
+| T7 | Invariant-based **live-corpus audit** over the committed checkpoint corpus | `tests/` | T5c |
 
-### Ordering enforcement (remediation-cycle-1 correction)
+### Ordering enforcement (revision 4)
 
-The binding order is **(3) policy → (1) producers → (2) validation**. Revision 2
-stated this in prose and encoded only one partial edge (T5 blocks on T1 and
-T2), which left the producers unordered relative to the validator — the exact
-half of the ordering that matters, because a validator that lands before the
-producers it guards fails every author-time call it sees.
-
-Every edge is now explicit:
+The binding order is **policy → producers → red → implementation → green →
+enable → live audit**. Revision 3 encoded policy-before-validation but left a
+contradiction at the validator itself: a single task T5 both implemented the
+boundary **and** wired it into the producer call sites, while its prose claimed
+enforcement would wait until the producers landed. A single node cannot be both
+"before the producers" (so the implementation is available to them) and "after
+the producers" (so enforcement is safe). Revision 4 resolves this by **splitting
+the node**, which lets the graph state the real semantics:
 
 * `T2 → T1`: the recovery scan cannot reference a classification the policy has
   not defined.
-* `T3 → T1, T2` and `T4 → T1, T2`: a producer guarantee is written against the
-  policy and the scan contract, not ahead of them.
-* `T5 → T1, T2, T3, T4`: **the validator lands last of all functional work.**
-  This is the correctness constraint, not a preference: it is the difference
-  between closing a gap and manufacturing a startup deadlock, and it is the
-  entry's own recorded escalation trigger (b).
-* `T6 → T5` and `T7 → T5`: tests exercise the shipped boundary, not a model of
-  it.
-
-T3 and T4 are mutually independent and may execute in either order or in
-parallel; both are Medium-risk agent-template mirror pairs.
+* `T3 → T1` and `T4 → T1`: a producer guarantee is written against the policy,
+  not ahead of it. T3 and T4 are mutually independent and may execute in either
+  order or in parallel; both are Medium-risk agent-template mirror pairs.
+* `T5a → T1, T2`: the tokens must be defined before tests can be authored
+  against them. **T5a does not depend on T5** — that is what makes it a genuine
+  red phase.
+* `T5 → T5a`: the implementation turns an existing, observed-failing suite
+  green.
+* `T6 → T5`: green is observed against the shipped boundary, not a model of it.
+* `T5c → T3, T4, T5, T6`: **enforcement cannot be switched on before BOTH
+  producers are updated.** This is the correctness constraint, not a preference:
+  it is the difference between closing a gap and manufacturing a startup
+  deadlock, and it is the entry's own recorded escalation trigger (b). Because
+  enablement is its own node, there is no window in which a live producer is
+  validated against a contract it has not yet adopted.
+* `T7 → T5c`: auditing the live corpus is only meaningful once enforcement is
+  actually on.
 
 ### T7 — invariant-based, not count-pinned
 
 Revision 2's T7 asserted the classification over "this repository's 51
-committed records". That number was stale before the plan was reviewed and
-changes on every session that writes a checkpoint, so the test would have
-failed for a reason unrelated to the contract it guards — a brittleness defect,
-not a coverage gain.
+committed records", and the harvested task record still carried that literal.
+Revision 4 records the decisive evidence: **the corpus enumerated 53 records at
+this session** — against 51 in revision 2 and 52 in revision 3. A value that has
+been wrong at three successive readings is not a stale constant to refresh; it is
+the wrong kind of assertion. The count changes on every session that writes a
+checkpoint, so the test would fail for a reason unrelated to the contract it
+guards — a brittleness defect, not a coverage gain.
 
 T7 instead asserts **invariants over whatever corpus is present**, with no
 cardinality pinned anywhere:
@@ -278,11 +291,17 @@ cardinality pinned anywhere:
 2. The fail-closed bucket is **empty**. This is the property that actually
    matters — a non-empty bucket means startup halts.
 3. Every `LEGACY_HINTLESS_RESOLVED` record has `status: resolved`. An `active`
-   record is never in that bucket.
+   record is never in that bucket, **at any corpus size**.
 4. The classification is **total and deterministic**: running it twice over the
    same corpus yields identical results.
-5. The reported `LEGACY_HINTLESS_RESOLVED` set is enumerated by filename in the
-   test output, so growth is visible in CI logs without being a failure.
+5. The legacy set is **monotonically non-increasing with respect to newly
+   authored records**: no record authored after T5c enables enforcement may
+   enter it. This is the real "the exemption cannot silently grow" property the
+   count pin was reaching for, expressed as an invariant over **authorship**
+   rather than over **cardinality**.
+6. The reported `LEGACY_HINTLESS_RESOLVED` set is enumerated by filename and
+   count in the test output, so growth is visible in CI logs. The count is
+   **observed and reported, never asserted against a literal.**
 
 Synthetic fixture corpora cover the shapes the live corpus may not contain —
 an `active` hintless record, a whitespace-only hint, a legacy payload with no
@@ -371,12 +390,12 @@ the Stage and Ship Crash-Resumption / Startup Recovery Protocol sections, and
 | # | Hardening finding | Resolution |
 |---|---|---|
 | H0 | Revision 2 declared `requires_plan_hardening: "no"` despite two template families, two installed mirrors, and a startup-path validator | Corrected to `yes`; this section is the record |
-| H1 | The binding policy→producers→validation order existed as prose plus one partial edge (`T5 → T1, T2`), leaving the producers unordered against the validator — the half that actually deadlocks | Every edge encoded: `T2→T1`, `T3→T1,T2`, `T4→T1,T2`, `T5→T1,T2,T3,T4`, `T6→T5`, `T7→T5` |
+| H1 | The binding policy→producers→validation order existed as prose plus one partial edge (`T5 → T1, T2`), leaving the producers unordered against the validator — the half that actually deadlocks | Every edge encoded. **Superseded in revision 4**, which found the remaining contradiction: T5 both implemented and enabled the validator while claiming enforcement would wait for the producers. Split into `T5a` (red) → `T5` (implement) → `T6` (green) → `T5c` (enable, blocked by `T3, T4, T5, T6`) → `T7` (live audit) |
 | H2 | "Author-time validation" named no callable surface and no wiring, so the two producer paths it was meant to guard were connected to nothing | `validate_checkpoint_payload(payload, *, origin)` defined as the single boundary, with both producer call sites and the scan call site named explicitly in a table |
 | H3 | Nothing prevented each agent template from re-stating the predicate inline, producing two drifting definitions of the same rule | Single-definition constraint stated normatively; T6 asserts both call sites exist and that neither template re-states the predicate |
 | H4 | Validation position relative to the write was unspecified; validating after the create call would leave a malformed record on disk that cannot be repaired through the official operation | Boundary takes the pre-write payload dict; Verification asserts ordering |
 | H5 | "Does not retroactively invalidate records it did not author" was a convention with no mechanism | `origin` parameter partitions the token space structurally: harness-origin cannot emit the legacy token, historical-origin cannot emit the missing/empty tokens |
-| H6 | T7 pinned a record count (51) that was already stale when written and changes on every checkpoint-writing session — a test that fails for reasons unrelated to its contract | T7 re-specified as five invariants with no cardinality pinned; synthetic fixtures cover shapes the live corpus may lack |
+| H6 | T7 pinned a record count (51) that was already stale when written and changes on every checkpoint-writing session — a test that fails for reasons unrelated to its contract | T7 re-specified with no cardinality pinned; synthetic fixtures cover shapes the live corpus may lack. **Revision 4** records the decisive evidence (51 → 52 → 53 across three readings), adds the no-new-legacy-after-enforcement invariant, and requires the count be observed and reported but never asserted |
 | H7 | The `checkpoint-20260916-064310.json` evidence was described as "a worked example of a migrated historical record", implying a migration ran and an official repair mechanism exists — neither is true | Provenance restated precisely as an operator-authored, operator-authorized pre-existing repair, with the residual policy risk recorded and precedent-use explicitly denied |
 | H8 | The recorded backlogit version was the local `+dirty` build, with no acknowledgement that CI runs a different pinned binary | Divergence recorded in the evidence section with a pointer to the sibling SAFE_CLOSE plan, which owns the version-contract deliverable |
 
@@ -387,7 +406,7 @@ the Stage and Ship Crash-Resumption / Startup Recovery Protocol sections, and
 | Change the startup recovery scan contract in both agent templates and both mirrors (T2) | **High** — a defect is discovered only during crash recovery, when nothing else is working | Operator review; T2 blocks on T1 so the classification exists first | Revert all four copies together; contract is prose, no persisted state |
 | Change the instruction file and its template (T1) | Medium — mirrored pair, consumer-installed | Standard PR review | Revert both together |
 | Add producer-guarantee wiring to Stage and Ship templates + mirrors (T3, T4) | Medium — two mirrored pairs | Standard PR review | Revert each pair together; T3 and T4 are mutually independent |
-| Enable `validate_checkpoint_payload` on the producer paths (T5) | **High** — mis-ordered, it deadlocks every agent's startup | Standard PR review; ordering enforced by four `blocks` edges | Remove the two call sites; the function is inert without them |
+| Enable `validate_checkpoint_payload` on the producer paths (**T5c**) | **High** — mis-ordered, it deadlocks every agent's startup | Standard PR review; ordering enforced by four `blocks` edges into T5c (`T3, T4, T5, T6`) | Remove the two call sites; the function is inert without them |
 | *(explicitly excluded)* Repair any committed checkpoint record | High — prohibited by instruction rule 2 | Operator-only, outside this plan | Not applicable: out of scope |
 
 **Rollback coupling.** T1's pair, T2's four copies, T3's pair, and T4's pair

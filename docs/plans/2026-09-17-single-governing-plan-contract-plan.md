@@ -5,10 +5,10 @@ doc_type: plan
 source: docs/plans/2026-09-17-single-governing-plan-contract-plan.md
 date: 2026-09-17
 status: reviewed
-revision: 3
-revision_note: "Revision 3 is the canonical statement of the intended design. Review findings were remediated in place; this document states exactly one binding requirement per topic. Revision 3 closes the remediation-cycle-1 P1 that the covering feature was too broad — schemas, review storage, budgets, compact-context auto-trigger, harvest rewiring, and repository migration in one release unit — by reducing scope to the minimum contract the problem statement actually demonstrates and deferring the rest as named, traceable Stage work rather than dropping it. Two high-complexity tasks are split. This plan deliberately models the discipline it specifies. The bounded audit trail lives in `review_history`; `linked_review` names the current verdict manifest."
+revision: 4
+revision_note: "Revision 4 (remediation cycle 2) adopts decision revision 3 and closes the propagation findings from local review cycle 2. Revision 3 reduced scope correctly but the reduction was never enforced in the executable backlog records: the four descoped surfaces (repository-wide migration, its regression suite, compact-context auto-consolidation, harvest rewiring) were left as blocked children INSIDE the covering feature while being excluded from the shipment manifest, and the pre-dispatch verifier still carried `blocks` edges onto the deferred migration and its suite. That combination made the shipment unclosable without executing deferred scope. Revision 4 removes those two edges, re-homes all four descoped tasks out of the covering feature into a deferred feature via the supported backlog lifecycle with P-021 linkage preserved, and states that NO in-manifest task may depend on, gate upon, or emit a token belonging to a deferred surface. `PLAN_BUDGET_BREACH` is removed from the verifier entirely: the budget contract is deferred. Revision 4 also adds a red-phase task so the six-blocking-token contract tests are authored and observed failing before the verifier exists, resolves the duplicate `T8` task label, and fixes the T4a/T4b and T5a/T5b ownership boundaries so the assembly/judgement and authoring/linkage halves do not overlap. The bounded audit trail lives in `review_history`; `linked_review` names the current verdict manifest."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
-decision_revision: 2
+decision_revision: 3
 source_bug_report: docs/bugs/2026-09-13-autoharness-append-only-plan-review-loop-bug-report.md
 source_stash_id: C9CD24F3
 stash_ids:
@@ -22,9 +22,10 @@ linked_review: docs/reviews/2026-09-17-single-governing-plan-contract-plan-revie
 review_history:
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-03.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact."
+  - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-04.md
+review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response that produced this revision."
 latest_review_attempt: 3
-latest_review_artifact: docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-03.md
+latest_review_artifact: docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-04.md
 latest_review_verdict: PASS
 covering_feature: 171-F
 shipment: 179-S
@@ -196,22 +197,46 @@ means — no migration code exists in this unit to delete anything.
 
 ## Work Breakdown
 
-Ten tasks. Revision 2's twelve covered six surfaces; revision 3 covers three,
-and splits the two tasks whose `complexity: high` was not credibly reducible
-to a single 2-hour unit.
+Eleven tasks. Revision 2's twelve covered six surfaces; revision 3 covered
+three and split the two tasks whose `complexity: high` was not credibly
+reducible to a single 2-hour unit. Revision 4 adds the red-phase task that the
+revision-3 ordering described only in prose, and resolves the duplicate `T8`
+label.
 
 | # | Task | Scope | Size / Complexity | Blocked by |
 |---|---|---|---|---|
 | T1 | Plan identity schema: `plan_id`, `plan_role`, `revision`, `supersedes`, `source_history`, `review_manifest`; enums and field requiredness | `schemas/` | S / low | — |
 | T2 | Review-artifact schema and the `review-history/` path and naming contract | `schemas/` + `docs/` | S / low | — |
 | T3 | Structured latest-verdict manifest record and its two ambiguity tokens | `schemas/` + `src/autoharness/` | S / medium | T2 |
-| T4a | Review-input **assembly** from the manifest: resolve the operative input set from identity metadata, excluding archived history by default | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T1, T3 |
-| T4b | `REVIEW_INPUT_HISTORY_LEAK` detection over the assembled set, with the superseded/history classification predicate | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T4a |
-| T5a | Regenerate-not-patch remediation path in the plan-review skill: emit the next revision as a normalized document | `.github/skills/plan-review/` + `templates/skills/` | M / medium | T1 |
-| T5b | Supersession bookkeeping: mark the prior revision `superseded`, append to `source_history`, update the verdict manifest | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T5a, T3 |
-| T6 | Pre-dispatch verifier implementing the six blocking tokens and the one reported signal | `src/autoharness/` | M / medium | T1, T2, T3 |
+| T4a | **ASSEMBLY only** — resolve the operative review-input set from identity metadata and the manifest, excluding archived history by default. T4a **produces a set and makes no verdict**; it emits no token | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T1, T3 |
+| T4b | **JUDGEMENT only** — apply the superseded/history classification predicate to the set T4a produced and emit `REVIEW_INPUT_HISTORY_LEAK`. T4b **does not assemble, re-resolve, or widen the set**; it consumes T4a's output as given | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T4a |
+| T5a | **DOCUMENT PRODUCTION only** — regenerate-not-patch: emit the next revision as a normalized standalone document. T5a **writes exactly one file and mutates no other artifact** | `.github/skills/plan-review/` + `templates/skills/` | M / medium | T1 |
+| T5b | **CROSS-SURFACE LINKAGE only** — mark the prior revision `superseded`, append to `source_history`, update the verdict manifest. T5b **generates no document content**; it only records relationships between documents T5a already produced | `.github/skills/plan-review/` + `templates/skills/` | S / medium | T5a, T3 |
+| T6a | **RED** — author the pre-dispatch verifier contract tests (one passing and one failing concrete state per blocking token, plus a `plan_id`-rename case and a `PLAN_LEGACY_UNIDENTIFIED` non-blocking case) against the not-yet-existing verifier, and observe them failing | `tests/` | M / medium | T1, T2, T3 |
+| T6 | **IMPLEMENTATION** — pre-dispatch verifier implementing the **six** blocking tokens and the one reported signal | `src/autoharness/` | M / medium | T6a |
+| T6b | **GREEN** — observe the full token contract passing against the shipped verifier and add the regression cases that only make sense against a real implementation | `tests/` | M / medium | T6 |
 | T7 | Stage agent remediation path updated to regenerate at `revision + 1` | `templates/agents/_stage.agent.md.tmpl` + installed mirror | S / medium | T5a, T5b |
-| T8 | Regression suite: one passing and one failing concrete state per blocking token, plus a `plan_id`-rename case and a `PLAN_LEGACY_UNIDENTIFIED` non-blocking case | `tests/` | M / medium | T6 |
+
+**Label hygiene (revision 4).** Revision 3 used `T8` for the regression suite
+while another surface in the same portfolio also carried a `T8` label,
+producing an unresolvable cross-reference. The regression surface is now
+`T6b`, named for the implementation it verifies.
+
+**No in-manifest task may depend on deferred scope (revision 4).** Revision 3
+left the pre-dispatch verifier carrying `blocks` edges onto the deferred
+repository-wide migration and its regression suite. Those edges are removed.
+No task in this release unit may depend on, gate upon, or emit a token
+belonging to a deferred surface; the four descoped surfaces are re-homed out
+of the covering feature entirely, with P-021 linkage preserved, so the
+shipment can close without executing them.
+
+### TDD ordering (revision 4 — machine-encoded)
+
+* **T6a (RED) blocks on T1, T2, T3 only** — the schemas its assertions are
+  written against. It does **not** depend on T6; that asymmetry is what makes
+  it a red phase rather than a test-after task.
+* **T6 (IMPLEMENTATION) blocks on T6a.**
+* **T6b (GREEN) blocks on T6.**
 
 ### Re-estimation rationale (remediation-cycle-1 correction)
 
@@ -223,15 +248,18 @@ Revision 3 resolves all four:
 * **T4 (high)** was one task doing two distinct jobs — assembling an input set,
   and judging that set for contamination. Split into **T4a** (assembly) and
   **T4b** (leak detection). Each is a single predicate over a defined input,
-  and each drops to `medium`.
+  and each drops to `medium`. Revision 4 states the boundary explicitly so the
+  two halves cannot both claim the classification predicate.
 * **T5 (high)** conflated document generation with cross-artifact state
   transitions. Split into **T5a** (generate the next revision) and **T5b**
   (supersession bookkeeping). T5b blocks on T5a, so the ordering is machine
-  encoded rather than implied.
+  encoded rather than implied. Revision 4 states the boundary explicitly so the
+  two halves cannot both claim the manifest write.
 * **T6 (high)** was high because it implemented seven tokens including a
   tunable budget threshold. With `PLAN_BUDGET_BREACH` deferred, the remaining
   six are all structural checks over metadata already defined by T1–T3. It
-  drops to `medium` without a split, and T8 proves each token independently.
+  drops to `medium` without a split, and T6a/T6b prove each token
+  independently.
 * **T10 (high)** — the migration — is removed from the release unit entirely.
   It was the highest-risk task in the plan and the one least separable into a
   2-hour unit; deferring it is the split.
@@ -257,7 +285,7 @@ No task in the reduced set carries `complexity: high`. No task exceeds `M`.
 | R1 | Historical review evidence is destroyed | No deletion path and no migration code exists in this release unit; legacy plans are excluded by classification, never converted |
 | R2 | The verifier blocks all review work on legacy plans | `PLAN_LEGACY_UNIDENTIFIED` is a reported, non-blocking signal with its own asserted non-blocking test case. The D6 ordering hazard is dissolved by scope reduction rather than sequenced around |
 | R3 | Deferred surfaces are silently abandoned | Each is recorded as a named Stage stash entry carrying `C9CD24F3` provenance, tabulated in Scope ceiling, and restated in Out of scope |
-| R4 | Single-active is enforced per-file rather than per-identity, missing renames | The constraint keys on `plan_id`, not path; T8 carries a rename case |
+| R4 | Single-active is enforced per-file rather than per-identity, missing renames | The constraint keys on `plan_id`, not path; T6a/T6b carry a rename case |
 | R5 | The reduced contract does not actually fix the non-convergence loop | The three retained properties are exactly the ones the Problem section's evidence turns on: one canonical input, immutable per-attempt artifacts, explicit latest selection. The deferred surfaces are efficiency and cleanup, not correctness |
 | R6 | A reviewer reads the deferred budget as still in force | `PLAN_BUDGET_BREACH` is removed from the token table, not marked optional; Verification asserts the verifier implements six blocking tokens, not seven |
 
@@ -318,9 +346,9 @@ otherwise catch the defect.
 | H3 | The D6 migration-before-enforcement ordering was a mitigation for a hazard the plan created by bundling the two | Hazard dissolved rather than sequenced around: with no migration in the unit, there is no race for the validator to lose |
 | H4 | `PLAN_BUDGET_BREACH` fixed a hard-fail threshold using pre-contract evidence, and would have been calibrated against plan sizes the contract itself makes obsolete | Deferred with the budget surface; the verifier's six remaining tokens are all structural, with nothing to tune |
 | H5 | Four tasks carried `complexity: high` and shipped anyway, contrary to the two-axis gate | T4 and T5 split into T4a/T4b and T5a/T5b; T6 reduced to `medium` by token removal; T10 deferred. No remaining task is `high` |
-| H6 | Task ordering was prose-only | `Blocked by` column encoded per task; T5b→T5a, T4b→T4a, T8→T6 are machine edges |
+| H6 | Task ordering was prose-only | `Blocked by` column encoded per task; T5b→T5a, T4b→T4a, T6→T6a and T6b→T6 are machine edges |
 | H7 | This plan's own review record combined two cycles in one mutable file — the exact defect the plan exists to fix | Review history split into immutable per-attempt artifacts under `docs/reviews/review-history/`, with `linked_review` retained as the latest-verdict manifest. Recorded in `review_history` frontmatter |
-| H8 | Reflexivity risk: a defect in this contract degrades the reviewer mechanism that would catch it | T8 asserts each token independently against concrete fixture states rather than against the live repository, so the suite does not depend on the contract being already correct |
+| H8 | Reflexivity risk: a defect in this contract degrades the reviewer mechanism that would catch it | T6a/T6b assert each token independently against concrete fixture states rather than against the live repository, so the suite does not depend on the contract being already correct |
 
 **Risky actions (`ProposedAction` / `ActionRisk`).**
 
@@ -334,7 +362,7 @@ otherwise catch the defect.
 
 **Rollback coupling.** T1–T3 revert as a schema set. T4a/T4b/T5a/T5b revert as
 the plan-review skill pair (installed + template). T7 reverts as the Stage
-agent pair. T6 is a single call site. T8 is test-only. Nothing in the unit
+agent pair. T6 is a single call site. T6a/T6b are test-only. Nothing in the unit
 mutates persisted artifacts, so rollback is code-only.
 
 **Monitoring and validation window.** The first remediation cycle executed
