@@ -6,7 +6,7 @@ source: docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md
 date: 2026-09-17
 status: reviewed
 revision: 5
-revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on the divergence-set definition. Revision 4 defined D as 'the `@{...}` revision-suffix family including `@{-N}`' and asserted that git accepts it. MEASURED AGAINST git 2.55.0 (read-only probe, this repository): that is false in the general direction. `git check-ref-format --branch` runs `interpret_branch_name`, which expands ONLY the `@{-N}` previous-checkout shorthand; every other `@{...}` form — `foo@{1}`, `main@{0}`, `a@{b}`, `@{u}`, `@{upstream}`, `foo@{upstream}`, `@{-0}` — is handed to `check_refname_format` and REJECTED, exactly as V10 rejects it. Those are SHARED REJECTIONS, not divergences, and pinning them as divergences would have made the superset test assert a disagreement that does not exist. Revision 5 restates D as exactly TWO shapes: the bare value `@` (git exit 0, V10 rejects) and `@{-N}` for N >= 1 THAT RESOLVES IN THE INVOKING REPOSITORY. Because `@{-N}` acceptance is reflog-state-dependent — it succeeds where a previous checkout exists and fails in a fresh repository — revision 5 also requires the `@{-N}` arm of the superset test to run ONLY inside a HERMETIC FIXTURE REPOSITORY with a scripted checkout history, never against the ambient repository's arbitrary reflog, and requires unresolvable `@{-N}` to be asserted as a shared rejection in that same fixture. The validator rule set V1-V11 is unchanged; only the divergence CLASSIFICATION and its test contract change. Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. Revision 4 (remediation cycle 2) adopted decision revision 3 and closed two findings. (1) FACTUAL CORRECTION: revision 3 claimed the validator's accept/reject sets were IDENTICAL to `git check-ref-format --branch`. That claim was false. `git check-ref-format --branch` ACCEPTS and resolves the `@{-N}` shorthand, while rule V10 rejects any name containing `@{`; and the leading-hyphen rejection (V2/V3) cannot be derived from git's behaviour at all, because git's CLI cannot unambiguously receive a leading-hyphen argument to judge. Revision 4 restates the relationship truthfully as a STRICT SUPERSET OF REJECTIONS with an explicitly enumerated divergence set D = the `@{...}` revision-suffix family including `@{-N}`. THAT DEFINITION OF D IS ITSELF WITHDRAWN AND SUPERSEDED BY REVISION 5, which measured git and found the wider `@{...}` family to be a shared rejection; it is retained in this note only as history and is not an instruction. The shorthand is DELIBERATELY REJECTED under a stricter workspace path contract; normalization was considered and explicitly NOT chosen. V2/V3 are asserted as a standalone workspace invariant rather than as git equivalence. (2) PROPAGATION: the revision-3 design was never encoded into the executable backlog records — the withdrawn `workspace_convention` rung still appeared in the feature and task bodies, and the red-before-implementation ordering existed only as prose. Revision 4 requires exactly two rungs everywhere and requires the task graph to be machine-encoded with red contract tests preceding implementation, green verification following it, and workaround retirement gated on ALL proving test families. The bounded audit trail lives in `linked_review`."
+revision_note: "Revision 5 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in `review_history` and the mutable verdict manifest named by `linked_review` are the authoritative record of that chronology."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_prior_deliberation: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md
@@ -34,11 +34,10 @@ review_history:
   - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-04.md
   - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-05.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response. Attempt 05 records the final independent review cycle (BLOCKED at revision 4, on the incorrect divergence-set definition) and the Stage remediation cycle 3 response that produced revision 5."
 latest_review_attempt: 5
 latest_review_artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-05.md
 latest_review_verdict: REMEDIATED-PENDING-REVIEW
-latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
+latest_review_verdict_note: "REMEDIATED-PENDING-REVIEW at revision 5. Stage does not review its own remediation, so no PASS is asserted; the next independent reviewer pass is attempt 06. Attempt classification and roster live in the verdict manifest named by `linked_review`."
 covering_feature: 170-F
 shipment: 178-S
 requires_plan_hardening: "yes"
@@ -116,17 +115,15 @@ compute branches by any other path.
 | 1 | Explicit `custom_fields.implementation_branch` on the shipment record | `explicit_contract` |
 | 2 | Title-derived slug aliases (`_branch_aliases()`) | `title_alias` |
 
-The precedence ladder has **exactly two rungs**. Revision 2 reserved a third,
-"configured workspace naming convention — present, tested, and empty". That
-rung is **removed**: no `.autoharness/config.yaml` key authorizes it, no schema
-declares it, and decision **D1** explicitly defers the declarative-template
-tier. A wired-but-unreachable precedence position backed by no config contract
-is a speculative surface that constrains a future design before that design is
-decided, and its "test asserting it is never selected" is a tautology that pins
-nothing. When the declarative tier is actually decided and an authorized config
-contract exists, inserting a rung between 1 and 2 is a small, local change to a
-single ordered ladder — the cost this plan was paying rent to avoid is lower
-than the cost of carrying an unauthorized contract surface.
+The precedence ladder has **exactly two rungs**, and carries no reserved
+position for the deferred declarative workspace-naming tier. No
+`.autoharness/config.yaml` key authorizes such a tier, no schema declares it,
+and decision **D1** explicitly defers it. A wired-but-unreachable precedence
+position backed by no config contract is a speculative surface that constrains
+a future design before that design is decided, and a test asserting it is never
+selected is a tautology that pins nothing. When the declarative tier is
+actually decided and an authorized config contract exists, inserting a rung
+between rung 1 and rung 2 is a small, local change to a single ordered ladder.
 
 Adjacency to `165-F`'s `gates.pipeline_topology.unsequenced_shipment` key is
 noted and avoided; this release unit adds no config key at all.
@@ -148,19 +145,15 @@ because it names the field rather than an abstract policy.
 Validation is a Git branch **short name** check implemented in Python and
 pinned against the observed behaviour of `git check-ref-format --branch <value>`.
 
-**The relationship is a STRICT SUPERSET OF REJECTIONS, not an identity.**
-Revision 3 claimed the two accept/reject sets were *equivalent*. That claim was
-false and is corrected here:
+**The relationship is a STRICT SUPERSET OF REJECTIONS, not an identity:**
 
 > For every value `v`, if `git check-ref-format --branch v` rejects `v`, this
 > validator also rejects `v`. The converse does **not** hold. The set of values
 > this validator rejects and git accepts is exactly the enumerated divergence
 > set **D**, defined below. There is no other divergence, in either direction.
 
-**Divergence set D — `@` alone, and the resolvable `@{-N}` shorthand only.**
-Revision 4 asserted that D was "the `@{...}` revision-suffix family including
-`@{-N}`". That was **wrong in the general direction** and is corrected here
-against measured behaviour (`git version 2.55.0`, this repository, read-only):
+**Divergence set D — the bare `@`, and the resolvable `@{-N}` shorthand only.**
+Measured behaviour (`git version 2.55.0`, this repository, read-only probe):
 
 | Probe | `git check-ref-format --branch` | V10 | Relationship |
 |---|---|---|---|
@@ -173,12 +166,12 @@ against measured behaviour (`git version 2.55.0`, this repository, read-only):
 git does **not** accept the wider `@{...}` family. `--branch` runs
 `interpret_branch_name`, which expands only the `@{-N}` previous-checkout
 shorthand; everything else is handed to `check_refname_format`, whose
-"cannot contain the sequence `@{`" rule rejects it exactly as V10 does. So the
-ordinary `@{...}` suffix forms are a **shared rejection**, not a divergence, and
-listing them in D overstated the divergence and would have made the superset
-test assert a disagreement that does not exist.
+"cannot contain the sequence `@{`" rule rejects it exactly as V10 does. The
+ordinary `@{...}` suffix forms are therefore a **shared rejection**, not a
+divergence; classifying them as divergences would make the superset test assert
+a disagreement that does not exist.
 
-The divergence is therefore exactly two shapes:
+The divergence is exactly two shapes:
 
 1. the bare value `@`, which git accepts and V10 rejects; and
 2. `@{-N}` for `N >= 1` **that actually resolves in the invoking repository**.
@@ -194,8 +187,8 @@ repository, whose reflog is arbitrary — that would make the assertion depend o
 the developer's last `git checkout`. Unresolvable `@{-N}` values are asserted as
 **shared rejections** in the same fixture.
 
-This divergence is **deliberate, and normalization was explicitly considered and
-not chosen.** The two available resolutions were:
+This divergence is **deliberate, and normalization is explicitly rejected.**
+The two available resolutions were:
 
 1. **Normalize** — resolve `@{-N}` to the concrete branch name it denotes, then
    validate the result.
@@ -229,17 +222,16 @@ A value is rejected when **any** of the following holds:
 | V11 | Ends with `.` |
 
 **V2 and V3 are a standalone workspace invariant, NOT a git derivation.**
-Revision 2 omitted them entirely, so `--force`, `-D`, `--all`, and any other
-option-shaped string would have been accepted as a valid branch name and then
-emitted as `selected_branch` into gate JSON and downstream Git invocations —
-an argument-injection-shaped hazard, not a cosmetic gap. Revision 3 added them
-but justified them as "`git check-ref-format --branch` rejects it". **That
-justification is withdrawn as unsound**: git's CLI cannot unambiguously *receive*
-a leading-hyphen argument in the first place — the shell and git's own option
-parser consume it before any ref-name check runs — so git's behaviour cannot
-establish the rule either way. V2/V3 are therefore asserted on their own terms,
-as a property this workspace requires of any value it will place on a command
-line, and they are excluded from the equivalence corpus rather than pinned by it.
+git's CLI cannot unambiguously *receive* a leading-hyphen argument in the first
+place — the shell and git's own option parser consume it before any ref-name
+check runs — so git's behaviour cannot establish the rule either way. V2/V3 are
+therefore asserted on their own terms, as a property this workspace requires of
+any value it will place on a command line, and they are **excluded from the
+git-driven arm** of the corpus rather than pinned by it. Without them,
+`--force`, `-D`, `--all`, and any other option-shaped string would validate as
+a branch name and then be emitted as `selected_branch` into gate JSON and
+downstream Git invocations — an argument-injection-shaped hazard, not a
+cosmetic gap.
 
 **Option-like rejection is stated as its own invariant**, independent of any
 `check-ref-format` derivation: no resolved `selected_branch` may begin with
@@ -248,10 +240,9 @@ title-alias path is slug-derived and cannot normally produce one, but the
 invariant is asserted at the resolver's exit rather than assumed from its
 inputs.
 
-**Superset pinning (replaces "equivalence pinning").** A test drives a corpus of
-accept and reject values through both the Python validator and `git
-check-ref-format --branch`, and asserts the **superset property** rather than
-identity:
+**Superset pinning.** A test drives a corpus of accept and reject values
+through both the Python validator and `git check-ref-format --branch`, and
+asserts the **superset property** rather than identity:
 
 * Any value git rejects, the validator must reject. A disagreement here is a
   failure.
@@ -271,8 +262,7 @@ identity:
 * **Ordinary `@{...}` values are asserted as SHARED REJECTIONS, not as
   divergences.** `foo@{1}`, `main@{0}`, `a@{b}`, `@{u}`, `@{upstream}`,
   `foo@{upstream}` and `@{-0}` must be rejected by **both** git and the
-  validator. Asserting them as divergences — as revision 4 required — would have
-  pinned a disagreement that does not exist and failed against real git.
+  validator.
 * V2/V3 inputs are excluded from the git-driven arm and are asserted against the
   frozen expected-outcome corpus only.
 
@@ -314,12 +304,10 @@ compatibility invariant, and it has its own regression case.
 | T9 | Gate documentation: precedence table, validation rule set including divergence set D, token table, compatibility note | `docs/` | T5 |
 | T10 | Retire the temporary title-alias workarounds on `025-S`/`020-S` | backlog data + docs | T6, T7, T8 |
 
-### Dependency rationale (revision 4)
+### Dependency rationale
 
-Revision 2 listed the same surfaces but encoded no ordering beyond "T8 is
-sequenced last" in prose, and its ordering was wrong in two places. Revision 3
-corrected the ordering but left it partly unencoded in the backlog records.
-Revision 4 requires all of the following as machine-encoded `blocks` edges:
+Every edge below is a machine-encoded `blocks` edge in the backlog, not a table
+position:
 
 0. **Red precedes implementation.** T0 authors the validator, precedence and
    gate-JSON contract tests and observes them **failing** against a missing
@@ -343,10 +331,10 @@ Revision 4 requires all of the following as machine-encoded `blocks` edges:
    T10 retires the title-alias workarounds that currently keep `025-S` and
    `020-S` unblocked. It is blocked by T6, T7, **and** T8 — every test family
    that proves the explicit-contract path actually works, including the CLI
-   surface. Revision 2's prose placed it "last" in a table whose order carried
-   no enforcement; a mid-execution reordering could have removed the workaround
-   while the replacement path was still only partially integrated, blocking two
-   live shipments with no route back except a prohibited `--force`.
+   surface. A mid-execution reordering must not be able to remove the
+   workaround while the replacement path is still only partially integrated,
+   which would block two live shipments with no route back except a prohibited
+   `--force`.
 
 T9 is documentation and blocks on T5 so the emitted-field table it documents is
 the one that shipped.
@@ -391,19 +379,19 @@ the one that shipped.
 | R1 | Malformed explicit value silently falls back, re-creating the defect inverted | Dedicated matrix rows assert `IMPLEMENTATION_BRANCH_MALFORMED` and assert rung 2 was **not** consulted |
 | R2 | One of the four phases keeps a private branch-derivation path | T4 removes every other path; a structural test asserts exactly one call site computes branches |
 | R3 | The Python validator drifts from real Git behaviour | T1's corpus is driven through `git check-ref-format --branch` itself and fails on any disagreement outside the frozen divergence set D; absence of `git` skips loudly rather than passing vacuously |
-| R8 | Divergence set D grows silently, turning a deliberate exception into an unnoticed drift | D is pinned as a frozen literal of exactly two shapes (bare `@`, resolvable `@{-N}`) in the superset test; any value diverging outside D fails in either direction |
-| R9 | The `@{-N}` divergence assertion depends on ambient reflog state and passes or fails by accident | The `@{-N}` arm runs only in a hermetic fixture repository with a scripted checkout history; unresolvable `@{-N}` is asserted as a shared rejection in the same fixture |
 | R4 | Merge contention with `165-F`'s `_shipment_readiness_check` work | `165-F`/`173-S` is **archived**; the recorded contention window is closed |
 | R5 | Retiring the title-alias workarounds breaks a shipment mid-flight | T10 is blocked by T6, T7, and T8 — a machine-encoded edge, not a table position — and touches only backlog data for shipments whose explicit contract the resolver now honors |
 | R6 | An option-shaped branch value reaches a Git command line | V2/V3 reject it at validation as a **standalone workspace invariant** (not a git derivation — git cannot judge such input), and the resolver-exit invariant re-asserts it independently of which rung produced the value |
-| R7 | Removing rung 2 makes the deferred declarative tier harder to add later | The ladder is a single ordered structure in one function; inserting a rung is local. Carrying an unauthorized config surface with no schema behind it was the larger cost |
+| R7 | Carrying no reserved rung for the deferred declarative tier makes that tier harder to add later | The ladder is a single ordered structure in one function; inserting a rung is local. Carrying an unauthorized config surface with no schema behind it is the larger cost |
+| R8 | Divergence set D grows silently, turning a deliberate exception into an unnoticed drift | D is pinned as a frozen literal of exactly two shapes (bare `@`, resolvable `@{-N}`) in the superset test; any value diverging outside D fails in either direction |
+| R9 | The `@{-N}` divergence assertion depends on ambient reflog state and passes or fails by accident | The `@{-N}` arm runs only in a hermetic fixture repository with a scripted checkout history; unresolvable `@{-N}` is asserted as a shared rejection in the same fixture |
 
 ## Out of scope
 
 * Declarative workspace-level branch templates in `.autoharness/config.yaml`
-  (deferred per decision **D1**). The reserved rung that revision 2 shipped for
-  them is removed; no placeholder, no `resolution_source` value, and no config
-  key is carried for the deferred tier.
+  (deferred per decision **D1**). No reserved rung, no placeholder, no
+  `resolution_source` value, and no config key is carried for the deferred
+  tier.
 * Any vendor identifier (ADO, Jira) in the engine.
 * Repository-supplied executable branch rules — workspace policy stays
   declarative data only.
@@ -412,10 +400,6 @@ the one that shipped.
 * Any `--force` path.
 
 ## Plan Hardening Record (P-006)
-
-Hardening applied 2026-09-17, re-run 2026-09-18 during remediation cycle 1.
-Revision 2 declared `plan_hardening_status: complete` without persisting this
-record; that gap is H0 below.
 
 **Hardening trigger.** Elevated blast radius: the change rewrites the branch
 authority for **all four phases** of a fail-closed gate that can block every
@@ -445,17 +429,16 @@ currently-unblocked shipments.
 `docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md`,
 and the verbatim `86498B64` design summary in `.backlogit/archive/stash.jsonl`.
 
-| # | Hardening finding | Resolution |
+| # | Hazard | Resolution in this contract |
 |---|---|---|
-| H0 | Revision 2 asserted `plan_hardening_status: complete` with no persisted hardening record | This section is the record; `plan_hardening_section` in frontmatter names it |
-| H1 | The validation rule set omitted leading-hyphen and option-shaped values, so `--force` or `-D` would have validated as a branch name and been emitted as `selected_branch` into gate JSON and downstream Git invocations | V2/V3 added and enumerated; a resolver-exit invariant re-asserts it independently of rung; the corpus pins every option-shaped form |
-| H2 | "Valid Git branch short name" was an informal list, not an equivalence claim, so validator/Git divergence was undetectable | Rule set V1–V11 stated explicitly and pinned by a corpus driven through `git check-ref-format --branch`. **Superseded in revision 4**: the equivalence claim was itself false. **Further corrected in revision 5**: revision 4's divergence set D — "the `@{...}` revision-suffix family" — was itself wrong. Measured against git 2.55.0, `--branch` expands only `@{-N}`; every other `@{...}` form is rejected by git exactly as V10 rejects it. D is now exactly the bare `@` plus a **resolvable** `@{-N}`, the ordinary `@{...}` family is a shared rejection, and the `@{-N}` arm is confined to a hermetic fixture repository because its acceptance is reflog-state-dependent |
-| H3 | The equivalence test would pass vacuously on a machine without `git` | The test skips loudly and still asserts the frozen expected-outcome corpus |
-| H4 | Task ordering existed only as table position; the integration task could execute before the resolver and reader it integrates | `blocks` edges encoded: T1 → T2 → T3 → T4 → T5; rationale recorded in the plan body |
-| H5 | Workaround retirement was "sequenced last" in prose only, so a reordering could strand `025-S`/`020-S` with no non-`--force` route back | T10 blocked by T6, T7, **and** T8 — every proving test family including the CLI surface |
-| H6 | Rung 2 was an unauthorized speculative contract surface: no config key, no schema, no decision authorizing it, and a tautological test | Rung removed; ladder reduced to two rungs; Verification asserts no `workspace_convention` token survives anywhere |
-| H7 | The plan cited a design document that has never existed at any ref, so a reader could not verify any requirement traced to it | Recorded as `unavailable-external` provenance with the verification method stated; durable source redirected to the archived stash entry |
-| H8 | T10 mutates live backlog records for two shipments — the only non-additive action in the unit | Classified below as the single Medium-risk `ProposedAction` with an explicit rollback |
+| H1 | A validation rule set that omits leading-hyphen and option-shaped values lets `--force` or `-D` validate as a branch name and be emitted as `selected_branch` into gate JSON and downstream Git invocations | V2/V3 enumerated as a standalone workspace invariant; a resolver-exit invariant re-asserts it independently of rung; the corpus pins every option-shaped form |
+| H2 | "Valid Git branch short name" stated as an informal list, or pinned as an *equivalence* with `git check-ref-format --branch`, makes validator/git divergence either undetectable or falsely asserted — git accepts the bare `@` and a resolvable `@{-N}`, and rejects the wider `@{...}` family exactly as V10 does | Rule set V1–V11 stated explicitly and pinned by a corpus driven through `git check-ref-format --branch` as a **strict superset of rejections**, with divergence set D frozen at exactly two shapes and the reflog-dependent `@{-N}` arm confined to a hermetic fixture repository |
+| H3 | The git-driven arm passes vacuously on a machine without `git` | The test skips loudly and still asserts the frozen expected-outcome corpus |
+| H4 | Task ordering carried only by table position lets the integration task execute before the resolver and reader it integrates | `blocks` edges encoded: T0 → T1 → T2 → T3 → T4 → T5; rationale recorded in the plan body |
+| H5 | Workaround retirement "sequenced last" in prose only lets a reordering strand `025-S`/`020-S` with no non-`--force` route back | T10 blocked by T6, T7, **and** T8 — every proving test family including the CLI surface |
+| H6 | A reserved-but-unreachable precedence rung for the deferred declarative tier is an unauthorized contract surface: no config key, no schema, no decision authorizing it, and only a tautological test | No such rung exists; the ladder is exactly two rungs; Verification asserts no `workspace_convention` token appears anywhere |
+| H7 | A cited design document that has never existed at any ref leaves a reader unable to verify any requirement traced to it | Recorded as `unavailable-external` provenance with the verification method stated; durable source redirected to the archived stash entry |
+| H8 | T10 mutates live backlog records for two shipments — the only non-additive action in the unit | Classified below as a Medium-risk `ProposedAction` with an explicit rollback and an operator checkpoint |
 
 **Risky actions (`ProposedAction` / `ActionRisk`).**
 
@@ -464,11 +447,10 @@ and the verbatim `86498B64` design summary in `.backlogit/archive/stash.jsonl`.
 | Rewrite branch derivation for all four gate phases (T4) | Medium — a regression false-blocks every shipment | Standard PR review; gated by T1–T3 landing first | Revert `topology.py`; no persisted state changes |
 | Add three fields to gate JSON on both paths (T5) | Low — additive only | Standard PR review | Revert; compatibility invariant test proves the non-additive surface is untouched |
 | Retire live title-alias workarounds on `025-S`/`020-S` (T10) | **Medium** — mutates live backlog records for two unblocked shipments | Blocked by T6/T7/T8; operator confirmation before mutating either record | Re-add the title alias to the shipment record; the workaround is a backlog-data change, fully reversible |
-| Remove rung 2 from the ladder | Low — the rung was unreachable by construction | Standard PR review | Re-insert; the ladder is one ordered structure in one function |
 
 **Rollback coupling.** T1–T5 are source-only and revert as one `topology.py`
-change set. T6–T9 are test/doc-only. T10 is the only task touching persisted
-state and is independently reversible.
+change set. T0, T6, T7, T8 and T9 are test/doc-only. T10 is the only task
+touching persisted state and is independently reversible.
 
 **Monitoring and validation window.** After merge, the first `pre_claim`
 invocation on a shipment carrying an explicit `implementation_branch` is the
@@ -485,5 +467,5 @@ persona inline, because this is the only plan in the portfolio whose primary
 deliverable is executable Python on a fail-closed gate path.
 
 **Unresolved operator decisions blocking safe execution.** None. The
-declarative-template tier remains deferred and no longer has a placeholder in
-this release unit.
+declarative-template tier remains deferred and has no placeholder in this
+release unit.

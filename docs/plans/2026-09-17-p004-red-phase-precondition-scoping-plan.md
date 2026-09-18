@@ -1,12 +1,12 @@
 ---
 title: "P-004 red-phase precondition scoped to the declared shipment harness set"
-description: "Implementation plan replacing P-004's unsatisfiable whole-suite every-function-red precondition with a declared-harness-set precondition admitting two disjoint expected-outcome classes (expected-red and expected-green-characterization) and asserting exact set equality against observed outcomes, delivered atomically across the policy template and its installed mirror, with a typed per-entry declaration shape binding each expected-red test identifier to its own failure marker, a stdlib-unittest TestResult-based observation contract that evaluates markers per test rather than over merged output, a deterministic selector, a harness-manifest field, and regression tests that pin both the satisfiability of the new precondition and the continued green status of the default-branch whole-suite CI gate."
+description: "Implementation plan replacing P-004's unsatisfiable whole-suite every-function-red precondition with a declared-harness-set precondition admitting two disjoint expected-outcome classes (expected-red and expected-green-characterization) and asserting exact set equality against observed outcomes, delivered atomically across the policy template and its installed mirror, with a typed per-entry declaration shape binding each expected-red test identifier to its own failure marker, a stdlib-unittest TestResult-based observation contract that evaluates markers per test rather than over merged output, a deterministic selector, a harness-manifest field, a bounded one-shipment bootstrap entry point, and regression tests that pin both the satisfiability of the new precondition and the continued green status of the default-branch whole-suite CI gate."
 doc_type: plan
 source: docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md
 date: 2026-09-17
 status: reviewed
 revision: 5
-revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on four findings against this plan. (1) LOADER CONTRACT WAS WRONG. Revision 4 asserted that `loadTestsFromNames(names)` yields one top-level TEST per input name and that `TestLoader.errors` can be keyed by the requested name. Both are false: `loadTestsFromName` returns `suiteClass((_FailedTest(...),))` on failure, so `loadTestsFromNames` yields one top-level SUITE per name, and `TestLoader.errors` is a flat LIST of formatted message strings appended in load order with no name key. Revision 5 replaces positional correlation entirely with a stdlib-only algorithm that loads each declared name INDEPENDENTLY via `loadTestsFromName`, recursively FLATTENS the returned suite, attributes load errors by a per-name `len(loader.errors)` SNAPSHOT, and correlates observed results back to requested names by test-OBJECT IDENTITY rather than by any `id()` string. (2) SCHEMA OVER-ASSIGNMENT. Revision 4 assigned `test_id` uniqueness and red/green disjointness to a Draft-07 schema, which cannot express property-key uniqueness within an array of objects nor any cross-property value comparison. Revision 5 splits the validation boundary: the schema owns PER-ITEM SHAPE ONLY, and `P004_DUPLICATE_DECLARATION` / `P004_SET_OVERLAP` move to an executable Python declaration validator. The keyed-map alternative was considered and rejected. (3) BOOTSTRAP IMPOSSIBILITY. 176-S could not be executed at all: every task needs `harness-ready` under P-002, `harness-ready` needs a P-004 red-phase confirmation, and the P-004 precondition this plan exists to repair is unsatisfiable — so the shipment that fixes P-004 was itself gated behind broken P-004. Revision 5 adds bootstrap task T0 as the entry point of 176-S with an explicit, bounded, fail-closed self-ratification contract and no force grant. (4) Risk R7 and hardening finding H7 named `T5`, which is not a task in this plan; corrected to `T5b`. Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. The bounded audit trail lives in `linked_review`. Revision 4 (remediation cycle 2) adopted decision revision 3 and closed the propagation findings from local review cycle 2. The revision-3 design was never encoded into the executable backlog records: the nine-token contract was harvested as seven tokens, the typed `{test_id, marker}` entry shape was absent from the task bodies, no `P004Result` boundary was named, and the red/implementation/green ordering existed only as prose. Revision 4 restates the token set as exactly NINE, names `P004Result` as the real per-test observation boundary, and requires the TDD triple to be encoded as dependency edges — red contract tests authored and observed failing BEFORE the boundary exists, implementation blocked on the red task, green verification blocked on the implementation, and the red task explicitly NOT depending on the implementation. Revision 4 also corrects two stdlib facts that revision 3 stated inaccurately: `TestResult.addFailure`/`addError` receive an `exc_info` TUPLE (not a formatted string) and traceback formatting is INHERITED via `TestResult._exc_info_to_string`; and `unittest.loader._FailedTest.id()` is NOT guaranteed to equal the requested name. Revision 4's own replacement for that — positional correspondence of `loadTestsFromNames(names)` corroborated by `isinstance` and a name-keyed lookup into `loader.errors` — is ITSELF WITHDRAWN AND SUPERSEDED by revision 5 finding (1) above; it is retained in this note only as history and is not an instruction."
+revision_note: "Revision 5 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in `review_history` and the mutable verdict manifest named by `linked_review` are the authoritative record of that chronology."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 76EBDE6D
@@ -21,11 +21,10 @@ review_history:
   - docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-04.md
   - docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-05.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response. Attempt 05 records the final independent review cycle (BLOCKED at revision 4, on the unittest loader contract, the Draft-07 schema over-assignment, the 176-S bootstrap impossibility, and the R7/H7 label defect) and the Stage remediation cycle 3 response that produced revision 5."
 latest_review_attempt: 5
 latest_review_artifact: docs/reviews/review-history/2026-09-17-p004-red-phase-precondition-scoping-plan-review-attempt-05.md
 latest_review_verdict: REMEDIATED-PENDING-REVIEW
-latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
+latest_review_verdict_note: "REMEDIATED-PENDING-REVIEW at revision 5. Stage does not review its own remediation, so no PASS is asserted; the next independent reviewer pass is attempt 06. Attempt classification and roster live in the verdict manifest named by `linked_review`."
 covering_feature: 168-F
 shipment: 176-S
 requires_plan_hardening: "yes"
@@ -77,9 +76,9 @@ both newly authored and green by construction.
 
 The harness-architect declares, at harness authoring time, two **disjoint**
 sets of fully-qualified test identifiers in the harness manifest. Both fields
-are **lists of typed entries**, never bare identifier lists — the bare-list
-shape is what left the identifier-to-marker mapping undefined and is rejected
-by the schema.
+are **lists of typed entries**, never bare identifier lists — a bare list
+leaves the identifier-to-marker mapping undefined and is rejected by the
+schema.
 
 | Field | Entry shape | Meaning |
 |---|---|---|
@@ -118,13 +117,11 @@ The **declared outcome map** is therefore total and deterministic:
 `test_id -> (expected_outcome, marker_or_None)`. There is no positional,
 order-derived, or convention-derived association anywhere in the contract.
 
-### Where each constraint is enforced (revision 5)
+### Validation boundary — schema versus executable validator
 
-Revision 4 assigned **every** constraint above to the harness-manifest JSON
-Schema. That was a correctness defect, not a distribution preference: this
-repository's schemas are **JSON Schema Draft-07** (`$schema:
+This repository's schemas are **JSON Schema Draft-07** (`$schema:
 http://json-schema.org/draft-07/schema#` in all nine files under `schemas/`),
-and Draft-07 cannot express two of the constraints at all.
+and Draft-07 cannot express two of the constraints above at all:
 
 * **Uniqueness of a property *value* across array items is inexpressible.**
   Draft-07's only uniqueness vocabulary is `uniqueItems`, which compares
@@ -138,13 +135,13 @@ and Draft-07 cannot express two of the constraints at all.
   `expected_green_characterization`, so `P004_SET_OVERLAP` has no schema
   formulation whatsoever.
 
-**The keyed-map alternative was considered and rejected.** Re-shaping both
-fields as YAML mappings keyed by `test_id` would obtain within-list uniqueness
-from the object-key rule — but it still cannot express cross-list disjointness,
-and it makes a duplicate declaration **silently last-wins** in every mainstream
-YAML loader rather than a fail-closed authoring error. Trading a loud error for
-a silent overwrite is the opposite of the fail-closed posture this plan exists
-to restore. The typed-entry-list shape stands.
+**The keyed-map alternative is rejected.** Re-shaping both fields as YAML
+mappings keyed by `test_id` would obtain within-list uniqueness from the
+object-key rule — but it still cannot express cross-list disjointness, and it
+makes a duplicate declaration **silently last-wins** in every mainstream YAML
+loader rather than a fail-closed authoring error. Trading a loud error for a
+silent overwrite is the opposite of the fail-closed posture this plan exists to
+restore. The typed-entry-list shape stands.
 
 The boundary is therefore split, and each token has **exactly one** owner:
 
@@ -178,13 +175,11 @@ empty pass.
 The command line above is the **human-readable** statement of the selector.
 The gate itself does **not** parse that command's merged stdout/stderr. Merged
 output cannot attribute a marker to a specific test when more than one test
-fails, which is the exact ambiguity that made the bare-identifier declaration
-unusable. Observation is instead defined against the stdlib result object:
+fails, which is the exact ambiguity that makes a bare-identifier declaration
+unusable. Observation is defined against the stdlib result object:
 
-1. **Load — each declared name independently.** Revision 4 specified
-   `loadTestsFromNames(declared_ids)` with **positional** correlation and a
-   name-keyed lookup into `loader.errors`. Both halves were factually wrong and
-   are withdrawn:
+1. **Load — each declared name independently.** Two stdlib facts govern this
+   step and rule out the obvious shortcuts:
 
    * `TestLoader.loadTestsFromName(name)` returns a **`TestSuite`**, not a
      `TestCase`. On an unresolvable name it returns
@@ -192,12 +187,12 @@ unusable. Observation is instead defined against the stdlib result object:
      wrapping the placeholder. `loadTestsFromNames(names)` is defined as
      `self.suiteClass([self.loadTestsFromName(n) for n in names])`, so its
      top-level members are one **suite** per input name, never one **test** per
-     input name. A resolvable name may also expand to many tests (a module or
-     class name), so "one top-level test per input name" does not hold in the
-     success case either.
+     input name; and a resolvable name may expand to many tests (a module or
+     class name). Positional correlation over `loadTestsFromNames` is therefore
+     unsound in both the failure and the success case, and is not used.
    * `TestLoader.errors` is a flat **`list` of formatted message strings**
      appended in load order. It is **not** a mapping and has no name key, so
-     `name in loader.errors` is meaningless and cannot corroborate anything.
+     `name in loader.errors` is meaningless and corroborates nothing.
 
    The runner therefore performs the load itself, **one declared name at a
    time**, and attributes both tests and errors by per-name loader state:
@@ -232,11 +227,11 @@ unusable. Observation is instead defined against the stdlib result object:
        return loader, loaded, requested_of, unloadable
    ```
 
-   Three properties make this correct where revision 4 was not:
+   Three properties make this correct:
 
-   * **Independent loading** removes the need for positional correspondence
-     entirely. Each `loadTestsFromName` call concerns exactly one requested
-     name, so nothing has to be matched up afterwards.
+   * **Independent loading** removes any need for positional correspondence.
+     Each `loadTestsFromName` call concerns exactly one requested name, so
+     nothing has to be matched up afterwards.
    * **Error attribution is by list-length snapshot**, `loader.errors[before:]`,
      which is the only sound way to read an append-only list of unkeyed
      strings. No string is parsed and no name is looked up.
@@ -244,8 +239,9 @@ unusable. Observation is instead defined against the stdlib result object:
      `id(test_object) -> requested_name` is built at load time from the very
      objects that are about to be run, so an observed result is attributed to
      its requested name without ever comparing `TestCase.id()` to the declared
-     string. This is what makes `_FailedTest.id()` differing from the requested
-     name a non-issue rather than a hazard.
+     string. `unittest.loader._FailedTest.id()` is **not** guaranteed to equal
+     the requested name; identity correlation makes that a non-issue rather
+     than a hazard.
 
    **Classification at load time, before anything runs.** A declared name is
    `P004_MISSING_OBSERVATION` when it produced any load error, or resolved to a
@@ -270,14 +266,14 @@ unusable. Observation is instead defined against the stdlib result object:
    the key everything downstream is compared on; `test.id()` is recorded as
    corroborating evidence and is never used to look a test up.
    * **`addFailure(test, err)` and `addError(test, err)` receive an `exc_info`
-     TUPLE** `(type, value, traceback)` — **not** a formatted string. Revision 3
-     stated this inaccurately. The formatted per-test traceback string is
-     produced by the **inherited** `TestResult._exc_info_to_string(err, test)`,
-     which the overrides call (or which the base implementation calls when the
-     override delegates via `super()`); it is the same string that lands in
-     `result.failures` / `result.errors`. `detail_text` is exactly that
-     per-test string and nothing else. It is never the concatenated run output,
-     and the overrides must not attempt to treat `err` as text.
+     TUPLE** `(type, value, traceback)` — **not** a formatted string. The
+     formatted per-test traceback string is produced by the **inherited**
+     `TestResult._exc_info_to_string(err, test)`, which the overrides call (or
+     which the base implementation calls when the override delegates via
+     `super()`); it is the same string that lands in `result.failures` /
+     `result.errors`. `detail_text` is exactly that per-test string and nothing
+     else. It is never the concatenated run output, and the overrides must not
+     treat `err` as text.
    * `addSkip`, `addExpectedFailure`, and `addUnexpectedSuccess` are recorded
      as their own outcomes and are **not** silently folded into pass or fail.
      A skipped declared test is `P004_MISSING_OBSERVATION`: it produced no
@@ -340,12 +336,10 @@ The compile precondition (`python -m py_compile`) is unchanged and still exits 0
 * The postcondition wording `Compilation: PASS` / `Red Phase: CONFIRMED`,
   which gains the declared-set summary but keeps its existing markers.
 
-## Bootstrap: how `176-S` becomes executable at all (revision 5)
+## Bootstrap: making `176-S` executable
 
-Review attempt 05 asked for a **verified, executable, policy-compliant path**
-from claiming `176-S` through harness-ready / red-phase to the first task claim.
-The verification was performed against the installed policy text and the answer
-is that **no such path exists today**:
+Under the installed policy text there is **no executable path** from claiming
+`176-S` through harness-ready / red-phase to a first task claim:
 
 1. P-002 (`Gate Point: Queue building (Step 2) and task claiming (Step 3)`)
    states the ship agent "may only claim and implement a task after the
@@ -360,19 +354,19 @@ is that **no such path exists today**:
    section establishes, that is unsatisfiable for any mixed harness at any
    scale, and it is exactly what `176-S` exists to repair.
 
-So the shipment that repairs P-004 was itself gated behind unrepaired P-004.
+So the shipment that repairs P-004 is itself gated behind unrepaired P-004.
 That is a genuine bootstrap deadlock, not a scheduling inconvenience, and it
 blocks the entire portfolio because `177-S`–`181-S` and the pre-existing
 `168-S` all descend from `176-S`.
 
-**Resolution: a declared bootstrap unit, not a force grant.** `T0` is added as
-the entry point of `176-S`. No `--force`, no waiver, no `harness-ready` applied
-without confirmation, and no relaxation of any exit-code requirement is
-introduced anywhere. What `T0` does is apply **the exact contract this plan is
-authorized to establish** — decision D4's declared-harness-set precondition
-with two disjoint expected-outcome classes under exact set equality — to
-`176-S`'s own harness, one step before the same contract is installed as policy
-text by `T2`/`T3`.
+**Resolution: a declared bootstrap unit, not a force grant.** `T0` is the entry
+point of `176-S`. No `--force`, no waiver, no `harness-ready` applied without
+confirmation, and no relaxation of any exit-code requirement is introduced
+anywhere. What `T0` does is apply **the exact contract this plan is authorized
+to establish** — decision D4's declared-harness-set precondition with two
+disjoint expected-outcome classes under exact set equality — to `176-S`'s own
+harness, one step before the same contract is installed as policy text by
+`T2`/`T3`.
 
 **Bootstrap acceptance contract (binding, and narrower than the general gate):**
 
@@ -403,7 +397,7 @@ text by `T2`/`T3`.
 | # | Task | Scope | Blocked by |
 |---|---|---|---|
 | T0 | **BOOTSTRAP** — declare `176-S`'s own typed harness set and perform the declared-set red-phase confirmation under the bounded, expiring, fail-closed acceptance contract above, so `176-S`'s tasks can legitimately receive `harness-ready` | harness manifest + harness-architect confirmation record | — |
-| T1 | Add `harness.expected_red` and `harness.expected_green_characterization` to the harness-manifest schema as **typed entry lists** (`{test_id, marker}` / `{test_id}`) — **per-item shape only**: requiredness, `additionalProperties: false` on characterization entries, `minLength: 1` strings, `minItems: 1` on `expected_red`. **No uniqueness and no disjointness rule is expressed in the schema**; those move to T7 | `schemas/` | T0 |
+| T1 | Add `harness.expected_red` and `harness.expected_green_characterization` to the harness-manifest schema as **typed entry lists** (`{test_id, marker}` / `{test_id}`) — **per-item shape only**: requiredness, `additionalProperties: false` on characterization entries, `minLength: 1` strings, `minItems: 1` on `expected_red`. **No uniqueness and no disjointness rule is expressed in the schema**; those belong to T7 | `schemas/` | T0 |
 | T2 | Rewrite the P-004 precondition, postcondition, and violation action in the policy **template**, enumerating all **nine** tokens | `templates/policies/workflow-policies.md.tmpl` | T1 |
 | T3 | Apply the byte-identical rewrite to the installed mirror, atomically with T2 | `.github/policies/workflow-policies.md` | T2 |
 | T4 | Update the harness-architect skill to declare typed entries and run the ID-addressed selector | `.github/skills/` + `templates/skills/` | T1, T2 |
@@ -417,29 +411,29 @@ mirror that disagrees with its template is the exact drift class recorded in
 `docs/compound/2026-08-15-checksum-drift-fix-correctly-surfaces-preexisting-self-hosted-customization.md`.
 T3 declares a `blocks` dependency on T2 so ordering is explicit.
 
-### TDD ordering (revision 4 — machine-encoded)
+### Dependency order (machine-encoded)
 
-Revision 3 inverted the TDD relationship: it made the token-matrix test (T5)
-block on the implementation (T7), which is a test-**after** ordering wearing a
-red-phase label. Revision 4 splits the test surface and encodes the triple as
-`blocks` edges in the backlog, not as prose:
+The ordering below is encoded as `blocks` edges in the backlog, not as prose:
 
+* **T0 (BOOTSTRAP) is the single entry point of `176-S`.** It is blocked by
+  nothing except the existing P-004 operator approval gate, and **T1 blocks on
+  T0**, because no task in the shipment — T1 included — can be claimed under
+  P-002 until the declared-set red-phase confirmation has been performed. T0 is
+  deliberately NOT a successor of the policy rewrite it anticipates: it is the
+  one-shipment bootstrap, and T2/T3 are what retire it.
 * **T5a (RED) blocks on T1 only.** It is authored against the schema's typed
   entry shape and the *declared* nine-token contract, and is observed failing
   because `P004Result` does not yet exist. **T5a does NOT depend on T7.** That
-  asymmetry is the whole content of the red phase; reversing it reproduces the
-  revision-3 defect.
-* **T7 (IMPLEMENTATION) blocks on T5a.** The executable observation boundary the
-  schema (T1) and the policy text (T2/T3) both describe is written to turn an
-  already-failing, already-reviewed contract green.
-* **T5b (GREEN) blocks on T7.** The token matrix is then observed passing
-  against the real runner, never against a test-local re-implementation of it.
-* **T0 (BOOTSTRAP) blocks nothing and is blocked by nothing except the operator
-  approval gate; T1 blocks on T0.** T0 is the single entry point of `176-S`.
-  It must precede T1 because no task in the shipment — T1 included — can be
-  claimed under P-002 until the declared-set red-phase confirmation has been
-  performed. T0 is deliberately NOT a successor of the policy rewrite it
-  anticipates: it is the one-shipment bootstrap, and T2/T3 are what retire it.
+  asymmetry is the whole content of the red phase; reversing it would make T5a
+  a test-after task wearing a red-phase label.
+* **T7 (IMPLEMENTATION) blocks on T5a.** The executable observation boundary
+  the schema (T1) and the policy text (T2/T3) both describe is written to turn
+  an already-failing, already-reviewed contract green.
+* **T5b (GREEN) blocks on T7.** The token matrix is observed passing against
+  the real runner, never against a test-local re-implementation of it.
+* **T3 blocks on T2**, **T4 blocks on T1 and T2**, and **T6 blocks on T3**, so
+  the mirror, the skill, and the CI-invariant assertion all follow the surface
+  they describe.
 
 ## Verification
 
@@ -487,7 +481,7 @@ red-phase label. Revision 4 splits the test surface and encodes the triple as
 | R5 | A marker declared for one test is satisfied by a different test's failure text | Markers are matched against the per-test `detail_text` from `TestResult`, never against merged output; Verification carries the crossed-marker case explicitly |
 | R6 | An unresolvable declared ID is read as a legitimate red | Each name is loaded independently by `loadTestsFromName`, its errors attributed by a `len(loader.errors)` snapshot, and the result flattened and inspected at load time — before the run — and classified `P004_MISSING_OBSERVATION` |
 | R7 | The runner drifts from the regression suite's model of it | T7 ships the runner as importable code in `src/autoharness/`; **T5b** blocks on T7 and imports it rather than re-implementing the comparison |
-| R8 | A Draft-07 schema is written that silently fails to enforce uniqueness or disjointness, so two declarations collide unnoticed | Those two rules are removed from the schema entirely and owned solely by `validate_declared_harness_set()` in T7; the split is stated normatively with one owner per token, and a `uniqueItems` attempt in the schema is a review-visible defect |
+| R8 | A Draft-07 schema silently fails to enforce uniqueness or disjointness, so two declarations collide unnoticed | Those two rules live solely in `validate_declared_harness_set()` (T7); the split is stated normatively with one owner per token, and a `uniqueItems` attempt in the schema is a review-visible defect |
 | R9 | The T0 bootstrap is read as a general escape hatch and cited by a later shipment | The acceptance contract names `176-S` explicitly, expires on T3, introduces no `--force`/waiver/exit-code relaxation, and states that a second citation is a policy violation rather than a precedent; T0 runs through the existing P-004 operator approval gate |
 | R10 | A declared `test_id` addresses a module or class, silently widening the confirmed set | A declared name resolving to anything other than exactly one test is classified at load time: the declared ID is `P004_MISSING_OBSERVATION` and every surplus id is `P004_UNDECLARED_OBSERVATION`; the token set stays at nine |
 
@@ -501,14 +495,6 @@ red-phase label. Revision 4 splits the test surface and encodes the triple as
 * `168-S`'s own manifest, which is not modified by this release unit.
 
 ## Plan Hardening Record (P-006)
-
-Hardening applied 2026-09-18 during remediation cycle 1. Revision 2 declared
-`requires_plan_hardening: "no"`; that declaration was wrong and is corrected
-here (H0). The plan changes a `schemas/` contract, rewrites a policy template
-**and** its installed mirror, changes a skill in both template and installed
-copies, and adds executable gate code — elevated blast radius on the exact axes
-P-006 enumerates, and the same axes on which its four sibling plans correctly
-declared `yes`.
 
 **Hardening trigger.** Schema contract change; policy-registry change shipped
 to every consumer workspace; two template/installed-mirror pairs; and a
@@ -534,20 +520,19 @@ far worse — silently admits an unconfirmed harness.
 `docs/compound/2026-08-15-checksum-drift-fix-correctly-surfaces-preexisting-self-hosted-customization.md`,
 and the Python `unittest` loader/result API contract.
 
-| # | Hardening finding | Resolution |
+| # | Hazard | Resolution in this contract |
 |---|---|---|
-| H0 | Revision 2 declared `requires_plan_hardening: "no"` despite a `schemas/` change, a consumer-installed policy rewrite, two mirror pairs, and new gate code | Corrected to `yes`; this section is the record |
-| H1 | `expected_red` was a bare identifier list while the gate predicate required a per-test marker, leaving the ID→marker mapping undefined — the gate as specified was unimplementable | Typed per-entry shape `{test_id, marker}`; declared outcome map is total and deterministic |
-| H2 | "Expected failure markers in the output" would have been matched against merged runner output, so with two failing tests each test's marker could be satisfied by the *other* test's traceback — a false CONFIRMED on an unconfirmed harness | Observation defined against `unittest.TestResult`; markers matched per test against that test's own `detail_text`; Verification carries the crossed-marker case |
-| H3 | An unresolvable declared ID would surface as a `_FailedTest` error and be indistinguishable from a genuine red — a renamed or deleted test would have *satisfied* the red requirement | Load-time placeholder detection classifies it `P004_MISSING_OBSERVATION` before the run |
-| H4 | Skips, expected-failures, and unexpected-successes were unmodelled and would have folded into pass or fail | Recorded as their own outcomes; a skipped declared test is `P004_MISSING_OBSERVATION`, never a red |
-| H5 | No marker-placement rule, so a `expected_green_characterization` entry could carry a meaningless marker and a red entry could omit one | `P004_MARKER_MISPLACED` added; marker required on red, prohibited on green |
-| H6 | Duplicate `test_id` within one list was unhandled | `P004_DUPLICATE_DECLARATION` added; uniqueness asserted within and across both lists |
-| H7 | The regression suite could have re-implemented the comparison, so a runner defect would pass its own tests | T7 ships the runner as importable code in `src/autoharness/`; **T5b** blocks on T7 and imports it |
-| H8 | Tokens that could not name an offending identifier would be undiagnosable in practice | Every token names its `test_id`(s); a token that cannot is declared a runner defect, not an acceptable outcome |
-| H9 | *(revision 5)* The stdlib loader contract was stated incorrectly: `loadTestsFromNames` yields one top-level **suite** per name, not one test, and `TestLoader.errors` is a flat list of formatted strings with no name key — so revision 4's positional correlation plus name-keyed `loader.errors` lookup could not have been implemented as written | Replaced with independent per-name `loadTestsFromName`, recursive suite flattening, `len(loader.errors)` snapshot attribution, and test-object-identity correlation to requested names |
-| H10 | *(revision 5)* `test_id` uniqueness and red/green disjointness were assigned to a Draft-07 schema that cannot express either (`uniqueItems` compares whole instances; no cross-property comparison exists), so two of the nine tokens had no enforceable owner | Validation boundary split with one owner per token: schema owns per-item shape (`P004_MARKER_MISPLACED`, `P004_EMPTY_RED_SET`), `validate_declared_harness_set()` owns the relational rules (`P004_DUPLICATE_DECLARATION`, `P004_SET_OVERLAP`). Keyed-map alternative considered and rejected for silent last-wins semantics |
-| H11 | *(revision 5)* `176-S` was unexecutable: P-002 admits no unlabelled task, `harness-ready` requires P-004 confirmation, and the P-004 precondition under repair is unsatisfiable — the shipment that fixes P-004 was gated behind broken P-004 | Bootstrap task T0 added as the entry point, applying the plan's own authorized declared-harness-set contract to `176-S` alone, fail-closed and complete, expiring at T3, through the existing P-004 operator approval gate. No force grant, waiver, or exit-code relaxation |
+| H1 | A bare identifier list leaves the ID→marker mapping undefined while the gate predicate requires a per-test marker, making the gate unimplementable | Typed per-entry shape `{test_id, marker}`; the declared outcome map is total and deterministic |
+| H2 | Matching "expected failure markers in the output" against merged runner output lets one test's marker be satisfied by another test's traceback — a false CONFIRMED on an unconfirmed harness | Observation defined against `unittest.TestResult`; markers matched per test against that test's own `detail_text`; Verification carries the crossed-marker case |
+| H3 | An unresolvable declared ID surfaces as a `_FailedTest` error indistinguishable from a genuine red, so a renamed or deleted test would *satisfy* the red requirement | Load-time placeholder detection classifies it `P004_MISSING_OBSERVATION` before the run |
+| H4 | Skips, expected-failures, and unexpected-successes fold into pass or fail if unmodelled | Recorded as their own outcomes; a skipped declared test is `P004_MISSING_OBSERVATION`, never a red |
+| H5 | Without a marker-placement rule, a characterization entry could carry a meaningless marker and a red entry could omit one | `P004_MARKER_MISPLACED`; marker required on red, prohibited on green |
+| H6 | A duplicate `test_id` within one list goes unhandled | `P004_DUPLICATE_DECLARATION`; uniqueness asserted within and across both lists |
+| H7 | A regression suite that re-implements the comparison lets a runner defect pass its own tests | T7 ships the runner as importable code in `src/autoharness/`; **T5b** blocks on T7 and imports it |
+| H8 | Tokens that cannot name an offending identifier are undiagnosable in practice | Every token names its `test_id`(s); a token that cannot is a runner defect, not an acceptable outcome |
+| H9 | Correlating declared names to results by position over `loadTestsFromNames`, or by a name-keyed lookup into `TestLoader.errors`, is unimplementable: the former yields one suite per name and the latter is a flat list of strings | Independent per-name `loadTestsFromName`, recursive suite flattening, `len(loader.errors)` snapshot attribution, and test-object-identity correlation to requested names |
+| H10 | Assigning `test_id` uniqueness and red/green disjointness to a Draft-07 schema leaves two of the nine tokens with no enforceable owner (`uniqueItems` compares whole instances; no cross-property comparison exists) | Validation boundary split with one owner per token: schema owns per-item shape (`P004_MARKER_MISPLACED`, `P004_EMPTY_RED_SET`), `validate_declared_harness_set()` owns the relational rules (`P004_DUPLICATE_DECLARATION`, `P004_SET_OVERLAP`); keyed-map alternative rejected for silent last-wins semantics |
+| H11 | `176-S` is unexecutable: P-002 admits no unlabelled task, `harness-ready` requires P-004 confirmation, and the P-004 precondition under repair is unsatisfiable | Bootstrap task T0 as the entry point, applying the plan's own authorized declared-harness-set contract to `176-S` alone, fail-closed and complete, expiring at T3, through the existing P-004 operator approval gate. No force grant, waiver, or exit-code relaxation |
 
 **Risky actions (`ProposedAction` / `ActionRisk`).**
 
@@ -555,14 +540,14 @@ and the Python `unittest` loader/result API contract.
 |---|---|---|---|
 | Rewrite the P-004 precondition in `templates/policies/workflow-policies.md.tmpl` (T2) | **High** — changes a fail-closed gate every consumer workspace installs | Operator review of the rewritten precondition text | Revert the P-004 section; change is confined to one clause |
 | Apply the identical rewrite to `.github/policies/workflow-policies.md` (T3) | High — must land atomically with T2 | Same review | Revert together; T3 blocks on T2; byte-identity check is a gate |
-| Add typed fields to the harness-manifest schema (T1) | Medium — existing manifests declaring the old bare-list shape become invalid | Standard PR review | Revert schema; no manifest in this repository declares either field yet |
+| Add typed fields to the harness-manifest schema (T1) | Medium — existing manifests declaring a bare-list shape become invalid | Standard PR review | Revert schema; no manifest in this repository declares either field yet |
 | Perform the `176-S` bootstrap declared-set red-phase confirmation (T0) | **High** — it is the one place the gate runs under a clause the policy text has not yet installed | **P-004 operator approval gate**, which already governs every red-phase confirmation; the bootstrap acceptance contract is reviewed with it | Withdraw the `harness-ready` labels; T0 modifies no source, schema, or policy file |
 | Add the `P004Result` runner to `src/autoharness/` (T7) | Medium — new executable gate path | Standard PR review | Revert; the runner is additive and nothing calls it until T2/T3 land |
 | Change the harness-architect skill in both copies (T4) | Medium — mirrored pair | Standard PR review | Revert both copies together |
 
 **Rollback coupling.** T2+T3 revert together (policy mirror pair). T4's two
-copies revert together. T1 and T7 are additive and revert independently. T5/T6
-are test-only. No persisted state is mutated anywhere in the unit.
+copies revert together. T1 and T7 are additive and revert independently. T5a,
+T5b, and T6 are test-only. No persisted state is mutated anywhere in the unit.
 
 **Monitoring and validation window.** The first shipment to declare a harness
 set under the new schema is the live signal: its confirmation run must emit a

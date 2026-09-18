@@ -6,7 +6,7 @@ source: docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.md
 date: 2026-09-17
 status: reviewed
 revision: 5
-revision_note: "Revision 5 (remediation cycle 3) answers review attempt 05, which returned BLOCKED at revision 4 on the work-breakdown table. Revision 4 stated the binding rule correctly in prose — tracker linkage onto chore 002-C is `relates_to` and NEVER `blocks`, because 002-C is designed never to close during this portfolio — and the harvested records (173.007-T, 173.010-T) have always carried `relates_to`. But the table's `Blocked by` column still listed **T8** for both T7 and T9, contradicting both. Revision 5 corrects the table: T7 is blocked by T1-T4 (`blocks`) and relates_to 002-C; T9 has NO blocking predecessor and relates_to 002-C. Revision 5 additionally ENCODES the T8 row's long-declared but never-encoded predecessor set: chore 002-C now carries `blocks` dependencies on the four hermetic fixture tasks 173.001-T, 173.002-T, 173.003-T and 173.004-T, so the tracker cannot be filed on indicative evidence. That outgoing edge set is independent of, and preserves, the incoming `relates_to` semantics from 173.007-T and 173.010-T. Revision 5 is STAGE-REMEDIATED AND PENDING INDEPENDENT REVIEW ATTEMPT 06; Stage does not review its own remediation and asserts no PASS. Revision 4 (remediation cycle 2) adopted decision revision 3 and closed the propagation findings from local review cycle 2. The revision-3 design was correct but was not encoded into the executable backlog records: the v1.9.0 baseline task existed without being a predecessor of anything, so a fixture could have been executed first and pinned its assertions to the local dirty 1.10.1 build; and the tracker back-pointer tasks referenced the tracker by the plan-relative label `T8` rather than by a resolvable backlog ID. Revision 4 requires the baseline task to block all four hermetic fixtures, the portable upstream report and the version-aware fixture contract; requires the documentation-truth audit and the tracker regression to reference chore `002-C` and task `173.010-T` by exact resolvable ID; and states the task count precisely as TEN feature tasks plus ONE external tracker that is deliberately neither a child of the covering feature nor a shipment member. Revision 4 also records that the tracker linkage is a `relates_to` edge and NOT a `blocks` edge: the tracker is designed never to close during this portfolio, so a blocking edge would make the shipment permanently unclosable and would, for the regression, demand the very terminal state it exists to forbid. The bounded audit trail lives in `review_history`."
+revision_note: "Revision 5 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in `review_history` and the mutable verdict manifest named by `linked_review` are the authoritative record of that chronology."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 7F9CB5E9
@@ -26,11 +26,10 @@ review_history:
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-03.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-04.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
-review_history_note: "Attempts 01-02 were authored as one mutable file covering two cycles; it is preserved verbatim and classified rather than retroactively split into records that were never independently authored. Attempt 03 is a conforming single-attempt immutable artifact. Attempt 04 records local review cycle 2 (BLOCKED at revision 3, on non-propagation of the design into the executable backlog records) and the Stage remediation response. Attempt 05 records the final independent review cycle (BLOCKED at revision 4) and the Stage remediation cycle 3 response that produced revision 5."
 latest_review_attempt: 5
 latest_review_artifact: docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
 latest_review_verdict: REMEDIATED-PENDING-REVIEW
-latest_review_verdict_note: "Attempt 05 returned BLOCKED at plan revision 4 on the work-breakdown table still blocking T7/T9 on T8 against the binding relates_to rule. Stage remediation cycle 3 closed every attempt-05 finding and raised this plan to revision 5. Stage does not review its own remediation, so NO PASS is asserted at revision 5; the next independent reviewer pass is attempt 06."
+latest_review_verdict_note: "REMEDIATED-PENDING-REVIEW at revision 5. Stage does not review its own remediation, so no PASS is asserted; the next independent reviewer pass is attempt 06. Attempt classification and roster live in the verdict manifest named by `linked_review`."
 covering_feature: 173-F
 shipment: 181-S
 shipment_disposition_class: local-disposition
@@ -59,13 +58,13 @@ tags:
 The operator imported this entry specifically to make operational
 multi-shipment delivery resolvable, and explicitly directed that it not be
 discarded merely because part of the fix is upstream. Decision **D7** upholds
-that: the remedy is external, but three autoharness-owned obligations are real
+that: the remedy is external, but four autoharness-owned obligations are real
 and are delivered here.
 
 This plan does **not** claim to fix the gap. It makes the gap honestly
 evidenced, properly escalated, safely worked around by an operator, truthfully
-documented, and — new in revision 3 — **durably tracked as an open external
-dependency that survives this shipment's own closure.**
+documented, and **durably tracked as an open external dependency that survives
+this shipment's own closure.**
 
 ## Disposition class (binding)
 
@@ -76,7 +75,7 @@ downstream record must read:
 
 | | |
 |---|---|
-| What `181-S` closes | The four autoharness-owned obligations: hermetic evidence, escalation report and route, operator-only interim procedure, documentation truth |
+| What `181-S` closes | The autoharness-owned obligations: hermetic evidence, escalation report and route, operator-only interim procedure, documentation truth, and the durable external-dependency tracker |
 | What `181-S` does **not** close | The SAFE_CLOSE record-transition gap itself, which is external to this repository |
 | Status of the underlying defect when `181-S` ships | **Still unresolved.** `underlying_defect_status: unresolved-external` |
 | Status of `INV-11` when `181-S` ships | **Still blocked** |
@@ -88,36 +87,7 @@ description, or compound entry — that describes `181-S` as fixing, closing, or
 resolving `7F9CB5E9` or `INV-11` is **wrong**, and correcting such statements
 is T7's explicit scope.
 
-### Durable external-dependency tracker (Part E)
-
-The structural hazard is that `7F9CB5E9`'s stash entry is consumed and archived
-by this staging session, `181-S` ships, `173-F` closes — and nothing left
-active in the workspace still says the gap is open. The entry that used to
-carry it is in `.backlogit/archive/stash.jsonl`, which is history, not a live
-signal. The defect would then be invisible until someone re-encounters it.
-
-**Therefore a durable tracker is a deliverable of this plan (T8), and it
-outlives `181-S` by construction:**
-
-* A **separate, active backlog item** of type chore, `status: queued`, titled
-  for the external dependency, **not** a member of `181-S`'s manifest and not
-  parented to `173-F`. It cannot be closed by `181-S` shipping because it is
-  not in it.
-* It carries the upstream reference (issue/PR URL once filed), the four
-  measured refusal behaviours by reference to the T1–T4 fixtures, the
-  `INV-11` back-pointer, and the binary version the observations hold for.
-* Its **closure condition is stated on the item itself**: a released backlogit
-  version providing a non-cascading transition to
-  `archived_status: shipped`, verified by the T1–T4 fixtures re-run against
-  that version and flipping from "refusal observed" to "capability present".
-  Nothing else closes it — not the upstream issue being filed, not `181-S`
-  archiving, not the interim procedure being documented.
-* **`INV-11` points at the tracker, not at `181-S`.** T7's back-pointer
-  targets the durable item, so a reader arriving from the invariant reaches a
-  live record rather than a shipped one.
-* A regression assertion (T9) fails if the tracker item is absent or has
-  reached a terminal state while the fixtures still observe the refusals. This
-  makes premature closure a test failure rather than a silent drift.
+### Ownership split
 
 **External (backlogit, Go binary, third-party dependency).** The capability to
 transition a shipment record to `status: archived` + `archived_status: shipped`
@@ -128,9 +98,10 @@ implemented in this repository (P-021 C1).
 `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` with its explicit no-substitution
 prohibition, shipped by `166.005-T`.
 
-**Autoharness-owned and delivered by this plan.** Evidence re-derivation,
-escalation route and portable report, operator-only interim procedure, and
-documentation truth.
+**Autoharness-owned and delivered by this plan.** Evidence re-derivation
+(Part A), escalation route and portable report (Part B), operator-only interim
+procedure (Part C), documentation truth (Part D), and the durable
+external-dependency tracker (Part E).
 
 ## Problem
 
@@ -146,6 +117,18 @@ authoring workstation:
    gate (`RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`).
 4. `backlogit shipment ship <S>` → the only mechanism producing
    `archived_status: shipped`, and it has no `--no-cascade` flag.
+
+Substituting the cascade on a non-cascade-eligible manifest is **prohibited**:
+the engine returns live out-of-manifest siblings and silently clears their
+`parent_id` (tracked separately as `63363CF5`, untouched and outside scope).
+
+**Blocking relationship.** This blocks `INV-11` of
+`docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md` —
+operational multi-shipment feature delivery. `INV-4`/`INV-5` make split
+delivery *contract-complete* (an ordered sequence `S1..Sn`, feature item last in
+`Sn`), but every intermediate shipment `S1..Sn-1` carries no feature member,
+therefore can never qualify for CASCADE, therefore is a genuine SAFE_CLOSE
+shipment, therefore hits this exact refusal.
 
 ### Binary-version divergence (binding constraint)
 
@@ -168,8 +151,8 @@ unrelated to the defect, and in neither case would it be evidence.
   `backlogit_get_version`) and records it in the assertion output.
 * **The authoritative observation baseline is `v1.9.0`** — the version CI runs
   and the only pinned, reproducible, checksum-verified binary in the
-  contract. T0 (new) re-derives all four behaviours against `v1.9.0`
-  specifically, and *those* observations are what T1–T4 assert.
+  contract. T0 re-derives all four behaviours against `v1.9.0` specifically,
+  and *those* observations are what T1–T4 assert.
 * **The `1.10.1+dirty` measurements are retained as corroborating evidence
   only**, explicitly labelled as such, and no fixture asserts them. A `+dirty`
   build is by definition unreproducible; it can corroborate, never pin.
@@ -183,22 +166,10 @@ unrelated to the defect, and in neither case would it be evidence.
   fixture **fails with an explicit version-mismatch message** rather than
   skipping or assuming. A silent skip here would delete the entire evidentiary
   value of the release unit.
-* **The pin itself is in scope.** T10 (new) records the version contract — the
+* **The pin itself is in scope.** T10 records the version contract — the
   pinned CI version, the observation baseline, and the re-observation
   obligation when the pin moves — in `docs/`, so a future pin bump is a
   known, checklisted action rather than a silent invalidation of every fixture.
-
-Substituting the cascade on a non-cascade-eligible manifest is **prohibited**:
-the engine returns live out-of-manifest siblings and silently clears their
-`parent_id` (tracked separately as `63363CF5`, untouched and outside scope).
-
-**Blocking relationship.** This blocks `INV-11` of
-`docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md` —
-operational multi-shipment feature delivery. `INV-4`/`INV-5` make split
-delivery *contract-complete* (an ordered sequence `S1..Sn`, feature item last in
-`Sn`), but every intermediate shipment `S1..Sn-1` carries no feature member,
-therefore can never qualify for CASCADE, therefore is a genuine SAFE_CLOSE
-shipment, therefore hits this exact refusal.
 
 ## Evidence provenance defect (P-005) — the first deliverable
 
@@ -265,8 +236,39 @@ Binding constraints:
 
 Audit every in-repository statement about split multi-shipment delivery and
 correct any that describes it as operationally complete or end-to-end supported
-while `INV-11` is blocked. Add a durable pointer from the `INV-11` text to this
-entry so the blocked status is discoverable from the invariant itself.
+while `INV-11` is blocked. Add a durable pointer from the `INV-11` text to the
+Part E tracker so the blocked status is discoverable from the invariant itself.
+
+### Part E — durable external-dependency tracker
+
+The structural hazard is that `7F9CB5E9`'s stash entry is consumed and archived
+by this staging session, `181-S` ships, `173-F` closes — and nothing left
+active in the workspace still says the gap is open. The entry that used to
+carry it is in `.backlogit/archive/stash.jsonl`, which is history, not a live
+signal. The defect would then be invisible until someone re-encounters it.
+
+The tracker is therefore a deliverable of this plan (T8), and it outlives
+`181-S` by construction:
+
+* A **separate, active backlog item** of type chore, `status: queued`, titled
+  for the external dependency, **not** a member of `181-S`'s manifest and not
+  parented to `173-F`. It cannot be closed by `181-S` shipping because it is
+  not in it.
+* It carries the upstream reference (issue/PR URL once filed), the four
+  measured refusal behaviours by reference to the T1–T4 fixtures, the
+  `INV-11` back-pointer, and the binary version the observations hold for.
+* Its **closure condition is stated on the item itself**: a released backlogit
+  version providing a non-cascading transition to
+  `archived_status: shipped`, verified by the T1–T4 fixtures re-run against
+  that version and flipping from "refusal observed" to "capability present".
+  Nothing else closes it — not the upstream issue being filed, not `181-S`
+  archiving, not the interim procedure being documented.
+* **`INV-11` points at the tracker, not at `181-S`.** T7's back-pointer
+  targets the durable item, so a reader arriving from the invariant reaches a
+  live record rather than a shipped one.
+* A regression assertion (T9) fails if the tracker item is absent or has
+  reached a terminal state while the fixtures still observe the refusals. This
+  makes premature closure a test failure rather than a silent drift.
 
 ## Work Breakdown
 
@@ -284,57 +286,44 @@ entry so the blocked status is discoverable from the invariant itself.
 | T9 | Regression assertion: the tracker `002-C` exists and is non-terminal while the fixtures still observe the refusals | `tests/` | — (`blocks`: none); `002-C` (`relates_to`, never `blocks`) |
 | T10 | Record the backlogit version contract: pinned CI version, observation baseline, and the re-observation obligation when the pin moves | `docs/` | T0 |
 
-**Task count (revision 4, stated precisely).** This feature carries **TEN
-feature tasks** — T0–T7 and T9–T10, harvested as `173.001-T` … `173.010-T` —
-**plus ONE external tracker**, chore `002-C`, which is deliberately neither a
-child of the covering feature nor a member of `181-S`. The plan-relative label
-`T8` names that external tracker, not an eleventh feature task. Revision 3
-stated the count ambiguously and referenced the tracker only by the
-plan-relative label `T8`; revision 4 requires every record that references it
-to use the **exact resolvable backlog ID `002-C`**, and requires the
-documentation-truth audit and the tracker regression — harvested as
-`173.007-T` and `173.010-T` respectively — to name `002-C` and `173.010-T` by
-exact ID rather than by plan-relative label.
+### Dependency and linkage contract
 
-**T0 is a hard predecessor (revision 4).** Revision 3 defined the `v1.9.0`
-baseline task but left it unwired, so a fixture could have been executed first
-and pinned its assertions to the local dirty `1.10.1` build. T0 now blocks all
-four hermetic fixtures (T1–T4), the portable upstream report (T5), and the
-version-aware fixture contract (T10) as machine-encoded `blocks` edges.
+**Task count, stated precisely.** This feature carries **TEN feature tasks** —
+T0–T7 and T9–T10, harvested as `173.001-T` … `173.010-T` — **plus ONE external
+tracker**, chore `002-C`, which is deliberately neither a child of the covering
+feature nor a member of `181-S`. The plan-relative label `T8` names that
+external tracker, not an eleventh feature task. Every record that references it
+uses the **exact resolvable backlog ID `002-C`**; the documentation-truth audit
+and the tracker regression — harvested as `173.007-T` and `173.010-T` — name
+`002-C` and `173.010-T` by exact ID rather than by plan-relative label.
 
-**Tracker linkage is `relates_to`, NOT `blocks` (revision 4).** `002-C`'s only
-closure condition is an upstream backlogit release, so it is designed never to
-close during this portfolio. A `blocks` edge from `173.007-T` or `173.010-T`
-onto it would make both tasks permanently unstartable and `181-S` permanently
-unclosable — reintroducing the exact partial-closure deadlock this remediation
+**T0 is a hard predecessor.** T0 blocks all four hermetic fixtures (T1–T4), the
+portable upstream report (T5), and the version-aware fixture contract (T10) as
+machine-encoded `blocks` edges, so no fixture can pin its assertions to the
+local dirty `1.10.1` build.
+
+**Nothing may be filed, documented, corrected, or tracked on indicative
+evidence.** T5, T6, T7 and the `002-C` tracker all block on T1–T4. `002-C`
+itself carries `blocks` dependencies on `173.001-T`, `173.002-T`, `173.003-T`
+and `173.004-T`, so the tracker is created only once all four refusal
+behaviours have been observed hermetically.
+
+**Tracker linkage is `relates_to`, NOT `blocks`.** `002-C`'s only closure
+condition is an upstream backlogit release, so it is designed never to close
+during this portfolio. A `blocks` edge from `173.007-T` or `173.010-T` onto it
+would make both tasks permanently unstartable and `181-S` permanently
+unclosable — reintroducing the exact partial-closure deadlock this disposition
 exists to remove. For `173.010-T` it would additionally be self-contradictory:
 that regression asserts the tracker **remains open**, so blocking on its
 closure would demand the very terminal state the assertion forbids. Both edges
-are therefore `relates_to` reference edges.
+are therefore `relates_to` reference edges, and **no `blocks` edge onto `002-C`
+exists anywhere**, in this table or in the records.
 
-**Work-breakdown table corrected (revision 5).** Through revision 4 the table's
-`Blocked by` column still listed **T8** for T7 and T9, contradicting the binding
-`relates_to` rule stated in the paragraph above and contradicting the harvested
-records, which have always carried `relates_to` edges onto `002-C`. Revision 5
-corrects both rows: T7 is blocked by **T1–T4** and merely *relates to* `002-C`;
-T9 has **no blocking predecessor at all** and merely *relates to* `002-C`. No
-`blocks` edge onto `002-C` exists anywhere, in the table or in the records.
-
-**`002-C` is blocked by the four hermetic fixtures (revision 5).** The T8 row
-has always declared `Blocked by: T1, T2, T3, T4`, but that edge set was never
-encoded. Revision 5 encodes it: `002-C` carries `blocks` dependencies on
-`173.001-T`, `173.002-T`, `173.003-T` and `173.004-T`, so the tracker cannot be
-filed on indicative evidence — it is created only once all four refusal
-behaviours have been observed hermetically. This is an **outgoing** edge set on
-`002-C` and changes nothing about the **incoming** `relates_to` edges from
-`173.007-T` and `173.010-T`, which remain `relates_to` for the reasons above.
-The two directions are independent: `002-C` may be blocked by evidence tasks
-while the tasks that *reference* it are not blocked by its closure.
-
-T5, T6, T7, and the `002-C` tracker all block on T1–T4: nothing may be filed,
-documented, corrected, or tracked on indicative evidence. T7 additionally
-references `002-C` because its `INV-11` back-pointer must resolve to a tracker
-that already exists — as a `relates_to` edge, per the paragraph above.
+The two directions are independent: `002-C` may be blocked by the evidence
+tasks while the tasks that *reference* it are not blocked by its closure.
+T7's `INV-11` back-pointer must resolve to `002-C`, which T8 creates; because
+that linkage is `relates_to`, the T8-before-T7 ordering is not machine-enforced
+by a `blocks` edge.
 
 ## Verification
 
@@ -349,9 +338,9 @@ that already exists — as a `relates_to` edge, per the paragraph above.
 * A repository-wide search finds no remaining claim that split delivery is
   operationally complete, and none that `181-S` resolves `7F9CB5E9` or
   `INV-11`.
-* The durable tracker item exists, is `queued`, is **not** a member of
+* The durable tracker item `002-C` exists, is `queued`, is **not** a member of
   `181-S`, and is not parented to `173-F`.
-* `INV-11`'s back-pointer resolves to the tracker, not to `181-S`.
+* `INV-11`'s back-pointer resolves to `002-C`, not to `181-S`.
 
 ## Risks
 
@@ -359,7 +348,7 @@ that already exists — as a `relates_to` edge, per the paragraph above.
 |---|---|---|
 | R1 | The interim procedure is read as an agent-executable path | Operator-only is stated in the procedure title, its first paragraph, and its telemetry requirement; T6's acceptance criteria include a negative assertion that no agent template references it as executable |
 | R2 | Fixtures mutate live workspace records | Fixtures operate on disposable in-`tests/` records only; Verification asserts `.backlogit/` is unmodified |
-| R3 | Upstream never lands and the entry stays open indefinitely | This plan's deliverables are complete without the upstream fix; T8's durable tracker is what keeps the open state visible after `181-S` archives |
+| R3 | Upstream never lands and the entry stays open indefinitely | This plan's deliverables are complete without the upstream fix; the `002-C` tracker is what keeps the open state visible after `181-S` archives |
 | R4 | Re-derivation is attempted in `%TEMP%` again for speed | Explicitly prohibited in Verification and Out of scope; this is the exact P-005 violation being corrected |
 | R5 | The cascade is substituted on a non-eligible manifest to "just close it" | Already prohibited by `166.005-T`'s no-substitution clause, which this plan does not weaken |
 | R6 | `181-S` shipping is read as resolving the defect | Disposition class is normative frontmatter (`shipment_disposition_class: local-disposition`, `underlying_defect_status: unresolved-external`) and a dedicated plan section; T7 audits for the mis-statement; T9 fails if the tracker closes prematurely |
@@ -379,10 +368,6 @@ that already exists — as a `relates_to` edge, per the paragraph above.
 * Any agent-executable administrative close.
 
 ## Plan Hardening Record (P-006)
-
-Hardening applied 2026-09-17, re-run 2026-09-18 during remediation cycle 1.
-Revision 2 declared `plan_hardening_status: complete` without persisting this
-record; that gap is H0 below.
 
 **Hardening trigger.** Elevated risk on three distinct axes: the plan documents
 an **operator-only administrative-close procedure** that mutates terminal
@@ -412,14 +397,13 @@ an **external binary dependency at a moving, partly unreproducible version**.
 `docs/decisions/2026-09-15-flat-manifest-shipment-closure-deliberation.md`
 (INV-4, INV-5, INV-11), and `.github/workflows/ci.yml` (the v1.9.0 pin).
 
-| # | Hardening finding | Resolution |
+| # | Hazard | Resolution in this contract |
 |---|---|---|
-| H0 | Revision 2 asserted `plan_hardening_status: complete` with no persisted hardening record | This section is the record; `plan_hardening_section` in frontmatter names it |
-| H1 | Once the local deliverables ship and `181-S` archives, no active artifact would still assert the external gap is open — the consumed stash entry is in archive history, not a live signal | T8 delivers a durable tracker item outside `181-S`'s manifest and outside `173-F`'s parentage, with its closure condition stated on the item; T9 fails if it closes prematurely |
-| H2 | `181-S` was not distinguished from resolution of the underlying defect anywhere machine-readable | `shipment_disposition_class: local-disposition` and `underlying_defect_status: unresolved-external` added to frontmatter; a normative Disposition class section added; T7 audits for mis-statements |
-| H3 | Fixture expectations derived from a `+dirty` local 1.10.1 build would have been evaluated by CI against a checksum-pinned v1.9.0 — asserting one binary's behaviour against another | T0 establishes v1.9.0 as the authoritative observation baseline; `+dirty` observations demoted to labelled corroboration; T10 records the version contract |
-| H4 | A version-mismatch fixture could have degraded to a skip, silently deleting the release unit's entire evidentiary value | Version mismatch **fails loudly** with an explicit message; skipping is prohibited in Verification |
-| H5 | `INV-11`'s back-pointer targeted `181-S`, so a reader arriving from the invariant would land on a shipped record and infer resolution | T7's back-pointer retargeted to the durable tracker; T7 blocks on T8 so the target exists first |
+| H1 | Once the local deliverables ship and `181-S` archives, no active artifact still asserts the external gap is open — the consumed stash entry is archive history, not a live signal | Part E / T8 delivers the durable tracker `002-C` outside `181-S`'s manifest and outside `173-F`'s parentage, with its closure condition stated on the item; T9 fails if it closes prematurely |
+| H2 | `181-S` is not distinguished from resolution of the underlying defect anywhere machine-readable | `shipment_disposition_class: local-disposition` and `underlying_defect_status: unresolved-external` in frontmatter; a normative Disposition class section; T7 audits for mis-statements |
+| H3 | Fixture expectations derived from a `+dirty` local 1.10.1 build would be evaluated by CI against a checksum-pinned v1.9.0 — asserting one binary's behaviour against another | T0 establishes v1.9.0 as the authoritative observation baseline; `+dirty` observations are labelled corroboration; T10 records the version contract |
+| H4 | A version-mismatch fixture that degrades to a skip silently deletes the release unit's entire evidentiary value | Version mismatch **fails loudly** with an explicit message; skipping is prohibited in Verification |
+| H5 | An `INV-11` back-pointer targeting `181-S` lands a reader on a shipped record and invites the inference that the defect is resolved | T7's back-pointer targets the durable tracker `002-C`, which T8 creates once the hermetic evidence exists; the linkage edge is `relates_to`, never `blocks`, because `002-C` is designed never to close during this portfolio |
 | H6 | The interim procedure is the highest-risk artifact in the unit — it describes a terminal-state mutation | Operator-only stated in title, first paragraph, and telemetry requirement; T6 carries a negative assertion that no agent template references it as executable; classified High-risk below |
 | H7 | Re-derivation could regress to `%TEMP%` for convenience, repeating the P-005 violation being corrected | Prohibited in Verification and Out of scope; fixtures operate on disposable in-`tests/` records only |
 | H8 | A future CI pin bump would silently invalidate every fixture observation | T10 records the re-observation obligation as a checklisted action tied to the pin |
@@ -430,18 +414,19 @@ an **external binary dependency at a moving, partly unreproducible version**.
 |---|---|---|---|
 | Document the operator-only administrative-close procedure (T6) | **High** — describes a terminal shipment-state mutation; mis-reading it as agent-executable would be a P-001/P-005 violation | Operator review required before merge | Remove the document; it is descriptive only and grants no capability |
 | Re-derive refusal behaviours against a real binary (T0–T4) | Medium — executes backlogit commands | Standard PR review; hermetic in-`tests/` records only | Delete fixtures; no live state touched |
-| Create the durable tracker backlog item (T8) | Low — additive backlog record outside every manifest | Standard PR review | Archive the item |
+| Create the durable tracker backlog item `002-C` (T8) | Low — additive backlog record outside every manifest | Standard PR review | Archive the item |
 | Generate and file the upstream report (T5) | Low locally; **filing is an operator action** | Plan produces the report; it does **not** authorize an agent to open the issue | Do not file |
 | Correct in-repository completeness claims (T7) | Low — documentation truth | Standard PR review | Revert |
 
-**Rollback coupling.** T0–T4 are test-only. T5/T6/T7/T10 are docs-only. T8 is
-the only task creating persisted backlog state and is reversible by archiving.
-No task mutates a shipment record, a closure artifact, or any live manifest.
+**Rollback coupling.** T0–T4 and T9 are test-only. T5/T6/T7/T10 are docs-only.
+T8 is the only task creating persisted backlog state and is reversible by
+archiving. No task mutates a shipment record, a closure artifact, or any live
+manifest.
 
 **Monitoring and validation window.** The fixtures are the monitor: they run on
 every CI invocation and flip from "refusal observed" to a failure the moment
-upstream behaviour changes. That flip is the signal to close the T8 tracker —
-and the only thing that closes it.
+upstream behaviour changes. That flip is the signal to close the `002-C`
+tracker — and the only thing that closes it.
 
 **Operator checkpoints.** Two. (1) Review and approval of T6's interim
 procedure before merge. (2) Filing the T5 upstream report, which is explicitly
