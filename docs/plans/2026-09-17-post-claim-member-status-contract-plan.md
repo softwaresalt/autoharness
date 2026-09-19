@@ -7,7 +7,7 @@ date: 2026-09-17
 status: reviewed
 plan_id: post-claim-member-status-contract
 plan_role: active
-revision: 6
+revision: 7
 supersedes: null
 superseded_by: null
 source_history:
@@ -19,7 +19,7 @@ source_history:
   - docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-07.md
   - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
 review_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
-revision_note: "Revision 6 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
+revision_note: "Revision 7 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_spike: docs/spikes/2026-09-17-post-claim-member-status-contract-spike.md
@@ -168,14 +168,41 @@ such token to assert.
 
 ## Work Breakdown
 
-| # | Task | Scope |
-|---|---|---|
-| T1 | Author the `P-002.7` clause in the policy **template** | `templates/policies/workflow-policies.md.tmpl` |
-| T2 | Apply the identical clause to the installed mirror, atomically with T1 | `.github/policies/workflow-policies.md` |
-| T3 | Add the bidirectional cross-reference in the Ship template and installed mirror | `templates/agents/_ship.agent.md.tmpl`, `.github/agents/_ship.agent.md` |
-| T4 | Structural test asserting the cross-reference resolves in both directions and in both copies, and that the clause carries its observed-version attribution | `tests/` |
-| T5 | Composed state-machine regression test for the three transition states | `tests/` |
-| T6 | Document the contract, its preserved distinction, and the explicitly-undelivered downstream detection | `docs/` |
+The ordering is **test-first**: both failing contract tests are authored and
+observed failing before any production policy or agent text changes, and the
+green verification follows the implementation.
+
+| # | Task | Scope | Phase | Blocked by |
+|---|---|---|---|---|
+| T0a | **RED** — author the composed state-machine contract test for the three transition states against the not-yet-authored `P-002.7` clause, and observe it failing | `tests/` | RED | — |
+| T0b | **RED** — author the wiring / cross-reference contract test asserting the two prose sites name each other in **both** copies and that the observed-version attribution paragraph is present, and observe it failing | `tests/` | RED | — |
+| T1 | Author the `P-002.7` clause in the policy **template** | `templates/policies/workflow-policies.md.tmpl` | IMPL | T0a, T0b |
+| T2 | Apply the identical clause to the installed mirror, atomically with T1 | `.github/policies/workflow-policies.md` | IMPL | T1 |
+| T3 | Add the bidirectional cross-reference in the Ship template and installed mirror | `templates/agents/_ship.agent.md.tmpl`, `.github/agents/_ship.agent.md` | IMPL | T2 |
+| T4 | **GREEN** — observe the wiring / cross-reference test passing against the shipped clause and cross-reference, and add the regression cases that only make sense against real text (mirror-divergence detection, attribution-paragraph presence) | `tests/` | GREEN | T3 |
+| T5 | **GREEN** — observe the composed state-machine test passing against the shipped clause, and add the negative rows that only make sense against real text | `tests/` | GREEN | T3 |
+| T6 | Document the contract, its preserved distinction, and the explicitly-undelivered downstream detection | `docs/` | DOC | T4, T5 |
+
+### TDD order
+
+```text
+T0a ─┐
+T0b ─┴─> T1 ─> T2 ─> T3 ─┬─> T4 ─┐
+                         └─> T5 ─┴─> T6
+```
+
+Both RED tasks are entry points blocked by nothing. Every production surface
+(`T1`, `T2`, `T3`) is blocked by both of them, so no policy or agent text can
+land before a failing test exists that describes it. `T4`/`T5` are the green
+observations and block on the last production change; `T6` documents last.
+
+**RED import safety (binding on T0a and T0b).** Both RED modules must import
+cleanly under `unittest.defaultTestLoader` with zero `loader.errors` and zero
+`_FailedTest` placeholders. The not-yet-existing clause text is read **inside
+the test body** through a helper, never at module import time — a module that
+raises on import produces a missing observation, not a red one, and would fail
+its own P-004 gate. Each declared RED test individually executes and fails with
+its own declared marker in its own failure text.
 
 T1 and T2 are one atomic change set: T2 declares a `blocks` dependency on T1 so
 the template and its installed mirror cannot land apart.
@@ -184,9 +211,10 @@ the template and its installed mirror cannot land apart.
 its negative-case suite. That scope belongs to the deferred typed-policy-
 representation entry `E770139B`.
 
-T4 is the assertion this surface actually supports: a structural check that the
-two prose sites name each other and that the attribution paragraph is present.
-It makes no judgement about a consuming workspace's rules, because it cannot.
+`T0b`/`T4` are the assertion this surface actually supports: a structural check
+that the two prose sites name each other and that the attribution paragraph is
+present. It makes no judgement about a consuming workspace's rules, because it
+cannot.
 
 ## Verification
 
@@ -195,6 +223,12 @@ It makes no judgement about a consuming workspace's rules, because it cannot.
 * Cross-reference resolution asserted in both directions, both copies.
 * The clause's observed-version attribution paragraph is present in both copies.
 * The composed state-machine test carries exactly the three transition rows.
+* Both RED modules (`T0a`, `T0b`) load with zero `loader.errors` and zero
+  `_FailedTest` placeholders, and each declared RED test individually fails with
+  its own declared marker in its own failure text.
+* Every production surface task in this release unit is reachable only through a
+  RED predecessor: the machine DAG has no edge from a policy or agent task to a
+  node with no failing-test ancestor.
 * No new `verify-workspace` token is introduced by this release unit, and no
   document in it claims one is.
 

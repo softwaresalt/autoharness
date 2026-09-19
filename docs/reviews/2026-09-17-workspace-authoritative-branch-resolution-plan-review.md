@@ -1,26 +1,32 @@
 ---
 title: "Plan review verdict manifest — Workspace-authoritative branch resolution"
-description: "Mutable verdict manifest for docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 07 (terminal). Plan revision: 6. Verdict: BLOCKED, gate result FAIL, taken directly from the attempt-07 reviewer verdict against content HEAD 22bca5c8. One P1 finding and one Security P2 follow-up are open. The authorized extra remediation cycle is exhausted, so no remediation followed and no further Stage fix cycle is authorized."
+description: "Mutable verdict manifest for docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 07, remediated and awaiting attempt 08. Plan revision: 7. Attempt-07 reviewer gate result FAIL and reviewer verdict BLOCKED against content HEAD 22bca5c8 are immutable facts and are recorded unchanged. The derived top-level verdict is REMEDIATED-PENDING-REVIEW because the operator authorized one additional remediation cycle after attempt 07 and Stage produced plan revision 7 in response. No PASS exists anywhere in this record. One P1 finding and one Security P2 follow-up are open. The remediation is unverified: it awaits independent attempt 08."
 doc_type: review-manifest
 source: docs/reviews/2026-09-17-workspace-authoritative-branch-resolution-plan-review.md
 date: 2026-09-18
 plan_id: workspace-authoritative-branch-resolution
 plan_path: docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md
-plan_revision: 6
+plan_revision: 7
 latest_attempt: 7
-review_terminal: true
+review_terminal: false
+awaiting_attempt: 8
 reviewed_content_head: 22bca5c8
 gate_result: FAIL
-verdict: BLOCKED
+verdict: REMEDIATED-PENDING-REVIEW
 p0_open: 0
 p1_open: 1
 p2_open: 1
-remediation_authorization: none-exhausted
-latest_remediation_revision: null
-latest_disposition: null
+remediation_authorization: operator-authorized
+latest_remediation_revision: 7
+latest_disposition: REMEDIATED-PENDING-REVIEW
 latest_artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-07.md
 attempts:
-  - attempt: "01-02"
+  - attempt: 2
+    form: combined-document
+    legacy_coverage:
+      covers_attempts: [1, 2]
+      original_attempt_label: "01-02"
+      note: "One document authored for two cycles; preserved verbatim, never retroactively split."
     artifact: docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempts-01-02-combined.md
     reviewed_revision: 2
     verdict: PASS
@@ -57,9 +63,11 @@ attempts:
     verdict: BLOCKED
     p1_open: 1
     p2_open: 1
-    remediation_revision: null
-    disposition: null
-    terminal: true
+    remediation_revision: 7
+    disposition: REMEDIATED-PENDING-REVIEW
+    remediation_parent_head: 689c48a0
+    remediation_content_state: uncommitted-working-tree
+    terminal: false
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
     reason: "Attempt-05 records conflate the reviewed revision 4 with the Stage-produced revision 5; this erratum states the corrected reading without editing the immutable records."
@@ -95,25 +103,47 @@ name.
 |---|---|
 | `plan_id` | `workspace-authoritative-branch-resolution` |
 | `plan_path` | `docs/plans/2026-09-17-workspace-authoritative-branch-resolution-plan.md` |
-| `plan_revision` | 6 |
-| `latest_attempt` | **07** (terminal) |
+| `plan_revision` | 7 |
+| `latest_attempt` | **07** (remediated, awaiting attempt **08**) |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-07.md` |
 | `reviewed_content_head` | `22bca5c8` |
-| `gate_result` | **FAIL** |
-| `verdict` | **BLOCKED** (derived) |
-| `p1_open` | **1** |
+| `gate_result` (attempt 07, immutable) | **FAIL** |
+| `verdict` | **REMEDIATED-PENDING-REVIEW** (derived) |
+| `p1_open` | **1** (all addressed in revision 7; unverified until attempt 08) |
 | `p2_open` | 1 |
 
 **The top-level `verdict` is derived, not authored.** Take the
 highest-numbered roster entry — attempt 07. Its `remediation_revision` is
-`null`, so no Stage-produced revision supersedes what the reviewer judged, and
-the top-level `verdict` is that entry's reviewer `verdict`: `BLOCKED`. The
-authorized extra remediation cycle is exhausted; there is no further Stage fix
-cycle, and no `PASS` exists anywhere in this record.
+**7**, so a Stage-produced revision supersedes the content the reviewer judged,
+and the top-level `verdict` is that entry's `disposition`:
+`REMEDIATED-PENDING-REVIEW`.
+
+That derivation does **not** overwrite what the reviewer said. The attempt-07
+entry still carries `verdict: BLOCKED` and the manifest still carries
+`gate_result: FAIL` — those are immutable facts about content HEAD
+`22bca5c8` and they are never rewritten. `REMEDIATED-PENDING-REVIEW` is a
+`disposition`, never a `verdict` value, and it asserts only that Stage
+produced a revision in response. It asserts **nothing** about whether that
+revision is adequate. No `PASS` exists anywhere in this record, and none may
+be entered except by an independent attempt 08.
 
 ## What attempt 07 records
 
-Terminal independent review opened against plan revision 6 at content HEAD `22bca5c8`; gate result FAIL, decision BLOCKED, one P1 finding open plus one Security P2 follow-up. Persona coverage was complete (Constitution, Python, Scope Boundary, Learnings, Architecture, Agent-Native Parity, Security Lens); the anchor route was absent so the cross-model rubric ran under same-model declared degradation, the Learnings persona was degraded because it could not inspect the diff, and Scope Boundary returned no P0/P1. The open P1: the Ship template and its installed mirror still derive and create the branch from the work item title and never consume the topology gate's selected_branch, so an explicit implementation_branch satisfies the first gate - the only surface that reads it - and Ship then creates a different, title-derived branch. The P2 follow-up concerns approval, snapshot and rollback detail for retiring the existing branch workaround; it is recorded without altering substantive scope. No remediation followed.
+Terminal independent review opened against plan revision 6 at content HEAD `22bca5c8`; gate result FAIL, decision BLOCKED, one P1 finding open plus one Security P2 follow-up. Persona coverage was complete (Constitution, Python, Scope Boundary, Learnings, Architecture, Agent-Native Parity, Security Lens); the anchor route was absent so the cross-model rubric ran under same-model declared degradation, the Learnings persona was degraded because it could not inspect the diff, and Scope Boundary returned no P0/P1. The open P1: the Ship template and its installed mirror still derive and create the branch from the work item title and never consume the topology gate's selected_branch, so an explicit implementation_branch satisfies the first gate - the only surface that reads it - and Ship then creates a different, title-derived branch. The P2 follow-up concerns approval, snapshot and rollback detail for retiring the existing branch workaround; it is recorded without altering substantive scope.
+
+## What followed attempt 07
+
+The operator explicitly authorized **one additional bounded remediation cycle**
+after attempt 07 returned terminal. Stage produced **plan revision 7** in
+response, at parent HEAD `689c48a0` with the remediation carried as uncommitted
+working-tree content. Every P1 the attempt-07 reviewer raised against this plan
+is addressed in that revision; the plan was rewritten as a coherent
+current-state contract rather than extended with a correction log.
+
+This is a **disposition, not a verdict**. Nothing here asserts the remediation
+is adequate, complete, or correct. That judgement belongs to an independent
+**attempt 08**, which has not run. Until it does, the reviewer-raised findings
+are recorded as open.
 
 ## Attempt roster
 
@@ -127,24 +157,36 @@ the record — the exact defect the attempt-05 artifacts carry, documented in
 
 | Attempt | Artifact | Reviewed rev | Reviewer verdict | Remediation rev | Disposition |
 |---|---|---|---|---|---|
-| 01–02 | `...-plan-review-attempts-01-02-combined.md` | 2 | PASS | — | — |
-| 03 | `...-plan-review-attempt-03.md` | 3 | PASS | — | — |
-| 04 | `...-plan-review-attempt-04.md` | 3 | BLOCKED | 4 | REMEDIATED-PENDING-REVIEW |
-| 05 | `...-plan-review-attempt-05.md` | 4 | BLOCKED | 5 | REMEDIATED-PENDING-REVIEW |
-| 06 | `...-plan-review-attempt-06.md` | 5 | BLOCKED | 6 | REMEDIATED-PENDING-REVIEW |
-| **07** (terminal) | `...-plan-review-attempt-07.md` | 6 @ `22bca5c8` | **BLOCKED** (1 P1 open, 1 P2) | — | — |
+| 2 (legacy `01-02`) | `...-plan-review-attempts-01-02-combined.md` | 2 | PASS | — | — |
+| 3 | `...-plan-review-attempt-03.md` | 3 | PASS | — | — |
+| 4 | `...-plan-review-attempt-04.md` | 3 | BLOCKED | 4 | REMEDIATED-PENDING-REVIEW |
+| 5 | `...-plan-review-attempt-05.md` | 4 | BLOCKED | 5 | REMEDIATED-PENDING-REVIEW |
+| 6 | `...-plan-review-attempt-06.md` | 5 | BLOCKED | 6 | REMEDIATED-PENDING-REVIEW |
+| **7** | `...-plan-review-attempt-07.md` | 6 @ `22bca5c8` | **BLOCKED** (1 P1 open, 1 P2) | **7** | REMEDIATED-PENDING-REVIEW |
 
-Attempt 07 has no `remediation_revision` and no `disposition` because the
-operator-authorized extra remediation cycle was **exhausted** before it ran. The
-empty remediation columns are a fact about what Stage did — nothing — not a
-placeholder awaiting a later fill.
+**`attempt` is an integer in every row.** Deterministic latest-attempt
+selection is a numeric maximum, and a string such as `"01-02"` has no numeric
+maximum against `3`, `4`, `5`, `6` or `7`. The roster therefore carries
+integers only, and exactly **one artifact per numeric attempt**.
 
-Attempts 01–02 were written as a single document covering two cycles. That
-file is preserved verbatim rather than retroactively split — fabricating two
+The first row is the legacy combined document, normalized to `attempt: 2` with
+an explicit `legacy_coverage` block recording `covers_attempts: [1, 2]`, the
+original `"01-02"` label, and `form: combined-document`. **Nothing is lost and
+nothing is invented**: the document was authored once, for two cycles, and is
+preserved verbatim rather than retroactively split — fabricating two
 independently-authored records from a document never authored that way would be
-a provenance forgery. Its `reviewed_revision` is recorded as 2, the revision the
-document itself names; the pre-remediation cycle merged into it is not
-separately recoverable from the record, and is not invented here.
+a provenance forgery. `reviewed_revision` remains 2, the revision the document
+itself names; the pre-remediation cycle merged into it is not separately
+recoverable from the record, and is not invented here. `legacy_coverage` is an
+optional **roster-entry** key, not a ninth manifest contract key.
+
+**Attempt 7 carries a `remediation_revision` and a `disposition`, and its
+`terminal` flag is now `false`.** When attempt 07 was written, the authorized
+remediation budget was exhausted and the columns were correctly empty. The
+operator then authorized one further bounded cycle, Stage produced revision 7,
+and the columns record that fact. The reviewer's own `verdict: BLOCKED` in that
+same row is untouched — the remediation columns describe Stage's response, not
+the reviewer's judgement, which is exactly why they are separate columns.
 
 ## Carried-forward context
 

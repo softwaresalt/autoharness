@@ -25,6 +25,9 @@ p2_open_total: 4
 remediation_authorization: none-exhausted
 harvest_ready: false
 ship_ready: false
+superseded_by: docs/memory/2026-09-18-stage-portfolio-current-state.md
+superseded_note: "EXPLICITLY SUPERSEDED as a CURRENT-STATE surface. This document remains an accurate record of what was true when it was written and is preserved verbatim for provenance. Its terminal-review framing is stale: the operator subsequently authorized one bounded remediation cycle, all 28 P1 findings were addressed, and the plans were regenerated at revision 7 (SAFE_CLOSE revision 8) with disposition REMEDIATED-PENDING-REVIEW awaiting independent attempt 08. Do not use it as operative current-state input; read docs/memory/2026-09-18-stage-portfolio-current-state.md instead."
+doc_status: superseded
 tags:
   - "stage"
   - "contract-defect-portfolio"

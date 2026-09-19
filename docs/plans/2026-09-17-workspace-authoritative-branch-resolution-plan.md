@@ -7,7 +7,7 @@ date: 2026-09-17
 status: reviewed
 plan_id: workspace-authoritative-branch-resolution
 plan_role: active
-revision: 6
+revision: 7
 supersedes: null
 superseded_by: null
 source_history:
@@ -19,7 +19,7 @@ source_history:
   - docs/reviews/review-history/2026-09-17-workspace-authoritative-branch-resolution-plan-review-attempt-07.md
   - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
 review_manifest: docs/reviews/2026-09-17-workspace-authoritative-branch-resolution-plan-review.md
-revision_note: "Revision 6 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
+revision_note: "Revision 7 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_prior_deliberation: docs/decisions/2026-09-12-dag-authoritative-predecessor-derivation-deliberation.md
@@ -291,6 +291,52 @@ from the nested map, validates it, and surfaces it on `ShipmentState`.
 Shipments without the field behave **exactly** as before — this is the
 compatibility invariant, and it has its own regression case.
 
+### Ship consumption of `selected_branch` — comparison AND creation
+
+Emitting `selected_branch` is necessary but not sufficient. Today the Ship
+agent derives the branch name **itself**, from the shipment title, in two
+separate places in `templates/agents/_ship.agent.md.tmpl` (and byte-identically
+in the installed mirror `.github/agents/_ship.agent.md`):
+
+* the **comparison** site — "already on a branch matching this shipment (e.g.
+  `feat/{slug}` or `chore/{slug}`)";
+* the **creation** site — `git checkout -b feat/{feature-slug}`, "where
+  `{feature-slug}` is derived from the shipment title: lowercase, spaces
+  replaced with hyphens".
+
+While those two sites stand, a shipment carrying an explicit
+`implementation_branch` that differs from its title alias produces a gate that
+expects one branch and a Ship that creates and compares against another — the
+gate blocks on a branch Ship will never be on, and the explicit contract is
+inert. Retiring the title-alias workarounds on `025-S`/`020-S` before Ship
+consumes the emitted value would therefore **strand two live shipments**.
+
+The contract is consequently:
+
+1. Ship runs the pipeline-topology gate **before** branch comparison or
+   creation, and reads `selected_branch` from its JSON.
+2. On a **successful** gate result, `selected_branch` is the **sole** authority
+   for both sites. The comparison site asserts `HEAD` equals
+   `selected_branch`; the creation site runs `git checkout -b -- <selected_branch>`
+   with the emitted value verbatim.
+3. Ship performs **no** slug derivation, no lowercasing, no space substitution,
+   no `feat/`/`chore/` prefixing, and no title parsing of any kind. Every
+   title-derived branch expression is deleted from both copies, not merely
+   supplemented — a surviving derivation is a second authority and is exactly
+   the defect.
+4. On a **blocked or errored** gate result, Ship halts. It does not fall back
+   to a derived name. A gate that could not select a branch has not authorized
+   one.
+5. **Leading-hyphen safety is preserved end to end.** The validator already
+   rejects a standalone option-like short name, and the emitted value is passed
+   to `git` after the `--` option terminator with a fixed argv and
+   `shell=False`, so a value that is legal as a branch name but option-like as
+   an argument cannot be re-interpreted at the Ship boundary either.
+6. **The two-rung resolver is unchanged.** Ship consumes whatever
+   `selected_branch` the resolver produced, whether its `resolution_source` is
+   `explicit_contract` or `title_alias`. Consumption does not add a third rung
+   and does not inspect `resolution_source` to decide behaviour.
+
 ## Work Breakdown
 
 | # | Task | Scope | Blocked by |
@@ -304,8 +350,12 @@ compatibility invariant, and it has its own regression case.
 | T6 | **GREEN** — seven-row regression matrix from `14F4D6F3` observed passing | `tests/test_gates_topology.py` | T4 |
 | T7 | **GREEN** — field regressions for `018-S`, `020-S`, `025-S`, plus the no-field compatibility invariant | `tests/test_gates_topology.py` | T4 |
 | T8 | **GREEN** — CLI-surface tests for the new JSON fields and the malformed-value exit path | `tests/test_gate_pipeline_topology_cli.py` | T5 |
-| T9 | Gate documentation: precedence table, validation rule set including divergence set D, token table, compatibility note | `docs/` | T5 |
-| T10 | Retire the temporary title-alias workarounds on `025-S`/`020-S` | backlog data + docs | T6, T7, T8 |
+| T8a | **RED** — author the failing end-to-end Ship-consumption fixture: a shipment whose explicit `implementation_branch` differs from **every** title-derived alias; assert Ship compares against and creates **exactly** the emitted `selected_branch`, that no title-derived expression survives in either copy, that a blocked gate produces a halt with no derived fallback, and that a leading-hyphen-adjacent value survives the `--`-terminated fixed-argv boundary. Observe it failing | `tests/` | T5 |
+| T8b | **IMPLEMENTATION** — rewrite the Ship **template** comparison and creation sites to consume `selected_branch` verbatim, deleting every title-derived branch expression | `templates/agents/_ship.agent.md.tmpl` | T8a |
+| T8c | **IMPLEMENTATION** — apply the byte-identical rewrite to the installed mirror, atomically with T8b | `.github/agents/_ship.agent.md` | T8b |
+| T8d | **GREEN** — observe the end-to-end consumption fixture passing against both copies, and add the mirror-divergence and no-surviving-derivation regressions | `tests/` | T8c |
+| T9 | Gate documentation: precedence table, validation rule set including divergence set D, token table, compatibility note, and the Ship-consumption contract | `docs/` | T5, T8c |
+| T10 | Retire the temporary title-alias workarounds on `025-S`/`020-S`, under the approval/snapshot/rollback procedure below | backlog data + docs | T6, T7, T8, T8d |
 
 ### Dependency rationale
 
@@ -316,7 +366,8 @@ position:
    gate-JSON contract tests and observes them **failing** against a missing
    entry point. T1 blocks on T0. **T0 does not depend on T1** — that asymmetry
    is what makes it a genuine red phase rather than a test-after task with a
-   suggestive title.
+   suggestive title. The same asymmetry holds for the consumption spine:
+   **T8a does not depend on T8b/T8c.**
 1. **The model and the resolver must precede the integration.** T2 (reader
    surfacing the field on `ShipmentState`) and T3 (the resolver itself) are
    what T4 integrates the four phases against. Executing T4 first means
@@ -330,19 +381,70 @@ position:
    blocks on T5. Each observes the previously-red contract passing against the
    shipped surface, and adds the regression cases that only make sense against
    a real implementation.
-3. **Workaround removal is genuinely last, and gated on ALL proving families.**
+3. **Ship consumption precedes workaround retirement.** T8a/T8b/T8c/T8d exist
+   because emitting `selected_branch` changes nothing on its own: the Ship
+   template and its installed mirror still derive the branch from the shipment
+   title at two separate sites. T8b and T8c are one atomic change set (T8c
+   blocks on T8b) for the same template/mirror drift reason as elsewhere in
+   this portfolio, and T8a blocks on T5 because the fixture asserts against the
+   emitted field.
+4. **Workaround removal is genuinely last, and gated on ALL proving families.**
    T10 retires the title-alias workarounds that currently keep `025-S` and
-   `020-S` unblocked. It is blocked by T6, T7, **and** T8 — every test family
-   that proves the explicit-contract path actually works, including the CLI
-   surface. A mid-execution reordering must not be able to remove the
-   workaround while the replacement path is still only partially integrated,
-   which would block two live shipments with no route back except a prohibited
-   `--force`.
+   `020-S` unblocked. It is blocked by T6, T7, T8, **and T8d** — every test
+   family that proves the explicit-contract path actually works, including the
+   CLI surface **and the end-to-end Ship consumption**. Without the T8d edge,
+   a mid-execution reordering could remove the alias while Ship is still
+   deriving its branch from the title, blocking two live shipments with no
+   route back except a prohibited `--force`.
 
-T9 is documentation and blocks on T5 so the emitted-field table it documents is
-the one that shipped.
+T9 is documentation and blocks on T5 and T8c so the emitted-field table and the
+consumption contract it documents are the ones that shipped.
+
+### Retirement of the live alias workaround (P2 hardening, directly touched by T10)
+
+T10 mutates **live** backlog records for two shipments that are currently
+unblocked only because of the alias. That is a risky action on live data, so
+the retirement carries its own procedure:
+
+* **Approval** — a fresh in-session operator approval naming `025-S` and
+  `020-S` explicitly, the exact fields being removed, and the effect
+  (title-alias resolution ceases for those shipments). A prior or portfolio-wide
+  approval does not cover it.
+* **Snapshot** — byte snapshot of both records plus their manifest and
+  relationship hashes, captured immediately before mutation and recorded in the
+  task's evidence.
+* **Postcondition** — after mutation, the topology gate is re-run for both
+  shipments and must return a successful result whose `resolution_source` is
+  `explicit_contract` and whose `selected_branch` equals the value Ship would
+  create.
+* **Rollback** — on any failed postcondition, the snapshot is restored
+  automatically and the task halts and reports; the shipments are never left in
+  a state where neither authority resolves.
 
 ## Verification
+
+### Ship consumption (T8a/T8d)
+
+* An end-to-end fixture shipment declares `implementation_branch:
+  `spike/explicit-authoritative-name`` while its title would derive
+  `feat/some-other-title` and `chore/some-other-title`. The emitted
+  `selected_branch` is the explicit value, and Ship **compares against** and
+  **creates** exactly that branch — asserted against both the template and the
+  installed mirror.
+* A grep-equivalent structural assertion proves **no** title-derived branch
+  expression survives in either copy: no `feat/{`, no `chore/{`, no
+  lowercase/space-substitution instruction at either the comparison or the
+  creation site.
+* A blocked gate result produces a Ship halt with no branch creation and no
+  derived fallback.
+* A `selected_branch` whose first character is a hyphen is rejected by the
+  validator upstream; a value that is legal but option-adjacent is passed after
+  `--` with a fixed argv and `shell=False`, asserted at the Ship boundary.
+* The two-rung resolver is unchanged: a shipment with no explicit field still
+  resolves via `title_alias`, and Ship consumes that `selected_branch`
+  identically, without inspecting `resolution_source`.
+* `T10` is unreachable in the machine DAG until `T8d` is complete.
+
 
 * `PYTHONPATH=src python -m unittest discover -s tests` exits 0.
 * All seven matrix rows pass, including both malformed-value rows.

@@ -7,7 +7,7 @@ date: 2026-09-17
 status: reviewed
 plan_id: safe-close-record-transition-disposition
 plan_role: active
-revision: 7
+revision: 8
 supersedes: null
 superseded_by: null
 source_history:
@@ -17,10 +17,11 @@ source_history:
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-05.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06-supplement.md
+  - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-06-index.md
   - docs/reviews/review-history/2026-09-17-safe-close-record-transition-disposition-plan-review-attempt-07.md
   - docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
 review_manifest: docs/reviews/2026-09-17-safe-close-record-transition-disposition-plan-review.md
-revision_note: "Revision 7 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
+revision_note: "Revision 8 is maintained as one coherent current-state contract rather than as an accreting record of corrections. Prior-revision deltas, superseded requirement variants, and reviewer chronology are not carried in the body: the immutable per-attempt review artifacts listed in source_history and the mutable verdict manifest named by review_manifest are the authoritative record of that chronology. Latest attempt and verdict are read from the manifest, never from this file."
 source_decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 source_stash_id: 7F9CB5E9
@@ -192,50 +193,171 @@ closes. **Ordinary PR review does not satisfy this gate**, and nothing in this
 plan may be read as claiming it does: PR review approves a *merged diff*, while
 this action mutates the *executing machine* before any diff exists.
 
-The following are **binding preconditions on T0**, each of which must hold
-before a single byte is written:
+#### Exact asset binding (security hardening, not bookkeeping)
+
+A checksum with no binding to *what was fetched* verifies nothing: the same
+digest check passes against a different asset from a different host if the URL
+is allowed to vary. The acquisition is therefore pinned on **every** coordinate,
+and all of them are asserted together before the bytes are used:
+
+| Coordinate | Pinned value |
+|---|---|
+| Host | `github.com` |
+| Repository | `softwaresalt/backlogit` |
+| Release tag | `v1.9.0` |
+| Asset name | `backlogit-linux-amd64` |
+| Platform | `linux` |
+| Architecture | `amd64` |
+| Digest | `sha256:5bf29fdacb6a927d2cb2d255eceb979078e09ae1adcafba93433b22049ce87de` |
+| Full URL | `https://github.com/softwaresalt/backlogit/releases/download/v1.9.0/backlogit-linux-amd64` |
+
+These are the exact values `.github/workflows/ci.yml` uses, so the local
+baseline and the CI gate observe the **same bytes** rather than the same version
+string. Transport is HTTPS with certificate verification and no redirect to a
+different host; a redirect off `github.com` halts.
+
+**Platform coverage is explicit, and an unpinned platform halts.** The CI pin
+covers `linux-amd64` only. The authoring workstation is Windows, so a local
+run needs `backlogit-windows-amd64`, whose digest is **not** pinned anywhere
+today. `T0` therefore records a per-platform digest table as part of the version
+contract, and **a platform whose digest is not pinned in that table halts** —
+it does not fall back to an unverified download, and it does not substitute a
+different platform's binary. The authoritative baseline is the `linux-amd64`
+observation; any other platform's observations are corroboration only and are
+labelled as such in the fixture record.
+
+#### Binding preconditions on T0
+
+Each must hold before a single byte is written:
 
 1. **Explicit operator approval, obtained in-session, for the specific
-   action.** The approval must name the version being installed and the fact
-   that a binary is being placed or replaced. A standing authorization, an
-   autopilot directive, or an approved pull request is **not** sufficient and
+   action.** The approval must name the version, the exact asset coordinates
+   above, and the fact that a binary is being placed. A standing authorization,
+   an autopilot directive, or an approved pull request is **not** sufficient and
    may not be cited as sufficient.
-2. **Workspace-contained installation.** The binary is installed **into a
-   path inside this repository's working tree** (a git-ignored tool directory)
-   and invoked by explicit path. It **must not** replace, shadow, or modify any
-   machine-global, user-global, or `PATH`-resolved backlogit installation, and
-   it must not write outside the working tree. No `%TEMP%` workspace is created
-   — that is the P-005 violation this whole plan exists to correct.
-3. **Checksum verification before use.** The downloaded artifact's SHA-256 is
-   verified against the value pinned in `.github/workflows/ci.yml`
-   (`sha256 5bf29fda…87de`) **before** the binary is made executable or
-   invoked. A mismatch **halts**; it is never retried past, never warned
-   through, and never resolved by re-downloading.
-4. **Bounded execution mode — `careful` or `investigate-first`.** T0 runs in a
+2. **Canonicalized-root containment for every path the task touches.** Five
+   roots are canonicalized once, up front, by full resolution (not string
+   manipulation), and every subsequent path is proven to live under the correct
+   one by comparing **resolved components**, never by string prefix:
+
+   | Root | Purpose |
+   |---|---|
+   | Repository root | The working tree boundary |
+   | Install root | Where the binary is placed |
+   | Executable path | The binary itself |
+   | Fixture root | Where disposable fixture records live |
+   | Backlog storage root | The **disposable** storage root the fixtures operate on |
+
+   **Rejected outright**, before any read, write, or execution: any component
+   that is a symlink, junction, reparse point, or hardlink to a target outside
+   its root; any `..` component surviving normalization; any absolute or
+   drive-relative escape; and any resolved path outside its canonicalized root.
+   A rejection halts; it is never normalized away.
+3. **A fresh, private install directory.** The install root is created new for
+   this task — not reused, not pre-existing, not shared with any other run. It
+   is created with restrictive permissions and removed on completion (subject to
+   the deletion-approval rule below). Reusing a directory would let a previously
+   planted binary be executed under this task's approval.
+4. **A scrubbed execution environment.** The binary is invoked with an
+   explicitly constructed environment, not the inherited one: `PATH` reduced to
+   the minimum required entries with the install root **not** on it (the binary
+   is invoked by absolute resolved path), and every backlogit-influencing
+   variable (`BACKLOGIT_*`, `XDG_CONFIG_HOME`, `HOME`/`USERPROFILE` overrides,
+   proxy variables) either cleared or set to a value inside the disposable
+   roots. Ambient configuration must not be able to redirect the tool at the
+   live workspace.
+5. **Checksum and coordinate verification before use.** The artifact's SHA-256
+   is verified against the pinned digest, **and** the fetched URL, host, tag,
+   asset name, platform and architecture are asserted equal to the table above,
+   **before** the binary is made executable or invoked. Any mismatch **halts**;
+   it is never retried past, never warned through, and never resolved by
+   re-downloading.
+6. **Bounded execution mode — `careful` or `investigate-first`.** T0 runs in a
    bounded mode with an explicit step budget and an operator-visible log of
    every command issued. It does not run in an unattended or autopilot mode.
-5. **No live backlog mutation, enforced by construction.** Every observation
-   command runs against **disposable fixture records inside `tests/`**, never
-   against `.backlogit/`. The pinned binary is never invoked with this
-   workspace as its `--cwd`. A pre-flight assertion records the `.backlogit/`
-   tree state and a post-flight assertion proves it unchanged.
-6. **Rollback and restoration are defined before the action, not after.** The
+7. **An explicit disposable backlog storage root, and a pre-mutation assertion
+   that it is never the live one.** Every observation command runs against
+   disposable fixture records under a storage root created for the task, passed
+   **explicitly** to the binary rather than discovered by the tool's own
+   upward search. Before **each** mutating invocation, the task asserts that the
+   resolved storage root is not, and is not inside, the live `.backlogit/` tree
+   — resolved-component comparison, re-evaluated immediately before the call
+   rather than once at setup. A pre-flight hash of the live `.backlogit/` tree
+   and a post-flight comparison prove it unchanged. No `%TEMP%` workspace is
+   created — that is the P-005 violation this whole plan exists to correct.
+8. **Rollback and restoration are defined before the action, not after.** The
    pre-existing binary's location and version are recorded first. Rollback is:
-   delete the workspace-contained binary directory; no global state was
-   touched, so nothing needs restoring outside the working tree. If the
-   recorded pre-state cannot be captured, T0 **halts rather than proceeding**.
-7. **Cleanup is part of the task, not a follow-up.** The workspace-contained
-   binary directory is removed at the end of T0 unless the operator explicitly
-   directs it be retained for T1–T4. If retained, it is git-ignored and named
-   in the task's completion record so it cannot become undeclared state.
+   delete the workspace-contained install directory; no global state was
+   touched, so nothing needs restoring outside the working tree. If the recorded
+   pre-state cannot be captured, T0 **halts rather than proceeding**.
+9. **Cleanup is contained, and deletion is separately approved.** See below.
 
-**If operator approval is withheld, T0 halts and reports.** It does not
-silently fall back to asserting the `1.10.1+dirty` observations — that
-substitution is exactly the unsound claim the binary-version divergence section
-prohibits — and it does not degrade to a skip, which would delete the release
-unit's evidentiary value. A halted T0 blocks `T1`–`T4` and `T10` by the
+#### Cleanup and rollback deletion require pathspec-level approval
+
+Deleting a directory is itself a destructive action, and "clean up the install
+directory" is not a sufficient authorization — the string does not identify what
+will be removed. The rule is:
+
+* The cleanup step **names the exact pathspecs** it will delete, as resolved
+  absolute paths, and presents them for approval.
+* Approval is **revalidated immediately before the deletion**, against the
+  freshly re-resolved paths. An approval obtained earlier in the session over a
+  path that has since changed identity (replaced by a link, re-pointed, or
+  re-created) is void.
+* Each named pathspec is re-proven contained under the canonicalized install
+  root, and re-proven not to be a symlink/junction/reparse point, at deletion
+  time.
+* **Without approval, nothing is deleted.** The install directory is retained,
+  it remains git-ignored, its exact path is recorded in the task's completion
+  record so it is declared rather than undeclared state, and the task
+  **halts and reports**. Retention is the safe outcome; an unapproved deletion
+  is not.
+* The same rule governs rollback deletion: rollback that cannot obtain
+  pathspec-level approval retains and reports rather than deleting.
+
+**If operator approval is withheld for the acquisition, T0 halts and reports.**
+It does not silently fall back to asserting the `1.10.1+dirty` observations —
+that substitution is exactly the unsound claim the binary-version divergence
+section prohibits — and it does not degrade to a skip, which would delete the
+release unit's evidentiary value. A halted T0 blocks `T1`–`T4` and `T10` by the
 existing edges, which is the correct outcome: with no authoritative baseline
 there is nothing sound for the fixtures to assert.
+
+### Test-suite partitioning — the conformance gate is separate from the unit suite
+
+The four conformance fixtures require an external, provisioned `v1.9.0` binary.
+The ordinary unit suite requires nothing but the repository. Putting them in one
+suite makes the canonical command
+
+```text
+PYTHONPATH=src python -m unittest discover -s tests
+```
+
+**fail** on any machine where the binary is absent — which, by the cleanup rule
+above, is every machine immediately after `T0` finishes. A required gate that
+breaks the project's own canonical discovery command is not acceptable, and
+`skipUnless` is not the answer either: a silently-skipping conformance test
+provides no evidence while appearing to pass.
+
+The partition is therefore structural:
+
+| Suite | Location | Requires | Invocation |
+|---|---|---|---|
+| Unit / hermetic | `tests/` | nothing beyond the repository | `PYTHONPATH=src python -m unittest discover -s tests` — must exit **0** on a clean checkout, always |
+| External conformance | `tests_conformance/` | a provisioned, digest-verified `v1.9.0` binary and an explicit disposable storage root | `PYTHONPATH=src python -m unittest discover -s tests_conformance` |
+
+* `tests_conformance/` is **outside** the discovery root of the ordinary suite,
+  so its absence-of-binary failure mode can never affect canonical discovery.
+* The conformance suite **fails loudly** when the binary is missing — it does
+  not skip. Its provisioning is the gate's precondition, not its business.
+* **CI**: a separate required job provisions the binary reproducibly (same
+  pinned coordinates, same digest, same scrubbed environment and disposable
+  storage root as `T0`) and then runs the conformance command. It is required,
+  so the evidence cannot silently disappear.
+* **Local**: documented as a two-step procedure — run the provisioning script
+  (which enforces the Part A0 preconditions, including approval), then run the
+  conformance command against the explicit binary path. Both commands are
+  written out verbatim in the version-contract document produced by `T10`.
 
 
 
@@ -300,6 +422,68 @@ Binding constraints:
 * Every invocation is logged as a P-005 telemetry event, because an
   administrative close is a deviation from the normal path even when authorized.
 
+#### The procedure, stated exactly
+
+A procedure that says "the operator closes the shipment with approval" is not a
+procedure — it names no mechanism, no preconditions, no postconditions, and no
+failure path. The documented procedure is:
+
+**1. Fresh, in-session, specific approval.** The approval request states, and
+the approval names back:
+
+| Element | Content |
+|---|---|
+| Shipment | The exact shipment ID |
+| Current state | Its exact current `status` and `archived_status`, read immediately before the request |
+| Fields | The exact field names and the exact target values to be written |
+| Effects | That this bypasses the normal transition path; that descendant records are **not** cascaded by this procedure; and that the result is administratively closed, not engine-verified |
+
+A prior approval, a portfolio-level approval, an autopilot directive, or an
+approved PR is **not** sufficient and may not be cited.
+
+**2. Pre-mutation snapshot.** Before any write:
+
+* a **byte snapshot** of the shipment record file and of every record named in
+  its manifest;
+* a **manifest hash** over the ordered `custom_fields.items` list;
+* a **relationship hash** over every inbound and outbound dependency edge
+  touching the shipment and its descendants.
+
+All three are recorded in the closure evidence. Without all three captured, the
+procedure **halts** — an unrecoverable mutation is not permitted merely because
+the snapshot step failed.
+
+**3. Manifest-scope verification.** The shipment's manifest is verified to equal
+its covering feature's descendant set exactly. A discrepancy halts.
+
+**4. The exact mechanism, non-shell.** The mutation is performed through the
+backlogit update operation with a **fixed argv and `shell=False`**: no shell
+string, no interpolation, no globbing, no `--` omission. The exact invocation
+is written out in the procedure document, with the shipment ID and field values
+as separate argv elements after `--`. Direct file editing under `.backlogit/`
+is **prohibited** — the same rule that governs checkpoints governs this.
+
+**5. Postconditions, each asserted.** After the mutation:
+
+* the shipment's `status`/`archived_status` equal exactly the approved values;
+* the manifest hash is **unchanged** (an administrative close alters state, not
+  membership);
+* the relationship hash is **unchanged**;
+* every descendant record is byte-identical to its snapshot — the procedure
+  cascades nothing;
+* the tracker `002-C` is still non-terminal.
+
+**6. Automatic rollback on any failed postcondition.** A failed assertion
+triggers immediate restoration of every snapshotted file to its captured bytes,
+followed by re-verification of the manifest and relationship hashes, followed by
+a halt-and-report. Rollback is not optional, not deferred, and not left to the
+operator's judgement after the fact.
+
+**7. Audit evidence.** The closure record carries: the approval text verbatim,
+the three pre-mutation hashes, the exact argv executed, the postcondition
+results, and a P-005 telemetry event marking the deviation. An administrative
+close with no audit record is itself a defect.
+
 ### Part D — documentation truth
 
 Audit every in-repository statement about split multi-shipment delivery and
@@ -333,10 +517,13 @@ The tracker outlives `181-S` by construction:
 * Its **unblocking condition is stated on the item itself, and it is the only
   one**: a released backlogit version providing a non-cascading transition to
   `archived_status: shipped`, **together with** an advance of this workspace's
-  pinned CI backlogit version to that release, both performed in a **future,
-  separate Stage cycle**. Nothing else unblocks it — not the upstream issue
-  being filed, not `181-S` archiving, not the interim procedure being
-  documented, and no action taken inside this portfolio.
+  pinned CI backlogit version to that release. The ownership split for that
+  advance is exact: a **future, separate Stage cycle plans and harvests it as
+  its own release unit**, and **Ship executes the pin/config change** once the
+  upstream evidence lands. **Stage itself never changes CI configuration** —
+  not in that future cycle and not in this one. Nothing else unblocks it — not
+  the upstream issue being filed, not `181-S` archiving, not the interim
+  procedure being documented, and no action taken inside this portfolio.
 * It carries the upstream reference (issue/PR URL once filed), the four
   measured refusal behaviours by reference to the T1–T4 fixtures, the
   `INV-11` back-pointer, and the binary version the observations hold for.
@@ -355,41 +542,43 @@ The tracker outlives `181-S` by construction:
 
 ## Work Breakdown
 
-The ten rows below are the executable tasks of `173-F`, harvested as
-`173.001-T` … `173.010-T`.
+The twelve rows below are the executable tasks of `173-F`.
 
 | # | Task | Scope | Blocked by |
 |---|---|---|---|
-| T0 | Establish the `v1.9.0` observation baseline. **Acquiring and installing the pinned checksum-verified binary is an ELEVATED, APPROVAL-GATED action** governed by Part A0: explicit in-session operator approval naming the version and the install/replacement, workspace-contained install invoked by explicit path (never replacing a global or `PATH`-resolved backlogit), SHA-256 verified against the CI pin **before** first invocation with a halt on mismatch, bounded `careful` / `investigate-first` execution, **no live `.backlogit/` mutation** (pre- and post-flight assertions), pre-recorded rollback, and cleanup inside the task. Then re-derive all four behaviours against `v1.9.0`, recording any divergence from the `1.10.1+dirty` corroboration. **Ordinary PR review does not satisfy this gate.** Approval withheld ⇒ **halt and report**, never a fallback to `+dirty` observations and never a skip | `tests/` + `docs/` | — |
-| T1 | Hermetic fixture: `move --status shipped` refusal, exit 9, exact message, version-aware | `tests/` | T0 |
-| T2 | Hermetic fixture: `update --status shipped` refusal, exit 9, exact message, version-aware | `tests/` | T0 |
-| T3 | Hermetic fixture: `archive` on active stamps `archived_status: active` and fails the Step 8 provenance gate, version-aware | `tests/` | T0 |
-| T4 | Hermetic fixture: `shipment ship` is the sole `archived_status: shipped` producer and exposes no `--no-cascade`, version-aware | `tests/` | T0 |
+| T0 | Establish the `v1.9.0` observation baseline. **Acquiring and installing the pinned checksum-verified binary is an ELEVATED, APPROVAL-GATED action** governed by Part A0 in full: explicit in-session operator approval naming the version and the **exact asset coordinates** (host, repository, tag, asset name, platform, architecture, digest, full URL); five **canonicalized roots** (repository, install, executable, fixture, disposable backlog storage) with symlink/junction/reparse/hardlink/out-of-root component rejection by resolved-component comparison; a **fresh private install directory**; a **scrubbed environment** with the binary invoked by absolute resolved path; digest **and** coordinate verification before first invocation with a halt on any mismatch; a **platform halt** when the platform's digest is not pinned; bounded `careful` / `investigate-first` execution; an **explicit disposable storage root** with a pre-mutation assertion, re-evaluated immediately before every mutating call, that it is never the live `.backlogit/` tree; pre-recorded rollback; and **pathspec-level, immediately-revalidated deletion approval** for cleanup, retaining the ignored directory and halting when approval is absent. Then re-derive all four behaviours against `v1.9.0`, recording any divergence from the `1.10.1+dirty` corroboration. **Ordinary PR review does not satisfy this gate.** Approval withheld ⇒ **halt and report**, never a fallback to `+dirty` observations and never a skip | `tests_conformance/` + `docs/` + provisioning script | — |
+| T0b | Establish the **suite partition**: create `tests_conformance/` outside the ordinary discovery root; assert that `PYTHONPATH=src python -m unittest discover -s tests` exits **0** on a clean checkout with no provisioned binary; assert the conformance suite **fails loudly** rather than skipping when the binary is absent; add the separate required CI job that provisions reproducibly and runs the conformance command | `tests/`, `tests_conformance/`, `.github/workflows/ci.yml` | — |
+| T1 | Hermetic fixture: `move --status shipped` refusal, exit 9, exact message, version-aware | `tests_conformance/` | T0, T0b |
+| T2 | Hermetic fixture: `update --status shipped` refusal, exit 9, exact message, version-aware | `tests_conformance/` | T0, T0b |
+| T3 | Hermetic fixture: `archive` on active stamps `archived_status: active` and fails the Step 8 provenance gate, version-aware | `tests_conformance/` | T0, T0b |
+| T4 | Hermetic fixture: `shipment ship` is the sole `archived_status: shipped` producer and exposes no `--no-cascade`, version-aware | `tests_conformance/` | T0, T0b |
 | T5 | Generate the portable upstream report from T0–T4 and record the decided escalation route, carrying both observation sets | `docs/` | T1, T2, T3, T4 |
-| T6 | Document the operator-only approval-gated interim close procedure with its four binding constraints | `docs/` | T1, T2, T3, T4 |
+| T6 | Document the operator-only approval-gated administrative-close procedure in full: the four binding constraints **plus** the seven-step procedure — fresh in-session approval naming shipment, current state, exact fields and effects; byte snapshot with manifest and relationship hashes; manifest-scope verification; the exact fixed-argv `shell=False` mechanism with direct file editing prohibited; the five asserted postconditions; automatic rollback on any failed postcondition; and the audit/P-005 evidence record | `docs/` | T1, T2, T3, T4 |
 | T7 | Documentation-truth audit; `INV-11` back-pointer targeting the **pre-existing tracker** chore `002-C`, not `181-S` | `docs/` | T1, T2, T3, T4 (`blocks`); `002-C` (`related_to` link, never a dependency edge) |
-| T9 | Regression assertion: the tracker `002-C` exists and is non-terminal while the fixtures still observe the refusals | `tests/` | — (none); `002-C` (`related_to` link, never a dependency edge) |
-| T10 | Record the backlogit version contract: pinned CI version, observation baseline, and the re-observation obligation when the pin moves | `docs/` | T0 |
+| T9 | Regression assertion: the tracker `002-C` exists and is non-terminal while the fixtures still observe the refusals. Lives in the **ordinary hermetic suite** — it reads backlog records and requires no provisioned binary | `tests/` | — (none); `002-C` (`related_to` link, never a dependency edge) |
+| T10 | Record the backlogit version contract: the pinned CI version, the **per-platform digest table** with the unpinned-platform halt rule, the exact asset coordinates, the observation baseline, the verbatim CI and local conformance commands, and the re-observation obligation when the pin moves | `docs/` | T0, T0b |
+| T11 | Correct the `002-C` tracker's role wording so it states the ownership split exactly: a **future, separate Stage cycle** plans and harvests the pin-advance release unit, and **Ship** executes the CI pin/config change once upstream evidence exists. **Stage itself never changes CI configuration** | backlog record `002-C` | T5 |
 
 ### Plan-relative label `T8` — the pre-created tracker `002-C`
 
 `T8` is deliberately absent from the table above because **it is not a task**.
 It names the durable external-dependency tracker chore `002-C`, which Stage
 created at publication time and which is `blocked` on the external condition in
-Part E. It is not executed, not harvested, and not assigned. There is no
-`173.011-T`, and **no task depends on `T8`**, because there is no `T8` task to
-depend on.
+Part E. It is not executed, not harvested, and not assigned. **`T8` has no
+harvested backlog task ID of its own**, and **no task depends on `T8`**,
+because there is no `T8` task to depend on.
 
 ### Dependency and linkage contract
 
-**Task count, stated precisely.** This feature carries **TEN feature tasks** —
-T0–T7 and T9–T10, harvested as `173.001-T` … `173.010-T` — **plus ONE
+**Task count, stated precisely.** This feature carries **TWELVE feature tasks** —
+T0, T0b, T1–T7, T9, T10 and T11 — **plus ONE
 pre-existing external tracker**, chore `002-C`, which is deliberately neither a
-child of the covering feature nor a member of `181-S`. Every record that
+child of the covering feature nor a member of `181-S`. **`181-S`'s manifest is
+exactly the covering feature `173-F` followed by its twelve descendant tasks,
+and it contains `002-C` neither directly nor transitively.** Every record that
 references it uses the **exact resolvable backlog ID `002-C`**; the
-documentation-truth audit and the tracker regression — harvested as
-`173.007-T` and `173.010-T` — name `002-C` and `173.010-T` by exact ID rather
-than by plan-relative label.
+documentation-truth audit and the tracker regression name `002-C` by exact ID
+rather than by plan-relative label.
 
 **T0 is a hard predecessor.** T0, harvested as `173.008-T`, blocks all four
 hermetic fixtures (T1–T4), the portable upstream report (T5), and the
@@ -424,32 +613,84 @@ edge is needed or permitted to guarantee it.
 
 ## Verification
 
-* `PYTHONPATH=src python -m unittest discover -s tests` exits 0.
+* `PYTHONPATH=src python -m unittest discover -s tests` exits **0 on a clean
+  checkout with no provisioned binary** — asserted explicitly, because the
+  conformance suite's provisioning requirement must never be able to break the
+  project's canonical discovery command.
+* `PYTHONPATH=src python -m unittest discover -s tests_conformance` **fails
+  loudly** when the binary is absent, and does not skip. The absence of the
+  binary is a provisioning failure, not a silent pass.
+* The separate required CI conformance job provisions the binary with the same
+  pinned coordinates, digest, scrubbed environment and disposable storage root
+  as `T0`, then runs the conformance command. Both the CI invocation and the
+  local two-step procedure are written out verbatim in the `T10` version
+  contract.
 * All four fixtures pass against the **pinned `v1.9.0`** binary and record its
   version in the assertion output.
 * A fixture run against an undeclared binary version fails with an explicit
   version-mismatch message; it never skips and never assumes.
-* No live shipment record in `.backlogit/` is mutated by any fixture, and T0's
-  pre-flight and post-flight assertions prove the `.backlogit/` tree is
-  byte-identical across the baseline derivation.
+* No live shipment record in `.backlogit/` is mutated by any fixture. The
+  disposable storage root is passed explicitly, and the "resolved storage root
+  is not, and is not inside, the live `.backlogit/` tree" assertion is
+  re-evaluated **immediately before every mutating invocation**, not once at
+  setup. A pre-flight and post-flight hash prove the live tree byte-identical.
 * No external `%TEMP%` workspace is created at any point.
+* **Asset binding is asserted on every coordinate**, not just the digest: host
+  `github.com`, repository `softwaresalt/backlogit`, tag `v1.9.0`, asset name
+  `backlogit-linux-amd64`, platform `linux`, architecture `amd64`, digest
+  `sha256:5bf29fdacb6a927d2cb2d255eceb979078e09ae1adcafba93433b22049ce87de`,
+  and the full URL. A mismatch on **any** coordinate halts. A redirect off
+  `github.com` halts.
+* A platform whose digest is not present in the per-platform digest table
+  **halts**; it does not fall back to an unverified download and does not
+  substitute another platform's binary.
+* Each of the five canonicalized roots is proven by resolved-component
+  comparison, and each rejection class has its own case: symlink component,
+  junction component, reparse point, hardlink to an out-of-root target,
+  surviving `..`, and a sibling directory whose name is a string prefix of the
+  root (proving containment is not a string prefix test).
+* The install directory is asserted **fresh and private**: creation fails if it
+  already exists, and its permissions are restrictive.
+* The execution environment is asserted **scrubbed**: the constructed
+  environment is captured and compared against an allowlist, the install root is
+  **not** on `PATH`, and every backlogit-influencing variable is cleared or
+  redirected inside the disposable roots.
+* **Cleanup deletion names exact pathspecs**, re-resolves and re-validates them
+  immediately before deleting, and re-proves each is not a link or reparse
+  point. Without approval, **nothing is deleted**: the ignored directory is
+  retained, its exact path is recorded in the completion record, and the task
+  halts and reports. A test asserts the no-approval path deletes nothing.
 * T0's binary acquisition is recorded with: the operator approval (naming the
-  version and the install/replacement), the verified SHA-256 matching the CI
-  pin, the workspace-contained install path, the pre-existing binary's location
-  and version, and the cleanup or explicitly-authorized retention of the
-  installed binary. A checksum mismatch is asserted to **halt**, never to warn
-  or retry. No artifact claims that PR review satisfies this gate.
+  version and the exact asset coordinates), the verified digest, the
+  workspace-contained install path, the pre-existing binary's location and
+  version, and the cleanup or explicitly-authorized retention. A checksum
+  mismatch is asserted to **halt**, never to warn or retry. No artifact claims
+  that PR review satisfies this gate.
 * A withheld approval is asserted to produce a **halt and report**, never a
   fallback to the `1.10.1+dirty` observations and never a skip.
+* **The administrative-close procedure document contains all seven steps**, and
+  a structural test asserts each is present and names a mechanism: the approval
+  element table, the three pre-mutation hashes, manifest-scope verification, the
+  fixed-argv `shell=False` invocation with the `.backlogit/` direct-edit
+  prohibition, the five postconditions, automatic rollback, and the audit/P-005
+  evidence record. The document is asserted to contain no shell-string
+  invocation form anywhere.
 * `autoharness gate check` passes on every modified file.
 * A repository-wide search finds no remaining claim that split delivery is
   operationally complete, and none that `181-S` resolves `7F9CB5E9` or
   `INV-11`.
 * The durable tracker item `002-C` exists, is `blocked`, is **not** a member of
   `181-S`, and is not parented to `173-F`.
+* `002-C`'s role wording states the ownership split exactly: a **future,
+  separate Stage cycle** plans and harvests the pin-advance release unit, and
+  **Ship** executes the CI pin/config change after upstream evidence exists.
+  A structural assertion finds **no** statement anywhere implying Stage itself
+  changes CI configuration.
 * `002-C` carries no dependency edges in either direction; `173.007-T` and
   `173.010-T` reference it only through `related_to` links.
 * `INV-11`'s back-pointer resolves to `002-C`, not to `181-S`.
+* `181-S`'s manifest is asserted equal to `173-F` plus its twelve descendant
+  tasks, containing `002-C` neither directly nor transitively.
 
 ## Risks
 
@@ -515,7 +756,7 @@ an **external binary dependency at a moving, partly unreproducible version**.
 | H3 | Fixture expectations derived from a `+dirty` local 1.10.1 build would be evaluated by CI against a checksum-pinned v1.9.0 — asserting one binary's behaviour against another | T0 establishes v1.9.0 as the authoritative observation baseline; `+dirty` observations are labelled corroboration; T10 records the version contract |
 | H4 | A version-mismatch fixture that degrades to a skip silently deletes the release unit's entire evidentiary value | Version mismatch **fails loudly** with an explicit message; skipping is prohibited in Verification |
 | H5 | An `INV-11` back-pointer targeting `181-S` lands a reader on a shipped record and invites the inference that the defect is resolved | T7's back-pointer targets the pre-created durable tracker `002-C`, which already exists when T7 runs; the linkage is a non-blocking `related_to` link, never a dependency edge, because `002-C` is designed never to close during this portfolio |
-| H9 | A tracker created *during* execution would not exist when a sibling task's back-pointer must already resolve to it, and encoding that ordering as a dependency edge onto a never-closing record would deadlock the shipment | The tracker is pre-created by Stage at publication time; `T8` names the record rather than a task; no `173.011-T` exists and no task depends on a `T8` task |
+| H9 | A tracker created *during* execution would not exist when a sibling task's back-pointer must already resolve to it, and encoding that ordering as a dependency edge onto a never-closing record would deadlock the shipment | The tracker is pre-created by Stage at publication time; `T8` names the record rather than a task; `T8` has no harvested backlog task ID and no task depends on a `T8` task |
 | H6 | The interim procedure is the highest-risk artifact in the unit — it describes a terminal-state mutation | Operator-only stated in title, first paragraph, and telemetry requirement; T6 carries a negative assertion that no agent template references it as executable; classified High-risk below |
 | H7 | Re-derivation could regress to `%TEMP%` for convenience, repeating the P-005 violation being corrected | Prohibited in Verification and Out of scope; fixtures operate on disposable in-`tests/` records only |
 | H8 | A future CI pin bump would silently invalidate every fixture observation | T10 records the re-observation obligation as a checklisted action tied to the pin |
