@@ -1,25 +1,25 @@
 ---
 title: "Plan review verdict manifest — Checkpoint resume_hint contract"
-description: "Mutable verdict manifest for docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 07, remediated and awaiting attempt 08. Plan revision: 7. Attempt-07 reviewer gate result FAIL and reviewer verdict BLOCKED against content HEAD 22bca5c8 are immutable facts and are recorded unchanged. The derived top-level verdict is REMEDIATED-PENDING-REVIEW because the operator authorized one additional remediation cycle after attempt 07 and Stage produced plan revision 7 in response. No PASS exists anywhere in this record. Seven P1 findings and one P2 follow-up are open. The remediation is unverified: it awaits independent attempt 08."
+description: "Mutable verdict manifest for docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 08, terminal. Plan revision: 7. Independent attempt 08 reviewed revision 7 at content HEAD f142173c and returned gate result FAIL and verdict BLOCKED on one P0, seven P1 and three P2 deduplicated findings. The authorized remediation budget is exhausted: no remediation followed attempt 08, no finding is closed, latest_remediation_revision and latest_disposition are null, and the plan is neither harvest-ready nor Ship-ready. PASS appears in this record only at attempts 2 and 3, against superseded revisions 2 and 3; no PASS exists at or after attempt 4, and none exists against the governing revision 7."
 doc_type: review-manifest
 source: docs/reviews/2026-09-17-checkpoint-resume-hint-contract-plan-review.md
 date: 2026-09-18
 plan_id: checkpoint-resume-hint-contract
 plan_path: docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md
 plan_revision: 7
-latest_attempt: 7
-review_terminal: false
-awaiting_attempt: 8
-reviewed_content_head: 22bca5c8
+latest_attempt: 8
+review_terminal: true
+awaiting_attempt: null
+reviewed_content_head: f142173c
 gate_result: FAIL
-verdict: REMEDIATED-PENDING-REVIEW
-p0_open: 0
+verdict: BLOCKED
+p0_open: 1
 p1_open: 7
-p2_open: 1
-remediation_authorization: operator-authorized
-latest_remediation_revision: 7
-latest_disposition: REMEDIATED-PENDING-REVIEW
-latest_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-07.md
+p2_open: 3
+remediation_authorization: none-exhausted
+latest_remediation_revision: null
+latest_disposition: null
+latest_artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-08.md
 attempts:
   - attempt: 2
     form: combined-document
@@ -66,8 +66,20 @@ attempts:
     remediation_revision: 7
     disposition: REMEDIATED-PENDING-REVIEW
     remediation_parent_head: 689c48a0
-    remediation_content_state: uncommitted-working-tree
+    remediation_content_state: committed
+    remediation_content_head: f142173c
     terminal: false
+  - attempt: 8
+    artifact: docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-08.md
+    reviewed_revision: 7
+    reviewed_content_head: f142173c
+    verdict: BLOCKED
+    p0_open: 1
+    p1_open: 7
+    p2_open: 3
+    remediation_revision: null
+    disposition: null
+    terminal: true
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-portfolio-attempt-05-provenance-erratum.md
     reason: "Attempt-05 records conflate the reviewed revision 4 with the Stage-produced revision 5; this erratum states the corrected reading without editing the immutable records."
@@ -104,46 +116,47 @@ name.
 | `plan_id` | `checkpoint-resume-hint-contract` |
 | `plan_path` | `docs/plans/2026-09-17-checkpoint-resume-hint-contract-plan.md` |
 | `plan_revision` | 7 |
-| `latest_attempt` | **07** (remediated, awaiting attempt **08**) |
-| `latest_artifact` | `docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-07.md` |
-| `reviewed_content_head` | `22bca5c8` |
-| `gate_result` (attempt 07, immutable) | **FAIL** |
-| `verdict` | **REMEDIATED-PENDING-REVIEW** (derived) |
-| `p1_open` | **7** (all addressed in revision 7; unverified until attempt 08) |
-| `p2_open` | 1 |
+| `latest_attempt` | **08** (terminal; no further attempt authorized) |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-17-checkpoint-resume-hint-contract-plan-review-attempt-08.md` |
+| `reviewed_content_head` | `f142173c` |
+| `gate_result` (attempt 08, immutable) | **FAIL** |
+| `verdict` | **BLOCKED** (derived) |
+| `p0_open` | **1** |
+| `p1_open` | **7** |
+| `p2_open` | **3** |
 
 **The top-level `verdict` is derived, not authored.** Take the
-highest-numbered roster entry — attempt 07. Its `remediation_revision` is
-**7**, so a Stage-produced revision supersedes the content the reviewer judged,
-and the top-level `verdict` is that entry's `disposition`:
-`REMEDIATED-PENDING-REVIEW`.
+highest-numbered roster entry — attempt 08. Its `remediation_revision` is
+`null`, so no Stage-produced revision supersedes the content the reviewer
+judged, and the top-level `verdict` is that entry's reviewer `verdict`:
+**BLOCKED**.
 
-That derivation does **not** overwrite what the reviewer said. The attempt-07
-entry still carries `verdict: BLOCKED` and the manifest still carries
-`gate_result: FAIL` — those are immutable facts about content HEAD
-`22bca5c8` and they are never rewritten. `REMEDIATED-PENDING-REVIEW` is a
-`disposition`, never a `verdict` value, and it asserts only that Stage
-produced a revision in response. It asserts **nothing** about whether that
-revision is adequate. No `PASS` exists anywhere in this record, and none may
-be entered except by an independent attempt 08.
+`REMEDIATED-PENDING-REVIEW` is not available here and is not used: it is a
+`disposition`, never a `verdict`, and it asserts that Stage produced a revision
+in response — which did not happen, because the authorized remediation budget is
+exhausted.
 
-## What attempt 07 records
+**On `PASS` in this record.** `PASS` appears at attempts 2 and 3, against
+superseded plan revisions 2 and 3. No `PASS` exists at or after attempt 4, and
+**no `PASS` exists against the governing revision 7**. Attempt 08 recorded the
+earlier, broader claim — that no `PASS` existed *anywhere* in this record — as a
+P2 finding against this manifest's wording as it stood at `f142173c`. The
+statement above is the precise one; the wording it replaces was false.
 
-Terminal independent review opened against plan revision 6 at content HEAD `22bca5c8`; gate result FAIL, decision BLOCKED, seven P1 findings open plus one P2 follow-up. Persona coverage was complete (Constitution, Python, Scope Boundary, Learnings, Architecture, Agent-Native Parity, Security Lens); the anchor route was absent so the cross-model rubric ran under same-model declared degradation, the Learnings persona was degraded because it could not inspect the diff, and Scope Boundary returned no P0/P1. The seven open P1s are: the activation order prohibits the raw path in the instruction before the guarded adapter and all producer wiring exist, creating an intermediate state with no lawful producer; the guarded create is CLI-only while the agent/MCP registry still advertises raw backlogit_create_checkpoint, and the inventory omits the installed and template registries and the agent declarations; the Stage/Ship startup scan cannot call a Python predicate from Markdown and needs one atomic executable historical-scan command or tool with CLI/agent parity; classification omits abandoned status and malformed or future-schema records, so it is not total; --state-dump is an ambiguous path-or-JSON surface lacking workspace containment, link/reparse/device rejection, bounds and a no-shell argv requirement, while a public --origin permits a compatibility downgrade; a text scan for raw operation names cannot distinguish prohibitive documentation from a producer bypass; and the adapter RED tests and their ordering do not pin the exact safe activation boundary. The P2 follow-up is installed-registry semantic-link parity.
+## What attempt 08 records
 
-## What followed attempt 07
+Independent terminal review opened against plan revision 7 at content HEAD `f142173c`; gate result FAIL, decision BLOCKED, one P0, seven P1 and three P2 open. Persona coverage was complete (Constitution, Python, Scope Boundary, Learnings, Architecture, Agent-Native Parity, Security Lens); the anchor route was absent so the cross-model rubrics ran under same-model declared degradation, the Learnings persona was degraded because it could not inspect the diff, and Scope Boundary raised a provenance P1. The P0 is that raw checkpoint create remains reachable through Ship's `backlogit/*` tool-allowance wildcard, so the guarded create path is optional and every producer guarantee in the plan is defeated by one call to the unguarded operation that is still permitted. The seven P1s are: the executable records `172-F`, `180-S` and the `172.x` tasks cite source stash `2A7C48A8`, which appears in no stash file live or archived, while the plan names the real entry `71200CBB`; `T2` invokes the producer scan before the scan is implemented, producing a missing observation rather than a result; the guarded MCP create names no server, no owner and no registration step, so the guarded path is unreachable; scanner input is not hardened against oversized, deeply nested, malformed or partially written checkpoint JSON, a condition already observable in the live checkpoint directory; the producer inventory is unsatisfiable because producers include agent prose that is not statically enumerable; the terminal-classification text is stated two incompatible ways; and activation parity is specified for only one of the template and installed-mirror surfaces. The three P2s are the manifest `description` that asserted no `PASS` existed anywhere while the roster carries `PASS` at attempts 2 and 3, inline checkpoint argv reproduced in agent-facing prose, and backlog-registry operation links that are not updated in step with the guarded operation.
 
-The operator explicitly authorized **one additional bounded remediation cycle**
-after attempt 07 returned terminal. Stage produced **plan revision 7** in
-response, at parent HEAD `689c48a0` with the remediation carried as uncommitted
-working-tree content. Every P1 the attempt-07 reviewer raised against this plan
-is addressed in that revision; the plan was rewritten as a coherent
-current-state contract rather than extended with a correction log.
+## What follows attempt 08
 
-This is a **disposition, not a verdict**. Nothing here asserts the remediation
-is adequate, complete, or correct. That judgement belongs to an independent
-**attempt 08**, which has not run. Until it does, the reviewer-raised findings
-are recorded as open.
+**Nothing.** The authorized remediation budget is exhausted. No remediation
+followed attempt 08, `latest_remediation_revision` is `null`,
+`latest_disposition` is `null`, and the governing revision remains **7** — the
+revision that was reviewed and found BLOCKED.
+
+The findings are open. Closing them requires a new operator authorization, a new
+Stage remediation cycle producing revision 8, and an independent attempt 09.
+None of those has happened, and this manifest asserts none of them.
 
 ## Attempt roster
 
@@ -162,7 +175,8 @@ the record — the exact defect the attempt-05 artifacts carry, documented in
 | 4 | `...-plan-review-attempt-04.md` | 3 | BLOCKED | 4 | REMEDIATED-PENDING-REVIEW |
 | 5 | `...-plan-review-attempt-05.md` | 4 | BLOCKED | 5 | REMEDIATED-PENDING-REVIEW |
 | 6 | `...-plan-review-attempt-06.md` | 5 | BLOCKED | 6 | REMEDIATED-PENDING-REVIEW |
-| **7** | `...-plan-review-attempt-07.md` | 6 @ `22bca5c8` | **BLOCKED** (7 P1 open, 1 P2) | **7** | REMEDIATED-PENDING-REVIEW |
+| 7 | `...-plan-review-attempt-07.md` | 6 @ `22bca5c8` | **BLOCKED** (7 P1 open, 1 P2) | 7 | REMEDIATED-PENDING-REVIEW |
+| **8** | `...-plan-review-attempt-08.md` | 7 @ `f142173c` | **BLOCKED** (1 P0, 7 P1, 3 P2 open) | — | — |
 
 **`attempt` is an integer in every row.** Deterministic latest-attempt
 selection is a numeric maximum, and a string such as `"01-02"` has no numeric
@@ -181,12 +195,21 @@ recoverable from the record, and is not invented here. `legacy_coverage` is an
 optional **roster-entry** key, not a ninth manifest contract key.
 
 **Attempt 7 carries a `remediation_revision` and a `disposition`, and its
-`terminal` flag is now `false`.** When attempt 07 was written, the authorized
+`terminal` flag is `false`.** When attempt 07 was written, the authorized
 remediation budget was exhausted and the columns were correctly empty. The
 operator then authorized one further bounded cycle, Stage produced revision 7,
 and the columns record that fact. The reviewer's own `verdict: BLOCKED` in that
 same row is untouched — the remediation columns describe Stage's response, not
-the reviewer's judgement, which is exactly why they are separate columns.
+the reviewer's judgement, which is exactly why they are separate columns. That
+remediation was uncommitted working-tree content at parent `689c48a0` when the
+row was first written; it is now **committed at `f142173c`**, and the row's
+`remediation_content_state` / `remediation_content_head` record the current
+truth. The reviewer columns are unchanged.
+
+**Attempt 8 carries empty remediation columns, and its `terminal` flag is
+`true`.** The budget is exhausted again and was not re-authorized, so no Stage
+revision followed. Empty columns here are the accurate record, not a gap waiting
+to be filled.
 
 ## Carried-forward context
 

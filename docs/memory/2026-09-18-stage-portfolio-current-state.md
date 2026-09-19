@@ -13,6 +13,8 @@ supersedes_memory:
   - docs/memory/2026-09-19-stage-portfolio-current-state.md
   - docs/memory/2026-09-18-stage-terminal-review-attempt-07-blocked-handoff.md
 supersession_note: "The five superseded documents are PRESERVED, not deleted. They remain accurate records of what was true when they were written and are readable for provenance. They are NOT operative current-state input. This document is the single current-state surface. It replaces the prior handoff outright rather than appending a correction to it."
+superseded_by: docs/memory/2026-09-18-stage-attempt-08-terminal-blocked-evidence-record.md
+superseded_note: "This document is no longer the current-state surface, and its body is preserved unedited as an accurate record of what was true when it was written. Three of its bindings are now stale or wrong: the attempt-07 remediation it describes as uncommitted working-tree content at parent HEAD 689c48a0 is now COMMITTED at f142173c; its review state (REMEDIATED-PENDING-REVIEW awaiting attempt 08) is superseded by terminal attempt 08, which returned FAIL/BLOCKED on all six plans with 4 P0, 34 P1 and 11 P2 open; and four rows of its source-stash table cite IDs that exist in no stash file (9A2E1B74, D3B8F0C2, 2A7C48A8, 4CE5D4D6). The corrected table and the current verdicts are in docs/memory/2026-09-18-stage-attempt-08-terminal-blocked-evidence-record.md. Read that instead."
 decision: docs/decisions/2026-09-17-seven-entry-contract-defect-staging-portfolio-deliberation.md
 decision_revision: 3
 branch: chore/stage-176-s-workflow-defects
