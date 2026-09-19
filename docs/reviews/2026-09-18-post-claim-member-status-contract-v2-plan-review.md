@@ -1,29 +1,29 @@
 ---
 title: "Plan review verdict manifest — Canonical post-claim member-status contract (P-002.7), v2"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 01. Plan revision: 1. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned gate result FAIL and verdict BLOCKED on two P0, three P1, two P2 and one P3 deduplicated finding. Both P0s are plan-versus-manifest contradictions in shipment 177-S: the policy template and installed mirror are two tasks joined by a blocks edge, which the plan's own ACTIVATE invariant and decision D2 forbid; and the GREEN-phase assertion defect the plan exists to close, attempt-08 B2, is still encoded in 169.005-T and 169.008-T with no RED task covering mirror-divergence or version-attribution assertions. No remediation followed attempt 01, latest_remediation_revision and latest_disposition are null, and the plan is neither harvest-ready nor Ship-ready. No PASS exists anywhere in this record and none is asserted."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 01. Plan revision: 2. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned gate result FAIL and verdict BLOCKED on two P0, three P1, two P2 and one P3 deduplicated finding. Both P0s are plan-versus-manifest contradictions in shipment 177-S: the policy template and installed mirror are two tasks joined by a blocks edge, which the plan's own ACTIVATE invariant and decision D2 forbid; and the GREEN-phase assertion defect the plan exists to close, attempt-08 B2, is still encoded in 169.005-T and 169.008-T with no RED task covering mirror-divergence or version-attribution assertions. A Stage remediation cycle then produced plan revision 2 and re-derived the executable task set from it: five superseded tasks were archived with absorption provenance, one atomic ACTIVATE task and five RED-owning tasks were created, and the 177-S manifest was rebuilt in phase order. latest_remediation_revision is 2 and latest_disposition is REMEDIATED-PENDING-REVIEW. The top-level verdict is null: a remediation revision supersedes the content attempt 01 judged, and no independent reviewer has judged revision 2. The findings remain counted open because only an independent attempt 02 can close them. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
-plan_revision: 1
+plan_revision: 2
 feature_id: 169-F
 shipment_id: 177-S
 predecessor_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
 latest_attempt: 1
 review_terminal: false
-awaiting_attempt: null
+awaiting_attempt: 2
 reviewed_content_head: db39553a
 gate_result: FAIL
-verdict: BLOCKED
+verdict: null
 p0_open: 2
 p1_open: 3
 p2_open: 2
 p3_open: 1
-remediation_authorization: none-this-cycle
-latest_remediation_revision: null
-latest_disposition: null
+remediation_authorization: operator-authorized-single-cycle
+latest_remediation_revision: 2
+latest_disposition: REMEDIATED-PENDING-REVIEW
 latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-01.md
 attempts:
   - attempt: 1
@@ -37,8 +37,8 @@ attempts:
     p3_open: 1
     dispatch_mode: single-agent-declared-degradation
     anchor_route: absent
-    remediation_revision: null
-    disposition: null
+    remediation_revision: 2
+    disposition: REMEDIATED-PENDING-REVIEW
     terminal: false
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md
@@ -62,27 +62,37 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `post-claim-member-status-contract-v2` |
 | `plan_path` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` |
-| `plan_revision` | 1 |
+| `plan_revision` | 2 |
 | `latest_attempt` | **01** |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-01.md` |
 | `reviewed_content_head` | `db39553a` |
 | `gate_result` (attempt 01, immutable) | **FAIL** |
-| `verdict` | **BLOCKED** (derived) |
+| `verdict` | **null** (derived — see below) |
+| `latest_remediation_revision` | **2** |
+| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
+| `awaiting_attempt` | **02** |
 | `p0_open` | **2** |
 | `p1_open` | **3** |
 | `p2_open` | **2** |
 | `p3_open` | **1** |
 
 **The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 01. Its `remediation_revision` is `null`, so no
-Stage-produced revision supersedes the content the reviewer judged, and the
-top-level `verdict` is that entry's reviewer `verdict`: **BLOCKED**.
+roster entry — attempt 01. Its `remediation_revision` is now `2`, so a
+Stage-produced revision **supersedes** the content the reviewer judged. The
+reviewer's `BLOCKED` was returned against revision 1 and cannot be carried
+forward as a judgement of revision 2, and no reviewer has judged revision 2.
+The derived `verdict` is therefore **null**, and `latest_disposition` carries
+what Stage actually produced: `REMEDIATED-PENDING-REVIEW`.
 
-`REMEDIATED-PENDING-REVIEW` is deliberately **not** used here, for the reason
-this plan's own predecessor manifest states: it is a `disposition`, never a
-`verdict`, and it asserts that Stage produced a revision in response. The plan
-document still carries that value in its own `verdict` frontmatter key; attempt
-01 records this as finding `C2` (P2), open.
+`REMEDIATED-PENDING-REVIEW` is a `disposition`, never a `verdict`, for the
+reason this plan's own predecessor manifest states. Writing it into the
+`verdict` key would assert that a review concluded, which is precisely the
+fabrication this two-column shape exists to prevent.
+
+**The finding counts remain open.** Two P0, three P1, two P2 and one P3 are
+still counted open even though each was remediated. Stage remediating a
+finding is not the same event as a reviewer confirming it closed, and only the
+latter retires a finding. The counts drop when attempt 02 says they drop.
 
 ## What attempt 01 records
 
@@ -152,17 +162,76 @@ closed.
 
 ## What follows attempt 01
 
-No remediation. `latest_remediation_revision` is `null`, `latest_disposition`
-is `null`, and the governing revision remains **1** — the revision that was
-reviewed and found BLOCKED.
+A Stage remediation cycle, authorized by the operator as a single bounded
+cycle, produced **plan revision 2** and **re-derived the executable task set
+from it**, rather than retaining the superseded plan's task shape. What
+changed, per finding:
 
-In particular, the eight `169.x` task records and the `177-S` manifest were
-**read but not mutated**. Correcting them is remediation, and no remediation is
-authorized in this cycle.
+* **A1 (P0)** — the split activation is gone. `169.001-T` (policy template),
+  `169.002-T` (installed policy mirror) and `169.003-T` (Ship agent pair) were
+  **archived with absorption provenance** and replaced by a single
+  **`169.015-T`**, "ACTIVATE: transcribe the clause into all four declared
+  surfaces in one commit". One task, one commit, every declared surface —
+  which is the only shape that keeps each template/mirror pair consistent at
+  every commit boundary, because a `blocks` edge orders two commits without
+  fusing them. The archived records state truthfully that they were absorbed
+  and never executed; no deletion history was fabricated.
+* **A2 (P0)** — every assertion now enters in a RED task that individually
+  records the observed pre-implementation failure. Mirror-divergence moved to
+  new **`169.012-T`**, version-attribution to new **`169.013-T`**, and the
+  negative state-machine rows plus four-surface closure to new
+  **`169.014-T`**. The two GREEN tasks that had been introducing them,
+  `169.005-T` and `169.008-T`, were archived with absorption provenance; their
+  observation role is absorbed by new **`169.016-T`**, which is explicitly
+  forbidden from adding any assertion. The plan also now carries a
+  **discriminating RED rule**: each assertion records two observations — an
+  absence RED against current surfaces, failing individually with its own
+  marker, and a RED against a deliberately near-miss fixture. The second is
+  what proves the assertion tests the contract rather than a file's existence.
+  Aggregate suite exit codes are stated to be insufficient evidence.
+* **B1 (P1)** — the plan now carries a **`## Tasks` table** with nine rows
+  (ID, task, phase, size, complexity), plus an **assertion-to-task map**
+  binding each of the five assertion families to its RED owner and its
+  discriminating fixture.
+* **B2 (P1)** — a new **`## Declared surfaces`** section states the marker
+  set, the search scope, the exclusion rule (`.autoharness/staging/`,
+  gitignored at `.gitignore:6` as generated verify-workspace output rather than
+  a mirror), the enumerated four-path list, and the current marker count,
+  which is **0**. `declared_surface_count: 4` is now a checkable number.
+* **B3 (P1)** — the composed-state check names producer and consumer **by
+  exact path**: producer `tests/test_p002_7_member_status_contract.py`;
+  consumers `.github/workflows/ci.yml` and `.github/agents/_ship.agent.md`
+  item 4 together with its template.
+* **C1 (P2)** — the attempt-08 narrative is corrected wherever it appeared.
+  The plan and `169-F` now state that attempt 08 recorded **two P1s and one
+  P2**, that `B1` (phantom stash `3EF5AAF9`) was closed by decision F10's
+  correction to `3EF5AAF2`, and that `B2` remained open. The false "single
+  evidence defect" sentence is gone from both.
+* **C2 (P2)** — the plan's `verdict` frontmatter key is now `null`, with the
+  disposition value moved to a `disposition` key where it belongs.
+* **D1 (P3)** — the `177-S` manifest is rebuilt in **phase order** — PREPARE,
+  RED, ACTIVATE, VERIFY, DOCS — so reading it top to bottom shows RED before
+  GREEN, and the shipment description states that the order is phase order.
 
-Closing `A1` and `A2` requires a Stage remediation cycle producing revision 2 —
-one that re-derives the executable task set from this plan instead of
-inheriting the superseded plan's shape — followed by an independent attempt 02.
+A new **`169.011-T`** PREPARE task was added ahead of the RED tasks. It authors
+the canonical vocabulary, the surface-enumeration rule and the near-miss
+fixtures as **inert test-owned data**, changing no declared surface. This is
+what makes the atomic `169.015-T` survive the **2-hour re-check**: with every
+word already authored, the four-surface commit is mechanical transcription
+rather than composition. The plan records the pre-specified fallback decision
+`R5` requires — if the bound is ever threatened, **narrow the contract** by
+dropping the Ship-agent pair (`declared_surface_count` 4 → 2), **never split
+the activation commit**.
+
+Source defect ID **`3EF5AAF2`** is carried throughout; the phantom `3EF5AAF9`
+appears nowhere in live or archived records.
+
+The plan was rewritten as a single coherent current-state document. It carries
+no correction log and no review addendum: the remediation narrative lives here,
+in the mutable manifest, which is the surface designed to hold it.
+
+**The findings are not closed.** Closing them requires an independent attempt
+02 against revision 2. This manifest asserts remediation and nothing more.
 
 ## Attempt roster
 
@@ -174,7 +243,7 @@ ever a `disposition`.
 
 | Attempt | Artifact | Reviewed rev | Reviewer verdict | Remediation rev | Disposition |
 |---|---|---|---|---|---|
-| **1** | `...-v2-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (2 P0, 3 P1, 2 P2, 1 P3) | — | — |
+| **1** | `...-v2-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (2 P0, 3 P1, 2 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
 
 This roster covers the **v2 plan only**. Attempts 1–8 against the superseded
 `2026-09-17` plan remain in that plan's own manifest,
@@ -190,17 +259,29 @@ Context, never operative input.
 * `docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md`
   — terminal attempt against the superseded revision-7 plan. Its `B1` (phantom
   source stash `3EF5AAF9`) is verified **closed** at `db39553a`; its `B2`
-  (GREEN-only assertions) is verified **still open** in the `177-S` manifest and
-  is recorded as `A2` of attempt 01.
+  (GREEN-only assertions) was verified **still open** in the `177-S` manifest
+  at the time of attempt 01 and was recorded as `A2` of that attempt. The
+  revision-2 remediation moved every affected assertion into a RED task and
+  archived the two GREEN tasks that had been introducing them; whether `B2` is
+  thereby closed is for independent attempt 02 to judge, not for this manifest
+  to assert.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 1
+* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 2
 * Supersedes: `docs/plans/2026-09-17-post-claim-member-status-contract-plan.md`
   (revision 7, terminal at attempt 08)
 * Feature: `169-F` — Shipment: `177-S` (queued, DAG root, no incoming edge)
-* Source stash: `3EF5AAF2` — verified present in the stash record and now
-  correctly cited by `169-F`, `177-S` and all eight `169.x` task records
+* Shipment members after remediation, in phase order: `169-F`, `169.011-T`
+  (PREPARE, new), `169.009-T`, `169.010-T`, `169.012-T` (new), `169.013-T`
+  (new), `169.014-T` (new) — the five RED tasks — `169.015-T` (ACTIVATE, new,
+  atomic), `169.016-T` (VERIFY, new), `169.007-T` (DOCS)
+* Archived with absorption provenance, no longer manifest members:
+  `169.001-T`, `169.002-T`, `169.003-T` (absorbed into `169.015-T` under `A1`);
+  `169.005-T`, `169.008-T` (assertions absorbed into `169.012-T`/`169.013-T`/
+  `169.014-T`, observation into `169.016-T`, under `A2`)
+* Source stash: `3EF5AAF2` — verified present in the stash record and cited by
+  `169-F`, `177-S` and every live and archived `169.x` task record
 * Governing decision: the 2026-09-18 shared-execution-architecture and
   portfolio-reslicing decision, revision 1
 
