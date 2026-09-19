@@ -1,13 +1,13 @@
 ---
 title: "Plan review verdict manifest — Canonical post-claim member-status contract (P-002.7), v2"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 02. Plan revision: 2. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed in plan, task and manifest state, and returned gate result FAIL and verdict BLOCKED on zero P0, one P1, two P2 and two P3 new findings. The open P1 is a composed-state token seam: the plan declares STATUS_CONTRACT_HELD, STATUS_CONTRACT_DIVERGENT and STATUS_CONTRACT_NOT_OBSERVED, while 169.016-T, the only verdict-emitting task, emits CONTRACT_ACTIVE and CONTRACT_INCOMPLETE, with zero token overlap and the not-observed state deleted, collapsing decision D6's mandated three states to two. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 02. Plan revision: 3. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed in plan, task and manifest state, and returned gate result FAIL and verdict BLOCKED on zero P0, one P1, two P2 and two P3 new findings. A second operator-authorized Stage remediation cycle has since produced revision 3, which closes G1 by aligning 169.016-T, the plan Producer row and every consumer on exactly the D6 three-token vocabulary with ordered objective emission conditions, closes G2 by removing the six stale item_deps edges left by the retired task chain while preserving the PREPARE-RED-ACTIVATE-VERIFY-DOCS ordering, closes G3 in favour of the atomic activation contract by replacing mid-flight narrowing with a halt and return to Stage, and closes G4 and G5 by correcting the stale task-name and phase-shape metadata and declaring requires_plan_hardening true. That revision is UNREVIEWED: its disposition is REMEDIATED-PENDING-REVIEW and it awaits independent attempt 03. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
-plan_revision: 2
+plan_revision: 3
 feature_id: 169-F
 shipment_id: 177-S
 predecessor_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
@@ -16,15 +16,15 @@ review_terminal: false
 awaiting_attempt: 3
 reviewed_content_head: 5aa8643f
 gate_result: FAIL
-verdict: BLOCKED
+verdict: null
 verdict_is_pass: false
 p0_open: 0
 p1_open: 1
 p2_open: 2
 p3_open: 2
-remediation_authorization: none-this-cycle
-latest_remediation_revision: null
-latest_disposition: null
+remediation_authorization: operator-authorized-single-cycle
+latest_remediation_revision: 3
+latest_disposition: REMEDIATED-PENDING-REVIEW
 latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-02.md
 attempts:
   - attempt: 1
@@ -54,8 +54,8 @@ attempts:
     p3_open: 2
     dispatch_mode: single-agent-declared-degradation
     anchor_route: absent
-    remediation_revision: null
-    disposition: null
+    remediation_revision: 3
+    disposition: REMEDIATED-PENDING-REVIEW
     terminal: false
     closed_predecessor_findings: [A1, A2, B1, B2, B3, C1, C2, D1]
 carried_forward_context:
@@ -81,15 +81,15 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `post-claim-member-status-contract-v2` |
 | `plan_path` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` |
-| `plan_revision` | 2 |
+| `plan_revision` | 3 |
 | `latest_attempt` | **02** |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-02.md` |
 | `reviewed_content_head` | `5aa8643f` |
 | `gate_result` (attempt 02, immutable) | **FAIL** |
-| `verdict` | **BLOCKED** (derived — see below) |
+| `verdict` | **null** (derived — see below) |
 | `verdict_is_pass` | **false** |
-| `latest_remediation_revision` | **null** |
-| `latest_disposition` | **null** |
+| `latest_remediation_revision` | **3** |
+| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
 | `awaiting_attempt` | **03** |
 | `p0_open` | **0** |
 | `p1_open` | **1** |
@@ -97,10 +97,23 @@ attempt artifact is authoritative right now, and nothing else.
 | `p3_open` | **2** |
 
 **The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 02. Its `remediation_revision` is `null`, so no Stage
-revision supersedes the content the reviewer judged, and the reviewer's
-judgement stands as the current verdict. Attempt 02 returned **FAIL /
-BLOCKED** against revision 2 at content HEAD `5aa8643f`.
+roster entry — attempt 02. Its `remediation_revision` is now **3**, so the
+content attempt 02 judged (revision 2 at `5aa8643f`) has been superseded by
+Stage and the reviewer's BLOCKED no longer describes the current plan text.
+A superseded reviewer verdict may not be carried forward as the manifest's
+verdict, and Stage may not author a replacement, so `verdict` is **null** and
+the current state of the plan is the *disposition*
+**`REMEDIATED-PENDING-REVIEW`**, which is not a verdict and is never a pass.
+Attempt 02's own `gate_result` of **FAIL** against revision 2 remains immutable
+in the history artifact; it is reproduced above as the last independent
+judgement on record, not as a judgement of revision 3.
+
+**`p1_open`, `p2_open` and `p3_open` above are attempt 02's counts, not
+current counts.** They stay at 1/2/2 because only an independent attempt 03 can
+decrement them. Stage's revision-3 remediation claims G1 through G5 are
+addressed; that claim is recorded under "What follows attempt 02" below and
+carries no authority until attempt 03 re-derives it from plan, task and
+manifest state.
 
 **The attempt-01 counts are closed, and by the only authority that can close
 them.** Attempt 01's two P0, three P1, two P2 and one P3 were remediated by
@@ -110,10 +123,10 @@ the remediation narrative. Attempt-08 `B2`, carried forward as attempt-01
 `A2`, is closed with it. The open counts above are attempt 02's **own, new**
 findings.
 
-**Remediation did not converge.** Revision 2 closed every finding it was
-authorized to close — including both P0s — and left a new P1 behind. The plan
-remains blocked, `awaiting_attempt` is **03**, and no Ship work is authorized
-against `177-S`.
+**Remediation has not converged.** Revision 2 closed every attempt-01 finding,
+including both P0s, and left a new P1 behind. Revision 3 addresses that P1 and
+its four coupled findings, but is itself unreviewed. `awaiting_attempt` is
+**03**, and no Ship work is authorized against `177-S`.
 
 ## What attempt 01 records
 
@@ -326,6 +339,86 @@ despite two template families — noted only because the hardening *content* is
 present and materially complete, so the plan-review FAIL condition for missing
 hardening is not met.
 
+## What follows attempt 02
+
+A second Stage remediation cycle, authorized by the operator as a single
+bounded cycle, produced **plan revision 3**. What the revision changed, per
+finding:
+
+* **G1 (P1)** — resolved by **collapsing the seam onto the D6 vocabulary**,
+  not by inventing a third. `169.016-T` now emits exactly
+  `STATUS_CONTRACT_HELD`, `STATUS_CONTRACT_DIVERGENT` and
+  `STATUS_CONTRACT_NOT_OBSERVED`; `CONTRACT_ACTIVE` and `CONTRACT_INCOMPLETE`
+  are gone from every record. The plan's Producer/Consumer table was split so
+  the two roles no longer contradict each other: the **test module produces
+  per-assertion observations**, and `169.016-T` is the **sole emitter** of the
+  single verdict line derived from them. A new `### Emission conditions`
+  subsection gives objective, **ordered** conditions rather than a prose
+  description: `STATUS_CONTRACT_NOT_OBSERVED` is evaluated **first** and fires
+  on an import raise, a non-empty `loader.errors`, any `_FailedTest`, zero
+  executed assertions, or any assertion family lacking a per-assertion record;
+  then `STATUS_CONTRACT_DIVERGENT` on any failing assertion, naming the
+  offending surface; then `STATUS_CONTRACT_HELD`, which requires every
+  RED-proven assertion to have an individual passing record. **An absent
+  verdict line is itself `STATUS_CONTRACT_NOT_OBSERVED`**, so silence cannot be
+  read as a pass, and `STATUS_CONTRACT_HELD` is stated as the only pass token.
+  `169-F`, `177-S` and `169.007-T` carry the same three tokens, so plan, task
+  and manifest now agree. Hardening answers `H9`–`H11` and risk `R7` were added
+  to record the vocabulary and the fail-closed default.
+* **G2 (P2)** — the stale edges are **removed**, not documented. Enumerating
+  `item_deps` over the five archived tasks returned **six** edges (attempt 02
+  named five): `169.001-T → 169.009-T`, `169.001-T → 169.010-T`,
+  `169.002-T → 169.001-T`, `169.003-T → 169.002-T`, `169.005-T → 169.003-T`
+  and `169.008-T → 169.003-T`. All six were removed with
+  `backlogit_remove_dependency`, and the archived records' `dependencies`
+  frontmatter was cleared with them. No archived task now appears in any live
+  task's dependency closure. The surviving edge set expresses exactly the
+  PREPARE → RED → ACTIVATE → VERIFY → DOCS ordering: the five RED tasks depend
+  on `169.011-T`, `169.015-T` depends on all five RED tasks, `169.016-T`
+  depends on `169.015-T`, and `169.007-T` depends on `169.016-T`. The
+  absorption provenance the archived records carry in prose is untouched —
+  only the executable edges were retired, and `177-S`'s description now records
+  what was removed and why.
+* **G3 (P2)** — resolved **in favour of the atomic activation contract**. The
+  old `R5` rule let Ship narrow the contract in place if `169.015-T` threatened
+  the 2-hour rule; that required re-deriving an assertion inside a
+  transcription-only task, which is authoring, and would admit a never-red
+  assertion after the production text existed. It also *deleted* `169.010-T`'s
+  bidirectional family rather than narrowing it. The plan's "2-hour check on
+  ACTIVATE" is now a four-step **halt and return to Stage**: `169.015-T` halts,
+  the shipment stops, Stage — not Ship — decides any reduction of
+  `declared_surface_count`, and Stage re-plans the consequences (retiring
+  `169.010-T`'s family outright and re-observing `169.014-T`'s closure
+  assertion RED) before activation resumes. The task may not silently narrow
+  or author assertions during Ship. `R5` was rewritten and `R8` added;
+  `169-F`, `169.015-T` and `177-S` state the same rule.
+* **G4 (P3)** — residual naming from the retired shape is corrected.
+  `169.007-T` is retitled `P-002.7 DOCS: …` in place of `P-002.7 T6: …`, and
+  `169-F`'s description now states this unit's actual order as **PREPARE, RED,
+  ACTIVATE, VERIFY, DOCS**, noting that decision `D2` governs the *atomicity*
+  of the activation rather than the phase list — which is how a phase list with
+  no RED phase in it came to be written down.
+* **G5 (P3)** — `requires_plan_hardening` is now **`true`**, with a rationale
+  naming the elevated blast-radius signal: the four declared surfaces span two
+  template families, `templates/policies/` and `templates/agents/`. The
+  hardening section's preamble was reframed from a completeness pass into a
+  **gate**, which is what P-006 requires once the flag is `true`. Attempt 02
+  already recorded the hardening content as present and materially complete, so
+  the flag change records what was already true rather than demanding new work.
+
+`177-S` remains a DAG root with no incoming edge, and its `items` array remains
+in phase order — no manifest reordering was needed here. Source defect ID
+`3EF5AAF2` is unchanged throughout, and the sole `3EF5AAF9` occurrence remains
+the explicit historical citation in `169-F` recording that the phantom ID is
+closed.
+
+The plan was rewritten as a single coherent current-state document. It carries
+no correction log and no review addendum: the remediation narrative lives here,
+in the mutable manifest, which is the surface designed to hold it.
+
+**The findings are not closed by this remediation.** Closing them requires an
+independent attempt 03 against revision 3.
+
 ## Attempt roster
 
 `reviewed_revision` + `verdict` are what an **independent reviewer** judged.
@@ -337,7 +430,7 @@ ever a `disposition`.
 | Attempt | Artifact | Reviewed rev | Reviewer verdict | Remediation rev | Disposition |
 |---|---|---|---|---|---|
 | 1 | `...-v2-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (2 P0, 3 P1, 2 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
-| **2** | `...-v2-plan-review-attempt-02.md` | 2 @ `5aa8643f` | **BLOCKED** (0 P0, 1 P1, 2 P2, 2 P3) | — | — |
+| **2** | `...-v2-plan-review-attempt-02.md` | 2 @ `5aa8643f` | **BLOCKED** (0 P0, 1 P1, 2 P2, 2 P3) | 3 | `REMEDIATED-PENDING-REVIEW` |
 
 This roster covers the **v2 plan only**. Attempts 1–8 against the superseded
 `2026-09-17` plan remain in that plan's own manifest,
@@ -362,7 +455,7 @@ Context, never operative input.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 2
+* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 3
 * Supersedes: `docs/plans/2026-09-17-post-claim-member-status-contract-plan.md`
   (revision 7, terminal at attempt 08)
 * Feature: `169-F` — Shipment: `177-S` (queued, DAG root, no incoming edge)
@@ -373,7 +466,9 @@ Context, never operative input.
 * Archived with absorption provenance, no longer manifest members:
   `169.001-T`, `169.002-T`, `169.003-T` (absorbed into `169.015-T` under `A1`);
   `169.005-T`, `169.008-T` (assertions absorbed into `169.012-T`/`169.013-T`/
-  `169.014-T`, observation into `169.016-T`, under `A2`)
+  `169.014-T`, observation into `169.016-T`, under `A2`). The six stale
+  `item_deps` edges these five carried were removed under `G2` in the
+  attempt-02 remediation cycle; their prose provenance is retained.
 * Source stash: `3EF5AAF2` — verified present in the stash record and cited by
   `169-F`, `177-S` and every live and archived `169.x` task record
 * Governing decision: the 2026-09-18 shared-execution-architecture and

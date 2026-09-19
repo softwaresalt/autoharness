@@ -1,17 +1,17 @@
 ---
 title: "Bounded spike: autoharness operation transport — MCP/sidecar feasibility, tool authority, and distribution impact"
-description: "Time-boxed spike deciding how autoharness exposes Python-backed atomic operations to agents over MCP, what tool authority that exposure declares, and what both cost a PyPI-distributed CLI whose entire runtime dependency set is jsonschema and PyYAML. Produces a findings artifact carrying seven required findings, each with a determining task and named acceptance evidence: the measured transport comparison, the recommendation, the rejected alternative, the exact .mcp.json registration entry, the per-tool authority allowlist with its fail-closed default, the CLI/MCP parity-test strategy, and an explicit statement of whether the PyPI distribution contract changes. A wildcard tool allowance is rejected unless proven necessary and bounded. The spike carries an executable composed-state gate: TRANSPORT_DECIDED is emitted by a determining task that checks every required finding against the ledger, and TRANSPORT_UNDECIDED blocks harvest of the consuming foundation plan. No production code ships."
+description: "Time-boxed spike deciding how autoharness exposes Python-backed atomic operations to agents over MCP, what tool authority that exposure declares, and what both cost a PyPI-distributed CLI whose entire runtime dependency set is jsonschema and PyYAML. Produces a findings artifact carrying seven required findings, each with a determining task and named acceptance evidence: the measured transport comparison, the recommendation, the rejected alternative, the exact .mcp.json registration entry, the per-tool authority allowlist with its fail-closed default, the CLI/MCP parity-test strategy, and an explicit statement of whether the PyPI distribution contract changes. A wildcard tool allowance is rejected unless proven necessary and bounded. The prototype registration has a stated lifecycle with a bounded owner and an explicit cleanup point, so the observation F7 requires is made against a registration that is actually running. The spike carries an executable composed-state gate: TRANSPORT_DECIDED is emitted by a determining task that checks every required finding against the ledger, and TRANSPORT_UNDECIDED blocks harvest of the consuming foundation plan. No production code ships."
 doc_type: plan
 source: docs/plans/2026-09-18-operation-transport-spike-plan.md
 date: 2026-09-18
 plan_id: operation-transport-spike
 plan_path: docs/plans/2026-09-18-operation-transport-spike-plan.md
 plan_role: active
-revision: 2
+revision: 3
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "verdict is null because no independent reviewer has judged revision 2. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 2 is the product of one authorized Stage remediation cycle against attempt 01, which returned FAIL/BLOCKED on revision 1. Stage asserts no PASS and has performed no self-review."
-awaiting_attempt: 2
+verdict_note: "verdict is null because no independent reviewer has judged revision 3. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 3 is the product of one authorized Stage remediation cycle against attempt 02, which returned ADVISORY on revision 2 with one P2 (E1, the unspecified prototype lifetime on which F7's acceptance evidence depends) and two P3s (E2, manifest order; E3, F6 omitted from H7). Stage asserts no PASS and has performed no self-review."
+awaiting_attempt: 3
 review_manifest: docs/reviews/2026-09-18-operation-transport-spike-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -134,7 +134,8 @@ recorded**, and the composed-state gate treats it as absent.
 
 ## Out of scope
 
-* Any production code. The `176.002-T` prototype is **discarded**; only
+* Any production code. The `176.002-T` prototype is **discarded at spike
+  close**, on the schedule stated under *Prototype lifecycle* below; only
   findings survive.
 * Any change to `.mcp.json`, `pyproject.toml`, or any agent surface. Those are
   activation steps and belong to `184-S`. The authority *answer* is in scope
@@ -142,6 +143,40 @@ recorded**, and the composed-state gate treats it as absent.
 * Choosing which operations to expose. That is the foundation's concern. Q7
   determines how authority is expressed over whatever set is chosen, not the
   set.
+
+## Prototype lifecycle
+
+F7's third part requires the registered-but-not-allowlisted default to be an
+**observed** property of a running registration (R3, H7). The only running
+registration this unit produces is `176.002-T`'s prototype, so its lifetime is
+specified here rather than left to inference.
+
+| Stage | Owner | What holds |
+|---|---|---|
+| Created | `176.002-T` | A throwaway registration and a throwaway operation, reachable through both transports |
+| **Survives** | `176.002-T` → `176.004-T` | The registration is **left running, or left restartable from a recorded local configuration**, until `176.004-T` has recorded its F7 observation. Discard at the close of `176.002-T` is **prohibited** |
+| Observed | `176.004-T` | F7's default is read off the running registration |
+| Discarded | `176.003-T` | At spike close, after F7 is recorded. `176.003-T` records the disposal in the findings artifact |
+
+**Owner of the surviving state is `176.002-T`.** It is the task that creates
+the registration, and it is the task whose record carries the obligation to
+leave it observable. `176.004-T` is a consumer of that state, not its creator,
+and it carries no prototyping budget.
+
+**Restart, bounded.** If the registration is not running when `176.004-T`
+begins, `176.004-T` may restart it from the local configuration `176.002-T`
+recorded, **inside its own 45-minute bound**. It may not re-prototype: building
+a new registration is `176.002-T`'s work, and a restart that does not succeed
+inside the bound resolves F7 to `NOT-ANSWERED-FALLBACK` with the restart
+failure recorded as what blocked it. This keeps F7's pass state reachable
+without silently widening an `XS` task into a prototyping task.
+
+**Cleanup is explicit and is not a workspace mutation.** The prototype lives
+only in the working tree and in a local throwaway MCP configuration. Nothing is
+committed, the tracked `.mcp.json` is never edited (that is a `184-S`
+activation step), and `176.003-T` records that the registration was torn down
+and that no artifact of it survives. No task in `184-S` depends on prototype
+artifacts — only on the findings document.
 
 ## Tasks
 
@@ -156,7 +191,8 @@ recorded**, and the composed-state gate treats it as absent.
 Sequence: `176.001-T` → `176.002-T` → `176.004-T` → `176.003-T` →
 `176.005-T`. `176.004-T` follows the prototype because the
 registered-but-not-allowlisted default is an **observed** property of a running
-registration, not a design preference.
+registration, not a design preference — and the *Prototype lifecycle* section
+above is what makes that registration still there to observe.
 
 Each task is bounded by both a size estimate and the elapsed bound above; the
 two-hour rule is satisfied on both axes with the widest task at 90 minutes.
@@ -258,8 +294,8 @@ honestly is a usable input and an unrecorded one is not.
 | # | Risk | Mitigation |
 |---|---|---|
 | R1 | Both transport options prove unacceptable for a PyPI CLI | The CLI transport in `184-S` is unconditional and ships regardless. The sidecar degrades to a separately-installed optional surface, and the parity requirement is restated against that surface. Consuming units are told this explicitly through a `NOT-ANSWERED-FALLBACK` ledger row rather than inheriting a silent gap. |
-| R2 | The prototype is mistaken for shippable code | `176.002-T` states discard explicitly, and no task in `184-S` depends on prototype artifacts — only on the findings document. |
-| R3 | The authority answer is a design preference rather than an observation | `176.004-T` follows the prototype and must record the **observed** registered-but-not-allowlisted default. A preference with no observation is `ABSENT`, not `ANSWERED`. |
+| R2 | The prototype is mistaken for shippable code | `176.002-T` states discard explicitly, the Prototype lifecycle section names the discard point and its owner, nothing is committed and the tracked `.mcp.json` is never edited, and no task in `184-S` depends on prototype artifacts — only on the findings document. |
+| R3 | The authority answer is a design preference rather than an observation | `176.004-T` follows the prototype and must record the **observed** registered-but-not-allowlisted default. A preference with no observation is `ABSENT`, not `ANSWERED`. The Prototype lifecycle section keeps the registration observable until that record exists, so the observation is reachable rather than assumed. |
 | R4 | A wildcard allowance enters `184-S` by default rather than by decision | Q7 rejects `["*"]` outright unless the three-part justification is recorded. The rejection and its reason are themselves acceptance evidence for F7, so the absence of a decision is visible rather than silent. |
 | R5 | The gate is claimed rather than executed | `176.005-T` is a separate task whose only output is the verdict line, and the line's `absent` count is checkable against the ledger by any reader. |
 
@@ -281,8 +317,8 @@ document.
 | H4 | What does a wrong Q5 answer cost? | The MCP-parity claims in `176-S` and `180-S` stay unfounded, which is the condition this portfolio already failed on twice. F5 therefore requires recorded prototype output, not a described strategy. |
 | H5 | Is the trust boundary this spike designs wider than the one it replaces? | It is a **new** boundary, not a replacement. There is no `autoharness` server today, so every capability it gains is additive. That is the reason authority is enumerated at the outset rather than narrowed later: the portfolio is simultaneously removing `backlogit/*` in `180-S`, and introducing a second wildcard while removing the first would be a net regression. |
 | H6 | What is the rollback if the recommendation is wrong? | For this unit, none is needed: no workspace state changes and the artifact is additive. For the consuming unit, the rollback is real and must be stated by the findings artifact — `184-S`'s activation commit is a single commit touching `.mcp.json`, `pyproject.toml` and agent frontmatter, and reverting that commit removes the server, its dependency and its authority together. The findings artifact records this explicitly so `184-S` does not have to invent it. |
-| H7 | Is a documentation-derived answer sufficient? | Only for F3, where the declared `requires-python` range **is** the fact. F1, F2, F4, F5 and F7 require an observation: a measurement, a recorded output, or a running registration. A documentation citation in those rows is `ABSENT`. |
-| H8 | What stops the spike from growing into the implementation? | The deliverable is a document; the prototype is declared discarded; no task in this unit edits `.mcp.json`, `pyproject.toml` or any agent surface; and each task carries an individual elapsed bound with a recorded-fallback stop rather than an extension. |
+| H7 | Is a documentation-derived answer sufficient? | Only for F3, where the declared `requires-python` range **is** the fact. F1, F2, F4, F5 and F7 require an observation: a measurement, a recorded output, or a running registration. A documentation citation in those rows is `ABSENT`. F6 is neither: it is **derived from F1–F3**, since whether the distribution contract changes follows from the measured dependency, size and Python-floor results rather than from a fresh observation. F6 is therefore recorded by the authoring task `176.003-T`, and it is `ABSENT` if its "changes"/"does not change" sentence does not name each contract term affected, or if the F1–F3 rows it derives from are not themselves `ANSWERED` or `NOT-ANSWERED-FALLBACK`. |
+| H8 | What stops the spike from growing into the implementation? | The deliverable is a document; the prototype is declared discarded with a named discard point and owner; no task in this unit edits `.mcp.json`, `pyproject.toml` or any agent surface; and each task carries an individual elapsed bound with a recorded-fallback stop rather than an extension. `176.004-T`'s restart allowance is explicitly bounded by its own 45 minutes and explicitly excludes re-prototyping. |
 | H9 | Can the gate pass with nothing determined? | No. An all-`NOT-ANSWERED-FALLBACK` ledger is a legitimate pass state only in the sense that it is honest, and it carries the CLI-only fallback in writing for every affected scope — which is a materially different input to `184-S` than a silent gap. An empty or missing ledger is `TRANSPORT_NOT_OBSERVED`, which is never a pass. |
 
 ### Blast radius

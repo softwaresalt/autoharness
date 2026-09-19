@@ -1,17 +1,17 @@
 ---
 title: "Bounded spike: network-denied Linux container isolation for external binary conformance"
-description: "Time-boxed spike determining whether the isolation required to execute an untrusted external release binary is achievable on this repository's CI: no credentials of any kind in the job environment, network egress denied after asset acquisition completes, repository absent or mounted read-only, disposable mounts, a TOCTOU-resistant handle across the verify-execute boundary, hardlink and symlink substitution resistance, and a redirect rule derived from observed acquisition behaviour. Every property has an assigned determining task that records objective evidence, including credential absence, which is determined by inspecting the actual job environment, and the redirect rule, which is derived from one observed release-asset acquisition rather than from assumption. A coverage gate checks that every property has a determining task and captured evidence before ISOLATION_CHARACTERIZED is emitted. No conformance fixture and no production code ships. Gates the reduced SAFE_CLOSE unit."
+description: "Time-boxed spike determining whether the isolation required to execute an untrusted external release binary is achievable on this repository's CI: no credentials of any kind in the job environment, network egress denied after asset acquisition completes, repository absent or mounted read-only, disposable mounts, a TOCTOU-resistant handle across the verify-execute boundary, hardlink and symlink substitution resistance, and a redirect rule derived from observed acquisition behaviour. Every property has an assigned determining task that records objective evidence, including credential absence, which is determined by inspecting the actual job environment, and the redirect rule, which is derived from one observed release-asset acquisition rather than from assumption. Credential absence is determined FIRST and is an enforced predecessor of every untrusted acquisition and containment probe, so the probe-safety argument rests on an executable edge rather than on a scheduling preference. A coverage gate checks that every property has a determining task and captured evidence, and resolves the unit to exactly one of four composed states: ISOLATION_CHARACTERIZED, ISOLATION_FLOOR_ONLY, ISOLATION_UNDETERMINED or ISOLATION_NOT_OBSERVED, with successor eligibility stated per state and no state presenting the isolation floor as proven. No conformance fixture and no production code ships. Gates the reduced SAFE_CLOSE unit."
 doc_type: plan
 source: docs/plans/2026-09-18-conformance-isolation-spike-plan.md
 date: 2026-09-18
 plan_id: conformance-isolation-spike
 plan_path: docs/plans/2026-09-18-conformance-isolation-spike-plan.md
 plan_role: active
-revision: 2
+revision: 3
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "verdict is null because no independent reviewer has judged revision 2. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 2 is the product of one authorized Stage remediation cycle against attempt 01, which returned FAIL/BLOCKED on revision 1. Stage asserts no PASS and has performed no self-review."
-awaiting_attempt: 2
+verdict_note: "verdict is null because no independent reviewer has judged revision 3. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 3 is the product of one authorized Stage remediation cycle against attempt 02, which returned FAIL/BLOCKED on revision 2 with one P1 (F1, an ordering claim the records denied), one P2 (F2, the unreconciled ISOLATION_UNDETERMINED pair) and one P3 (F3, manifest order). Stage asserts no PASS and has performed no self-review."
+awaiting_attempt: 3
 review_manifest: docs/reviews/2026-09-18-conformance-isolation-spike-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -26,7 +26,7 @@ gates: 181-S
 external_tracker: 002-C
 external_tracker_state: blocked-outside-shipment
 requires_plan_hardening: true
-hardening_rationale: "The spike researches the containment boundary for executing an untrusted third-party binary. Getting the question set wrong produces a foundation plan that under-specifies isolation, so the question set itself warrants adversarial review even though the spike ships no code. The hardening pass includes a structural coverage question, because attempt 01 found a declared property with no determining task and the original pass did not ask whether one existed."
+hardening_rationale: "The spike researches the containment boundary for executing an untrusted third-party binary. Getting the question set wrong produces a foundation plan that under-specifies isolation, so the question set itself warrants adversarial review even though the spike ships no code. The hardening pass includes a structural coverage question, because attempt 01 found a declared property with no determining task and the original pass did not ask whether one existed. It also includes an ordering-enforcement question, because attempt 02 found the probe-safety answer resting on an I1-before-probe ordering that no dependency edge enforced; the ordering is now an executable predecessor relation rather than a claim."
 tags:
   - spike
   - ci-isolation
@@ -147,9 +147,25 @@ that will be asserted rather than determined.
 | `177.003-T` | Author the findings artifact; transcribe every verdict and read off the I7 rule | — | XS | low | 45 min |
 | `177.006-T` | Coverage and composed-state validation; emit the gate verdict | — | XS | low | 20 min |
 
-Sequence: `177.005-T` → `177.001-T`. `177.004-T` and `177.002-T` are
-independent of both and of each other. All four determining tasks block
-`177.003-T`, which blocks `177.006-T`.
+Sequence: `177.004-T` → `177.005-T` → `177.001-T`, and `177.004-T` →
+`177.002-T`. All four determining tasks block `177.003-T`, which blocks
+`177.006-T`.
+
+**`177.004-T` runs first, and that ordering is enforced rather than preferred.**
+It is the predecessor of both untrusted-acquisition and containment-probe work:
+`177.005-T`, which pulls a real external release asset onto a runner, and
+`177.002-T`, which probes containment against a real handle. Neither may
+execute until I1 — "no credentials of any kind in the job environment" — has
+been determined by observation, because a probe or acquisition job that carried
+credentials would be a privileged process handling an untrusted artifact even
+without executing it (H7). `177.001-T` inherits the same precedence
+transitively through `177.005-T`.
+
+This is a safety edge, not a scheduling convenience. The plan's blast-radius
+statement and hardening answer H7 both rest on it, so it is encoded in
+`item_deps` as a `blocks` relation and reproduced in every affected task record;
+a version of this plan in which the records call these tasks "independent" is a
+defect, not a variant.
 
 `177.005-T` precedes `177.001-T` because I2 is defined as egress denial *after*
 acquisition completes. A task that establishes egress denial without ever
@@ -169,8 +185,9 @@ them would duplicate the setup rather than divide the risk.
 
 The size axis is bounded independently: `S` at a 120-minute elapsed bound, with
 the recorded-and-stop rule below. If the bound is reached, the unreached
-property is recorded NOT DETERMINED with what was attempted, which is a
-legitimate and useful outcome; it is not a reason to extend.
+property is recorded `NOT DETERMINED — FLOOR INVOKED` with what was attempted,
+what blocked it, and the floor invocation in writing, which is a legitimate and
+useful outcome; it is not a reason to extend.
 
 ## Deliverable
 
@@ -198,10 +215,21 @@ Each property resolves to exactly one of:
 
 * **`DETERMINED`** — a verdict is present *and* the evidence named in the
   Property coverage table is present in the artifact;
-* **`NOT DETERMINED`** — the determining task reached its elapsed bound or was
-  blocked, and the artifact records what was attempted and what blocked it;
+* **`NOT DETERMINED — FLOOR INVOKED`** — the determining task reached its
+  elapsed bound or was blocked, and the artifact records **all three** of: what
+  was attempted, what blocked it, and an explicit written statement that the
+  property is **unproven** and that `181-S` is therefore held at the
+  evidence-and-documentation floor for that property's scope. All three are
+  required; a row carrying fewer is `ABSENT`;
 * **`ABSENT`** — anything else, including a verdict supported only by a
-  documentation citation.
+  documentation citation, and including a bare "not determined" with no floor
+  invocation.
+
+`NOT DETERMINED — FLOOR INVOKED` is **not a pass value and asserts nothing
+about the isolation**. It records that the property was not established and
+that the consuming unit is consequently confined to the floor. Its only effect
+is to distinguish an honestly recorded non-conclusion from silence, which is
+what makes successor eligibility decidable rather than guessed.
 
 | Property | Determining task | State | Verdict | Evidence location |
 |---|---|---|---|---|
@@ -215,18 +243,49 @@ Each property resolves to exactly one of:
 
 ## Composed-state check
 
+The unit resolves to exactly one of four states. Exactly one is a pass. No
+state asserts that the isolation floor has been *proven*, and no state is
+reachable by silence.
+
 | Field | Value |
 |---|---|
-| Pass state | `ISOLATION_CHARACTERIZED` — every property I1–I7 is `DETERMINED` in the coverage ledger: an assigned determining task, a verdict, and the named evidence |
-| Fail state | `ISOLATION_UNDETERMINED` — one or more properties is `NOT DETERMINED` or `ABSENT`, named individually |
+| Pass state | `ISOLATION_CHARACTERIZED` — every property I1–I7 is `DETERMINED` in the coverage ledger: an assigned determining task, a verdict, and the named evidence. This is the only pass state |
+| Qualified state | `ISOLATION_FLOOR_ONLY` — no property is `ABSENT`, and at least one is `NOT DETERMINED — FLOOR INVOKED`. **Not a pass.** The unqualified properties are unproven and are recorded as unproven |
+| Fail state | `ISOLATION_UNDETERMINED` — one or more properties is `ABSENT`, named individually |
 | Not-observed state | `ISOLATION_NOT_OBSERVED` — the findings artifact does not exist, or exists without a completed coverage ledger. Distinct from `ISOLATION_UNDETERMINED` and never a pass |
 | Producer | `docs/spikes/2026-09-18-conformance-isolation-findings.md` (created in `183-S` by `177.003-T`), whose final line is the verdict token written by `177.006-T` |
 | Consumer | `docs/plans/2026-09-18-safe-close-conformance-plan.md` (`181-S`), which reads the verdict token before harvest |
 | Activation commit | None — the spike activates nothing. The gate is read at `181-S` harvest time |
 
-A partially-classified result is a **fail**, not a partial pass. An
-unclassified property would be inherited by `181-S` as an assumption, which is
-the failure mode this whole redesign exists to stop.
+A partially-classified result is never a partial pass. An unclassified property
+would be inherited by `181-S` as an assumption, which is the failure mode this
+whole redesign exists to stop.
+
+### Successor eligibility, stated per state
+
+This table is the whole of `181-S`'s harvest authority. It is stated here so
+`181-S` reads an eligibility rule rather than inferring one from two sentences
+that disagree.
+
+| State | May `181-S` harvest? | What it may harvest |
+|---|---|---|
+| `ISOLATION_CHARACTERIZED` | Yes | Every task the findings support. Whether the unit rises above the floor is decided by the *verdicts*, not by the gate |
+| `ISOLATION_FLOOR_ONLY` | Yes, **floor-only** | Only the evidence-and-documentation floor tasks. No task that assumes, relies on, or asserts an unproven property may be harvested, and the findings artifact names which properties those are |
+| `ISOLATION_UNDETERMINED` | **No** | Nothing. Harvest is blocked outright until a further determining run or an explicit, recorded operator waiver resolves every `ABSENT` row |
+| `ISOLATION_NOT_OBSERVED` | **No** | Nothing. There is no observation to read |
+
+**Fail-closed default.** Any ledger row that is not affirmatively
+`DETERMINED` or `NOT DETERMINED — FLOOR INVOKED` is `ABSENT`, and any artifact
+that is missing, unparseable, or carries no verdict line is
+`ISOLATION_NOT_OBSERVED`. Silence never produces eligibility.
+
+**The floor is never presented as proven.** `002-C` stays `blocked` under every
+one of the four states, and the decision's evidence-and-documentation floor for
+`181-S` is unchanged by any of them. What differs between states is only
+whether `181-S` may harvest, and how much — never what the isolation is known
+to do. `ISOLATION_FLOOR_ONLY` in particular records an *absence of knowledge*
+about the unqualified properties; it does not record that the floor was
+achieved.
 
 **The transition is executable and auditable.** `177.006-T` performs it
 mechanically, in two checks:
@@ -235,41 +294,40 @@ mechanically, in two checks:
    Property coverage table, and that task is a **determining** task, never
    `177.003-T` alone. A property whose only assignment is the authoring task
    fails this check outright.
-2. **Evidence.** Every property's ledger row is `DETERMINED`.
+2. **Evidence.** Every property's ledger row resolves to `DETERMINED`,
+   `NOT DETERMINED — FLOOR INVOKED`, or `ABSENT` by the definitions above.
 
-It then appends a single verdict line to the findings artifact:
-
-```text
-COMPOSED_STATE: ISOLATION_CHARACTERIZED | determined=7 | undetermined=0 | checked=2026-09-DD
-```
-
-or
+It then appends exactly one verdict line to the findings artifact:
 
 ```text
-COMPOSED_STATE: ISOLATION_UNDETERMINED | undetermined=<n> | properties=I<x>,I<y>
+COMPOSED_STATE: ISOLATION_CHARACTERIZED | determined=7 | floor_invoked=0 | absent=0 | checked=2026-09-DD
 ```
 
-`ISOLATION_UNDETERMINED` blocks `181-S` harvest and names which properties are
-open, so a reader can check the verdict against the ledger without re-running
-the spike. A verdict line whose count disagrees with the ledger is itself a
-fail.
+```text
+COMPOSED_STATE: ISOLATION_FLOOR_ONLY | determined=<n> | floor_invoked=<m> | absent=0 | floor_properties=I<x>,I<y> | checked=2026-09-DD
+```
 
-**`ISOLATION_UNDETERMINED` is not a blocker on the unit's usefulness.** The
-floor stands either way: `181-S` degrades to evidence-and-documentation only
-and `002-C` stays blocked. What the fail state prevents is `181-S` inheriting
-an undetermined property as an assumption.
+```text
+COMPOSED_STATE: ISOLATION_UNDETERMINED | absent=<n> | properties=I<x>,I<y>
+```
+
+Each form names the properties at issue, so a reader can check the verdict
+against the ledger without re-running the spike. A verdict line whose counts
+disagree with the ledger is itself a fail, and the counts must sum to 7.
 
 ## Risks
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | Hosted runners cannot deny egress post-acquisition | `181-S` degrades to evidence-and-documentation only, which the decision already names as the floor. `002-C` stays blocked either way, so no downstream record becomes false. |
+| R1 | Hosted runners cannot deny egress post-acquisition | This is a *conclusion*, so I2 resolves `DETERMINED` with a `NOT ACHIEVABLE` verdict and the gate passes normally. `181-S` degrades to evidence-and-documentation only, which the decision already names as the floor. `002-C` stays blocked either way, so no downstream record becomes false. |
 | R2 | The spike drifts into building the fixtures | Deliverable is a document; no fixture task exists in this unit, and `181-S` owns all four fixtures. |
 | R3 | A property is recorded ACHIEVABLE on a mechanism that is not actually exercised | Each verdict must cite the mechanism and the observation that demonstrated it, not a documentation reference alone. The coverage gate resolves a documentation-only verdict to `ABSENT`. |
 | R4 | A declared property has no determining task, so the pass state is unreachable | Every property carries an assigned determining task in the Property coverage table, and `177.006-T` checks that assignment structurally before it checks evidence. The authoring task determines nothing. |
 | R5 | The I7 rule is re-derived from assumption, reproducing `B6` | `177.005-T` performs one real acquisition and records the observed redirect chain. `177.003-T` reads the rule off that record; it may not invent one. An I7 row with no recorded chain is `ABSENT`. |
 | R6 | The I1 inventory leaks a credential into the findings artifact or a job log | Names-only recording is binding. An inventory that would require a value to be meaningful is itself a NOT ACHIEVABLE verdict for I1. |
 | R7 | The acquisition task is mistaken for a conformance run | `177.005-T` acquires and observes transport behaviour only. It does not execute the acquired binary, and no task in this unit does. |
+| R8 | A probe or acquisition job runs before credential absence is determined | `177.004-T` is an enforced `blocks` predecessor of both `177.002-T` and `177.005-T` in `item_deps`, and `177.001-T` inherits the precedence through `177.005-T`. The ordering the blast-radius statement and H7 rely on is an executable edge, not a scheduling preference, and every affected task record states it as a block rather than as independence. |
+| R9 | A determining task times out and the result is read as either a pass or a silent gap | Neither is reachable. A timed-out property is `NOT DETERMINED — FLOOR INVOKED` only if it records what was attempted, what blocked it, and the floor invocation in writing; otherwise it is `ABSENT`. The first yields `ISOLATION_FLOOR_ONLY`, which is explicitly not a pass and permits only floor-only harvest; the second yields `ISOLATION_UNDETERMINED`, which blocks harvest outright. |
 
 ## Hardening review
 
@@ -282,11 +340,13 @@ Adversarial pass over this spike's failure modes and boundaries.
 | H1 | Can a spike that executes an external binary be unsafe in itself? | Yes, which is why this spike executes none. It characterizes isolation **before** any conformance run, acquires an asset without running it, and probes a handle without executing what the handle refers to. Its output is a document. |
 | H2 | Is a property verified by reading CI documentation? | No. Each verdict must cite the mechanism and an observation that demonstrated it. Documentation alone resolves to `ABSENT`, which yields `ISOLATION_UNDETERMINED`. |
 | H3 | What stops the spike from growing into the implementation? | The deliverable is a findings artifact, the unit contains no fixture or CI-definition task, `181-S` owns all of those, and every task carries an individual elapsed bound with a recorded-and-stop rule. |
-| H4 | Is a partially classified result usable? | No — it is a fail. An unclassified property would be inherited by `181-S` as an assumption, which is the frame error this redesign exists to eliminate. |
+| H4 | Is a partially classified result usable? | Only in the one shape that records its own limits. A property left `ABSENT` is a fail: it would be inherited by `181-S` as an assumption, which is the frame error this redesign exists to eliminate. A property recorded `NOT DETERMINED — FLOOR INVOKED` carries what was attempted, what blocked it, and the floor invocation in writing, which yields `ISOLATION_FLOOR_ONLY` — not a pass, and eligible only for floor-only harvest. |
 | H5 | Does every declared property have a task that determines it, and does every task's output name the property it closes? | Yes, and it is checked structurally rather than assumed. The Property coverage table assigns each of I1–I7 a determining task and an evidence shape, every task's title names the properties it closes, and `177.006-T` checks the assignment before it checks the evidence. This question exists because the previous revision's hardening pass interrogated scope, evidence quality and partial results without ever asking whether the decomposition could reach its own pass state — and it could not. |
 | H6 | Can the authoring task absorb a property that has no determining task? | No. `177.003-T` transcribes verdicts and reads the I7 rule off a recorded chain; it determines nothing. An authoring-derived verdict rests on assertion, which R3 and H2 have already ruled insufficient, and the coverage check in `177.006-T` rejects it structurally. |
-| H7 | Is the I5/I6 probe itself an execution of the untrusted binary? | No. Probing a file handle and attempting a substitution against it is not executing the file's contents. The boundary is stated here rather than left implicit, and I1's determination is what keeps the probe honest: a probe job that carried credentials would be a privileged process handling an untrusted artifact even without executing it. |
+| H7 | Is the I5/I6 probe itself an execution of the untrusted binary? | No. Probing a file handle and attempting a substitution against it is not executing the file's contents. The boundary is stated here rather than left implicit, and I1's determination is what keeps the probe honest: a probe job that carried credentials would be a privileged process handling an untrusted artifact even without executing it. That premise is **enforced**, not assumed — see H9. |
 | H8 | Does an unachievable property weaken the security model? | No. The model is a constraint, not a question. An unachievable property moves `181-S` to the evidence-and-documentation floor; it never relaxes the requirement. |
+| H9 | Is the I1-before-probe ordering that H7 relies on actually enforced, or only asserted? | Enforced. `177.004-T` is a `blocks` predecessor of `177.002-T` (the containment probe) and of `177.005-T` (the untrusted acquisition) in `item_deps`, and `177.001-T` inherits it transitively through `177.005-T`. Every affected task record states the block rather than claiming independence. This question exists because the previous revision made H7's answer rest on an ordering that the task table, three task records and `item_deps` all denied — a hardening answer whose premise the executable record contradicts is not an answer. |
+| H10 | Can the gate pass with nothing determined? | No. `ISOLATION_CHARACTERIZED` requires all seven properties `DETERMINED`, and it is the only pass state. An all-fallback ledger is `ISOLATION_FLOOR_ONLY`, which is explicitly not a pass and authorizes only floor-only harvest; an empty or missing ledger is `ISOLATION_NOT_OBSERVED`, which authorizes nothing. |
 
 ### Blast radius
 
@@ -297,9 +357,14 @@ installs nothing, registers nothing, and mutates no tracked surface outside
 Its risk is **decisional** — a wrong finding propagates into `181-S`'s
 isolation design — and **operational** in one narrow respect: the determining
 tasks run CI jobs that acquire a real external asset and probe containment. The
-job that does so carries no credentials (I1 is determined before any probe job
-is trusted to be safe), executes nothing it acquires, and leaves no surviving
-state.
+job that does so carries no credentials, executes nothing it acquires, and
+leaves no surviving state.
+
+The credential claim in that sentence is load-bearing, so it is enforced rather
+than assumed: `177.004-T` determines I1 and is a `blocks` predecessor of both
+`177.005-T` (the acquisition) and `177.002-T` (the containment probe), so no
+probe or acquisition job can run in a job environment whose credential absence
+is still unverified. See H9 and R8.
 
 ### Rollback
 
