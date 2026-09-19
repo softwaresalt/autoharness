@@ -1,6 +1,6 @@
 ---
 title: "Plan review verdict manifest — Canonical post-claim member-status contract (P-002.7), v2"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 01. Plan revision: 2. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned gate result FAIL and verdict BLOCKED on two P0, three P1, two P2 and one P3 deduplicated finding. Both P0s are plan-versus-manifest contradictions in shipment 177-S: the policy template and installed mirror are two tasks joined by a blocks edge, which the plan's own ACTIVATE invariant and decision D2 forbid; and the GREEN-phase assertion defect the plan exists to close, attempt-08 B2, is still encoded in 169.005-T and 169.008-T with no RED task covering mirror-divergence or version-attribution assertions. A Stage remediation cycle then produced plan revision 2 and re-derived the executable task set from it: five superseded tasks were archived with absorption provenance, one atomic ACTIVATE task and five RED-owning tasks were created, and the 177-S manifest was rebuilt in phase order. latest_remediation_revision is 2 and latest_disposition is REMEDIATED-PENDING-REVIEW. The top-level verdict is null: a remediation revision supersedes the content attempt 01 judged, and no independent reviewer has judged revision 2. The findings remain counted open because only an independent attempt 02 can close them. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 02. Plan revision: 2. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed in plan, task and manifest state, and returned gate result FAIL and verdict BLOCKED on zero P0, one P1, two P2 and two P3 new findings. The open P1 is a composed-state token seam: the plan declares STATUS_CONTRACT_HELD, STATUS_CONTRACT_DIVERGENT and STATUS_CONTRACT_NOT_OBSERVED, while 169.016-T, the only verdict-emitting task, emits CONTRACT_ACTIVE and CONTRACT_INCOMPLETE, with zero token overlap and the not-observed state deleted, collapsing decision D6's mandated three states to two. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 date: 2026-09-18
@@ -11,20 +11,21 @@ plan_revision: 2
 feature_id: 169-F
 shipment_id: 177-S
 predecessor_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
-latest_attempt: 1
+latest_attempt: 2
 review_terminal: false
-awaiting_attempt: 2
-reviewed_content_head: db39553a
+awaiting_attempt: 3
+reviewed_content_head: 5aa8643f
 gate_result: FAIL
-verdict: null
-p0_open: 2
-p1_open: 3
+verdict: BLOCKED
+verdict_is_pass: false
+p0_open: 0
+p1_open: 1
 p2_open: 2
-p3_open: 1
-remediation_authorization: operator-authorized-single-cycle
-latest_remediation_revision: 2
-latest_disposition: REMEDIATED-PENDING-REVIEW
-latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-01.md
+p3_open: 2
+remediation_authorization: none-this-cycle
+latest_remediation_revision: null
+latest_disposition: null
+latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-02.md
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-01.md
@@ -40,9 +41,27 @@ attempts:
     remediation_revision: 2
     disposition: REMEDIATED-PENDING-REVIEW
     terminal: false
+    findings_state: closed-at-attempt-02
+  - attempt: 2
+    artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-02.md
+    reviewed_revision: 2
+    reviewed_content_head: 5aa8643f
+    reviewed_branch: chore/stage-176-s-workflow-defects
+    verdict: BLOCKED
+    p0_open: 0
+    p1_open: 1
+    p2_open: 2
+    p3_open: 2
+    dispatch_mode: single-agent-declared-degradation
+    anchor_route: absent
+    remediation_revision: null
+    disposition: null
+    terminal: false
+    closed_predecessor_findings: [A1, A2, B1, B2, B3, C1, C2, D1]
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md
-    reason: "Terminal attempt against the superseded revision-7 plan. Its B1 (phantom source stash 3EF5AAF9) is verified closed at db39553a; its B2 (GREEN-only assertions) is verified still open in the 177-S manifest and is recorded as A2 of attempt 01."
+    reason: "Terminal attempt against the superseded revision-7 plan. Its B1 (phantom source stash 3EF5AAF9) was verified closed at db39553a and re-verified closed at 5aa8643f: every live record carries 3EF5AAF2, and the sole 3EF5AAF9 occurrence is an explicit historical citation in 169-F's description recording that the phantom ID is closed. Its B2 (GREEN-only assertions) was recorded as A2 of attempt 01 and is verified CLOSED at attempt 02: five RED-owning tasks exist and every GREEN task has a RED predecessor."
+    state: closed-at-attempt-02
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
 tags:
@@ -63,36 +82,38 @@ attempt artifact is authoritative right now, and nothing else.
 | `plan_id` | `post-claim-member-status-contract-v2` |
 | `plan_path` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` |
 | `plan_revision` | 2 |
-| `latest_attempt` | **01** |
-| `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-01.md` |
-| `reviewed_content_head` | `db39553a` |
-| `gate_result` (attempt 01, immutable) | **FAIL** |
-| `verdict` | **null** (derived — see below) |
-| `latest_remediation_revision` | **2** |
-| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
-| `awaiting_attempt` | **02** |
-| `p0_open` | **2** |
-| `p1_open` | **3** |
+| `latest_attempt` | **02** |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-02.md` |
+| `reviewed_content_head` | `5aa8643f` |
+| `gate_result` (attempt 02, immutable) | **FAIL** |
+| `verdict` | **BLOCKED** (derived — see below) |
+| `verdict_is_pass` | **false** |
+| `latest_remediation_revision` | **null** |
+| `latest_disposition` | **null** |
+| `awaiting_attempt` | **03** |
+| `p0_open` | **0** |
+| `p1_open` | **1** |
 | `p2_open` | **2** |
-| `p3_open` | **1** |
+| `p3_open` | **2** |
 
 **The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 01. Its `remediation_revision` is now `2`, so a
-Stage-produced revision **supersedes** the content the reviewer judged. The
-reviewer's `BLOCKED` was returned against revision 1 and cannot be carried
-forward as a judgement of revision 2, and no reviewer has judged revision 2.
-The derived `verdict` is therefore **null**, and `latest_disposition` carries
-what Stage actually produced: `REMEDIATED-PENDING-REVIEW`.
+roster entry — attempt 02. Its `remediation_revision` is `null`, so no Stage
+revision supersedes the content the reviewer judged, and the reviewer's
+judgement stands as the current verdict. Attempt 02 returned **FAIL /
+BLOCKED** against revision 2 at content HEAD `5aa8643f`.
 
-`REMEDIATED-PENDING-REVIEW` is a `disposition`, never a `verdict`, for the
-reason this plan's own predecessor manifest states. Writing it into the
-`verdict` key would assert that a review concluded, which is precisely the
-fabrication this two-column shape exists to prevent.
+**The attempt-01 counts are closed, and by the only authority that can close
+them.** Attempt 01's two P0, three P1, two P2 and one P3 were remediated by
+Stage and are now recorded closed because an *independent* attempt 02
+re-derived each one from plan, task and manifest state rather than accepting
+the remediation narrative. Attempt-08 `B2`, carried forward as attempt-01
+`A2`, is closed with it. The open counts above are attempt 02's **own, new**
+findings.
 
-**The finding counts remain open.** Two P0, three P1, two P2 and one P3 are
-still counted open even though each was remediated. Stage remediating a
-finding is not the same event as a reviewer confirming it closed, and only the
-latter retires a finding. The counts drop when attempt 02 says they drop.
+**Remediation did not converge.** Revision 2 closed every finding it was
+authorized to close — including both P0s — and left a new P1 behind. The plan
+remains blocked, `awaiting_attempt` is **03**, and no Ship work is authorized
+against `177-S`.
 
 ## What attempt 01 records
 
@@ -230,8 +251,80 @@ The plan was rewritten as a single coherent current-state document. It carries
 no correction log and no review addendum: the remediation narrative lives here,
 in the mutable manifest, which is the surface designed to hold it.
 
-**The findings are not closed.** Closing them requires an independent attempt
-02 against revision 2. This manifest asserts remediation and nothing more.
+**The findings were not closed by that remediation.** Closing them required an
+independent attempt 02 against revision 2, which is recorded below.
+
+## What attempt 02 records
+
+Independent second review opened against plan revision 2 at content HEAD
+`5aa8643f` on branch `chore/stage-176-s-workflow-defects`; gate result
+**FAIL**, decision **BLOCKED**, zero P0, one P1, two P2 and two P3 open.
+
+Persona coverage was complete across all seven personas, with Agent-Native
+Parity and Security Lens both triggered and run. Dispatch was again
+`single-agent-declared-degradation` with no `anchor_review` route; engram
+indexed retrieval was circuit-open and not retried; intercom was unavailable,
+so visibility was local-only. Evidence came from bounded direct exact-path
+reads, `git` plumbing, read-only backlogit SQL over a freshly synced index,
+and direct reads of `.backlogit/queue/*.md` for task bodies.
+
+**Both P0s and all three P1s are verified closed**, each re-derived from the
+executable surface rather than accepted from the remediation narrative:
+
+* **A1 (P0)** — activation is a single task. `169.015-T` is the only ACTIVATE
+  task in `177-S`; the split template/mirror pair is archived; no `blocks` edge
+  divides activation; the task record carries an explicit
+  `TRANSCRIPTION ONLY - NO AUTHORING` invariant and a single-commit rule.
+* **A2 (P0, = attempt-08 `B2`)** — every assertion family now has a RED owner.
+  Five RED-owning tasks exist, `169.005-T` and `169.008-T` are archived, and
+  no GREEN task in the manifest lacks a RED predecessor in `item_deps`.
+* **B1 (P1)** — the plan carries a full task table with per-task size,
+  complexity and phase; all nine live `169.x` tasks match it on **both** axes,
+  and all carry `size_source: agent` with a non-empty `size_ruleset_version`.
+* **B2 (P1)** — the affected surfaces are enumerated exactly rather than
+  gestured at, and the `P-002.7` marker count across the declared search scope
+  was independently re-counted at **0**, confirming the plan's claim.
+* **B3 (P1)** — producer/consumer relationships are tabulated rather than
+  left in prose.
+* **C1, C2 (P2)** and **D1 (P3)** are likewise closed: the attempt-08 record
+  is stated correctly, `verdict: null` was used with a separate disposition
+  key, and the `177-S` `items` array is in phase order.
+
+Consumer anchors were re-verified in source: `backlogit_claim_shipment` is
+item 4 at `.github/agents/_ship.agent.md:267`, with the intake-reconciliation
+note at line 311. Source defect ID `3EF5AAF2` is carried by `169-F`, `177-S`
+and all nine live `169.x` tasks; the sole `3EF5AAF9` occurrence is an explicit
+*historical* citation in `169-F`'s description recording that the phantom ID is
+closed, which is correct rather than a defect.
+
+**The open P1 (`G1`) is a composed-state token seam.** The plan declares the
+verdict vocabulary `STATUS_CONTRACT_HELD` / `STATUS_CONTRACT_DIVERGENT` /
+`STATUS_CONTRACT_NOT_OBSERVED`. `169.016-T`, the **only** verdict-emitting
+task, emits `CONTRACT_ACTIVE` / `CONTRACT_INCOMPLETE`. Exhaustive search
+confirms zero overlap: `STATUS_CONTRACT` appears in no backlogit record, and
+`CONTRACT_ACTIVE|CONTRACT_INCOMPLETE` appears in no plan. The two-token task
+vocabulary also *deletes* the not-observed state, collapsing decision `D6`'s
+mandated three states to two — the precise failure mode
+`docs/compound/2026-09-06-composed-workflow-protocol-state-machine-validation.md`
+records. A secondary seam sits alongside it: the plan's Producer row says the
+test module emits the observation, while the task record makes `169.016-T` the
+emitter.
+
+**The two P2s** are `G2`, five stale `item_deps` edges preserving the retired
+T1/T2 chain (all five predecessors are archived and out of the manifest, so no
+live task has an archived predecessor and `A1` is substantively closed, but the
+forbidden shape is still queryable and two edges originate in live RED tasks —
+`backlogit_remove_dependency` exists, so they are removable); and `G3`, the
+`R5` narrowing rule conflicting with ACTIVATE's own no-authoring invariant and
+with RED-first, plus the observation that dropping the Ship-agent pair *deletes*
+`169.010-T`'s bidirectional assertion family rather than narrowing it.
+
+**The two P3s** are `G4`, residual naming from the retired shape (`169.007-T`
+still titled "P-002.7 **T6**: …", `169-F`'s description listing only PREPARE,
+VERIFY, ACTIVATE with no RED); and `G5`, `requires_plan_hardening: false`
+despite two template families — noted only because the hardening *content* is
+present and materially complete, so the plan-review FAIL condition for missing
+hardening is not met.
 
 ## Attempt roster
 
@@ -243,7 +336,8 @@ ever a `disposition`.
 
 | Attempt | Artifact | Reviewed rev | Reviewer verdict | Remediation rev | Disposition |
 |---|---|---|---|---|---|
-| **1** | `...-v2-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (2 P0, 3 P1, 2 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
+| 1 | `...-v2-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (2 P0, 3 P1, 2 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
+| **2** | `...-v2-plan-review-attempt-02.md` | 2 @ `5aa8643f` | **BLOCKED** (0 P0, 1 P1, 2 P2, 2 P3) | — | — |
 
 This roster covers the **v2 plan only**. Attempts 1–8 against the superseded
 `2026-09-17` plan remain in that plan's own manifest,
@@ -258,13 +352,13 @@ Context, never operative input.
 
 * `docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md`
   — terminal attempt against the superseded revision-7 plan. Its `B1` (phantom
-  source stash `3EF5AAF9`) is verified **closed** at `db39553a`; its `B2`
-  (GREEN-only assertions) was verified **still open** in the `177-S` manifest
-  at the time of attempt 01 and was recorded as `A2` of that attempt. The
+  source stash `3EF5AAF9`) is verified **closed** at `db39553a` and re-verified
+  **closed** at `5aa8643f`. Its `B2` (GREEN-only assertions) was verified still
+  open at the time of attempt 01 and was recorded as `A2` of that attempt; the
   revision-2 remediation moved every affected assertion into a RED task and
-  archived the two GREEN tasks that had been introducing them; whether `B2` is
-  thereby closed is for independent attempt 02 to judge, not for this manifest
-  to assert.
+  archived the two GREEN tasks that had been introducing them, and independent
+  attempt 02 verified that in the executable record. `B2` is therefore
+  **closed at attempt 02**. No item of carried-forward context remains open.
 
 ## Provenance
 

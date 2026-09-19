@@ -1,6 +1,6 @@
 ---
 title: "Plan review verdict manifest — Operation transport spike (S1)"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-operation-transport-spike-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 01. Plan revision: 2. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned gate result FAIL and verdict BLOCKED on zero P0, three P1, one P2 and one P3 deduplicated finding. A Stage remediation cycle then produced plan revision 2, so latest_remediation_revision is 2 and latest_disposition is REMEDIATED-PENDING-REVIEW. The top-level verdict is null: a remediation revision supersedes the content attempt 01 judged, and no independent reviewer has judged revision 2. The attempt-01 findings remain counted as open because only an independent attempt 02 can close them; Stage cannot close findings raised against its own plan. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-operation-transport-spike-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 02. Plan revision: 2. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on zero P0, three P1, one P2 and one P3. A Stage remediation cycle produced revision 2, and independent attempt 02 reviewed that revision at content HEAD 5aa8643f, verified all five attempt-01 findings closed in plan, task and manifest state, and returned gate result ADVISORY on zero P0, zero P1, one P2 and two P3 new findings. ADVISORY is not PASS: under the plan-review severity table a P2-only result is presented to the operator, who decides whether to close it or proceed to harvest. No PASS exists anywhere in this record and none is asserted, and no Ship work is authorized from this manifest."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-operation-transport-spike-plan-review.md
 date: 2026-09-18
@@ -10,20 +10,21 @@ plan_path: docs/plans/2026-09-18-operation-transport-spike-plan.md
 plan_revision: 2
 feature_id: 176-F
 shipment_id: 182-S
-latest_attempt: 1
+latest_attempt: 2
 review_terminal: false
-awaiting_attempt: 2
-reviewed_content_head: db39553a
-gate_result: FAIL
-verdict: null
+awaiting_attempt: null
+reviewed_content_head: 5aa8643f
+gate_result: ADVISORY
+verdict: ADVISORY
+verdict_is_pass: false
 p0_open: 0
-p1_open: 3
+p1_open: 0
 p2_open: 1
-p3_open: 1
-remediation_authorization: operator-authorized-single-cycle
-latest_remediation_revision: 2
-latest_disposition: REMEDIATED-PENDING-REVIEW
-latest_artifact: docs/reviews/review-history/2026-09-18-operation-transport-spike-plan-review-attempt-01.md
+p3_open: 2
+remediation_authorization: none-this-cycle
+latest_remediation_revision: null
+latest_disposition: null
+latest_artifact: docs/reviews/review-history/2026-09-18-operation-transport-spike-plan-review-attempt-02.md
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-18-operation-transport-spike-plan-review-attempt-01.md
@@ -39,6 +40,23 @@ attempts:
     remediation_revision: 2
     disposition: REMEDIATED-PENDING-REVIEW
     terminal: false
+    findings_state: closed-at-attempt-02
+  - attempt: 2
+    artifact: docs/reviews/review-history/2026-09-18-operation-transport-spike-plan-review-attempt-02.md
+    reviewed_revision: 2
+    reviewed_content_head: 5aa8643f
+    reviewed_branch: chore/stage-176-s-workflow-defects
+    verdict: ADVISORY
+    p0_open: 0
+    p1_open: 0
+    p2_open: 1
+    p3_open: 2
+    dispatch_mode: single-agent-declared-degradation
+    anchor_route: absent
+    remediation_revision: null
+    disposition: null
+    terminal: false
+    closed_predecessor_findings: [A1, A2, A3, B1, C1]
 carried_forward_context: []
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -60,35 +78,39 @@ attempt artifact is authoritative right now, and nothing else.
 | `plan_id` | `operation-transport-spike` |
 | `plan_path` | `docs/plans/2026-09-18-operation-transport-spike-plan.md` |
 | `plan_revision` | 2 |
-| `latest_attempt` | **01** |
-| `latest_artifact` | `docs/reviews/review-history/2026-09-18-operation-transport-spike-plan-review-attempt-01.md` |
-| `reviewed_content_head` | `db39553a` |
-| `gate_result` (attempt 01, immutable) | **FAIL** |
-| `verdict` | **null** (derived — see below) |
-| `latest_remediation_revision` | **2** |
-| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
-| `awaiting_attempt` | **02** |
+| `latest_attempt` | **02** |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-18-operation-transport-spike-plan-review-attempt-02.md` |
+| `reviewed_content_head` | `5aa8643f` |
+| `gate_result` (attempt 02, immutable) | **ADVISORY** |
+| `verdict` | **ADVISORY** (derived — see below) |
+| `verdict_is_pass` | **false** |
+| `latest_remediation_revision` | **null** |
+| `latest_disposition` | **null** |
+| `awaiting_attempt` | **null** |
 | `p0_open` | **0** |
-| `p1_open` | **3** |
+| `p1_open` | **0** |
 | `p2_open` | **1** |
-| `p3_open` | **1** |
+| `p3_open` | **2** |
 
 **The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 01. Its `remediation_revision` is now `2`, so a
-Stage-produced revision **supersedes** the content the reviewer judged. The
-reviewer's `BLOCKED` was returned against revision 1 and cannot be carried
-forward as a judgement of revision 2, and no reviewer has judged revision 2.
-The derived `verdict` is therefore **null**, and `latest_disposition` carries
-what Stage actually produced: `REMEDIATED-PENDING-REVIEW`.
+roster entry — attempt 02. Its `remediation_revision` is `null`, so no Stage
+revision supersedes the content the reviewer judged, and the reviewer's
+judgement stands as the current verdict. Attempt 02 returned **ADVISORY**
+against revision 2 at content HEAD `5aa8643f`.
 
-`REMEDIATED-PENDING-REVIEW` is a `disposition`, never a `verdict`. Writing it
-into the `verdict` key would assert that a review concluded, which is precisely
-the fabrication this two-column shape exists to prevent.
+**`ADVISORY` is not `PASS`.** Under the plan-review gate's severity table, P0
+or P1 findings return FAIL, P2-only findings return ADVISORY, and P3-only or
+no findings return PASS. This plan carries one P2, so the gate neither blocks
+harvest nor admits it: the findings are presented to the operator, who decides
+whether to close the P2 first or proceed. SM-2's `HARVEST_ADMITTED` state is
+defined against `verdict: PASS`, which this manifest does not report.
 
-**The finding counts remain open.** Three P1, one P2 and one P3 are still
-counted open even though each was remediated. Stage remediating a finding is
-not the same event as a reviewer confirming it closed, and only the latter
-retires a finding. The counts drop when attempt 02 says they drop.
+**The attempt-01 counts are closed, and by the only authority that can close
+them.** Attempt 01's three P1, one P2 and one P3 were remediated by Stage and
+are now recorded closed because an *independent* attempt 02 re-derived each one
+from plan, task and manifest state rather than accepting the remediation
+narrative. The open counts above are attempt 02's own findings, not carried
+forward ones.
 
 ## What attempt 01 records
 
@@ -170,8 +192,58 @@ The plan was rewritten as a single coherent current-state document. It carries
 no correction log and no review addendum: the remediation narrative lives here,
 in the mutable manifest, which is the surface designed to hold it.
 
-**The findings are not closed.** Closing them requires an independent attempt
-02 against revision 2. This manifest asserts remediation and nothing more.
+**The findings were not closed by that remediation.** Closing them required an
+independent attempt 02 against revision 2, which is recorded below.
+
+## What attempt 02 records
+
+Independent second review opened against plan revision 2 at content HEAD
+`5aa8643f` on branch `chore/stage-176-s-workflow-defects`; gate result
+**ADVISORY**, zero P0, zero P1, one P2 and two P3 open.
+
+Persona coverage was complete across all seven personas, with Agent-Native
+Parity and Security Lens both triggered and run. Dispatch was again
+`single-agent-declared-degradation` with no `anchor_review` route; engram
+indexed retrieval was circuit-open and not retried; intercom was unavailable,
+so visibility was local-only. Evidence came from bounded direct exact-path
+reads, `git` plumbing, and read-only backlogit SQL over a freshly synced index.
+
+**All five attempt-01 findings are verified closed**, each re-derived from the
+executable surface rather than accepted from the remediation narrative:
+
+* **A1** — the `## Composed-state check` exists with every D6 row plus a
+  distinct `TRANSPORT_NOT_OBSERVED` state; `176.005-T` exists at `XS`/`low`
+  with a 20-minute bound and its record reproduces both verdict-line forms; all
+  three tokens appear in the backlog records, so plan and manifest agree on the
+  vocabulary.
+* **A2** — Q7 and required finding F7 determine the literal allowlist, the
+  projection rule and the observed registered-but-not-allowlisted default,
+  which must be fail-closed; wildcard authority is rejected outright absent a
+  recorded three-part justification. `176.004-T` is the determining task and
+  `item_deps` places it after the prototype, so the default is observed rather
+  than preferred.
+* **A3** — `requires_plan_hardening` is `true` with a full `## Hardening
+  review`: H1–H9, a blast-radius table with per-surface reversibility, a trust
+  boundary, a rollback position and a verification floor.
+* **B1** — `verdict: null` with the disposition moved to its own key.
+* **C1** — per-task elapsed bounds 45/90/45/45/20 minutes, declared individual
+  rather than pooled.
+
+Correspondence was re-verified independently: all five `176.x` tasks match the
+plan's table on both size and complexity; `item_deps` encodes the plan's stated
+sequence exactly; `182-S` has no incoming edge and `184-S` depends on it, in
+the direction `gates: 184-S` asserts; and the factual base (`.mcp.json`'s six
+servers with no `autoharness`, `backlogit`'s `"tools": ["*"]`, two runtime
+dependencies, `requires-python >=3.10`) was re-read from source.
+
+**The one open P2** is that the throwaway prototype's lifetime across
+`176.002-T` → `176.004-T` is unspecified while F7's acceptance evidence
+requires observing a running registration. The generous reading — discard is
+scoped to the unit, not the task — preserves reachability, which is why it is
+P2 and not P1; the fix is one sentence. The two P3s are that the `182-S`
+manifest `items` array is not in dependency order (`item_deps` is correct, so
+this is presentational), and that hardening answer H7 enumerates which findings
+require an observation and omits F6.
 
 ## Attempt roster
 
@@ -183,7 +255,8 @@ ever a `disposition`.
 
 | Attempt | Artifact | Reviewed rev | Reviewer verdict | Remediation rev | Disposition |
 |---|---|---|---|---|---|
-| **1** | `...-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (0 P0, 3 P1, 1 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
+| 1 | `...-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (0 P0, 3 P1, 1 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
+| **2** | `...-plan-review-attempt-02.md` | 2 @ `5aa8643f` | **ADVISORY** (0 P0, 0 P1, 1 P2, 2 P3) | — | — |
 
 ## Provenance
 
