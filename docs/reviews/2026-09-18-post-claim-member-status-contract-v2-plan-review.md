@@ -1,28 +1,28 @@
 ---
 title: "Plan review verdict manifest — Canonical post-claim member-status contract (P-002.7), v2"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 05, the operator-designated terminal attempt, which returned ADVISORY on zero P0, zero P1, two P2 and four P3. Plan revision: 5, judged. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed, and returned FAIL/BLOCKED on zero P0, one P1, two P2 and two P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and one P3. Attempt 03 verified G1, G2, G3, G4 and G5 all genuinely closed, and found that the composed-state verdict line the plan gates on has no declared destination artifact and no declared line format anywhere in the plan or the six task records, which makes the plan's own rule that an absent verdict line is STATUS_CONTRACT_NOT_OBSERVED unevaluable, and that the plan names .github/workflows/ci.yml as a consumer that reads the verdict line as a gate when ci.yml consumes a unittest exit code and no task in 177-S modifies it. That is the open P1, L1. The open P3, L2, is that the computed size_composition rollup for 177-S and 169-F counts fourteen task members including the five archived absorbed tasks while custom_fields.items correctly lists nine tasks and the feature. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: L1 was addressed by declaring one destination artifact (.autoharness/gates/p002-7-status-contract-verdict.txt, gitignored so it is never committed and never leaves the tree dirty), one literal line format per token, a single-writer atomic whole-file-replace rule, and a closed list of read outcomes that resolve to STATUS_CONTRACT_NOT_OBSERVED so absence is decidable; and by correcting the consumer direction so ci.yml is described as a producer of the unittest observations, with 169.016-T's own invocation made the authoritative evaluator via process exit code and verdict artifact, keeping the unit self-contained and adding no CI task. L2 is advisory, tool-derived, and was deliberately carried unaddressed. L1 is recorded as addressed pending review and L2 as carried; neither is closed, and the plan now awaits independent attempt 04. Independent terminal attempt 04 then reviewed revision 4 at content HEAD 42f2f8ec and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and three P3. Attempt 04 verified L1 genuinely closed by re-derivation against the repository itself - git check-ignore resolves the verdict artifact to .gitignore:7 and ci.yml line 112 runs PYTHONPATH=src python -m unittest discover -s tests, confirming it is an exit-code producer and not a verdict-line consumer - and carried L2 forward as M4. The new blocking P1 is M1: the plan's declared rollout order PREPARE to RED to ACTIVATE to VERIFY to DOCS contradicts binding decision D2, whose rollout invariant is PREPARE to VERIFY to ACTIVATE with the complete RED, GREEN and compatibility evidence set produced before any activation, so the plan places its sole gate emitter 169.016-T after the single irreversible ACTIVATE commit 169.015-T that mutates all four declared surfaces. The deviation is unreconciled - the plan cites F7, F10, D6 and R5 and never cites D2 - and selective, because 169.015-T's record cites decision D2 by name for one-task-one-commit atomicity while dropping the ordering rule from the same section; eight of eight other portfolio plans use PREPARE VERIFY ACTIVATE, and a conformant framing was available because GREEN is observable against 169.011-T's inert near-miss fixtures before activation. M2, M3 and M4 are advisory P3. Because attempt 04 is the operator-declared terminal attempt, no fourth remediation cycle was proposed or executed: M1 is halted for operator disposition, whose options are authorizing a further bounded cycle, recording an explicit waiver reconciling the plan against D2, or amending D2 itself. The plan is BLOCKED, not publication-eligible, not harvest-ready and not Ship-ready; the block is confined to this unit because 177-S is a DAG root with no successor shipment. The operator then selected the first disposition option at 2026-09-18T23:53:02.417-07:00, lifting attempt 04's terminal designation and authorizing one exceptional bounded remediation cycle scoped to M1 and directly coupled consistency changes, plus an independent attempt 05. That cycle produced plan revision 5, which reorders the rollout to PREPARE, RED, VERIFY, ACTIVATE, CONFIRM, DOCS, records the mapping onto D2 explicitly including that D2's compatibility evidence limb is inapplicable to this unit, adds 169.017-T as a pre-activation readiness gate emitting PREACTIVATION_READY, PREACTIVATION_BLOCKED or PREACTIVATION_NOT_OBSERVED to .autoharness/gates/p002-7-preactivation-readiness.txt with declared destination, line format, sole writer, atomic whole-file replacement, closed absence semantics and exit-code behaviour, makes 169.017-T the sole immediate predecessor of 169.015-T so that activation is authorized by the readiness verdict rather than by task completion, keeps ACTIVATE exactly one atomic task and commit that authors nothing and reinterprets no evidence, and retains 169.016-T retitled as the distinct post-activation confirmation of installed/template parity and active-consumer behaviour with an explicit rollback and halt path, explicitly not the evidence gate that authorized activation. M2 and M3 were corrected as mechanical consistency changes to surfaces the rollout rewrite necessarily touched; M4 is tool-derived, out of scope, and the item hierarchy was not changed to silence it. Plan revision is now 5, awaiting_attempt was 5, review_terminal was false, and M1, M2 and M3 were recorded addressed pending review with M4 carried. Independent terminal attempt 05 then judged revision 5 at content HEAD 5c768426, with bounded remediation content commit cd1af45d, and returned gate result ADVISORY, decision ADVISORY, on zero P0, zero P1, two P2 and four P3. Attempt 05 verified M1 genuinely closed by re-derivation against decision D2's literal text and against the executable records: the rollout is reordered to PREPARE, RED, VERIFY, ACTIVATE, CONFIRM, DOCS with an explicit six-row mapping onto D2, D2's compatibility evidence limb is recorded inapplicable with its reason rather than silently dropped, item_deps confirms 169.015-T's sole predecessor is 169.017-T with the five direct RED-to-ACTIVATE edges removed, and 169.015-T's first action is a five-condition fail-closed read whose final condition is equality with the literal PREACTIVATION_READY. M2 and M3 were closed by direct diff against reviewed head 42f2f8ec. M4 is carried unchanged. The two new P2 findings are N1, the DOCS task 169.007-T is gated on CONFIRM by a completion edge with no fail-closed verdict read even though the plan asserts in four places that DOCS must not proceed on a non-pass confirmation, applying the plan's own H18 gate-predicate principle to the ACTIVATE edge but not to the structurally identical DOCS edge; and N2, all three readiness line forms terminate in a checked= vintage field that R12 names as the stale-verdict mitigation while the declared activation predicate's five conditions never read it, so a stale PREACTIVATION_READY carries no mechanical freshness binding on the post-revert re-activation path. The three new P3 findings are N3, the plan's BLOCKED line form uses a family=<A|B|C|D|E> key the plan never defines and only 169.017-T maps; N4, the inert-GREEN baseline fixture corpus that families C and E require is entailed by the near-miss fixtures but not enumerated in 169.011-T's deliverables; and N5, neither the plan nor any live 169.x record cites the directly on-point compound record on backlogit 1.10.0 shipment-claim cascade behaviour, though its operative mitigation is present and RED-enforced by 169.013-T. Because zero P0 and zero P1 remain, the plan-review FAIL condition is not met and the plan is no longer BLOCKED. ADVISORY is not PASS: under the severity table a P2-only result requires an explicit operator decision to revise or proceed. Attempt 05 is the operator-designated terminal attempt, so no further remediation cycle was proposed or executed and N1 and N2 are held for explicit operator disposition. No PASS is asserted anywhere in this record."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 05, the operator-designated terminal attempt, which returned ADVISORY on zero P0, zero P1, two P2 and four P3. Plan revision: 5, judged. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed, and returned FAIL/BLOCKED on zero P0, one P1, two P2 and two P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and one P3. Attempt 03 verified G1, G2, G3, G4 and G5 all genuinely closed, and found that the composed-state verdict line the plan gates on has no declared destination artifact and no declared line format anywhere in the plan or the six task records, which makes the plan's own rule that an absent verdict line is STATUS_CONTRACT_NOT_OBSERVED unevaluable, and that the plan names .github/workflows/ci.yml as a consumer that reads the verdict line as a gate when ci.yml consumes a unittest exit code and no task in 177-S modifies it. That is the open P1, L1. The open P3, L2, is that the computed size_composition rollup for 177-S and 169-F counts fourteen task members including the five archived absorbed tasks while custom_fields.items correctly lists nine tasks and the feature. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: L1 was addressed by declaring one destination artifact (.autoharness/gates/p002-7-status-contract-verdict.txt, gitignored so it is never committed and never leaves the tree dirty), one literal line format per token, a single-writer atomic whole-file-replace rule, and a closed list of read outcomes that resolve to STATUS_CONTRACT_NOT_OBSERVED so absence is decidable; and by correcting the consumer direction so ci.yml is described as a producer of the unittest observations, with 169.016-T's own invocation made the authoritative evaluator via process exit code and verdict artifact, keeping the unit self-contained and adding no CI task. L2 is advisory, tool-derived, and was deliberately carried unaddressed. L1 is recorded as addressed pending review and L2 as carried; neither is closed, and the plan now awaits independent attempt 04. Independent terminal attempt 04 then reviewed revision 4 at content HEAD 42f2f8ec and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and three P3. Attempt 04 verified L1 genuinely closed by re-derivation against the repository itself - git check-ignore resolves the verdict artifact to .gitignore:7 and ci.yml line 112 runs PYTHONPATH=src python -m unittest discover -s tests, confirming it is an exit-code producer and not a verdict-line consumer - and carried L2 forward as M4. The new blocking P1 is M1: the plan's declared rollout order PREPARE to RED to ACTIVATE to VERIFY to DOCS contradicts binding decision D2, whose rollout invariant is PREPARE to VERIFY to ACTIVATE with the complete RED, GREEN and compatibility evidence set produced before any activation, so the plan places its sole gate emitter 169.016-T after the single irreversible ACTIVATE commit 169.015-T that mutates all four declared surfaces. The deviation is unreconciled - the plan cites F7, F10, D6 and R5 and never cites D2 - and selective, because 169.015-T's record cites decision D2 by name for one-task-one-commit atomicity while dropping the ordering rule from the same section; eight of eight other portfolio plans use PREPARE VERIFY ACTIVATE, and a conformant framing was available because GREEN is observable against 169.011-T's inert near-miss fixtures before activation. M2, M3 and M4 are advisory P3. Because attempt 04 is the operator-declared terminal attempt, no fourth remediation cycle was proposed or executed: M1 is halted for operator disposition, whose options are authorizing a further bounded cycle, recording an explicit waiver reconciling the plan against D2, or amending D2 itself. The plan is BLOCKED, not publication-eligible, not harvest-ready and not Ship-ready; the block is confined to this unit because 177-S is a DAG root with no successor shipment. The operator then selected the first disposition option at 2026-09-18T23:53:02.417-07:00, lifting attempt 04's terminal designation and authorizing one exceptional bounded remediation cycle scoped to M1 and directly coupled consistency changes, plus an independent attempt 05. That cycle produced plan revision 5, which reorders the rollout to PREPARE, RED, VERIFY, ACTIVATE, CONFIRM, DOCS, records the mapping onto D2 explicitly including that D2's compatibility evidence limb is inapplicable to this unit, adds 169.017-T as a pre-activation readiness gate emitting PREACTIVATION_READY, PREACTIVATION_BLOCKED or PREACTIVATION_NOT_OBSERVED to .autoharness/gates/p002-7-preactivation-readiness.txt with declared destination, line format, sole writer, atomic whole-file replacement, closed absence semantics and exit-code behaviour, makes 169.017-T the sole immediate predecessor of 169.015-T so that activation is authorized by the readiness verdict rather than by task completion, keeps ACTIVATE exactly one atomic task and commit that authors nothing and reinterprets no evidence, and retains 169.016-T retitled as the distinct post-activation confirmation of installed/template parity and active-consumer behaviour with an explicit rollback and halt path, explicitly not the evidence gate that authorized activation. M2 and M3 were corrected as mechanical consistency changes to surfaces the rollout rewrite necessarily touched; M4 is tool-derived, out of scope, and the item hierarchy was not changed to silence it. Plan revision is now 5, awaiting_attempt was 5, review_terminal was false, and M1, M2 and M3 were recorded addressed pending review with M4 carried. Independent terminal attempt 05 then judged revision 5 at content HEAD 5c768426, with bounded remediation content commit cd1af45d, and returned gate result ADVISORY, decision ADVISORY, on zero P0, zero P1, two P2 and four P3. Attempt 05 verified M1 genuinely closed by re-derivation against decision D2's literal text and against the executable records: the rollout is reordered to PREPARE, RED, VERIFY, ACTIVATE, CONFIRM, DOCS with an explicit six-row mapping onto D2, D2's compatibility evidence limb is recorded inapplicable with its reason rather than silently dropped, item_deps confirms 169.015-T's sole predecessor is 169.017-T with the five direct RED-to-ACTIVATE edges removed, and 169.015-T's first action is a five-condition fail-closed read whose final condition is equality with the literal PREACTIVATION_READY. M2 and M3 were closed by direct diff against reviewed head 42f2f8ec. M4 is carried unchanged. The two new P2 findings are N1, the DOCS task 169.007-T is gated on CONFIRM by a completion edge with no fail-closed verdict read even though the plan asserts in four places that DOCS must not proceed on a non-pass confirmation, applying the plan's own H18 gate-predicate principle to the ACTIVATE edge but not to the structurally identical DOCS edge; and N2, all three readiness line forms terminate in a checked= vintage field that R12 names as the stale-verdict mitigation while the declared activation predicate's five conditions never read it, so a stale PREACTIVATION_READY carries no mechanical freshness binding on the post-revert re-activation path. The three new P3 findings are N3, the plan's BLOCKED line form uses a family=<A|B|C|D|E> key the plan never defines and only 169.017-T maps; N4, the inert-GREEN baseline fixture corpus that families C and E require is entailed by the near-miss fixtures but not enumerated in 169.011-T's deliverables; and N5, neither the plan nor any live 169.x record cites the directly on-point compound record on backlogit 1.10.0 shipment-claim cascade behaviour, though its operative mitigation is present and RED-enforced by 169.013-T. Because zero P0 and zero P1 remain, the plan-review FAIL condition is not met and the plan is no longer BLOCKED. ADVISORY is not PASS: under the severity table a P2-only result requires an explicit operator decision to revise or proceed. Attempt 05 is the operator-designated terminal attempt, so no further remediation cycle was proposed or executed and N1 and N2 were held for explicit operator disposition. The operator then selected the second disposition option at 2026-09-19T11:42:25.892-07:00, lifting attempt 05's terminal designation and authorizing one additional bounded mechanization cycle scoped to N1 and N2 plus mechanically necessary consistency edits, and an independent attempt 06. That cycle produced plan revision 6, which converts both prose assertions into mechanical predicates in the same shape 169.015-T already used. For N1, 169.007-T DOCS now begins with a first-action fail-closed whole-file read of .autoharness/gates/p002-7-status-contract-verdict.txt requiring exactly one COMPOSED_STATE: line whose first field is a byte-for-byte match to the literal STATUS_CONTRACT_HELD, with five enumerated CLOSED categories - absence, malformation, staleness, failure and foreign vocabulary - and a guarantee that on a CLOSED gate no documentation file is touched, no commit is made, neither gate artifact is written, and the process exits 1; the plan's rollout, state machine, producer/consumer rows, task records, item_deps narrative, risks R13, hardening H20 and H21 and the rollback path all now describe that edge as verdict-gated rather than completion-ordered. For N2, the checked= vintage becomes an actual predicate: the format is upgraded to RFC 3339 UTC, both authorizing line forms gain head_commit, a CCD/v1 canonical content digest over a fully enumerated ordered path list, and a B/v1 binding digest whose preimage covers checked, and both authoritative consumers recompute a five-part F1-F5 predicate against the repository - head identity equals current HEAD, content digest equals recomputation, resolved_surface_count equals the phase value, checked is well-formed and not earlier than the head commit's committer timestamp, and binding equals recomputation - with any failure resolving CLOSED and the emitter's atomic whole-file replacement guaranteeing a fresh binding on every run. Because a reverted activation returns the four declared surfaces to byte-identical content, the binding is anchored to commit identity as well as content, so the documented post-revert re-activation path is closed by F1 and independently by F4. The contract is environment-agnostic and stays entirely within the existing ignored .autoharness/gates/ boundary, adding no new artifact, directory or ignored path. The rollout order, the single atomic ACTIVATE commit, the separate verdict vocabularies and artifacts, the exactly four authoritative surfaces, source defect 3EF5AAF2 and 177-S's DAG-root status are all preserved; no assertion was authored and no ACTIVATE scope was narrowed. N3, N4, N5 and M4 are carried unaddressed; M4 remains tool-derived and out of scope and the item hierarchy was not mutated to silence it. Plan revision is now 6, awaiting_attempt is 6, review_terminal is false, and N1 and N2 are recorded addressed pending review. No count was decremented, no severity was changed, the verdict remains attempt 05's ADVISORY, and no PASS is asserted anywhere in this record."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
-plan_revision: 5
+plan_revision: 6
 feature_id: 169-F
 shipment_id: 177-S
 predecessor_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
 latest_attempt: 5
-review_terminal: true
-terminal_designation: operator-declared
-terminal_disposition: TERMINAL-ADVISORY
-terminal_note: "Attempt 03 was designated terminal by the operator, who subsequently lifted that designation and authorized a third bounded remediation cycle producing revision 4. Attempt 04 was then the operator-declared terminal attempt against revision 4 and returned FAIL/BLOCKED on a newly derived P1, M1, which was halted for operator disposition. At 2026-09-18T23:53:02.417-07:00 the operator selected the first disposition option, lifting attempt 04's terminal designation and authorizing one exceptional bounded remediation cycle against M1 plus an independent attempt 05. That attempt has now run and is itself the operator-designated terminal attempt. It closed M1, M2 and M3 on independently re-derived evidence and returned gate result ADVISORY on zero P0, zero P1, two P2 and four P3, so no further automatic remediation cycle was proposed or executed and the two new P2 findings are held for explicit operator disposition. review_terminal is therefore true and awaiting_attempt is null."
-awaiting_attempt: null
+review_terminal: false
+terminal_designation: operator-lifted
+terminal_disposition: REMEDIATED-PENDING-REVIEW
+terminal_note: "Attempt 03 was designated terminal by the operator, who subsequently lifted that designation and authorized a third bounded remediation cycle producing revision 4. Attempt 04 was then the operator-declared terminal attempt against revision 4 and returned FAIL/BLOCKED on a newly derived P1, M1, which was halted for operator disposition. At 2026-09-18T23:53:02.417-07:00 the operator lifted attempt 04's terminal designation and authorized one exceptional bounded remediation cycle against M1 plus an independent attempt 05. Attempt 05 ran, closed M1, M2 and M3 on independently re-derived evidence, and returned gate result ADVISORY on zero P0, zero P1, two P2 and four P3; because it was the operator-designated terminal attempt, N1 and N2 were held for explicit operator disposition. At 2026-09-19T11:42:25.892-07:00 the operator selected the second disposition option, LIFTING attempt 05's terminal designation and authorizing one additional bounded mechanization cycle scoped to N1 and N2 plus mechanically necessary consistency edits, and an independent attempt 06. review_terminal is therefore false, terminal_designation is operator-lifted, and awaiting_attempt is 6. Lifting terminality re-opens the review loop; it closes no finding, decrements no count and changes no verdict."
+awaiting_attempt: 6
 reviewed_content_head: 5c768426
 remediation_content_commit: cd1af45d
 gate_result: ADVISORY
 verdict: ADVISORY
 verdict_is_pass: false
-verdict_note: "verdict is ADVISORY because independent terminal attempt 05 judged plan revision 5 at content HEAD 5c768426 and derived zero P0 and zero P1, so the plan-review FAIL condition (any P0 or P1) is no longer met and the plan is no longer BLOCKED. ADVISORY is not PASS: two P2 findings remain open, and under the severity table a P2-only result returns ADVISORY, which requires an explicit operator decision to revise or proceed rather than auto-clearing to harvest. Attempt 04's blocking P1 M1 was independently re-derived closed against decision D2's literal text, the item_deps graph, the repository ignore rules, the marker count and the four declared surfaces, not from a closure summary. M2 and M3 were closed by direct diff against reviewed head 42f2f8ec. M4 is carried. N1 and N2 are new at attempt 05. No severity was lowered to force closure and none was raised to force a block."
+verdict_note: "verdict is ADVISORY because independent terminal attempt 05 judged plan revision 5 at content HEAD 5c768426 and derived zero P0 and zero P1, so the plan-review FAIL condition (any P0 or P1) is no longer met and the plan is no longer BLOCKED. ADVISORY is not PASS: two P2 findings remain open, and under the severity table a P2-only result returns ADVISORY, which requires an explicit operator decision to revise or proceed rather than auto-clearing to harvest. That decision has now been taken: the operator authorized a bounded mechanization cycle against N1 and N2, which produced plan revision 6. The verdict is CARRIED UP UNCHANGED rather than improved. A remediation never upgrades a verdict; only an independent attempt does, and no reviewer has judged revision 6. N1 and N2 are recorded addressed pending review and remain OPEN in the counts; N3, N4, N5 and M4 are carried unaddressed. Attempt 04's blocking P1 M1 was independently re-derived closed against decision D2's literal text, the item_deps graph, the repository ignore rules, the marker count and the four declared surfaces, not from a closure summary. M2 and M3 were closed by direct diff against reviewed head 42f2f8ec. No severity was lowered to force closure, none was raised to force a block, no count was decremented by this cycle, and no PASS is asserted."
 p0_open: 0
 p1_open: 0
 p2_open: 2
@@ -30,13 +30,14 @@ p3_open: 4
 open_findings: [N1, N2, N3, N4, N5, M4]
 blocking_findings: []
 findings_closed_at_attempt_05: [M1, M2, M3]
-findings_carried_unaddressed: [M4]
-remediation_cycle_proposed: false
-disposition: TERMINAL-ADVISORY-OPERATOR-DISPOSITION
-open_counts_note: "Counts are attempt 05's and were derived independently against revision 5. M1 (P1, blocking), M2 (P3) and M3 (P3) are CLOSED by the only authority that can close them - an independent attempt that re-derived each from the plan, the task records, the binding decision and the repository itself. M4 (P3) is carried unchanged and remains tool-derived and out of scope. The two new P2 findings are N1, the DOCS task is gated on CONFIRM by a completion edge with no fail-closed verdict read even though the plan asserts DOCS must not proceed on a non-pass confirmation; and N2, the readiness line declares a checked= vintage field that the declared activation predicate never reads, so a stale PREACTIVATION_READY carries no mechanical freshness binding on the post-revert re-activation path. The three new P3 findings are N3 (undefined A-E family key in the plan's BLOCKED line form), N4 (entailed but unenumerated inert-GREEN baseline fixture corpus for the mirror-parity and surface-closure families) and N5 (no citation to the directly on-point compound record on backlogit shipment-claim cascade behaviour). Zero P0 and zero P1 open."
-remediation_authorization: none-this-cycle
-latest_remediation_revision: 5
-latest_disposition: TERMINAL-ADVISORY-OPERATOR-DISPOSITION
+findings_addressed_pending_review: [N1, N2]
+findings_carried_unaddressed: [N3, N4, N5, M4]
+remediation_cycle_proposed: true
+disposition: REMEDIATED-PENDING-REVIEW
+open_counts_note: "Counts are attempt 05's and were derived independently against revision 5. They are UNCHANGED by the revision-6 remediation cycle: a Stage remediation never decrements a count, and only an independent attempt 06 or an explicit recorded operator waiver can. M1 (P1, blocking), M2 (P3) and M3 (P3) are CLOSED by the only authority that can close them - an independent attempt that re-derived each from the plan, the task records, the binding decision and the repository itself. M4 (P3) is carried unchanged and remains tool-derived and out of scope. The two P2 findings are N1, the DOCS task was gated on CONFIRM by a completion edge with no fail-closed verdict read even though the plan asserts DOCS must not proceed on a non-pass confirmation; and N2, the readiness line declared a checked= vintage field that the declared activation predicate never read, so a stale PREACTIVATION_READY carried no mechanical freshness binding on the post-revert re-activation path. BOTH ARE NOW ADDRESSED PENDING REVIEW by revision 6 - N1 by giving 169.007-T a first-action fail-closed whole-file read of the confirmation artifact requiring a byte-for-byte literal STATUS_CONTRACT_HELD match, with enumerated absence, malformation, staleness, failure and foreign-vocabulary CLOSED categories and a zero-touch, zero-commit, exit-1 guarantee; N2 by upgrading checked= to RFC 3339 UTC and binding both authorizing verdicts to immutable candidate and surface identity through a CCD/v1 content digest over a fully enumerated ordered path list, a head_commit identity, and a B/v1 binding digest whose preimage covers checked, all recomputed by both authoritative consumers as the F1-F5 predicate. Addressed pending review is NOT closed: both remain OPEN and p2_open stays 2. The three P3 findings N3 (undefined A-E family key in the plan's BLOCKED line form), N4 (entailed but unenumerated inert-GREEN baseline fixture corpus) and N5 (no citation to the on-point compound record on backlogit shipment-claim cascade behaviour) are carried unaddressed, so p3_open stays 4. Zero P0 and zero P1 open."
+remediation_authorization: operator-authorized-bounded-mechanization-cycle
+latest_remediation_revision: 6
+latest_disposition: REMEDIATED-PENDING-REVIEW
 latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-05.md
 attempts:
   - attempt: 1
@@ -126,10 +127,10 @@ attempts:
     blocking_findings: []
     dispatch_mode: single-agent-declared-degradation
     anchor_route: absent
-    remediation_revision: null
-    disposition: TERMINAL-ADVISORY-OPERATOR-DISPOSITION
-    terminal: true
-    terminal_designation: operator-declared
+    remediation_revision: 6
+    disposition: REMEDIATED-PENDING-REVIEW
+    terminal: false
+    terminal_designation: operator-lifted
     closed_predecessor_findings: [M1, M2, M3]
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md
@@ -154,26 +155,29 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `post-claim-member-status-contract-v2` |
 | `plan_path` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` |
-| `plan_revision` | 5 |
-| `latest_attempt` | **05** (operator-declared terminal) |
+| `plan_revision` | 6 |
+| `latest_attempt` | **05** (terminality operator-lifted) |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-05.md` |
 | `reviewed_content_head` | `5c768426` (remediation content commit `cd1af45d`) |
 | `gate_result` (attempt 05, immutable) | **ADVISORY** |
-| `verdict` | **ADVISORY** (attempt 05's judgement of revision 5) |
+| `verdict` | **ADVISORY** (attempt 05's judgement; revision 6 is unjudged) |
 | `verdict_is_pass` | **false** |
-| `latest_remediation_revision` | **5** |
-| `latest_disposition` | **TERMINAL-ADVISORY-OPERATOR-DISPOSITION** |
-| `awaiting_attempt` | *(null — review loop is terminal)* |
+| `latest_remediation_revision` | **6** |
+| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
+| `awaiting_attempt` | **06** (operator-authorized) |
 | `p0_open` | **0** |
 | `p1_open` | **0** (`M1` closed at attempt 05) |
-| `p2_open` | **2** (`N1`, `N2` — new at attempt 05, **non-blocking**) |
-| `p3_open` | **4** (`N3`, `N4`, `N5` new; `M4` carried — it carries forward `L2`) |
+| `p2_open` | **2** (`N1`, `N2` — **non-blocking**, addressed pending review) |
+| `p3_open` | **4** (`N3`, `N4`, `N5` carried; `M4` carried — it carries forward `L2`) |
 
 **The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 05. Its `remediation_revision` is `null`, so the content
-attempt 05 judged (revision 5 at `5c768426`) has **not** been superseded by any
-later Stage product. The verdict is therefore carried up as attempt 05 wrote it:
-`verdict` is **ADVISORY** and `gate_result` is **ADVISORY**.
+roster entry — attempt 05. Its `remediation_revision` is now **6**, so the
+content attempt 05 judged (revision 5 at `5c768426`, remediation commit
+`cd1af45d`) has been superseded by a Stage remediation product **no reviewer has
+judged**. The verdict is therefore carried up unchanged rather than improved:
+`verdict` is **ADVISORY** and `gate_result` is **ADVISORY**, the immutable
+record of what attempt 05 read. A remediation never upgrades a verdict; only an
+independent attempt does.
 
 **`ADVISORY` is not `PASS`.** Under the plan-review severity table, zero P0 and
 zero P1 means the FAIL condition ("any P0 or P1 findings") is not met, so the
@@ -182,9 +186,50 @@ result returns **ADVISORY** — "present findings to user; user decides: revise 
 proceed". It does not auto-clear. `PASS` requires P3-only or none, and this
 manifest has never reported `PASS` and does not report one now.
 
-`disposition` is **TERMINAL-ADVISORY-OPERATOR-DISPOSITION**. Attempt 05 was the
-operator-designated terminal attempt, so no fifth remediation cycle was proposed
-or executed; `N1` and `N2` are held for explicit operator disposition.
+`disposition` is **REMEDIATED-PENDING-REVIEW**, which states what Stage
+produced and never what a reviewer found. Attempt 05 was the
+operator-designated terminal attempt and `N1` and `N2` were held for explicit
+operator disposition; at `2026-09-19T11:42:25.892-07:00` the operator took that
+disposition, **lifting attempt 05's terminal designation** and authorizing one
+additional **bounded mechanization cycle** scoped to `N1` and `N2` plus
+mechanically necessary consistency edits, and an independent **attempt 06**.
+`remediation_cycle_proposed` is therefore `true` and `review_terminal` is
+`false`. Terminality bounded the *review loop*, never a *finding*; lifting it
+authorized another loop and closed nothing.
+
+**`p2_open` and `p3_open` above are attempt 05's counts and they still stand.**
+`N1` and `N2` are *addressed pending review* by revision 6; `N3`, `N4`, `N5` and
+`M4` are carried unaddressed under the operator's scope. All six are
+*decremented* only by a further independent attempt — attempt 06 — or by an
+explicit recorded operator waiver. Neither has happened.
+
+**No `PASS` is asserted.** This manifest has never reported `PASS` and does not
+report one now. The plan is **not publication-eligible and not harvest-ready**
+until an independent attempt judges revision 6.
+
+**What revision 6 changed, stated as product rather than as verdict.** `N1`:
+`169.007-T` DOCS now opens with a first-action fail-closed **whole-file** read
+of `.autoharness/gates/p002-7-status-contract-verdict.txt`, requiring exactly
+one `COMPOSED_STATE:` line whose first field is a byte-for-byte, case-sensitive
+match to the literal `STATUS_CONTRACT_HELD`, with five enumerated CLOSED
+categories — absence, malformation, staleness, failure, foreign vocabulary —
+and a guarantee that on a CLOSED gate **no documentation file is touched, no
+commit is made, neither gate artifact is written, and the process exits `1`**.
+`N2`: the `checked=` vintage becomes a **read predicate**. Its format is
+upgraded to RFC 3339 UTC; both authorizing line forms gain `head_commit`, a
+`CCD/v1` canonical content digest over a fully enumerated ordered path list, and
+a `B/v1` binding digest whose preimage **covers `checked`**; and both
+authoritative consumers recompute `F1`–`F5` against the repository rather than
+trusting the line. Because a reverted activation restores the four declared
+surfaces to byte-identical content, the binding is anchored to **commit
+identity** as well as content, so the documented post-revert re-activation path
+is closed by `F1` and, independently, by `F4`. Both contracts are
+environment-agnostic and stay inside the existing ignored `.autoharness/gates/`
+boundary. The rollout order, the single atomic ACTIVATE commit, the separate
+verdict vocabularies and artifacts, the exactly four authoritative surfaces,
+source defect `3EF5AAF2` and `177-S`'s DAG-root status are all preserved; no
+assertion was authored, no ACTIVATE scope was narrowed, no task was added or
+archived, and the item hierarchy was not mutated to silence `M4`.
 
 **The block on this unit is lifted; the gate is not.** `177-S` is a DAG root
 with **no successor shipment**, so nothing downstream was ever gated by this
@@ -222,7 +267,12 @@ verified that and found **no P0 and no P1** — the first attempt in this roster
 to do so. What it did find is that the same gate-predicate reasoning the plan
 applies correctly to the ACTIVATE edge is not applied to the DOCS edge, and that
 the vintage field the plan writes for its own consumer is never read by it. Both
-are P2.
+are P2. Revision 6 is the sixth cycle and it holds to the same pattern: rather
+than adding a mechanism, it applies the plan's **existing** gate-predicate shape
+to the one verdict-crossing edge that lacked it, and makes the **existing**
+vintage field load-bearing by binding it to evidence identity. One primitive set
+is defined once and instantiated twice; no new artifact, directory or ignored
+path was introduced.
 
 ## What attempt 01 records
 
@@ -863,18 +913,29 @@ primitive for both single-line verdicts.
 
 ## What follows attempt 05
 
-**Nothing automatic.** Attempt 05 is the operator-designated terminal attempt,
-so no fifth remediation cycle was proposed or executed and no finding was
-remediated in place. `N1` and `N2` are held for **explicit operator
-disposition**: accept them as recorded backlog follow-ups and proceed, or
-authorize a bounded cycle that converts the DOCS edge and the re-activation
-freshness rule into mechanical predicates in the same shape `169.015-T` already
-uses. `N3`, `N4`, `N5` and `M4` are advisory follow-up candidates under any
-reading.
+**One bounded mechanization cycle, then an independent attempt 06.** Attempt 05
+was the operator-designated terminal attempt and held `N1` and `N2` for explicit
+operator disposition. At `2026-09-19T11:42:25.892-07:00` the operator took the
+second of the two recorded options: lift the terminal designation and authorize
+a bounded cycle that converts the DOCS edge and the re-activation freshness rule
+into mechanical predicates **in the same shape `169.015-T` already uses**. That
+cycle produced plan revision 6 and the coupled backlog-record consistency edits,
+and nothing else: no source, template or schema file was touched, no task was
+added or archived, no shipment was claimed, and no PR was opened.
+
+`N1` and `N2` are recorded **addressed pending review** — not closed. `N3`,
+`N4`, `N5` and `M4` are carried unaddressed and remain advisory follow-up
+candidates under any reading. `M4` in particular stays out of scope: the
+hierarchy was deliberately not mutated to silence the tool rollup.
+
+The next step is **independent attempt 06** against revision 6. Only that
+attempt can decrement a count or change a verdict. Until it runs, the plan is
+not publication-eligible and not harvest-ready, and no Ship work is authorized
+against `177-S`.
 
 No severity was lowered to force a closure and none was raised to force a block.
-Stage performed no self-review, asserted no `PASS`, and modified no plan or
-backlog content in the course of this review.
+Stage performed no self-review, asserted no `PASS`, and decremented no count in
+the course of this cycle.
 
 ## Attempt roster
 
@@ -890,7 +951,7 @@ ever a `disposition`.
 | **2** | `...-v2-plan-review-attempt-02.md` | 2 @ `5aa8643f` | **BLOCKED** (0 P0, 1 P1, 2 P2, 2 P3) | 3 | `REMEDIATED-PENDING-REVIEW` |
 | **3** (terminal designation lifted) | `...-v2-plan-review-attempt-03.md` | 3 @ `4b4330b9` | **BLOCKED** (0 P0, 1 P1, 0 P2, 1 P3) | 4 | `REMEDIATED-PENDING-REVIEW` |
 | **4** (terminal designation lifted) | `...-v2-plan-review-attempt-04.md` | 4 @ `42f2f8ec` | **BLOCKED** (0 P0, 1 P1, 0 P2, 3 P3) | 5 | `REMEDIATED-PENDING-REVIEW` |
-| **5** (operator-declared terminal) | `...-v2-plan-review-attempt-05.md` | 5 @ `5c768426` | **ADVISORY** (0 P0, 0 P1, 2 P2, 4 P3) | — | `TERMINAL-ADVISORY-OPERATOR-DISPOSITION` |
+| **5** (terminal designation lifted) | `...-v2-plan-review-attempt-05.md` | 5 @ `5c768426` | **ADVISORY** (0 P0, 0 P1, 2 P2, 4 P3) | 6 | `REMEDIATED-PENDING-REVIEW` |
 
 This roster covers the **v2 plan only**. Attempts 1–8 against the superseded
 `2026-09-17` plan remain in that plan's own manifest,
@@ -915,7 +976,7 @@ Context, never operative input.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 5
+* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 6
 * Supersedes: `docs/plans/2026-09-17-post-claim-member-status-contract-plan.md`
   (revision 7, terminal at attempt 08)
 * Feature: `169-F` — Shipment: `177-S` (queued, DAG root, no incoming edge)
@@ -924,8 +985,16 @@ Context, never operative input.
   `169.014-T` — the five RED tasks — `169.017-T` (VERIFY, pre-activation
   readiness gate, **new at revision 5**), `169.015-T` (ACTIVATE, atomic),
   `169.016-T` (CONFIRM, post-activation, **retitled and repurposed at revision
-  5**, not archived), `169.007-T` (DOCS). Ten tasks and the covering feature;
-  the `custom_fields.items` list on `177-S` is ordered to match.
+  5**, not archived), `169.007-T` (DOCS, **verdict-gated at revision 6**). Ten
+  tasks and the covering feature; the `custom_fields.items` list on `177-S` is
+  ordered to match and was **not** changed by the revision-6 cycle, which added
+  and archived no record.
+* Test-material paths named at revision 6 so the freshness digest has an
+  enumerable input list: `tests/p002_7_candidate_definition.py` and
+  `tests/p002_7_near_miss_fixtures.py`, both authored by `169.011-T`. Neither
+  matches `unittest discover`'s default `test*.py` pattern, so neither adds a
+  collected test module, and neither lies inside the surface-enumeration search
+  scope, so `declared_surface_count` remains **4**.
 * Archived with absorption provenance, no longer manifest members:
   `169.001-T`, `169.002-T`, `169.003-T` (absorbed into `169.015-T` under `A1`);
   `169.005-T`, `169.008-T` (assertions absorbed into `169.012-T`/`169.013-T`/
