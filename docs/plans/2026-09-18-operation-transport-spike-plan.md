@@ -7,11 +7,11 @@ date: 2026-09-18
 plan_id: operation-transport-spike
 plan_path: docs/plans/2026-09-18-operation-transport-spike-plan.md
 plan_role: active
-revision: 3
+revision: 4
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "verdict is null because no independent reviewer has judged revision 3. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 3 is the product of one authorized Stage remediation cycle against attempt 02, which returned ADVISORY on revision 2 with one P2 (E1, the unspecified prototype lifetime on which F7's acceptance evidence depends) and two P3s (E2, manifest order; E3, F6 omitted from H7). Stage asserts no PASS and has performed no self-review."
-awaiting_attempt: 3
+verdict_note: "verdict is null because no independent reviewer has judged revision 4. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 4 is the product of one authorized Stage remediation cycle against attempt 03, which returned FAIL/BLOCKED on revision 3 with one P1 (J1, the 182-S shipment description and 176-F feature record asserting a prototype lifecycle opposite to the one this plan declares) and one P3 (J2, the problem frame and H5 treating the backlogit wildcard as the only .mcp.json wildcard when all six registered servers carry one). J1 required no plan change: the plan's Prototype lifecycle section was already correct and attempt 03 verified it closed. J2 is corrected in the problem frame and in H5 above. Stage asserts no PASS and has performed no self-review."
+awaiting_attempt: 4
 review_manifest: docs/reviews/2026-09-18-operation-transport-spike-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -66,12 +66,22 @@ write primitive and execute subprocesses through the fixed-argv primitive. The
 governing decision's security-boundary table enforces tool authority by
 "explicit per-tool allowlist in agent frontmatter and `.mcp.json`", and F8
 records that `.mcp.json`'s `"tools": ["*"]` for the `backlogit` server is a
-**current defect** whose removal `180-S` performs in its activation commit. A
-registration shape researched without an authority answer would be adopted by
-`184-S` at whatever default the throwaway prototype happened to use — and the
-default already present in this repository is `["*"]`. The portfolio would
-remove a wildcard from `backlogit` while introducing one on a
-subprocess-executing server.
+**current defect** whose removal `180-S` performs in its activation commit.
+
+**The wildcard is the repository's prevailing default, not a single outlier.**
+All **six** servers registered in `.mcp.json` today — `backlogit`, `engram`,
+`graphtor-docs`, `context7`, `tavily` and `github` — declare `"tools": ["*"]`.
+F8 stays scoped exactly where it is: to the `backlogit` registration on the
+Ship tool-allowance surface that `180-S` narrows. The other five are outside
+this spike's scope and outside F8's, and nothing here proposes changing them.
+
+The count matters only because it changes what "the default" means for a
+**new** server. A registration shape researched without an authority answer
+would be adopted by `184-S` at whatever default the throwaway prototype
+happened to use, and every registration the prototype could copy from is a
+wildcard. The portfolio would therefore narrow `backlogit` under F8 while a
+subprocess-executing server inherited the same wildcard by imitation, which is
+why Q7 requires the authority answer to be derived rather than copied.
 
 Writing a plan over those unknowns is what produced eight review cycles. This
 spike exists so the foundation plan can be written over a measured answer.
@@ -315,7 +325,7 @@ document.
 | H2 | What does a wrong Q1/Q2/Q3 answer cost? | A runtime dependency added to a PyPI-distributed CLI. This repository has already paid a version-ceiling cost for that class of change once. The mitigation is measurement rather than estimation: F2 requires a measured byte delta and a resolved dependency tree, and an estimate is `ABSENT`. |
 | H3 | What does a wrong Q4/Q7 answer cost? | A subprocess-executing, filesystem-writing server admitted to the agent trust boundary at whatever authority the recommendation carried. The fail-closed default (registered but not allowlisted ⇒ not callable) is stated here rather than discovered, and wildcard authority is rejected by default rather than permitted by silence. |
 | H4 | What does a wrong Q5 answer cost? | The MCP-parity claims in `176-S` and `180-S` stay unfounded, which is the condition this portfolio already failed on twice. F5 therefore requires recorded prototype output, not a described strategy. |
-| H5 | Is the trust boundary this spike designs wider than the one it replaces? | It is a **new** boundary, not a replacement. There is no `autoharness` server today, so every capability it gains is additive. That is the reason authority is enumerated at the outset rather than narrowed later: the portfolio is simultaneously removing `backlogit/*` in `180-S`, and introducing a second wildcard while removing the first would be a net regression. |
+| H5 | Is the trust boundary this spike designs wider than the one it replaces? | It is a **new** boundary, not a replacement. There is no `autoharness` server today, so every capability it gains is additive. That is the reason authority is enumerated at the outset rather than narrowed later: **all six servers currently registered in `.mcp.json` declare `"tools": ["*"]`**, so a wildcard is what a new registration inherits by imitation unless it is rejected by decision. `180-S` narrows `backlogit/*` under decision F8; the remaining five are outside this spike's scope and outside F8's. Adding a sixth-plus wildcard on a subprocess-executing server while narrowing the one F8 names would be a net regression, which is why Q7 rejects `["*"]` by default. |
 | H6 | What is the rollback if the recommendation is wrong? | For this unit, none is needed: no workspace state changes and the artifact is additive. For the consuming unit, the rollback is real and must be stated by the findings artifact — `184-S`'s activation commit is a single commit touching `.mcp.json`, `pyproject.toml` and agent frontmatter, and reverting that commit removes the server, its dependency and its authority together. The findings artifact records this explicitly so `184-S` does not have to invent it. |
 | H7 | Is a documentation-derived answer sufficient? | Only for F3, where the declared `requires-python` range **is** the fact. F1, F2, F4, F5 and F7 require an observation: a measurement, a recorded output, or a running registration. A documentation citation in those rows is `ABSENT`. F6 is neither: it is **derived from F1–F3**, since whether the distribution contract changes follows from the measured dependency, size and Python-floor results rather than from a fresh observation. F6 is therefore recorded by the authoring task `176.003-T`, and it is `ABSENT` if its "changes"/"does not change" sentence does not name each contract term affected, or if the F1–F3 rows it derives from are not themselves `ANSWERED` or `NOT-ANSWERED-FALLBACK`. |
 | H8 | What stops the spike from growing into the implementation? | The deliverable is a document; the prototype is declared discarded with a named discard point and owner; no task in this unit edits `.mcp.json`, `pyproject.toml` or any agent surface; and each task carries an individual elapsed bound with a recorded-fallback stop rather than an extension. `176.004-T`'s restart allowance is explicitly bounded by its own 45 minutes and explicitly excludes re-prototyping. |

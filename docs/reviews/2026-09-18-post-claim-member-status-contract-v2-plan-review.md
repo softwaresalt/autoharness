@@ -1,33 +1,38 @@
 ---
 title: "Plan review verdict manifest — Canonical post-claim member-status contract (P-002.7), v2"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03, operator-designated terminal. Plan revision: 3. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed, and returned FAIL/BLOCKED on zero P0, one P1, two P2 and two P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and one P3. Attempt 03 verified G1, G2, G3, G4 and G5 all genuinely closed, and found that the composed-state verdict line the plan gates on has no declared destination artifact and no declared line format anywhere in the plan or the six task records, which makes the plan's own rule that an absent verdict line is STATUS_CONTRACT_NOT_OBSERVED unevaluable, and that the plan names .github/workflows/ci.yml as a consumer that reads the verdict line as a gate when ci.yml consumes a unittest exit code and no task in 177-S modifies it. That is the open P1, L1. The open P3, L2, is that the computed size_composition rollup for 177-S and 169-F counts fourteen task members including the five archived absorbed tasks while custom_fields.items correctly lists nine tasks and the feature. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 03, operator-designated terminal. Plan revision: 3. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on two P0, three P1, two P2 and one P3. A Stage remediation cycle produced revision 2 and re-derived the executable task set from it, archiving five superseded tasks and creating one atomic ACTIVATE task plus five RED-owning tasks. Independent attempt 02 reviewed revision 2 at content HEAD 5aa8643f, verified both P0s and all three P1s closed, and returned FAIL/BLOCKED on zero P0, one P1, two P2 and two P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and one P3. Attempt 03 verified G1, G2, G3, G4 and G5 all genuinely closed, and found that the composed-state verdict line the plan gates on has no declared destination artifact and no declared line format anywhere in the plan or the six task records, which makes the plan's own rule that an absent verdict line is STATUS_CONTRACT_NOT_OBSERVED unevaluable, and that the plan names .github/workflows/ci.yml as a consumer that reads the verdict line as a gate when ci.yml consumes a unittest exit code and no task in 177-S modifies it. That is the open P1, L1. The open P3, L2, is that the computed size_composition rollup for 177-S and 169-F counts fourteen task members including the five archived absorbed tasks while custom_fields.items correctly lists nine tasks and the feature. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: L1 was addressed by declaring one destination artifact (.autoharness/gates/p002-7-status-contract-verdict.txt, gitignored so it is never committed and never leaves the tree dirty), one literal line format per token, a single-writer atomic whole-file-replace rule, and a closed list of read outcomes that resolve to STATUS_CONTRACT_NOT_OBSERVED so absence is decidable; and by correcting the consumer direction so ci.yml is described as a producer of the unittest observations, with 169.016-T's own invocation made the authoritative evaluator via process exit code and verdict artifact, keeping the unit self-contained and adding no CI task. L2 is advisory, tool-derived, and was deliberately carried unaddressed. L1 is recorded as addressed pending review and L2 as carried; neither is closed, and the plan now awaits independent attempt 04. The plan is not harvest-ready and not Ship-ready. No PASS exists anywhere in this record and none is asserted."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
-plan_revision: 3
+plan_revision: 4
 feature_id: 169-F
 shipment_id: 177-S
 predecessor_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
 latest_attempt: 3
-review_terminal: true
-terminal_designation: operator-declared
-terminal_disposition: TERMINAL-BLOCKED
-awaiting_attempt: null
+review_terminal: false
+terminal_designation: lifted-by-operator
+terminal_disposition: null
+terminal_note: "Attempt 03 was designated terminal by the operator. The operator subsequently lifted that designation and authorized a third and final bounded remediation cycle, which produced revision 4. Terminality never closed a finding and no severity was lowered to reach a closable state."
+awaiting_attempt: 4
 reviewed_content_head: 4b4330b9
 gate_result: FAIL
-verdict: BLOCKED
+verdict: null
 verdict_is_pass: false
+verdict_note: "verdict is null because the content attempt 03 judged (revision 3 at 4b4330b9) has been superseded by revision 4, and no independent reviewer has judged revision 4. gate_result FAIL remains the immutable record of what attempt 03 found on the revision it read. Stage asserts no PASS and has performed no self-review."
 p0_open: 0
 p1_open: 1
 p2_open: 0
 p3_open: 1
 open_findings: [L1, L2]
-remediation_authorization: none-this-cycle
-latest_remediation_revision: null
-latest_disposition: null
+findings_addressed_pending_review: [L1]
+findings_carried_unaddressed: [L2]
+open_counts_note: "p1_open and p3_open remain attempt 03's counts. L1 was addressed in the revision-4 remediation cycle; L2 is advisory, tool-derived, and was deliberately not addressed this cycle. A finding is closed only by the next independent attempt or by an explicit recorded operator waiver. Neither has happened, so both counts stand."
+remediation_authorization: operator-authorized-bounded-cycle
+latest_remediation_revision: 4
+latest_disposition: REMEDIATED-PENDING-REVIEW
 latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-03.md
 attempts:
   - attempt: 1
@@ -75,10 +80,10 @@ attempts:
     open_findings: [L1, L2]
     dispatch_mode: single-agent-declared-degradation
     anchor_route: absent
-    remediation_revision: null
-    disposition: null
-    terminal: true
-    terminal_designation: operator-declared
+    remediation_revision: 4
+    disposition: REMEDIATED-PENDING-REVIEW
+    terminal: false
+    terminal_designation: lifted-by-operator
     closed_predecessor_findings: [G1, G2, G3, G4, G5]
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md
@@ -103,38 +108,42 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `post-claim-member-status-contract-v2` |
 | `plan_path` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` |
-| `plan_revision` | 3 |
-| `latest_attempt` | **03** (operator-designated terminal) |
+| `plan_revision` | 4 |
+| `latest_attempt` | **03** (terminal designation lifted by the operator) |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-03.md` |
 | `reviewed_content_head` | `4b4330b9` |
 | `gate_result` (attempt 03, immutable) | **FAIL** |
-| `verdict` | **BLOCKED** (derived — see below) |
+| `verdict` | **null** (derived — the judged content is superseded; see below) |
 | `verdict_is_pass` | **false** |
-| `latest_remediation_revision` | **null** — no remediation followed attempt 03 |
-| `latest_disposition` | **null** |
-| `awaiting_attempt` | **null** — attempt 03 is terminal by operator designation |
+| `latest_remediation_revision` | **4** |
+| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
+| `awaiting_attempt` | **04** |
 | `p0_open` | **0** |
-| `p1_open` | **1** (`L1`) |
+| `p1_open` | **1** (`L1` — addressed in revision 4, not closed) |
 | `p2_open` | **0** |
-| `p3_open` | **1** (`L2`) |
+| `p3_open` | **1** (`L2` — advisory, carried unaddressed) |
 
 **The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 03. Its `remediation_revision` is `null`, so the content
-attempt 03 judged (revision 3 at `4b4330b9`) has **not** been superseded: the
-reviewer's verdict still describes the current plan text and is carried up
-unchanged. `verdict` is **BLOCKED** and there is no disposition, because Stage
-produced nothing in response.
+roster entry — attempt 03. Its `remediation_revision` is now **4**, so the
+content attempt 03 judged (revision 3 at `4b4330b9`) **has** been superseded:
+the reviewer's verdict no longer describes the current plan text, so it is not
+carried up. `verdict` is **null** and `disposition` is
+**REMEDIATED-PENDING-REVIEW**, which states what Stage produced and never what
+a reviewer found. `gate_result` stays **FAIL** as the immutable record of what
+attempt 03 read.
 
-**Terminality does not convert BLOCKED into PASS.** The operator designated
-attempt 03 the terminal review cycle. Terminality bounds the *review loop*; it
-does not close a *finding*, and no severity was lowered to reach a closable
-state. Under the plan-review severity table one P1 returns FAIL, so the gate
-blocks harvest.
+**No `PASS` is asserted.** Under the plan-review severity table one P1 returns
+FAIL. This manifest has never reported `PASS` and does not report one now, so
+harvest remains closed and no Ship work is authorized against `177-S`. The
+operator lifted the terminal designation and authorized one bounded remediation
+cycle, the third and final permitted; terminality bounded the *review loop*,
+never a *finding*, and no severity was lowered.
 
-**`p1_open` and `p3_open` above are attempt 03's counts and they are current.**
-They are decremented only by a further independent attempt, which requires the
-operator to lift the terminal designation and authorize a remediation cycle, or
-by an explicit recorded operator waiver. Neither has happened.
+**`p1_open` and `p3_open` above are attempt 03's counts and they still stand.**
+`L1` was *addressed* by revision 4; `L2` is advisory, tool-derived, and was
+deliberately left unaddressed. Both are *decremented* only by a further
+independent attempt — attempt 04 — or by an explicit recorded operator waiver.
+Neither has happened.
 
 **The attempt-01 and attempt-02 counts are closed, and by the only authority
 that can close them.** Attempt 01's two P0, three P1, two P2 and one P3 were
@@ -144,13 +153,16 @@ attempt 03 did the same. Attempt-08 `B2`, carried forward as attempt-01 `A2`,
 is closed with them. The open counts above are attempt 03's **own, new**
 findings.
 
-**Remediation has not converged across three cycles.** Revision 2 closed every
+**Remediation has not converged across three cycles, and revision 4 closes the
+last structural gap rather than adding a mechanism.** Revision 2 closed every
 attempt-01 finding, including both P0s, and left a new P1 behind. Revision 3
 closed all five attempt-02 findings — including a genuinely difficult
 three-token vocabulary alignment and a stale-edge cleanup — and left a new P1
-behind: the verdict line that the whole composed-state gate depends on is
-required, is gated on, and is never given a destination or a format. No Ship
-work is authorized against `177-S`.
+behind: the verdict line that the whole composed-state gate depends on was
+required, was gated on, and was never given a destination or a format.
+Revision 4 supplies exactly that — one path, one literal line form per token,
+one writer, one atomicity rule, one closed absence vocabulary — and corrects the
+inverted consumer claim instead of building a CI gate around it.
 
 ## What attempt 01 records
 
@@ -517,27 +529,72 @@ clarifying sentence in the `177-S` description would close it.
 
 ## What follows attempt 03
 
-**Nothing.** `remediation_revision` is `null`, `disposition` is `null`, and the
-governing revision remains **3** — the revision reviewed and found BLOCKED. No
-plan, backlog record, shipment description, edge, source file, test, template
-or configuration was changed on the strength of attempt 03.
+The operator **lifted the terminal designation** and authorized a third and
+final bounded remediation cycle. It produced **plan revision 4**. What the
+revision changed, per finding:
 
-The plan is **not harvest-ready and not Ship-ready.** `177-S` has no successor
-shipment depending on it, so no downstream plan is unblocked by fixing it and
-none is further blocked by its failing.
+* **`L1` (P1)** — addressed by **naming the destination and the format, and by
+  correcting the consumer direction rather than building a CI gate around it**.
+  The verdict now has **one destination**,
+  `.autoharness/gates/p002-7-status-contract-verdict.txt`, and **one literal
+  line form per token** — `COMPOSED_STATE: ` prefix, token as the first field,
+  ` | `-separated fields, with `families`/`assertions_passed`/
+  `declared_surface_count`/`resolved_surface_count` for `STATUS_CONTRACT_HELD`,
+  `families`/`failed`/`surface`/`divergence` for `STATUS_CONTRACT_DIVERGENT`,
+  and a closed `reason=` vocabulary (`import_error`, `loader_errors`,
+  `failed_test_placeholder`, `zero_assertions`, `family_unrecorded`) for
+  `STATUS_CONTRACT_NOT_OBSERVED`. **Ownership and write behaviour are
+  specified**: `169.016-T` is the sole writer, the write is atomic via a
+  same-directory temporary file and a rename, and each run replaces the whole
+  file so the artifact holds exactly one `COMPOSED_STATE:` line and is never
+  appended to. **Absence is now decidable**: missing, unreadable, empty, no
+  `COMPOSED_STATE:` line, *more than one* such line, or an unrecognised token
+  all resolve to `STATUS_CONTRACT_NOT_OBSERVED`. That is what makes the plan's
+  pre-existing rule — an absent verdict line *is* `STATUS_CONTRACT_NOT_OBSERVED`
+  (`R8`, `H11`) — evaluable instead of ambiguous, and it is fully compatible
+  with the unit's no-observation semantics: absence is a *reading*, never an
+  error and never a default pass. The contract is mirrored into `169.016-T`,
+  into the DOCS task `169.007-T`, into `169-F` and into the `177-S` manifest,
+  and stated in the Composed-state table's Producer/Verdict-artifact/Consumer
+  rows plus new hardening answers `H15` and `H16`.
+* **The false `ci.yml` consumer claim is corrected, and the unit stays
+  self-contained.** `.github/workflows/ci.yml` is now described as a
+  **producer** — its `test` job runs
+  `PYTHONPATH=src python -m unittest discover -s tests` and consumes an *exit
+  code*, and that suite produces the observations the verdict is derived
+  *from*. **No CI consumer task was added**, because none is necessary:
+  `169.016-T`'s own invocation is the authoritative evaluator, exiting zero
+  **only** on `STATUS_CONTRACT_HELD` and non-zero on the other two tokens, so
+  the exit code and the artifact carry the same verdict by construction. No
+  task in `177-S` modifies `ci.yml`, no workflow is added, and the scope was
+  not broadened into CI redesign. Ship's claim sequence is reclassified as a
+  consumer of the **`P-002.7` contract text** that `169.015-T` writes into that
+  declared surface — which this unit *does* deliver — rather than of the
+  verdict line.
+* **The artifact cannot be left dirty.** `.autoharness/gates/` is gitignored,
+  so the verdict is a generated observation *about* the tracked surfaces rather
+  than a tracked surface itself: never committed, never in a diff, never a
+  stray working-tree change after `169.016-T` runs. `169.007-T` documents the
+  artifact; it does not commit one.
+* **`L2` (P3)** — **carried unaddressed, deliberately.** It is tool-derived:
+  the computed `size_composition` rollup runs over feature children rather than
+  the manifest, so it counts the five archived absorbed tasks. `custom_fields.
+  items` remains correct at nine live tasks plus `169-F`. No plan change is
+  warranted and none was made this cycle.
 
-The minimum remediation for `L1` is to **name the artifact and the line
-format**: state which file `169.016-T` writes the verdict line into and give
-the literal line form for all three tokens, mirror both into the `169.016-T`
-record, and correct the Consumer row so `.github/workflows/ci.yml` is described
-as producing the unittest observations the verdict line is derived *from*
-rather than consuming the verdict line as a gate — or, if a CI gate is genuinely
-intended, add the task that implements it. `L2` is advisory.
+Phase order, task topology, sizing, complexity and the edge set are unchanged:
+the same nine live tasks, the same 12 live `item_deps` edges expressing
+PREPARE → RED → ACTIVATE → VERIFY → DOCS, acyclic with a single entry point,
+and `177-S` still a DAG root with no successor depending on it.
 
-Applying either requires an operator-authorized bounded remediation cycle
-followed by an independent attempt 04 — which requires the operator to lift the
-terminal designation — or an explicit, recorded operator waiver accepting `L1`
-as a known defect. Neither is a reviewer decision.
+The plan was rewritten as a single coherent current-state document. It carries
+no correction log and no review addendum: the remediation narrative lives here,
+in the mutable manifest, which is the surface designed to hold it.
+
+**The findings are not closed by this remediation.** `L1` is recorded as
+*addressed, pending review*; `L2` is carried. Closing either requires an
+independent **attempt 04** against revision 4. The plan remains **not
+harvest-ready and not Ship-ready**.
 
 ## Attempt roster
 

@@ -1,17 +1,17 @@
 ---
 title: "Canonical post-claim member-status contract (P-002.7) with RED-first cross-surface evidence"
-description: "Reduced current-state contract for the post-claim member-status defect, stash 3EF5AAF2. Keeps one contract — a canonical member-status vocabulary asserted identically across exactly four enumerated surfaces — and closes the attempt-08 finding that its evidence was GREEN-only by giving every assertion, including mirror-divergence, version-attribution and the negative state-machine rows, its own RED task that records the assertion failing individually and discriminatingly before any production text exists. Activation is one task and one commit across all four surfaces, because a template and its installed mirror joined by a dependency edge admit a reachable state in which they disagree; if that one task cannot fit inside two hours the unit halts and returns to Stage for explicit scope redesign rather than splitting the commit or authoring assertions mid-activation. The gate speaks one three-token vocabulary — STATUS_CONTRACT_HELD, STATUS_CONTRACT_DIVERGENT, STATUS_CONTRACT_NOT_OBSERVED — emitted by a single task under objective conditions that evaluate the not-observed state first, so an unrun or unimportable suite can never be read as a pass. Carries no dependency on the operation substrate: this unit changes declarations and their conformance test, not execution boundaries, and is the only defect unit that is a DAG root."
+description: "Reduced current-state contract for the post-claim member-status defect, stash 3EF5AAF2. Keeps one contract — a canonical member-status vocabulary asserted identically across exactly four enumerated surfaces — and closes the attempt-08 finding that its evidence was GREEN-only by giving every assertion, including mirror-divergence, version-attribution and the negative state-machine rows, its own RED task that records the assertion failing individually and discriminatingly before any production text exists. Activation is one task and one commit across all four surfaces, because a template and its installed mirror joined by a dependency edge admit a reachable state in which they disagree; if that one task cannot fit inside two hours the unit halts and returns to Stage for explicit scope redesign rather than splitting the commit or authoring assertions mid-activation. The gate speaks one three-token vocabulary — STATUS_CONTRACT_HELD, STATUS_CONTRACT_DIVERGENT, STATUS_CONTRACT_NOT_OBSERVED — emitted by a single task under objective conditions that evaluate the not-observed state first, so an unrun or unimportable suite can never be read as a pass. That verdict has ONE declared destination, .autoharness/gates/p002-7-status-contract-verdict.txt, and ONE literal line format per token, written atomically by its sole writer with whole-file replacement, with a closed list of read outcomes that resolve to STATUS_CONTRACT_NOT_OBSERVED so absence is decidable rather than ambiguous. The destination is gitignored, so the verdict is never committed and never leaves the tree dirty. The unit is self-contained: 169.016-T's own invocation is the authoritative evaluator via process exit code and verdict artifact, and no CI workflow is read as a verdict consumer or modified. Carries no dependency on the operation substrate: this unit changes declarations and their conformance test, not execution boundaries, and is the only defect unit that is a DAG root."
 doc_type: plan
 source: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
 date: 2026-09-18
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
 plan_role: active
-revision: 3
+revision: 4
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "verdict is null because no independent reviewer has judged revision 3. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 3 is the product of one authorized Stage remediation cycle against attempt 02, which returned FAIL/BLOCKED on revision 2 with one P1 (G1, the plan and the sole verdict-emitting task declaring incompatible composed-state vocabularies), two P2s (G2, stale item_deps edges from the retired activation chain; G3, the R5 narrowing rule authoring assertions inside ACTIVATE) and two P3s (G4, retired phase vocabulary; G5, under-declared hardening flag). Stage asserts no PASS and has performed no self-review."
-awaiting_attempt: 3
+verdict_note: "verdict is null because no independent reviewer has judged revision 4. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 4 is the product of one authorized Stage remediation cycle against attempt 03, which returned FAIL/BLOCKED on revision 3 with one P1 (L1, the composed-state verdict line having no declared destination artifact and no declared line format, which made the plan's own absent-line rule undecidable and the gate unevaluable, compounded by a Consumer row naming .github/workflows/ci.yml as reading the verdict line as a gate when that job in fact runs the unittest suite and consumes an exit code, inverting the direction) and one P3 (L2, the tool-derived size_composition rollup counting archived absorbed tasks, advisory and not addressed this cycle). Revision 4 names the destination, the three literal line forms, the single-writer atomicity rule and the closed absence vocabulary, and makes 169.016-T's own invocation the authoritative evaluator via exit code and verdict artifact, keeping the unit self-contained with no CI change. Stage asserts no PASS and has performed no self-review."
+awaiting_attempt: 4
 review_manifest: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -166,9 +166,73 @@ may emit.
 | Pass state | `STATUS_CONTRACT_HELD` — the `P-002.7` block resolves in exactly the four enumerated paths, byte-identically within each authoritative/mirror pair; the attribution paragraph is present in both policy copies; the cross-reference resolves bidirectionally in both agent copies |
 | Fail state | `STATUS_CONTRACT_DIVERGENT` — emitted with the offending surface path and the specific divergence named |
 | Not-observed state | `STATUS_CONTRACT_NOT_OBSERVED` — the test module failed to import, or no assertion executed. Distinct from `STATUS_CONTRACT_DIVERGENT` and never a pass |
-| Producer | `tests/test_p002_7_member_status_contract.py` — created in `177-S` by `169.009-T` and extended by `169.010-T`, `169.012-T`, `169.013-T` and `169.014-T`. The module produces the **observations**; `169.016-T` reads them and emits the single **verdict line**. Those are two artifacts with two roles, and the split is deliberate: the module must not be able to declare its own gate result |
-| Consumer | `.github/workflows/ci.yml` (the stdlib `unittest` suite, which reads the verdict line as a gate) and Ship's claim sequence at `.github/agents/_ship.agent.md` item 4, "Claim the shipment via `backlogit_claim_shipment`", with its authoritative template `templates/agents/_ship.agent.md.tmpl`. Both consumers treat `STATUS_CONTRACT_HELD` as the only pass token |
+| Producer (observations) | `tests/test_p002_7_member_status_contract.py` — created in `177-S` by `169.009-T` and extended by `169.010-T`, `169.012-T`, `169.013-T` and `169.014-T`. The module produces the **observations**; `169.016-T` reads them and emits the single **verdict line**. Those are two artifacts with two roles, and the split is deliberate: the module must not be able to declare its own gate result |
+| Producer (verdict) | `169.016-T` — the sole writer of the verdict artifact named below, and the sole emitter of the verdict line |
+| Verdict artifact | `.autoharness/gates/p002-7-status-contract-verdict.txt` — exactly one line, written atomically by `169.016-T`. See *Verdict artifact and line format* below |
+| Consumer (authoritative) | **`169.016-T`'s own invocation.** It runs the suite, evaluates the emission conditions, writes the verdict artifact, and **exits non-zero unless the token is `STATUS_CONTRACT_HELD`**. The exit code and the artifact are the gate. This unit is self-contained: nothing outside it is required for the gate to be evaluable |
+| Consumer (contract text, not verdict line) | Ship's claim sequence at `.github/agents/_ship.agent.md` item 4, "Claim the shipment via `backlogit_claim_shipment`", with its authoritative template `templates/agents/_ship.agent.md.tmpl`. Ship reads the **`P-002.7` clause** that `169.015-T` writes into that declared surface. It does not read the verdict line, and it is not a gate consumer |
+| **Not** a consumer | `.github/workflows/ci.yml`. Its `test` job runs `PYTHONPATH=src python -m unittest discover -s tests` and consumes an **exit code**; the suite *produces* the observations the verdict line is derived *from*. The direction is the reverse of a verdict-line consumer. **No task in `177-S` modifies `ci.yml`**, and this unit adds no CI gate |
 | Activation commit | `169.015-T` — one task, one commit, all four enumerated surfaces |
+
+### Verdict artifact and line format
+
+An observation with no destination is not an observation (Principle V). The
+destination and the literal line form are therefore declared here rather than
+left to the emitting task to invent.
+
+**Destination — exactly one path.**
+`.autoharness/gates/p002-7-status-contract-verdict.txt`
+
+`.autoharness/gates/` is **gitignored** (`.gitignore`), which is deliberate:
+the verdict is a *generated observation about* the tracked surfaces, not a
+tracked surface itself. It is never committed, never appears in a diff, and
+**cannot leave the working tree dirty** after `169.016-T` runs. `169.007-T`
+documents the artifact; it does not commit one.
+
+**Format — exactly one line, one of exactly three literal forms.**
+
+```text
+COMPOSED_STATE: STATUS_CONTRACT_HELD | families=5 | assertions_passed=<n> | declared_surface_count=4 | resolved_surface_count=4 | checked=YYYY-MM-DD
+COMPOSED_STATE: STATUS_CONTRACT_DIVERGENT | families=5 | failed=<n> | surface=<declared-surface-path> | divergence=<short-name> | checked=YYYY-MM-DD
+COMPOSED_STATE: STATUS_CONTRACT_NOT_OBSERVED | reason=<import_error|loader_errors|failed_test_placeholder|zero_assertions|family_unrecorded> | checked=YYYY-MM-DD
+```
+
+The line begins with the literal prefix `COMPOSED_STATE: `, carries the token
+as its first field, and separates fields with ` | `. `<n>` is a decimal
+integer; `<declared-surface-path>` is one of the four enumerated surface paths;
+`<short-name>` and the `reason=` values are from the closed vocabularies shown.
+A `STATUS_CONTRACT_DIVERGENT` line naming more than one offending surface
+repeats the `surface=` field once per surface, still on the one line.
+
+**Ownership and write behaviour — single writer, atomic, whole-file replace.**
+`169.016-T` is the **sole writer**. No other task, and not the test module,
+writes this path. The write is **atomic**: the line is written to a temporary
+file in the same directory and then renamed over the destination, so a reader
+sees either the previous verdict or the new one and never a partial line. Each
+run **replaces the whole file** — the artifact is never appended to, and it
+holds exactly one `COMPOSED_STATE:` line at all times. A pre-existing file from
+an earlier run is overwritten, not merged.
+
+**Absence evaluation — fail closed, and absence is a *reading*, not an error.**
+A consumer resolves the artifact to `STATUS_CONTRACT_NOT_OBSERVED` if **any**
+of the following holds: the file does not exist; it exists but is unreadable;
+it is empty; it contains no line beginning `COMPOSED_STATE: `; it contains
+**more than one** such line; or the token in the first field is not one of the
+three declared above. This is the same fail-closed rule the emission conditions
+apply, reapplied at the read boundary, and it is what makes the plan's own
+statement — that an **absent** verdict line is itself
+`STATUS_CONTRACT_NOT_OBSERVED` (`R8`, `H11`) — decidable rather than
+ambiguous. Before this destination was named, a reader could not distinguish
+*absent* from *present somewhere else*, and the gate was unevaluable as
+written.
+
+**Exit code — the in-unit gate.** `169.016-T` exits **zero only** when the
+token it wrote is `STATUS_CONTRACT_HELD`, and non-zero for
+`STATUS_CONTRACT_DIVERGENT` and `STATUS_CONTRACT_NOT_OBSERVED`. The exit code
+and the artifact carry the same verdict by construction, because one step
+produces both. This is what keeps the unit **self-contained**: the gate is
+evaluable from `169.016-T`'s invocation alone, with no CI change, no new
+workflow and no task outside `177-S`.
 
 ### Emission conditions
 
@@ -198,7 +262,9 @@ per-assertion record is `STATUS_CONTRACT_NOT_OBSERVED`, not
 `STATUS_CONTRACT_HELD` — the aggregate demonstrates that nothing failed, which
 is a weaker claim than that each assertion passed. And an **absent** verdict
 line is itself `STATUS_CONTRACT_NOT_OBSERVED`: a consumer that finds no token
-has observed nothing and must treat it as such, never as a default pass.
+at `.autoharness/gates/p002-7-status-contract-verdict.txt` has observed nothing
+and must treat it as such, never as a default pass. *Verdict artifact and line
+format* above states exactly which read outcomes count as absent.
 
 **Fail-closed.** Any state not affirmatively established by conditions 2 or 3
 is `STATUS_CONTRACT_NOT_OBSERVED`. This is the portfolio-wide
@@ -343,7 +409,7 @@ so it is not lost. It is explicitly **not** in this unit's scope.
 | R5 | ACTIVATE exceeds two hours and is split across commits, or is narrowed mid-flight | Neither is permitted. `169.015-T` halts and the unit returns to **Stage** for explicit scope redesign, per the 2-hour check above. The commit never splits, and no assertion is authored or re-derived inside ACTIVATE; any reduced contract has its assertions retired or re-observed red in the RED phase before activation resumes. |
 | R6 | The unit is serialized behind a foundation it does not need | `depends_on_shipments` is empty and `177-S` carries no shipment-level edge in either direction. The root claim is checkable against the executable records, not only against this plan. |
 | R7 | The gate token the plan declares is not the token the emitting task produces | The Composed-state check names the three-token vocabulary, the Emission conditions state when each is emitted, and `169.016-T` — the sole emitter — reproduces both verbatim. A task record emitting any other token is a defect, not a variant. |
-| R8 | A green aggregate suite exit is read as the contract holding | `STATUS_CONTRACT_NOT_OBSERVED` is evaluated first and absorbs every unrun, unimportable and unrecorded case, including a green exit with no per-assertion record. An absent verdict line is also `STATUS_CONTRACT_NOT_OBSERVED`. No path reaches `STATUS_CONTRACT_HELD` without a per-assertion passing record for all five families. |
+| R8 | A green aggregate suite exit is read as the contract holding | `STATUS_CONTRACT_NOT_OBSERVED` is evaluated first and absorbs every unrun, unimportable and unrecorded case, including a green exit with no per-assertion record. An absent verdict line is also `STATUS_CONTRACT_NOT_OBSERVED`, and *Verdict artifact and line format* names the one path a reader checks and the closed list of read outcomes that count as absent, so absence is decidable rather than ambiguous. No path reaches `STATUS_CONTRACT_HELD` without a per-assertion passing record for all five families. |
 
 ## Hardening review
 
@@ -376,6 +442,8 @@ task were able to declare different gate vocabularies for the same gate.
 | H9 | Is the ACTIVATE task within the 2-hour rule? | Yes on both axes, for the reason recorded under the 2-hour check. If it ever is not, the unit **halts and returns to Stage** for explicit scope redesign. It never splits the commit, and it never narrows or re-derives an assertion inside ACTIVATE — a reduced contract has its affected families retired or re-observed red in the RED phase first. |
 | H10 | Does the token this plan declares match the token the emitting task produces? | Yes, and the correspondence is the check. `169.016-T` is the sole emitter; the Composed-state check declares `STATUS_CONTRACT_HELD` / `STATUS_CONTRACT_DIVERGENT` / `STATUS_CONTRACT_NOT_OBSERVED`; the Emission conditions state objectively when each fires; and `169.016-T`'s record reproduces both. This question exists because the previous revision declared a three-token vocabulary in the plan while the only record that produced a verdict emitted an unrelated two-token pair — deleting the not-observed state that decision D6 requires. A consumer reading the plan's token would have found a token no task emits. |
 | H11 | Can an unrun or unimportable suite be scored as the contract holding? | No, and the ordering is what prevents it. `STATUS_CONTRACT_NOT_OBSERVED` is evaluated **before** the other two states and absorbs import failure, `loader.errors`, `_FailedTest` placeholders, zero executed assertions, a family with no per-assertion record, and an absent verdict line. `STATUS_CONTRACT_HELD` requires an affirmative per-assertion passing record for all five families; a green aggregate exit cannot produce it. This is the unit's most specific safety property, and it is the one the RED phase's binding import-safety rule exists to detect — so it has a token of its own. |
+| H15 | Where does the verdict line go, and can a reader tell absence from presence-elsewhere? | It goes to exactly one declared path, `.autoharness/gates/p002-7-status-contract-verdict.txt`, in one of three literal line forms, written atomically by `169.016-T` as the sole writer with whole-file replacement. *Verdict artifact and line format* states the destination, the three forms, the single-writer and atomicity rule, and the closed list of read outcomes that resolve to `STATUS_CONTRACT_NOT_OBSERVED` — missing, unreadable, empty, no `COMPOSED_STATE:` line, more than one, or an unrecognised token. This question exists because a previous revision declared that an *absent* verdict line is itself `STATUS_CONTRACT_NOT_OBSERVED` while naming no destination, which made absence and presence-elsewhere indistinguishable and the gate unevaluable as written. |
+| H16 | Does this unit need a CI change to be evaluable? | No, and it does not make one. `169.016-T`'s own invocation is the authoritative evaluator: it runs the suite, evaluates the conditions, writes the verdict artifact, and exits zero **only** on `STATUS_CONTRACT_HELD`. `.github/workflows/ci.yml` is a **producer** of the observations — its `test` job runs the stdlib unittest suite and consumes an exit code — not a consumer of the verdict line; a previous revision had that direction inverted. No task in `177-S` modifies `ci.yml`, no workflow is added, and the gate is self-contained. The artifact's directory `.autoharness/gates/` is gitignored, so the verdict is never committed and never leaves the tree dirty. |
 
 ### Blast radius
 
