@@ -11,6 +11,15 @@ depth: deep
 deciders: operator, Stage
 decision_status: decided
 promoted_to: plan
+execution_architecture_status: superseded
+execution_architecture_superseded_by: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
+supersession_note: "PARTIAL supersession, recorded 2026-09-18 after the terminal attempt-08 plan-review block of all six derived plans. The EXECUTION ARCHITECTURE and EXECUTION SEQUENCE decided here are superseded: D8's six-shipment fan-out DAG rooted at 176-S is withdrawn as a false star (176-S is not a technical prerequisite of 177-S through 181-S), and D3's spike-first sequencing edge is withdrawn now that the spike has concluded. The PORTFOLIO SCOPE decided here REMAINS IN FORCE and is not reopened: the same seven source entries, the D1 merge of 14F4D6F3 into 86498B64 with both IDs preserved, the D2 width-isolation separation of the five remaining single-entry groups, and the per-entry ownership boundaries of D4, D5, D6, D7 and D9. Read this document for WHAT is in the portfolio and WHO owns each entry; read the superseding decision for HOW the portfolio is built and IN WHAT ORDER."
+still_authoritative_for:
+  - "seven-source portfolio scope (stash_ids)"
+  - "D1, D2, D4, D5, D6, D7, D9"
+no_longer_authoritative_for:
+  - "D8 execution DAG and shipment sequencing"
+  - "D3 spike-first sequencing edge"
 stash_ids:
   - 3EF5AAF2
   - 14F4D6F3

@@ -6,10 +6,12 @@ source: docs/plans/2026-09-17-single-governing-plan-contract-plan.md
 date: 2026-09-17
 status: reviewed
 plan_id: single-governing-plan-contract
-plan_role: active
+plan_role: superseded
 revision: 7
 supersedes: null
-superseded_by: null
+superseded_by: docs/plans/2026-09-18-review-authority-foundation-plan.md
+superseded_by_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
+supersession_note: "Superseded at architecture level by the 2026-09-18 shared-execution-architecture decision. This document is retained unchanged as the historical contract of attempts 1-8; it is no longer the operative plan for its shipment and is not to be edited further. The successor named in superseded_by is the current state."
 source_history:
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempts-01-02-combined.md
   - docs/reviews/review-history/2026-09-17-single-governing-plan-contract-plan-review-attempt-03.md

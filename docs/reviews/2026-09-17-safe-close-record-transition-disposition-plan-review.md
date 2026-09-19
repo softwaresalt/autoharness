@@ -9,6 +9,9 @@ plan_path: docs/plans/2026-09-17-safe-close-record-transition-disposition-plan.m
 plan_revision: 8
 latest_attempt: 8
 review_terminal: true
+governed_plan_role: superseded
+successor_manifest: docs/reviews/2026-09-18-safe-close-conformance-plan-review.md
+supersession_note: "The plan this manifest governs was superseded at architecture level on 2026-09-18. This manifest remains the authoritative record of attempts 1-8 against that plan and is not re-opened; the successor plan is governed by the manifest named in successor_manifest, which is in the pre-review state."
 awaiting_attempt: null
 reviewed_content_head: f142173c
 gate_result: FAIL
