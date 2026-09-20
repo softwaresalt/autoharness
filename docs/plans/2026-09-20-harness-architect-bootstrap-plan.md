@@ -7,11 +7,11 @@ date: 2026-09-20
 plan_id: harness-architect-bootstrap
 plan_path: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
 plan_role: active
-revision: 2
+revision: 3
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 2 remediates independent plan-review attempt 01 (FAIL/BLOCK, P0 0 / P1 1 / P2 1 / P3 1): B1 adds the fifth CLAIM bound to the one-time boundary so the authority reaches P-002's claim precondition, B2 names the authoritative UNIMPLEMENTED_MARKER derivation, B3 widens the conformance assertion's placeholder limb. The verdict field is NULL because this revision has NOT been reviewed; REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict. Stage asserts no PASS, closes no finding, and has performed no self-review. Finding closure is the independent reviewer's call at attempt 02. This unit is NOT publication-eligible and NOT claimable."
-awaiting_attempt: 2
+verdict_note: "Revision 3 remediates independent plan-review attempt 02 (ADVISORY/PROCEED-WITH-ADVISORY, P0 0 / P1 0 / P2 1 / P3 1). B2 (P2, carried from attempt 01 and NOT closed at attempt 02) is addressed at its root: the nonexistent 'row for that language' lookup against install-harness SKILL.md:335 is REMOVED and replaced with the actual two-surface derivation - :335 supplies the KEYING RULE only (it has no per-language row), :130's Example (Python) column is the sole per-language VALUE source, and the two are reconciled by their common detectable token. The exact Python marker is stated as a verbatim transcription rather than improvised, and the fail-closed trigger is rewritten to be mechanically evaluable, halting on unsupported or ambiguous language mapping. B4 (P3, raised at attempt 02) is PRESERVED as a non-blocking follow-up in stash 1D0033E0, outside this shipment's scope; it is not closed, not downgraded, and not folded into any task here. The verdict field is NULL because revision 3 has NOT been reviewed; REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict. Stage asserts no PASS, closes no finding, and has performed no self-review. Finding closure is the independent reviewer's call at attempt 03. This unit is NOT publication-eligible and NOT claimable."
+awaiting_attempt: 3
 review_manifest: docs/reviews/2026-09-20-harness-architect-bootstrap-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 3
@@ -144,16 +144,77 @@ marker check, which is this unit's core evidence.
 | `{{TEST_COMMAND}}` | `.autoharness/harness-manifest.yaml` → `variables_used` | `PYTHONPATH=src python -m unittest discover -s tests` |
 | `{{SOURCE_DIR}}` | `.autoharness/harness-manifest.yaml` → `variables_used` | `src/autoharness` |
 | `{{TEST_DIR}}` | `.autoharness/harness-manifest.yaml` → `variables_used` | `tests` |
-| `{{UNIMPLEMENTED_MARKER}}` | **Derived, not stored.** `.github/skills/install-harness/SKILL.md:335` defines it as "Derived from `languages.primary`"; `languages.primary` is read from `.autoharness/workspace-profile.yaml` (`python`), and the install-harness derivation table's Python row is authoritative. | `raise NotImplementedError` |
+| `{{UNIMPLEMENTED_MARKER}}` | **Derived, not stored — two install-harness surfaces, reconciled below.** `.github/skills/install-harness/SKILL.md:130`, in the table headed at `:100` (`Template Variable \| Source \| Example (Rust) \| Example (TypeScript) \| Example (Python)`), is the **only** table in that file that carries per-language `UNIMPLEMENTED_MARKER` values, and is therefore the **value source**. `:335`, in the *Review Persona Variables* table headed at `:327` (`Template Variable \| Source \| Purpose`), supplies the **keying rule** — "Derived from `languages.primary`" — and nothing else. `languages.primary` reads `python` from `.autoharness/workspace-profile.yaml:7`, selecting the `Example (Python)` column of `:130`. | `raise NotImplementedError("...")` — transcribed **verbatim** from `:130`'s `Example (Python)` column |
 | `{SUFFIX_FEATURE}` / `{SUFFIX_TASK}` | `.autoharness/config.yaml` → `backlog.suffix_map`, per `.github/skills/install-harness/SKILL.md:262,264` | `F` / `T` |
 
-`UNIMPLEMENTED_MARKER` is **absent from `.autoharness/` entirely** — it is a
-derivation, not a stored field, and the derivation above is the only authorized
-route to a value. **Fail closed:** if `.autoharness/workspace-profile.yaml` is
-missing or unreadable, `languages.primary` is absent or empty, or the
-install-harness derivation table carries no row for that language, `182.003-T`
-touches no file, makes no commit and returns the unit to Stage. It never
-improvises, guesses, or substitutes a plausible marker.
+#### The `UNIMPLEMENTED_MARKER` derivation, stated exactly
+
+`UNIMPLEMENTED_MARKER` is **absent from `.autoharness/` entirely** — it appears
+in neither `harness-manifest.yaml`'s `variables_used` nor anywhere else under
+that directory. It is a derivation, and the derivation below is the only
+authorized route to a value.
+
+**Two install-harness surfaces are involved, and they are complementary rather
+than competing.** Naming only one of them, or asserting a per-language lookup
+against the one that has no per-language rows, is what leaves an executor with
+no referent and invites an improvised marker.
+
+| Surface | What it actually is | What it supplies |
+|---|---|---|
+| `.github/skills/install-harness/SKILL.md:335` | A row in the *Review Persona Variables* table headed at `:327`, whose columns are `Template Variable \| Source \| Purpose`. It is keyed **one row per variable** and has **no language columns and no language rows**. Its `Purpose` cell holds an abbreviated illustrative `e.g.` list. | The **keying rule** only: `Derived from `languages.primary``. It is **never** a value source, and its `e.g.` list must never be transcribed as a marker. |
+| `.github/skills/install-harness/SKILL.md:130` | A row in the table headed at `:100`, whose columns are `Template Variable \| Source \| Example (Rust) \| Example (TypeScript) \| Example (Python)`. This is the **only** table in the file carrying per-language `UNIMPLEMENTED_MARKER` values. | The **value**, selected by the column matching the key. |
+
+**Derivation, in order.** Read `languages.primary` from
+`.autoharness/workspace-profile.yaml` (line 7, `primary: "python"`). Use it to
+select the matching `Example (…)` column of the `:100` table. Read the
+`{{UNIMPLEMENTED_MARKER}}` row at `:130` in that column. Transcribe the cell
+**verbatim**.
+
+**The exact value for this workspace.** `languages.primary` is `python`, so the
+`Example (Python)` column applies and the bound value of
+`{{UNIMPLEMENTED_MARKER}}` is exactly:
+
+```text
+raise NotImplementedError("...")
+```
+
+Transcribed character-for-character from `:130`. **The message slot is not a
+prompt to invent text.** `182.003-T` binds the literal as written — it does not
+re-spell it, does not shorten it to `raise NotImplementedError`, and does not
+substitute a stub-specific message. Varying the message is a template-authoring
+decision this unit does not own; if it is wanted it is a separate plan revision.
+
+**Why the two surfaces do not disagree.** `:335`'s `e.g.` list shows
+`raise NotImplementedError` and `:130`'s Python column shows
+`raise NotImplementedError("...")`. These differ **only** in whether the message
+slot is displayed. The **detectable token** — the substring `182.002-T`'s
+red-phase marker check asserts against the failure set — is
+`NotImplementedError`, and it is identical in both. The value source is `:130`;
+`:335` is used solely to confirm the key and to corroborate the token.
+
+**Fail closed — mechanically evaluable triggers.** `182.003-T` touches no file,
+makes no commit, exits non-zero and returns the unit to Stage if **any** of the
+following holds. Each is a check against a real artifact, not against a
+structure that does not exist:
+
+| # | Trigger | Disposition |
+|---|---|---|
+| F1 | `.autoharness/workspace-profile.yaml` is missing or unreadable, or `languages.primary` is absent or empty | HALT — key unresolvable |
+| F2 | `languages.primary` does not case-insensitively match any `Example (…)` column header of the `:100` table (today exactly `Rust`, `TypeScript`, `Python`) | HALT — **unsupported language mapping**. Do not fall back to another column, to `:335`'s `e.g.` list, or to a plausible idiom for that language. |
+| F3 | The `{{UNIMPLEMENTED_MARKER}}` row is absent from the `:100` table, or its cell for the selected column is empty or `_(N/A)_` | HALT — value unresolvable |
+| F4 | The selected cell and `:335`'s `e.g.` entry for the same language share **no** common detectable token | HALT — **ambiguous language mapping**. Two authoritative surfaces disagreeing on the token is a repository defect, not a choice for the executor to arbitrate. |
+| F5 | `config.backlog.suffix_map` in `.autoharness/config.yaml` is missing a required key | HALT — suffix binding unresolvable |
+
+**No trigger fires for this workspace.** `languages.primary` is `python` (F1
+clear); `Example (Python)` is a declared column of the `:100` table (F2 clear);
+`:130`'s Python cell is non-empty (F3 clear); both surfaces carry
+`NotImplementedError` (F4 clear); `suffix_map` supplies `F` and `T` (F5 clear).
+The guard is therefore a real check that passes here, not a condition that is
+unconditionally true and halts every run.
+
+**DO NOT IMPROVISE, DO NOT GUESS, DO NOT SUBSTITUTE A PLAUSIBLE VALUE.** An
+improvised `UNIMPLEMENTED_MARKER` would silently weaken `182.002-T`'s red-phase
+marker check, which is this unit's core evidence.
 
 The two `SUFFIX_*` tokens appear in the template's frontmatter `argument-hint`
 in **single**-brace form, which the `{{...}}` limb does not match — hence the
@@ -351,7 +412,7 @@ serial dependency that decision D8 withdrew.
 |---|---|---|
 | R1 | The authority is read as a general precedent for skipping P-004, or the claim carve-out as a precedent for skipping P-002 | All five boundary axes are stated in the plan, in `182-F`, in `188-S`, in `182.002-T`'s record and — for the claim carve-out — in `182.001-T`'s record as well, and expiry is mechanical rather than narrative. |
 | R6 | The claim carve-out is read as covering more than its two named tasks | It names `182.001-T` and `182.002-T` literally on every surface, states on each that `182.003-T` and `182.004-T` are excluded, and expires on the same token as the other four bounds. `182.002-T` applies `harness-ready` before either excluded task is reached, so the carve-out is exhausted rather than merely unused. |
-| R7 | `UNIMPLEMENTED_MARKER` is improvised because it is derived rather than stored | The derivation and its authority are named in the plan and in `182.003-T`'s record, and unavailability is fail-closed: no file is touched, no commit is made, and the unit returns to Stage rather than substituting a plausible marker. |
+| R7 | `UNIMPLEMENTED_MARKER` is improvised because it is derived rather than stored | The derivation names **both** install-harness surfaces and their distinct roles — `:335` supplies the key, `:130`'s `Example (Python)` column supplies the value — and the bound literal is fixed as a verbatim transcription rather than a value the executor composes. Unavailability is fail-closed on five mechanically evaluable triggers (F1–F5), including unsupported and ambiguous language mapping: no file is touched, no commit is made, and the unit returns to Stage rather than substituting a plausible marker. |
 | R2 | The `harness-architect` template is stale relative to current skill conventions | `182.001-T`'s assertion validates frontmatter, `name`, and placeholder resolution. A stale template fails the assertion at `182.003-T` and never reaches `INSTALLED`. |
 | R3 | The authority is exercised, then the unit stalls before expiry | `HARNESS_ARCHITECT_NOT_OBSERVED` is the fail-closed default; no successor may treat a missing token as satisfied. |
 | R4 | The unscoped suite reading is non-zero for unrelated reasons, masking the red-phase signal | Both readings are recorded; disagreement halts for operator disposition rather than resolving in the passing direction. |
