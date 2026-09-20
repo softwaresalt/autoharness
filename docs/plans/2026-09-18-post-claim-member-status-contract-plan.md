@@ -7,14 +7,15 @@ date: 2026-09-18
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
 plan_role: active
-revision: 7
+revision: 8
 verdict: PASS
-disposition: null
-verdict_note: "verdict is PASS because independent terminal attempt 07 judged plan revision 7 at content HEAD 24e19050 and derived zero P0, zero P1 and zero P2, with six P3 findings carried open (O4, O5, N3, N4, N5, M4); under the severity table a P3-only result returns PASS, and the open P3 findings are advisory and block nothing. disposition is null because no remediation cycle is authorized or outstanding: O1, O2 and O3 were closed at attempt 07 by independent re-derivation, not by Stage and not by terminality. awaiting_attempt is null because review_terminal is true and no further attempt is awaited. The authoritative record is the mutable verdict manifest docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md and the immutable attempt artifact docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-07.md; this frontmatter reflects them and never overrides them. THIS FIELD SET IS A POST-REVIEW ADMINISTRATIVE METADATA SYNCHRONIZATION ONLY. It brings verdict, disposition, awaiting_attempt and this note onto the state the terminal manifest already records. IT DOES NOT ALTER THE REVIEWED CONTRACT: no plan body byte, no reviewed contract text, no review artifact, no task, feature, shipment, stash or DAG state is changed by it, no finding is closed here, no severity is lowered, no count is decremented, and PASS is a judgement on the plan and is not Ship authorization. HISTORICAL, revision 7 authoring record, preserved verbatim and superseded by attempt 07: verdict is null because no independent reviewer has judged revision 7. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 7 is the product of one operator-authorized bounded remediation cycle against independent attempt 06, which returned ADVISORY on revision 6 with zero P0, zero P1, two P2 (O1, O3) and seven P3 (O2, O4, O5, N3, N4, N5, M4). The cycle is scoped to O1 and O3 and to mechanically necessary consistency edits. O1: tests/test_p002_7_member_status_contract.py is the seventh CCD/v1 readiness digest input, but its exact path was declared at no authoring task - all five RED tasks including its creator 169.009-T declared only Scope tests/ - so the path could drift and make the digest undefined by CCD/v1 rule 1. Revision 7 gives 169.009-T explicit ownership of that exact path in its task record and in the plan's Tasks, Producer and Blast-radius tables, and states in the Assertion-to-task map that every assertion in the unit lives in that single module, which 169.009-T creates and the other four RED tasks extend in place. Every one of the seven readiness digest inputs now has one named owning task. No assertion moved, no RED task's responsibility widened, and the task topology and all thirteen item_deps edges are unchanged. O3: the plan and five records claimed in at least eight places that F4 independently rejects the post-revert stale readiness artifact, but F4 compares checked= against the committer timestamp of the commit named by head_commit - the stale line's own commit - which a stale line satisfies. Revision 7 removes every such claim and states truthfully that F1 alone rejects the post-revert path on the readiness gate, that F1 plus F2 reject it on the confirmation gate, and that F4's genuine function is to reject a line whose vintage precedes its own head commit and, with F5, to prevent checked= being altered after emission. Because F1 carries the readiness path alone, revision 7 also constrains the contract explicitly to merge-friendly recovery - git revert and new forward commits - and records that history-rewriting recovery via git reset --hard, rebase or amend restoring the pre-activation identity is prohibited and outside the contract, and is offered as an allowed rollback route nowhere in this unit. Deterministic head_commit, content digest and binding recomputation, the exact line formats and the fail-closed behaviour are preserved unchanged, no safety property is weakened, and no wall-clock-only authority is added. O2, O4, O5, N3, N4, N5 and M4 are carried unaddressed and are out of this cycle's scope; they are recorded as non-blocking follow-ups in the backlogit stash. Where this cycle's producer-closure edits necessarily touch text O2 also concerns, no claim of O2 closure is made or implied. M4 remains tool-derived and the item hierarchy was not changed to silence it. Stage asserts no PASS, has performed no self-review, and has decremented no finding count."
+disposition: PASS-P3-ONLY
+verdict_note: "TERMINAL VERDICT: Independent terminal attempt 08 judged revision 8 and returned PASS: zero P0, zero P1, zero P2 and six carried P3 (O4, O5, N3, N4, N5, M4). Attempt 08 is TERMINAL FOR PUSH B and no further remediation cycle is authorized. Acceptance-matrix criteria A1-A4 are GitHub-dependent and were NOT OBSERVABLE in that session; they are recorded as not observed and expressly NOT asserted. A5-A8 pass locally. HISTORICAL AUTHORING NOTE: Revision 8 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan. THE FINDING: 169.015-T activates two manifest-tracked installed artifacts - .github/policies/workflow-policies.md and .github/agents/_ship.agent.md - and neither the Rollout section nor the task record required the atomic .autoharness/harness-manifest.yaml checksum refresh those edits entail, so the plan stated a contract under which an activation commit leaves the manifest asserting digests of files the same commit has already rewritten. THE REMEDIATION: the ACTIVATE subsection of Rollout now binds decision D11 - exactly two manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest - and states explicitly that the manifest is a COMMIT MEMBER and not a declared surface. THE SURFACE ARITHMETIC IS DELIBERATELY UNMOVED, because it is load-bearing: declared_surface_count stays 4, the F2 CCD/v1 recomputation still runs over exactly its seven enumerated inputs with the manifest among none of them, F3 resolved_surface_count stays 0, the marker search scope and its .autoharness/ exclusion are unchanged, and 169.016-T still enumerates exactly four surfaces. No task, edge, gate, token, line form or freshness condition is added, removed or altered, and no finding of attempt 07 is reopened. THE LIVE MANIFEST IS NOT EDITED: this is a future implementation contract. VERDICT AND DISPOSITION: verdict returns to null and disposition to REMEDIATED-PENDING-REVIEW because attempt 07 PASS attached to REVISION 7 and does not carry forward to revision 8; the revision-7 PASS is preserved verbatim in the immutable attempt artifact docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-07.md and in the mutable manifest history. Revision 8 awaits the targeted terminal attempt 08 scoped to the D11 delta. Stage asserts no PASS, has performed no self-review, and has closed no finding. HISTORICAL, revision 7 record, preserved and superseded: verdict was PASS because independent terminal attempt 07 judged plan revision 7 at content HEAD 24e19050 and derived zero P0, zero P1 and zero P2, with six P3 findings carried open (O4, O5, N3, N4, N5, M4); under the severity table a P3-only result returns PASS, and those open P3 findings remain advisory, remain open, and block nothing. O1, O2 and O3 were closed at attempt 07 by independent re-derivation, not by Stage and not by terminality. The authoritative record is the mutable verdict manifest docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md together with the immutable attempt artifacts; this frontmatter reflects them and never overrides them."
 awaiting_attempt: null
+latest_attempt: 8
 review_manifest: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 4
 source_stash_ids:
   - 3EF5AAF2
 feature_id: 169-F
@@ -975,6 +976,37 @@ never re-runs the suite, re-derives the evidence set, or re-reads a CLOSED gate
 as open. Recomputing a content and commit identity is not re-deriving evidence:
 it produces no assertion outcome.
 
+**Manifest parity is part of that same atomic unit (decision `D11`).** Two of
+the four declared surfaces are **manifest-tracked installed artifacts** —
+`.github/policies/workflow-policies.md` and `.github/agents/_ship.agent.md` —
+each carrying an `artifacts:` entry in `.autoharness/harness-manifest.yaml`
+that records a `sha256` of its pre-activation content. The two authoritative
+templates are **not** tracked, because the manifest tracks no template, so
+`169.015-T` refreshes **exactly two** manifest entries and its commit contains
+**five files while updating four declared surfaces**. In the **same commit**
+and the **same rollback unit**, rewrite each of those two checksums to the
+`sha256` of the installed file *as written by this commit*, then **verify
+checksum parity** by re-digesting both installed files and comparing against
+the recorded values. A commit that transcribes the clause into either installed
+mirror without its manifest refresh leaves the manifest asserting a digest of a
+file the same commit has already rewritten — an installed-artifact parity hole
+in the very file the `P-004` postcondition is read from — and is an **immediate
+revert**, not a fixup commit.
+
+**The manifest is a commit member, not a declared surface, and nothing in the
+surface arithmetic moves.** `.autoharness/` is excluded from the marker search
+scope by the exclusion rule above and remains excluded; the manifest carries no
+`P-002.7` anchor and declares nothing, so it can no more be a fifth surface
+than a gate artifact can. Concretely: `declared_surface_count` stays **4**; the
+`F2` `CCD/v1` recomputation continues to run over exactly its seven enumerated
+inputs, with `.autoharness/harness-manifest.yaml` among **none** of them; `F3`'s
+`resolved_surface_count` stays **0** at the pre-activation gate; and
+`169.016-T`'s post-activation enumeration continues to count exactly four
+surfaces. Rollback is unchanged in shape: reverting the single activation
+commit restores all four declared surfaces **and** both manifest checksums
+together. This binds a **future implementation commit**; it authorizes no
+staging-time edit to the live manifest, and none has occurred.
+
 **CONFIRM (post-activation).** `169.016-T` observes the same assertions,
 unchanged and unextended, passing against the **shipped** text, and confirms
 the two things no inert observation can establish: installed/template parity
@@ -1003,9 +1035,12 @@ and are inserted verbatim into four files across two document pairs. No design
 decision is taken during ACTIVATE, and no evidence is re-derived — the gate
 read that opens the task parses one line and recomputes `F1`–`F5`, which is a
 bounded, fully-specified sequence of file reads and two `git` queries with no
-judgement in it. Sized `M` (several files) at complexity `medium` (mechanical
-transcription, plus one correctness-critical predicate), it fits inside two
-hours.
+judgement in it. The `D11` manifest refresh adds a fifth file to the commit but
+no judgement to the task: it is two `sha256` recomputations and two field
+rewrites, mechanically derived from files the task has just written, and it
+moves neither sizing axis. Sized `M` (several files) at complexity `medium`
+(mechanical transcription, plus one correctness-critical predicate), it fits
+inside two hours.
 
 **`169.015-T` has exactly two independent halt triggers, and both end with zero
 declared surfaces touched.** The first is a CLOSED readiness gate — any token

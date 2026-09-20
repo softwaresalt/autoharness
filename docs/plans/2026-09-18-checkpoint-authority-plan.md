@@ -7,13 +7,13 @@ date: 2026-09-18
 plan_id: checkpoint-authority
 plan_path: docs/plans/2026-09-18-checkpoint-authority-plan.md
 plan_role: active
-revision: 1
+revision: 2
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 is a fresh document replacing the eight-attempt append history of checkpoint-resume-hint-contract at architecture level. It awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 1 is a fresh document replacing the eight-attempt append history of checkpoint-resume-hint-contract at architecture level. It awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review. Revision 2 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan: the ACTIVATE commit modifies manifest-tracked installed artifacts and the Rollout section omitted the atomic .autoharness/harness-manifest.yaml checksum refresh those edits require. The Rollout section now binds decision D11 - the affected manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest - and states that the refreshes are commit members rather than activation surfaces, so no surface, consumer or gate count in this plan moves. No task is added and the live manifest is not edited: this is a future implementation contract. It still carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-checkpoint-authority-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 4
 source_stash_ids:
   - 71200CBB
 feature_id: 172-F
@@ -126,6 +126,27 @@ unclassified records; both torn records observed as `QUARANTINED` with reasons;
 **ACTIVATE.** One task, one commit: register the operation, narrow the
 frontmatter permission, and update the checkpoint procedure in the Ship and
 Stage templates and both installed mirrors — together.
+
+**Manifest parity is part of that same atomic unit (decision `D11`).** Both
+installed mirrors — `.github/agents/_ship.agent.md`, whose frontmatter
+permission this commit narrows, and `.github/agents/_stage.agent.md` — are
+**manifest-tracked installed artifacts** with an `artifacts:` entry in
+`.autoharness/harness-manifest.yaml` recording a `sha256` of their
+pre-activation content. The two templates are not tracked, and the operation
+module under `src/` is not tracked, so the ACTIVATE commit refreshes **exactly
+two** manifest entries. In the **same commit** and the **same rollback unit**,
+rewrite each of those two checksums to the `sha256` of the installed file *as
+written by this commit*, then **verify checksum parity** by re-digesting both
+installed files and comparing against the recorded values. A commit that
+narrows the permission or rewrites the procedure in either mirror without its
+manifest refresh leaves the manifest asserting a digest of a file the same
+commit has already rewritten — an installed-artifact parity hole — and is an
+**immediate revert**, not a fixup commit. The refreshes are **commit members,
+not activation surfaces**: they register no operation, narrow no permission and
+change no surface count stated anywhere in this plan. This binds a **future
+implementation commit**; it authorizes no staging-time edit to the live
+manifest, and none has occurred. It rewrites no historical checkpoint and is
+therefore untouched by the immutability rule below.
 
 ## Task re-harvest gate
 

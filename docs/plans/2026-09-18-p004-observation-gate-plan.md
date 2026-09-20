@@ -7,13 +7,13 @@ date: 2026-09-18
 plan_id: p004-observation-gate
 plan_path: docs/plans/2026-09-18-p004-observation-gate-plan.md
 plan_role: active
-revision: 1
+revision: 2
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 is a fresh document replacing the eight-attempt append history of p004-red-phase-precondition-scoping at architecture level. It awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 1 was a fresh document replacing the eight-attempt append history of p004-red-phase-precondition-scoping at architecture level. Revision 2 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan: the ACTIVATE commit edits two manifest-tracked installed artifacts — the installed policy surface carrying the cross-reference and the installed Ship mirror — and the rollout section omitted the atomic .autoharness/harness-manifest.yaml checksum refreshes those edits require. The Rollout section now binds decision D11 — exactly two manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest — and states that the refreshes are commit members rather than activation surfaces, so no surface count moves and P-004's text remains unamended. No task is added and the live manifest is not edited: this is a future implementation contract. It carries REMEDIATED-PENDING-REVIEW because it still awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-p004-observation-gate-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 4
 source_stash_ids:
   - 76EBDE6D
 feature_id: 168-F
@@ -113,6 +113,28 @@ failure yielding `NO_OBSERVATION` rather than `RED_CONFIRMED`.
 
 **ACTIVATE.** One task, one commit: the gate, its policy cross-reference, the
 Ship agent template and the installed mirror move together.
+
+**Manifest parity is part of that same atomic unit (decision `D11`).** Two of
+the activation surfaces are **manifest-tracked installed artifacts** —
+`.github/policies/workflow-policies.md`, which carries the policy
+cross-reference, and `.github/agents/_ship.agent.md`, the installed mirror.
+Each has an `artifacts:` entry in `.autoharness/harness-manifest.yaml`
+recording a `sha256` of its pre-activation content. The gate module under
+`src/` is not manifest-tracked, and the manifest tracks no template, so the
+ACTIVATE commit refreshes **exactly two** manifest entries. In the **same
+commit** and the **same rollback unit**, rewrite each of those two checksums to
+the `sha256` of the installed file *as written by this commit*, then **verify
+checksum parity** by re-digesting both installed files and comparing against
+the recorded values. A commit that edits either installed surface without its
+manifest refresh leaves the manifest asserting a digest of a file the same
+commit has already rewritten — an installed-artifact parity hole — and is an
+**immediate revert**, not a fixup commit. The manifest refreshes are **commit
+members, not activation surfaces**: they add no channel, no state, no gate
+behaviour and no policy text, and they change no surface count stated anywhere
+in this plan. This is a **future implementation contract**; it authorizes no
+staging-time edit to the live manifest, and none has occurred. It is also not
+an amendment of P-004's text, which remains out of scope below: refreshing a
+checksum records what a permitted edit did, it does not add a permitted edit.
 
 ## Task re-harvest gate
 

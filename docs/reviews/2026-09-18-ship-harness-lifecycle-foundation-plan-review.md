@@ -5,23 +5,23 @@ doc_type: review-manifest
 source: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
-manifest_revision: 9
+manifest_revision: 10
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
-plan_revision: 6
+plan_revision: 7
 feature_id: 181-F
 shipment_id: 187-S
-latest_attempt: 5
+latest_attempt: 6
 review_terminal: true
-terminal_designation: terminal-for-this-cycle
+terminal_designation: terminal-for-push-b
 terminal_disposition: PASS-P3-ONLY
-terminal_note: "Attempt 05 is TERMINAL for this cycle: it reviewed plan revision 6 at content HEAD 8847fc46, performed NO remediation, CLOSED the single carried P2 (S12) on independently re-derived live evidence, re-verified S13 as STILL TRUE and carried it OPEN at P3 without lowering it, and RAISED NO NEW FINDINGS. The verdict is PASS on the stated decision rule (P0/P1 FAIL, P2-only ADVISORY, P3-or-none PASS): p0 0, p1 0, p2 0, p3 1. No remediation cycle is proposed, so attempt 04's superseded-by-remediation designation is retired and this manifest is TERMINAL at attempt 05. S13 remains OPEN as a non-blocking follow-up in stash 703B6FAF Item 4, outside this shipment's scope; only a subsequent independent attempt may close it. Attempts 01-04, their verdicts, their counts and their immutable artifacts are UNCHANGED."
+terminal_note: "Attempt 06 is TERMINAL FOR PUSH B of PR #457 under docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md, and no further remediation cycle is authorized after it. It reviewed plan revision 7 against the working tree on committed base a192e50c, performed NO remediation, CLOSED the manifest-parity finding raised by the current-HEAD Copilot review of Push A, re-verified S13 as STILL TRUE and carried it OPEN at P3 without lowering it, and RAISED NO NEW FINDINGS. The verdict is PASS on the stated decision rule (P0/P1 FAIL, P2-only ADVISORY, P3-or-none PASS): p0 0, p1 0, p2 0, p3 1. Revision 7's only substantive change is the ACTIVATE contract moving from a declared two-file commit to THREE FILES AND TWO SURFACES by binding decision D11; the single-entry arithmetic was independently re-derived against the live 72-entry manifest, where the installed Ship mirror is tracked and templates/ is not tracked at all. No surface count moved and the live manifest was not edited. HISTORICAL: attempt 05 was terminal for the prior cycle, reviewed plan revision 6 at content HEAD 8847fc46, closed the single carried P2 (S12) and returned PASS; that PASS was attached to revision 6 and does NOT carry forward to revision 7. S13 remains OPEN as a non-blocking follow-up in stash 703B6FAF Item 4, outside this shipment's scope; only a subsequent independent attempt may close it. Attempts 01-05, their verdicts, their counts and their immutable artifacts are UNCHANGED."
 awaiting_attempt: null
-reviewed_content_head: 8847fc46
+reviewed_content_head: a192e50c
 gate_result: PASS
 verdict: PASS
 verdict_is_pass: true
-verdict_note: "PASS as independently determined by attempt 05 against plan revision 6 at HEAD 8847fc46, on the stated decision rule (P0/P1 FAIL, P2-only ADVISORY, P3/none PASS). Zero P0, zero P1 and zero P2 are open; one P3 (S13) remains open and does not gate under that rule, so the verdict is PASS. SM-2's HARVEST_ADMITTED state is defined against verdict: PASS and therefore OPENS for this unit — the plan-review gate no longer blocks it. EXECUTION IS SEPARATELY GATED AND THIS VERDICT DOES NOT LIFT THAT: 187-S declares a blocks edge on 188-S, which is still queued, so 187-S tasks are NOT claimable until 188-S reaches shipped. A review gate and a dependency gate are distinct and must not be conflated. No severity was lowered to reach this verdict and no finding was downgraded, deferred or closed other than S12, which was closed on re-derived live evidence."
+verdict_note: "PASS as independently determined by attempt 06 against plan revision 7 on committed base a192e50c, on the stated decision rule (P0/P1 FAIL, P2-only ADVISORY, P3/none PASS). Zero P0, zero P1 and zero P2 are open; one P3 (S13) remains open and does not gate under that rule, so the verdict is PASS. The revision-7 delta is the decision-D11 manifest-parity binding: the ACTIVATE commit now declares three files and two surfaces, refreshing the ONE .autoharness/harness-manifest.yaml artifacts entry that records .github/agents/_ship.agent.md in the same commit and the same rollback unit, then verifying checksum parity by re-digest. The entry count was re-derived from the live manifest rather than accepted from the plan: the mirror is tracked, no templates/ path is tracked, so a template-plus-mirror pair refreshes one entry and not two. The manifest refresh is a COMMIT MEMBER RATHER THAN A DECLARED SURFACE, so declared_surface_count remains 2 and no downstream digest input moves. Acceptance-matrix criteria A1-A4 of the bounded convergence decision are GitHub-dependent and were NOT OBSERVABLE in the session that produced attempt 06; they are recorded as not observed and are expressly NOT asserted. A5-A8 pass locally. SM-2's HARVEST_ADMITTED state is defined against verdict: PASS and therefore OPENS for this unit - the plan-review gate no longer blocks it. EXECUTION IS SEPARATELY GATED AND THIS VERDICT DOES NOT LIFT THAT: 187-S declares a dependency on 188-S, which is still queued, so 187-S tasks are NOT claimable until 188-S reaches shipped. A review gate and a dependency gate are distinct and must not be conflated. No severity was lowered and no finding was downgraded, deferred or closed other than the manifest-parity finding, which was closed on re-derived live evidence."
 p0_open: 0
 p1_open: 0
 p2_open: 0
@@ -35,9 +35,9 @@ findings_closed_at_attempt_05: [S12]
 findings_addressed_pending_review: []
 open_counts_note: "Counts are REAL, asserted by independent attempt 04 rather than by Stage. S10 is CLOSED: the ten-line citation set partitions exactly as plan revision 5 claims — a case-insensitive 'step 2' scan of .github/agents/_ship.agent.md (840 lines) returns exactly {184,214,275,283,302,305,326,336,377,748}; a case-SENSITIVE 'Step 2' scan returns exactly the six class-A+B lines {275,283,302,305,326,336}; a case-SENSITIVE 'step 2' scan returns exactly the four class-C lines {184,214,377,748}; the sets are disjoint and their union is the insensitive set. Class B was read in context and every one of the five genuinely denotes the top-level Task Execution Loop, and all five lie inside Step 0.5 Work Intake (:209-:328, the next heading being :329). Every class-C line resolves line-exact to item 2 of its own enclosing procedure (:183, :215, :358, :674). P6a and P6b are truthful and mechanically satisfiable, and the conservative Step-1.5 insertion renumbers nothing. S11 is CLOSED: D1-D3 / G1-G8 / P1-P6 carry one referent each across plan, 181.003-T, 181.004-T, 181.005-T, 181-F and 187-S; D2 is the successor anchor and D3 the predecessor boundary everywhere; every residual G1-G7 mention is an explicit withdrawal or supersession statement rather than a live assertion; the former private G6 is promoted to canonical G8 with an identical predicate; the former private G7 parity-wrapper is removed without loss; and the plan's 10-row failure-mode coverage table names only labels that exist in the canonical definitions. S12 (P2, new): the plan, 181.004-T, 181.005-T and this manifest each assert that every class-A and class-B line lies ABOVE the insertion point at :336 and that only :377 and :748 shift — but the class-A line IS :336 and the insertion is defined as occurring immediately BEFORE it, so the class-A heading shifts too. No gate, criterion or halt condition depends on it (P6b is correctly scoped to class B, P6a is about heading text, D1-D3 match whole lines and G1-G8 are counts), so it is non-blocking; it is P2 rather than P3 because 181.004-T directs the executor to RECORD the false claim into the VERIFY evidence record. S13 (P3, new): the three task records declare that every D, G and P label carries the plan's canonical referent, yet use P4 in the same records for the governing decision's portfolio slot (task titles 'P4 T1'-'P4 T5', and 181.004-T's 'P4 evidence record' / 'P4 RED assertion'), colliding with canonical parity criterion P4. Context disambiguates in every instance and no gate is ambiguous, so it is advisory only. REMEDIATION STATUS AT MANIFEST REVISION 8, ASSERTED BY STAGE AND NOT BY A REVIEWER: S12 is REMEDIATED AT ITS ROOT at plan revision 6 across the plan, 181.004-T's VERIFY evidence requirements, 181.005-T's ACTIVATE contract, 181-F and 187-S - the false claim is WITHDRAWN and replaced by the exact truthful classification (class B's five upstream references line-number stable; class A the shifted insertion successor, re-located by exact whole-line heading identity; class-C lines below the insertion point shift), with the positive rule that no gate may require the pre-insertion class-A line number after insertion. S13 is NOT remediated: by operator disposition it is captured as a low-priority non-blocking follow-up in stash 703B6FAF, outside this shipment's scope. NEITHER FINDING IS CLOSED AND NEITHER COUNT IS DECREMENTED - p2_open stays 1 and p3_open stays 1 until independent attempt 05 says otherwise."
 remediation_authorization: none-this-cycle
-latest_remediation_revision: 6
+latest_remediation_revision: 7
 latest_disposition: PASS-P3-ONLY
-latest_artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-05.md
+latest_artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-06.md
 publication_eligible: true
 publication_eligibility_note: "PUBLICATION-ELIGIBLE ON THE REVIEW AXIS ONLY. Verdict PASS with zero P0, P1 and P2 opens SM-2's HARVEST_ADMITTED, which is defined against verdict PASS. EXECUTION REMAINS SEPARATELY GATED: 187-S declares a blocks edge on 188-S (status queued), so 187-S tasks are NOT claimable until 188-S reaches shipped. Two distinct gates; this verdict lifts only the first."
 attempts:
@@ -125,6 +125,26 @@ attempts:
     remediation_revision: null
     disposition: PASS-P3-ONLY
     dispatch_mode: single-agent-declared-degradation
+  - attempt: 6
+    artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-06.md
+    reviewed_revision: 7
+    reviewed_content_head: a192e50c
+    gate_result: PASS
+    verdict: PASS
+    verdict_is_pass: true
+    p0: 0
+    p1: 0
+    p2: 0
+    p3: 1
+    blocking: []
+    closed_predecessor_findings: []
+    carried_predecessor_findings: [S13]
+    findings_raised: []
+    remediation_revision: null
+    disposition: PASS-P3-ONLY
+    terminal_designation: terminal-for-push-b
+    dispatch_mode: single-agent-declared-degradation
+    remediation_note: "Attempt 06 performed NO remediation and proposes NO remediation cycle. It CLOSED the manifest-parity finding raised by the PR #457 current-HEAD Copilot review of Push A, on entry counts independently re-derived from the live 72-entry manifest rather than accepted from the plan, and re-verified S13 as STILL TRUE without lowering it. It is TERMINAL FOR PUSH B: no further remediation cycle is authorized."
     remediation_note: "Attempt 05 performed NO remediation and proposes NO remediation cycle. It CLOSED S12 on independently re-derived live evidence, re-verified S13 as still true and carried it OPEN at P3 without lowering it, and raised NO new findings. Terminal for this cycle."
 carried_forward_context:
   - "S1 (P1, was blocking) — CLOSED AT ATTEMPT 02. Verified on nine live carriers that no task generates, installs, modifies or deletes 188-S's deliverable and that rollback is unit-scoped: plan Rollout, Blast radius, Rollback and Tasks; the 187-S and 181-F records; and the 181.002-T, 181.004-T and 181.005-T records. The hardening pass is genuinely re-derived rather than re-dated - H1 is rewritten and H7/H8 are new questions that did not exist at revision 2."
@@ -146,7 +166,7 @@ carried_forward_context:
   - "OBSERVATION RECORDED AT ATTEMPT 04, NOT A FINDING, 188-S NOT MUTATED: docs/reviews/2026-09-20-harness-architect-bootstrap-plan-review.md carries plan_revision 3, latest_attempt 3 and a verdict_note saying attempt 03 ran 'against plan revision 3', while its description says attempt 03 ran 'against plan revision 4'. Classified as IMMATERIAL TO 187-S: this unit consumes 188-S only as a blocks dependency edge and as the installer of the harness-architect surface, nothing in the 187-S plan, feature, shipment or task records reads 188-S's manifest description or governing plan revision number, and no 187-S gate, criterion, edge or claim decision turns on it. It is distinct from B6, which concerns the 188-S SHIPMENT RECORD rather than its manifest. Surfaced for operator decision in a 188-S-authorized cycle; 188-S's PASS verdict, manifest and reviewed plan contract are UNCHANGED. CAPTURE STATUS AT MANIFEST REVISION 8: this observation is now ALSO CAPTURED as a DISTINCT low-priority P3 follow-up in active stash entry 703B6FAF, Item 5, outside this shipment's scope and separate from Item 3 (B6, the 188-S SHIPMENT RECORD self-contradiction). 188-S was still NOT mutated and no 188-S reviewed content was changed in this cycle."
   - "ATTEMPT-05 CYCLE STATUS: S12 is CLOSED by independent re-derivation against live content at HEAD 8847fc46; S13 is RE-VERIFIED AS STILL TRUE and remains OPEN at P3, not lowered; NO new findings were raised. Attempt 05 performed NO remediation and proposes NO remediation cycle — it was run review-only under an explicit operator boundary (no branch or worktree change, no implementation, no plan/backlog/stash mutation, no push, no PR interaction, no 188-S mutation, no Ship claim or execution) and wrote only its immutable attempt artifact and this manifest. S1-S11 closures were re-verified and all remain valid: canonical D1-D3/G1-G8/P1-P6 labels (the only out-of-family tokens being D9 and P4, which ARE S13 and not a new defect); update-in-place (template D1 literal occurs exactly once at :326, exactly one G5 heading); mirror insertion (G2 count 0, harness-ready 0, harness-architect 0); rollback unit-scoped over two files with the harness-architect deliverable and all policy text explicitly out of reach; sizing {M:1, S:3, XS:1} with unsized 0 and 181.005-T held at M/high; the 187-S -> 188-S blocks edge as the ONLY edge with 188-S a dependency-free DAG root and the graph acyclic; and P5 bindings re-derived exact (BUILD_CHECK_COMMAND at harness-manifest :470, STATUS_QUEUED absent from variables_used which begins at :462 — its sole file occurrence at :196 is unrelated prose — binding instead from backlog-registry status_values.queued at :249). Integrity gates clean: git diff --check exit 0 with zero tracked modifications; YAML frontmatter parses on the plan, this manifest, the attempt-04 and attempt-05 artifacts, 181-F, all five 181.x records and 187-S; the plan's only {{...}} matches are the intentional inline-code literals at :349 and :404 (moved from :305/:360 only because the S12 correction added text above them); all 17 referenced paths resolve except .github/skills/harness-architect/ and its SKILL.md, which are 188-S's not-yet-executed deliverable and an expected-absent forward reference. 188-S METADATA P3s WERE INSPECTED FOR LEAKAGE ONLY AND NONE LEAKED: B4 (1D0033E0), B5 (703B6FAF Item 1), B6 (703B6FAF Item 3), S13 (Item 4) and the 188-S verdict-manifest mismatch (Item 5) are each represented exactly once, neither stash ID is a manifest member, and the single occurrence of each inside 187-S.md:42 and 188-S.md:46 is PROSE in a claimability paragraph. THE VERDICT IS PASS: SM-2's HARVEST_ADMITTED OPENS on the review axis. EXECUTION REMAINS SEPARATELY GATED on 188-S reaching shipped (currently queued) — a dependency gate this verdict does not and cannot lift. No severity was lowered and no finding count was decremented other than p2_open, on evidence."
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 3
+decision_revision: 4
 tags:
   - "plan-review"
   - "verdict-manifest"
@@ -164,25 +184,26 @@ attempt artifact is authoritative right now, and nothing else.
 | Field | Value |
 |---|---|
 | `plan_id` | `ship-harness-lifecycle-foundation` |
-| `manifest_revision` | 9 |
-| `plan_revision` | **6** |
-| `latest_attempt` | **05** (against plan revision **6**) |
-| `latest_artifact` | `docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-05.md` |
+| `manifest_revision` | 10 |
+| `plan_revision` | **7** |
+| `latest_attempt` | **06** (against plan revision **7**) |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-06.md` |
 | `gate_result` | **PASS** |
 | `verdict` | **PASS** |
 | `verdict_is_pass` | **true** |
-| `latest_remediation_revision` | 6 |
+| `latest_remediation_revision` | 7 |
 | `latest_disposition` | `PASS-P3-ONLY` |
-| `awaiting_attempt` | — (**terminal for this cycle**; no remediation cycle proposed) |
+| `awaiting_attempt` | — (**terminal for Push B**; no remediation cycle authorized) |
 | `p0_open` / `p1_open` / `p2_open` / `p3_open` | **0 / 0 / 0 / 1** |
 | `findings_closed_at_attempt_02` | `S1`–`S6` (all six) |
 | `findings_closed_at_attempt_03` | `S7`, `S8`, `S9` |
 | `findings_closed_at_attempt_04` | `S10`, `S11` |
 | `findings_closed_at_attempt_05` | `S12` |
+| `findings_closed_at_attempt_06` | the manifest-parity finding from the PR #457 current-HEAD review |
 | `open_findings` | `S13` (P3) — **carried**, re-verified still true, **not lowered** |
-| `findings_raised_at_attempt_05` | **none** |
+| `findings_raised_at_attempt_06` | **none** |
 
-**The verdict is `PASS`.** Attempt 05 applied the decision rule P0/P1 →
+**The verdict is `PASS`.** Attempt 06 applied the decision rule P0/P1 →
 `FAIL`, P2-only → `ADVISORY`, P3-or-none → `PASS`, and landed on `PASS`
 because zero P0, zero P1 and zero P2 are open. SM-2's `HARVEST_ADMITTED` state
 is defined against `verdict: PASS` and therefore **opens** for this unit — the
@@ -200,6 +221,40 @@ remains **open** at P3.
 
 **`S1`–`S11` remain closed**, re-verified at attempt 05 against live
 repository content and the revision-6 plan and task records.
+
+## What attempt 06 closed
+
+Attempt 06 reviewed **revision 7**, whose only substantive change is the
+decision-`D11` manifest-parity binding in the ACTIVATE contract.
+
+* **The manifest-parity finding — CLOSED.** The PR #457 current-HEAD Copilot
+  review found `181.005-T` declaring a two-file-only commit that modifies the
+  **manifest-tracked** installed Ship mirror while omitting the
+  `.autoharness/harness-manifest.yaml` checksum refresh that edit requires. That
+  was a **false contract**, not a missing nicety: an executor obeying it
+  literally lands a commit whose manifest records a checksum for a file the same
+  commit just changed, and whose rollback unit is torn.
+* **The entry arithmetic was re-derived, not accepted.** The live manifest holds
+  **72** `artifacts:` entries. `.github/agents/_ship.agent.md` **is** tracked;
+  the set of tracked `templates/` paths is **empty**. A template-plus-mirror
+  pair therefore refreshes **exactly one** entry, not two — and the plan,
+  `181.005-T`, `181-F` and `187-S` all say one. A carrier claiming two would
+  have been a new finding; none does.
+* **The surface/member distinction holds everywhere.** The refresh is a
+  **commit member, not a declared surface**, so `declared_surface_count` stays
+  at 2 and no downstream digest input moves. `187-S` states the arithmetic in
+  full: *"THE COMMIT THEREFORE CONTAINS THREE FILES AND CHANGES TWO SURFACES."*
+* **Rollback is whole.** A single-commit revert restores both Ship surfaces and
+  the one checksum exactly and together; the post-revert state is the known
+  pre-existing drift, which is today's state rather than a novel broken one.
+* **Scope is contained.** `187-S` forbids touching any other manifest entry,
+  naming `.github/skills/harness-architect/SKILL.md` as belonging to `188-S`.
+* **No live-manifest edit.** Revision 7 is a future implementation contract; the
+  manifest was read and never written.
+
+`H7`, the Rollback section, the Blast radius section, the Verification floor,
+`181.005-T`, `181-F` and `187-S` were each re-read for parity and agree at three
+files and two surfaces. No new findings were raised.
 
 ## What attempt 05 closed
 
@@ -236,7 +291,7 @@ repository content and the revision-6 plan and task records.
   wording returns **only** explicit withdrawal statements and **zero** live
   assertions.
 
-## Findings open after attempt 05
+## Findings open after attempt 06
 
 * **`S13` (P3) — advisory only, carried, re-verified still true.** The three
   task records declare that *every* `D`, `G` and `P` label carries the plan's
@@ -553,25 +608,31 @@ ever a `disposition`.
 | 02 | `…-attempt-02.md` | 3 | **FAIL** (P0 0 / P1 1 / P2 2 / P3 0) | 4 | `FAIL-BLOCKING-P1` |
 | 03 | `…-attempt-03.md` | 4 | **ADVISORY** (P0 0 / P1 0 / P2 2 / P3 0) | 5 | `ADVISORY-P2-ONLY` |
 | 04 | `…-attempt-04.md` | 5 | **ADVISORY** (P0 0 / P1 0 / P2 1 / P3 1) | 6 | `REMEDIATED-PENDING-REVIEW` |
-| 05 | `…-attempt-05.md` | 6 | **PASS** (P0 0 / P1 0 / P2 0 / P3 1) | — | `PASS-P3-ONLY` |
+| 05 | `…-attempt-05.md` | 6 | **PASS** (P0 0 / P1 0 / P2 0 / P3 1) | 7 | `PASS-P3-ONLY` |
+| 06 | `…-attempt-06.md` | 7 | **PASS** (P0 0 / P1 0 / P2 0 / P3 1) | — | `PASS-P3-ONLY`, terminal for Push B |
 
-The attempt-05 row is **terminal for this cycle**. It closed `S12` on
-independently re-derived live evidence, re-verified `S13` as still true and
-carried it **open** at P3 without lowering it, and raised **no** new findings.
-No remediation was performed at attempt 05 and none is proposed, so the
-`remediation_revision` column is empty. The `PASS` confers **review-axis
+The attempt-06 row is **terminal for Push B**. It closed the manifest-parity
+finding on entry counts independently re-derived from the live 72-entry
+manifest, re-verified `S13` as still true and carried it **open** at P3 without
+lowering it, and raised **no** new findings. No remediation was performed at
+attempt 06 and none is authorized, so the `remediation_revision` column is
+empty. (Attempt 05 was terminal for its own cycle and closed `S12`; revision 7
+followed it to remediate the current-HEAD Copilot finding, so attempt 05's
+remediation column now names revision 7.) The `PASS` confers **review-axis
 eligibility only**: SM-2's `HARVEST_ADMITTED` opens, but `187-S` tasks remain
 not claimable until `188-S` reaches `shipped`.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` at revision 6
+* Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` at revision 7
 * Feature: `181-F` — Shipment: `187-S` (queued, depends on `188-S`)
 * Source stash: `76EBDE6D` (archived — `.backlogit/archive/stash.jsonl` line 234)
 * Bootstrap precursor: `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` (`188-S`)
 * Governing decision: the 2026-09-18 shared-execution-architecture and
-  portfolio-reslicing decision, revision 3, `D9`
+  portfolio-reslicing decision, revision 4, `D9` and `D11` (manifest parity)
+* Bounding decision: `docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md`
 * Origin of revision 2: PR-457 Copilot review thread `PRRT_kwDORzpWpM6kHrw5`
+* Origin of revision 7: PR-457 current-HEAD Copilot thread on `.backlogit/queue/181.005-T.md:19`
 
 ## Authority
 

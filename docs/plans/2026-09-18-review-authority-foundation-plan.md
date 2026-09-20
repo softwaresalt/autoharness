@@ -7,13 +7,13 @@ date: 2026-09-18
 plan_id: review-authority-foundation
 plan_path: docs/plans/2026-09-18-review-authority-foundation-plan.md
 plan_role: active
-revision: 1
+revision: 2
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. It carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. It carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review. Revision 2 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan: the ACTIVATE commit modifies manifest-tracked installed artifacts and the Rollout section omitted the atomic .autoharness/harness-manifest.yaml checksum refresh those edits require. The Rollout section now binds decision D11 - the affected manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest - and states that the refreshes are commit members rather than activation surfaces, so no surface, consumer or gate count in this plan moves. No task is added and the live manifest is not edited: this is a future implementation contract. It still carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-review-authority-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 4
 source_stash_ids:
   - C9CD24F3
 feature_id: 180-F
@@ -164,6 +164,26 @@ surfaces simultaneously. Sequential edges are not atomic: a commit between two
 migration tasks is a state in which Harvest reads the manifest while
 plan-review still writes only the inline marker, or a mirror has drifted from
 its template. All four move together or none do.
+
+**Manifest parity is part of that same atomic unit (decision `D11`).** Two of
+the four migrated surfaces — `.github/skills/harvest/SKILL.md` and
+`.github/skills/plan-review/SKILL.md` — are **manifest-tracked installed
+artifacts**, each with an `artifacts:` entry in
+`.autoharness/harness-manifest.yaml` recording a `sha256` of its pre-migration
+content. The two templates are not tracked, so `180.010-T` refreshes **exactly
+two** manifest entries and its commit contains **six files while migrating four
+consumers**. In the **same commit** and the **same rollback unit**, rewrite
+each of those two checksums to the `sha256` of the installed file *as written
+by this commit*, then **verify checksum parity** by re-digesting both installed
+files and comparing against the recorded values. A commit that migrates either
+installed skill without its manifest refresh leaves the manifest asserting a
+digest of a file the same commit has already rewritten — an installed-artifact
+parity hole in the very file this unit is making the single review authority —
+and is an **immediate revert**, not a fixup commit. The refreshes are **commit
+members, not consumer surfaces**: the consumer count stays **four**, no gate
+arity moves, and the normalizer's fixture set is untouched. This binds a
+**future implementation commit**; it authorizes no staging-time edit to the
+live manifest, and none has occurred.
 
 ## Tasks
 

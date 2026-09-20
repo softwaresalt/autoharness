@@ -12,13 +12,13 @@ harvest_withheld_reason: "Shipment 184-S, covering feature 178-F and its tasks w
 harvest_gate_artifact: docs/spikes/2026-09-18-autoharness-operation-transport-findings.md
 reharvest_condition: "Stage re-harvests this plan's records only in a NEW staging session, after reading the gate artifact and observing TRANSPORT_DECIDED. Non-authorizing states harvest nothing. This plan is PRESERVED INTACT and UNREDUCED; only its live, claimable records are withdrawn."
 withheld_records: .backlogit/archive/
-revision: 1
+revision: 2
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. It carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 1 was a fresh document authored under the strategic redesign, not a remediation of a prior revision. Revision 2 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan: the ACTIVATE commit edits two manifest-tracked installed agent mirrors and the rollout section omitted the atomic .autoharness/harness-manifest.yaml checksum refresh those edits require. The Rollout section now binds decision D11 — exactly two manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest — and states that the manifest refreshes are commit members rather than activation surfaces, so no surface count in this plan moves. No task is added, no transport decision is pre-empted, and the live manifest is not edited: this is a future implementation contract. It carries REMEDIATED-PENDING-REVIEW because it still awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-operation-substrate-transport-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 4
 source_stash_ids:
   - 86498B64
   - 14F4D6F3
@@ -140,6 +140,28 @@ simultaneously.
 > server is registered but the agents do not know the contract, or one mirror
 > has drifted from its template. Every surface that must not disagree is in
 > this one task.
+
+**Manifest parity is part of that same atomic unit (decision `D11`).** Both
+installed mirrors — `.github/agents/_ship.agent.md` and
+`.github/agents/_stage.agent.md` — are **manifest-tracked installed
+artifacts**: `.autoharness/harness-manifest.yaml` carries an `artifacts:`
+entry for each, recording a `sha256` of its pre-activation content. The two
+templates are **not** tracked — the manifest tracks no template — and
+`.mcp.json` is **not** tracked either, so the ACTIVATE commit refreshes
+**exactly two** manifest entries. In the **same commit** and the **same
+rollback unit**, rewrite each of those two checksums to the `sha256` of the
+installed file *as written by this commit*, then **verify checksum parity** by
+re-digesting both installed files and comparing against the recorded values. A
+commit that states the invocation contract in either mirror without its
+manifest refresh leaves the manifest asserting a digest of a file the same
+commit has already rewritten — an installed-artifact parity hole — and is an
+**immediate revert**, not a fixup commit. The manifest refreshes are **commit
+members, not activation surfaces**: they add no transport, no command, no
+server registration and no contract clause, and they change no surface count
+stated anywhere in this plan. `git revert` of the single ACTIVATE commit
+restores the mirrors, the templates, `.mcp.json` **and** both manifest
+checksums together. This binds a **future implementation commit**; it
+authorizes no staging-time edit to the live manifest, and none has occurred.
 
 ## Tasks
 

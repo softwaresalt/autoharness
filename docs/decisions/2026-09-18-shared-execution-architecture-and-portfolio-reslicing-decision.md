@@ -5,8 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 date: 2026-09-18
 status: decided
-revision: 3
-revision_note: "Revision 3 amends D9 ONLY, adding the fifth CLAIM bound to the one-time bootstrap boundary in response to independent plan-review attempt 01 of the 188-S bootstrap plan (finding B1). The four EXECUTION bounds established at revision 2 are unchanged in substance, the seven gated shipment edges are unchanged, and D1-D8 and D10 are untouched. Revision 2 added D9 and D10 in response to the PR #457 staging review; D1-D8 were unchanged in substance there, with D4 item 1 and the D8 DAG updated to name the bootstrap precursor and the withheld conditional successors. The D9 entry under preserved_from_superseded_decision refers to the SUPERSEDED 2026-09-17 deliberation's D9 and is unrelated to this document's new D9."
+revision: 4
+revision_note: "Revision 4 responds to the PR #457 current-HEAD Copilot review of Push A (eight threads, all P-021 C1 in-scope completions of already-published plans). It makes TWO amendments. (1) D9 IS REWRITTEN AT ITS ROOT: the revision-3 CLAIM carve-out is WITHDRAWN IN FULL, together with every exemption, carve-out and authority-expiry claim attached to it. The carve-out was not machine-admissible - P-002's Enforcement mechanically filters Ship's ready queue to tasks carrying the harness-ready label, the installed Ship agent contains no task-ID exception, and backlog prose cannot waive an installed filter. It is replaced by a MACHINE-ADMISSIBLE path: the harness-architect procedure runs once from its authoritative template as 188-S's producer-side entry precondition PRE-0, producing P-004's full mechanical evidence and then RE-ASSERTING the REAL harness-ready LABEL on all four tasks of 182-F, which Ship's ordinary unmodified filter admits. THE AUTHORED LABEL IS NOT A PRE-DATED OBSERVATION: a queue record's labels are authored by Stage, so the label must be on the record for the filter to read it at all; its presence declares the required end state and asserts no evidence, and the ORDERING is enforced by a TOKEN rather than by the label - 182.001-T's first action reads the recorded Compilation: PASS / Red Phase: CONFIRMED postcondition and FAILS CLOSED, so a workspace carrying the label without the evidence halts before the unit's first write. Label = queue admission; token = authorization. No Ship edit, no P-002/P-004 edit, no gate edit, no grant, no force flag and no waiver. (2) D11 IS ADDED: the manifest-parity invariant for activations that create or modify manifest-tracked installed artifacts. D1-D8 and D10 are untouched in substance. Revision 3 added the D9 claim bound now withdrawn. Revision 2 added D9 and D10 in response to the PR #457 staging review; D1-D8 were unchanged in substance there, with D4 item 1 and the D8 DAG updated to name the bootstrap precursor and the withheld conditional successors. The D9 entry under preserved_from_superseded_decision refers to the SUPERSEDED 2026-09-17 deliberation's D9 and is unrelated to this document's new D9."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -533,8 +533,9 @@ lifecycle**. Concretely:
 
 1. `templates/skills/harness-architect/SKILL.md.tmpl` is installed to
    `.github/skills/harness-architect/SKILL.md` — the actor P-004 already names
-   (F3) is made to exist. **At revision 2 that install happens in the one-time
-   precursor `188-S`, not in `187-S`** — see D9. `187-S` consumes the installed
+   (F3) is made to exist, and is registered in the harness manifest under
+   `D11`. **At revision 2 that install happens in the narrow precursor
+   `188-S`, not in `187-S`** — see D9. `187-S` consumes the installed
    actor rather than producing it.
 2. The Ship agent gains an explicit pre-task harness-generation phase that
    invokes it, in both `templates/agents/_ship.agent.md.tmpl` and
@@ -685,7 +686,7 @@ edge-less shipment blocks as `unsequenced` rather than passing as a root. A
 root that is stated only in prose is therefore not a root. (PR #457 threads
 `PRRT_kwDORzpWpM6kHrxD`, `PRRT_kwDORzpWpM6kHrxY`, `PRRT_kwDORzpWpM6kHrxc`.)
 
-### D9 — The harness-architect actor installs through a narrow one-time bootstrap precursor (revision 2, claim bound added at revision 3)
+### D9 — The harness-architect actor installs through a narrow precursor, admitted by the ordinary P-002 label (revision 4: the claim carve-out is withdrawn)
 
 D4 decided *that* the actor must really exist. It did not decide *how the first
 one gets built*, and PR #457 review thread `PRRT_kwDORzpWpM6kHrw5` showed the
@@ -702,7 +703,8 @@ was right. The decision is therefore an **actor/automation split**:
 
 * **`188-S` (BOOTSTRAP-0)** — a dedicated, separately reviewed precursor
   shipment whose entire deliverable is **one generated file**,
-  `.github/skills/harness-architect/SKILL.md`. Plan:
+  `.github/skills/harness-architect/SKILL.md`, plus that file's registration in
+  the harness manifest under `D11`. Plan:
   `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md`. Feature `182-F`,
   tasks `182.001-T` … `182.004-T`.
 * **`187-S`** keeps the resolver, the lifecycle phase and the
@@ -713,68 +715,178 @@ was right. The decision is therefore an **actor/automation split**:
   declares an explicit `blocks` edge on `188-S`**: `185-S`, `186-S`, `187-S`,
   `176-S`, `178-S`, `180-S`, and the withheld `184-S`.
 
-**This is not a waiver, and not a bootstrap grant.** P-004's precondition is
-*mechanical and actor-independent* — `py_compile` exits 0 **and**
-`unittest discover` exits non-zero with the expected markers. The skill file is
-the **procedure specification**; those commands are the **evidence**. Because
-`templates/skills/harness-architect/SKILL.md.tmpl` is already complete (Step 5.1
-compilation, Step 5.2 red phase, Step 6 labelling), `188-S` executes that
-procedure **directly from the template** and produces the *full* evidence the
-policy demands — strictly more than a waiver, which would produce none. `188-S`
-consumes no `.autoharness/bootstrap-grants/` file, writes none, uses no
-`--force`, and touches no force-audit log. No agent may author or widen a
-grant; none is authored here.
+#### The revision-3 claim carve-out is withdrawn in full (revision 4)
 
-**The one-time boundary is bounded on five axes**, and is non-inheritable:
+Revision 3 added a fifth **Claim** bound: a carve-out admitting exactly
+`182.001-T` and `182.002-T` to Ship's ready queue *without* the `harness-ready`
+label. The current-HEAD review of Push A found that bound **not executable**,
+and the finding is accepted without downgrade:
+
+> P-002's Enforcement is mechanical — "filter ready queue to only tasks
+> carrying the `harness-ready` label" — and it is evaluated at **queue building
+> (Step 2) and task claiming (Step 3)**. The installed Ship agent carries no
+> `188-S` exception and no task-ID exception, and this portfolio forbids
+> editing Ship, P-002, P-004 or any gate. **A carve-out declared in backlog or
+> plan prose cannot waive an installed filter.** A task without the label is
+> not admitted, whatever any record says about it.
+
+The carve-out is therefore **withdrawn**, and with it every exemption,
+carve-out and authority-expiry claim that depended on it. Nothing is
+re-described; the mechanism is replaced.
+
+#### The replacement: a machine-admissible path
+
+The defect in revision 3 was **structural, not narrative**. It placed
+*producer-side* work — generating the harness, observing both P-004 channels,
+and applying the label (authoritative template Steps 5.1, 5.2 and 6) — inside
+Ship's *consumer-side* P-002 queue, and then needed an exception to get it out
+again. P-002's `Applies To` row states the separation explicitly:
+`ship` is the **consumer**; the harness-architect is the **producer**. The
+producer is never admitted through Ship's ready-queue filter, so it never
+needed an exception.
+
+**`PRE-0` — the producer-side entry precondition of `188-S`.** Before `188-S`'s
+tasks enter Ship's ready queue, the harness-architect procedure is executed
+**once**, read directly from its authoritative template
+`templates/skills/harness-architect/SKILL.md.tmpl`. It:
+
+1. authors the harness — the harness-architect conformance assertion over
+   `.github/skills/harness-architect/SKILL.md`;
+2. runs `python -m py_compile src/autoharness/cli.py`, which must exit `0`;
+3. runs `PYTHONPATH=src python -m unittest discover -s tests`, which must exit
+   non-zero with the assertion present in the failure set carrying its expected
+   marker;
+4. records the P-004 postcondition `Compilation: PASS` and
+   `Red Phase: CONFIRMED`; and only then
+5. **re-asserts the real `harness-ready` label on all four tasks of `182-F`**,
+   per template Step 6.
+
+**The label is authored on the records, and `PRE-0` is what makes it true.** A
+queue record's `labels` list is authored by Stage; a plan cannot ask Ship's
+filter to read a label that is not on the record, so all four records carry
+`harness-ready` as authored text. That authored presence **declares the required
+end state and asserts no evidence**. `PRE-0` step 5 re-asserts the label through
+the backlog tool's update operation after — and only after — both channels have
+passed, which is the template's own guardrail (*"Do not apply the harness-ready
+label until both compilation and red phase checks pass"*). Because a label
+cannot prove *when* it was applied, the ordering is enforced by a **token, not
+by the label**: `182.001-T`'s first action, before it opens any file for
+writing, reads `.autoharness/harness-manifest.yaml` for `Compilation: PASS` and
+`Red Phase: CONFIRMED` and **fails closed** — touching no file, making no
+commit, exiting non-zero and returning the unit to Stage — if that postcondition
+is absent, unreadable, or not affirmatively both. **The label supplies queue
+admission; the recorded postcondition supplies authorization.** A record
+carrying the label while the manifest carries no postcondition is a defect to
+halt on, never a permission.
+
+**P-004 is satisfied exactly, and in the order it prescribes.** Its precondition
+is mechanical and actor-independent: two named commands and their observed
+outcomes. Nothing in it requires the *installed copy* of the skill to be the
+thing that runs them. The skill file is the **procedure specification**; the
+commands are the **evidence**. The label is applied *after* the red phase is
+confirmed, never before — which is P-004's whole ordering requirement.
+
+**P-002 is satisfied mechanically, not by prose.** Each of `182.001-T`,
+`182.002-T`, `182.003-T` and `182.004-T` **carries the `harness-ready` label on
+its record**. Ship's ordinary, unmodified ready-queue filter admits them by the
+ordinary rule. There is nothing for an installed filter to know about `188-S`,
+because `188-S` is no longer asking for anything unusual.
+
+**What this costs and what it does not.** No task is added, removed, resized or
+resequenced; the four-task chain and its three edges are unchanged. No Ship
+agent edit, no P-002 or P-004 text edit, no gate or `pre_claim` edit, no
+`.autoharness/bootstrap-grants/` file consumed or written, no `--force`, no
+force-audit entry, no operator exemption note, and no self-authorization by any
+agent. Strictly **more** evidence is produced than a waiver would produce, and
+strictly **fewer** exceptions exist than revision 3 declared.
+
+**Bounds that remain, and what they now are.** Two bounds survive, and neither
+is an exemption from anything — both are ordinary plan scope:
 
 | Axis | Bound |
 |---|---|
-| Scope | `188-S`'s tasks only. Not inherited by any successor. |
-| Count | Once, by `182.002-T`. |
-| Deliverable | One named file. |
-| Expiry | The `HARNESS_ARCHITECT_INSTALLED` token. |
-| Claim *(revision 3)* | Exactly `182.001-T` and `182.002-T` may be admitted to Ship's ready queue without the `harness-ready` label. No other task, feature or shipment. Not inherited. |
+| Deliverable | One generated file, `.github/skills/harness-architect/SKILL.md`, plus its `D11` manifest registration. Generating any other absent surface is out of scope. |
+| Procedure source | The procedure text is read from the authoritative template exactly once, for the single reason that no installed copy exists yet. Once the actor is installed, every unit — including any re-run of `188-S` — reads the installed copy. |
 
-It is also **non-re-enterable**: installing the actor destroys the very
-condition that justified the authority.
+`HARNESS_ARCHITECT_INSTALLED` is retained, but strictly as the **composed-state
+completion token** of `D6`, emitted by `182.004-T` and consumed by the gated
+shipments. It is **not** the expiry of an authority, because revision 4 declares
+no authority for it to expire.
 
-**The claim bound (revision 3).** Attempt 01 of the `188-S` plan review found
-that the four execution bounds above never reach P-002's *claim* precondition.
-P-002 is not only an evidence gate: its Precondition is "the task carries the
-`harness-ready` label" and its Enforcement is "filter ready queue to only tasks
-carrying the `harness-ready` label". The sole declared producer of that label is
-the harness-architect — the actor `188-S` installs. So the ordinary harness-ready
-filter can admit **no** task at all until the actor exists, and the two tasks
-that establish and install it would be unclaimable. The deadlock closed at the
-shipment layer would reproduce itself one layer down, at task claiming.
+### D11 — Manifest-tracked installed artifacts are registered in the same atomic unit that creates or modifies them
 
-The fifth bound is therefore a **claim carve-out**, stated separately from the
-Count axis because "may be admitted to the ready queue" and "may execute the
-harness-architect procedure from its template" are different permissions that
-must remain separately bounded and separately auditable:
+The current-HEAD review of Push A found the same false contract in six
+authoritative carriers: an activation that creates or modifies an installed
+artifact tracked in `.autoharness/harness-manifest.yaml`, declared as "one
+commit, *N* files, nothing else", with the manifest refresh omitted. Such a
+commit leaves the manifest's recorded checksum describing a file that no longer
+exists in that form — a silently false installed-state record, and a rollback
+unit that does not restore what it claims to restore.
 
-* It names **exactly** `182.001-T` and `182.002-T`, and authorizes **only**
-  their admission to the ready queue. It authorizes no execution, no other
-  task, no feature, no shipment, and nothing by inheritance.
-* `182.003-T` and `182.004-T` are **not** covered, because `182.002-T` applies
-  the `harness-ready` label to this unit's remaining tasks (template Step 6)
-  before they are reached; they are admitted by the ordinary filter.
-* It **expires with the other four bounds**, on `182.004-T`'s emission of
-  `HARNESS_ARCHITECT_INSTALLED`, and inherits the same non-re-enterability
-  argument unchanged.
-* It is **not a waiver of P-002**. P-002's Statement governs claiming *and
-  implementing*; neither carved-out task implements anything. `182.001-T`
-  authors the failing assertion and writes no production code; `182.002-T`
-  produces the full P-004 evidence and writes no production code. Every task in
-  the portfolio that implements anything — including `182.003-T`, the only
-  commit in this unit — is claimed under the ordinary label.
-* It is **not** a bootstrap grant: it consumes no `.autoharness/bootstrap-grants/`
-  file, writes none, uses no `--force`, touches no force-audit log, and is not
-  an operator exemption note. It is declared in a review-gated plan, exercised
-  by Ship, and expires on a token. No agent may author, widen or re-date it.
-* It amends **no policy text**. P-002 remains correct as written; this unit
-  satisfies it, and the carve-out is a plan-declared, review-gated,
-  token-expiring exception recorded on every surface that an executor reads.
+**The invariant, stated once and inherited by every activation in this
+portfolio:**
+
+> Any activation that **creates or modifies** an artifact tracked in
+> `.autoharness/harness-manifest.yaml` MUST, **in the same commit and the same
+> rollback unit**, update or register that artifact's manifest entry — `path`,
+> `primitive`, `template` and `checksum` — and MUST then **verify checksum
+> parity** between each refreshed entry and the on-disk file it describes. The
+> manifest is therefore a member of every such commit, and every "exactly *N*
+> files" or "nothing else" statement in the governing plan, feature, shipment
+> and task records counts it.
+
+**Scope, stated precisely so the invariant is not over-applied:**
+
+* It binds on **installed artifacts only** — the 72 entries under the
+  manifest's `artifacts:` key, which today are paths under `.github/` and
+  `.autoharness/`.
+* It does **not** bind on `templates/`. No template path is manifest-tracked
+  (zero entries), so a template edit carries no manifest obligation and a
+  template-and-mirror pair refreshes **one** entry, not two.
+* It does **not** bind on untracked paths that merely live under `.github/` —
+  `.github/workflows/ci.yml` and `.mcp.json` are not manifest entries and are
+  not covered.
+* It does **not** change any `declared_surface_count` or surface-enumeration
+  rule. Where a unit enumerates declared surfaces by a rule that excludes
+  `.autoharness/` (as `169-F`'s rule does), the manifest refresh is a **commit
+  member, not a declared surface**, and the digest inputs, freshness bindings
+  and resolved-surface counts built on that rule are unchanged.
+
+**Where the obligation is discharged.** In the same ACTIVATE task that performs
+the installed-artifact write. Where a unit has a post-activation confirmation
+step, checksum parity is re-observed there as well; where it has a VERIFY step
+that re-derives installed/template parity, that step also re-derives manifest
+parity.
+
+**Rollback.** Because the manifest entry and the artifact move in one commit, a
+single-commit revert restores both together. A revert that restored the artifact
+without the entry, or the entry without the artifact, is precisely the divergent
+state this invariant removes.
+
+**Where the invariant is now stated, and where it is deliberately not.** `D11`
+binds every activation in this portfolio, and each governing plan states it at
+its own ACTIVATE step with that unit's exact entry count: `188-S` (one entry —
+a *registration*, because `.github/skills/harness-architect/SKILL.md` is
+tracked nowhere today), `177-S` (two), `187-S` (one), `186-S` (two), `180-S`
+(two), `184-S` (two) and `176-S` (two). `181-S` is **not** covered and this is
+a finding, not an omission: its activation touches `.github/workflows/ci.yml`
+and `docs/`, neither of which is manifest-tracked, so it creates no obligation.
+`185-S` has no ACTIVATE step at all.
+
+At **task-record** level the invariant is stated in the records of the units
+whose tasks are live and unreserved — `169.015-T`, `180.010-T`, `181.005-T`,
+`182.003-T` and `182.004-T`. It is **not** written into the pre-existing task
+records of `168-F`, `170-F` and `172-F`, because those units declare
+task-level decomposition **deferred** and their existing records **re-sliced**
+against the delivered foundation surfaces rather than executed as written.
+Those records are not authoritative activation contracts; their plans are, and
+their plans carry `D11`. Re-harvest inherits it at the moment those records
+become authoritative.
+
+**These are future implementation contracts.** `D11` binds the activations
+described by these plans and task records. It authorizes **no** edit to
+`.autoharness/harness-manifest.yaml` by any staging session, and none has been
+made: no installed artifact has changed, so no checksum has changed.
 
 ### D10 — Conditional successors are withheld from the executable queue, not merely ordered (revision 2)
 

@@ -7,22 +7,22 @@ date: 2026-09-18
 manifest_shape: attempt-roster
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
-plan_revision: 7
+plan_revision: 8
 feature_id: 169-F
 shipment_id: 177-S
 predecessor_manifest: docs/reviews/2026-09-17-post-claim-member-status-contract-plan-review.md
-latest_attempt: 7
+latest_attempt: 8
 review_terminal: true
-terminal_designation: operator-declared
+terminal_designation: terminal-for-push-b
 terminal_disposition: TERMINAL-PASS
-terminal_note: "Attempt 07 is the operator-declared terminal attempt against revision 7 and returned PASS on zero P0, zero P1, zero P2 and six carried P3 findings; no remediation cycle is authorized and terminality closed no finding. HISTORICAL: Attempt 03 was designated terminal by the operator, who subsequently lifted that designation and authorized a third bounded remediation cycle producing revision 4. Attempt 04 was then the operator-declared terminal attempt against revision 4 and returned FAIL/BLOCKED on a newly derived P1, M1, which was halted for operator disposition. At 2026-09-18T23:53:02.417-07:00 the operator lifted attempt 04's terminal designation and authorized one exceptional bounded remediation cycle against M1 plus an independent attempt 05. Attempt 05 ran, closed M1, M2 and M3 on independently re-derived evidence, and returned gate result ADVISORY on zero P0, zero P1, two P2 and four P3; because it was the operator-designated terminal attempt, N1 and N2 were held for explicit operator disposition. At 2026-09-19T11:42:25.892-07:00 the operator selected the second disposition option, LIFTING attempt 05's terminal designation and authorizing one additional bounded mechanization cycle scoped to N1 and N2 plus mechanically necessary consistency edits, and an independent attempt 06. review_terminal was therefore false, terminal_designation operator-lifted, and awaiting_attempt 6. Attempt 06 ran, closed N1 and N2 on independently re-derived evidence, and returned gate result ADVISORY on zero P0, zero P1, two P2 (O1, O3) and seven P3 (O2, O4, O5, N3, N4, N5, M4); as the operator-designated terminal attempt for that cycle it held all nine for explicit operator disposition. At 2026-09-19T21:41:26.916-07:00 the operator LIFTED attempt 06's terminal designation and authorized one bounded remediation cycle scoped to the two P2 findings O1 and O3 plus mechanically necessary consistency edits, directing that all thirteen then-current P3 findings across the three roots be carried as explicit non-blocking follow-ups rather than remediated. That cycle produced revision 7. review_terminal is therefore false, terminal_designation is operator-lifted, and awaiting_attempt is 7. Lifting terminality re-opens the review loop; it closes no finding, decrements no count and changes no verdict."
+terminal_note: "Attempt 08 is TERMINAL FOR PUSH B of PR #457 under docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md, and no further remediation cycle is authorized after it. It reviewed plan revision 8 against the working tree on committed base a192e50c, performed NO remediation, CLOSED the manifest-parity finding raised by the current-HEAD Copilot review of Push A, re-verified all six carried P3 findings as STILL TRUE without lowering any, and RAISED NO NEW FINDINGS. Revision 8's only substantive change is the decision-D11 binding in the ACTIVATE contract: two .autoharness/harness-manifest.yaml entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest. THE SURFACE ARITHMETIC IS DELIBERATELY UNMOVED AND ATTEMPT 08 VERIFIED THAT INDEPENDENTLY - declared_surface_count stays 4, resolved_surface_count still runs 0 then 4, F2 still takes seven digest inputs, F3 is still 0, and 169.016-T still enumerates exactly four surfaces - because those values are load-bearing inputs to 169.017-T's CCD/v1 digest and the F1-F5 binding, so any movement would have been a P1. HISTORICAL: attempt 07 was the operator-declared terminal attempt against revision 7 and returned PASS on zero P0, zero P1, zero P2 and six carried P3; that PASS was attached to revision 7 and does NOT carry forward to revision 8. The long chain of operator-lifted terminal designations preceding attempt 07 is recorded in the per-attempt artifacts and the sections below, unchanged."
 awaiting_attempt: null
-reviewed_content_head: 24e19050
+reviewed_content_head: a192e50c
 remediation_content_commit: 24e19050
 gate_result: PASS
 verdict: PASS
 verdict_is_pass: true
-verdict_note: "verdict is PASS because independent terminal attempt 07 judged plan revision 7 at content HEAD 24e19050 and derived zero P0, zero P1 and zero P2, with six P3 findings carried open. Under the severity table a P3-only result returns PASS. O1, O2 and O3 were independently re-derived CLOSED from the plan, the ten live task records, 169-F, 177-S, item_deps, .gitignore and the remediation commit's own diff, and expressly NOT from the P3 follow-up stash capture 8DE3047F, whose own note disclaims closure for O2. Attempt 07 raised no new finding. Safety was rechecked and remains fail-closed, stale artifacts are rejected on every supported path, legitimate activation remains reachable, CCD/v1 and B/v1 and all six line forms are unchanged, and no wall-clock-only authority was introduced. No severity was lowered and no count decremented. HISTORICAL, attempt 06: verdict was ADVISORY because independent attempt 06 judged plan revision 6 at content HEAD a0d631e4 and derived zero P0 and zero P1, so the plan-review FAIL condition (any P0 or P1) is not met and the plan is not BLOCKED. ADVISORY is not PASS: two P2 findings are open, and under the severity table a P2-only result returns ADVISORY, which requires an explicit operator decision to revise or proceed rather than auto-clearing to harvest. Attempt 06 independently re-derived N1 and N2 CLOSED against the plan, the ten live task records, 169-F, 177-S, decision D2's literal text and the repository itself, not against the remediation summary. It derived two new P2 findings - O1, the conformance module tests/test_p002_7_member_status_contract.py is the seventh CCD/v1 readiness digest input but its path is declared at no authoring task, because all five RED tasks including its creator 169.009-T declare only Scope tests/; and O3, the plan and five records claim in at least eight places that F4 closes the post-revert path a second and independent way, but F4 as defined compares checked= against the committer timestamp of the commit named by head_commit, which is the stale line's own commit, so F4 is satisfied by the stale line and the independent limb does not exist. It derived three new P3 findings - O2, authorship of the conformance module is misattributed to PREPARE and 169.011-T in two plan passages; O4, the blanket claim that no F1-F5 condition is taken on the line's own word is false for F3 and F5; O5, the emitting task's own post-emission commit can close the gate it just opened - and re-verified N3, N4, N5 and M4 still valid and unaddressed. The post-revert path is nonetheless rejected, by F1 alone on the readiness gate and by F1 plus F2 on the confirmation gate, and legitimate activation remains reachable, so N2's substance is closed and O3 records the false redundancy claim rather than reopening it. Attempt 06 was terminal for the option-2 cycle by operator instruction and held all nine findings for explicit operator disposition. The operator subsequently lifted that designation on 2026-09-19 and authorized a bounded cycle scoped to O1 and O3 only, producing plan revision 7. O1 and O3 are now ADDRESSED PENDING REVIEW and are NOT CLOSED and NOT DECREMENTED: both remain counted in p2_open and listed in open_findings until an independent attempt 07 judges revision 7. The verdict reported here remains attempt 06's ADVISORY against revision 6 at a0d631e4, carried forward unchanged, because Stage may not judge its own remediation. O2, O4, O5, N3, N4, N5 and M4 were OUT OF SCOPE for the revision-7 cycle, remain open and unaddressed, and are carried as non-blocking follow-ups in backlogit stash entry 8DE3047F. The revision-7 O1 remediation necessarily corrected producer attribution in the same two passages O2 concerns, because closing O1 required every CCD/v1 digest input to have one unambiguous producer; NO CLAIM OF O2 CLOSURE IS MADE OR IMPLIED. No severity was lowered to force closure, none was raised to force a block, and no PASS is asserted."
+verdict_note: "verdict is PASS because independent terminal attempt 08 judged plan revision 8 on committed base a192e50c and derived zero P0, zero P1 and zero P2, with six P3 findings carried open. Under the severity table a P3-only result returns PASS. The revision-8 delta is the decision-D11 manifest-parity binding: the activation edits two manifest-tracked installed artifacts - .github/policies/workflow-policies.md and .github/agents/_ship.agent.md - and now refreshes exactly two manifest entries in the same commit and the same rollback unit, verifying parity by re-digest. Attempt 08 re-derived the entry count from the live 72-entry manifest rather than accepting it from the plan: both paths are tracked and no templates/ path is tracked, so four declared surfaces comprising two authoritative/mirror pairs refresh two entries and the commit contains five files. THE SURFACE ARITHMETIC DID NOT MOVE: the manifest refreshes are COMMIT MEMBERS RATHER THAN DECLARED SURFACES and 169-F's enumeration rule already excludes .autoharness/, so declared_surface_count stays 4, F2's seven digest inputs are untouched, F3 is still 0 and 169.016-T still enumerates exactly four surfaces. 169.016-T's D11 confirmation clause RE-DERIVES parity and never writes; a mismatch yields STATUS_CONTRACT_DIVERGENT and an unreadable input yields NOT_OBSERVED with digest_input_unreadable, so fail-closed behaviour is preserved on every supported path. The live manifest was NOT edited: revision 8 is a future implementation contract. Acceptance-matrix criteria A1-A4 of the bounded convergence decision are GitHub-dependent and were NOT OBSERVABLE in the session that produced attempt 08; they are recorded as not observed and are expressly NOT asserted. A5-A8 pass locally. Attempt 08 raised no new finding, lowered no severity and decremented no count. O4, O5, N3, N4, N5 and M4 remain open, unaddressed and carried in backlogit stash entry 8DE3047F. HISTORICAL, attempt 07: verdict was PASS against plan revision 7 at content HEAD 24e19050, closing O1, O2 and O3 on independently re-derived evidence; that verdict was attached to revision 7 and does not carry forward."
 p0_open: 0
 p1_open: 0
 p2_open: 0
@@ -40,9 +40,9 @@ remediation_cycle_proposed: false
 disposition: TERMINAL-PASS-P3-OPERATOR-DISPOSITION
 open_counts_note: "Counts are attempt 07's and were derived independently against revision 7 at content HEAD 24e19050. O1, O2 and O3 are CLOSED by the only authority that can close them - an independent attempt that re-derived each from the plan, the task records and the repository itself. O1 closed because tests/test_p002_7_member_status_contract.py is now created and owned by exact path at 169.009-T with the other four RED tasks declaring they extend it in place and create no second module, all seven CCD/v1 readiness digest inputs have exactly one unambiguous producer, and the plan's input list, 169.017-T's emitter list and 169.015-T's F2 recomputation list agree path-for-path in the same order; the change was verified a declaration change and not a scope change, with no assertion moved, all thirteen item_deps edges unchanged and 169.009-T still S/low. O3 closed because all nineteen F4 sentences in the plan were enumerated and every one is truthful, the readiness gate's post-revert cover is stated as F1 alone and the confirmation gate's as F1 and F2, F4's genuine function is stated truthfully on every surface, and forward-moving git revert plus new commits is the only supported recovery while git reset --hard, rebase and amend restoring pre-activation identity are explicitly prohibited and offered as an allowed route nowhere. O2 closed because both revision-6 misattribution passages now correctly attribute the conformance module to 169.009-T; the P3 follow-up stash entry 8DE3047F is expressly NOT treated as closure for it. O4, O5, N3, N4, N5 and M4 were each independently re-verified unchanged and are CARRIED, not invalidated; one scope observation was added to O5, that the same post-emission-commit shape applies to the CONFIRM-to-DOCS edge as well as the VERIFY-to-ACTIVATE edge, which widens its subject without changing its severity. Attempt 07 raised no new finding, lowered no severity and decremented no count. HISTORICAL, attempt 06: Counts are attempt 06's and were derived independently against revision 6 at content HEAD a0d631e4. N1 and N2 are CLOSED by the only authority that can close them - an independent attempt that re-derived each from the plan, the task records, the binding decision and the repository itself. N1 closed because 169.007-T now opens with a first-action fail-closed whole-file read of the confirmation artifact requiring a byte-for-byte literal STATUS_CONTRACT_HELD match plus F1-F5, with absence, malformation, staleness, failure and foreign-vocabulary enumerated as CLOSED and a zero-touch, zero-commit, neither-gate-artifact, exit-1 guarantee, and because the CONFIRM-to-DOCS edge is declared ordering-only in the plan and in five records. N2 closed because checked= is now consumed by F4 and covered by the B/v1 binding, both authorizing lines carry head_commit and a CCD/v1 digest over a fully enumerated ordered list, each emitter's input list is byte-identical to its consumer's, re-running an emitter necessarily produces a fresh binding, and the documented post-revert path is rejected without making legitimate activation unreachable. The two open P2 findings are NEW: O1, the conformance module tests/test_p002_7_member_status_contract.py is the seventh readiness digest input but its path is declared at no authoring task, so revision 6 applied its own enumeration principle to two of three inputs and a wrong filename would halt the unit at PREACTIVATION_NOT_OBSERVED reason=digest_input_unreadable; and O3, F4 as defined anchors checked= to the committer timestamp of the commit named by head_commit, so it is satisfied by a stale line and supplies none of the independent post-revert cover the plan and five records claim for it in at least eight places - the path is closed by F1 alone for readiness and by F1 plus F2 for confirmation, so the safety property holds and only the redundancy claim fails. The seven open P3 findings are three new - O2, authorship misattribution of the conformance module to PREPARE; O4, the false blanket claim that no F1-F5 condition is taken on the line's own word, untrue for F3 and F5; O5, the emitter's own post-emission commit can close the gate it just opened, one-shot and self-clearing - plus four carried and re-verified unchanged: N3 (undefined A-E family key in the plan's BLOCKED line form), N4 (entailed but unenumerated inert-GREEN baseline fixture corpus), N5 (no citation to the on-point compound record) and M4 (tool-derived size_composition rollup counting five archived absorbed tasks). Zero P0 and zero P1 open. THESE COUNTS ARE UNCHANGED BY THE REVISION-7 REMEDIATION CYCLE. O1 and O3 are ADDRESSED PENDING REVIEW at plan revision 7 and are NOT CLOSED and NOT DECREMENTED: both remain counted in p2_open and listed in open_findings until an independent attempt 07 re-derives them. O2, O4, O5, N3, N4, N5 and M4 were out of scope for that cycle, remain open and unaddressed, and are carried as non-blocking follow-ups in backlogit stash entry 8DE3047F, which must not enter this shipment's scope. The revision-7 cycle's mechanically necessary producer-attribution edits touch the same passages O2 concerns; no claim of O2 closure is made or implied, and no severity was lowered anywhere."
 remediation_authorization: none-this-cycle
-latest_remediation_revision: 7
+latest_remediation_revision: 8
 latest_disposition: null
-latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-07.md
+latest_artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-08.md
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-01.md
@@ -182,12 +182,36 @@ attempts:
     closed_predecessor_findings: [O1, O2, O3]
     carried_predecessor_findings: [O4, O5, N3, N4, N5, M4]
     findings_raised: []
+  - attempt: 8
+    artifact: docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-08.md
+    reviewed_revision: 8
+    reviewed_content_head: a192e50c
+    reviewed_branch: chore/stage-176-s-workflow-defects
+    verdict: PASS
+    gate_result: PASS
+    verdict_is_pass: true
+    p0_open: 0
+    p1_open: 0
+    p2_open: 0
+    p3_open: 6
+    open_findings: [O4, O5, N3, N4, N5, M4]
+    blocking_findings: []
+    dispatch_mode: single-agent-declared-degradation
+    anchor_route: absent
+    remediation_revision: null
+    disposition: PASS-P3-ONLY
+    terminal: true
+    terminal_designation: terminal-for-push-b
+    closed_predecessor_findings: []
+    carried_predecessor_findings: [O4, O5, N3, N4, N5, M4]
+    findings_raised: []
+    remediation_note: "Attempt 08 performed NO remediation and proposes NO remediation cycle. It CLOSED the manifest-parity finding raised by the PR #457 current-HEAD Copilot review of Push A on entry counts independently re-derived from the live 72-entry manifest, and verified that NO surface count moved: declared_surface_count stays 4, F2 still takes seven digest inputs, F3 is still 0 and 169.016-T still enumerates exactly four surfaces. It is TERMINAL FOR PUSH B: no further remediation cycle is authorized."
 carried_forward_context:
   - artifact: docs/reviews/review-history/2026-09-17-post-claim-member-status-contract-plan-review-attempt-08.md
     reason: "Terminal attempt against the superseded revision-7 plan. Its B1 (phantom source stash 3EF5AAF9) was verified closed at db39553a and re-verified closed at 5aa8643f: every live record carries 3EF5AAF2, and the sole 3EF5AAF9 occurrence is an explicit historical citation in 169-F's description recording that the phantom ID is closed. Its B2 (GREEN-only assertions) was recorded as A2 of attempt 01 and is verified CLOSED at attempt 02: five RED-owning tasks exist and every GREEN task has a RED predecessor."
     state: closed-at-attempt-02
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 4
 tags:
   - "plan-review"
   - "verdict-manifest"
@@ -205,23 +229,23 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `post-claim-member-status-contract-v2` |
 | `plan_path` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` |
-| `plan_revision` | 7 |
-| `latest_attempt` | **07** (operator-declared **terminal**) |
+| `plan_revision` | 8 |
+| `latest_attempt` | **08** (**terminal for Push B**) |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-18-post-claim-member-status-contract-v2-plan-review-attempt-07.md` |
-| `reviewed_content_head` | `24e19050` (revision-7 content commit; attempt 06 read `a0d631e4`) |
-| `gate_result` (attempt 07, immutable) | **PASS** |
-| `verdict` | **PASS** (attempt 07's own judgement of revision 7) |
+| `reviewed_content_head` | `a192e50c` (Push B committed base; attempt 07 read `24e19050`) |
+| `gate_result` (attempt 08, immutable) | **PASS** |
+| `verdict` | **PASS** (attempt 08's own judgement of revision 8) |
 | `verdict_is_pass` | **true** |
-| `latest_remediation_revision` | **7** (judged at attempt 07) |
-| `latest_disposition` | — (no remediation cycle authorized or performed at attempt 07) |
-| `awaiting_attempt` | — (attempt 07 is terminal) |
+| `latest_remediation_revision` | **8** (judged at attempt 08) |
+| `latest_disposition` | — (no remediation cycle authorized or performed at attempt 08) |
+| `awaiting_attempt` | — (attempt 08 is terminal for Push B) |
 | `p0_open` | **0** |
 | `p1_open` | **0** (`M1` closed at attempt 05) |
-| `p2_open` | **0** (`O1`, `O3` **closed** at attempt 07) |
+| `p2_open` | **0** (`O1`, `O3` closed at attempt 07; the manifest-parity finding closed at attempt 08) |
 | `p3_open` | **6** (`O4`, `O5`, `N3`, `N4`, `N5`, `M4` — open, **unaddressed**; `O2` **closed**) |
-| `closed_predecessor_findings` | `N1`, `N2` (attempt 06); `O1`, `O2`, `O3` (attempt 07) |
+| `closed_predecessor_findings` | `N1`, `N2` (attempt 06); `O1`, `O2`, `O3` (attempt 07); the manifest-parity finding (attempt 08) |
 | `findings_addressed_pending_review` | `[]` |
-| `findings_raised_at_attempt_07` | `[]` |
+| `findings_raised_at_attempt_08` | `[]` |
 | `p3_followup_stash` | `8DE3047F` (`O2`, `O4`, `O5`, `N3`, `N4`, `N5`, `M4`) — outside this shipment's scope |
 
 **The top-level `verdict` is attempt 07's own judgement, not a carried value.**
@@ -1281,13 +1305,51 @@ as a new finding.
 **Attempt 07 raised no new finding**, added nothing to any stash, and modified
 no plan, task, feature, shipment or stash record.
 
-## What follows attempt 07
+## What attempt 08 closed
 
-**Nothing automatic.** Attempt 07 is the operator-declared terminal attempt for
-this authorized cycle. No remediation was performed, none is proposed, and no
-further remediation cycle is authorized.
+Attempt 08 reviewed **revision 8**, whose only substantive change is the
+decision-`D11` manifest-parity binding in the ACTIVATE contract.
 
-`177-S` is **publication-eligible on its own merits** at plan revision 7 with
+* **The manifest-parity finding — CLOSED.** The PR #457 current-HEAD Copilot
+  review found `169.015-T` declaring a four-surface activation that edits two
+  **manifest-tracked** installed artifacts while omitting the atomic
+  `.autoharness/harness-manifest.yaml` checksum refreshes.
+* **The entry count was re-derived, not accepted.** The live manifest holds
+  **72** `artifacts:` entries; both `.github/policies/workflow-policies.md` and
+  `.github/agents/_ship.agent.md` are tracked; **no** `templates/` path is
+  tracked. Four declared surfaces comprising two authoritative/mirror pairs
+  therefore refresh **exactly two** entries, and the commit contains **five**
+  files.
+* **The surface arithmetic did not move — this was the check that mattered
+  most.** `declared_surface_count = 4` and `resolved_surface_count` (0 at
+  readiness, 4 at confirmation) are load-bearing inputs to `169.017-T`'s
+  CCD/v1 digest and the `F1`–`F5` binding; adding the manifest as a fifth
+  *surface* would have silently invalidated the gate contract, a P1. Revision 8
+  avoids it by the rule already in force: `169-F`'s enumeration rule excludes
+  `.autoharness/`, and the refreshes are **commit members rather than declared
+  surfaces**. Verified unchanged: `declared_surface_count` 4, F2's seven digest
+  inputs, F3 = 0, `169.016-T`'s enumeration of exactly four surfaces.
+* **The confirmation side re-derives and never writes.** `169.016-T`'s `D11`
+  clause was checked for the emitter-that-mutates hazard: mismatch yields
+  `STATUS_CONTRACT_DIVERGENT`, an unreadable input yields `NOT_OBSERVED` /
+  `digest_input_unreadable`, and fail-closed behaviour is preserved on every
+  supported path.
+* **No live-manifest edit.** Revision 8 is a future implementation contract.
+
+No new findings were raised, and all six carried P3 findings were re-verified as
+still true without lowering any.
+
+## What follows attempt 08
+
+**Nothing automatic.** Attempt 08 is **terminal for Push B** under the bounded
+review-convergence decision. No remediation was performed, none is proposed, and
+no further remediation cycle is authorized.
+
+Acceptance-matrix criteria `A1`–`A4` are GitHub-dependent and were **not
+observable** in the session that produced attempt 08; they are recorded as not
+observed and are expressly **not asserted**. `A5`–`A8` pass locally.
+
+`177-S` is **publication-eligible on its own merits** at plan revision 8 with
 verdict `PASS`. The six open P3 findings — `O4`, `O5`, `N3`, `N4`, `N5`, `M4` —
 remain available for explicit operator disposition and block nothing. Claiming
 the shipment, opening a PR and executing Ship work remain separate,
@@ -1309,7 +1371,8 @@ ever a `disposition`.
 | **4** (terminal designation lifted) | `...-v2-plan-review-attempt-04.md` | 4 @ `42f2f8ec` | **BLOCKED** (0 P0, 1 P1, 0 P2, 3 P3) | 5 | `REMEDIATED-PENDING-REVIEW` |
 | **5** (terminal designation lifted) | `...-v2-plan-review-attempt-05.md` | 5 @ `5c768426` | **ADVISORY** (0 P0, 0 P1, 2 P2, 4 P3) | 6 | `REMEDIATED-PENDING-REVIEW` |
 | **6** (terminal designation lifted 2026-09-19) | `...-v2-plan-review-attempt-06.md` | 6 @ `a0d631e4` | **ADVISORY** (0 P0, 0 P1, 2 P2, 7 P3) | 7 | `REMEDIATED-PENDING-REVIEW` |
-| **7** (operator-declared terminal) | `...-v2-plan-review-attempt-07.md` | 7 @ `24e19050` | **PASS** (0 P0, 0 P1, 0 P2, 6 P3) | — | — |
+| **7** (operator-declared terminal for its cycle) | `...-v2-plan-review-attempt-07.md` | 7 @ `24e19050` | **PASS** (0 P0, 0 P1, 0 P2, 6 P3) | 8 | `PASS-P3-ONLY` |
+| **8** (terminal for Push B) | `...-v2-plan-review-attempt-08.md` | 8 @ `a192e50c` | **PASS** (0 P0, 0 P1, 0 P2, 6 P3) | — | `PASS-P3-ONLY` |
 
 This roster covers the **v2 plan only**. Attempts 1–8 against the superseded
 `2026-09-17` plan remain in that plan's own manifest,
@@ -1334,7 +1397,7 @@ Context, never operative input.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 7
+* Plan: `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` at revision 8
 * Supersedes: `docs/plans/2026-09-17-post-claim-member-status-contract-plan.md`
   (revision 7, terminal at attempt 08)
 * Feature: `169-F` — Shipment: `177-S` (queued, DAG root, no incoming edge)
