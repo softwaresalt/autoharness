@@ -1,17 +1,17 @@
 ---
 title: "Bounded spike: network-denied Linux container isolation for external binary conformance"
-description: "Time-boxed spike determining whether the isolation required to execute an untrusted external release binary is achievable on this repository's CI: no credentials of any kind in the job environment, network egress denied after asset acquisition completes, repository absent or mounted read-only, disposable mounts, a TOCTOU-resistant handle across the verify-execute boundary, hardlink and symlink substitution resistance, and a redirect rule derived from observed acquisition behaviour. Every property has an assigned determining task that records objective evidence, including credential absence, which is determined by inspecting the actual job environment, and the redirect rule, which is derived from one observed release-asset acquisition rather than from assumption. Credential absence (I1) is determined FIRST and gates every untrusted acquisition and containment probe on an ACHIEVABLE VERDICT, not merely on predecessor completion: the gated tasks read a machine-readable I1 gate line as their first action and fail closed to NOT DETERMINED - FLOOR INVOKED, naming I1 as the blocker, on anything other than ACHIEVABLE, so the composed state can never be a pass while credential absence is unverified or falsified. The GitHub-hosted-runner probe workflow the determining tasks require is committed, and its owner, exact path, creation, dispatch, removal, rollback and branch-cleanliness evidence are declared rather than left implicit. Branch cleanup is an EXECUTABLE LIMB OF THE FINAL PREDICATE rather than a prose expectation, and its lifecycle is TWO STEPS so that every recorded value is observable BEFORE it is recorded: 177.003-T removes the workflow and commits, 177.007-T then observes that already-existing removal commit and writes a fixed-shape CLEANUP_ evidence block in its own separate evidence commit, and 177.006-T evaluates the block as checks C1-C6 while independently re-observing the CURRENT branch tip, which is the final branch-state authority. No field of the block ever names the commit that records it, no SHA is guessed and no clean-tree claim is made from inside the change that makes the tree clean, so a spec-conformant FIRST emission exists and the pass state is reachable in one normal run without a waiver or a corrective cycle. A coverage gate that checks every property for a determining task and captured evidence resolves the unit to exactly one of FIVE composed states: ISOLATION_CHARACTERIZED, ISOLATION_FLOOR_ONLY, ISOLATION_CLEANUP_FAILED, ISOLATION_UNDETERMINED or ISOLATION_NOT_OBSERVED, evaluated in a declared precedence so the result is a total function. ISOLATION_CHARACTERIZED is unreachable unless the exact probe-workflow path is absent at the branch tip AND the creation, dispatch and removal evidence is present and internally consistent. Successor eligibility is stated per state and no state presents the isolation floor as proven. No conformance fixture and no production code ships. Gates the reduced SAFE_CLOSE unit."
+description: "Time-boxed spike determining whether the isolation required to execute an untrusted external release binary is achievable on this repository's CI: no credentials of any kind in the job environment, network egress denied after asset acquisition completes, repository absent or mounted read-only, disposable mounts, a TOCTOU-resistant handle across the verify-execute boundary, hardlink and symlink substitution resistance, and a redirect rule derived from observed acquisition behaviour. Every property has an assigned determining task that records objective evidence, including credential absence, which is determined by inspecting the actual job environment, and the redirect rule, which is derived from one observed release-asset acquisition rather than from assumption. Credential absence (I1) is determined FIRST and gates every untrusted acquisition and containment probe on an ACHIEVABLE VERDICT, not merely on predecessor completion: the gated tasks read a machine-readable I1 gate line as their first action and fail closed to NOT DETERMINED - FLOOR INVOKED, naming I1 as the blocker, on anything other than ACHIEVABLE, so the composed state can never be a pass while credential absence is unverified or falsified. The GitHub-hosted-runner probe workflow the determining tasks require is committed, and its owner, exact path, creation, dispatch, removal, rollback and branch-cleanliness evidence are declared rather than left implicit. Branch cleanup is an EXECUTABLE LIMB OF THE FINAL PREDICATE rather than a prose expectation, and its lifecycle is TWO STEPS so that every recorded value is observable BEFORE it is recorded: 177.003-T removes the workflow and commits, 177.007-T then observes that already-existing removal commit and writes a fixed-shape CLEANUP_ evidence block in its own separate evidence commit, and 177.006-T evaluates the block as checks C1-C6 while independently re-observing the CURRENT branch tip, which is the final branch-state authority. No field of the block ever names the commit that records it, no SHA is guessed and no clean-tree claim is made from inside the change that makes the tree clean, so a spec-conformant FIRST emission exists. THE REMOVAL PROOF IS DURABLE RATHER THAN POSITIONAL: the removal commit must exist, be reachable from the CURRENT HEAD, carry the creation commit in its ancestry, and delete EXACTLY the probe-workflow path and no other workflow file. It is NEVER required to be the current branch tip, so later unrelated forward commits - including the bookkeeping commits this repository's own tracked backlog records produce - cannot invalidate a historical fact, and the block stays RE-EMITTABLE from the same reachable removal commit without any second removal or deletion commit. CLEANLINESS IS EXACT-PATH-SCOPED RATHER THAN WHOLE-TREE: every cleanup limb asks only whether the exact probe-workflow path is tracked at the current tip and whether that exact path carries staged, unstaged or untracked residue, so unrelated tracked or untracked files, checkpoints, memory notes and operator work neither block the evidence nor fail the predicate, while a staged, unstaged or untracked copy of the exact path still fails closed under its own distinct reason token. The pass state is therefore reachable on one normal run, and on any re-emission after unrelated forward commits, without a waiver or a corrective cycle. A coverage gate that checks every property for a determining task and captured evidence resolves the unit to exactly one of FIVE composed states: ISOLATION_CHARACTERIZED, ISOLATION_FLOOR_ONLY, ISOLATION_CLEANUP_FAILED, ISOLATION_UNDETERMINED or ISOLATION_NOT_OBSERVED, evaluated in a declared precedence so the result is a total function. ISOLATION_CHARACTERIZED is unreachable unless the exact probe-workflow path is absent at the branch tip AND the creation, dispatch and removal evidence is present and internally consistent. Successor eligibility is stated per state and no state presents the isolation floor as proven. No conformance fixture and no production code ships. Gates the reduced SAFE_CLOSE unit."
 doc_type: plan
 source: docs/plans/2026-09-18-conformance-isolation-spike-plan.md
 date: 2026-09-18
 plan_id: conformance-isolation-spike
 plan_path: docs/plans/2026-09-18-conformance-isolation-spike-plan.md
 plan_role: active
-revision: 6
+revision: 7
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "verdict is null because no independent reviewer has judged revision 6. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 6 is the product of one operator-authorized bounded Stage remediation cycle scoped to attempt 05's single open P2, L1 - the cleanup evidence block was mandated to be written in the same commit that removes the probe workflow, while two of its eight lines carried values that only that commit's own creation defines, so no spec-conformant first emission existed and at least one spurious ISOLATION_CLEANUP_FAILED cycle was forced on every execution of the unit as written. Revision 6 closes L1 by splitting the cleanup lifecycle in two: 177.003-T removes the workflow and commits (the removal commit) and writes no CLEANUP_ line, and a new bounded task 177.007-T then observes that already-existing commit and writes the eight-line block in its own separate evidence commit. Every recorded value is observable before it is recorded, the tip-observation field names the tip that was observed rather than the commit that records it, and the evaluator's independent re-observation of the CURRENT tip remains the final branch-state authority. The five-state vocabulary, ISOLATION_CLEANUP_FAILED and its five-token reason vocabulary, the I1 verdict gate, the no-credential/no-secret evidence rule, the acquisition-then-no-network model, the workflow rollback and the per-state 181-S eligibility rules are all preserved unchanged. Attempt 05's three open P3 findings K5, K6 and L2 were NOT in scope for this cycle and remain open and unaddressed; they are carried as non-blocking follow-ups in the backlogit stash. Attempt 05 independently closed K3 and K4, and neither is carried. Where this cycle's mechanically necessary edits touch text L2 also concerns, no claim of L2 closure is made or implied: the C6 reason token WORKFLOW_PRESENT_AT_TIP is deliberately left raised on a dirty working tree as well as on a present path. Stage asserts no PASS and has performed no self-review."
-awaiting_attempt: 6
+verdict_note: "verdict is null because no independent reviewer has judged revision 7. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 7 is the product of one operator-authorized bounded Stage remediation cycle scoped to attempt 06's two open P2 findings, M1 and M2. M1 - 177.007-T could write only after confirming the removal commit was the CURRENT TIP, a precondition strictly stronger than the C4 reachability requirement and the C5 removal-commit-or-descendant tolerance it feeds, so one intervening commit forbade the write under the atomic all-or-nothing rule, and because the path is already deleted no second removal commit could ever exist, leaving the pass state unrecoverable in-unit. M2 - 177.007-T step 3 and 177.006-T check C6 both required a WHOLE-TREE empty git status --porcelain, in a workspace whose backlog records are tracked and whose agents emit untracked checkpoint and memory files in normal operation, so the cleanliness premise of the revision-6 derivation was falsified on a normal run. Revision 7 closes M1 by making the removal proof DURABLE RATHER THAN POSITIONAL: the named removal commit must exist, be reachable from the current HEAD, carry the creation commit in its ancestry and delete exactly the probe-workflow path, and it is never required to be the current tip, so later unrelated forward commits cannot invalidate that historical fact and the block is re-emittable from the same reachable removal commit with no second removal or deletion commit. It closes M2 by replacing every whole-tree cleanliness requirement with EXACT-PATH-SCOPED checks over .github/workflows/spike-177-isolation-probe.yml alone, using fixed argv and rejecting ambiguous output, so unrelated tracked or untracked files, checkpoints, memory notes and operator work neither block evidence emission nor fail the predicate. Fail-closed semantics are preserved and strengthened: a staged, unstaged or untracked copy of the exact path still fails closed, and it now fails under its own distinct reason token WORKFLOW_PATH_RESIDUE so a diagnostic never claims the workflow is present at the tip when only exact-path worktree or index residue exists. The five composed states and their precedence, the I1 verdict gate, the no-credential and no-secret evidence rules, the acquisition-then-no-network model, the workflow rollback, the per-state 181-S successor eligibility rows and the no-self-reference two-step lifecycle 177.003-T removal commit -> 177.007-T evidence -> 177.006-T evaluation are all preserved unchanged; the cleanup reason vocabulary grows from five tokens to six, which is the only vocabulary change. ISOLATION_CHARACTERIZED remains impossible while the workflow is tracked at the current HEAD or exists as exact-path residue. The reason-vocabulary split necessarily touches text attempt 05's P3 L2 also concerns; L2 is reconciled for consistency and is EXPRESSLY NOT CLAIMED CLOSED - independent review decides. Attempt 06's P3 findings K5, K6, M3, M4 and M5 were NOT in scope for this cycle and remain open and unaddressed; they are carried as non-blocking follow-ups in the backlogit stash. The four determining task records were not mechanically touched by this cycle, so M3's revision-reference divergence and M5's missing i1 dispatch-identifier capture owner are deliberately left standing rather than broadened into. M1 and M2 are recorded as ADDRESSED PENDING REVIEW, not closed. No severity was lowered, no count decremented and no finding folded into another. Stage asserts no PASS and has performed no self-review."
+awaiting_attempt: 7
 review_manifest: docs/reviews/2026-09-18-conformance-isolation-spike-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -26,7 +26,7 @@ gates: 181-S
 external_tracker: 002-C
 external_tracker_state: blocked-outside-shipment
 requires_plan_hardening: true
-hardening_rationale: "The spike researches the containment boundary for executing an untrusted third-party binary. Getting the question set wrong produces a foundation plan that under-specifies isolation, so the question set itself warrants adversarial review even though the spike ships no production code. The hardening pass includes a structural coverage question, because attempt 01 found a declared property with no determining task and the original pass did not ask whether one existed. It includes an ordering-enforcement question, because attempt 02 found the probe-safety answer resting on an I1-before-probe ordering that no dependency edge enforced. It now also includes a VERDICT-PREDICATE question (H12) and a gate-reachability question (H13), because attempt 03 found the restored blocks edge gating on predecessor COMPLETION while 177.004-T completes on two further outcomes that leave credential absence unverified or falsified; a committed-surface question (H14), because the spike commits a GitHub-hosted-runner probe workflow that the previous blast-radius and rollback statements described as mutating nothing and as uncommitted; an EXPRESSIBILITY question (H15), because attempt 04 found H14's branch-cleanliness expectation stated only in prose while the composed-state vocabulary could not express its failure, so the check was a claim rather than an executable predicate; and a CONSTRUCTIBILITY question (H16), because attempt 05 found the resulting fixed-shape evidence block mandated to be written at a point that could not supply two of its own fields, so the predicate was expressible but its input contract was unsatisfiable on a first pass."
+hardening_rationale: "The spike researches the containment boundary for executing an untrusted third-party binary. Getting the question set wrong produces a foundation plan that under-specifies isolation, so the question set itself warrants adversarial review even though the spike ships no production code. The hardening pass includes a structural coverage question, because attempt 01 found a declared property with no determining task and the original pass did not ask whether one existed. It includes an ordering-enforcement question, because attempt 02 found the probe-safety answer resting on an I1-before-probe ordering that no dependency edge enforced. It now also includes a VERDICT-PREDICATE question (H12) and a gate-reachability question (H13), because attempt 03 found the restored blocks edge gating on predecessor COMPLETION while 177.004-T completes on two further outcomes that leave credential absence unverified or falsified; a committed-surface question (H14), because the spike commits a GitHub-hosted-runner probe workflow that the previous blast-radius and rollback statements described as mutating nothing and as uncommitted; an EXPRESSIBILITY question (H15), because attempt 04 found H14's branch-cleanliness expectation stated only in prose while the composed-state vocabulary could not express its failure, so the check was a claim rather than an executable predicate; and a CONSTRUCTIBILITY question (H16), because attempt 05 found the resulting fixed-shape evidence block mandated to be written at a point that could not supply two of its own fields, so the predicate was expressible but its input contract was unsatisfiable on a first pass; a PRECONDITION-CONSISTENCY question (H17), because attempt 06 found the writer's binding precondition strictly stronger than the checks of the predicate it feeds, so a satisfiable predicate had an unwritable input and, once the precondition failed, no second removal commit could restore it; and a PRECONDITION-SURVIVAL question (H18), because attempt 06 found two limbs requiring whole-tree cleanliness in an execution environment whose own agents dirty the tree and move the tip as a matter of normal operation, so the observation moment the records demanded did not survive the agents that run them."
 tags:
   - spike
   - ci-isolation
@@ -318,7 +318,7 @@ make the blast-radius and rollback statements false with it.
 | Created | `177.004-T` | One workflow at the exact path `.github/workflows/spike-177-isolation-probe.yml`, committed to `chore/stage-176-s-workflow-defects` in its own commit. No other workflow file is added, and no existing workflow is modified |
 | Dispatched | `177.004-T`, `177.005-T`, `177.001-T`, `177.002-T` | All four determining tasks reuse that **single** workflow via `workflow_dispatch`, selecting their probe by input (`i1-credentials`, `i7-acquisition`, `i2-i3-egress`, `i4-i6-containment`). No task adds a second workflow file |
 | Removed | `177.003-T` | At spike close, after every determining task has reported, `177.003-T` deletes the file in the **same commit** that lands the findings artifact. That commit is **the removal commit**. `177.003-T` writes no `CLEANUP_` line |
-| Evidence recorded | `177.007-T` | After the removal commit **already exists**, `177.007-T` observes it and writes the eight-line `CLEANUP_` block into the findings artifact in its **own separate commit** — **the evidence commit**. It removes nothing and determines nothing |
+| Evidence recorded | `177.007-T` | After the removal commit **already exists and is reachable from the current branch tip**, `177.007-T` observes it and writes the eight-line `CLEANUP_` block into the findings artifact in its **own separate commit** — **the evidence commit**. The removal commit is **never required to be the current tip**, so later unrelated forward commits do not prevent the write. It removes nothing and determines nothing |
 | Rolled back | `177.003-T` | If the spike aborts before close, `177.003-T` removes the workflow anyway and `177.007-T` still emits the block against that removal commit. Rollback is `git revert` of the single creation commit, or deletion of the single added path — there is no other change to undo |
 
 **Declared constraints on the workflow itself.** It declares an explicit
@@ -334,12 +334,14 @@ network access is required after acquisition completes.
 
 **Evidence, recorded in the findings artifact by `177.007-T`.** The creation
 commit SHA and the added path; each dispatch's workflow-run ID and URL, with
-its input; the removal commit SHA; and a `git status --porcelain` observation,
-taken **after the removal commit landed and before the evidence write was
-staged**, showing the working tree clean and
-`.github/workflows/spike-177-isolation-probe.yml` absent from the branch tip
-that was observed. These are recorded in the fixed eight-line form defined
-under *Cleanup evidence block* below, so they are machine-readable by
+its input; the removal commit SHA; and an **exact-path** observation, taken
+**after the removal commit landed and before the evidence write was staged**,
+showing `.github/workflows/spike-177-isolation-probe.yml` absent from the tree
+of the tip that was observed and carrying no staged, unstaged or untracked
+residue at that exact path. **No whole-tree cleanliness is observed, recorded
+or required at any point** — unrelated tracked or untracked files are outside
+every limb of this check. These are recorded in the fixed eight-line form
+defined under *Cleanup evidence block* below, so they are machine-readable by
 `177.006-T` rather than prose.
 
 **Branch cleanliness is an executable limb of the final predicate, not an
@@ -385,10 +387,83 @@ separated into two tasks and two commits:
 
 Every value the block carries is therefore **observable before it is
 recorded**. Nothing in the block names the commit that records it, no SHA is
-guessed or pre-computed, and no clean-tree claim is made from inside the staged
-change that makes the tree clean. No check was weakened to achieve this: `C1`–
-`C6` still hold, `C6` still re-observes the branch tip independently, and the
-five-state vocabulary and precedence are unchanged.
+guessed or pre-computed, and no cleanliness claim is made from inside the
+staged change whose own staging would falsify it. No check was weakened to
+achieve this: `C1`–`C6` still hold, `C6` still re-observes the branch tip
+independently, and the five-state vocabulary and precedence are unchanged.
+
+### Why the removal proof is durable, and why cleanliness is path-scoped
+
+Revision 6 made every recorded value *observable*, but it still tied two
+observations to a moment that this repository's own execution environment
+destroys. Attempt 06 raised both as P2, and revision 7 closes them by changing
+what is observed, not by relaxing what must hold.
+
+| Finding | What revision 6 required | Why it could not hold | What revision 7 requires instead |
+|---|---|---|---|
+| `M1` (P2) | `177.007-T` may write only after confirming the removal commit **is the current tip** | Strictly stronger than the predicate it feeds: `C4` requires only *reachability* and `C5` accepts `observed_tip` as the removal commit **or a descendant**. One intervening commit therefore forbade the write under the atomic rule — and `.backlogit/` is tracked, so ordinary status bookkeeping moves the tip. Because the path is already deleted, **no second removal commit can ever exist**, so the advertised in-unit remedy could not restore the pass state | A **durable removal proof**: the named removal commit must *exist*, be *reachable from the current HEAD*, carry the *creation commit in its ancestry*, and its own diff must *delete exactly the probe-workflow path*. It is **never required to be the current tip** |
+| `M2` (P2) | `177.007-T` step (3) and `177.006-T` check `C6` each require a **whole-tree** empty `git status --porcelain` | The agents that execute this unit dirty the tree as a matter of normal operation — tracked backlog records under `.backlogit/queue/`, untracked checkpoints under `.backlogit/checkpoints/`, untracked session notes under `docs/memory/`. `C6` is evaluated first, so an unrelated untracked note short-circuited the whole predicate | **Exact-path-scoped** checks over `.github/workflows/spike-177-isolation-probe.yml` and nothing else. Unrelated tracked files, untracked files, checkpoints, memory notes and operator work are outside every limb |
+
+**A removal is a historical fact, and a historical fact does not expire.** That
+the removal commit deleted the path is true of that commit forever, whatever
+lands on the branch afterwards. Revision 6 proved it by *position* — the commit
+was the tip — which is a property later commits destroy. Revision 7 proves it
+by *content and ancestry*, which later commits cannot touch. The consequences
+are stated rather than left to be inferred:
+
+* later **unrelated forward commits never invalidate** the proof, so a
+  bookkeeping commit between removal and evidence is harmless;
+* the block is **re-emittable from the same reachable removal commit** after
+  any number of later commits, and **no second deletion or removal commit is
+  ever required** — which is what makes the in-unit `ISOLATION_CLEANUP_FAILED`
+  remedy actually executable;
+* the evaluator's **independent current-state check `C6` remains the final
+  authority** that the exact workflow path is absent *now*. Making the
+  historical proof durable does not make the present-state check weaker; the
+  two answer different questions and both must hold.
+
+#### The removal-commit derivation `RC1`–`RC7`
+
+`177.007-T` **derives** the removal commit from committed history rather than
+being told which commit is the tip. The derivation is deterministic, uses fixed
+argv, and **never guesses, invents or pre-computes a SHA**. `177.006-T`
+re-derives it identically, which is what makes writer and evaluator agree by
+construction rather than by wording.
+
+| # | Step | Accepted outcome |
+|---|---|---|
+| `RC1` | `git rev-list --full-history --max-count=1 HEAD -- .github/workflows/spike-177-isolation-probe.yml` | Exactly one line carrying one 40-character lowercase hex SHA. Empty output, more than one line, or any other shape → fail closed. **`--full-history` is mandatory**: default history simplification prunes the deletion commit once the path is absent at `HEAD` and the command returns empty, which would otherwise read as "no removal commit exists" |
+| `RC2` | `git diff-tree --no-commit-id --name-status -r <sha> -- .github/workflows/spike-177-isolation-probe.yml` | Exactly one line, `D` then a tab then the exact path. Any other status letter, more than one line, or empty output → fail closed |
+| `RC3` | `git diff-tree --no-commit-id --name-status -r <sha> -- .github/workflows/` | Exactly the one line `RC2` produced — the removal commit touches **no other workflow file** |
+| `RC4` | `git ls-tree --full-tree -r --name-only <sha> -- .github/workflows/spike-177-isolation-probe.yml` | Empty output — the path is absent from the removal commit's own tree |
+| `RC5` | `git merge-base --is-ancestor <sha> HEAD` | Exit `0` — the removal commit is **reachable from the current HEAD**. Ancestor-or-equal, so a removal commit that happens still to be the tip also passes |
+| `RC6` | `git merge-base --is-ancestor <created-sha> <sha>` | Exit `0`, **and** `<created-sha>` ≠ `<sha>` — `177.004-T`'s creation commit is in the removal commit's ancestry |
+| `RC7` | Self-reference guard | `<sha>` is read from committed history **before** this task stages anything, so it can never be the evidence commit this task subsequently creates. No field of the block may name a commit that does not already exist at derivation time |
+
+#### The exact-path probes `PP1`–`PP3`
+
+Every cleanliness question in this unit is asked about **one path**. The probes
+are fixed-argv, exact-path, and **ambiguous output is rejected rather than
+interpreted**.
+
+| # | Probe | Accepted outcomes |
+|---|---|---|
+| `PP1` | `git ls-tree --full-tree -r --name-only HEAD -- .github/workflows/spike-177-isolation-probe.yml` | Empty output → the path is **not tracked at the current tip**. Exactly one line byte-identical to the path → **tracked at the tip**. Non-zero exit, more than one line, or a line that is not byte-identical → **ambiguous** |
+| `PP2` | `git status --porcelain=v1 --untracked-files=all -- .github/workflows/spike-177-isolation-probe.yml` | Empty output → **no staged, unstaged or untracked residue** at that exact path. One or more lines whose path field is byte-identical to the path → **residue present**. Non-zero exit, any reported path that is not byte-identical, or any directory form ending in `/` → **ambiguous**. `--untracked-files=all` is mandatory so an untracked copy inside an otherwise-untracked directory is reported as the file rather than collapsed into a directory entry |
+| `PP3` | `git ls-files --cached --error-unmatch -- .github/workflows/spike-177-isolation-probe.yml` | Non-zero exit → the path is **not in the index**. Exit `0` → **index residue present** |
+
+`PP1` answers *is the workflow tracked at the tip*. `PP2` and `PP3` answer *is
+there an exact-path copy staged, unstaged or untracked*. **These are different
+facts and they are reported under different reason tokens**, so a diagnostic
+never claims the workflow is present at the tip when only exact-path worktree
+or index residue exists. Ambiguity in any probe is never resolved in the
+passing direction: it raises `TIP_UNOBSERVABLE`.
+
+**Fail-closed is preserved and narrowed, not loosened.** A staged, unstaged or
+untracked copy of the exact probe path still fails cleanup, still forces
+`ISOLATION_CLEANUP_FAILED`, and still blocks `181-S` harvest outright — it now
+does so under a truthful reason. What no longer fails is an unrelated file,
+which never had anything to do with whether the probe workflow was removed.
 
 ### Cleanup evidence block
 
@@ -409,7 +484,7 @@ CLEANUP_DISPATCH: i7-acquisition | run_id=<digits> | url=<run-url>
 CLEANUP_DISPATCH: i2-i3-egress | run_id=<digits> | url=<run-url>
 CLEANUP_DISPATCH: i4-i6-containment | run_id=<digits> | url=<run-url>
 CLEANUP_REMOVED_COMMIT: <40-lowercase-hex>
-CLEANUP_TIP_OBSERVATION: WORKFLOW_ABSENT | observed_tip=<40-lowercase-hex> | porcelain_empty_at_observation=yes | observed_at=2026-09-DD
+CLEANUP_TIP_OBSERVATION: WORKFLOW_ABSENT | observed_tip=<40-lowercase-hex> | path_clean_at_observation=yes | observed_at=2026-09-DD
 ```
 
 **What each SHA means, stated so no field can be read as self-reference.**
@@ -417,21 +492,29 @@ CLEANUP_TIP_OBSERVATION: WORKFLOW_ABSENT | observed_tip=<40-lowercase-hex> | por
 | Field | Names | Never names |
 |---|---|---|
 | `CLEANUP_CREATED_COMMIT` | `177.004-T`'s creation commit — the commit that **adds** the exact path | anything else |
-| `CLEANUP_REMOVED_COMMIT` | `177.003-T`'s removal commit — the commit that **deletes** the exact path, and which already exists when `177.007-T` reads it | the evidence commit that records this block |
-| `observed_tip` | the branch tip `177.007-T` **actually observed** before it staged its own edit. On a normal run this is the removal commit, and it is the **parent** of the evidence commit | the evidence commit that records this block |
+| `CLEANUP_REMOVED_COMMIT` | `177.003-T`'s removal commit, **derived** by `RC1`–`RC7` — the commit that **deletes** the exact path, which already exists and is already reachable from `HEAD` when `177.007-T` reads it | the evidence commit that records this block. It is **not** required to be the current tip |
+| `observed_tip` | the branch tip `177.007-T` **actually observed** before it staged its own edit. It is the removal commit **or a descendant of it**, and it is the **parent** of the evidence commit | the evidence commit that records this block |
 
-`porcelain_empty_at_observation=yes` records that the working tree was clean
-**at that observation**, before `177.007-T` staged anything. It makes — and
-needs — no claim about the tree after the block is written. The recorded
-observation is **evidence of what was seen, not the authority on current branch
-state**: that authority is `C6`, `177.006-T`'s own independent re-observation of
-the **current** tip.
+`path_clean_at_observation=yes` records that, **at that observation and before
+`177.007-T` staged anything**, the exact path
+`.github/workflows/spike-177-isolation-probe.yml` was absent from
+`observed_tip`'s tree (`PP1`) and carried no staged, unstaged or untracked
+residue (`PP2`, `PP3`). **It makes no claim whatsoever about any other path**,
+and it makes — and needs — no claim about the tree after the block is written.
+The recorded observation is **evidence of what was seen, not the authority on
+current branch state**: that authority is `C6`, `177.006-T`'s own independent
+re-observation of the **current** tip.
 
-**Observation order is binding.** `177.007-T` confirms, in this order, that the
-removal commit exists and is the current tip; that the exact path is absent at
-that tip; that `git status --porcelain` is empty; and that the creation SHA and
-the four dispatch identifiers are readable from the records already produced.
-Only then does it compose and write.
+**Observation order is binding.** `177.007-T` confirms, in this order: that the
+removal commit derives and verifies under `RC1`–`RC7` — it exists, deletes
+exactly the path, touches no other workflow file, has the creation commit in
+its ancestry, and is reachable from the current `HEAD`; that the current tip
+resolves and the exact path is absent from it (`PP1`); that the exact path
+carries no staged, unstaged or untracked residue (`PP2`, `PP3`); and that the
+creation SHA and the four dispatch identifiers are readable from the records
+already produced. Only then does it compose and write. **At no point does it
+observe, require or record whole-tree cleanliness**, and at no point does it
+require the removal commit to be the current tip.
 
 **The write is atomic and all-or-nothing.** The eight lines are written as one
 contiguous block in one commit. **If any required value cannot be observed, no
@@ -447,6 +530,19 @@ more than one `CLEANUP_WORKFLOW_PATH:`, `CLEANUP_CREATED_COMMIT:`,
 `CLEANUP_REMOVED_COMMIT:` or `CLEANUP_TIP_OBSERVATION:` line is
 `EVIDENCE_MALFORMED`. This is the same single-instance rule the
 `COMPOSED_STATE:` line carries.
+
+**Re-emission is always available, and it needs no second removal commit.**
+`177.007-T` may re-run at any later point on the branch, after any number of
+unrelated forward commits. `RC1`–`RC7` re-derive the **same** removal commit —
+its ancestry and its diff are historical facts, and `RC5` asks only for
+reachability, which later commits preserve. `observed_tip` on a re-emission
+names the tip actually observed at that later moment, which is a **descendant**
+of the removal commit and is the parent of the new evidence commit; `C5`
+already accepts exactly that. **Re-emission therefore never requires a second
+deletion or removal commit** — which is what makes the in-unit
+`ISOLATION_CLEANUP_FAILED` remedy executable rather than advertised. What
+re-emission still cannot do is manufacture a missing value: the atomic rule
+above is unchanged.
 
 The block carries **paths, commit identities, run identifiers, URLs and a date
 only**. No environment-variable value, token, key fragment or credential
@@ -467,12 +563,12 @@ depend on the artifact's own word.**
 
 | # | Check | Holds when |
 |---|---|---|
-| `C6` | **Tip re-observation** | `177.006-T` observes the **current** branch tip itself, **before staging its own verdict-line edit**, and finds `.github/workflows/spike-177-isolation-probe.yml` **absent**: `git ls-files --error-unmatch <path>` exits non-zero and `git status --porcelain` is empty. The task does **not** take this from `CLEANUP_TIP_OBSERVATION`, and does not take it from `CLEANUP_REMOVED_COMMIT` |
+| `C6` | **Current-state re-observation** | `177.006-T` observes the **current** branch tip itself, **before staging its own verdict-line edit**, and finds the exact path `.github/workflows/spike-177-isolation-probe.yml` neither tracked at that tip nor present as exact-path residue: `PP1` reports the path **absent**, and `PP3` and `PP2` each report **no residue**. The task does **not** take this from `CLEANUP_TIP_OBSERVATION`, and does not take it from `CLEANUP_REMOVED_COMMIT`. **The check is scoped to that one path**; no other tracked file, untracked file, checkpoint, memory note or piece of operator work is observed, and none can fail it |
 | `C1` | **Path** | Exactly one `CLEANUP_WORKFLOW_PATH:` line, whose value is byte-identical to `.github/workflows/spike-177-isolation-probe.yml` |
 | `C2` | **Creation** | Exactly one `CLEANUP_CREATED_COMMIT:` line carrying a 40-character lowercase hex SHA, naming a commit that **adds exactly that path** and adds or modifies no other workflow file |
 | `C3` | **Dispatch** | Exactly four `CLEANUP_DISPATCH:` lines whose input fields are exactly the set `i1-credentials`, `i7-acquisition`, `i2-i3-egress`, `i4-i6-containment` — no duplicate, no omission, no unrecognised input — each carrying a non-empty `run_id` and a non-empty `url` |
-| `C4` | **Removal** | Exactly one `CLEANUP_REMOVED_COMMIT:` line carrying a 40-character lowercase hex SHA, naming a commit that **deletes exactly that path**, that is a descendant of the `C2` commit on this branch, and that is **already reachable from the current branch tip**. It names `177.003-T`'s removal commit and never the evidence commit that records the block |
-| `C5` | **Recorded observation** | Exactly one `CLEANUP_TIP_OBSERVATION:` line whose first field is the literal `WORKFLOW_ABSENT` and which carries `observed_tip=<40-character lowercase hex>`, `porcelain_empty_at_observation=yes` and `observed_at=<date>`. `observed_tip` must be reachable from the current branch tip, must be the `C4` removal commit or a descendant of it, and the exact `C1` path must be **absent from `observed_tip`'s tree**. `observed_tip` is **never required to equal the current tip** — `C6`, not this line, is the current-state authority |
+| `C4` | **Removal** | Exactly one `CLEANUP_REMOVED_COMMIT:` line carrying a 40-character lowercase hex SHA that satisfies `RC1`–`RC7` when `177.006-T` re-derives them independently: the commit **deletes exactly that path**, touches no other workflow file, has the `C2` creation commit in its ancestry, and is **reachable from the current branch tip**. `177.006-T` re-runs `RC1` itself and the recorded SHA must equal the SHA `RC1` yields; a mismatch is `EVIDENCE_INCONSISTENT`. It names `177.003-T`'s removal commit and never the evidence commit that records the block. **It is never required to equal the current tip** — later unrelated forward commits do not invalidate a removal that already happened |
+| `C5` | **Recorded observation** | Exactly one `CLEANUP_TIP_OBSERVATION:` line whose first field is the literal `WORKFLOW_ABSENT` and which carries `observed_tip=<40-character lowercase hex>`, `path_clean_at_observation=yes` and `observed_at=<date>`. `observed_tip` must be reachable from the current branch tip, must be the `C4` removal commit or a descendant of it, and the exact `C1` path must be **absent from `observed_tip`'s tree**. `observed_tip` is **never required to equal the current tip** — `C6`, not this line, is the current-state authority. `path_clean_at_observation` asserts exact-path cleanliness only and is **not** a whole-tree claim |
 
 Cleanup resolves to **`CLEANUP_PROVEN`** only when **all six** hold. Otherwise
 it resolves to **`CLEANUP_FAILED`**, carrying the reason token of the **first**
@@ -480,14 +576,26 @@ check that failed in the order `C6, C1, C2, C3, C4, C5`:
 
 | Reason token | Raised when |
 |---|---|
-| `WORKFLOW_PRESENT_AT_TIP` | `C6` — the exact path is present at the branch tip, or the working tree is dirty |
-| `TIP_UNOBSERVABLE` | `C6` — the tip cannot be observed at all |
+| `WORKFLOW_PRESENT_AT_TIP` | `C6` — `PP1` reports the exact path **tracked at the current branch tip**. This token means that and nothing else: it is never raised for a working-tree or index condition |
+| `WORKFLOW_PATH_RESIDUE` | `C6` — the path is **absent** at the tip, but `PP3` or `PP2` reports a **staged, unstaged or untracked copy at that exact path**. Distinct from `WORKFLOW_PRESENT_AT_TIP` so the diagnostic never claims the workflow is committed when only exact-path residue exists. Still fail-closed, still non-pass, still harvest-blocking |
+| `TIP_UNOBSERVABLE` | `C6` — the current tip cannot be resolved at all, or any of `PP1`, `PP2`, `PP3` returns output outside its accepted shape. **Ambiguity is never resolved in the passing direction** |
 | `EVIDENCE_MISSING` | `C1`–`C5` — a required line is absent, or a required `CLEANUP_DISPATCH:` input is omitted |
 | `EVIDENCE_MALFORMED` | `C1`–`C5` — a required line is present but not in the declared form: wrong field count, non-hex SHA, empty `run_id` or `url`, unrecognised token, or more than one of a single-instance line |
-| `EVIDENCE_INCONSISTENT` | `C2`–`C5` — the lines are well-formed but disagree with the repository or with each other: a creation commit that does not add the path, a removal commit that does not delete it, a removal commit that is not a descendant of the creation commit or is not reachable from the current tip, an `observed_tip` that is unreachable, is not the removal commit or a descendant of it, or still carries the path, or a duplicate dispatch input |
+| `EVIDENCE_INCONSISTENT` | `C2`–`C5` — the lines are well-formed but disagree with the repository or with each other: a creation commit that does not add the path, a removal commit that does not delete it, that touches another workflow file, that does not have the creation commit in its ancestry, that is not reachable from the current tip, or that is not the SHA `177.006-T`'s own `RC1` re-derivation yields; an `observed_tip` that is unreachable, is not the removal commit or a descendant of it, or still carries the path; or a duplicate dispatch input |
 
-**`ISOLATION_CHARACTERIZED` is reachable on one normal run, and that is
-derived rather than asserted.** Taking the states of the six checks in
+**The `C6` reason tokens report three different facts and are never
+interchangeable.** `WORKFLOW_PRESENT_AT_TIP` is a statement about committed
+branch content; `WORKFLOW_PATH_RESIDUE` is a statement about the index and
+working tree at one exact path; `TIP_UNOBSERVABLE` is a statement about the
+observation itself. Within `C6` they are evaluated in that order —
+tracked-at-tip, then residue — and any probe that returns an unaccepted shape
+raises `TIP_UNOBSERVABLE` at the point it runs. Attempt 05 finding `L2` (P3)
+recorded that a single token was raised on two different facts; this split is
+made for consistency with the `M2` remediation and **no claim of `L2` closure
+is made or implied** — that judgement belongs to an independent reviewer.
+
+**`ISOLATION_CHARACTERIZED` is reachable on one normal run, and remains
+reachable on any later re-emission.** Taking the states of the six checks in
 execution order against the two-step lifecycle:
 
 1. `177.004-T` commits the workflow. The creation SHA now exists and is
@@ -495,23 +603,32 @@ execution order against the two-step lifecycle:
 2. The four determining tasks dispatch that one workflow. Four run IDs and URLs
    now exist, so `C3`'s input exists.
 3. `177.003-T` lands the findings artifact and deletes the workflow in one
-   commit. The removal SHA now exists, so `C4`'s input exists.
-4. `177.007-T` observes that commit as the current tip, confirms the path
-   absent and the tree clean, and writes all eight lines — **every one of them
-   from a value that already existed before the write**. So `C1` and `C5`'s
-   inputs exist, and `C5`'s `observed_tip` equals the `C4` removal commit,
-   which satisfies the descendant-or-equal relation exactly.
+   commit. That commit's diff and ancestry now satisfy `RC2`–`RC4` and `RC6`
+   permanently, so `C4`'s input exists and **cannot later be destroyed**.
+4. `177.007-T` derives that commit by `RC1`, verifies `RC2`–`RC7`, observes the
+   current tip by `PP1`, `PP3` and `PP2`, and writes all eight lines — **every one
+   of them from a value that already existed before the write**. So `C1` and
+   `C5`'s inputs exist. Whether zero or many unrelated commits landed between
+   step 3 and step 4 is **immaterial**: `RC5` asks for reachability, which they
+   preserve, and `C5` accepts `observed_tip` as the removal commit **or a
+   descendant**, which is exactly what the observation yields.
 5. `177.006-T` observes the current tip — now the evidence commit, whose tree
-   still lacks the workflow and whose working tree is clean before the
-   evaluator stages anything — so `C6` holds; then `C1`–`C5` hold against the
-   repository.
+   does not track the workflow and which carries no exact-path residue before
+   the evaluator stages anything — so `C6` holds; then `C1`–`C5` hold against
+   the repository, with `C4` re-derived independently by `RC1`.
 
 Cleanup therefore resolves `CLEANUP_PROVEN` on the **first** emission. With all
 seven ledger rows `DETERMINED`, the unit composes to `ISOLATION_CHARACTERIZED`
 with **no self-referential field, no waiver, no guessed SHA and no corrective
-cycle**. Nothing in this derivation makes the pass state easier to reach on bad
-input: `C6` is still an independent observation of the current tip, and the
-precedence order still places cleanup above the pass state.
+cycle** — and, because none of the six checks depends on the branch tip
+standing still or on the rest of the tree being clean, it resolves the same way
+on a re-emission performed after unrelated forward commits. Nothing in this
+derivation makes the pass state easier to reach on bad input: `C6` is still an
+independent observation of the current state, the workflow being tracked at the
+current `HEAD` still raises `WORKFLOW_PRESENT_AT_TIP`, exact-path residue still
+raises `WORKFLOW_PATH_RESIDUE`, and the precedence order still places cleanup
+above the pass state. **`ISOLATION_CHARACTERIZED` remains impossible while the
+workflow is tracked at the current `HEAD` or exists as exact-path residue.**
 
 **Absence of the whole block is `CLEANUP_FAILED | cleanup=EVIDENCE_MISSING`,
 never `ISOLATION_NOT_OBSERVED`** — the coverage ledger may be complete and
@@ -646,7 +763,7 @@ that disagree.
 |---|---|---|
 | `ISOLATION_CHARACTERIZED` | Yes | Every task the findings support. Whether the unit rises above the floor is decided by the *verdicts*, not by the gate |
 | `ISOLATION_FLOOR_ONLY` | Yes, **floor-only** | Only the evidence-and-documentation floor tasks. No task that assumes, relies on, or asserts an unproven property may be harvested, and the findings artifact names which properties those are |
-| `ISOLATION_CLEANUP_FAILED` | **No** | Nothing. The spike is unclosed. The remedy is inside this unit and is cheap: remove the workflow from the branch tip if it survives, have `177.007-T` re-emit a complete and consistent cleanup evidence block against the removal commit, and re-run `177.006-T`, which **replaces** the verdict line. Unlike `ISOLATION_UNDETERMINED` this needs no further determining run and no waiver, because no property observation is missing |
+| `ISOLATION_CLEANUP_FAILED` | **No** | Nothing. The spike is unclosed. The remedy is inside this unit and is cheap: remove the workflow from the branch tip if it is still tracked there, clear any exact-path staged, unstaged or untracked residue, have `177.007-T` **re-emit** a complete and consistent cleanup evidence block against the **same reachable removal commit** — no second removal or deletion commit is required, and later unrelated commits do not prevent it — and re-run `177.006-T`, which **replaces** the verdict line. Unlike `ISOLATION_UNDETERMINED` this needs no further determining run and no waiver, because no property observation is missing |
 | `ISOLATION_UNDETERMINED` | **No** | Nothing. Harvest is blocked outright until a further determining run or an explicit, recorded operator waiver resolves every `ABSENT` row |
 | `ISOLATION_NOT_OBSERVED` | **No** | Nothing. There is no observation to read |
 
@@ -706,9 +823,9 @@ Each form names the properties at issue, so a reader can check the verdict
 against the ledger without re-running the spike. A verdict line whose counts
 disagree with the ledger is itself a fail, and the counts must sum to 7. In the
 `ISOLATION_CLEANUP_FAILED` form `<reason>` is exactly one of
-`WORKFLOW_PRESENT_AT_TIP`, `TIP_UNOBSERVABLE`, `EVIDENCE_MISSING`,
-`EVIDENCE_MALFORMED` or `EVIDENCE_INCONSISTENT`; the two passing-shape forms
-carry `cleanup=PROVEN` and no other value is valid in them.
+`WORKFLOW_PRESENT_AT_TIP`, `WORKFLOW_PATH_RESIDUE`, `TIP_UNOBSERVABLE`,
+`EVIDENCE_MISSING`, `EVIDENCE_MALFORMED` or `EVIDENCE_INCONSISTENT`; the two
+passing-shape forms carry `cleanup=PROVEN` and no other value is valid in them.
 
 ## Risks
 
@@ -725,7 +842,9 @@ carry `cleanup=PROVEN` and no other value is valid in them.
 | R9 | A determining task times out and the result is read as either a pass or a silent gap | Neither is reachable. A timed-out property is `NOT DETERMINED — FLOOR INVOKED` only if it records what was attempted, what blocked it, and the floor invocation in writing; otherwise it is `ABSENT`. The first yields `ISOLATION_FLOOR_ONLY`, which is explicitly not a pass and permits only floor-only harvest; the second yields `ISOLATION_UNDETERMINED`, which blocks harvest outright. |
 | R10 | `177.004-T` completes with I1 `NOT ACHIEVABLE` or `NOT DETERMINED — FLOOR INVOKED`, the `blocks` edge clears, and the gated tasks run anyway | This is the attempt-03 `K1` defect and it is closed by making the predicate a **verdict** rather than a completion. Both gated tasks fail closed on every non-`ACHIEVABLE` outcome and on every unreadable, absent, malformed or multi-line gate file, record their properties `NOT DETERMINED — FLOOR INVOKED` naming `I1` as the blocker, and force `ISOLATION_FLOOR_ONLY`. `ISOLATION_CHARACTERIZED` is structurally unreachable while the gate is CLOSED, because it requires all seven properties `DETERMINED`. A gated task that acquires or probes on a CLOSED gate, or that records a `DETERMINED` verdict for a gated property, is a defect and a finding. |
 | R11 | The committed probe workflow is left on the branch, or fires outside the spike | It has one owner for creation (`177.004-T`), one exact path, one removal owner and point (`177.003-T`, at spike close, in the findings commit), one cleanup-evidence owner (`177.007-T`, in a separate commit afterwards), and a fixed-shape `CLEANUP_` evidence block recorded in the findings artifact. It is `workflow_dispatch`-only, so it never fires on `push`, `pull_request` or `schedule`. **The leftover case is closed by a predicate, not by a note.** `177.006-T` evaluates checks `C1`–`C6`, independently re-observing the current branch tip rather than trusting the recorded observation, and a branch still carrying the workflow — or evidence that is missing, malformed or inconsistent with the repository — resolves cleanup to `CLEANUP_FAILED` and forces the composed state to `ISOLATION_CLEANUP_FAILED`, which **withholds the pass and blocks `181-S` harvest outright**. Through revision 4 this risk was mitigated only by a prose expectation the composed-state vocabulary could not express; that was attempt 04 finding `K3` (P2). |
-| R12 | The cleanup evidence block cannot be written where it is mandated to be written, so the predicate fails on a correct execution | This was attempt 05 finding `L1` (P2): the block was mandated to be written in the removal commit while `CLEANUP_REMOVED_COMMIT` and `CLEANUP_TIP_OBSERVATION` carried values that only that commit's own creation defines, making a conformant first emission impossible and forcing at least one spurious `ISOLATION_CLEANUP_FAILED` cycle. It is closed by **ordering, not by relaxation**: `177.003-T` removes and commits; `177.007-T` then observes that already-existing commit and writes the block in a separate evidence commit, so every recorded value exists before it is recorded. `observed_tip` names the tip that was observed — the removal commit, the parent of the evidence commit — and no field names the commit that records it. The write is atomic: if any value cannot be observed, no block is written, which resolves `EVIDENCE_MISSING` and remains fail-closed. A guessed or pre-computed SHA is forbidden and would resolve `EVIDENCE_INCONSISTENT`. No check was weakened and `C6` remains an independent observation of the current tip. |
+| R12 | The cleanup evidence block cannot be written where it is mandated to be written, so the predicate fails on a correct execution | This was attempt 05 finding `L1` (P2): the block was mandated to be written in the removal commit while `CLEANUP_REMOVED_COMMIT` and `CLEANUP_TIP_OBSERVATION` carried values that only that commit's own creation defines, making a conformant first emission impossible and forcing at least one spurious `ISOLATION_CLEANUP_FAILED` cycle. It is closed by **ordering, not by relaxation**: `177.003-T` removes and commits; `177.007-T` then observes that already-existing commit and writes the block in a separate evidence commit, so every recorded value exists before it is recorded. `observed_tip` names the tip that was observed — the parent of the evidence commit — and no field names the commit that records it. The write is atomic: if any value cannot be observed, no block is written, which resolves `EVIDENCE_MISSING` and remains fail-closed. A guessed or pre-computed SHA is forbidden and would resolve `EVIDENCE_INCONSISTENT`. No check was weakened and `C6` remains an independent observation of the current state. |
+| R13 | The writer's precondition is stronger than the predicate it feeds, so a satisfiable predicate has an unwritable input and the failure has no in-unit remedy | This was attempt 06 finding `M1` (P2): `177.007-T` could write only while the removal commit was the **current tip**, while `C4` required only reachability and `C5` explicitly accepted `observed_tip` as the removal commit **or a descendant**. One intervening commit — and `.backlogit/` is tracked, so ordinary bookkeeping produces them — forbade the write under the atomic rule, and because the path was already deleted **no second removal commit could ever exist**, so re-emission could never satisfy the writer's own step (1) again. It is closed by making the removal proof **durable rather than positional**: `RC1`–`RC7` require the named removal commit to exist, to delete exactly the path, to touch no other workflow file, to carry the creation commit in its ancestry and to be **reachable from the current `HEAD`** — never to be the tip. Later unrelated forward commits preserve reachability, so the proof survives them and the block is re-emittable from the same removal commit with no second deletion. Writer and evaluator now run the *same* derivation, so the writer's precondition can no longer exceed the predicate. `C6` remains the independent current-state authority. |
+| R14 | A cleanliness gate keyed on whole-tree state misfires on unrelated work produced by the agents that execute the unit | This was attempt 06 finding `M2` (P2): `177.007-T` step (3) and `177.006-T` check `C6` each required an empty **whole-tree** `git status --porcelain`, and `C6` runs first, so a single unrelated untracked checkpoint or memory note short-circuited the entire predicate to a cleanup failure. The same shape is recorded in `docs/compound/2026-08-16-multiple-implementation-worktrees-blocks-topology-gate-globally.md`. It is closed by scoping every limb to **one exact path**: `PP1` asks whether `.github/workflows/spike-177-isolation-probe.yml` is tracked at the current tip, and `PP2`/`PP3` ask whether that exact path carries staged, unstaged or untracked residue. Unrelated tracked files, untracked files, checkpoints, memory notes and operator work are outside the check and cannot fail it. Fail-closed is preserved and narrowed, not loosened: an exact-path copy still fails, under the distinct token `WORKFLOW_PATH_RESIDUE`, and ambiguous probe output raises `TIP_UNOBSERVABLE` rather than passing. |
 
 ## Hardening review
 
@@ -746,8 +865,10 @@ Adversarial pass over this spike's failure modes and boundaries.
 | H9 | Is the I1-before-probe ordering that H7 relies on actually enforced, or only asserted? | Enforced, and by two mechanisms that do different jobs. **Ordering**: `177.004-T` is a `blocks` predecessor of `177.002-T` (the containment probe) and of `177.005-T` (the untrusted acquisition) in `item_deps`, and `177.001-T` inherits it transitively through `177.005-T`. **Safety**: the `I1_GATE:` verdict predicate that both gated tasks evaluate as their first action. Every affected task record states both rather than claiming independence. This question exists because a previous revision made H7's answer rest on an ordering that the task table, three task records and `item_deps` all denied. |
 | H12 | Does the `blocks` edge by itself carry the probe-safety guarantee? | **No, and treating it as though it did was the attempt-03 `K1` defect.** A `blocks` edge is a predicate over predecessor **completion**, and `177.004-T` completes on three outcomes: `DETERMINED`/ACHIEVABLE, `DETERMINED`/NOT ACHIEVABLE (R6), and `NOT DETERMINED — FLOOR INVOKED` at the 90-minute bound (R9). Two of the three leave credential absence unverified or affirmatively falsified, and all three clear the edge. The guarantee is therefore carried by a **verdict predicate** inside the gated tasks: they read the `I1_GATE:` line first and fail closed to `NOT DETERMINED — FLOOR INVOKED` naming `I1` on anything but `ACHIEVABLE`, including an absent, unreadable, malformed or multi-line gate file. The edge remains — it is how the gate artifact is guaranteed to exist before the read — but it is never offered as the safety argument. See *I1 gate*, R8 and R10. |
 | H13 | Can a CLOSED I1 gate still produce a pass? | No, structurally. A CLOSED gate leaves at least one of I2, I4, I5, I6 or I7 `NOT DETERMINED — FLOOR INVOKED`, and `ISOLATION_CHARACTERIZED` — the only pass state — requires **all seven** properties `DETERMINED`. The unit therefore composes to `ISOLATION_FLOOR_ONLY` (or to `ISOLATION_CLEANUP_FAILED`, if cleanup also fails), neither of which is a pass; `ISOLATION_FLOOR_ONLY` asserts nothing about the isolation and authorizes only floor-only harvest in `181-S`, and `ISOLATION_CLEANUP_FAILED` authorizes nothing. If a gated task records fewer than the three required floor-invocation parts, its row is `ABSENT` and the unit composes to `ISOLATION_UNDETERMINED`, which blocks harvest outright. There is no path to a pass. |
-| H15 | Is the branch-cleanliness expectation H14 states an executable predicate, or a claim? | **It is now a predicate; through revision 4 it was a claim, which was attempt 04 finding `K3` (P2).** The composed states were defined exhaustively as functions of the seven-entry coverage ledger, in which branch state appeared nowhere and for which no verdict-line field existed — so an all-`DETERMINED` ledger on a branch still carrying the probe workflow forced `ISOLATION_CHARACTERIZED` while `177.006-T`'s record forbade a pass, and no token could express the outcome the record demanded. Revision 5 closes this by giving cleanup a **sole writer** of the eight-line `CLEANUP_` block, a **sole evaluator** (`177.006-T`, checks `C1`–`C6`, with `C6` independently re-observing the branch tip rather than trusting the artifact's own word), a **fifth composed state** `ISOLATION_CLEANUP_FAILED` with its own line form and five-token reason vocabulary, a **declared precedence** placing the cleanup test above both `ISOLATION_FLOOR_ONLY` and `ISOLATION_CHARACTERIZED`, and a **per-state eligibility row** that blocks `181-S` harvest outright. That sole writer was `177.003-T` at revision 5 and is `177.007-T` at revision 6; whether the block could be *written at all* at its revision-5 write point is a separate question — see H16. The pass state is therefore unreachable while the exact path is present at the branch tip or its creation, dispatch or removal evidence is missing, malformed or inconsistent. The check is local, offline and credential-free, so it neither weakens nor interacts with the I1 gate. |
+| H15 | Is the branch-cleanliness expectation H14 states an executable predicate, or a claim? | **It is now a predicate; through revision 4 it was a claim, which was attempt 04 finding `K3` (P2).** The composed states were defined exhaustively as functions of the seven-entry coverage ledger, in which branch state appeared nowhere and for which no verdict-line field existed — so an all-`DETERMINED` ledger on a branch still carrying the probe workflow forced `ISOLATION_CHARACTERIZED` while `177.006-T`'s record forbade a pass, and no token could express the outcome the record demanded. Revision 5 closes this by giving cleanup a **sole writer** of the eight-line `CLEANUP_` block, a **sole evaluator** (`177.006-T`, checks `C1`–`C6`, with `C6` independently re-observing the branch tip rather than trusting the artifact's own word), a **fifth composed state** `ISOLATION_CLEANUP_FAILED` with its own line form and a fail-closed reason vocabulary, a **declared precedence** placing the cleanup test above both `ISOLATION_FLOOR_ONLY` and `ISOLATION_CHARACTERIZED`, and a **per-state eligibility row** that blocks `181-S` harvest outright. That sole writer was `177.003-T` at revision 5 and is `177.007-T` from revision 6 onward; whether the block could be *written at all* at its revision-5 write point is a separate question — see H16, and see H17 and H18 for whether the revision-6 write point's own preconditions were consistent and survivable. The pass state is therefore unreachable while the exact path is tracked at the current branch tip, while an exact-path copy is staged, unstaged or untracked, or while its creation, dispatch or removal evidence is missing, malformed or inconsistent. The check is local, offline and credential-free, so it neither weakens nor interacts with the I1 gate. |
 | H16 | Can the fixed-shape evidence block H15 introduces actually be written at the point where it is mandated to be written? | **Not as revision 5 specified it, and that was attempt 05 finding `L1` (P2).** H15 asserted the cleanup evidence was producible; it never derived that it was. Two of the eight lines — `CLEANUP_REMOVED_COMMIT` and `CLEANUP_TIP_OBSERVATION` — carried values that only the mandated write point's own creation defines. A commit's identity is a function of its content, so a commit cannot contain its own SHA, and a working tree cannot be observed clean from inside the staged change that makes it clean. `C4` and `C5` were unsatisfiable on a first emission, cleanup resolved `CLEANUP_FAILED`, and a spurious `ISOLATION_CLEANUP_FAILED` cycle was forced on every execution of the unit as written. Revision 6 closes it by **separating removal from evidence**: `177.003-T` removes and commits and writes no `CLEANUP_` line; `177.007-T` observes the already-existing removal commit and writes the block in its own evidence commit. Every value is observable before it is recorded; `observed_tip` names the tip that was observed rather than the commit that records it; the write is atomic and no SHA may be guessed; and `C6` — the evaluator's independent observation of the **current** tip — remains the final branch-state authority. The generalisable question this adds to the pass is: **for every field of every machine-written record, does a point in the lifecycle exist at which that field's value is already observable?** |
+| H17 | Is the writer's precondition consistent with the checks of the predicate it feeds, and does a failure of it have an in-unit remedy? | **It was not at revision 6, and that was attempt 06 finding `M1` (P2).** H16 established that every field *could* be observed; it never asked whether the writer was permitted to write at the moments the predicate accepts. `177.007-T` could write only while the removal commit was the **current tip**, while `C4` required only reachability and `C5` explicitly accepted `observed_tip` as the removal commit **or a descendant** and said in terms that it is never required to equal the current tip. The writer was therefore strictly stricter than its own consumer, and one intervening commit converted a satisfiable predicate into an unwritable one under the atomic all-or-nothing rule. Worse, the failure was **unrecoverable in-unit**: the advertised remedy was to re-emit against the removal commit, but the tip had moved and a second removal commit was impossible because the path was already deleted. Revision 7 closes it by deriving the removal commit from **content and ancestry** rather than position — `RC1`–`RC7`, requiring existence, an exact-path deletion, no other workflow file touched, the creation commit in ancestry, and **reachability from the current `HEAD`** — and by having `177.006-T` re-derive the same `RC1` independently, so writer and evaluator cannot diverge. Re-emission from the same reachable removal commit is always available and needs no second deletion. The generalisable question this adds is: **is every precondition a writer must satisfy no stronger than what the predicate consuming its output actually checks, and can a writer that fails it ever succeed again?** |
+| H18 | Does the observation moment a record mandates survive the execution environment that runs it? | **It did not at revision 6, and that was attempt 06 finding `M2` (P2).** Two limbs — `177.007-T` step (3) and `177.006-T` check `C6`, the latter evaluated *first* so its failure short-circuits the whole predicate — required an empty **whole-tree** `git status --porcelain`. The agents that execute this unit dirty the tree as a matter of normal operation: `.backlogit/` is tracked so status transitions mutate tracked records, and checkpoints under `.backlogit/checkpoints/` and session notes under `docs/memory/` are emitted untracked. The premise was falsifiable by the executor's own bookkeeping, and `docs/compound/2026-08-16-multiple-implementation-worktrees-blocks-topology-gate-globally.md` already records the general shape of a gate keyed on whole-tree cleanliness misfiring on unrelated content. Revision 7 closes it by scoping every cleanliness limb to the **one exact path the check is about** (`PP1`, `PP2`, `PP3`), rejecting ambiguous probe output rather than interpreting it, and splitting the diagnostic so exact-path residue reports `WORKFLOW_PATH_RESIDUE` rather than falsely claiming the workflow is present at the tip. The generalisable question this adds is: **is the state a check observes scoped to what the check is actually about, or does it also observe state the executing agents themselves produce?** |
 | H14 | Does committing the probe workflow contradict the blast-radius and rollback statements? | It did, and that was the attempt-03 `K2` defect; both statements are now truthful. GitHub executes only workflows that exist on a branch, so the probe workflow **is committed** and the plan says so. *Probe workflow lifecycle* gives it one owning task (`177.004-T`), one exact path (`.github/workflows/spike-177-isolation-probe.yml`), one removal owner and point (`177.003-T`, at spike close, in the findings commit), a rollback (revert the single creation commit), and an eight-line `CLEANUP_` evidence block as removal evidence. Whether that expectation is *enforced* rather than merely stated is a separate question — see H15. `181-S` still owns every **durable** committed CI surface; this one is dispatch-only, carries a minimal `permissions:` block and no secrets, and does not survive its unit. |
 | H10 | Can the gate pass with nothing determined? | No. `ISOLATION_CHARACTERIZED` requires all seven properties `DETERMINED` **and** `CLEANUP_PROVEN`, and it is the only pass state. An all-fallback ledger is `ISOLATION_FLOOR_ONLY`, which is explicitly not a pass and authorizes only floor-only harvest; an unclosed branch is `ISOLATION_CLEANUP_FAILED`, which authorizes nothing; and an empty or missing ledger is `ISOLATION_NOT_OBSERVED`, which authorizes nothing. |
 
