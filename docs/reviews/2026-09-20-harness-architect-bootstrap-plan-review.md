@@ -1,6 +1,6 @@
 ---
 title: "Plan review verdict manifest — BOOTSTRAP-0 harness-architect bootstrap"
-description: "Mutable verdict manifest for docs/plans/2026-09-20-harness-architect-bootstrap-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. NO ATTEMPT HAS RUN. The attempt roster is empty, latest_attempt is null, and verdict is null — not PASS, not FAIL, and not ADVISORY. The plan was authored by Stage in the PR-457 portfolio remediation cycle to resolve the 187-S bootstrap deadlock, and it awaits independent attempt 01. Because this unit defines a one-time execution authority standing temporarily in place of an installed policy actor, it declares requires_plan_hardening: true and the hardening pass is part of the plan body rather than a separate artifact. Until attempt 01 returns a verdict, 188-S is NOT publication-eligible, its tasks are NOT claimable, and no Ship work is authorized from this manifest. Stage asserts no PASS and has performed no self-review."
+description: "Mutable verdict manifest for docs/plans/2026-09-20-harness-architect-bootstrap-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. ATTEMPT 01 HAS RUN against revision 1 at content HEAD 989712bf and returned gate_result FAIL / decision BLOCK on one P1, one P2 and one P3 finding. The authoritative artifact is docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-01.md. The shipment-level bootstrap deadlock is confirmed closed - 188-S is a legitimate dag-root, claimable as declared_root under pre_claim with no bootstrap grant, no cycle, and all seven D9 shipments gated - but the blocking P1 is that the one-time authority does not reach P-002's CLAIM precondition, so 182.001-T and 182.002-T carry no harness-ready label whose only producer is the actor the unit installs, and the deadlock is reproduced at task claiming. 188-S is NOT publication-eligible, its tasks are NOT claimable, and no Ship work is authorized from this manifest. A remediation cycle is authorized for revision 2."
 doc_type: review-manifest
 source: docs/reviews/2026-09-20-harness-architect-bootstrap-plan-review.md
 date: 2026-09-20
@@ -10,30 +10,50 @@ plan_path: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
 plan_revision: 1
 feature_id: 182-F
 shipment_id: 188-S
-latest_attempt: null
+latest_attempt: 1
 review_terminal: false
 terminal_designation: none
 terminal_disposition: null
 terminal_note: null
-awaiting_attempt: 1
-reviewed_content_head: null
-gate_result: null
-verdict: null
+awaiting_attempt: 2
+reviewed_content_head: 989712bf
+gate_result: FAIL
+verdict: FAIL
 verdict_is_pass: false
-verdict_note: "verdict is null because no independent attempt has run. A null verdict is NOT a pass and NOT a failure: it is the absence of an observation, and it fails closed. SM-2's HARVEST_ADMITTED state is defined against verdict: PASS, so harvest of this unit's successors on the strength of this manifest is closed."
-p0_open: null
-p1_open: null
-p2_open: null
-p3_open: null
-open_findings: []
+verdict_note: "verdict is FAIL because independent attempt 01 returned one blocking P1 (B1). SM-2's HARVEST_ADMITTED state is defined against verdict: PASS, so harvest of this unit and of any successor on the strength of this manifest remains closed. The shipment-level bootstrap deadlock was independently confirmed CLOSED; the P1 is that the declared one-time authority does not reach P-002's claim precondition for 182.001-T and 182.002-T."
+p0_open: 0
+p1_open: 1
+p2_open: 1
+p3_open: 1
+open_findings: [B1, B2, B3]
+blocking_findings: [B1]
 findings_addressed_pending_review: []
-open_counts_note: "Counts are null rather than zero. Zero open findings would assert that a reviewer looked and found nothing; null records that no reviewer has looked."
-remediation_authorization: none-this-cycle
+open_counts_note: "Counts are now real observations from attempt 01, not nulls. B1 is blocking; B2 and B3 are non-blocking and recommended for the same remediation pass."
+remediation_authorization: authorized-for-revision-2
 latest_remediation_revision: 1
-latest_disposition: REMEDIATED-PENDING-REVIEW
-latest_artifact: null
-attempts: []
-carried_forward_context: []
+latest_disposition: FAIL-BLOCKING-P1
+latest_artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-01.md
+attempts:
+  - attempt: 1
+    artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-01.md
+    reviewed_revision: 1
+    reviewed_content_head: 989712bf
+    gate_result: FAIL
+    verdict: FAIL
+    verdict_is_pass: false
+    p0: 0
+    p1: 1
+    p2: 1
+    p3: 1
+    blocking: [B1]
+    remediation_revision: null
+    disposition: FAIL-BLOCKING-P1
+    dispatch_mode: single-agent-declared-degradation
+carried_forward_context:
+  - "B1 (P1, blocking): the four-axis authority bounds EXECUTION of the harness-architect procedure but never addresses P-002's CLAIM precondition. 182.001-T and 182.002-T carry no harness-ready label; P-002 filters Ship's ready queue to harness-ready tasks only, and the label's sole producer is the actor under installation. Remediation is a fifth explicit, bounded, non-inheritable claim carve-out naming exactly those two tasks and expiring on the same HARNESS_ARCHITECT_INSTALLED token."
+  - "B2 (P2): 182.003-T names 'installed workspace configuration' as the variable source, but UNIMPLEMENTED_MARKER is absent from .autoharness/ and is instead derived from languages.primary per .github/skills/install-harness/SKILL.md:335."
+  - "B3 (P3): the conformance assertion's '{{...}}' limb does not cover the template's single-brace {SUFFIX_FEATURE}/{SUFFIX_TASK} argument-hint tokens; retention is conventional but unstated."
+  - "CONFIRMED CORRECT and not to be re-litigated: 188-S is a legitimate dag-root (dag-root label, zero incoming edges, resolves declared_root, consumes no bootstrap grant); the graph is acyclic; all seven D9 shipments carry the 188-S edge including the archived 184-S; .gitignore:7 verified exact; the P-004 evidence is genuinely produced rather than waived; sizing and the 2-hour rule hold."
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 2
 tags:
@@ -55,58 +75,57 @@ attempt artifact is authoritative right now, and nothing else.
 | `plan_id` | `harness-architect-bootstrap` |
 | `plan_path` | `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` |
 | `plan_revision` | 1 |
-| `latest_attempt` | **null** — no attempt has run |
-| `latest_artifact` | **null** |
-| `reviewed_content_head` | **null** |
-| `gate_result` | **null** |
-| `verdict` | **null** |
+| `latest_attempt` | **01** |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-01.md` |
+| `reviewed_content_head` | `989712bf` |
+| `gate_result` | **FAIL** |
+| `verdict` | **FAIL** |
 | `verdict_is_pass` | **false** |
 | `latest_remediation_revision` | 1 |
-| `latest_disposition` | `REMEDIATED-PENDING-REVIEW` |
-| `awaiting_attempt` | **01** |
-| `p0_open` / `p1_open` / `p2_open` / `p3_open` | **null** |
+| `latest_disposition` | `FAIL-BLOCKING-P1` |
+| `awaiting_attempt` | **02** |
+| `p0_open` / `p1_open` / `p2_open` / `p3_open` | **0 / 1 / 1 / 1** |
 
-**A null verdict is not a pass.** It is the absence of an observation, and it
-fails closed exactly as `NOT_OBSERVED` does everywhere else in this portfolio.
-`verdict_is_pass` is `false` because no independent reviewer has said
-otherwise — not because a reviewer returned a failure.
-
-**The counts are null, not zero.** Zero open findings is a claim that a
-reviewer looked and found nothing. Null records that no reviewer has looked.
-Collapsing the two is how a fabricated PASS enters a record.
+**This unit is blocked.** Attempt 01 returned one blocking P1 (`B1`). `188-S`
+is **not publication-eligible**, its tasks are **not claimable**, and no Ship
+work is authorized from this manifest.
 
 **`REMEDIATED-PENDING-REVIEW` is a `disposition`, never a `verdict`.** It
-describes what Stage produced. It says nothing about what any reviewer judged,
-because none has.
+described what Stage produced at entry. `FAIL` is what the reviewer judged.
 
-## What this unit is awaiting
+## What attempt 01 confirmed correct
 
-**Independent attempt 01 against revision 1.** The plan declares
-`requires_plan_hardening: true`, so the hardening pass is carried in the plan
-body (*Hardening review*, questions H1–H8) and is itself review subject matter
-rather than a substitute for review.
+These were verified mechanically and should not be re-litigated at attempt 02:
 
-The review should be directed at the parts that are novel rather than the parts
-that are conventional:
+* `188-S` is a legitimate **DAG root** — it carries the `dag-root` label, has
+  zero incoming edges, resolves as `declared_root` under `pre_claim`, and
+  consumes **no** bootstrap grant.
+* The graph is **acyclic**, and all seven shipments named by `D9` — `184-S`,
+  `185-S`, `186-S`, `187-S`, `176-S`, `178-S`, `180-S` — carry the `188-S`
+  edge, including the archived `184-S`.
+* The one-time authority is **explicit, four-axis bounded, non-inheritable and
+  non-re-enterable**, and produces the **full** P-004 evidence rather than
+  waiving it.
+* The `.gitignore:7` citation is exact; the token resolution is a total
+  function; sizing and the 2-hour rule hold; no implementation or policy waiver
+  is smuggled into the Stage artifacts.
 
-1. **Is the bootstrap authority genuinely narrower than a waiver?** The plan's
-   claim is that P-004's precondition is mechanical and actor-independent, so
-   executing the procedure from its authoritative template produces the full
-   evidence the policy names rather than less. If that claim is wrong, the unit
-   is a waiver and must be rejected.
-2. **Do the four boundary axes actually close?** Scope, count, deliverable and
-   expiry are asserted to hold simultaneously, and non-re-enterability is
-   asserted to follow from the unit destroying its own precondition.
-3. **Is the RED observation real?** `182.001-T`'s assertion must fail for the
-   intended reason — the skill being absent — rather than for a collection or
-   import error, and the scoped/unscoped disagreement path must halt rather
-   than resolve in the passing direction.
-4. **Is the actor/automation split clean?** The unit must install only the
-   actor. Any leakage of `187-S`'s lifecycle automation into this unit
-   re-creates the deadlock in a new place.
-5. **Is `188-S` genuinely a DAG root, and are `177-S`, `182-S` and `183-S`
-   genuinely NOT its successors?** The plan argues the three existing roots
-   carry their own red-phase machinery or land no production code.
+## What blocks it
+
+**`B1` (P1).** The four-axis authority bounds *execution of the
+harness-architect procedure*. It never addresses P-002's **claim**
+precondition. `182.001-T` and `182.002-T` carry no `harness-ready` label;
+P-002 filters Ship's ready queue to `harness-ready` tasks only, and that
+label's sole declared producer is the actor this unit installs. The deadlock is
+closed at the shipment layer and reproduced at the task layer — which is the
+originating blocker's own criterion.
+
+Remediation is a **fifth** explicit, bounded, non-inheritable claim carve-out
+naming exactly those two tasks, expiring on the same
+`HARNESS_ARCHITECT_INSTALLED` token, recorded on all four surfaces. No task
+needs to be added, removed, resized or resequenced.
+
+`B2` (P2) and `B3` (P3) are non-blocking and are recommended for the same pass.
 
 ## Attempt roster
 
@@ -118,7 +137,7 @@ ever a `disposition`.
 
 | Attempt | Artifact | Reviewed rev | Reviewer verdict | Remediation rev | Disposition |
 |---|---|---|---|---|---|
-| — | *(none)* | — | *(no attempt has run)* | 1 | `REMEDIATED-PENDING-REVIEW` |
+| 01 | `…-attempt-01.md` | 1 | **FAIL** (P0 0 / P1 1 / P2 1 / P3 1) | — | `FAIL-BLOCKING-P1` |
 
 ## Provenance
 
