@@ -1,40 +1,41 @@
 ---
 title: "Plan review verdict manifest — BOOTSTRAP-0 harness-architect bootstrap"
-description: "Mutable verdict manifest for docs/plans/2026-09-20-harness-architect-bootstrap-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. MANIFEST REVISION 4. THE REVIEW CYCLE HAS BEEN REOPENED BY OPERATOR INSTRUCTION and Stage has remediated attempt-02 findings at plan revision 3. B2 (P2) is ADDRESSED-PENDING-REVIEW: the nonexistent 'row for that language' lookup is replaced with the real two-surface derivation, the exact Python marker is stated as a verbatim transcription, and the fail-closed trigger is rewritten to be mechanically evaluable with explicit unsupported- and ambiguous-language-mapping halts. B4 (P3) is DELIBERATELY NOT REMEDIATED: it is preserved OPEN and captured as a non-blocking follow-up in stash 1D0033E0, excluded from this and every current shipment scope. gate_result and verdict are NULL and all open counts are NULL because NO independent reviewer has judged revision 3; attempt 02's ADVISORY stands unaltered in the roster and in its immutable artifact. Stage closes no finding, decrements no count, and asserts no PASS. 188-S remains NOT publication-eligible and NOT claimable, awaiting independent attempt 03."
+description: "Mutable verdict manifest for docs/plans/2026-09-20-harness-architect-bootstrap-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. MANIFEST REVISION 5. INDEPENDENT ATTEMPT 03 HAS RUN against plan revision 4 at content HEAD c52e8403 and returned gate_result PASS / decision PROCEED on three P3 findings, with no P0, no P1 and no P2. B2 (P2), carried open from attempts 01 and 02, is independently CONFIRMED CLOSED: every structural claim of the rewritten two-surface UNIMPLEMENTED_MARKER derivation was re-derived against the live artifacts and matches exactly. B1 and B3 remain closed. B4 remains OPEN at P3, correctly preserved and re-verified as still true. Two new P3 findings were raised: B5, a provenance divergence between the plan frontmatter and governing decision row 987; and B6, a self-contradictory governing-plan revision citation inside the 188-S shipment record. The plan is PASS and publication-eligible on its own review gate. Neither new finding was remediated: this attempt was terminal and review-only."
 doc_type: review-manifest
 source: docs/reviews/2026-09-20-harness-architect-bootstrap-plan-review.md
 date: 2026-09-20
 manifest_shape: attempt-roster
-manifest_revision: 4
+manifest_revision: 5
 plan_id: harness-architect-bootstrap
 plan_path: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
 plan_revision: 3
 feature_id: 182-F
 shipment_id: 188-S
-latest_attempt: 2
-review_terminal: false
-terminal_designation: null
-terminal_disposition: null
-terminal_note: "Attempt 02 was terminal for the PRECEDING cycle. The operator has since REOPENED the cycle and authorized remediation of the attempt-02 findings. review_terminal is therefore false and awaiting_attempt is 3. Reopening does not alter attempt 02's recorded verdict, which stands unchanged in the roster and in its immutable artifact."
-awaiting_attempt: 3
-reviewed_content_head: 38d23f53
-gate_result: null
-verdict: null
-verdict_is_pass: false
-verdict_note: "NULL because NO independent reviewer has judged plan revision 3. The last reviewer verdict of record is attempt 02's ADVISORY against revision 2, preserved verbatim in the roster. ADVISORY was never PASS, and a NULL verdict is likewise not a PASS: SM-2's HARVEST_ADMITTED state is defined against verdict: PASS, so harvest of this unit and of any successor on the strength of this manifest remains CLOSED. REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict."
-p0_open: null
-p1_open: null
-p2_open: null
-p3_open: null
-open_findings: [B4]
+latest_attempt: 3
+review_terminal: true
+terminal_designation: terminal-for-cycle
+terminal_disposition: PASS-NO-REMEDIATION-THIS-CYCLE
+terminal_note: "Attempt 03 is terminal for this cycle. It returned PASS on three P3 findings with no P0, no P1 and no P2, and performed no remediation. B4 remains open at P3 by deliberate disposition and B5/B6 were raised as new P3 observations; none is blocking, and all three are recorded rather than actioned. A further attempt is not required by the gate."
+awaiting_attempt: null
+reviewed_content_head: c52e8403
+gate_result: PASS
+verdict: PASS
+verdict_is_pass: true
+verdict_note: "PASS as independently determined by attempt 03 against plan revision 3 at HEAD c52e8403, on the stated decision rule (P0/P1 FAIL, P2-only ADVISORY, P3/none PASS). Three P3 findings remain open - B4 carried and deliberately preserved, plus B5 and B6 raised at this attempt - and none is blocking. SM-2's HARVEST_ADMITTED state is defined against verdict: PASS, which is now satisfied for this unit's own review gate. This verdict speaks only to the plan's review status; it confers no claim, no shipment execution and no Ship authorization, and it does not alter 187-S, which remains gated on 188-S and is not itself PASS."
+p0_open: 0
+p1_open: 0
+p2_open: 0
+p3_open: 3
+open_findings: [B4, B5, B6]
 blocking_findings: []
 findings_closed_at_attempt_02: [B1, B3]
-findings_addressed_pending_review: [B2]
-open_counts_note: "Counts are NULL, not zero. Revision 3 is unreviewed, so Stage asserts no count and decrements nothing. B2 (P2) is ADDRESSED-PENDING-REVIEW at revision 3 - the nonexistent per-language lookup at install-harness SKILL.md:335 is removed and replaced with the real derivation (:335 supplies the keying rule and has no language rows; :130's Example (Python) column is the sole per-language value source), the exact marker is bound as a verbatim transcription of raise NotImplementedError(\"...\"), and the fail-closed trigger is rewritten as five mechanically evaluable checks including explicit unsupported- and ambiguous-language-mapping halts. ADDRESSED IS NOT CLOSED: whether B2 closes is attempt 03's call. B4 (P3) is NOT addressed and remains OPEN by deliberate disposition - it is preserved as a non-blocking follow-up in stash 1D0033E0, excluded from current shipment scope, neither downgraded nor closed. B1 and B3 remain CLOSED as independently determined at attempt 02. No severity was lowered anywhere."
-remediation_authorization: attempt-02-findings
+findings_closed_at_attempt_03: [B2]
+findings_addressed_pending_review: []
+open_counts_note: "Counts are now REAL, asserted by independent attempt 03 rather than by Stage. B2 (P2) is CLOSED on re-derived mechanical evidence: install-harness SKILL.md:327/:335 is the Review Persona Variables table supplying only the keying rule and carrying no language rows; :100/:130 is the sole per-language UNIMPLEMENTED_MARKER carrier in the file (exactly two occurrences file-wide, at :130 and :335); workspace-profile.yaml:7 reads primary: \"python\"; the Example (Python) cell is verbatim raise NotImplementedError(\"...\"); the common detectable token NotImplementedError is present on both surfaces; and all five triggers F1-F5 are evaluable against real artifacts with none firing for this workspace. B1 and B3 remain CLOSED from attempt 02. B4 (P3) remains OPEN and was re-verified as still true - the installed Ship mirror still has zero occurrences of harness-ready or harness-architect. B5 (P3, new): the plan declares source_stash_ids [76EBDE6D] while governing decision row 987 assigns 188-S no source stash ID; already captured non-blocking in stash 703B6FAF Item 1. B6 (P3, new): the 188-S shipment record says 'now at revision 3' and then cites '(revision 2, ...)' in the same description, while all five sibling carriers cite revision 3 correctly. No severity was lowered anywhere and no finding was downgraded to reach this verdict."
+remediation_authorization: none-this-cycle
 latest_remediation_revision: 3
-latest_disposition: REMEDIATED-PENDING-REVIEW
-latest_artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-02.md
+latest_disposition: PASS-P3-ONLY
+latest_artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-03.md
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-01.md
@@ -67,6 +68,23 @@ attempts:
     remediation_revision: 3
     disposition: ADVISORY-P2-ONLY
     dispatch_mode: single-agent-declared-degradation
+  - attempt: 3
+    artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-03.md
+    reviewed_revision: 3
+    reviewed_content_head: c52e8403
+    gate_result: PASS
+    verdict: PASS
+    verdict_is_pass: true
+    p0: 0
+    p1: 0
+    p2: 0
+    p3: 3
+    blocking: []
+    closed_predecessor_findings: [B2]
+    findings_raised: [B5, B6]
+    remediation_revision: null
+    disposition: PASS-P3-ONLY
+    dispatch_mode: single-agent-declared-degradation
 carried_forward_context:
   - "B1 (P1, was blocking) — CLOSED AT ATTEMPT 02. The fifth CLAIM bound was independently verified on every carrier: it exists and is explicit, is stated separately from the Count axis, names exactly 182.001-T and 182.002-T, authorizes admission only, is non-inheritable and non-extensible, expires on HARNESS_ARCHITECT_INSTALLED, and explicitly excludes 182.003-T and 182.004-T (each of whose records carries its own NOT-COVERED clause). It is not a waiver, grant or force path. Recorded in the plan, 182-F, 188-S, all four task records and D9 at revision 3. Sizing unchanged (S/S/S/XS, unsized 0) and the four-task chain intact, confirming no task was added, removed, resized or resequenced."
   - "B3 (P3) — CLOSED AT ATTEMPT 02. The mechanical fix is present and bound on both detection paths: 182.001-T's assertion carries an explicit fifth limb for the single-brace tokens, and 182.004-T's HARNESS_ARCHITECT_ABSENT resolution covers both token shapes so a survivor fails closed at VERIFY as well as RED. All underlying citations re-verified exact, including the template's sole single-brace occurrence at line 4 and all four double-brace carriers. Deferring the template-source correction to the stash is the correct call."
@@ -94,34 +112,82 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `harness-architect-bootstrap` |
 | `plan_path` | `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` |
-| `manifest_revision` | 4 |
+| `manifest_revision` | 5 |
 | `plan_revision` | **3** |
-| `latest_attempt` | **02** (against plan revision **2** — revision 3 is unreviewed) |
-| `latest_artifact` | `docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-02.md` |
-| `gate_result` | **null** |
-| `verdict` | **null** |
-| `verdict_is_pass` | **false** |
+| `latest_attempt` | **03** (against plan revision **3**) |
+| `latest_artifact` | `docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-03.md` |
+| `gate_result` | **PASS** |
+| `verdict` | **PASS** |
+| `verdict_is_pass` | **true** |
 | `latest_remediation_revision` | 3 |
-| `latest_disposition` | `REMEDIATED-PENDING-REVIEW` |
-| `awaiting_attempt` | **03** |
-| `p0_open` / `p1_open` / `p2_open` / `p3_open` | **null / null / null / null** |
+| `latest_disposition` | `PASS-P3-ONLY` |
+| `awaiting_attempt` | **null** — terminal |
+| `p0_open` / `p1_open` / `p2_open` / `p3_open` | **0 / 0 / 0 / 3** |
 | `findings_closed_at_attempt_02` | `B1`, `B3` |
-| `findings_addressed_pending_review` | `B2` |
-| `open_findings` | `B4` (P3) — preserved, not remediated |
+| `findings_closed_at_attempt_03` | `B2` |
+| `open_findings` | `B4`, `B5`, `B6` — all P3, none blocking |
 
-**A `null` verdict is not a `PASS`, and neither was the `ADVISORY` it
-replaces.** `SM-2`'s `HARVEST_ADMITTED` state is defined against
-`verdict: PASS`, so harvest on the strength of this manifest remains closed.
-The last reviewer verdict of record is attempt 02's `ADVISORY` against revision
-2; it stands unaltered in the roster and in its immutable artifact. Nothing
-here confers authorization or claimability.
+**`PASS` was determined by independent attempt 03, not by Stage.** The decision
+rule applied was P0/P1 → `FAIL`, P2-only → `ADVISORY`, P3-or-none → `PASS`, with
+no severity lowered to reach it. `SM-2`'s `HARVEST_ADMITTED` state is defined
+against `verdict: PASS` and is now satisfied **for this unit's own review
+gate**. This says nothing about `187-S`, which is separately gated on `188-S`
+and is not itself `PASS`.
 
-**The cycle was reopened by the operator.** Attempt 02 was terminal for the
-preceding cycle. The operator has since authorized remediation of the
-attempt-02 findings, which Stage performed at plan revision 3. Reopening does
-not alter any recorded verdict.
+**Three P3 findings remain open and none is blocking.** `B4` is carried and
+deliberately preserved; `B5` and `B6` were raised at attempt 03 and were not
+remediated, because that attempt was terminal and review-only.
 
-## What this remediation did — and did not — do
+## What attempt 03 closed
+
+* **`B2` (P2, carried open from attempts 01 and 02) — CLOSED.** Every
+  structural claim of the revision-3 derivation was re-derived against the live
+  artifacts and matches exactly. `install-harness/SKILL.md:327` is the *Review
+  Persona Variables* header (`Template Variable / Source / Purpose`), and
+  `:335` supplies only the keying rule `Derived from languages.primary` with an
+  illustrative `e.g.` list in its `Purpose` cell — it has no language columns
+  and no language rows. `:100` is the header
+  `Template Variable / Source / Example (Rust) / Example (TypeScript) / Example (Python)`,
+  contiguous through `:130`, and the file contains exactly **two**
+  `UNIMPLEMENTED_MARKER` occurrences (`:130` and `:335`), confirming `:130` is
+  the sole per-language value carrier. `:130`'s own `Source` cell reads
+  `Language convention`, so the two-surface split is **necessary** rather than
+  decorative. `workspace-profile.yaml:7` reads `primary: "python"`, and the
+  `Example (Python)` cell is verbatim `raise NotImplementedError("...")`. The
+  common detectable token `NotImplementedError` is present on both surfaces.
+  All five triggers `F1`–`F5` are evaluable against real artifacts and none
+  fires here, so the guard is a real check that passes rather than a tautology
+  that halts every run.
+
+## Findings open after attempt 03
+
+* **`B4` (P3) — OPEN, carried, correctly preserved.** Re-verified as still true
+  at `c52e8403`: `.github/agents/_ship.agent.md` has **zero** occurrences of
+  `harness-ready` or `harness-architect`, while the filter text exists only in
+  `templates/agents/_ship.agent.md.tmpl:326`. It is **not** mechanically
+  resolved: `187-S`'s `181.005-T` is the closure path but lands only when
+  `187-S` ships, and `188-S` executes **before** `187-S`, so the drift persists
+  for the whole `188-S` execution window. Preserved in stash **`1D0033E0`**,
+  excluded from every shipment manifest, blocking nothing.
+* **`B5` (P3) — NEW at attempt 03.** The plan declares
+  `source_stash_ids: [76EBDE6D]`, but governing decision row 987
+  (`B0 | 188-S | 182-F | bootstrap | — (D9)`) assigns this unit **no** source
+  stash ID. The same decision assigns `76EBDE6D` to `182-S` (988), `184-S`
+  (990), `187-S` (993) and `176-S` (994). Nothing in the plan's argument,
+  deliverable, boundary or evidence depends on a stash source, and the cited ID
+  is a real archived entry rather than a dangling reference. Already captured
+  accurately as non-blocking portfolio hygiene in stash **`703B6FAF`**, Item 1.
+* **`B6` (P3) — NEW at attempt 03.** The `188-S` shipment record contradicts
+  itself: it states "The governing plan is now at revision 3" and then cites
+  "(**revision 2**, disposition `REMEDIATED-PENDING-REVIEW`…)" two sentences
+  later. All five sibling carriers — `182-F`, `182.001-T`, `182.002-T`,
+  `182.003-T`, `182.004-T` — cite revision 3 correctly, as does this manifest.
+  Held at P3 rather than P2 on the merits: the correct value appears in the same
+  record, every other carrier agrees, and every action-gating statement in the
+  record is accurate, so the worst reachable outcome is a reconciliation halt in
+  the safe direction.
+
+## What the preceding remediation did — and did not — do
 
 * **`B2` (P2) — ADDRESSED, PENDING REVIEW. Not closed by Stage.** The
   nonexistent "row for that language" lookup is gone. Revision 3 names both
@@ -208,6 +274,15 @@ nothing:
   nearest neighbours inspected and each a different expansion) and a
   late-identifier reconciliation that completed as a no-op. Explicitly
   excluded from `188-S`, `187-S` and every other shipment manifest.
+* **`703B6FAF`** — `187-S` provenance-hygiene residue, re-verified at attempt
+  03 and relevant here because its Item 1 is the substance of `B5`. Its
+  multi-consumer analysis of `76EBDE6D` was independently confirmed correct
+  against decision lines 987, 988, 990, 993 and 994. Explicitly excluded from
+  `187-S`, `188-S` and every currently queued shipment, and explicitly not a
+  finding against either plan revision under review.
+
+All three entries were confirmed at attempt 03 to be absent from the `188-S`
+and `187-S` shipment manifests.
 
 ## Attempt roster
 
@@ -221,7 +296,7 @@ ever a `disposition`.
 |---|---|---|---|---|---|
 | 01 | `…-attempt-01.md` | 1 | **FAIL** (P0 0 / P1 1 / P2 1 / P3 1) | 2 | `FAIL-BLOCKING-P1` |
 | 02 | `…-attempt-02.md` | 2 | **ADVISORY** (P0 0 / P1 0 / P2 1 / P3 1) | 3 | `ADVISORY-P2-ONLY` |
-| 03 | _pending_ | 3 | _awaiting independent review_ | — | — |
+| 03 | `…-attempt-03.md` | 3 | **PASS** (P0 0 / P1 0 / P2 0 / P3 3) | — | `PASS-P3-ONLY` |
 
 ## Provenance
 
