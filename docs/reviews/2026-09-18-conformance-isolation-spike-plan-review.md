@@ -1231,9 +1231,38 @@ shipment scope, untriaged, unharvested, unparented and in no manifest. `M1` and
 added** — a review-only attempt creates no stash state. Stash entries
 `711CA657` and `8DE3047F` are unchanged.
 
-**Root-wave position.** `183-S` is one of exactly three DAG roots. `177-S`
-passed at its attempt 07 and `182-S` at its attempt 04; `183-S` passes here, so
-the three-root wave is complete and `183-S` is publication-eligible.
+**Root-wave position.** `183-S` is one of exactly three DAG roots in the
+2026-09-17 portfolio wave. `177-S` passed at its attempt 07 and `182-S` at its
+attempt 04; `183-S` passes here, so the three-root wave is complete and `183-S`
+is publication-eligible. That root status is now **mechanically effective**:
+PR #457 review thread `PRRT_kwDORzpWpM6kHrxc` found `183-S` declaring itself a
+root in prose while carrying no `dag-root` label, which leaves it
+`unsequenced` and unclaimable — `genesis` provenance is unreachable in a
+workspace holding many shipment records. The label is now recorded. (`177-S`
+and `182-S` carried the same defect, threads `PRRT_kwDORzpWpM6kHrxD` and
+`PRRT_kwDORzpWpM6kHrxY`.) A fourth root, `188-S`, was added later under
+decision D9 and is unrelated to this wave.
+
+**The successor's records have since been withdrawn from the executable
+queue.** PR #457 review thread `PRRT_kwDORzpWpM6kHrxK` found that `181-S`,
+covering feature `173-F` and tasks `173.001-T`–`173.011-T` had already been
+harvested, and that the `depends_on 183-S` edge could enforce **neither** the
+per-state token **nor** the per-state allowed task set: a `blocks` edge clears
+on predecessor **completion**, and `177.006-T` completes on all five of its
+tokens. No installed shipment-claim predicate reads
+`docs/spikes/2026-09-18-conformance-isolation-findings.md`. Those thirteen
+records are therefore **archived** under `.backlogit/archive/` as a conditional
+future unit (decision D10), with
+`docs/plans/2026-09-18-safe-close-conformance-plan.md` preserved intact and
+marked `plan_role: conditional-future`. Nothing is deleted. Stage restores them
+only in a **new staging session**, applying the per-state rules `177.006-T`
+already declares: `ISOLATION_CHARACTERIZED` admits every task the findings
+support; `ISOLATION_FLOOR_ONLY` admits **only** the evidence-and-documentation
+floor subset and **only** after a new recorded Stage decision enumerating it
+task by task; `ISOLATION_CLEANUP_FAILED`, `ISOLATION_UNDETERMINED` and
+`ISOLATION_NOT_OBSERVED` admit **nothing**. This changes nothing about attempt
+07's verdict, which stands as recorded: it is a statement about the
+successor's records, not about this plan.
 
 **What this does not authorize.** `PASS` is a judgement on the plan. It starts
 no Ship work by itself, and it pre-clears nothing downstream: `181-S` becomes

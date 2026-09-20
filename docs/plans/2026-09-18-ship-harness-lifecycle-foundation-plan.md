@@ -1,26 +1,29 @@
 ---
 title: "Foundation: Ship pre-task harness-generation lifecycle"
-description: "Installs the actor that policy P-004 already names but the workspace does not contain. Generates .github/skills/harness-architect/ from its existing template, adds a real pre-task harness-generation step to the Ship agent template and installed mirror, and defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
+description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. This unit adds a real pre-task harness-generation step to the Ship agent template and installed mirror, and defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
 doc_type: plan
 source: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 date: 2026-09-18
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 plan_role: active
-revision: 1
+revision: 2
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. It carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 2 revises the bootstrap route in response to PR-457 review thread PRRT_kwDORzpWpM6kHrw5, which found this unit could not reach execution at all: it could not bootstrap itself through an actor that did not exist, and it was additionally ordered behind code-bearing 184-S, which needs that same absent actor. Revision 2 splits the ACTOR INSTALL into the narrow one-time reviewed precursor 188-S and removes the 184-S edge, which was never a technical dependency of this unit. This plan has NEVER been independently reviewed at any revision; it still awaits its FIRST independent plan-review attempt, now against revision 2. Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 1
+decision_revision: 2
 source_stash_ids:
   - 3EF5AAF2
 feature_id: 181-F
 shipment_id: 187-S
 unit_role: precursor-foundation
 depends_on_shipments:
+  - 188-S
+removed_depends_on_shipments:
   - 184-S
+bootstrap_precursor_plan: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
 gates:
   - 176-S
 requires_plan_hardening: true
@@ -59,7 +62,43 @@ the architecture decision:
 | Force flag | An override reachable by the agent it constrains is not a gate. |
 | Edit the policy to drop the actor | Deletes the requirement rather than satisfying it, and P-004's live precondition is correct as written. |
 
-The chosen path is the remaining one: **install the actor**.
+The chosen path is the remaining one: **install the actor**. Revision 2 changes
+**where** that install happens.
+
+## The bootstrap split (revision 2)
+
+PR #457 review thread `PRRT_kwDORzpWpM6kHrw5` found that revision 1 could not
+reach execution at all, and that reversing one dependency edge would not have
+been enough. It was correct on both counts: the deadlock had **two independent
+axes**, and each needs its own fix.
+
+| Axis | Defect at revision 1 | Fix at revision 2 |
+|---|---|---|
+| Self-bootstrap | This unit's tasks write Python under `src/`, so P-002/P-004 require a harness-ready state whose only declared producer is the actor *this unit was to install*. It could not bootstrap itself through an actor that did not exist. | The **actor install alone** moves to the narrow, one-time, separately reviewed precursor shipment `188-S` (plan: `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md`). |
+| Graph order | This unit declared `depends_on 184-S`, a code-bearing substrate shipment that needs the *same* absent lifecycle — the ordering ran the wrong way, and through the wrong kind of predecessor. | The `184-S` edge is **removed**. It was never a technical dependency: this unit delivers the installed skill, the lifecycle phase and the state contract, and consumes none of `184-S`'s operation registry, result model or transport. |
+
+Axis 2 alone is the "simple edge reversal" the reviewer judged insufficient. It
+is fixed here **in addition to** axis 1, not instead of it.
+
+**What this unit still owns.** The Ship pre-task harness-generation lifecycle
+phase, the resolver that locates the installed actor, the lifecycle state
+contract the P-004 gate consumes, and the `HARNESS_READY` / `NO_HARNESS` token
+contract — all as ordinary harness-backed implementation work, executed *after*
+`188-S` has installed the actor, with no special authority of any kind.
+
+**What this unit no longer owns.** Generating
+`.github/skills/harness-architect/` from its template. That single file is
+`188-S`'s entire deliverable.
+
+**No waiver anywhere on this path.** `188-S` consumes no bootstrap grant,
+writes no bootstrap grant, uses no `--force`, and touches no force-audit log.
+It executes the complete procedure already specified in
+`templates/skills/harness-architect/SKILL.md.tmpl`, so the **full** mechanical
+P-004 evidence — `py_compile` exit 0 and a failing `unittest discover` carrying
+the expected RED markers — is genuinely produced rather than suspended. If the
+lifecycle is not installed, P-004 still fails closed.
+
+**Dependency:** this unit now declares exactly one predecessor, `188-S`.
 
 ## What P-004 already requires
 
@@ -133,8 +172,12 @@ and `.github/agents/_ship.agent.md`, simultaneously.
 | `181.001-T` | RED | lifecycle-state tests incl. `NO_HARNESS` reachability | S | medium |
 | `181.002-T` | PREPARE | harness-surface requirement resolver | S | medium |
 | `181.003-T` | PREPARE | pre-task harness-generation lifecycle step | M | high |
-| `181.004-T` | VERIFY | generation evidence against the `harness-architect` template | XS | low |
-| `181.005-T` | ACTIVATE | one commit: install skill + add step to template and mirror | M | high |
+| `181.004-T` | VERIFY | lifecycle evidence, with the actor already installed by `188-S` and no live reference yet | XS | low |
+| `181.005-T` | ACTIVATE | one commit: add the pre-task step to the Ship template and its installed mirror | M | high |
+
+At revision 2 no task in this unit generates `.github/skills/harness-architect/`.
+`188-S` installs it, and `181.004-T` observes it as an already-satisfied
+precondition rather than producing it.
 
 Edges: `181.001-T` → `181.002-T` → `181.003-T` → `181.004-T` → `181.005-T`.
 
@@ -144,6 +187,8 @@ Edges: `181.001-T` → `181.002-T` → `181.003-T` → `181.004-T` → `181.005-
   consumes this unit's `HARNESS_READY` state.
 * Any edit to policy P-004's text. Its precondition is correct as written;
   this unit satisfies it rather than changing it.
+* Generating `.github/skills/harness-architect/` itself. That is the entire
+  deliverable of the one-time precursor `188-S`; this unit consumes it.
 * Generating any other absent skill surface. The resolver is general; only
   `harness-architect` is required by this portfolio, and installing more would
   widen the activation commit beyond its contract.
@@ -152,7 +197,7 @@ Edges: `181.001-T` → `181.002-T` → `181.003-T` → `181.004-T` → `181.005-
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | The `harness-architect` template is stale relative to current skill conventions | `181.004-T` generates it and validates frontmatter and structure before activation; a stale template fails VERIFY rather than landing broken. |
+| R1 | The `harness-architect` template is stale relative to current skill conventions | `188-S` generates and validates it under its own verification floor; `181.004-T` re-observes frontmatter and structure before activation, so a stale template fails VERIFY in either unit rather than landing broken. |
 | R2 | The lifecycle step slows every shipment start | The resolver short-circuits when all required surfaces are already present, which is the steady state after the first execution. |
 | R3 | `NO_HARNESS` becomes a routine blocker | It is only reachable when a required surface has no authoritative template. The resolver reports the missing template path, so the remedy is explicit rather than a retry loop. |
 

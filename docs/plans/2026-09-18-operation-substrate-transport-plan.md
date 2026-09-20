@@ -6,7 +6,12 @@ source: docs/plans/2026-09-18-operation-substrate-transport-plan.md
 date: 2026-09-18
 plan_id: operation-substrate-transport
 plan_path: docs/plans/2026-09-18-operation-substrate-transport-plan.md
-plan_role: active
+plan_role: conditional-future
+harvest_status: withheld
+harvest_withheld_reason: "Shipment 184-S, covering feature 178-F and its tasks were harvested prematurely and are archived as a conditional future unit. A blocks edge onto the predecessor spike clears on predecessor COMPLETION and cannot enforce the spike's verdict token, and no installed shipment-claim predicate reads the findings artifact. Withheld by archival - a repository-supported backlog operation - because a live shipment carrying an invented blocked status is malformed data under the pre_claim status vocabulary. PR #457 review thread PRRT_kwDORzpWpM6kHrxd."
+harvest_gate_artifact: docs/spikes/2026-09-18-autoharness-operation-transport-findings.md
+reharvest_condition: "Stage re-harvests this plan's records only in a NEW staging session, after reading the gate artifact and observing TRANSPORT_DECIDED. Non-authorizing states harvest nothing. This plan is PRESERVED INTACT and UNREDUCED; only its live, claimable records are withdrawn."
+withheld_records: .backlogit/archive/
 revision: 1
 verdict: REMEDIATED-PENDING-REVIEW
 verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. It carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."

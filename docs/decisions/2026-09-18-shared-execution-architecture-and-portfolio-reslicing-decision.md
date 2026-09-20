@@ -5,7 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 date: 2026-09-18
 status: decided
-revision: 1
+revision: 2
+revision_note: "Revision 2 adds D9 and D10 in response to the PR #457 staging review. D1-D8 are unchanged in substance; D4 item 1 and the D8 DAG are updated to name the bootstrap precursor and the withheld conditional successors. The D9 entry under preserved_from_superseded_decision refers to the SUPERSEDED 2026-09-17 deliberation's D9 and is unrelated to this document's new D9."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -532,7 +533,9 @@ lifecycle**. Concretely:
 
 1. `templates/skills/harness-architect/SKILL.md.tmpl` is installed to
    `.github/skills/harness-architect/SKILL.md` — the actor P-004 already names
-   (F3) is made to exist.
+   (F3) is made to exist. **At revision 2 that install happens in the one-time
+   precursor `188-S`, not in `187-S`** — see D9. `187-S` consumes the installed
+   actor rather than producing it.
 2. The Ship agent gains an explicit pre-task harness-generation phase that
    invokes it, in both `templates/agents/_ship.agent.md.tmpl` and
    `.github/agents/_ship.agent.md`, in one ACTIVATE commit.
@@ -616,6 +619,35 @@ Both are time-boxed and produce a findings artifact, not code.
 The `176-S` star (F9) is withdrawn. The new graph's roots are the two spikes
 and the two defect units that genuinely need no foundation.
 
+At revision 2 the graph below is amended by D9 and D10: `188-S` (BOOTSTRAP-0)
+becomes a declared root and every code-bearing implementation shipment depends
+on it; `P1`/`184-S` and `181-S` are **withheld by archival** as conditional
+future units; and the `P4 → P1` edge is removed. Current graph:
+
+```text
+188-S ─┬─▶ P2(185-S) ─┬─▶ P3(186-S)
+       │              ├─▶ 178-S
+       │              ├─▶ 180-S
+       │              └─▶ 176-S ◀─┐
+       ├─▶ P4(187-S) ──────────────┘
+       ├─▶ 178-S
+       ├─▶ 180-S
+       └─▶ 176-S
+
+P2(185-S) ─▶ [P1 / 184-S : WITHHELD, archived, pending TRANSPORT_DECIDED]
+S1(182-S)  (root — dag-root)   ⇢ authorizes re-harvest of 184-S only
+S2(183-S)  (root — dag-root)   ⇢ authorizes re-harvest of 181-S only
+177-S      (root — dag-root)
+175-S      (root — dag-root)
+188-S      (root — dag-root)
+
+[181-S : WITHHELD, archived, pending an authorizing isolation verdict]
+```
+
+The `⇢` arrows are **not DAG edges**. They are Stage re-harvest authorizations
+consumed by a human-run staging session, precisely because a `blocks` edge
+cannot enforce a verdict token. The pre-revision-2 graph was:
+
 ```text
 S1 ─▶ P1 ─┬─▶ P2 ─┬─▶ P3
           │       ├─▶ 178-S
@@ -641,6 +673,121 @@ Edges express **real prerequisites only**:
 `168-S → 176-S` and `167-S → 168-S` are pre-existing edges from the older
 SHIP-10 chain and are **left exactly as they are**. `169-S` and `175-S` are not
 touched.
+
+At revision 2, `177-S` "root — no precursor" is made **mechanically
+effective**: `177-S`, `182-S` and `183-S` now carry the `dag-root` label, and
+the stale `dag-root` on `176-S` — which declared itself *not* a root while
+carrying explicit edges — is removed. The `pre_claim` gate derives root
+provenance only from a recorded `dag-root` label or from `genesis`, and
+`genesis` applies only when a workspace holds exactly one shipment record
+(live and archived together). This workspace holds hundreds, so an undeclared
+edge-less shipment blocks as `unsequenced` rather than passing as a root. A
+root that is stated only in prose is therefore not a root. (PR #457 threads
+`PRRT_kwDORzpWpM6kHrxD`, `PRRT_kwDORzpWpM6kHrxY`, `PRRT_kwDORzpWpM6kHrxc`.)
+
+### D9 — The harness-architect actor installs through a narrow one-time bootstrap precursor (revision 2)
+
+D4 decided *that* the actor must really exist. It did not decide *how the first
+one gets built*, and PR #457 review thread `PRRT_kwDORzpWpM6kHrw5` showed the
+omission was fatal: `187-S`, the unit that installs the lifecycle, **could not
+reach execution at all**. Two independent axes:
+
+| Axis | Deadlock |
+|---|---|
+| Self-bootstrap | `187-S`'s tasks write Python under `src/`, so P-002/P-004 require a harness-ready state whose only declared producer is the actor `187-S` itself was to install. It cannot bootstrap itself through an actor that does not exist. |
+| Graph order | `187-S` depended on `184-S`, a code-bearing substrate shipment needing the *same* absent lifecycle. |
+
+**Reversing the edge repairs only the second axis.** The reviewer said so, and
+was right. The decision is therefore an **actor/automation split**:
+
+* **`188-S` (BOOTSTRAP-0)** — a dedicated, separately reviewed precursor
+  shipment whose entire deliverable is **one generated file**,
+  `.github/skills/harness-architect/SKILL.md`. Plan:
+  `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md`. Feature `182-F`,
+  tasks `182.001-T` … `182.004-T`.
+* **`187-S`** keeps the resolver, the lifecycle phase and the
+  `HARNESS_READY`/`NO_HARNESS` contract as ordinary harness-backed work, and
+  its `184-S` edge is **removed** — it was never technical: `181-F` consumes no
+  operation registry, result model or transport.
+* **Every code-bearing implementation shipment that needs the lifecycle
+  declares an explicit `blocks` edge on `188-S`**: `185-S`, `186-S`, `187-S`,
+  `176-S`, `178-S`, `180-S`, and the withheld `184-S`.
+
+**This is not a waiver, and not a bootstrap grant.** P-004's precondition is
+*mechanical and actor-independent* — `py_compile` exits 0 **and**
+`unittest discover` exits non-zero with the expected markers. The skill file is
+the **procedure specification**; those commands are the **evidence**. Because
+`templates/skills/harness-architect/SKILL.md.tmpl` is already complete (Step 5.1
+compilation, Step 5.2 red phase, Step 6 labelling), `188-S` executes that
+procedure **directly from the template** and produces the *full* evidence the
+policy demands — strictly more than a waiver, which would produce none. `188-S`
+consumes no `.autoharness/bootstrap-grants/` file, writes none, uses no
+`--force`, and touches no force-audit log. No agent may author or widen a
+grant; none is authored here.
+
+**The one-time boundary is bounded on four axes**, and is non-inheritable:
+
+| Axis | Bound |
+|---|---|
+| Scope | `188-S`'s tasks only. Not inherited by any successor. |
+| Count | Once, by `182.002-T`. |
+| Deliverable | One named file. |
+| Expiry | The `HARNESS_ARCHITECT_INSTALLED` token. |
+
+It is also **non-re-enterable**: installing the actor destroys the very
+condition that justified the authority.
+
+### D10 — Conditional successors are withheld from the executable queue, not merely ordered (revision 2)
+
+PR #457 threads `PRRT_kwDORzpWpM6kHrxd` and `PRRT_kwDORzpWpM6kHrxK` found that
+`184-S` and `181-S` had been **harvested prematurely**. D7 said the spikes gate
+them; the graph could not express it.
+
+**Why an edge cannot carry a verdict.** A `blocks` edge is an *ordering*
+mechanism, not an *authorization* mechanism: it clears on **predecessor
+completion**. `182-S`'s emitter `176.005-T` completes on all three of its
+tokens; `183-S`'s emitter `177.006-T` completes on all five of its. Most of
+those are non-authorizing. On the edge alone each successor would have become
+claimable the moment its spike shipped — *whatever the spike concluded*,
+including a state meaning the spike never ran. No installed shipment-claim
+predicate reads either findings artifact, and the task-level fail-closed
+first-action reads elsewhere in this portfolio (e.g. `169.015-T`'s) are
+**intra-shipment** gates between two tasks of one unit, not shipment-claim
+gates.
+
+**The decision.** Until such a predicate is genuinely installed, the only
+fail-closed representation is that **the successor records do not exist in the
+executable queue**. `184-S` + `178-F` + `178.001-T`…`178.006-T`, and `181-S` +
+`173-F` + `173.001-T`…`173.011-T`, are **archived** — a repository-supported
+backlog operation — with `archived_status: queued`. Their plans are marked
+`plan_role: conditional-future` and are **preserved intact and unreduced**.
+
+**No invented status.** A live shipment carrying `blocked` is *malformed legacy
+data* under the `pre_claim` live-status vocabulary (`queued`, `active`,
+`shipped`, `abandoned`) and fails closed at read time. It is not used.
+
+**Nothing is deleted.** Full plan, feature and task text — including each
+record's withholding rationale and re-harvest condition — remains readable
+under `.backlogit/archive/`.
+
+**Re-harvest is a Stage act, in a new session, never an edge and never Ship.**
+
+| Verdict token | What Stage may restore |
+|---|---|
+| `TRANSPORT_DECIDED` (exactly one `COMPOSED_STATE:` line, `absent=0` agreeing with the ledger) | All of `178-F` + its six tasks + `184-S`. |
+| `TRANSPORT_UNDECIDED` / `TRANSPORT_NOT_OBSERVED` / malformed / absent | **Nothing.** There is no floor subset for `184-S`: the substrate's transport shape *is* the undecided question, and a partial substrate would inherit the unanswered finding as an assumption. |
+| `ISOLATION_CHARACTERIZED` | Every task of `173-F` the findings support. |
+| `ISOLATION_FLOOR_ONLY` | **Only** the evidence-and-documentation floor subset, and **only** after a new recorded Stage decision enumerating it task by task. |
+| `ISOLATION_CLEANUP_FAILED` / `ISOLATION_UNDETERMINED` / `ISOLATION_NOT_OBSERVED` / malformed / absent | **Nothing.** |
+
+These are the per-state rules `177.006-T` already declares; D10 makes them
+structurally binding rather than advisory.
+
+**Downstream consequence, accepted deliberately.** `185-S` genuinely needs
+`184-S`'s registry, so it retains that edge and is therefore queued-but-
+unclaimable; `186-S`, `176-S`, `178-S` and `180-S` inherit that transitively.
+Each record states so explicitly. This is the correct fail-closed outcome: a
+portfolio built on an undecided substrate must not be claimable.
 
 ---
 
@@ -798,41 +945,47 @@ plans harvested from this decision. The summary map is:
 
 | Unit | ID | Feature | Kind | Sources | Depends on | Disposition |
 |---|---|---|---|---|---|---|
-| `S1` | `182-S` | `176-F` | spike | 71200CBB, 76EBDE6D | — (root) | new |
-| `S2` | `183-S` | `177-F` | spike | 7F9CB5E9 | — (root) | new |
-| `P1` | `184-S` | `178-F` | foundation | 86498B64+14F4D6F3, 71200CBB, 76EBDE6D | `S1` | new |
-| `P2` | `185-S` | `179-F` | foundation | 86498B64+14F4D6F3, 71200CBB, C9CD24F3 | `P1` | new |
-| `P3` | `186-S` | `180-F` | foundation | C9CD24F3 | `P2` | new — **absorbs `179-S`** |
-| `P4` | `187-S` | `181-F` | foundation | 76EBDE6D | `P1` | new |
-| — | `176-S` | `168-F` | defect | 76EBDE6D | `P2`, `P4` | retained, reduced |
-| — | `177-S` | `169-F` | defect | 3EF5AAF2 | — (root) | retained, reduced |
-| — | `178-S` | `170-F` | defect | 86498B64 + 14F4D6F3 | `P2` | retained, reduced |
+| `B0` | `188-S` | `182-F` | bootstrap | — (D9) | — (**`dag-root`**) | **new at revision 2** |
+| `S1` | `182-S` | `176-F` | spike | 71200CBB, 76EBDE6D | — (**`dag-root`**) | new |
+| `S2` | `183-S` | `177-F` | spike | 7F9CB5E9 | — (**`dag-root`**) | new |
+| `P1` | `184-S` | `178-F` | foundation | 86498B64+14F4D6F3, 71200CBB, 76EBDE6D | `S1`, `B0` | **WITHHELD — archived, conditional future (D10)** |
+| `P2` | `185-S` | `179-F` | foundation | 86498B64+14F4D6F3, 71200CBB, C9CD24F3 | `P1`, `B0` | new — queued, unclaimable while `P1` withheld |
+| `P3` | `186-S` | `180-F` | foundation | C9CD24F3 | `P2`, `B0` | new — **absorbs `179-S`** |
+| `P4` | `187-S` | `181-F` | foundation | 76EBDE6D | `B0` | new — `P1` edge **removed** at revision 2 (D9) |
+| — | `176-S` | `168-F` | defect | 76EBDE6D | `P2`, `P4`, `B0` | retained, reduced; stale `dag-root` removed |
+| — | `177-S` | `169-F` | defect | 3EF5AAF2 | — (**`dag-root`**) | retained, reduced |
+| — | `178-S` | `170-F` | defect | 86498B64 + 14F4D6F3 | `P2`, `B0` | retained, reduced |
 | — | `179-S` | `171-F` | defect | C9CD24F3 | — | **archived → absorbed into `P3`** |
-| — | `180-S` | `172-F` | defect | 71200CBB | `P2` | retained, reduced |
-| — | `181-S` | `173-F` | defect | 7F9CB5E9 | `S2` | retained, reduced |
+| — | `180-S` | `172-F` | defect | 71200CBB | `P2`, `B0` | retained, reduced |
+| — | `181-S` | `173-F` | defect | 7F9CB5E9 | `S2` | **WITHHELD — archived, conditional future (D10)** |
 
 Six defect units become five. The four foundations exist because four separate
-units were each assuming the same four missing producers.
+units were each assuming the same four missing producers. At revision 2 a fifth,
+strictly narrower unit — `B0`/`188-S` — exists because the *first* of those
+producers cannot be built by a unit that already needs it (D9), and two units
+are withheld from the executable queue because no installed claim gate can
+enforce the verdict that authorizes them (D10).
 
 ### Governing plans
 
-Each unit above is governed by exactly one plan at revision 1, each with a
-pre-review verdict manifest in `docs/reviews/`. The six 2026-09-17 defect plans
-are marked `plan_role: superseded` and are not edited further.
+Each unit above is governed by exactly one plan, each with a verdict manifest
+in `docs/reviews/`. The six 2026-09-17 defect plans are marked
+`plan_role: superseded` and are not edited further.
 
 | Unit | Plan | Supersedes |
 |---|---|---|
+| `B0` | `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` (rev 1, **awaits first independent review**) | — |
 | `S1` | `docs/plans/2026-09-18-operation-transport-spike-plan.md` | — |
 | `S2` | `docs/plans/2026-09-18-conformance-isolation-spike-plan.md` | — |
-| `P1` | `docs/plans/2026-09-18-operation-substrate-transport-plan.md` | — |
+| `P1` | `docs/plans/2026-09-18-operation-substrate-transport-plan.md` (`plan_role: conditional-future`, preserved intact) | — |
 | `P2` | `docs/plans/2026-09-18-safe-operation-primitives-plan.md` | — |
 | `P3` | `docs/plans/2026-09-18-review-authority-foundation-plan.md` | `2026-09-17-single-governing-plan-contract-plan.md` |
-| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` | — |
+| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**rev 2** under D9; awaits first independent review) | — |
 | `176-S` | `docs/plans/2026-09-18-p004-observation-gate-plan.md` | `2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
 | `177-S` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` | `2026-09-17-post-claim-member-status-contract-plan.md` |
 | `178-S` | `docs/plans/2026-09-18-branch-ensure-operation-plan.md` | `2026-09-17-workspace-authoritative-branch-resolution-plan.md` |
 | `180-S` | `docs/plans/2026-09-18-checkpoint-authority-plan.md` | `2026-09-17-checkpoint-resume-hint-contract-plan.md` |
-| `181-S` | `docs/plans/2026-09-18-safe-close-conformance-plan.md` | `2026-09-17-safe-close-record-transition-disposition-plan.md` |
+| `181-S` | `docs/plans/2026-09-18-safe-close-conformance-plan.md` (`plan_role: conditional-future`, preserved intact) | `2026-09-17-safe-close-record-transition-disposition-plan.md` |
 
 ### Note on `179-S`'s terminal state
 

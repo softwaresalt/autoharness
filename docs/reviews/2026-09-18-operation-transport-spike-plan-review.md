@@ -1,6 +1,6 @@
 ---
 title: "Plan review verdict manifest — Operation transport spike (S1)"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-operation-transport-spike-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 04, operator-designated terminal. Plan revision: 4. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on zero P0, three P1, one P2 and one P3. A Stage remediation cycle produced revision 2, and independent attempt 02 reviewed that revision at content HEAD 5aa8643f, verified all five attempt-01 findings closed and returned ADVISORY on zero P0, zero P1, one P2 and two P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and one P3. Attempt 03 verified E2 and E3 closed and verified E1 closed in the plan and in all three affected task records, but found the 182-S shipment description stating the opposite prototype lifecycle from the plan it governs: that 176.002-T owns and discards the prototype and that 176.004-T discards it again on completion, where the plan and the 176.002-T, 176.003-T and 176.004-T records all prohibit discard at the close of 176.002-T and assign the discard to 176.003-T at spike close. That is the open P1, J1. The open P3, J2, is that the plan treated the backlogit wildcard as the only .mcp.json wildcard while all six registered servers carry one. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: J1 was addressed by correcting the 182-S description, the 176-F record and this manifest's own attempt-02 narrative to match the plan's already-correct Prototype lifecycle section, with no plan, task, edge or size change; J2 was addressed by correcting the count in the problem frame, H5 and 176-F while keeping decision F8 scoped to the backlogit registration 180-S narrows and preserving the least-privilege decision unchanged. Both findings are recorded as addressed pending review, not closed, and the plan now awaits independent attempt 04. Independent terminal attempt 04 then reviewed revision 4 at content HEAD 42f2f8ec and returned gate result PASS, decision PASS, on zero P0, zero P1, zero P2 and three P3. Attempt 04 verified J1 closed by re-deriving the prototype survival, observation, restart and cleanup contract across the plan, 176-F, 182-S and all five 176.x task records and finding no disagreement on any row, and verified J2 by parsing .mcp.json rather than reading it narratively, confirming all six registered servers declare a tools wildcard. Attempt 04 also confirmed the least-privilege tool-authority answer remains valid with a fail-closed not-callable default and wildcard rejected by default, and that the composed-state gate is a real executable predicate with a sole emitter, a ledger-checkable verdict line and a TRANSPORT_NOT_OBSERVED state that is never a pass. Three advisory P3 findings remain open: J3, a placeholder-form difference between the plan and 176.005-T for the same literal verdict line; J4, the unstated consequence that 176.003-T discards the prototype before gate task 176.005-T runs so an ABSENT F7 cannot be re-observed inside the unit; and J5, a stale attempt-03 evidence annotation retained in this manifest's Provenance section. Attempt 04 is terminal and no remediation cycle is authorized or required. The unit is cleared of P0/P1 and eligible for staging publication; 184-S becomes reviewable as a plan without becoming harvestable, because 184-S harvest is gated on the TRANSPORT_DECIDED verdict token that only execution of this spike can produce. No Ship work is authorized from this manifest."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-operation-transport-spike-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 04, operator-designated terminal. Plan revision: 4. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on zero P0, three P1, one P2 and one P3. A Stage remediation cycle produced revision 2, and independent attempt 02 reviewed that revision at content HEAD 5aa8643f, verified all five attempt-01 findings closed and returned ADVISORY on zero P0, zero P1, one P2 and two P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, zero P2 and one P3. Attempt 03 verified E2 and E3 closed and verified E1 closed in the plan and in all three affected task records, but found the 182-S shipment description stating the opposite prototype lifecycle from the plan it governs: that 176.002-T owns and discards the prototype and that 176.004-T discards it again on completion, where the plan and the 176.002-T, 176.003-T and 176.004-T records all prohibit discard at the close of 176.002-T and assign the discard to 176.003-T at spike close. That is the open P1, J1. The open P3, J2, is that the plan treated the backlogit wildcard as the only .mcp.json wildcard while all six registered servers carry one. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: J1 was addressed by correcting the 182-S description, the 176-F record and this manifest's own attempt-02 narrative to match the plan's already-correct Prototype lifecycle section, with no plan, task, edge or size change; J2 was addressed by correcting the count in the problem frame, H5 and 176-F while keeping decision F8 scoped to the backlogit registration 180-S narrows and preserving the least-privilege decision unchanged. Both findings are recorded as addressed pending review, not closed, and the plan now awaits independent attempt 04. Independent terminal attempt 04 then reviewed revision 4 at content HEAD 42f2f8ec and returned gate result PASS, decision PASS, on zero P0, zero P1, zero P2 and three P3. Attempt 04 verified J1 closed by re-deriving the prototype survival, observation, restart and cleanup contract across the plan, 176-F, 182-S and all five 176.x task records and finding no disagreement on any row, and verified J2 by parsing .mcp.json rather than reading it narratively, confirming all six registered servers declare a tools wildcard. Attempt 04 also confirmed the least-privilege tool-authority answer remains valid with a fail-closed not-callable default and wildcard rejected by default, and that the composed-state gate is a real executable predicate with a sole emitter, a ledger-checkable verdict line and a TRANSPORT_NOT_OBSERVED state that is never a pass. Three advisory P3 findings remain open: J3, a placeholder-form difference between the plan and 176.005-T for the same literal verdict line; J4, the unstated consequence that 176.003-T discards the prototype before gate task 176.005-T runs so an ABSENT F7 cannot be re-observed inside the unit; and J5, a stale attempt-03 evidence annotation retained in this manifest's Provenance section. Attempt 04 is terminal and no remediation cycle is authorized or required. The unit is cleared of P0/P1 and eligible for staging publication; 184-S becomes reviewable as a plan without becoming harvestable, because 184-S harvest is gated on the TRANSPORT_DECIDED verdict token that only execution of this spike can produce. That gating is now structural rather than merely stated: PR #457 review thread PRRT_kwDORzpWpM6kHrxd found 184-S, covering feature 178-F and tasks 178.001-T through 178.006-T already harvested behind an edge that clears on predecessor completion and therefore cannot carry a verdict, so those records are archived as a conditional future unit under decision D10 with their plan preserved intact and marked plan_role conditional-future, and Stage restores them only on a TRANSPORT_DECIDED verdict observed in a new staging session. No Ship work is authorized from this manifest."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-operation-transport-spike-plan-review.md
 date: 2026-09-18
@@ -152,22 +152,30 @@ Attempt 04 is **operator-declared terminal**, so no further remediation cycle
 is authorized, proposed or required. The three open P3 findings are advisory
 and do not gate publication of this unit or review of its successor.
 
-**No `PASS` is asserted anywhere in this record.** Under the plan-review gate's
-severity table, P0 or P1 findings return FAIL, P2-only findings return
-ADVISORY, and P3-only or no findings return PASS. This manifest has never
-reported `PASS` and does not report one now. SM-2's `HARVEST_ADMITTED` state is
-defined against `verdict: PASS`, so harvest remains closed.
+**`PASS` is reported here because an independent reviewer returned it.** Under
+the plan-review gate's severity table, P0 or P1 findings return FAIL, P2-only
+findings return ADVISORY, and P3-only or no findings return PASS. Attempt 04
+read revision 4 at `42f2f8ec` and found zero P0, zero P1 and zero P2, so PASS
+is the severity table's own result, not a Stage assertion. SM-2's
+`HARVEST_ADMITTED` state is defined against `verdict: PASS`, so **the review
+condition on harvest is satisfied for this plan**. That admits the plan to
+staging publication only. It is not a Ship authorization, and it does not
+admit this spike's successor: `184-S` harvest is gated on the
+`TRANSPORT_DECIDED` token that only execution of this spike can emit, and that
+token does not exist yet.
 
-**The operator lifted the terminal designation and authorized one bounded
-remediation cycle**, the third and final permitted. Terminality bounded the
-*review loop*; it never closed a *finding*, and no severity was lowered to
-reach a closable state.
+**The operator lifted the terminal designation once and authorized one bounded
+remediation cycle**, the third and final permitted, which produced revision 4.
+Attempt 04 then ran against that revision as the operator-declared terminal
+attempt. Terminality bounded the *review loop*; it never closed a *finding*,
+and no severity was lowered to reach a closable state.
 
-**`p1_open` and `p3_open` above are attempt 03's counts and they still stand.**
-`J1` and `J2` were *addressed* by revision 4. They are *decremented* only by a
-further independent attempt — attempt 04 — or by an explicit recorded operator
-waiver. Neither has happened, so Stage records them as addressed-pending-review
-rather than closed.
+**`p1_open` and `p3_open` above are attempt 04's counts.** `J1` and `J2` were
+*addressed* by revision 4 and then *closed* by attempt 04, which is the only
+authority that can decrement them — a further independent attempt, or an
+explicit recorded operator waiver. The independent attempt happened, so they
+are closed rather than addressed-pending-review. The three P3 findings counted
+above (`J3`, `J4`, `J5`) are new at attempt 04 and are advisory.
 
 **The attempt-01 and attempt-02 counts are closed, and by the only authority
 that can close them.** Each was re-derived from plan, task and manifest state
@@ -548,6 +556,26 @@ own readiness, and is not conferred by this manifest. Its successor `184-S`
 becomes reviewable as a plan; it does not become harvestable, because
 `184-S` harvest is gated on the `TRANSPORT_DECIDED` verdict token that only
 execution of this spike can produce.
+
+**The successor's records have since been withdrawn from the executable
+queue.** PR #457 review thread `PRRT_kwDORzpWpM6kHrxd` found that `184-S`,
+covering feature `178-F` and tasks `178.001-T`–`178.006-T` had already been
+harvested, and that the `depends_on 182-S` edge could not hold them: a `blocks`
+edge clears on predecessor **completion**, and this spike's sole emitter
+`176.005-T` completes on `TRANSPORT_UNDECIDED` and `TRANSPORT_NOT_OBSERVED` as
+well as on `TRANSPORT_DECIDED`. No installed shipment-claim predicate reads
+`docs/spikes/2026-09-18-autoharness-operation-transport-findings.md`. Those
+twenty-one records are therefore **archived** under `.backlogit/archive/` as a
+conditional future unit (decision D10), with
+`docs/plans/2026-09-18-operation-substrate-transport-plan.md` preserved intact
+and marked `plan_role: conditional-future`. Nothing is deleted. Stage restores
+them only in a **new staging session**, on exactly one
+`COMPOSED_STATE: TRANSPORT_DECIDED` line whose `absent` count is 0 and agrees
+with the required-findings ledger; every other state, and every malformed or
+absent artifact, restores **nothing**, and there is no floor subset for this
+unit. This changes nothing about attempt 04's verdict, which stands as
+recorded: it is a statement about the successor's records, not about this
+plan.
 
 ## Attempt roster
 
