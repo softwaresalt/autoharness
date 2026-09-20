@@ -1,17 +1,17 @@
 ---
 title: "Foundation: Ship pre-task harness-generation lifecycle"
-description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. At revision 5 the two remaining non-blocking P2 findings are closed at their root: the mirror's 'Step 2' reference set is replaced by an EXACT THREE-CLASS PARTITION derived line-by-line from live content (one heading, five top-level cross-references, four procedure-local lowercase sub-step references), making parity criterion P6 truthful and satisfiable while preserving the conservative Step-1.5 insertion; and the D/G/P label vocabulary is UNIFIED on the plan's numbering across the plan and all three consuming task records, extended to G1-G8 so no failure-mode check is lost. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
+description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. At revision 5 the two remaining non-blocking P2 findings are closed at their root: the mirror's 'Step 2' reference set is replaced by an EXACT THREE-CLASS PARTITION derived line-by-line from live content (one heading, five top-level cross-references, four procedure-local lowercase sub-step references), making parity criterion P6 truthful and satisfiable while preserving the conservative Step-1.5 insertion; and the D/G/P label vocabulary is UNIFIED on the plan's numbering across the plan and all three consuming task records, extended to G1-G8 so no failure-mode check is lost. At revision 6 the single open P2 (S12) is corrected at its root: the claim that class-A and class-B lines all lie ABOVE the insertion point and do not shift is WITHDRAWN as false for class A, because the class-A heading at :336 IS the insertion successor and necessarily shifts. The exact truthful stability is now carried consistently on the plan, 181.004-T, 181.005-T, 181-F, 187-S and the verdict manifest: class B's five upstream references are line-number stable, class A is the shifted successor heading that must be re-located and re-validated by exact whole-line heading identity, and class-C lines below the insertion point shift. No gate may require the pre-insertion class-A line number after insertion. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
 doc_type: plan
 source: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 date: 2026-09-18
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 plan_role: active
-revision: 5
+revision: 6
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 5 remediates independent plan-review attempt 03 of revision 4 (ADVISORY / PROCEED-WITH-ADVISORY, P0 0 / P1 0 / P2 2 / P3 0), which CLOSED S7, S8 and S9 and confirmed S1-S6 closed. Both open P2 findings are addressed at their root. S10 (P2): the 'ten passages refer to Step 2 meaning that loop' claim was inaccurate for four of its ten cited lines and made parity criterion P6's second clause unsatisfiable as literally written. The ten-line citation set is retained - it is exactly the case-insensitive 'step 2' occurrence set - but is now PARTITIONED INTO THREE DISJOINT CLASSES re-derived line-by-line against live content: the DEFINITION (:336, the heading itself), FIVE top-level cross-references (:275, :283, :302, :305, :326 - all capital-S 'Step 2', all inside Step 0.5 Work Intake), and FOUR procedure-local lowercase sub-step references (:184, :214, :377, :748 - each resolving to a numbered item 2 of its OWN enclosing procedure, never to the top-level step sequence). P6 is split into P6a (no other heading added/removed/renumbered/retitled) and P6b (the FIVE top-level cross-references still resolve to '### Step 2: Task Execution Loop'), so the criterion is now both TRUE and MECHANICALLY SATISFIABLE by a correct commit. The conservative outcome is UNCHANGED - mirror insertion at Step 1.5, nothing renumbered - and is now justified by the five references the invariant actually protects rather than by a miscounted ten. S11 (P2): the D/G/P label space is UNIFIED ON A SINGLE CANONICAL VOCABULARY - the plan's - with NO aliases and no second authoritative surface. D1-D3 keep the plan's referents (181.005-T's swapped D2/D3 are corrected to match). The gate family is EXTENDED to G1-G8 so that the anchor-integrity check formerly carried only as 181.005-T's private G6 becomes canonical G8 rather than being dropped; the record's former G7 ('satisfy parity P1-P6') is removed as a redundant wrapper because parity is asserted explicitly and separately. P1-P6 keep the plan's referents throughout. 181.005-T is rewritten to this vocabulary exactly, and 181.003-T and 181.004-T are updated from G1-G7 to G1-G8. Full failure-mode coverage is preserved and re-tabulated failure-mode by failure-mode; no duplicate section was created; atomicity, the confined single-commit rollback and the two-file scope are unchanged. The verdict field is NULL because revision 5 has NOT been reviewed; REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict. Stage asserts no PASS, closes no finding, and has performed no self-review."
-awaiting_attempt: 4
+verdict_note: "Revision 6 remediates the single open P2 (S12) raised by independent plan-review attempt 04 of revision 5 (ADVISORY / PROCEED-WITH-ADVISORY, P0 0 / P1 0 / P2 1 / P3 1), which CLOSED S10 and S11 and confirmed S1-S9 closed. S12 (P2): revision 5 asserted that 'every class-A and class-B line lies ABOVE the insertion point (:336), so none of their line numbers changes; only the class-C lines at :377 and :748 shift'. THAT CLAIM IS FALSE FOR CLASS A AND IS WITHDRAWN, along with all three of its sub-claims. The class-A line IS :336 and D2 defines the insertion as occurring immediately BEFORE it, so the class-A heading is the INSERTION SUCCESSOR and NECESSARILY SHIFTS. The truthful statement now carried on every carrier is: CLASS B's FIVE UPSTREAM CROSS-REFERENCES (:275, :283, :302, :305, :326) are LINE-NUMBER STABLE across the insertion and are the only stability this unit asserts as load-bearing (they are exactly the set P6b is evaluated against); class-C :184 and :214 are also above and stable but no criterion reads them; CLASS A (:336) SHIFTS to :336+N and MUST BE RE-LOCATED AND RE-VALIDATED BY EXACT WHOLE-LINE HEADING IDENTITY ('### Step 2: Task Execution Loop') after the insertion, its pre-insertion line number being a PRE-INSERTION LOCATOR ONLY; and class-C :377 and :748 shift to :377+N and :748+N. NO GATE, CRITERION OR HALT CONDITION MAY REQUIRE THE PRE-INSERTION CLASS-A LINE NUMBER AFTER THE INSERTION, and none does - P6a is a property of heading text, P6b names class-B lines only, D1-D3 match whole lines, and G1-G8 are counts (G8 in particular is satisfied by exactly one whole-line D2 match wherever it now sits). The correction is propagated to 181.004-T's VERIFY evidence requirements and 181.005-T's ACTIVATE contract, and to 181-F, 187-S and the verdict manifest, consistently. PRESERVED WITHOUT WEAKENING: P6a and P6b as split at revision 5, the conservative Step 1.5 insertion, the no-renumbering rule, the three-class partition and its three count identities, the canonical single D1-D3 / G1-G8 / P1-P6 vocabulary, and every S1-S11 closure. S13 (P3) is NOT remediated here: under the operator's standing disposition it is carried as a non-blocking follow-up in stash 703B6FAF, outside this shipment's scope. The verdict field is NULL because revision 6 has NOT been reviewed; REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict. Stage asserts no PASS, closes no finding, and has performed no self-review."
+awaiting_attempt: 5
 review_manifest: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 3
@@ -258,6 +258,15 @@ record, under a label (`G6`) that collided with the plan's. Finding `S11`
 required one canonical vocabulary; promoting the check to `G8` satisfies that
 **without dropping the coverage it provided**.
 
+**Every gate above is a COUNT of a whole-line literal, never a line-number
+assertion (clarified at revision 6, finding `S12`).** `G3` and `G8` are
+satisfied by *exactly one* whole-line `D2` match and *exactly one* whole-line
+`D3` match **wherever those lines now sit in the file**. `G8` runs
+**post-commit**, when `D2` has already shifted from `:336` to `:336 + N`; it
+MUST NOT be evaluated at, or read against, the pre-insertion line number.
+No gate in this family requires the pre-insertion class-A line number after
+the insertion.
+
 **The template section is UPDATED, never re-added.** The executor edits the
 body beneath the D1 heading. It does not delete-and-reinsert the section, does
 not move it, and does not change its heading text.
@@ -280,13 +289,48 @@ inserted between the end of `### Step 1: Pre-Flight Checks` and the line
 * It renumbers **nothing**, so the mirror's **five** class-B top-level `Step 2`
   cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) continue to resolve
   to `### Step 2: Task Execution Loop`, and its class-A heading keeps its
-  number. The four class-C lowercase references were never at risk from a
-  top-level insertion and remain unaffected.
-* Every class-A and class-B line lies **above** the insertion point (`:336`),
-  so **none of their line numbers changes** as a result of the commit. Only the
-  class-C lines at `:377` and `:748` shift downward, by exactly the length of
-  the inserted block — expected, and not a parity violation, because `P6b`
-  names class-B lines only.
+  **step** number — `Step 2` — which is a statement about the heading's *text*
+  and says **nothing** about its *line* number. The four class-C lowercase
+  references were never at risk from a top-level insertion and remain
+  unaffected as *references*.
+* **Line-number stability, stated exactly (corrected at revision 6, finding
+  `S12`).** This bullet previously read "every class-A and class-B line lies
+  **above** the insertion point (`:336`), so **none of their line numbers
+  changes**… only the class-C lines at `:377` and `:748` shift". That statement
+  is **WITHDRAWN as false for class A**, and all three of its sub-claims are
+  withdrawn with it. The class-A line **is** `:336`; `D2` defines the insertion
+  as occurring immediately **before** it; therefore the class-A heading is the
+  **insertion successor** and **necessarily shifts**. The truthful statement is:
+
+  | Lines | Position relative to the insertion point (`:336`) | Effect of the commit |
+  |---|---|---|
+  | **Class B — `:275`, `:283`, `:302`, `:305`, `:326`** (all five) | strictly **above** | **LINE-NUMBER STABLE.** Unchanged by the commit. |
+  | **Class C — `:184`, `:214`** | strictly **above** | **LINE-NUMBER STABLE.** Unchanged by the commit. |
+  | **Class A — `:336`** (the heading itself) | **IS** the insertion point; the insertion goes immediately before it | **SHIFTS** to `:336 + N`, where `N` is the inserted block length. |
+  | **Class C — `:377`, `:748`** | strictly **below** | **SHIFT** to `:377 + N` and `:748 + N`. |
+
+  Consequences, stated so no reader or executor can re-derive the withdrawn
+  claim:
+
+  * **Class B's five upstream references are the ONLY line-number stability
+    this unit asserts as load-bearing**, and they are exactly the set `P6b` is
+    evaluated against. Class C's `:184`/`:214` are stable too, but no gate or
+    criterion reads them.
+  * **The class-A heading MUST be re-located and re-validated by exact,
+    whole-line, case-sensitive heading identity** — the literal
+    `### Step 2: Task Execution Loop` — **after** the insertion. Its
+    pre-insertion line number `:336` is a **pre-insertion locator only** and
+    is invalid as a post-insertion address.
+  * **NO GATE, CRITERION OR HALT CONDITION MAY REQUIRE THE PRE-INSERTION
+    CLASS-A LINE NUMBER AFTER THE INSERTION**, and none does: `P6a` is a
+    property of heading **text**; `P6b` names **class-B** lines only; `D1`–`D3`
+    match **whole lines**, not line numbers; `G1`–`G8` are **counts**. `G8`'s
+    post-commit anchor-integrity check is satisfied by *exactly one* whole-line
+    `D2` match **wherever it now sits**, not at `:336`.
+  * None of the shifting is a parity violation. The conservative `Step 1.5`
+    outcome, the no-renumbering rule and the three-class partition are
+    **unchanged** by this correction — only the line-number stability claim is
+    corrected.
 * Fractional step numbers are already this file's own convention
   (`Step 0.1b`, `Step 0.1c`, `Step 0.1d`, `Step 0.5`), so it introduces no new
   document grammar.
@@ -303,7 +347,7 @@ After the commit, all six must hold. `181.004-T` states them as assertions and
 | P3 | The two sections carry the **same ordered procedure**: the surface-resolution phase first, then the queued-task listing, then the `harness-ready` partition, then the `harness-architect` invocation for the unlabelled batch, then the post-scaffold label confirmation and gap halt. |
 | P4 | The two sections carry the **same state tokens and the same halt conditions** — `HARNESS_READY`, `NO_HARNESS`, halt-before-partition on `NO_HARNESS`, halt-and-report on a post-scaffold label gap. |
 | P5 | They differ **only** in (a) resolved template variables and (b) the step number in the heading. In the mirror, `{{BUILD_CHECK_COMMAND}}` resolves to `python -m py_compile src/autoharness/cli.py`, bound from `.autoharness/harness-manifest.yaml` → `variables_used`; `{{STATUS_QUEUED}}` resolves to `queued`, bound from `.autoharness/backlog-registry.yaml` → `status_values.queued` (line 249), because `STATUS_QUEUED` is **not** present in `variables_used` and must not be invented. Any variable that resolves from neither source is a **fail-closed halt**, not a guess. No other difference is permitted. |
-| P6 | Two clauses, both required. **`P6a`** — **no other heading in either file is added, removed, renumbered or retitled.** **`P6b`** — the mirror's **five** class-B top-level `Step 2` cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve to `### Step 2: Task Execution Loop`. `P6b` is scoped to class B **deliberately**: the four class-C lowercase references (`:184`, `:214`, `:377`, `:748`) resolve to numbered item 2 of their own enclosing procedures and are not resolved against the top-level step sequence, so requiring them to resolve to the Task Execution Loop would state an invariant that **never held** and would fail a perfectly correct commit. See *Live state of the two ACTIVATE targets*, consequence 2, for the three-class partition. |
+| P6 | Two clauses, both required. **`P6a`** — **no other heading in either file is added, removed, renumbered or retitled.** **`P6b`** — the mirror's **five** class-B top-level `Step 2` cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve to `### Step 2: Task Execution Loop`. **Those five line numbers remain valid post-commit because all five lie strictly above the insertion point and are line-number stable** (see *The mirror section's heading and placement*), whereas **the class-A target heading itself SHIFTS and is resolved by exact whole-line heading identity, never by its pre-insertion line number `:336`**. `P6b` is scoped to class B **deliberately**: the four class-C lowercase references (`:184`, `:214`, `:377`, `:748`) resolve to numbered item 2 of their own enclosing procedures and are not resolved against the top-level step sequence, so requiring them to resolve to the Task Execution Loop would state an invariant that **never held** and would fail a perfectly correct commit. See *Live state of the two ACTIVATE targets*, consequence 2, for the three-class partition. |
 
 `P6` was a single clause through revision 4, and its second half asserted that
 **ten** references resolve to the Task Execution Loop. Finding `S10` showed
@@ -481,9 +525,17 @@ Two axes, independently assigned, never conflated.
   neither axis moves on any task. The unit's composition stays
   `S`/`S`/`S`/`XS`/`M` with `unsized: 0`, and `181.005-T` is **again held** at
   `M`/`high` rather than shrunk on the strength of a sharper contract.
+* **Held unchanged at revision 6.** Revision 6 corrects one false stability
+  claim and states the truthful one in its place across the plan, `181.004-T`
+  and `181.005-T`. It adds no surface, no file, no gate and no step; it
+  replaces one recorded assertion with a better-specified assertion of the same
+  shape, and adds one addressing rule that constrains *how* an already-required
+  check is performed. Neither axis moves on any task. The composition stays
+  `S`/`S`/`S`/`XS`/`M` with `unsized: 0`; `181.004-T` stays `XS`/`low` and
+  `181.005-T` is **again held** at `M`/`high`.
 
 **No task in this unit generates `.github/skills/harness-architect/`**, at
-revision 2, 3, 4 or 5. `188-S` installs it, and `181.004-T` observes it as an
+revision 2, 3, 4, 5 or 6. `188-S` installs it, and `181.004-T` observes it as an
 already-satisfied precondition rather than producing it.
 
 **No task in this unit produces Python at `181.003-T`.** The `src/` deliverable
@@ -546,6 +598,7 @@ went unnoticed through two attempts. `H9`–`H12` close that class.
 | **H10** | **Is the stated atomicity hazard the drift that actually exists?** | **It was not; it is now.** Revision 3 argued against "the installed mirror has a lifecycle step its template does not declare". The live drift is the exact inverse — template ahead, mirror empty. The argument is replaced: a split commit would not create divergence, it would merely **reverse the direction** of the divergence that already exists. Only a single commit reconciling both surfaces ends it. The conclusion (one commit) survives; the reasoning that reached it does not, and has been rewritten rather than patched. |
 | **H11** | **Could the mirror insertion break the mirror's own internal cross-references?** | It could, and that is why the heading is `Step 1.5` rather than `Step 2`. The mirror's `### Step 2` is `Task Execution Loop` (`:336`), and **five** passages — `:275`, `:283`, `:302`, `:305`, `:326`, all inside `### Step 0.5: Work Intake` — are genuine top-level cross-references to it. Revisions 3 and 4 said **ten**, conflating those five with the file's four *lowercase*, procedure-local `step 2` references (`:184`, `:214`, `:377`, `:748`) and with the heading itself; finding `S10` rejected that, and the three-class partition under *Live state of the two ACTIVATE targets* replaces it. The corrected count does **not** weaken the answer: renumbering is still forbidden by `P6a`, the five surviving references are asserted by `P6b`, `G7` detects a renumbered harness heading and `G8` detects a renumbered anchor. Fractional numbering is already this file's own convention (`Step 0.1b`/`0.1c`/`0.1d`/`0.5`), so the insertion introduces no new document grammar. |
 | **H12** | **Is `181.003-T` genuinely inert if the phase text lands in a live file?** | It would not be — which is why it no longer does. `181.003-T` writes the canonical text to **test-owned fixture paths**, and `181.005-T` transcribes it into the two live surfaces. Had `181.003-T` edited the template in place it would have modified the template's **executed** `Step 2` while claiming to be inert, and the activation commit would no longer have been atomic across both surfaces. This is the `169.011-T` pattern: author the canonical source as data, transcribe it at ACTIVATE. |
+| **H13** | **Does any gate, criterion or evidence requirement address a line that the commit itself moves?** | **It did — at revision 5, in the evidence record, and finding `S12` caught it.** Revision 5 asserted that class-A and class-B lines all lie *above* the insertion point and do not shift. The class-A line **is** the insertion point (`:336`), so the heading it names is the insertion **successor** and shifts by the inserted block length. Revision 6 withdraws that claim and states the stability exactly: class B's five upstream references are line-number stable and are the only stability the unit relies on; class-C `:184`/`:214` are also stable but unread; class A shifts and **must be re-located and re-validated by exact whole-line heading identity**; class-C `:377`/`:748` shift. The corrected statement does **not** weaken anything: no gate ever depended on the false claim (`P6a` is heading text, `P6b` is class-B only, `D1`–`D3` are whole-line matches, `G1`–`G8` are counts), and the rule is now stated positively — **no gate may require the pre-insertion class-A line number after the insertion**. The conservative `Step 1.5` insertion, `P6a`/`P6b` and the three-class partition are unchanged. |
 
 ### Blast radius
 
@@ -607,3 +660,13 @@ recorded by `181.004-T` — not against the ten-line case-insensitive occurrence
 set, which finding `S10` showed could not be satisfied. Parity is a
 property of the two artifacts, never an inference from the fact that one commit
 touched both.
+
+**Addressing rule, added at revision 6 (finding `S12`).** Post-commit
+verification reads the mirror at its **post-commit** state. The five class-B
+lines (`:275`, `:283`, `:302`, `:305`, `:326`) are still addressable by number
+because they lie above the insertion point and do not move. **The class-A
+target heading is NOT**: it has shifted to `:336 + N` and MUST be found by the
+exact whole-line literal `### Step 2: Task Execution Loop`. Any verification
+step, evidence assertion or gate that reads the class-A heading at `:336`
+**after** the commit is reading a stale address and is a defect in the
+verification, not evidence of a parity failure.
