@@ -5,8 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 date: 2026-09-18
 status: decided
-revision: 2
-revision_note: "Revision 2 adds D9 and D10 in response to the PR #457 staging review. D1-D8 are unchanged in substance; D4 item 1 and the D8 DAG are updated to name the bootstrap precursor and the withheld conditional successors. The D9 entry under preserved_from_superseded_decision refers to the SUPERSEDED 2026-09-17 deliberation's D9 and is unrelated to this document's new D9."
+revision: 3
+revision_note: "Revision 3 amends D9 ONLY, adding the fifth CLAIM bound to the one-time bootstrap boundary in response to independent plan-review attempt 01 of the 188-S bootstrap plan (finding B1). The four EXECUTION bounds established at revision 2 are unchanged in substance, the seven gated shipment edges are unchanged, and D1-D8 and D10 are untouched. Revision 2 added D9 and D10 in response to the PR #457 staging review; D1-D8 were unchanged in substance there, with D4 item 1 and the D8 DAG updated to name the bootstrap precursor and the withheld conditional successors. The D9 entry under preserved_from_superseded_decision refers to the SUPERSEDED 2026-09-17 deliberation's D9 and is unrelated to this document's new D9."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -685,7 +685,7 @@ edge-less shipment blocks as `unsequenced` rather than passing as a root. A
 root that is stated only in prose is therefore not a root. (PR #457 threads
 `PRRT_kwDORzpWpM6kHrxD`, `PRRT_kwDORzpWpM6kHrxY`, `PRRT_kwDORzpWpM6kHrxc`.)
 
-### D9 — The harness-architect actor installs through a narrow one-time bootstrap precursor (revision 2)
+### D9 — The harness-architect actor installs through a narrow one-time bootstrap precursor (revision 2, claim bound added at revision 3)
 
 D4 decided *that* the actor must really exist. It did not decide *how the first
 one gets built*, and PR #457 review thread `PRRT_kwDORzpWpM6kHrw5` showed the
@@ -725,7 +725,7 @@ consumes no `.autoharness/bootstrap-grants/` file, writes none, uses no
 `--force`, and touches no force-audit log. No agent may author or widen a
 grant; none is authored here.
 
-**The one-time boundary is bounded on four axes**, and is non-inheritable:
+**The one-time boundary is bounded on five axes**, and is non-inheritable:
 
 | Axis | Bound |
 |---|---|
@@ -733,9 +733,48 @@ grant; none is authored here.
 | Count | Once, by `182.002-T`. |
 | Deliverable | One named file. |
 | Expiry | The `HARNESS_ARCHITECT_INSTALLED` token. |
+| Claim *(revision 3)* | Exactly `182.001-T` and `182.002-T` may be admitted to Ship's ready queue without the `harness-ready` label. No other task, feature or shipment. Not inherited. |
 
 It is also **non-re-enterable**: installing the actor destroys the very
 condition that justified the authority.
+
+**The claim bound (revision 3).** Attempt 01 of the `188-S` plan review found
+that the four execution bounds above never reach P-002's *claim* precondition.
+P-002 is not only an evidence gate: its Precondition is "the task carries the
+`harness-ready` label" and its Enforcement is "filter ready queue to only tasks
+carrying the `harness-ready` label". The sole declared producer of that label is
+the harness-architect — the actor `188-S` installs. So the ordinary harness-ready
+filter can admit **no** task at all until the actor exists, and the two tasks
+that establish and install it would be unclaimable. The deadlock closed at the
+shipment layer would reproduce itself one layer down, at task claiming.
+
+The fifth bound is therefore a **claim carve-out**, stated separately from the
+Count axis because "may be admitted to the ready queue" and "may execute the
+harness-architect procedure from its template" are different permissions that
+must remain separately bounded and separately auditable:
+
+* It names **exactly** `182.001-T` and `182.002-T`, and authorizes **only**
+  their admission to the ready queue. It authorizes no execution, no other
+  task, no feature, no shipment, and nothing by inheritance.
+* `182.003-T` and `182.004-T` are **not** covered, because `182.002-T` applies
+  the `harness-ready` label to this unit's remaining tasks (template Step 6)
+  before they are reached; they are admitted by the ordinary filter.
+* It **expires with the other four bounds**, on `182.004-T`'s emission of
+  `HARNESS_ARCHITECT_INSTALLED`, and inherits the same non-re-enterability
+  argument unchanged.
+* It is **not a waiver of P-002**. P-002's Statement governs claiming *and
+  implementing*; neither carved-out task implements anything. `182.001-T`
+  authors the failing assertion and writes no production code; `182.002-T`
+  produces the full P-004 evidence and writes no production code. Every task in
+  the portfolio that implements anything — including `182.003-T`, the only
+  commit in this unit — is claimed under the ordinary label.
+* It is **not** a bootstrap grant: it consumes no `.autoharness/bootstrap-grants/`
+  file, writes none, uses no `--force`, touches no force-audit log, and is not
+  an operator exemption note. It is declared in a review-gated plan, exercised
+  by Ship, and expires on a token. No agent may author, widen or re-date it.
+* It amends **no policy text**. P-002 remains correct as written; this unit
+  satisfies it, and the carve-out is a plan-declared, review-gated,
+  token-expiring exception recorded on every surface that an executor reads.
 
 ### D10 — Conditional successors are withheld from the executable queue, not merely ordered (revision 2)
 
