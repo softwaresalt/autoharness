@@ -104,24 +104,30 @@ the mode selected by argv[1]:
                          exit-code semantics than the already-covered
                          nonzero-exit crash case above.
   close-stdin-only   -- the process force-closes the underlying OS file
-                         descriptors for both its own stdin and stdout
-                         immediately via os.close() (bypassing Python's io
-                         wrapper, whose own .close() does not reliably
-                         cause an immediate broken-pipe write error on
-                         every platform) without exiting the process
-                         itself, so no ChildProcess `exit`/`close` event
-                         fires until it eventually times out on its own.
-                         Any write the shim performs to this process's
-                         stdin therefore fails immediately on the write
-                         side (broken pipe/EPIPE), isolating that failure
-                         mode from the already-covered child-process-exited
-                         case above. The idle period is deliberately much
-                         longer than any test's own assertion/teardown
-                         window, so a test asserting prompt shim
-                         termination is proof the *shim* actively
-                         terminated this still-alive child, not merely
-                         proof that the child eventually exited on its own
-                         within the test's timeout.
+                         descriptor for its own stdin immediately via
+                         os.close() (bypassing Python's io wrapper, whose
+                         own .close() does not reliably cause an immediate
+                         broken-pipe write error on every platform)
+                         without exiting the process itself, so no
+                         ChildProcess `exit`/`close` event fires until it
+                         eventually times out on its own. Any write the
+                         shim performs to this process's stdin therefore
+                         fails immediately on the write side (broken
+                         pipe/EPIPE), isolating that failure mode from the
+                         already-covered child-process-exited case above.
+                         Immediately after closing fd 0 -- and before
+                         force-closing fd 1 the same way -- it writes and
+                         flushes a single JSON notification
+                         (`test/childStdinClosed`) on its own stdout, so a
+                         test can wait for that deterministic readiness
+                         signal instead of a fixed sleep before issuing
+                         writes that must race the fd-0 closure. The idle
+                         period is deliberately much longer than any
+                         test's own assertion/teardown window, so a test
+                         asserting prompt shim termination is proof the
+                         *shim* actively terminated this still-alive
+                         child, not merely proof that the child eventually
+                         exited on its own within the test's timeout.
 """
 import json
 import os
@@ -130,16 +136,18 @@ import time
 
 mode = sys.argv[1] if len(sys.argv) > 1 else "normal"
 
-if mode == "close-stdin-only":
-    os.close(0)
-    os.close(1)
-    time.sleep(60)
-    sys.exit(0)
-
 
 def send(obj):
     sys.stdout.write(json.dumps(obj) + "\\n")
     sys.stdout.flush()
+
+
+if mode == "close-stdin-only":
+    os.close(0)
+    send({"jsonrpc": "2.0", "method": "test/childStdinClosed", "params": {}})
+    os.close(1)
+    time.sleep(60)
+    sys.exit(0)
 
 
 for raw_line in sys.stdin:
@@ -452,10 +460,22 @@ class GraphtorMcpShimHandshakeTests(unittest.TestCase):
         proc = self._spawn("close-stdin-only")
         messages = self._start_reader(proc)
 
-        # Give the fake server time to actually close its stdin read end
-        # before the first write is attempted, so the write reliably fails
-        # on the stdin stream itself rather than racing a still-open pipe.
-        time.sleep(0.3)
+        # Wait for the fake child's own deterministic readiness signal
+        # (`test/childStdinClosed`, written and flushed on its stdout
+        # immediately after it closes its own fd 0) instead of a fixed
+        # sleep, so the first write is only attempted once the child's
+        # stdin read end is actually closed -- guaranteeing the write
+        # fails on the stdin stream itself rather than racing a
+        # still-open pipe.
+        readiness_seen, readiness_satisfied = self._collect_all(
+            messages,
+            [lambda m: m.get("method") == "test/childStdinClosed"],
+        )
+        self.assertTrue(
+            readiness_satisfied[0],
+            "the close-stdin-only fake child never signaled that it had "
+            f"closed its own stdin; messages seen: {readiness_seen!r}",
+        )
 
         self._write(proc, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
         self._write(proc, {"jsonrpc": "2.0", "id": 2, "method": "test/echo", "params": {}})
