@@ -1,42 +1,58 @@
 ---
 title: "Plan review verdict manifest — BOOTSTRAP-0 harness-architect bootstrap"
-description: "Mutable verdict manifest for docs/plans/2026-09-20-harness-architect-bootstrap-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. MANIFEST REVISION 5. INDEPENDENT ATTEMPT 03 HAS RUN against plan revision 4 at content HEAD c52e8403 and returned gate_result PASS / decision PROCEED on three P3 findings, with no P0, no P1 and no P2. B2 (P2), carried open from attempts 01 and 02, is independently CONFIRMED CLOSED: every structural claim of the rewritten two-surface UNIMPLEMENTED_MARKER derivation was re-derived against the live artifacts and matches exactly. B1 and B3 remain closed. B4 remains OPEN at P3, correctly preserved and re-verified as still true. Two new P3 findings were raised: B5, a provenance divergence between the plan frontmatter and governing decision row 987; and B6, a self-contradictory governing-plan revision citation inside the 188-S shipment record. The plan is PASS and publication-eligible on its own review gate. Neither new finding was remediated: this attempt was terminal and review-only."
+description: "Mutable verdict manifest for docs/plans/2026-09-20-harness-architect-bootstrap-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. MANIFEST REVISION 7. THE VERDICT FIELD IS NULL: the plan is at REVISION 5 and no independent attempt has been taken against it. Attempt 04 returned PASS against REVISION 4 and that PASS does NOT carry forward. Revision 5 is a P1 ordering repair - the harness-ready labels were withdrawn and committed at base 3ad5fcc7, PRE-0 was executed against that labels-absent base, its evidence was persisted to an immutable artifact, and only then were the labels re-applied in a descendant commit - so that P-004 evidence PRECEDES label application in history while P-002 queue and claim still SEE the labels. A Stage-executed TARGETED TERMINAL REVIEW is rostered separately under targeted_reviews; it is NOT an independent attempt, asserts NO verdict and consumes no attempt number. Revision 5 AWAITS INDEPENDENT ATTEMPT 05."
 doc_type: review-manifest
 source: docs/reviews/2026-09-20-harness-architect-bootstrap-plan-review.md
 date: 2026-09-20
 manifest_shape: attempt-roster
-manifest_revision: 6
+manifest_revision: 7
 plan_id: harness-architect-bootstrap
 plan_path: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
-plan_revision: 4
+plan_revision: 5
 feature_id: 182-F
 shipment_id: 188-S
 latest_attempt: 4
-review_terminal: true
-terminal_designation: terminal-for-push-b
-terminal_disposition: PASS-NO-REMEDIATION-THIS-CYCLE
-terminal_note: "Attempt 04 is TERMINAL FOR PUSH B of PR #457 under docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md, and no further remediation cycle is authorized after it. It reviewed plan revision 4 against the working tree on committed base a192e50c, performed NO remediation, and returned PASS on four P3 findings with no P0, no P1 and no P2. It CLOSED B6 (the governing-plan revision self-contradiction in 188-S), CARRIED B4 and B5 open at P3 without lowering either, and RAISED two new P3 observations, C1 and C2. The three current-HEAD Copilot threads landing on this unit are all closed on re-derived evidence: the revision-2/3 CLAIM carve-out is withdrawn at its root and restated nowhere, the generated actor is registered in the harness manifest in the same atomic unit that creates it, and the stale TRANSPORT_DECIDED hardening answer is rewritten against the executable DAG. The label-ordering hazard created by pre-applied harness-ready labels is closed mechanically by 182.001-T's fail-closed first-action read of the recorded P-004 postcondition, which covers the whole unit because the four task records form a strict dependency chain. HISTORICAL: attempt 03 was terminal for the prior cycle and returned PASS against revision 3 at HEAD c52e8403; that PASS was attached to revision 3 and does NOT carry forward to revision 4."
-awaiting_attempt: null
+review_terminal: false
+terminal_designation: null
+terminal_disposition: null
+terminal_note: "NO TERMINAL DESIGNATION IS IN FORCE AT PLAN REVISION 5. Attempt 04 was terminal for PUSH B of PR #457 under docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md and returned PASS against plan REVISION 4 on committed base a192e50c. THAT TERMINALITY AND THAT PASS BOTH ATTACHED TO REVISION 4 AND NEITHER CARRIES FORWARD. Revision 5 is a P1 ORDERING REPAIR, not a remediation cycle continuation: every prior revision asserted that PRE-0 produces P-004 evidence and applies the harness-ready label from it, while the four labels were already committed at eabcecc8 and no durable carrier held any compilation or red-phase observation. The repair was performed in the commit graph - labels withdrawn and committed (base 3ad5fcc7), PRE-0 executed against that base, labels re-applied in a descendant commit - and the P-004 postcondition carrier was relocated from .autoharness/harness-manifest.yaml, which D11 forbids any staging session to edit, to the immutable artifact docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-pre0-evidence.md. Revision 5 AWAITS INDEPENDENT ATTEMPT 05."
+awaiting_attempt: 5
 reviewed_content_head: a192e50c
-gate_result: PASS
-verdict: PASS
-verdict_is_pass: true
+gate_result: null
+verdict: null
+verdict_note: "THE VERDICT FIELD IS NULL BECAUSE PLAN REVISION 5 HAS NOT BEEN INDEPENDENTLY REVIEWED. Attempt 04 determined PASS against REVISION 4 on committed base a192e50c; that PASS attached to revision 4 and DOES NOT CARRY FORWARD to revision 5. SM-2's HARVEST_ADMITTED is defined against verdict: PASS at an attempt taken against the plan's CURRENT revision, so it is CLOSED for this unit until attempt 05 returns. NO PASS IS ASSERTED BY STAGE. A Stage-executed TARGETED TERMINAL REVIEW was performed after the ordering repair and is recorded at docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-targeted-terminal-review-01.md; it is EXPLICITLY NOT an independent attempt, asserts NO verdict, does not consume an attempt number, and did not close B4, B5, C1 or C2. It closed the P1 ordering defect ONLY on machine-re-derivable evidence - git show 3ad5fcc7:.backlogit/queue/182.00x-T.md shows no harness-ready label at the base, the evidence artifact names that base, and git merge-base --is-ancestor 3ad5fcc7 HEAD exits 0 - which is a class of fact that does not depend on reviewer independence. It raised two new non-blocking P3 observations, C3 and C4. Publication and execution remain DISTINCT GATES and BOTH are closed for this unit: no verdict, and 188-S is unshipped."
 verdict_note: "PASS as independently determined by attempt 04 against plan revision 4 on committed base a192e50c, on the stated decision rule (P0/P1 FAIL, P2-only ADVISORY, P3/none PASS). Four P3 findings remain open - B4 and B5 carried and deliberately preserved, plus C1 and C2 raised at this attempt - and none is blocking. SM-2's HARVEST_ADMITTED state is defined against verdict: PASS, which is satisfied for this unit's own review gate at revision 4. This verdict speaks only to the plan's review status; it confers no claim, no shipment execution and no Ship authorization. It does not alter 187-S, which remains dependency-gated on 188-S. Acceptance-matrix criteria A1-A4 of the bounded convergence decision are GitHub-dependent and were NOT OBSERVABLE THIS SESSION because GitHub interaction was forbidden; they are recorded as not observed and are expressly NOT asserted. A5-A8 pass locally. No severity was lowered to reach this verdict and no finding was downgraded, deferred or closed other than B6, which was closed on re-derived evidence in the rewritten 188-S record."
 p0_open: 0
 p1_open: 0
 p2_open: 0
-p3_open: 4
-open_findings: [B4, B5, C1, C2]
+p3_open: 6
+open_findings: [B4, B5, C1, C2, C3, C4]
 blocking_findings: []
 findings_closed_at_attempt_02: [B1, B3]
 findings_closed_at_attempt_03: [B2]
-findings_closed_at_attempt_04: [B6]
+open_counts_note: "P0, P1 and P2 are all ZERO at revision 5. The P1 ordering defect that motivated revision 5 is CLOSED on re-derivable commit-graph evidence recorded in the targeted terminal review, not by an assertion of Stage's judgement. SIX P3s are open and NONE is blocking. B4 and B5 were carried by attempt 04 and are carried again here, unlowered and unclosed. C1 (PRE-0 holds no backlog record by design) and C2 (the Procedure-source bound is a statement of fact rather than an enforced gate) were raised by attempt 04 and are likewise carried. C3 is NEW: P-004's precondition AS LITERALLY WRITTEN reads the whole discovered suite, and at PRE-0 that whole-suite form was NOT satisfied - the unscoped run returned exit 0, Ran 2344 tests, OK, skipped=54, because PRE-0 authored the assertion outside the working tree. It is recorded on every carrier rather than smoothed; it is non-blocking because the whole-suite form is UNSATISFIABLE at PRE-0 by construction (making the suite go red requires the assertion to be committed under tests/, which is 182.001-T's deliverable), because the form the harness-architect template itself prescribes at Step 5.2 IS satisfied non-zero with the expected marker, and because the whole-suite form is GATED at 182.002-T, the first point it is observable. C4 is NEW: the unscoped suite is observably flaky on Windows - one run exited 1 on a PermissionError WinError 32 raised in shutil.rmtree during temp-directory teardown carrying NO marker, a later run exited 0 with OK. Both are recorded verbatim and the non-zero run is NOT counted as red-phase evidence, because the evidence rule is marker-carrying rather than merely non-zero. HISTORICAL: B1 and B3 were closed at attempt 02, B2 at attempt 03 and B6 at attempt 04; those closures stand."
 findings_addressed_pending_review: []
 open_counts_note: "Counts are asserted by independent attempt 04 rather than by Stage. B6 is CLOSED: the 188-S rewrite cites governing plan revision 4 throughout and states explicitly that the attempt-03 PASS was attached to revision 3 and does not carry forward, removing the revision-3/(revision-2) self-contradiction attempt 03 recorded. B4 and B5 are CARRIED OPEN at P3, re-verified as still true at revision 4 and not lowered. C1 (PRE-0 holds no backlog record by design, so its only durable trace is the recorded P-004 postcondition rather than a queue entry) and C2 (the Procedure-source bound is presented in a Bounds table but is a statement of fact rather than an enforced gate, as R1 already concedes) are new P3 observations with no remediation proposed. HISTORICAL: B1 and B3 were closed at attempt 02 and B2 at attempt 03; those closures stand."
 remediation_authorization: none-this-cycle
-latest_remediation_revision: 4
-latest_disposition: PASS-P3-ONLY
+latest_remediation_revision: 5
+latest_disposition: AWAITING-INDEPENDENT-ATTEMPT-05
 latest_artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-04.md
+targeted_reviews:
+  - id: targeted-terminal-review-01
+    artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-targeted-terminal-review-01.md
+    reviewed_revision: 5
+    reviewer: stage
+    is_independent_attempt: false
+    asserts_verdict: false
+    verdict: null
+    consumes_attempt_number: false
+    p0: 0
+    p1: 0
+    p2: 0
+    p3: 2
+    findings_raised: [C3, C4]
+    closed_on_re_derivable_evidence: [P1-LABEL-ORDERING]
+    note: "Operator-directed targeted terminal review of the label-ordering repair. NOT an independent attempt and asserts NO verdict. Closes the P1 ordering defect only on machine-re-derivable commit-graph evidence; raises C3 and C4 at P3; carries B4, B5, C1 and C2 untouched."
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-plan-review-attempt-01.md
