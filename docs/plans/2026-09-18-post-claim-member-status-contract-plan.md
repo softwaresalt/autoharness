@@ -7,11 +7,11 @@ date: 2026-09-18
 plan_id: post-claim-member-status-contract-v2
 plan_path: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md
 plan_role: active
-revision: 6
+revision: 7
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "verdict is null because no independent reviewer has judged revision 6. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 6 is the product of one operator-authorized bounded remediation cycle against independent terminal attempt 05, which returned ADVISORY on revision 5 with zero P0, zero P1, two P2 (N1, N2) and four P3 (N3, N4, N5, M4). The cycle is scoped to N1 and N2 and to mechanically necessary consistency edits. N1: the CONFIRM-to-DOCS edge was a completion edge, enforced in prose and by a blocks edge, although the plan asserted in four places that DOCS must not proceed on a non-pass confirmation and applied its own H18 gate-predicate principle only to the ACTIVATE edge. Revision 6 gives 169.007-T a first-action fail-closed whole-file read of the confirmation artifact with a literal STATUS_CONTRACT_HELD comparison, a declared CLOSED enumeration covering absence, malformation and staleness, a zero-documentation-touch and zero-commit guarantee on CLOSED, and a declared non-zero exit. N2: all three readiness line forms carried a checked= vintage field that R12 named as the stale-verdict mitigation while the activation predicate's five conditions never read it. Revision 6 adds the CCD/v1 canonical content digest, the head identity pair, and the B/v1 freshness binding as shared gate primitives defined once and instantiated twice; the readiness READY line and the confirmation HELD line now carry head_commit, a content digest over a fully enumerated input list, an RFC 3339 UTC checked= and a binding= that covers checked=, and both consumers recompute all of them against the repository before acting. N3, N4, N5 and M4 are carried unaddressed and are out of this cycle's scope; M4 remains tool-derived and the item hierarchy was not changed to silence it. Stage asserts no PASS, has performed no self-review, and has decremented no finding count."
-awaiting_attempt: 6
+verdict_note: "verdict is null because no independent reviewer has judged revision 7. REMEDIATED-PENDING-REVIEW is recorded under disposition, where it belongs: it states what Stage produced, never what a reviewer found. Revision 7 is the product of one operator-authorized bounded remediation cycle against independent attempt 06, which returned ADVISORY on revision 6 with zero P0, zero P1, two P2 (O1, O3) and seven P3 (O2, O4, O5, N3, N4, N5, M4). The cycle is scoped to O1 and O3 and to mechanically necessary consistency edits. O1: tests/test_p002_7_member_status_contract.py is the seventh CCD/v1 readiness digest input, but its exact path was declared at no authoring task - all five RED tasks including its creator 169.009-T declared only Scope tests/ - so the path could drift and make the digest undefined by CCD/v1 rule 1. Revision 7 gives 169.009-T explicit ownership of that exact path in its task record and in the plan's Tasks, Producer and Blast-radius tables, and states in the Assertion-to-task map that every assertion in the unit lives in that single module, which 169.009-T creates and the other four RED tasks extend in place. Every one of the seven readiness digest inputs now has one named owning task. No assertion moved, no RED task's responsibility widened, and the task topology and all thirteen item_deps edges are unchanged. O3: the plan and five records claimed in at least eight places that F4 independently rejects the post-revert stale readiness artifact, but F4 compares checked= against the committer timestamp of the commit named by head_commit - the stale line's own commit - which a stale line satisfies. Revision 7 removes every such claim and states truthfully that F1 alone rejects the post-revert path on the readiness gate, that F1 plus F2 reject it on the confirmation gate, and that F4's genuine function is to reject a line whose vintage precedes its own head commit and, with F5, to prevent checked= being altered after emission. Because F1 carries the readiness path alone, revision 7 also constrains the contract explicitly to merge-friendly recovery - git revert and new forward commits - and records that history-rewriting recovery via git reset --hard, rebase or amend restoring the pre-activation identity is prohibited and outside the contract, and is offered as an allowed rollback route nowhere in this unit. Deterministic head_commit, content digest and binding recomputation, the exact line formats and the fail-closed behaviour are preserved unchanged, no safety property is weakened, and no wall-clock-only authority is added. O2, O4, O5, N3, N4, N5 and M4 are carried unaddressed and are out of this cycle's scope; they are recorded as non-blocking follow-ups in the backlogit stash. Where this cycle's producer-closure edits necessarily touch text O2 also concerns, no claim of O2 closure is made or implied. M4 remains tool-derived and the item hierarchy was not changed to silence it. Stage asserts no PASS, has performed no self-review, and has decremented no finding count."
+awaiting_attempt: 7
 review_manifest: docs/reviews/2026-09-18-post-claim-member-status-contract-v2-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 1
@@ -302,21 +302,34 @@ satisfaction and no warning state.
 **`checked=` is now consumed, and `F4`/`F5` are what consume it.** `F5` makes a
 `checked=` value that was altered after emission unable to reproduce the
 `binding=` on its own line, and `F4` gives the field an ordering obligation
-against a repository-derived timestamp. Revision 5 declared the field for a
-stated safety purpose and then specified a consumer that never read it; that is
-the gap attempt 05 recorded as `N2`.
+against a repository-derived timestamp — specifically, against the committer
+timestamp of **the commit the line itself names**, so what `F4` rejects is a
+line whose vintage *precedes its own head commit*. `F4` is therefore **not** a
+post-revert freshness guard and supplies no independent cover on that path;
+see *What this construction is, and what it is not*. Revision 5 declared the
+field for a stated safety purpose and then specified a consumer that never read
+it; that is the gap attempt 05 recorded as `N2`.
 
 **What this construction is, and what it is not.** It is a **staleness and
 mistake-detection** contract. It closes the documented re-activation path,
 where a reverted activation leaves the declared surfaces byte-identical to
 their pre-activation state — so a content digest over surfaces alone would
 still match — while `HEAD` has necessarily advanced to the revert commit, so
-`F1` fails and `F4` fails with it. It is **not** a tamper-proof security
-boundary: an actor who recomputes the binding can produce a self-consistent
-forgery, and this unit claims no protection against that. No wall-clock
-"not in the future" condition is imposed, deliberately: clock skew would make
-it environment-dependent, and the freshness force is carried by repository
-identity rather than by the consumer's clock.
+**`F1` fails**. On the readiness gate `F1` is the **only** predicate that
+rejects that path; on the confirmation gate `F1` is joined by `F2`. `F4` is
+**not** a post-revert freshness guard and must not be described as one: it is
+anchored to the commit the line itself names, so a stale line satisfies it.
+Because `F1` carries the readiness path alone, the contract is defined only
+over **merge-friendly recovery** — `git revert` and new forward commits.
+**History-rewriting recovery (`git reset --hard`, or a rebase or amend that
+restores the pre-activation commit identity) is prohibited and outside this
+contract**, and is never offered as an allowed rollback route anywhere in this
+unit. It is also **not** a tamper-proof security boundary: an actor who
+recomputes the binding can produce a self-consistent forgery, and this unit
+claims no protection against that. No wall-clock "not in the future" condition
+is imposed, deliberately: clock skew would make it environment-dependent, and
+the freshness force is carried by repository identity rather than by the
+consumer's clock.
 
 **Why only the authorizing line carries the binding.** `head_commit`, the
 content digest and `binding` appear on the **`PREACTIVATION_READY`** form and
@@ -340,7 +353,7 @@ produces an evidence record; it changes no behaviour."*
 | Ready state | `PREACTIVATION_READY` — all five families carry an absence RED, a discriminating RED and a **passing inert GREEN**; the enumeration rule resolves `declared_surface_count=4` with `resolved_surface_count=0`; no assertion exists that was not observed red first. Carries the `F1`–`F5` freshness binding. **The only token that authorizes activation** |
 | Blocked state | `PREACTIVATION_BLOCKED` — the evidence set is complete in shape but at least one inert GREEN assertion **failed** against the candidate definition. The line names the family and the gap |
 | Not-observed state | `PREACTIVATION_NOT_OBSERVED` — evaluated **first**; absorbs import failure, `loader.errors`, `_FailedTest` placeholders, zero executed assertions, any family missing any of its three observations, and a violated or unresolvable inert precondition. Never ready |
-| Producer (observations) | `tests/test_p002_7_member_status_contract.py`, authored by the RED tasks against `169.011-T`'s inert candidate. The module produces the **observations**; `169.017-T` reads them and emits the **verdict line** — the module must not be able to declare its own gate result |
+| Producer (observations) | `tests/test_p002_7_member_status_contract.py` — **created by `169.009-T`** and extended in place by `169.010-T`, `169.012-T`, `169.013-T` and `169.014-T`, against `169.011-T`'s inert candidate. The module produces the **observations**; `169.017-T` reads them and emits the **verdict line** — the module must not be able to declare its own gate result |
 | Producer (verdict) | `169.017-T` — sole writer of the readiness artifact, sole emitter of the readiness line, sole computer of its `head_commit`, `candidate_digest` and `binding` |
 | Freshness binding inputs | `CCD/v1` over the **seven** paths enumerated under *Readiness artifact and line format*; `B/v1` under tag `p002-7-preactivation-binding/v1` |
 | Consumer (authoritative) | **`169.015-T`.** It reads the artifact as its **first action**, recomputes `F1`–`F5` against the repository, and fails closed. See *The activation authorization predicate* below |
@@ -417,9 +430,18 @@ tests/test_p002_7_member_status_contract.py
 ```
 
 The first four are the declared surfaces, in their enumerated order, observed
-**unmutated**. The last three are the unit's test material authored in PREPARE
-by `169.011-T`: the canonical candidate definition and enumeration rule, the
-near-miss fixture set, and the conformance test module. They are in the list
+**unmutated**. The last three are the unit's test material, and **each has one
+named owning task**: `tests/p002_7_candidate_definition.py` and
+`tests/p002_7_near_miss_fixtures.py` are authored in PREPARE by `169.011-T`,
+and `tests/test_p002_7_member_status_contract.py` is **created by RED task
+`169.009-T`** and extended in place by `169.010-T`, `169.012-T`, `169.013-T`
+and `169.014-T`. Owning each input at a task is not optional: `CCD/v1` rule 1
+makes the digest **undefined** if a listed path does not exist, so an input
+whose exact path is declared at no authoring task can drift into a different
+filename and halt the unit at `169.017-T` with
+`PREACTIVATION_NOT_OBSERVED | reason=digest_input_unreadable`. Revision 6
+declared the two helper paths for exactly this reason but left the third
+unowned, which attempt 06 recorded as `O1` (P2). They are in the list
 because the readiness verdict is a statement *about evidence produced from that
 material*; if the material changes between VERIFY and ACTIVATE, the adjudicated
 evidence no longer describes what exists, and `F2` catches that even when no
@@ -543,16 +565,38 @@ conditions only establish that the token still describes the tree in front of
 it. `TRANSCRIPTION ONLY — NO AUTHORING` is untouched: the freshness read
 authors nothing, narrows nothing, and adds no assertion.
 
-**Why the stale-readiness path is now closed.** On the re-activation path this
-plan itself defines — confirmation fails, the activation commit is reverted,
-the unit returns to Stage — the four declared surfaces become byte-identical to
-their pre-activation state, so the *content* limb alone would still match. `F1`
-is what closes it: `git revert` necessarily creates a **new commit**, so `HEAD`
-no longer equals the `head_commit` the stale line carries, and the gate is
-CLOSED. `F4` closes it a second, independent way, because the stale `checked=`
-now precedes the revert commit's timestamp. The remedy is the one six records
-already mandate: **re-run `169.017-T`**, which replaces the whole artifact and
-emits a fresh binding.
+**Why the stale-readiness path is now closed, and by exactly which predicate.**
+On the re-activation path this plan itself defines — confirmation fails, the
+activation commit is reverted, the unit returns to Stage — the four declared
+surfaces become byte-identical to their pre-activation state, so the *content*
+limb alone would still match. **`F1` alone is what closes it**, and it is
+sufficient: `git revert` necessarily creates a **new commit**, so `HEAD` no
+longer equals the `head_commit` the stale line carries, and the gate is CLOSED.
+
+**`F4` does not close this path and is never claimed to.** `F4` compares
+`checked=` against `head_committed_at` **for the commit named by
+`head_commit`** — the stale line's *own* commit, not the revert commit and not
+current `HEAD`. A stale line was emitted at or after its own head commit, so
+that comparison **succeeds** and `F4` is satisfied by the stale line. Revision 6
+asserted in several places that `F4` closed this path "a second, independent
+way"; that claim was false under `F4`'s own definition and was recorded as
+attempt 06 finding `O3` (P2). The readiness gate has exactly **one** mechanism
+on the post-revert path, not two. `F4`'s genuine and retained function is
+different: it rejects a line whose vintage *precedes its own head commit*, and
+together with `F5` it prevents `checked=` being altered after emission.
+
+**The supported recovery path is merge-friendly and history-rewriting recovery
+is prohibited.** Because `F1` is the sole mechanism on this path, the undo must
+be one that **advances** `HEAD`: `git revert` of the activation commit, or any
+new forward commit. **`git reset --hard` to the pre-activation commit, and any
+rebase or amend that restores the pre-activation commit identity, are
+prohibited and lie outside this contract.** Such an undo would restore `HEAD`,
+the declared surfaces and the test material to exactly the state the stale
+readiness line describes, `F1`–`F5` would all hold, and the gate would open on
+evidence that was never re-adjudicated. Neither this plan nor any record in
+this unit offers a history-rewriting route as an allowed rollback. The remedy
+after any supported undo is the one six records already mandate: **re-run
+`169.017-T`**, which replaces the whole artifact and emits a fresh binding.
 
 **This is deliberately strict, and the strictness is fail-closed by design.**
 Any commit landing between VERIFY and ACTIVATE — even an unrelated one — closes
@@ -814,11 +858,15 @@ same distinction that keeps `169.015-T` transcription-only.
 
 **Why the stale-confirmation path is closed.** On the failure path below the
 activation commit is reverted, which necessarily creates a new commit; a
-confirmation line left over from before the revert fails `F1` on `head_commit`
-and `F4` on `checked=`, and its `surface_digest` no longer matches the reverted
-surfaces either. A `STATUS_CONTRACT_HELD` line from a superseded run therefore
-cannot authorize a documentation commit describing behaviour that is no longer
-installed.
+confirmation line left over from before the revert fails `F1` on `head_commit`,
+and **additionally** fails `F2`, because its `surface_digest` no longer matches
+the reverted surfaces. The confirmation gate therefore has **two** independent
+mechanisms on this path, `F1` and `F2`. **`F4` is not one of them**: it
+compares `checked=` against the committer timestamp of the commit named by
+`head_commit` — the stale line's own commit — which a stale line satisfies. A
+`STATUS_CONTRACT_HELD` line from a superseded run therefore cannot authorize a
+documentation commit describing behaviour that is no longer installed, on the
+strength of `F1` and `F2`.
 
 #### Failure path — rollback and halt
 
@@ -840,15 +888,22 @@ stated in advance.** On `STATUS_CONTRACT_DIVERGENT` or
    divergent state **simultaneously**. That guarantee holds *only* because
    activation is one commit; across two commits joined by an edge, reverting
    the second would leave the workspace in the split state rather than the
-   original one.
+   original one. **`git revert` is mandatory and `git reset --hard`, rebase and
+   amend are prohibited here** — see *Why the stale-readiness path is now
+   closed*: a history-rewriting undo restores the exact identity the stale
+   readiness line names and would re-open the gate.
 4. The unit **returns to Stage**.
 
-**The revert closes both gates behind it, mechanically.** `git revert` creates
-a new commit, so `HEAD` advances. Any readiness line and any confirmation line
-written before the revert now fail `F1` on `head_commit` and `F4` on `checked=`
-against that new `HEAD`. Neither a stale `PREACTIVATION_READY` nor a stale
-`STATUS_CONTRACT_HELD` can authorize anything after the revert, and neither
-consumer needs to be told the revert happened in order to refuse.
+**The revert closes both gates behind it, mechanically, and the plan names
+which predicate does it.** `git revert` creates a new commit, so `HEAD`
+advances. Any readiness line written before the revert fails **`F1`** on
+`head_commit`; any confirmation line written before the revert fails **`F1`**
+on `head_commit` and **`F2`** on `surface_digest`. **`F4` fails on neither**:
+it is anchored to the commit the line itself names, which a stale line
+satisfies, so it supplies no post-revert cover — the false claim that it did
+was attempt 06 finding `O3` (P2). Neither a stale `PREACTIVATION_READY` nor a
+stale `STATUS_CONTRACT_HELD` can authorize anything after the revert, and
+neither consumer needs to be told the revert happened in order to refuse.
 
 `169.016-T` never repairs a declared surface in place, never amends or re-runs
 the activation commit, and never adds, weakens or re-scopes an assertion to
@@ -999,11 +1054,11 @@ closed in place", and this rule points `R5` at that same machinery.
 | ID | Task | Phase | Size | Complexity |
 |---|---|---|---|---|
 | `169.011-T` | Author the canonical vocabulary definition, the attribution paragraph, the cross-reference sentence, the surface-enumeration rule and the near-miss fixtures as inert test-owned data at two named helper paths | PREPARE | S | medium |
-| `169.009-T` | Three claim-to-admission transition-state assertions, each observed failing individually and discriminatingly | RED | S | low |
-| `169.010-T` | Bidirectional wiring and cross-reference assertions, each observed failing individually and discriminatingly in both copies | RED | S | low |
-| `169.012-T` | Mirror-divergence assertions for both authoritative/mirror pairs, each observed failing individually and discriminatingly | RED | S | low |
-| `169.013-T` | Observed-version attribution-paragraph assertions, each observed failing individually and discriminatingly | RED | XS | low |
-| `169.014-T` | Negative-row and exactly-four-surface closure assertions, each observed failing individually and discriminatingly | RED | S | medium |
+| `169.009-T` | **Create `tests/test_p002_7_member_status_contract.py`** and add three claim-to-admission transition-state assertions, each observed failing individually and discriminatingly | RED | S | low |
+| `169.010-T` | Bidirectional wiring and cross-reference assertions in `tests/test_p002_7_member_status_contract.py`, each observed failing individually and discriminatingly in both copies | RED | S | low |
+| `169.012-T` | Mirror-divergence assertions for both authoritative/mirror pairs in `tests/test_p002_7_member_status_contract.py`, each observed failing individually and discriminatingly | RED | S | low |
+| `169.013-T` | Observed-version attribution-paragraph assertions in `tests/test_p002_7_member_status_contract.py`, each observed failing individually and discriminatingly | RED | XS | low |
+| `169.014-T` | Negative-row and exactly-four-surface closure assertions in `tests/test_p002_7_member_status_contract.py`, each observed failing individually and discriminatingly | RED | S | medium |
 | `169.017-T` | Evaluate the complete inert evidence set for all five families and emit the freshness-bound pre-activation readiness verdict that authorizes activation | VERIFY | S | medium |
 | `169.015-T` | One commit across all four enumerated surfaces: clause, attribution paragraph and bidirectional cross-reference, opened by a fail-closed freshness-bound read of the readiness verdict | ACTIVATE | M | medium |
 | `169.016-T` | Confirm installed/template parity and active-consumer behaviour against the shipped text and emit the freshness-bound post-activation status-contract verdict; add no assertion | CONFIRM | S | medium |
@@ -1058,11 +1113,27 @@ untruthful estimate. All four remain comfortably inside two hours; none is
 naming change, not new work. The five RED tasks and their sizes are untouched,
 because their responsibilities are untouched.
 
+**Sizing re-assessment at revision 7.** `169.009-T` now declares the exact path
+`tests/test_p002_7_member_status_contract.py` as the file it creates, closing
+attempt 06's `O1` (P2). This is a **declaration change, not a scope change**:
+`169.009-T` was already the task that brought the conformance module into
+existence, and the edit names the path it was always going to create. No
+assertion is added, moved or removed; no other RED task's responsibility
+changes; the task topology and all thirteen `item_deps` edges are unchanged.
+`169.009-T` therefore keeps `S`/`low`, and the other four RED tasks keep their
+sizes. The `O3` corrections are likewise truthfulness edits to statements about
+predicates that were already specified, and add no work to any record.
+
 
 ## Assertion-to-task map
 
-Every assertion in this unit has exactly one RED task. A family absent from
-this table has no assertion; an assertion absent from a RED task is a defect.
+Every assertion in this unit has exactly one RED task, and every assertion in
+this table lives in the single conformance module
+`tests/test_p002_7_member_status_contract.py`, which `169.009-T` **creates**
+and the other four RED tasks **extend in place**. No RED task creates a second
+test module, and no assertion in this unit lives anywhere else. A family absent
+from this table has no assertion; an assertion absent from a RED task is a
+defect.
 
 | Assertion family | RED task | Near-miss fixture that discriminates it |
 |---|---|---|
@@ -1122,7 +1193,7 @@ so it is not lost. It is explicitly **not** in this unit's scope.
 | R9 | The unit's only gate is emitted after the irreversible activation commit, so activation is authorized by nothing | `169.017-T` emits a **pre-activation** readiness verdict from the complete inert evidence set, and is the sole immediate predecessor of `169.015-T`. `169.015-T`'s first action is a fail-closed read of that verdict, and on any token other than `PREACTIVATION_READY` it touches no declared surface. The post-activation confirmation is retained but no longer carries the authorizing role, which is what `D2` requires. |
 | R10 | The two verdicts are conflated, and a post-activation confirmation is read as pre-activation authorization | The two use **disjoint vocabularies** (`PREACTIVATION_*` versus `STATUS_CONTRACT_*`), **distinct paths**, and distinct line prefixes (`PREACTIVATION_STATE: ` versus `COMPOSED_STATE: `), and neither emitter writes the other's file. A `STATUS_CONTRACT_HELD` token can never satisfy `169.015-T`'s predicate, because that predicate matches only the literal `PREACTIVATION_READY`. |
 | R11 | Post-activation confirmation fails and the workspace is left mid-migration with no defined path | *Failure path — rollback and halt* states the path in advance: non-zero exit, halt, DOCS does not proceed, `git revert` of the single activation commit as a unit, return to Stage. Reverting is well-defined precisely because activation is one commit. |
-| R12 | A stale readiness verdict authorizes a second activation after a revert or a redesign | Mechanical, not procedural. The readiness artifact is whole-file replaced by its sole writer on every run, so a re-run necessarily emits a fresh binding. The `PREACTIVATION_READY` line carries `head_commit`, `candidate_digest` (`CCD/v1` over seven enumerated inputs) and `binding` (`B/v1`), and `169.015-T` **recomputes all of them against the repository** as `F1`–`F5` before its first write. On the documented post-revert path `git revert` creates a new commit, so `F1` fails on `head_commit` and `F4` fails on `checked=`, and the gate is CLOSED even though the four surfaces are byte-identical to their pre-activation state and the token still reads `PREACTIVATION_READY`. `checked=` is consumed by `F4` and `F5` rather than displayed; revision 5 declared it as the mitigation without giving it a consumer, which attempt 05 recorded as `N2`. The procedural mandate to re-run `169.017-T` remains in six records, but it is now the *remedy*, not the guard. |
+| R12 | A stale readiness verdict authorizes a second activation after a revert or a redesign | Mechanical, not procedural. The readiness artifact is whole-file replaced by its sole writer on every run, so a re-run necessarily emits a fresh binding. The `PREACTIVATION_READY` line carries `head_commit`, `candidate_digest` (`CCD/v1` over seven enumerated inputs) and `binding` (`B/v1`), and `169.015-T` **recomputes all of them against the repository** as `F1`–`F5` before its first write. On the documented post-revert path `git revert` creates a new commit, so **`F1` fails on `head_commit`** and the gate is CLOSED even though the four surfaces are byte-identical to their pre-activation state and the token still reads `PREACTIVATION_READY`. **`F1` is the sole mechanism on that path.** `F4` does **not** fail there and supplies no independent cover: it compares `checked=` against the committer timestamp of the commit named by `head_commit` — the stale line's own commit — which a stale line satisfies. Revision 6 claimed `F4` closed the path a second, independent way; attempt 06 recorded that false claim as `O3` (P2). `F4`'s real function is to reject a line whose vintage precedes its own head commit, and with `F5` to prevent `checked=` being altered after emission. **Because `F1` is the sole mechanism, only merge-friendly recovery is supported:** `git revert` or new forward commits. `git reset --hard`, rebase and amend that restore the pre-activation identity are **prohibited** and are never offered as a rollback route, because they would restore precisely the state the stale line describes. The procedural mandate to re-run `169.017-T` remains in six records, but it is now the *remedy*, not the guard. |
 | R13 | The CONFIRM → DOCS edge is a completion edge, so documentation lands describing unconfirmed behaviour | `169.007-T`'s **first action** is a fail-closed whole-file read of the confirmation artifact, in the same shape `169.015-T` uses: the entire file must be exactly one `COMPOSED_STATE: ` line whose first field is a byte-for-byte match against the literal `STATUS_CONTRACT_HELD`, plus `F1`–`F5` recomputed against the repository. Absence, malformation, staleness, a failure token and a foreign `PREACTIVATION_*` token are each enumerated as CLOSED. On CLOSED it touches no file, makes no commit, and exits `1`. The `blocks` edge supplies ordering only, because `169.016-T` completes on all three of its tokens. Through revision 5 this edge was guarded by prose, an edge and an exit code only, which attempt 05 recorded as `N1`. |
 | R14 | The freshness binding is mistaken for a security boundary, or blocks legitimate work | Both directions are stated rather than left to inference. *Not security:* `B/v1` is a staleness and mistake-detection contract; an actor who recomputes the binding can forge a consistent line, and the plan claims no protection against that. *Not blocking:* the only false-close is an unrelated commit landing between a gate and its consumer, which is fail-closed in the correct direction for a gate guarding an irreversible four-surface mutation, and whose remedy — re-run the emitting gate — is cheap and already mandated. No wall-clock "not in the future" condition is imposed, deliberately, because clock skew would make the contract environment-dependent. |
 
@@ -1168,17 +1239,19 @@ correct.
 | H19 | Can the post-activation confirmation be mistaken for the authorizing gate? | No, and the separation is structural rather than editorial. Two artifacts at two paths, two disjoint token vocabularies, two distinct line prefixes, two sole writers neither of which writes the other's file, and an authorization predicate that matches one literal token only. A `STATUS_CONTRACT_HELD` line cannot satisfy `169.015-T`'s predicate under any reading, and `169.016-T`'s exit code gates **documentation and rollback**, not activation. The readiness line carries `resolved_surface_count=0` and the confirmation line carries `resolved_surface_count=4`; that difference is a phase property of the two gates, not a discrepancy between them. |
 | H20 | If confirmation fails after activation, what happens? | *Failure path — rollback and halt*: `169.016-T` exits non-zero, the unit halts, `169.007-T` DOCS does not proceed, and the single `169.015-T` commit is reverted as a unit so all four surfaces return to their pre-activation state simultaneously. The DOCS halt is **mechanical**: `169.007-T`'s own first action is a fail-closed whole-file read whose token is not the literal `STATUS_CONTRACT_HELD`, so it touches no documentation, makes no commit and exits `1` — it does not depend on any process having observed `169.016-T`'s exit code. The unit returns to Stage; the divergence goes back to a RED task for re-observation, and `169.017-T` is re-run for a fresh readiness verdict before any re-activation. `169.016-T` never repairs a surface in place and never weakens an assertion to reach its pass token. |
 | H21 | Is the gate-predicate principle applied to **every** edge that crosses a three-token verdict, or only to the one guarding a mutation? | Every one, and there are exactly two: `169.015-T ← 169.017-T` and `169.007-T ← 169.016-T`. Both predecessors complete on all three of their tokens, so both edges supply ordering only and both successors carry their own first-action fail-closed read against a single literal token plus `F1`–`F5`. The remaining eleven `item_deps` edges cross no verdict and are read as permission by nothing. This question exists because revision 5 stated the principle generally at `H18`, applied it correctly to the ACTIVATE edge, and left the structurally identical DOCS edge on prose, a `blocks` edge and an exit code — a safety property the plan asserted in four places and enforced in none of them mechanically. Attempt 05 recorded that as `N1`. |
-| H22 | Is an authorizing verdict bound to the evidence identity it was computed from, or only to its own token? | To the identity. Each authorizing line carries `head_commit`, a `CCD/v1` content digest over a **fully enumerated** input list, and a `B/v1` `binding` that covers `checked=`; each consumer recomputes all of them against the repository as `F1`–`F5` and fails closed on any mismatch, absence or malformation. The decisive case is the plan's own post-revert re-activation path, where the declared surfaces return to byte-identical pre-activation content — a content digest over surfaces alone would still match, and `F1` is what closes it, because `git revert` necessarily advances `HEAD`. This question exists because revision 5 declared a `checked=` vintage field, named it in `R12` as the stale-verdict mitigation, and then specified an activation predicate whose five conditions never read it; the field was declared for a safety purpose and given no consumer. Attempt 05 recorded that as `N2`. The construction is scoped honestly at `R14`: staleness and mistake detection, not a tamper-proof boundary. |
+| H22 | Is an authorizing verdict bound to the evidence identity it was computed from, or only to its own token? | To the identity. Each authorizing line carries `head_commit`, a `CCD/v1` content digest over a **fully enumerated** input list, and a `B/v1` `binding` that covers `checked=`; each consumer recomputes all of them against the repository as `F1`–`F5` and fails closed on any mismatch, absence or malformation. The decisive case is the plan's own post-revert re-activation path, where the declared surfaces return to byte-identical pre-activation content — a content digest over surfaces alone would still match, and `F1` is what closes it, because `git revert` necessarily advances `HEAD`. **`F1` is the sole readiness-gate mechanism on that path, and `F4` is not a second one** — `F4` is anchored to the commit the line itself names, which a stale line satisfies; revision 6's claim of an independent second limb was false and was recorded as attempt 06 finding `O3` (P2). The confirmation gate has two, `F1` and `F2`. Because the readiness path rests on `F1` alone, the contract is defined only over **merge-friendly recovery** (`git revert`, new forward commits); `git reset --hard`, rebase and amend restoring the pre-activation identity are **prohibited and outside the contract**. This question exists because revision 5 declared a `checked=` vintage field, named it in `R12` as the stale-verdict mitigation, and then specified an activation predicate whose five conditions never read it; the field was declared for a safety purpose and given no consumer. Attempt 05 recorded that as `N2`. The construction is scoped honestly at `R14`: staleness and mistake detection, not a tamper-proof boundary. |
 
 ### Blast radius
 
 Four declaration surfaces — two authoritative templates and their two installed
 mirrors — plus three test-material files and one documentation page. The test
 material is the conformance test module
-`tests/test_p002_7_member_status_contract.py` and the two inert helper modules
+`tests/test_p002_7_member_status_contract.py`, **created by `169.009-T`** and
+extended by the other four RED tasks, and the two inert helper modules
 `tests/p002_7_candidate_definition.py` and `tests/p002_7_near_miss_fixtures.py`
-authored in PREPARE. Naming the two helpers explicitly at revision 6 added no
-file to the unit — `169.011-T` always authored both — it only made the
+authored in PREPARE by `169.011-T`. Naming the two helpers explicitly at
+revision 6 added no file to the unit — `169.011-T` always authored both — it
+only made the
 `CCD/v1` input list enumerable. Neither helper matches `unittest discover`'s
 default `test*.py` pattern, so neither adds a collected test module. None of
 the three is a declared surface: the enumeration rule's search scope is
@@ -1222,9 +1295,19 @@ the unit returns to Stage.
 **The revert re-closes both gates without either consumer being told.**
 `git revert` creates a new commit, so `HEAD` advances past every
 `head_commit` value written before it. Any surviving `PREACTIVATION_READY` line
-fails `F1` and `F4` at `169.015-T`, and any surviving `STATUS_CONTRACT_HELD`
-line fails `F1` and `F4` at `169.007-T` — and the confirmation line additionally
-fails `F2`, because the reverted surfaces no longer match its `surface_digest`.
+fails `F1` at `169.015-T` — `F1` alone, which is sufficient — and any surviving
+`STATUS_CONTRACT_HELD` line fails `F1` **and** `F2` at `169.007-T`, because the
+reverted surfaces no longer match its `surface_digest`. `F4` fails on neither
+line and is not part of this guarantee: it is anchored to the commit the line
+itself names, which a stale line satisfies (attempt 06 finding `O3`, P2).
+
+**Only merge-friendly recovery is supported.** The rollback route named above
+is `git revert`, which advances `HEAD` and is therefore what `F1` detects.
+**`git reset --hard` to the pre-activation commit, and any rebase or amend that
+restores the pre-activation commit identity, are prohibited** and are not an
+allowed rollback route for this unit: they would restore the exact `HEAD` and
+surface content a stale `PREACTIVATION_READY` line describes, satisfying
+`F1`–`F5` and opening the gate on evidence that was never re-adjudicated.
 Re-activation requires a fresh `PREACTIVATION_READY` verdict from a re-run
 `169.017-T`; the pre-failure verdict is stale, and since revision 6 its
 staleness is **detected** rather than merely forbidden.

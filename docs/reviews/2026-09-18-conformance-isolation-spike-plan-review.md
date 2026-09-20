@@ -1,21 +1,21 @@
 ---
 title: "Plan review verdict manifest — Conformance isolation spike (S2)"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-conformance-isolation-spike-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 04, operator-designated terminal. Plan revision: 4. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on one P0, one P1, two P2 and one P3. A Stage remediation cycle produced revision 2, and independent attempt 02 reviewed that revision at content HEAD 5aa8643f, verified all five attempt-01 findings closed and returned FAIL/BLOCKED on zero P0, one P1, one P2 and one P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, one P2 and zero P3. Attempt 03 verified F1, F2 and F3 all genuinely closed, and found a new defect in the mechanism that closes F1: a blocks edge gates on predecessor completion, not on an achievable I1 verdict, so both the 90-minute floor-invoked outcome and an explicit NOT ACHIEVABLE verdict clear the edge and permit the untrusted-credential acquisition and probe tasks to run in a job whose credential absence is unverified or affirmatively falsified, which blast radius, H7, H9, R8 and the 177.004-T record all forbid. No stop condition exists anywhere in the plan or the six task records. That is the open P1, K1. The open P2, K2, is that four determining tasks require GitHub-hosted-runner jobs, which requires committing a probe workflow to the branch, while blast radius said no tracked surface outside docs/spikes/ is mutated and no task owned the workflow's creation or removal. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: K1 was addressed by separating ordering from safety, retaining the blocks edges as ordering and adding an executable verdict predicate - 177.004-T emits a single non-secret I1_GATE line and 177.005-T and 177.002-T read it as their first action, failing closed to NOT DETERMINED - FLOOR INVOKED naming I1 on anything but ACHIEVABLE, which forces ISOLATION_FLOOR_ONLY and makes ISOLATION_CHARACTERIZED structurally unreachable; K2 was addressed by stating that the probe workflow is committed and giving it an owning task, one exact path, a dispatch model, a removal owner and point, a rollback and branch-cleanliness evidence, with blast radius and rollback reconciled truthfully. Both findings are recorded as addressed pending review, not closed, and the plan now awaits independent attempt 04. Independent terminal attempt 04 then reviewed revision 4 at content HEAD 42f2f8ec and returned gate result ADVISORY, decision ADVISORY, on zero P0, zero P1, one P2 and three P3. Attempt 04 verified K1 and K2 genuinely closed by re-derivation from the plan, the six task records, 177-F, 183-S and the working tree, and raised one new P2, K3: 177.006-T's record mandates a fourth branch-cleanliness check that must emit no pass on a dirty branch, but the plan defines its four composed states exhaustively as functions of the seven-entry coverage ledger, so an all-DETERMINED ledger on a branch still carrying the probe workflow forces the passing state and no token can express unclosed spike. K3 is graded P2 on consequence - a leftover workflow_dispatch-only workflow with minimal permissions and no secrets, reverted in one commit, with no untrusted execution and no credential exposure - and no severity was lowered to reach a closable state. K4, K5 and K6 are advisory P3. Attempt 04 is terminal, so no further remediation cycle is authorized; K3 is available for operator disposition. The plan is cleared of P0/P1 and eligible for staging publication, but ADVISORY is not a PASS, the plan is not Ship-ready, and 181-S becomes reviewable as a plan without becoming harvestable. No PASS exists anywhere in this record and none is asserted."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-conformance-isolation-spike-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. The reviews live one per attempt under docs/reviews/review-history/ and are never edited after they are written. Latest attempt: 04, whose terminal designation was lifted by the operator on 2026-09-19 to authorize one bounded remediation cycle scoped to K3 alone; that cycle produced plan revision 5 with disposition REMEDIATED-PENDING-REVIEW, and an independent attempt 05 is awaited. K3 is addressed pending review, not closed, and no count was decremented. K4, K5 and K6 remain open and unaddressed, carried as non-blocking follow-ups in backlogit stash entry 5E45691A. Plan revision: 4. Independent attempt 01 reviewed revision 1 at content HEAD db39553a and returned FAIL/BLOCKED on one P0, one P1, two P2 and one P3. A Stage remediation cycle produced revision 2, and independent attempt 02 reviewed that revision at content HEAD 5aa8643f, verified all five attempt-01 findings closed and returned FAIL/BLOCKED on zero P0, one P1, one P2 and one P3. A second Stage remediation cycle produced revision 3, and independent attempt 03 reviewed that revision at content HEAD 4b4330b9 and returned gate result FAIL, decision BLOCKED, on zero P0, one P1, one P2 and zero P3. Attempt 03 verified F1, F2 and F3 all genuinely closed, and found a new defect in the mechanism that closes F1: a blocks edge gates on predecessor completion, not on an achievable I1 verdict, so both the 90-minute floor-invoked outcome and an explicit NOT ACHIEVABLE verdict clear the edge and permit the untrusted-credential acquisition and probe tasks to run in a job whose credential absence is unverified or affirmatively falsified, which blast radius, H7, H9, R8 and the 177.004-T record all forbid. No stop condition exists anywhere in the plan or the six task records. That is the open P1, K1. The open P2, K2, is that four determining tasks require GitHub-hosted-runner jobs, which requires committing a probe workflow to the branch, while blast radius said no tracked surface outside docs/spikes/ is mutated and no task owned the workflow's creation or removal. The operator then lifted the terminal designation and authorized a third and final bounded remediation cycle, which produced revision 4: K1 was addressed by separating ordering from safety, retaining the blocks edges as ordering and adding an executable verdict predicate - 177.004-T emits a single non-secret I1_GATE line and 177.005-T and 177.002-T read it as their first action, failing closed to NOT DETERMINED - FLOOR INVOKED naming I1 on anything but ACHIEVABLE, which forces ISOLATION_FLOOR_ONLY and makes ISOLATION_CHARACTERIZED structurally unreachable; K2 was addressed by stating that the probe workflow is committed and giving it an owning task, one exact path, a dispatch model, a removal owner and point, a rollback and branch-cleanliness evidence, with blast radius and rollback reconciled truthfully. Both findings are recorded as addressed pending review, not closed, and the plan now awaits independent attempt 04. Independent terminal attempt 04 then reviewed revision 4 at content HEAD 42f2f8ec and returned gate result ADVISORY, decision ADVISORY, on zero P0, zero P1, one P2 and three P3. Attempt 04 verified K1 and K2 genuinely closed by re-derivation from the plan, the six task records, 177-F, 183-S and the working tree, and raised one new P2, K3: 177.006-T's record mandates a fourth branch-cleanliness check that must emit no pass on a dirty branch, but the plan defines its four composed states exhaustively as functions of the seven-entry coverage ledger, so an all-DETERMINED ledger on a branch still carrying the probe workflow forces the passing state and no token can express unclosed spike. K3 is graded P2 on consequence - a leftover workflow_dispatch-only workflow with minimal permissions and no secrets, reverted in one commit, with no untrusted execution and no credential exposure - and no severity was lowered to reach a closable state. K4, K5 and K6 are advisory P3. Attempt 04 is terminal, so no further remediation cycle is authorized; K3 is available for operator disposition. The plan is cleared of P0/P1 and eligible for staging publication, but ADVISORY is not a PASS, the plan is not Ship-ready, and 181-S becomes reviewable as a plan without becoming harvestable. No PASS exists anywhere in this record and none is asserted."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-conformance-isolation-spike-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
 plan_id: conformance-isolation-spike
 plan_path: docs/plans/2026-09-18-conformance-isolation-spike-plan.md
-plan_revision: 4
+plan_revision: 5
 feature_id: 177-F
 shipment_id: 183-S
 latest_attempt: 4
-review_terminal: true
-terminal_designation: operator-declared
-terminal_disposition: TERMINAL-ADVISORY
+review_terminal: false
+terminal_designation: operator-lifted
+terminal_disposition: TERMINAL-DESIGNATION-LIFTED-FOR-K3-REMEDIATION
 terminal_note: "Attempt 03 was designated terminal by the operator, who subsequently lifted that designation and authorized a third and final bounded remediation cycle producing revision 4. Attempt 04 is the operator-declared terminal attempt against revision 4 and returned ADVISORY. Terminality never closed a finding and no severity was lowered to reach a closable state."
-awaiting_attempt: null
+awaiting_attempt: 5
 reviewed_content_head: 42f2f8ec
 gate_result: ADVISORY
 verdict: ADVISORY
@@ -26,11 +26,11 @@ p1_open: 0
 p2_open: 1
 p3_open: 3
 open_findings: [K3, K4, K5, K6]
-findings_addressed_pending_review: []
-open_counts_note: "Counts are attempt 04's. K1 (P1) and K2 (P2) are closed by independent re-derivation at attempt 04. K3 is a new P2 and K4, K5 and K6 are new P3 findings raised at attempt 04. None is blocking: no policy in .github/policies/workflow-policies.md makes a P2 plan-to-record divergence blocking, and the unit's load-bearing safety predicate is sound."
-remediation_authorization: none-this-cycle
-latest_remediation_revision: 4
-latest_disposition: null
+findings_addressed_pending_review: [K3]
+open_counts_note: "Counts are attempt 04's and are UNCHANGED by the revision-5 remediation cycle. K1 (P1) and K2 (P2) are closed by independent re-derivation at attempt 04. K3 is a new P2 and K4, K5 and K6 are new P3 findings raised at attempt 04. K3 is now ADDRESSED PENDING REVIEW at plan revision 5 and is NOT CLOSED and NOT DECREMENTED: it remains counted in p2_open and listed in open_findings until an independent attempt 05 judges it. K4, K5 and K6 were out of scope for the revision-5 cycle, remain open and unaddressed, and are carried as non-blocking follow-ups in backlogit stash entry 5E45691A. The revision-5 cycle's mechanically necessary edits to the transition-check enumeration touch text K4 also concerns; no claim of K4 closure is made or implied, and no severity was lowered anywhere. None of the four is blocking: no policy in .github/policies/workflow-policies.md makes a P2 plan-to-record divergence blocking, and the unit's load-bearing safety predicate is sound."
+remediation_authorization: operator-authorized-bounded-k3-only
+latest_remediation_revision: 5
+latest_disposition: REMEDIATED-PENDING-REVIEW
 latest_artifact: docs/reviews/review-history/2026-09-18-conformance-isolation-spike-plan-review-attempt-04.md
 attempts:
   - attempt: 1
@@ -124,56 +124,60 @@ attempt artifact is authoritative right now, and nothing else.
 |---|---|
 | `plan_id` | `conformance-isolation-spike` |
 | `plan_path` | `docs/plans/2026-09-18-conformance-isolation-spike-plan.md` |
-| `plan_revision` | 4 |
-| `latest_attempt` | **04** (operator-declared terminal) |
+| `plan_revision` | 5 |
+| `latest_attempt` | **04** (terminal designation **lifted** 2026-09-19 by operator) |
 | `latest_artifact` | `docs/reviews/review-history/2026-09-18-conformance-isolation-spike-plan-review-attempt-04.md` |
 | `reviewed_content_head` | `42f2f8ec` |
 | `gate_result` (attempt 04, immutable) | **ADVISORY** |
-| `verdict` | **ADVISORY** (derived — the judged content is current) |
+| `verdict` | **ADVISORY** (carried forward — attempt 04's judgement, not re-derived) |
 | `verdict_is_pass` | **false** |
-| `latest_remediation_revision` | **4** |
-| `latest_disposition` | **null** (no remediation cycle follows a terminal attempt) |
-| `awaiting_attempt` | **null** |
+| `latest_remediation_revision` | **5** |
+| `latest_disposition` | **REMEDIATED-PENDING-REVIEW** |
+| `awaiting_attempt` | **05** |
 | `p0_open` | **0** |
 | `p1_open` | **0** (`K1` closed at attempt 04) |
-| `p2_open` | **1** (`K3` — new at attempt 04, non-blocking, operator-disposable) |
-| `p3_open` | **3** (`K4`, `K5`, `K6` — new at attempt 04, advisory) |
+| `p2_open` | **1** (`K3` — addressed at revision 5, **pending review**, not closed) |
+| `p3_open` | **3** (`K4`, `K5`, `K6` — open, unaddressed, carried as non-blocking follow-ups) |
+| `findings_addressed_pending_review` | `[K3]` |
+| `p3_followup_stash` | `5E45691A` (`K4`, `K5`, `K6`) — outside this shipment's scope |
 
-**The top-level `verdict` is derived, not authored.** Take the highest-numbered
-roster entry — attempt 04. Its `remediation_revision` is **null**, so the
-content attempt 04 judged (revision 4 at `42f2f8ec`) is **still current**: the
-reviewer's verdict describes the plan text as it stands, so it is carried up
-unchanged. `gate_result` is **ADVISORY** as the immutable record of what
-attempt 04 read.
+**The top-level `verdict` is carried, not re-derived and not upgraded.** Attempt
+04 judged revision 4 at `42f2f8ec` and returned **ADVISORY**. Stage has since
+produced revision 5. Stage cannot judge its own remediation, so the manifest
+continues to report attempt 04's `ADVISORY` until an independent **attempt 05**
+reads revision 5. `gate_result` stays **ADVISORY** as the immutable record of
+what attempt 04 read.
 
 **ADVISORY is not a PASS.** `verdict_is_pass` is **false**. ADVISORY records
 that an independent reviewer found nothing blocking — zero P0 and zero P1 — on
-the current content, while one P2 remains open. No policy in
+the content it read, while one P2 remained open. No policy in
 `.github/policies/workflow-policies.md` makes a P2 plan-to-record divergence
-blocking, so `K3` does not gate. It is available for **operator disposition**;
-it is not a finding Stage may close.
+blocking, so `K3` never gated. It is not a finding Stage may close.
 
-Attempt 04 is **operator-declared terminal**, so no further remediation cycle
-is authorized, proposed or required.
+**Attempt 04's terminal designation was lifted by the operator on
+2026-09-19T21:41:26.916-07:00**, authorizing one bounded remediation cycle
+scoped to `K3`, to be judged by an independent attempt 05. Lifting terminality
+bounded the *review loop*, never a *finding*: **no severity was lowered and no
+count was decremented** to permit this cycle.
 
-**No `PASS` is asserted.** Under the plan-review severity table one P1 returns
-FAIL. This manifest has never reported `PASS` and does not report one now, so
-harvest remains closed. The operator lifted the terminal designation and
-authorized one bounded remediation cycle, the third and final permitted;
-terminality bounded the *review loop*, never a *finding*, and no severity was
-lowered.
+**No `PASS` is asserted.** This manifest has never reported `PASS` and does not
+report one now, so harvest remains closed and no Ship work is authorized
+against `183-S` or anything downstream of it.
 
-**`p1_open` and `p2_open` above are attempt 03's counts and they still stand.**
-`K1` and `K2` were *addressed* by revision 4. They are *decremented* only by a
-further independent attempt — attempt 04 — or by an explicit recorded operator
-waiver. Neither has happened, so Stage records them as addressed-pending-review
-rather than closed.
+**The open counts above are attempt 04's and they still stand.** `K3` was
+*addressed* by revision 5 — see *What follows attempt 04* for what the
+remediation did. It is *decremented* only by a further independent attempt —
+attempt 05 — or by an explicit recorded operator waiver. Neither has happened,
+so Stage records it as **addressed-pending-review rather than closed**, keeps it
+counted in `p2_open`, and keeps it listed in `open_findings`. `K4`, `K5` and
+`K6` were out of scope for the revision-5 cycle and are untouched as findings.
 
-**The attempt-01 and attempt-02 counts are closed, and by the only authority
-that can close them.** Each was re-derived from plan, task, edge and manifest
-state by the *next independent attempt* rather than accepted from a remediation
-narrative. Attempt 03 verified `F1`, `F2` and `F3` all genuinely closed. The
-open counts above are attempt 03's **own, new** findings.
+**The attempt-01, attempt-02 and attempt-03 counts are closed, and by the only
+authority that can close them.** Each was re-derived from plan, task, edge and
+manifest state by the *next independent attempt* rather than accepted from a
+remediation narrative. Attempt 03 verified `F1`, `F2` and `F3` all genuinely
+closed; attempt 04 closed `K1` and `K2` by independent re-derivation. The open
+counts above are attempt 04's **own, new** findings.
 
 **Remediation has not converged across three cycles, and revision 4 targets the
 pattern directly.** Revision 2 closed every attempt-01 finding and introduced a
@@ -617,17 +621,66 @@ graded on consequence from the outset.
 
 ## What follows attempt 04
 
-Nothing automatic. Attempt 04 is terminal, so no remediation cycle is
-authorized, proposed or required. `K3` is available for **operator
-disposition** — the operator may authorize a targeted correction, record an
-explicit waiver, or accept it as a follow-up — but it does not block.
+At **2026-09-19T21:41:26.916-07:00** the operator **lifted attempt 04's
+terminal designation** and authorized one bounded Stage remediation cycle
+scoped to `K3` alone, plus mechanically necessary consistency edits, followed
+by an independent attempt 05. `review_terminal` is therefore `false`,
+`terminal_designation` is `operator-lifted`, and `awaiting_attempt` is `5`.
+**Lifting terminality closes no finding, decrements no count and changes no
+verdict.** The manifest verdict remains attempt 04's `ADVISORY`.
 
-This unit is **cleared of P0/P1** and is eligible for staging publication.
-Ship eligibility is a separate question governed by `P-014` and the shipment's
-own readiness, and is not conferred by this manifest. Its successor `181-S`
-becomes reviewable as a plan; it does not become harvestable, because `181-S`
-harvest is gated on the composed isolation verdict that only execution of this
-spike can produce.
+That cycle produced **plan revision 5**, disposition
+`REMEDIATED-PENDING-REVIEW`. `K3` is recorded as **addressed pending review**,
+not closed: it is still counted in `p2_open` and still listed in
+`open_findings`, and only an independent attempt 05 may close it.
+
+**What revision 5 did about `K3`.** It made branch cleanup an executable limb
+of the final predicate rather than a prose expectation:
+
+* `177.003-T` becomes the **sole writer** of a fixed **eight-line `CLEANUP_`
+  evidence block** in the findings artifact, written in the same commit that
+  removes the workflow, carrying paths, commit identities, run IDs and URLs
+  only under the same non-secret evidence rule as `R6`.
+* `177.006-T` becomes the **sole evaluator**, resolving cleanup to
+  `CLEANUP_PROVEN` or `CLEANUP_FAILED` through six checks `C1`–`C6`, with
+  **`C6` evaluated first** because it independently re-observes the branch tip
+  rather than trusting the artifact's own recorded observation.
+* A **fifth composed state `ISOLATION_CLEANUP_FAILED`** carries its own verdict
+  line form and a five-token reason vocabulary
+  (`WORKFLOW_PRESENT_AT_TIP`, `TIP_UNOBSERVABLE`, `EVIDENCE_MISSING`,
+  `EVIDENCE_MALFORMED`, `EVIDENCE_INCONSISTENT`).
+* A **declared precedence** — `ISOLATION_NOT_OBSERVED`,
+  `ISOLATION_UNDETERMINED`, `ISOLATION_CLEANUP_FAILED`,
+  `ISOLATION_FLOOR_ONLY`, `ISOLATION_CHARACTERIZED` — makes state resolution a
+  total function and places the cleanup test **above** the pass state, so
+  `ISOLATION_CHARACTERIZED` is structurally unreachable while the exact
+  workflow path survives at the branch tip or its lifecycle evidence is
+  missing, malformed or inconsistent.
+* A **per-state successor-eligibility row** blocks `181-S` harvest outright on
+  `ISOLATION_CLEANUP_FAILED`, with an in-unit remedy that needs no further
+  determining run and no waiver.
+* Absence of the whole block resolves to
+  `CLEANUP_FAILED | cleanup=EVIDENCE_MISSING`, never `ISOLATION_NOT_OBSERVED`.
+* `I1` gating and the no-credentials / no-network-after-acquisition model are
+  **preserved unchanged**; the cleanup check is local, offline and
+  credential-free.
+
+Aligned surfaces: the plan's state table, precedence, verdict line forms,
+transition-check enumeration, *Probe workflow lifecycle*, `H10`, `H13`, `H14`,
+new `H15`, `R11`, blast radius and rollback; task records `177.003-T` and
+`177.006-T`; `177-F`; `183-S`; and this manifest. Plan-revision references were
+bumped in all six `177.x` records and `177-F`.
+
+**`K4`, `K5` and `K6` were out of scope** for this cycle, remain open and
+unaddressed, and are carried as non-blocking follow-ups in backlogit stash
+entry `5E45691A`. The revision-5 edits to the transition-check enumeration
+necessarily touch text `K4` also concerns, because making cleanup an executable
+check required enumerating it; **no claim of `K4` closure is made or implied**.
+
+This unit remains **cleared of P0/P1**. `ADVISORY` is still not a `PASS`, the
+plan is not Ship-ready, and `181-S` remains reviewable as a plan without
+becoming harvestable. No `PASS` exists anywhere in this record and none is
+asserted.
 
 ## Attempt roster
 
@@ -642,17 +695,21 @@ ever a `disposition`.
 | 1 | `...-plan-review-attempt-01.md` | 1 @ `db39553a` | **BLOCKED** (1 P0, 1 P1, 2 P2, 1 P3) | 2 | `REMEDIATED-PENDING-REVIEW` |
 | 2 | `...-plan-review-attempt-02.md` | 2 @ `5aa8643f` | **BLOCKED** (0 P0, 1 P1, 1 P2, 1 P3) | 3 | `REMEDIATED-PENDING-REVIEW` |
 | **3** (terminal designation lifted) | `...-plan-review-attempt-03.md` | 3 @ `4b4330b9` | **BLOCKED** (0 P0, 1 P1, 1 P2, 0 P3) | 4 | `REMEDIATED-PENDING-REVIEW` |
-| **4** (terminal) | `...-plan-review-attempt-04.md` | 4 @ `42f2f8ec` | **ADVISORY** (0 P0, 0 P1, 1 P2, 3 P3) | — | — |
+| **4** (terminal designation lifted 2026-09-19) | `...-plan-review-attempt-04.md` | 4 @ `42f2f8ec` | **ADVISORY** (0 P0, 0 P1, 1 P2, 3 P3) | 5 | `REMEDIATED-PENDING-REVIEW` |
+| **5** | *awaiting independent review* | 5 | — | — | — |
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-conformance-isolation-spike-plan.md` at revision 4
+* Plan: `docs/plans/2026-09-18-conformance-isolation-spike-plan.md` at revision 5
 * Feature: `177-F` — Shipment: `183-S` (queued, DAG root, no incoming edge)
 * Shipment members after remediation, in manifest (dependency) order: `177-F`,
   `177.004-T` (determines `I1`; enforced prerequisite of the two untrusted-work
   tasks), `177.005-T` (observes the acquisition that `I7` is read off),
-  `177.001-T`, `177.002-T`, `177.003-T` (transcribes only), `177.006-T`
-  (coverage and four-state composed-state validation)
+  `177.001-T`, `177.002-T`, `177.003-T` (transcribes only; sole writer of the
+  `CLEANUP_` evidence block), `177.006-T`
+  (coverage, `I1`-gate, cleanup and five-state composed-state validation)
+* Non-blocking P3 follow-ups for this root: backlogit stash entry `5E45691A`
+  (`K4`, `K5`, `K6`) — not in this shipment's scope
 * External tracker: `002-C`, `blocked`, outside every manifest, no dependency
   edge in either direction — unchanged by this review
 * Governing decision: the 2026-09-18 shared-execution-architecture and
