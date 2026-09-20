@@ -1,17 +1,17 @@
 ---
 title: "Foundation: Ship pre-task harness-generation lifecycle"
-description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
+description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. At revision 5 the two remaining non-blocking P2 findings are closed at their root: the mirror's 'Step 2' reference set is replaced by an EXACT THREE-CLASS PARTITION derived line-by-line from live content (one heading, five top-level cross-references, four procedure-local lowercase sub-step references), making parity criterion P6 truthful and satisfiable while preserving the conservative Step-1.5 insertion; and the D/G/P label vocabulary is UNIFIED on the plan's numbering across the plan and all three consuming task records, extended to G1-G8 so no failure-mode check is lost. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
 doc_type: plan
 source: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 date: 2026-09-18
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 plan_role: active
-revision: 4
+revision: 5
 verdict: null
 disposition: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 4 remediates independent plan-review attempt 02 of revision 3 (FAIL/BLOCK, P0 0 / P1 1 / P2 2 / P3 0). S7 (P1, blocking): the plan is re-grounded in live workspace state. templates/agents/_ship.agent.md.tmpl ALREADY carries '### Step 2: Harness Generation (P-002 / P-004)' while .github/agents/_ship.agent.md carries no harness-generation step at all and uses '### Step 2' for its Task Execution Loop - the exact inverse of the drift revision 3 assumed. Problem frame, Contract, Composed-state check, Rollout, Rollback, hardening and the task records are rewritten so 181.005-T UPDATES THE EXISTING TEMPLATE SECTION IN PLACE and NEVER adds a duplicate, while INSTALLING a parity mirror section at a fixed anchor in the same commit, under exact heading-literal detection, pre/post occurrence counts, explicit parity criteria and a confined rollback. S8 (P2): 181.003-T is re-scoped as an INERT agent-template/procedure design task producing canonical phase TEXT at two named fixture paths - it is not and never was an src/ module task - and the Composed-state check, Blast radius, Tasks table and its size/complexity are reconciled to that, with scope guards and plan/manifest/source citations propagated to 181.001-T, 181.003-T and 181.004-T. S9 (P2): source_stash_ids is corrected from 3EF5AAF2 to 76EBDE6D, the single source the governing decision assigns to P4/187-S/181-F and the ID every live record already carries. The verdict field is NULL because revision 4 has NOT been reviewed; REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict. Stage asserts no PASS, closes no finding, and has performed no self-review."
-awaiting_attempt: 3
+verdict_note: "Revision 5 remediates independent plan-review attempt 03 of revision 4 (ADVISORY / PROCEED-WITH-ADVISORY, P0 0 / P1 0 / P2 2 / P3 0), which CLOSED S7, S8 and S9 and confirmed S1-S6 closed. Both open P2 findings are addressed at their root. S10 (P2): the 'ten passages refer to Step 2 meaning that loop' claim was inaccurate for four of its ten cited lines and made parity criterion P6's second clause unsatisfiable as literally written. The ten-line citation set is retained - it is exactly the case-insensitive 'step 2' occurrence set - but is now PARTITIONED INTO THREE DISJOINT CLASSES re-derived line-by-line against live content: the DEFINITION (:336, the heading itself), FIVE top-level cross-references (:275, :283, :302, :305, :326 - all capital-S 'Step 2', all inside Step 0.5 Work Intake), and FOUR procedure-local lowercase sub-step references (:184, :214, :377, :748 - each resolving to a numbered item 2 of its OWN enclosing procedure, never to the top-level step sequence). P6 is split into P6a (no other heading added/removed/renumbered/retitled) and P6b (the FIVE top-level cross-references still resolve to '### Step 2: Task Execution Loop'), so the criterion is now both TRUE and MECHANICALLY SATISFIABLE by a correct commit. The conservative outcome is UNCHANGED - mirror insertion at Step 1.5, nothing renumbered - and is now justified by the five references the invariant actually protects rather than by a miscounted ten. S11 (P2): the D/G/P label space is UNIFIED ON A SINGLE CANONICAL VOCABULARY - the plan's - with NO aliases and no second authoritative surface. D1-D3 keep the plan's referents (181.005-T's swapped D2/D3 are corrected to match). The gate family is EXTENDED to G1-G8 so that the anchor-integrity check formerly carried only as 181.005-T's private G6 becomes canonical G8 rather than being dropped; the record's former G7 ('satisfy parity P1-P6') is removed as a redundant wrapper because parity is asserted explicitly and separately. P1-P6 keep the plan's referents throughout. 181.005-T is rewritten to this vocabulary exactly, and 181.003-T and 181.004-T are updated from G1-G7 to G1-G8. Full failure-mode coverage is preserved and re-tabulated failure-mode by failure-mode; no duplicate section was created; atomicity, the confined single-commit rollback and the two-file scope are unchanged. The verdict field is NULL because revision 5 has NOT been reviewed; REMEDIATED-PENDING-REVIEW is a DISPOSITION and never a verdict. Stage asserts no PASS, closes no finding, and has performed no self-review."
+awaiting_attempt: 4
 review_manifest: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 3
@@ -158,12 +158,42 @@ Three consequences govern the whole of this unit:
    declares a harness-generation step the installed mirror does not. Revision 3
    justified single-commit activation against the *opposite* hazard. That
    justification is withdrawn and replaced below.
-2. **`### Step 2` means two different things in the two files.** In the
-   template it is Harness Generation; in the mirror it is the Task Execution
-   Loop, and **ten** passages inside the mirror refer to "Step 2" meaning that
-   loop (lines 184, 214, 275, 283, 302, 305, 326, 336, 377, 748). **Renumbering
-   any existing mirror step is therefore forbidden** — it would silently
-   invalidate every one of those cross-references.
+2. **`### Step 2` means two different things in the two files, and the mirror's
+   own `step 2` references are of three different kinds.** In the template
+   `### Step 2` is Harness Generation; in the mirror it is the Task Execution
+   Loop (`:336`). **Renumbering any existing mirror step is forbidden** — but
+   the reason must be stated exactly, because revisions 3 and 4 stated it
+   loosely and finding `S10` was right to reject the looseness.
+
+   A case-**insensitive** search for `step 2` in `.github/agents/_ship.agent.md`
+   returns exactly ten lines: 184, 214, 275, 283, 302, 305, 326, 336, 377, 748.
+   That citation set is exact and complete. It is **not**, however, ten
+   cross-references to the Task Execution Loop. It partitions into three
+   **disjoint and exhaustive** classes, re-derived line by line against live
+   content:
+
+   | Class | Lines | Count | What it is |
+   |---|---|---|---|
+   | **A — definition** | 336 | 1 | The heading `### Step 2: Task Execution Loop` itself. A definition, not a reference. |
+   | **B — top-level cross-references** | 275, 283, 302, 305, 326 | **5** | Capital-`S` `Step 2`, all inside `### Step 0.5: Work Intake` (`:209`–`:328`), each resolving to the class-A heading. **These are the references renumbering would invalidate.** |
+   | **C — procedure-local sub-step references** | 184, 214, 377, 748 | 4 | Lowercase `step 2`, each resolving to a numbered **item 2 of its own enclosing procedure**, never to the top-level step sequence. |
+
+   The partition is mechanically checkable: a case-**sensitive** search for
+   `Step 2` returns exactly the six class-A+B lines, a case-sensitive search for
+   `step 2` returns exactly the four class-C lines, and 6 + 4 = 10.
+
+   Each class-C line resolves locally, and to a different procedure:
+
+   | Line | Enclosing procedure | Local item 2 it denotes |
+   |---|---|---|
+   | 184 | Crash-Resumption / Startup Recovery Protocol, `ZERO-CANDIDATE NORMAL STARTUP` | `:183` — "Fail closed on validation/quarantine anomalies FIRST" |
+   | 214 | `### Step 0.5: Work Intake` | `:215` — "Verify all tasks have clear scope and acceptance criteria", i.e. the scope/status validation the line names |
+   | 377 | `### Step 2: Task Execution Loop`'s **own** numbered list | `:358` — "Begin telemetry context", the item that produces the `context_ref` the line names |
+   | 748 | `#### Closure Tasks` | `:674` — "Close the shipment via single-artifact safe-close", the item that archives |
+
+   **No class-C line is affected by inserting a new top-level section**, at
+   `Step 1.5` or anywhere else, because none of them is resolved against the
+   top-level step sequence at all.
 3. **This unit's phase and the existing Step 2 are genuinely distinct, and
    ordered.** The existing Step 2 generates *task test harnesses* by invoking
    `harness-architect`. This unit resolves *which installed skill surfaces
@@ -220,6 +250,13 @@ Generation` appears in prose elsewhere and must not be mistaken for a heading.
 | G5 (post) | Occurrences of `Harness Generation (P-002 / P-004)` as a **heading** in the template | **exactly 1** | FAIL the commit — a second section was appended. |
 | G6 (post) | Occurrences of `### Step 1.5: Harness Generation (P-002 / P-004)` in the mirror | **exactly 1** | FAIL the commit. |
 | G7 (post) | Occurrences of any heading line matching `### Step N: Harness Generation` in the mirror | **exactly 0** | FAIL the commit — the mirror section must be `Step 1.5`, not a renumbered `Step 2`. |
+| G8 (post) | Occurrences of the D2 and D3 literals in the mirror | **exactly 1 each** | FAIL the commit — an anchor heading was renumbered, retitled or consumed by the insertion. |
+
+`G8` is new at revision 5. It is **not** a new requirement: it is the
+anchor-integrity check that revision 4 carried only inside the `181.005-T`
+record, under a label (`G6`) that collided with the plan's. Finding `S11`
+required one canonical vocabulary; promoting the check to `G8` satisfies that
+**without dropping the coverage it provided**.
 
 **The template section is UPDATED, never re-added.** The executor edits the
 body beneath the D1 heading. It does not delete-and-reinsert the section, does
@@ -240,8 +277,16 @@ inserted between the end of `### Step 1: Pre-Flight Checks` and the line
 
 * It places the phase in the same ordinal position the template gives it —
   after pre-flight, before the task loop.
-* It renumbers **nothing**, so all ten pre-existing "Step 2" references in the
-  mirror continue to resolve to the Task Execution Loop.
+* It renumbers **nothing**, so the mirror's **five** class-B top-level `Step 2`
+  cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) continue to resolve
+  to `### Step 2: Task Execution Loop`, and its class-A heading keeps its
+  number. The four class-C lowercase references were never at risk from a
+  top-level insertion and remain unaffected.
+* Every class-A and class-B line lies **above** the insertion point (`:336`),
+  so **none of their line numbers changes** as a result of the commit. Only the
+  class-C lines at `:377` and `:748` shift downward, by exactly the length of
+  the inserted block — expected, and not a parity violation, because `P6b`
+  names class-B lines only.
 * Fractional step numbers are already this file's own convention
   (`Step 0.1b`, `Step 0.1c`, `Step 0.1d`, `Step 0.5`), so it introduces no new
   document grammar.
@@ -258,10 +303,70 @@ After the commit, all six must hold. `181.004-T` states them as assertions and
 | P3 | The two sections carry the **same ordered procedure**: the surface-resolution phase first, then the queued-task listing, then the `harness-ready` partition, then the `harness-architect` invocation for the unlabelled batch, then the post-scaffold label confirmation and gap halt. |
 | P4 | The two sections carry the **same state tokens and the same halt conditions** — `HARNESS_READY`, `NO_HARNESS`, halt-before-partition on `NO_HARNESS`, halt-and-report on a post-scaffold label gap. |
 | P5 | They differ **only** in (a) resolved template variables and (b) the step number in the heading. In the mirror, `{{BUILD_CHECK_COMMAND}}` resolves to `python -m py_compile src/autoharness/cli.py`, bound from `.autoharness/harness-manifest.yaml` → `variables_used`; `{{STATUS_QUEUED}}` resolves to `queued`, bound from `.autoharness/backlog-registry.yaml` → `status_values.queued` (line 249), because `STATUS_QUEUED` is **not** present in `variables_used` and must not be invented. Any variable that resolves from neither source is a **fail-closed halt**, not a guess. No other difference is permitted. |
-| P6 | **No other heading in either file is added, removed, renumbered or retitled**, and the mirror's ten pre-existing "Step 2" references still resolve to `### Step 2: Task Execution Loop`. |
+| P6 | Two clauses, both required. **`P6a`** — **no other heading in either file is added, removed, renumbered or retitled.** **`P6b`** — the mirror's **five** class-B top-level `Step 2` cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve to `### Step 2: Task Execution Loop`. `P6b` is scoped to class B **deliberately**: the four class-C lowercase references (`:184`, `:214`, `:377`, `:748`) resolve to numbered item 2 of their own enclosing procedures and are not resolved against the top-level step sequence, so requiring them to resolve to the Task Execution Loop would state an invariant that **never held** and would fail a perfectly correct commit. See *Live state of the two ACTIVATE targets*, consequence 2, for the three-class partition. |
+
+`P6` was a single clause through revision 4, and its second half asserted that
+**ten** references resolve to the Task Execution Loop. Finding `S10` showed
+that four of the ten never did, so the criterion could not be satisfied even by
+a correct commit. Splitting it into `P6a`/`P6b` and scoping `P6b` to the five
+references that genuinely resolve there makes the criterion **true** and
+**mechanically satisfiable** while protecting exactly the same commit. The
+conservative instruction it supports — renumber nothing, use `Step 1.5` — is
+**unchanged**.
 
 Parity is a **post-commit property of two files**, verified by reading them —
 not an inference from the fact that one commit touched both.
+
+### The canonical label vocabulary (revision 5, finding `S11`)
+
+**This section is the single authoritative definition of the `D`, `G` and `P`
+label space for this unit.** Finding `S11` found two authoritative surfaces
+answering differently to the same label: `181.005-T` had defined `D2`/`D3`
+swapped relative to the plan, had re-used `G5`/`G6`/`G7` for different
+referents, and had shifted `P1`–`P6` by one — while `181.003-T` and
+`181.004-T` cross-referenced *the plan's* numbering. A contract whose stated
+purpose is to be mechanical cannot do that.
+
+The divergence is resolved by **adopting the plan's vocabulary everywhere**, not
+by adding aliases. Aliases would leave exactly the ambiguity `S11` objected to.
+
+| Family | Canonical range | Defined in |
+|---|---|---|
+| `D1`–`D3` | detection literals | *Detection — exact literals, no fuzzy matching*, above |
+| `G1`–`G8` | counted gates (`G1`–`G3` pre-commit, `G4`–`G8` post-commit) | *Duplicate prevention — counted, not asserted*, above |
+| `P1`–`P6` | parity criteria (`P6` = `P6a` + `P6b`) | *Parity criteria — what "at parity" means, exactly*, above |
+
+Every consuming record now uses these referents and only these:
+
+| Record | Cites | Status at revision 5 |
+|---|---|---|
+| `181.003-T` | `D1`–`D3`, `G1`–`G8`, `P1`–`P6`; content contract bound to `P3`, `P4`, `P5` | `G1`-`G7` → `G1`-`G8`; referents already matched |
+| `181.004-T` | pre-commit `G1`–`G3`; records the class-A/B/C partition for `P6b` | `G1`-`G7` → `G1`-`G8`; ten-line predicate replaced by the partition |
+| `181.005-T` | `D1`–`D3`, `G1`–`G8`, `P1`–`P6` | **rewritten** — swapped `D2`/`D3` corrected, private `G5`/`G6`/`G7` and shifted `P1`–`P6` removed |
+
+**Coverage is preserved, failure mode by failure mode.** Nothing detectable
+under revision 4's two label sets is undetectable under revision 5's single one:
+
+| Failure mode | Detected by (canonical) |
+|---|---|
+| Template section appended with an identical heading | `G1`/`G4` — count becomes 2 |
+| Template section appended with the same title, different step number | `G5`; `P1` |
+| Template heading retitled, moved or deleted | `G1` (pre), `G4` (post), `P1` |
+| Mirror section absent or wrongly headed | `G6`, `P2` |
+| Mirror section written as a renumbered `### Step N: Harness Generation` | `G7` |
+| A mirror **anchor** heading renumbered, retitled or consumed | `G8` — *the check formerly carried only as the record's private `G6`* |
+| Any **other** mirror heading renumbered or retitled | `P6a` |
+| A class-B top-level `Step 2` cross-reference broken | `P6b` |
+| Unresolved `{{...}}` left in the mirror section | `P5` |
+| Semantic drift between the two sections | `P3`, `P4` |
+
+The one gap `S11` identified — renumbering a **non-anchor** mirror heading being
+caught by the plan's `P6` but by none of the record's gates — is closed, because
+`P6a` is now the record's own criterion rather than a differently-numbered one.
+The record's former `G7` ("the two sections satisfy parity `P1`–`P6`") is
+**removed rather than renumbered**: it was a wrapper that restated parity inside
+the gate family, and parity is asserted explicitly and separately. Removing it
+loses no check and ends the collision on `G7`.
 
 ## Composed-state check
 
@@ -306,7 +411,10 @@ installed `.github/skills/harness-architect/SKILL.md` — **already installed by
 returning `NO_HARNESS` against a scratch harness root in which a required
 surface is absent. It additionally asserts the pre-commit gates `G1`–`G3` hold
 against live file content, so a stale premise is caught **before** activation
-rather than during it. The scratch-root exercise uses a fixture template under
+rather than during it, and it **re-derives and records the class-A/B/C `step 2`
+partition** so that `P6b` is evaluated post-commit against a recorded five-line
+class-B set rather than re-derived under time pressure. The scratch-root
+exercise uses a fixture template under
 the test tree; it never writes under `.github/skills/`, and it never generates
 the `harness-architect` deliverable.
 
@@ -315,7 +423,7 @@ text into both surfaces simultaneously: **update in place** the template's
 existing `### Step 2: Harness Generation (P-002 / P-004)`, and **insert** the
 mirror's new `### Step 1.5: Harness Generation (P-002 / P-004)` at the fixed
 anchor. Those two files are the **only** surfaces this commit may change, and
-`G1`–`G7` plus `P1`–`P6` bound it.
+`G1`–`G8` plus `P1`–`P6` bound it.
 
 > Splitting this across commits produces a reachable state in which exactly one
 > of the two Ship surfaces declares the phase. Today the workspace is already
@@ -362,15 +470,20 @@ Two axes, independently assigned, never conflated.
   (1) `181.003-T` reduces the commit to a **transcription** of already-reviewed
   text rather than an authoring act; (2) `181.004-T` asserts the pre-commit
   gates `G1`–`G3` against live file content **before** activation is reached;
-  (3) `G4`–`G7` and `P1`–`P6` make the commit's success a counted, mechanical
+  (3) `G4`–`G8` and `P1`–`P6` make the commit's success a counted, mechanical
   property instead of a claim. It is not split further because the atomicity
   requirement is precisely that both files move together — splitting it would
   reintroduce the defect it exists to prevent.
 * All five tasks remain within the 2-hour envelope. No task exceeds it, and the
   one remaining `complexity: high` task carries the de-risking above.
+* **Held unchanged at revision 5.** Revision 5 unifies a label vocabulary and
+  corrects a stated predicate; it removes ambiguity rather than adding work, so
+  neither axis moves on any task. The unit's composition stays
+  `S`/`S`/`S`/`XS`/`M` with `unsized: 0`, and `181.005-T` is **again held** at
+  `M`/`high` rather than shrunk on the strength of a sharper contract.
 
 **No task in this unit generates `.github/skills/harness-architect/`**, at
-revision 2, 3 or 4. `188-S` installs it, and `181.004-T` observes it as an
+revision 2, 3, 4 or 5. `188-S` installs it, and `181.004-T` observes it as an
 already-satisfied precondition rather than producing it.
 
 **No task in this unit produces Python at `181.003-T`.** The `src/` deliverable
@@ -403,7 +516,7 @@ and tested by `181.001-T`. `181.003-T` produces Markdown fixture text only.
 | R2 | The lifecycle step slows every shipment start | The resolver short-circuits when all required surfaces are already present, which is the steady state after the first execution. |
 | R3 | `NO_HARNESS` becomes a routine blocker | It is only reachable when a required surface has no authoritative template. The resolver reports the missing template path, so the remedy is explicit rather than a retry loop. |
 | R4 | The ACTIVATE commit appends a **second** harness-generation section to the template instead of updating the existing one | The primary risk of this unit, and the defect `S7` caught. Detection is by exact heading literal (`D1`); the outcome is **counted** both before (`G1`) and after (`G4`, `G5`). A pre-count other than exactly 1, or a post-count other than exactly 1, halts or fails the commit. Plan and record both say **update in place**; neither says "add". |
-| R5 | The mirror insertion renumbers an existing step and silently breaks the ten internal "Step 2" references | The mirror section is `Step 1.5`, chosen so nothing is renumbered. `P6` states the invariant, `G7` detects a renumbered `Step N: Harness Generation`, and `181.004-T` records the pre-existing reference lines so the post-commit check is mechanical. |
+| R5 | The mirror insertion renumbers an existing step and silently breaks its internal `Step 2` cross-references | The mirror section is `Step 1.5`, chosen so nothing is renumbered. `P6a` forbids renumbering any heading, `P6b` asserts the **five** class-B top-level cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve, `G7` detects a renumbered `Step N: Harness Generation` and `G8` detects a renumbered anchor. `181.004-T` records the class-A/B/C partition pre-commit so the post-commit check is mechanical rather than a re-derivation. The four class-C lowercase references are procedure-local and out of scope of this risk. |
 | R6 | `181.003-T` edits a live Ship surface while claiming to be inert | It writes to test-owned fixture paths only; both live surfaces are untouched until `181.005-T`. `181.004-T`'s "no executed Ship step references the lifecycle yet" assertion is now a statement about **file content**, not only about wiring. |
 | R7 | A template variable in the mirror transcription resolves from no named source and is improvised | `P5` names the source for each: `BUILD_CHECK_COMMAND` from `.autoharness/harness-manifest.yaml` → `variables_used`; `STATUS_QUEUED` from `.autoharness/backlog-registry.yaml` → `status_values.queued`, because it is **not** in `variables_used`. Any variable resolving from neither is a fail-closed halt. |
 
@@ -431,7 +544,7 @@ went unnoticed through two attempts. `H9`–`H12` close that class.
 | H8 | Does anything in this unit still assume it installs the actor? | It must not, and the propagation is the risk. At revision 4 the Rollout, Blast radius, Rollback, this pass, the Tasks table, the Out-of-scope list and **all five** task records state the same reduced scope. A single surface left at revision-1 framing is what blocked revision 2, because Ship executes records rather than narrative. |
 | **H9** | **Does the ACTIVATE commit's target already contain the section this unit intends to add?** | **Yes — and revision 3 did not know it.** `templates/agents/_ship.agent.md.tmpl:326` already carries `### Step 2: Harness Generation (P-002 / P-004)`. This is now the governing fact of the unit: the template section is **updated in place**, never re-added, under exact-literal detection `D1` and counted gates `G1`/`G4`/`G5`. An instruction to "add the step to both files" is withdrawn from the plan and from every record, because against a file that already has the section it authorizes exactly the duplicate this unit must not produce. |
 | **H10** | **Is the stated atomicity hazard the drift that actually exists?** | **It was not; it is now.** Revision 3 argued against "the installed mirror has a lifecycle step its template does not declare". The live drift is the exact inverse — template ahead, mirror empty. The argument is replaced: a split commit would not create divergence, it would merely **reverse the direction** of the divergence that already exists. Only a single commit reconciling both surfaces ends it. The conclusion (one commit) survives; the reasoning that reached it does not, and has been rewritten rather than patched. |
-| **H11** | **Could the mirror insertion break the mirror's own internal cross-references?** | It could, and that is why the heading is `Step 1.5` rather than `Step 2`. The mirror's `### Step 2` is `Task Execution Loop`, and **ten** passages inside the file refer to "Step 2" meaning that loop (lines 184, 214, 275, 283, 302, 305, 326, 336, 377, 748). Renumbering is forbidden by `P6` and detected by `G7`. Fractional numbering is already this file's own convention (`Step 0.1b`/`0.1c`/`0.1d`/`0.5`), so the insertion introduces no new document grammar. |
+| **H11** | **Could the mirror insertion break the mirror's own internal cross-references?** | It could, and that is why the heading is `Step 1.5` rather than `Step 2`. The mirror's `### Step 2` is `Task Execution Loop` (`:336`), and **five** passages — `:275`, `:283`, `:302`, `:305`, `:326`, all inside `### Step 0.5: Work Intake` — are genuine top-level cross-references to it. Revisions 3 and 4 said **ten**, conflating those five with the file's four *lowercase*, procedure-local `step 2` references (`:184`, `:214`, `:377`, `:748`) and with the heading itself; finding `S10` rejected that, and the three-class partition under *Live state of the two ACTIVATE targets* replaces it. The corrected count does **not** weaken the answer: renumbering is still forbidden by `P6a`, the five surviving references are asserted by `P6b`, `G7` detects a renumbered harness heading and `G8` detects a renumbered anchor. Fractional numbering is already this file's own convention (`Step 0.1b`/`0.1c`/`0.1d`/`0.5`), so the insertion introduces no new document grammar. |
 | **H12** | **Is `181.003-T` genuinely inert if the phase text lands in a live file?** | It would not be — which is why it no longer does. `181.003-T` writes the canonical text to **test-owned fixture paths**, and `181.005-T` transcribes it into the two live surfaces. Had `181.003-T` edited the template in place it would have modified the template's **executed** `Step 2` while claiming to be inert, and the activation commit would no longer have been atomic across both surfaces. This is the `169.011-T` pattern: author the canonical source as data, transcribe it at ACTIVATE. |
 
 ### Blast radius
@@ -486,7 +599,11 @@ the commit did not.
 `HARNESS_READY` and `NO_HARNESS` both observed reachable. A unit that has never
 observed its own failure state has not tested its precondition.
 
-Additionally, and new at revision 4: the ACTIVATE commit is not complete until
-`P1`–`P6` are verified **by reading both files after the commit**. Parity is a
+Additionally, and unchanged in substance since revision 4: the ACTIVATE commit
+is not complete until `P1`–`P6` are verified **by reading both files after the
+commit**. At revision 5 `P6` is verified as its two clauses `P6a` and `P6b`,
+and `P6b` is evaluated against the **five** class-B cross-reference lines
+recorded by `181.004-T` — not against the ten-line case-insensitive occurrence
+set, which finding `S10` showed could not be satisfied. Parity is a
 property of the two artifacts, never an inference from the fact that one commit
 touched both.
