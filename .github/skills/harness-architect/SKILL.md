@@ -144,8 +144,10 @@ treated as harness defects requiring a fix before proceeding:
 * **Skip or expected-failure (xfail)**: a test reported as skipped or
   marked expected-to-fail counts as no observation, not as red
   evidence.
-* **Pass**: a test that passes (false positive) means the harness does
-  not yet exercise the not-yet-implemented behavior.
+* **Pass or unexpectedSuccess**: a test that passes outright, or is
+  reported as an `unexpectedSuccess` (an `expectedFailure`-decorated
+  test that unexpectedly succeeded), is a false positive -- the
+  harness does not yet exercise the not-yet-implemented behavior.
 
 If any test exhibits one of these outcomes, fix the harness until
 every test is discovered and fails for the expected reason.

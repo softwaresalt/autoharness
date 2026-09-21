@@ -55,9 +55,11 @@ _MANIFEST = _REPO_ROOT / ".autoharness" / "harness-manifest.yaml"
 _CI_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 _ACTOR_MANIFEST_PATH_KEY = ".github/skills/harness-architect/SKILL.md"
+_POLICY_TEMPLATE = _REPO_ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
 
 # The canonical, authoritative command per P-004 / the manifest / CI ground truth.
 _CANONICAL_TEST_COMMAND = "PYTHONPATH=src python -m unittest discover -s tests"
+_CANONICAL_BUILD_CHECK_COMMAND = "python -m py_compile src/autoharness/cli.py"
 
 
 def _read(path: Path) -> str:
@@ -77,6 +79,28 @@ def _step_5_2_section(content: str) -> str:
     )
     assert match, "Step 5.2: Red phase check section not found"
     return match.group(1)
+
+
+def _p004_section(content: str) -> str:
+    """Extract the '## P-004: Red Phase Before Implementation' policy entry body."""
+    match = re.search(
+        r"## P-004: Red Phase Before Implementation.*?(?=\n## P-005|\Z)",
+        content,
+        re.DOTALL,
+    )
+    assert match, "P-004 policy entry not found"
+    return match.group(0)
+
+
+def _p002_section(content: str) -> str:
+    """Extract the '## P-002: TDD Gate' policy entry body (regression guard only)."""
+    match = re.search(
+        r"## P-002: TDD Gate \(Harness-Ready Precondition\).*?(?=\n## P-003|\Z)",
+        content,
+        re.DOTALL,
+    )
+    assert match, "P-002 policy entry not found"
+    return match.group(0)
 
 
 class TemplateEnvironmentAgnosticTests(unittest.TestCase):
@@ -177,6 +201,7 @@ class RedEvidenceMarkerCorrelationTests(unittest.TestCase):
         "collection/import/syntax",
         "skip",
         "xfail",
+        "unexpectedsuccess",
     ]
 
     def test_installed_actor_step_5_2_requires_per_test_marker(self) -> None:
@@ -226,6 +251,108 @@ class ChecksumAndSingleEntryTests(unittest.TestCase):
             expected_checksum,
             "installed actor bytes do not match the manifest-recorded checksum",
         )
+
+
+class PolicyQuantifierCoherenceTests(unittest.TestCase):
+    """PR #457 follow-up: P-004's precondition previously required expected failure
+    markers "in the output for every test function" -- read literally, this is a
+    global whole-suite quantifier that is unsatisfiable in a healthy repository with
+    established passing tests, and would forever block any future task once the
+    real red-phase evidence (this task's generated harness tests only) exists
+    alongside the rest of the suite. The already-remediated harness-architect actor
+    (Step 5.2, fixed in a prior PR #457 commit) correctly scopes red-phase evidence
+    to "EVERY generated harness test", never to the full historical test
+    population. This test class proves the P-004 policy statement is now scoped
+    identically and stays coherent with the actor across both the installed policy
+    file and its source template, without disturbing P-002's role-separation
+    semantics (only harness-architect applies `harness-ready`; ship never bypasses
+    the gate).
+    """
+
+    def test_installed_p004_does_not_quantify_over_every_test_function(self) -> None:
+        section = _p004_section(_read(_POLICY_REGISTRY)).lower()
+        self.assertNotIn(
+            "for every test function",
+            section,
+            "P-004 must not require expected markers for every test function "
+            "in the whole suite -- unsatisfiable once established tests exist",
+        )
+
+    def test_template_p004_does_not_quantify_over_every_test_function(self) -> None:
+        section = _p004_section(_read(_POLICY_TEMPLATE)).lower()
+        self.assertNotIn("for every test function", section)
+
+    def test_installed_p004_states_compilation_succeeds(self) -> None:
+        section = _p004_section(_read(_POLICY_REGISTRY))
+        self.assertIn(_CANONICAL_BUILD_CHECK_COMMAND, section)
+        self.assertIn("exits 0", section)
+
+    def test_installed_p004_states_whole_suite_exits_nonzero_because_current_task_red(self) -> None:
+        section = _p004_section(_read(_POLICY_REGISTRY)).lower()
+        self.assertIn("canonical whole-suite test command", section)
+        self.assertIn("current task", section)
+        self.assertIn("exits non-zero", section)
+
+    def test_installed_p004_states_every_generated_harness_test_discovered_and_marked(self) -> None:
+        section = _p004_section(_read(_POLICY_REGISTRY)).lower()
+        self.assertIn("every generated harness test", section)
+        self.assertIn("own expected failure marker", section)
+
+    def test_installed_p004_states_unrelated_established_tests_may_pass(self) -> None:
+        section = _p004_section(_read(_POLICY_REGISTRY)).lower()
+        self.assertIn("unrelated established tests", section)
+        self.assertIn("may pass", section)
+
+    def test_installed_p004_rejects_all_five_required_outcomes(self) -> None:
+        section = _p004_section(_read(_POLICY_REGISTRY)).lower()
+        required = [
+            "zero-discovery",
+            "collection/import/syntax",
+            "missing, wrong, or cross-test markers",
+            "expectedfailure",
+            "unexpectedsuccess",
+        ]
+        missing = [r for r in required if r not in section]
+        self.assertEqual(missing, [], f"P-004 does not reject: {missing}")
+
+    def test_template_p004_uses_environment_agnostic_variables_not_hardcoded(self) -> None:
+        section = _p004_section(_read(_POLICY_TEMPLATE))
+        self.assertIn("{{BUILD_CHECK_COMMAND}}", section)
+        self.assertIn("{{TEST_COMMAND}}", section)
+        self.assertNotIn(_CANONICAL_BUILD_CHECK_COMMAND, section)
+        self.assertNotIn(_CANONICAL_TEST_COMMAND, section)
+
+    def test_template_and_installed_p004_agree_after_variable_substitution(self) -> None:
+        template_section = _p004_section(_read(_POLICY_TEMPLATE))
+        installed_section = _p004_section(_read(_POLICY_REGISTRY))
+        rendered = template_section.replace("{{BUILD_CHECK_COMMAND}}", _CANONICAL_BUILD_CHECK_COMMAND).replace(
+            "{{TEST_COMMAND}}", _CANONICAL_TEST_COMMAND
+        )
+        self.assertEqual(
+            rendered,
+            installed_section,
+            "template P-004 (with variables substituted) must match the installed P-004 verbatim",
+        )
+
+    def test_p002_role_separation_semantics_untouched(self) -> None:
+        """Regression guard: this fix must not touch P-002's role-separation
+        semantics -- only harness-architect applies `harness-ready`, ship never
+        bypasses the gate."""
+        section = _p002_section(_read(_POLICY_REGISTRY))
+        self.assertIn(
+            "The ship agent may only claim and implement a task after the "
+            "harness-architect has confirmed",
+            section,
+        )
+        self.assertIn("`harness-ready`", section)
+
+    def test_actor_and_policy_both_reject_unexpected_success(self) -> None:
+        """Coherence check: the actor's rejection list and the policy's rejection
+        list both name unexpectedSuccess as invalid red-phase evidence."""
+        actor_section = _step_5_2_section(_read(_INSTALLED_ACTOR)).lower()
+        policy_section = _p004_section(_read(_POLICY_REGISTRY)).lower()
+        self.assertIn("unexpectedsuccess", actor_section)
+        self.assertIn("unexpectedsuccess", policy_section)
 
 
 if __name__ == "__main__":
