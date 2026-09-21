@@ -12,9 +12,9 @@ harvest_withheld_reason: "Shipment 184-S, covering feature 178-F and its tasks w
 harvest_gate_artifact: docs/spikes/2026-09-18-autoharness-operation-transport-findings.md
 reharvest_condition: "Stage re-harvests this plan's records only in a NEW staging session, after reading the gate artifact and observing TRANSPORT_DECIDED. Non-authorizing states harvest nothing. This plan is PRESERVED INTACT and UNREDUCED; only its live, claimable records are withdrawn."
 withheld_records: .backlogit/archive/
-revision: 2
+revision: 5
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 was a fresh document authored under the strategic redesign, not a remediation of a prior revision. Revision 2 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan: the ACTIVATE commit edits two manifest-tracked installed agent mirrors and the rollout section omitted the atomic .autoharness/harness-manifest.yaml checksum refresh those edits require. The Rollout section now binds decision D11 — exactly two manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest — and states that the manifest refreshes are commit members rather than activation surfaces, so no surface count in this plan moves. No task is added, no transport decision is pre-empted, and the live manifest is not edited: this is a future implementation contract. It carries REMEDIATED-PENDING-REVIEW because it still awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 1 was a fresh document authored under the strategic redesign, not a remediation of a prior revision. Revision 2 bound decision D11 - the manifest checksum refreshes the ACTIVATE commit requires - into the Rollout section as commit members rather than activation surfaces. Revision 3 stated and enumerated the activation arithmetic exactly - FIVE declared activation surfaces (.mcp.json, two agent templates, two installed mirrors) and SIX commit files once the single manifest file is counted, with exactly two manifest entries refreshed - corrected the stale R3 risk row that read the surface count as 'fixed at five files', extended the rollback unit to all six members, and added an owned fail-closed checksum verification contract in place of the generic verify-workspace command. Revision 4 remediates the independent manifest-contract review by binding that verification to the EXACT INDEX SNAPSHOT the commit records: it asserts the staged set equals exactly the six intended commit members, rejects any unstaged difference for them, hashes each installed mirror from :<path>, parses the manifest from :.autoharness/harness-manifest.yaml, rejects missing/extra/duplicate/metadata/checksum divergence, freezes the index between verification and commit (git write-tree recorded, no intervening index mutation, git commit -a and path arguments prohibited), and exits non-zero before the commit is created. The arithmetic is unchanged at five declared surfaces, six commit files, exactly two refreshed entries, rollback across all six. Declared-surface and digest inputs are preserved: the manifest is a commit member, not a declared activation surface. No task is added, no transport decision is pre-empted, and the live manifest is not edited: this is a future implementation contract. Revision 5 closes the terminal review finding that the post-commit tree comparison was described as preventing commit creation, which is impossible: the exact index prechecks (staged-set equality, no unstaged difference, index-read hashing, index-read manifest, total entry adjudication, recorded write-tree identity with re-staging prohibited) all run BEFORE the commit and are what fail closed and leave the commit uncreated; the commit is then created NORMALLY and git rev-parse HEAD^{tree} is compared against the recorded tree immediately afterwards as an ACCEPTANCE adjudication that claims no power to prevent local commit creation and makes no concurrency-proof claim - on mismatch the activation is NOT ACCEPTED and NOT PUBLISHABLE, it blocks the push and every downstream state token, verdict, manifest advance and handoff, and the local commit must be reverted or corrected and the whole contract re-run before proceeding. The arithmetic is unchanged at six commit members. It carries REMEDIATED-PENDING-REVIEW because it still awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-operation-substrate-transport-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
@@ -129,9 +129,10 @@ and after every PREPARE task.
 failing, the same assertions observed passing, parity green across both
 transports.
 
-**ACTIVATE.** The second half of `178.006-T` — **one task, one commit**:
-register the `autoharness` server in `.mcp.json`, and state the
-operation-invocation contract in `templates/agents/_ship.agent.md.tmpl`,
+**ACTIVATE.** The second half of `178.006-T` — **one task, one commit** across
+**five declared activation surfaces**: register the `autoharness` server in
+`.mcp.json`, and state the operation-invocation contract in
+`templates/agents/_ship.agent.md.tmpl`,
 `templates/agents/_stage.agent.md.tmpl` and **both** installed mirrors,
 simultaneously.
 
@@ -148,20 +149,85 @@ artifacts**: `.autoharness/harness-manifest.yaml` carries an `artifacts:`
 entry for each, recording a `sha256` of its pre-activation content. The two
 templates are **not** tracked — the manifest tracks no template — and
 `.mcp.json` is **not** tracked either, so the ACTIVATE commit refreshes
-**exactly two** manifest entries. In the **same commit** and the **same
-rollback unit**, rewrite each of those two checksums to the `sha256` of the
-installed file *as written by this commit*, then **verify checksum parity** by
-re-digesting both installed files and comparing against the recorded values. A
+**exactly two** manifest entries while touching **five declared activation
+surfaces**, and therefore contains **exactly six files**: `.mcp.json`,
+`templates/agents/_ship.agent.md.tmpl`,
+`templates/agents/_stage.agent.md.tmpl`, `.github/agents/_ship.agent.md`,
+`.github/agents/_stage.agent.md` and `.autoharness/harness-manifest.yaml`. In
+the **same commit** and the **same rollback unit**, rewrite each of those two
+checksums to the `sha256` of the installed file *as written by this commit*,
+then **verify checksum parity** under the index-bound fail-closed contract
+below. A
 commit that states the invocation contract in either mirror without its
 manifest refresh leaves the manifest asserting a digest of a file the same
 commit has already rewritten — an installed-artifact parity hole — and is an
 **immediate revert**, not a fixup commit. The manifest refreshes are **commit
 members, not activation surfaces**: they add no transport, no command, no
-server registration and no contract clause, and they change no surface count
-stated anywhere in this plan. `git revert` of the single ACTIVATE commit
-restores the mirrors, the templates, `.mcp.json` **and** both manifest
-checksums together. This binds a **future implementation commit**; it
-authorizes no staging-time edit to the live manifest, and none has occurred.
+server registration and no contract clause, the declared activation-surface
+count stays **five**, and they change no surface count stated anywhere in this
+plan. `git revert` of the single ACTIVATE commit restores **all six commit
+members** — the two mirrors, the two templates, `.mcp.json` **and** both
+manifest checksums — together. This binds a **future implementation commit**;
+it authorizes no staging-time edit to the live manifest, and none has occurred.
+
+**Fail-closed verification bound to the exact index snapshot, not generic
+`verify-workspace`.** Parity is adjudicated by a verification step this unit
+owns, run **after all commit members are staged and before the commit is
+created**, and bound to the **exact index snapshot the commit will record**.
+The generic `verify-workspace` command is **not** that gate: it reports
+whole-workspace install state read from the working tree, it does not
+adjudicate a named staged digest against a named `artifacts:` entry, and its
+exit status is therefore not a checksum assertion. The owned step:
+
+1. **Asserts the staged set is exactly the intended commit members.**
+   `git diff --cached --name-only` equals, as a set, the six members
+   enumerated above — `.mcp.json`, the two agent templates, the two installed
+   mirrors and `.autoharness/harness-manifest.yaml`. A **missing** member, an
+   **extra** staged path, or a **duplicate** entry each fails.
+2. **Rejects any unstaged difference for those members.** `git diff
+   --name-only --` restricted to the six members must be empty, and none may
+   be untracked. If the working tree differs from the index for any commit
+   member, the bytes verified are not the bytes committed, and the step fails
+   rather than verifying the wrong content.
+3. **Hashes the installed artifacts from the index.** For each of the two
+   touched installed mirrors, recompute SHA-256 over the **staged blob read
+   as `:<path>`** (`git cat-file -p :.github/agents/_ship.agent.md`,
+   `git cat-file -p :.github/agents/_stage.agent.md`) — never a working-tree
+   read.
+4. **Parses the manifest from the index too**, as
+   `:.autoharness/harness-manifest.yaml`, so the entries compared against are
+   the entries this commit records rather than any the working tree may hold.
+5. **Adjudicates the entry set totally.** For each touched installed mirror
+   there is **exactly one** `artifacts:` entry whose literal `path` matches;
+   its `primitive` and `template` metadata are exactly as required and
+   unchanged by this commit; and its `checksum` equals the digest from (3)
+   byte-for-byte. A **missing** entry, an **extra** entry — any `artifacts:`
+   entry this commit adds or removes — a **duplicate** `path`, a **metadata**
+   divergence, or a **checksum** mismatch each fails. This activation installs
+   no new artifact — `.mcp.json` and both templates stay untracked — so **no
+   new entry is required here**; where a future activation does install one,
+   the same step asserts the new entry exists with exact `path`, `template`
+   and `primitive` values before comparing its checksum.
+6. **Records the index identity and forbids re-staging.** Record the index
+   identity with `git write-tree` immediately after (5) passes, then create the
+   commit with **no intervening index mutation** — no `git add`, `git rm`,
+   `git stash`, checkout or restore. `git commit -a` and path arguments to
+   `git commit` are **prohibited**, because both re-stage content after
+   verification and would commit bytes the gate never adjudicated.
+7. **Fails closed before the commit exists.** Steps (1)-(6) all run *before*
+   the commit is created, so any failure among them, any unreadable input, or
+   any digest mismatch **exits non-zero and the commit is not created**. This
+   is the whole of the pre-commit gate.
+8. **Adjudicates acceptance after the commit is created.** The commit is then
+   created normally; this step does **not** prevent its creation and claims no
+   such power. Immediately afterwards, compare `git rev-parse HEAD^{tree}`
+   against the tree recorded in (6). On a match the activation is accepted. On
+   a **mismatch** the commit records a tree the gate never adjudicated, so the
+   activation is **NOT ACCEPTED and NOT PUBLISHABLE**: it **blocks the push**,
+   blocks every downstream state token, verdict, manifest advance and handoff
+   that would otherwise depend on this activation, and the local commit **must
+   be reverted or corrected, and the whole contract re-run, before any further
+   step proceeds**.
 
 ## Tasks
 
@@ -200,7 +266,7 @@ P-004 work in `176-S` exists to enforce, applied to this unit's own tests.
 |---|---|---|
 | R1 | `182-S` finds no acceptable MCP transport | The CLI transport ships unconditionally; the sidecar becomes an optional separately-installed surface and the parity requirement is restated against it. `178.005-T` implements the recommended alternative rather than being abandoned. |
 | R2 | The `op` namespace collides with an existing command | The ten existing commands are enumerated above; `op` is not among them. `178.004-T` asserts no existing command changes behaviour. |
-| R3 | The activation task is the widest in the unit | It is wide by construction. It stays inside the 2-hour bound because the surface count is fixed at five files and each edit is a contract statement, not an implementation. |
+| R3 | The activation task is the widest in the unit | It is wide by construction. It stays inside the 2-hour bound because the declared activation-surface count is fixed at **five** — six commit members once the single manifest file is counted — and each edit is a contract statement, not an implementation. |
 
 ## Hardening review
 
@@ -220,15 +286,19 @@ Adversarial pass over this unit's failure modes, blast radius and rollback.
 
 `src/autoharness/` gains a new package; `cli.py` gains one dispatch branch;
 `.mcp.json` gains one server; two agent templates and two installed mirrors
-gain one contract statement. The CLI is globally installed and PyPI-distributed,
-so a defect in the dispatch branch reaches every installation.
+gain one contract statement; and the harness manifest gains two refreshed
+checksums as a commit member of the same activation. The CLI is globally
+installed and PyPI-distributed, so a defect in the dispatch branch reaches
+every installation.
 
 ### Rollback
 
 PREPARE tasks are inert and roll back by reverting the commit with no workspace
-state to repair. The ACTIVATE commit rolls back as a unit: reverting it removes
-the server registration and the agent contract statements together, returning
-the workspace to the pre-activation state exactly because they landed together.
+state to repair. The ACTIVATE commit rolls back as a unit across **all six
+commit members**: reverting it removes the server registration, the agent
+contract statements in both templates and both mirrors, **and** restores both
+manifest checksums together, returning the workspace to the pre-activation
+state exactly because they landed together.
 
 ### Verification floor
 

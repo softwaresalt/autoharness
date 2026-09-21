@@ -7,9 +7,9 @@ date: 2026-09-18
 plan_id: review-authority-foundation
 plan_path: docs/plans/2026-09-18-review-authority-foundation-plan.md
 plan_role: active
-revision: 2
+revision: 5
 verdict: REMEDIATED-PENDING-REVIEW
-verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. It carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review. Revision 2 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan: the ACTIVATE commit modifies manifest-tracked installed artifacts and the Rollout section omitted the atomic .autoharness/harness-manifest.yaml checksum refresh those edits require. The Rollout section now binds decision D11 - the affected manifest entries refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest - and states that the refreshes are commit members rather than activation surfaces, so no surface, consumer or gate count in this plan moves. No task is added and the live manifest is not edited: this is a future implementation contract. It still carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
+verdict_note: "Revision 1 is a fresh document authored under the strategic redesign, not a remediation of a prior revision. Revision 2 bound decision D11 - the manifest checksum refreshes the ACTIVATE commit requires - into the Rollout section as commit members rather than activation surfaces. Revision 3 corrected the activation arithmetic to FIVE commit members (four consumer surfaces plus the single manifest file, not six), enumerated them, and added an owned fail-closed checksum verification contract in place of the generic verify-workspace command. Revision 4 remediates the independent manifest-contract review by binding that verification to the EXACT INDEX SNAPSHOT the commit records: it asserts the staged set equals exactly the five intended commit members, rejects any unstaged difference for them, hashes each installed skill from :<path>, parses the manifest from :.autoharness/harness-manifest.yaml, rejects missing/extra/duplicate/metadata/checksum divergence, freezes the index between verification and commit (git write-tree recorded, no intervening index mutation, git commit -a and path arguments prohibited), and exits non-zero before the commit is created. The arithmetic is unchanged at four consumer surfaces, five commit members, exactly two refreshed entries, rollback across all five. Declared-surface and digest inputs are preserved: the manifest is a commit member, not a declared activation surface, so the consumer count stays four and no gate arity or fixture set moves. No task is added and the live manifest is not edited: this is a future implementation contract. Revision 5 closes the terminal review finding that the post-commit tree comparison was described as preventing commit creation, which is impossible: the exact index prechecks (staged-set equality, no unstaged difference, index-read hashing, index-read manifest, total entry adjudication, recorded write-tree identity with re-staging prohibited) all run BEFORE the commit and are what fail closed and leave the commit uncreated; the commit is then created NORMALLY and git rev-parse HEAD^{tree} is compared against the recorded tree immediately afterwards as an ACCEPTANCE adjudication that claims no power to prevent local commit creation and makes no concurrency-proof claim - on mismatch the activation is NOT ACCEPTED and NOT PUBLISHABLE, it blocks the push and every downstream state token, verdict, manifest advance and handoff, and the local commit must be reverted or corrected and the whole contract re-run before proceeding. The arithmetic is unchanged at five commit members. It still carries REMEDIATED-PENDING-REVIEW because it awaits its first independent plan-review attempt; Stage asserts no PASS and has performed no self-review."
 awaiting_attempt: 1
 review_manifest: docs/reviews/2026-09-18-review-authority-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
@@ -171,11 +171,14 @@ the four migrated surfaces — `.github/skills/harvest/SKILL.md` and
 artifacts**, each with an `artifacts:` entry in
 `.autoharness/harness-manifest.yaml` recording a `sha256` of its pre-migration
 content. The two templates are not tracked, so `180.010-T` refreshes **exactly
-two** manifest entries and its commit contains **six files while migrating four
-consumers**. In the **same commit** and the **same rollback unit**, rewrite
-each of those two checksums to the `sha256` of the installed file *as written
-by this commit*, then **verify checksum parity** by re-digesting both installed
-files and comparing against the recorded values. A commit that migrates either
+two** manifest entries and its commit contains **exactly five files while
+migrating four consumers** — `templates/skills/harvest/SKILL.md.tmpl`,
+`templates/skills/plan-review/SKILL.md.tmpl`,
+`.github/skills/harvest/SKILL.md`, `.github/skills/plan-review/SKILL.md` and
+`.autoharness/harness-manifest.yaml`. In the **same commit** and the **same
+rollback unit**, rewrite each of those two checksums to the `sha256` of the
+installed file *as written by this commit*, then **verify checksum parity**
+under the index-bound fail-closed contract below. A commit that migrates either
 installed skill without its manifest refresh leaves the manifest asserting a
 digest of a file the same commit has already rewritten — an installed-artifact
 parity hole in the very file this unit is making the single review authority —
@@ -184,6 +187,65 @@ members, not consumer surfaces**: the consumer count stays **four**, no gate
 arity moves, and the normalizer's fixture set is untouched. This binds a
 **future implementation commit**; it authorizes no staging-time edit to the
 live manifest, and none has occurred.
+
+**Fail-closed verification bound to the exact index snapshot, not generic
+`verify-workspace`.** Parity is adjudicated by a verification step this unit
+owns, run **after all commit members are staged and before the commit is
+created**, and bound to the **exact index snapshot the commit will record**.
+The generic `verify-workspace` command is **not** that gate: it reports
+whole-workspace install state read from the working tree, it does not
+adjudicate a named staged digest against a named `artifacts:` entry, and its
+exit status is therefore not a checksum assertion. The owned step:
+
+1. **Asserts the staged set is exactly the intended commit members.**
+   `git diff --cached --name-only` equals, as a set, the five members
+   enumerated above — the two templates, the two installed skills and
+   `.autoharness/harness-manifest.yaml`. A **missing** member, an **extra**
+   staged path, or a **duplicate** entry each fails.
+2. **Rejects any unstaged difference for those members.** `git diff
+   --name-only --` restricted to the five members must be empty, and none may
+   be untracked. If the working tree differs from the index for any commit
+   member, the bytes verified are not the bytes committed, and the step fails
+   rather than verifying the wrong content.
+3. **Hashes the installed artifacts from the index.** For each of the two
+   touched installed artifacts, recompute SHA-256 over the **staged blob read
+   as `:<path>`** (`git cat-file -p :.github/skills/harvest/SKILL.md`,
+   `git cat-file -p :.github/skills/plan-review/SKILL.md`) — never a
+   working-tree read.
+4. **Parses the manifest from the index too**, as
+   `:.autoharness/harness-manifest.yaml`, so the entries compared against are
+   the entries this commit records rather than any the working tree may hold.
+5. **Adjudicates the entry set totally.** For each touched installed artifact
+   there is **exactly one** `artifacts:` entry whose literal `path` matches;
+   its `primitive` and `template` metadata are exactly as required and
+   unchanged by this commit; and its `checksum` equals the digest from (3)
+   byte-for-byte. A **missing** entry, an **extra** entry — any `artifacts:`
+   entry this commit adds or removes — a **duplicate** `path`, a **metadata**
+   divergence, or a **checksum** mismatch each fails. This activation installs
+   no new artifact, so **no new entry is required here**; where a future
+   activation does install one, the same step asserts the new entry exists
+   with exact `path`, `template` and `primitive` values before comparing its
+   checksum.
+6. **Records the index identity and forbids re-staging.** Record the index
+   identity with `git write-tree` immediately after (5) passes, then create the
+   commit with **no intervening index mutation** — no `git add`, `git rm`,
+   `git stash`, checkout or restore. `git commit -a` and path arguments to
+   `git commit` are **prohibited**, because both re-stage content after
+   verification and would commit bytes the gate never adjudicated.
+7. **Fails closed before the commit exists.** Steps (1)-(6) all run *before*
+   the commit is created, so any failure among them, any unreadable input, or
+   any digest mismatch **exits non-zero and the commit is not created**. This
+   is the whole of the pre-commit gate.
+8. **Adjudicates acceptance after the commit is created.** The commit is then
+   created normally; this step does **not** prevent its creation and claims no
+   such power. Immediately afterwards, compare `git rev-parse HEAD^{tree}`
+   against the tree recorded in (6). On a match the activation is accepted. On
+   a **mismatch** the commit records a tree the gate never adjudicated, so the
+   activation is **NOT ACCEPTED and NOT PUBLISHABLE**: it **blocks the push**,
+   blocks every downstream state token, verdict, manifest advance and handoff
+   that would otherwise depend on this activation, and the local commit **must
+   be reverted or corrected, and the whole contract re-run, before any further
+   step proceeds**.
 
 ## Tasks
 
@@ -223,7 +285,7 @@ other.
 | R1 | Self-hosting: the new gate evaluates its own plan | Explicit sequencing rule above; `186-S` is reviewed under the current system, and the activation commit is the switch. |
 | R2 | A third manifest family appears after fixtures are pinned | `normalize()` is total by contract: an unrecognized shape yields `QUARANTINE` with a reason, never a crash and never a silent pass. |
 | R3 | Migrating Harvest breaks decomposition for in-flight plans | Every live plan's manifest is a pinned fixture, so admission behaviour is observed before activation rather than discovered after it. |
-| R4 | The activation task exceeds two hours | Four files, one contract change each, with the reader already built and verified. If it does not fit, the contract is too wide and must be re-scoped — it must **not** be split across commits. |
+| R4 | The activation task exceeds two hours | Four consumer surfaces, one contract change each, plus two manifest checksum refreshes — five commit members — with the reader already built and verified. If it does not fit, the contract is too wide and must be re-scoped — it must **not** be split across commits. |
 
 ## Hardening review
 
@@ -250,8 +312,11 @@ decomposition or blocks every reviewed plan. Both are workspace-wide.
 ### Rollback
 
 `180.001-T`–`180.009-T` are inert and revert cleanly. `180.010-T` reverts as a
-unit, restoring inline-marker reading across all four surfaces simultaneously —
-possible only because they moved together.
+unit across **all five commit members** — the two templates, the two installed
+mirrors and both manifest checksums — restoring inline-marker reading across
+all four surfaces simultaneously and returning the manifest to the digests it
+recorded before the migration. That is possible only because they moved
+together.
 
 ### Verification floor
 
