@@ -12,9 +12,12 @@ registry data.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import shutil
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -101,6 +104,35 @@ _STRICT_SCHEMA = {
 }
 
 
+@contextlib.contextmanager
+def _temp_workspace_dir():
+    """Test-only temp-dir teardown with a bounded, re-raising retry.
+
+    ``TemporaryDirectory.__exit__`` -> ``shutil.rmtree`` has been observed to
+    fail on Windows with a transient ``PermissionError`` (``winerror`` 32
+    sharing-violation or 5 access-denied) while another process briefly
+    retains a handle. Retry the removal a small fixed number of times with a
+    short fixed backoff, then re-raise. Any other ``PermissionError``/
+    ``OSError`` propagates immediately (no retry).
+    """
+    temp_dir = tempfile.mkdtemp()
+    try:
+        yield Path(temp_dir)
+    finally:
+        max_attempts = 3
+        backoff_seconds = 0.25
+        for attempt in range(1, max_attempts + 1):
+            try:
+                shutil.rmtree(temp_dir)
+                break
+            except PermissionError as exc:
+                if getattr(exc, "winerror", None) not in (32, 5):
+                    raise
+                if attempt == max_attempts:
+                    raise
+                time.sleep(backoff_seconds)
+
+
 def _run(
     *,
     manifest_packs,
@@ -111,8 +143,7 @@ def _run(
     crlf: bool = False,
 ):
     """Build a temp workspace and return the targeted_checks dict."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        root = Path(temp_dir)
+    with _temp_workspace_dir() as root:
         home = root / "home"
         ws = root / "ws"
         (home / "schemas" / "harness-manifest").mkdir(parents=True)
