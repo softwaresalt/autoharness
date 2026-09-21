@@ -1,30 +1,33 @@
 ---
 title: "Foundation: Ship pre-task harness-generation lifecycle"
-description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. At revision 5 the two remaining non-blocking P2 findings are closed at their root: the mirror's 'Step 2' reference set is replaced by an EXACT THREE-CLASS PARTITION derived line-by-line from live content (one heading, five top-level cross-references, four procedure-local lowercase sub-step references), making parity criterion P6 truthful and satisfiable while preserving the conservative Step-1.5 insertion; and the D/G/P label vocabulary is UNIFIED on the plan's numbering across the plan and all three consuming task records, extended to G1-G8 so no failure-mode check is lost. At revision 6 the single open P2 (S12) is corrected at its root: the claim that class-A and class-B lines all lie ABOVE the insertion point and do not shift is WITHDRAWN as false for class A, because the class-A heading at :336 IS the insertion successor and necessarily shifts. The exact truthful stability is now carried consistently on the plan, 181.004-T, 181.005-T, 181-F, 187-S and the verdict manifest: class B's five upstream references are line-number stable, class A is the shifted successor heading that must be re-located and re-validated by exact whole-line heading identity, and class-C lines below the insertion point shift. No gate may require the pre-insertion class-A line number after insertion. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption. At revision 8 that producer is a COMPLETED FACT rather than pending precursor work: .github/skills/harness-architect/SKILL.md is part of the PUBLICATION BASELINE, installed at exact manifest checksum parity by the bounded Auto-Tune harness-maintenance commit 07b4be79263252b1820701fd123d0aed85c1db2a; the precursor 188-S and its feature 182-F are RETIRED AND ARCHIVED WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED; and 187-S is an explicit dag-root with no shipment dependencies. Revision 8 restates those external facts ONLY and changes NO reviewed criterion, task contract, blast radius, rollback bound, verification floor or sizing. INSTALLATION ALONE CONFERS NO TASK CLAIM."
+description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 9 this unit owns the LIFECYCLE ONLY: it resolves harness surfaces, adjudicates readiness and hands a result to P-004. It does NOT install the harness-architect actor and does NOT assert that the actor is P-004-conformant - that correction is a separate prerequisite release, 185-F under shipment 191-S, which 187-S now depends on."
 doc_type: plan
 source: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 date: 2026-09-18
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 plan_role: active
-revision: 8
-revision_scope: graph-fact-synchronization-only
-revision_8_note: "Revision 8 is a GRAPH-FACT SYNCHRONIZATION ONLY and is NOT a remediation, not a correction log and not a re-scoping. The harness-architect actor is now part of the publication baseline, installed by the bounded Auto-Tune harness-maintenance commit 07b4be79263252b1820701fd123d0aed85c1db2a at exact manifest checksum parity; 188-S and 182-F are retired and archived WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED; and 187-S carries the dag-root label because its only prerequisite was 188-S. This revision restates those external facts wherever this plan asserted them as future work. NOTHING THE TERMINAL REVIEW JUDGED HAS CHANGED: D1-D3, G1-G8, P1-P6, the three-class A/B/C partition, the S12 addressing rule, the conservative Step 1.5 insertion, the no-renumbering rule, the ACTIVATE three-file contract, the D11 manifest-parity binding, the blast radius, the rollback confinement, the verification floor, the task set, the task edges and every size/complexity value are ALL UNCHANGED AND BYTE-IDENTICAL IN SUBSTANCE."
+revision: 9
+revision_scope: full-rewrite-addressing-attempt-07-findings
+revision_9_note: "Revision 9 is a REWRITE, not a correction log and not an appended errata section. It addresses independent terminal attempt 07 (FAIL, S14-S25) by restating this plan as a coherent current-state contract. THE CENTRAL CHANGE: revision 8 treated the externally installed harness-architect actor as SATISFYING the P-004 behavioral prerequisite. It does not, and this plan no longer claims it does. Commit 07b4be79263252b1820701fd123d0aed85c1db2a performed a STRUCTURAL INSTALLATION ONLY - the artifact exists and is manifest-registered - and the installed copy renders a test command P-004 does not accept. The behavioral correction is owned by a DISTINCT PREREQUISITE RELEASE UNIT (feature 185-F, shipment 191-S) which MUST ship before 187-S may be claimed. 187-S is therefore NO LONGER A DAG-ROOT: it declares an explicit blocks dependency on 191-S. SECOND CHANGE: the resolver is now specified as a real executable boundary with a typed result, a declaration source, a safe CLI and recomputation-as-freshness, rather than as prose. THIRD CHANGE: rollback, the problem frame, the state table, the verification commands and the parity-criterion names are restated per S18-S25."
 verdict: null
 verdict_is_pass: false
 verdict_revision: null
 verdict_asserted_against_revision: null
 disposition: PENDING-INDEPENDENT-REVIEW
 publication_eligible: false
-publication_eligible_basis: "No independent review has judged revision 8."
+publication_eligible_basis: "No independent review has judged revision 9. Attempt 07 returned FAIL against revision 8."
 historical_verdict_revision_7: PASS
 historical_verdict_revision_7_attempt: 6
 historical_verdict_is_not_carried_forward: true
-verdict_note: "NO VERDICT IS ASSERTED AGAINST REVISION 8. Revision 8 has NOT been independently reviewed. THE VERDICT CARRY-FORWARD IS WITHDRAWN: revision 8 formerly carried attempt 06's PASS forward on the basis that no reviewed criterion had changed. That carry was STAGE REASONING ABOUT A VERDICT, and a verdict is not Stage's to extend - only an independent attempt may determine that a revision passes. The carry-forward fields (verdict_carried_to_revision, verdict_carry_basis, verdict_carry_claim_is_falsifiable) are REMOVED, not restated. HISTORICAL AND STILL TRUE, SCOPED TO REVISION 7: independent attempt 06 judged REVISION 7 and returned PASS with zero P0, zero P1, zero P2 and one carried P3 (S13); acceptance-matrix criteria A1-A4 were GitHub-dependent, NOT OBSERVABLE in that session and expressly NOT asserted, while A5-A8 passed locally. That record stands as the review history of revision 7 AND OF NO LATER REVISION. CURRENT STATE: revision 8 awaits independent plan-review attempt 07 against revision 8 itself. NO attempt 07 has been opened, registered or rostered, and Stage opens none. THIS PLAN IS NOT PUBLICATION-ELIGIBLE until that current-revision independent review returns. WHAT REVISION 8 CHANGED is stated in revision_8_note and is a graph-fact synchronization only; that characterisation is STAGE'S DESCRIPTION OF ITS OWN EDIT AND IS AN INPUT TO THE PENDING REVIEW, NOT A SUBSTITUTE FOR IT, and attempt 07 is free to reject it. INDEPENDENT OF THE REVIEW AXIS: S13 (P3) remains the single finding carried against this plan, held as a non-blocking follow-up in stash 703B6FAF under the operator's standing disposition and outside this shipment's scope. Publication eligibility and task claimability remain DISTINCT GATES and neither is satisfied by the other; nothing here authorizes execution."
-awaiting_attempt: 7
-awaiting_attempt_against_revision: 8
-latest_attempt: 6
-latest_attempt_reviewed_revision: 7
+last_independent_verdict: FAIL
+last_independent_verdict_attempt: 7
+last_independent_verdict_revision: 8
+verdict_note: "NO VERDICT IS ASSERTED AGAINST REVISION 9. The last independent verdict is the attempt-07 FAIL against revision 8 (P0 1 / P1 6 / P2 4 / P3 2). Revision 9 REMEDIATES S14-S25 but CLOSES NOTHING: findings are closed by an independent attempt that verifies the closure, never by the authoring agent. All of S14-S25 remain OPEN and are recorded in the verdict manifest as ADDRESSED-PENDING-REVIEW. This plan awaits independent attempt 08 against revision 9 under the operator authorization that also authorized this remediation cycle. THE VERDICT MANIFEST IS THE SOLE AUTHORITY for review state; this note is a pointer, not a second record."
+awaiting_attempt: 8
+awaiting_attempt_against_revision: 9
+latest_attempt: 7
+latest_attempt_reviewed_revision: 8
 review_manifest: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 decision_revision: 6
@@ -33,19 +36,33 @@ source_stash_ids:
 source_stash_note: "Corrected at revision 4 (finding S9). The governing decision's portfolio table assigns 76EBDE6D to this unit by name - docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md line 993, row 'P4 | 187-S | 181-F | foundation | 76EBDE6D' - and every live carrier already cites it: the 187-S title and body, 181-F, 181.002-T and 181.005-T. 76EBDE6D is an ARCHIVED stash entry, retrievable at .backlogit/archive/stash.jsonl line 234: 'P-021 RELIABILITY FOLLOW-UP: P-004 red-phase precondition is unsatisfiable on this workspace.' That is this unit's genuine origin. The prior value 3EF5AAF2 was a MIS-CITATION, not a second genuine source: the same decision table assigns it at line 995 to 177-S / 169-F, the post-claim member-status portfolio, and it is the declared source of docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. It has no relation to the Ship harness-generation lifecycle. This unit is SINGLE-SOURCE; no multi-source relation is claimed because none exists."
 feature_id: 181-F
 shipment_id: 187-S
-unit_role: precursor-foundation
-depends_on_shipments: []
+unit_role: lifecycle-only
+unit_scope_note: "This unit owns the LIFECYCLE ONLY. It does not author, install, re-render or repair the harness-architect actor, and it asserts nothing about that actor's P-004 conformance."
+depends_on_shipments:
+  - 191-S
+dag_root: false
+dag_root_withdrawn_at_revision: 9
+dag_root_note: "187-S IS NOT A DAG-ROOT. Revision 8 labelled it one because its only prerequisite, 188-S, had been retired. That reasoning was correct about 188-S and wrong about the prerequisite: the actor 188-S was to install now exists STRUCTURALLY but is NOT P-004-CONFORMANT, so a real prerequisite remains. It is now owned by shipment 191-S (feature 185-F), and 187-S declares an explicit blocks dependency on it. The dag-root label is withdrawn from the 187-S record at this revision."
 removed_depends_on_shipments:
   - 184-S
   - 188-S
-dag_root: true
-dag_root_note: "187-S is an explicit dag-root: its ONLY prerequisite was 188-S, and that unit is retired because the harness-architect actor it was to install is now part of the publication baseline. ROOT STATUS IS A GRAPH FACT, NOT AN EXECUTION AUTHORIZATION. Execution of this unit's tasks still requires ordinary pre-claim checks, this unit's OWN P-002 / P-004 harness generation at claim time, independent review, CI and closure. INSTALLATION ALONE CONFERS NO TASK CLAIM."
 actor_installed_in_baseline: true
+actor_installation_is_structural_only: true
+actor_behaviorally_conformant: false
 actor_installed_by_commit: 07b4be79263252b1820701fd123d0aed85c1db2a
+actor_installation_note: "Commit 07b4be79 is a STRUCTURAL INSTALLATION ONLY. It placed .github/skills/harness-architect/SKILL.md on disk and registered it in .autoharness/harness-manifest.yaml at exact checksum parity. IT DID NOT ESTABLISH P-004 BEHAVIORAL CONFORMANCE and this plan does not treat it as having done so. The installed copy renders its red-phase command as `pytest`, which P-004 does not accept and which this workspace does not configure."
 actor_artifact: .github/skills/harness-architect/SKILL.md
 actor_artifact_sha256: 49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716
+actor_conformance_owner_feature: 185-F
+actor_conformance_owner_shipment: 191-S
 bootstrap_precursor_plan: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
 bootstrap_precursor_status: RETIRED-SUPERSEDED-COMPLETED-EXTERNALLY
+resolver_module: src/autoharness/harness_surfaces.py
+resolver_entry_point: "resolve_harness_surfaces(*, workspace_root: Path, autoharness_home: Path, shipment_id: str) -> HarnessResolution"
+resolver_cli: "autoharness harness resolve --workspace . --shipment <id> --json"
+resolver_persists_state: false
+freshness_carrier: recomputation
+parity_criteria_vocabulary: PAR-1..PAR-6b
 gates:
   - 176-S
 requires_plan_hardening: true
@@ -62,30 +79,70 @@ tags:
 
 ## Problem frame
 
+*Current state, stated as of revision 9. This section is authoritative. Any
+bootstrap-era narrative elsewhere in this document is historical and clearly
+marked as non-authoritative.*
+
 Installed policy `.github/policies/workflow-policies.md`, policy P-004:
 
 > **Applies To:** `ship` (via harness-architect skill)
 
-The workspace contains eighteen installed skills under `.github/skills/`.
-**`harness-architect` is not one of them.** The template exists —
-`templates/skills/harness-architect/SKILL.md.tmpl` — but it has never been
-generated into the installed harness.
+**The actor exists.** `.github/skills/harness-architect/SKILL.md` is present in
+the workspace and is registered in `.autoharness/harness-manifest.yaml` with
+`template: skills/harness-architect/SKILL.md.tmpl` and checksum
+`49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716`. It was
+placed there by harness-maintenance commit
+`07b4be79263252b1820701fd123d0aed85c1db2a`.
 
-So the installed policy names an actor the installed workspace does not
-contain. Attempt-08 recorded this against `176-S` as the bootstrap family
-(`B1`, `B2`): the P-004 gate work assumes a producer that no unit builds.
+**The actor is not P-004-conformant.** Installation established *presence*, not
+*behavior*. The installed copy at line 126 directs:
 
-There were four ways to make that assumption go away. Three were rejected by
-the architecture decision:
+> Run `pytest` for the harness tests.
 
-| Rejected | Why |
-|---|---|
-| Waiver | Suspends the gate for the case it exists to catch. |
-| Force flag | An override reachable by the agent it constrains is not a gate. |
-| Edit the policy to drop the actor | Deletes the requirement rather than satisfying it, and P-004's live precondition is correct as written. |
+P-004's precondition requires:
 
-The chosen path is the remaining one: **install the actor**. Revision 2 changes
-**where** that install happens.
+> `PYTHONPATH=src python -m unittest discover -s tests`
+
+and the manifest's own `variables_used.TEST_COMMAND` carries exactly that
+string. The authoritative template is **already correct** - it reads
+``Run `{{TEST_COMMAND}}` `` - so this is not a template defect. The defect is in
+**install-time variable resolution**: the render resolved `{{TEST_COMMAND}}`
+from the stale `.autoharness/workspace-profile.yaml` field
+`test.command: pytest` instead of from the manifest's authoritative
+`variables_used`, contradicting the D9-C precedent that the manifest outranks
+the workspace profile. This workspace configures no pytest at all, so an actor
+following its own installed instructions would produce **no P-004-admissible
+RED evidence**.
+
+**Therefore there are two distinct problems, and this unit owns exactly one.**
+
+| Problem | Owner | Status |
+|---|---|---|
+| The harness-architect actor renders a test command P-004 does not accept | **`185-F` under shipment `191-S`** | Prerequisite, must ship first |
+| Ship has no pre-task lifecycle that resolves harness surfaces and adjudicates readiness for P-004 | **`181-F` under shipment `187-S`** (this plan) | This unit |
+
+**This unit does not install, re-render, repair or certify the actor**, and it
+asserts nothing about that actor's conformance. It installs the *lifecycle*
+that resolves surfaces and hands an adjudicated result to P-004.
+
+`187-S` declares an explicit blocks dependency on `191-S` and **is not a
+dag-root**. Revision 8 labelled it one on the reasoning that its only
+prerequisite `188-S` had been retired. That reasoning was right about `188-S`
+and wrong about the prerequisite: retiring the unit did not retire the
+*requirement*, because what `188-S` was to deliver - a conformant actor - still
+does not exist. `191-S` now owns that delivery.
+
+### What is no longer authorized here
+
+Revisions 1-8 framed this unit as coordinating an actor installation, and
+offered waiver / force-flag / policy-edit alternatives to it. **All of that is
+withdrawn as of revision 9.** No unit in this portfolio holds an installation
+obligation for the harness-architect artifact: `188-S` and `182-F` were retired
+and archived **without ever having been claimed, executed or shipped**, and the
+artifact arrived externally. The rejected-alternatives table is retained below
+under *The bootstrap split* as **historical record only**; it states no current
+option and authorizes nothing.
+
 
 ## Provenance
 
@@ -109,7 +166,14 @@ has no relation to the Ship harness-generation lifecycle. The unit now carries
 a single agreed provenance ID across the plan, the feature, the shipment and
 every task record.
 
-## The bootstrap split (revision 2)
+## The bootstrap split (revision 2) - HISTORICAL, NON-AUTHORITATIVE
+
+> **HISTORICAL RECORD ONLY.** Everything in this section describes the plan
+> as it stood at revisions 2-8, when an actor installation was still expected
+> inside this portfolio. It is preserved for provenance and is **NOT a
+> current-state contract**. It authorizes nothing, and where it conflicts
+> with *Problem frame* above, *Problem frame* governs. `188-S` and `182-F`
+> NEVER EXECUTED. Behavioral actor correction is owned by `185-F` / `191-S`.
 
 PR #457 review thread `PRRT_kwDORzpWpM6kHrw5` found that revision 1 could not
 reach execution at all, and that reversing one dependency edge would not have
@@ -162,6 +226,64 @@ compilation channel) is a **regression against live policy**, not a gap in it.
 `176-S` restores the observation; this unit supplies the **lifecycle step** that
 produces the state the observation reads. The actor that step invokes is part of
 the publication baseline, not produced here.
+
+
+### The canonical commands, quoted exactly
+
+*Revision 9, finding `S21`. These are the literal strings. They are not to be
+paraphrased, re-derived or reconstructed by an executor.*
+
+The compile check:
+
+```text
+python -m py_compile src/autoharness/cli.py
+```
+
+The test command:
+
+```text
+PYTHONPATH=src python -m unittest discover -s tests
+```
+
+Both are bound from `.autoharness/harness-manifest.yaml` `variables_used`
+(`BUILD_CHECK_COMMAND` and `TEST_COMMAND`). The manifest is **authoritative
+over `.autoharness/workspace-profile.yaml`** per decision `D9-C`. The profile's
+`test.command` currently reads `pytest`; that field is **stale and must not be
+used**, and correcting it belongs to `185-F`, not here.
+
+### State adjudication - exhaustive
+
+*Revision 9, finding `S22`. Revision 8 described `NO_HARNESS` in four places
+with three different framings. This table is now the single definition and it
+is total: every input maps to exactly one outcome.*
+
+| Input condition | Readiness | Terminal? |
+|---|---|---|
+| Every declared surface resolves, renders byte-identical **and** matches its manifest checksum | `HARNESS_READY` | Yes |
+| Task declares exactly `harness-surface:none` | `HARNESS_READY` (vacuously - nothing required) | Yes |
+| A declared surface has a manifest entry, but rendered bytes differ from installed | `NO_HARNESS` | Yes |
+| A declared surface has a manifest entry, but the recorded checksum does not match the installed bytes | `NO_HARNESS` | Yes |
+| A declared surface has **no** manifest entry | `NO_HARNESS` | Yes |
+| A task carries **no** `harness-surface:` label at all | `UNRESOLVED` | No - halt, exit `2` |
+| A declared surface matches **more than one** manifest entry | `UNRESOLVED` | No - halt, exit `2` |
+| A label is malformed (not `harness-surface:<id>` and not `harness-surface:none`) | `UNRESOLVED` | No - halt, exit `2` |
+| A path fails lexical or canonical containment | `UNRESOLVED` | No - halt, exit `2`, no read attempted |
+| An input is unreadable, non-regular, or the second read disagrees with the first | `UNRESOLVED` | No - halt, exit `2` |
+
+**`UNRESOLVED` is never a pass and never a `NO_HARNESS`.** `NO_HARNESS` is an
+*adjudication*: the resolver looked, understood, and concluded the harness is
+not ready. `UNRESOLVED` means the resolver could not reach a conclusion at all.
+Collapsing the two would let a malformed declaration masquerade as an orderly
+negative result.
+
+**`NO_HARNESS` is terminal for evaluation** - the lifecycle halts before the
+task partition runs and does not re-derive. It maps onto P-004's
+**`NO_OBSERVATION`** state, and that mapping is asserted **before any command
+is executed**: P-004 records that no observation was possible, rather than
+executing a test command and interpreting its output. A gate that cannot
+observe its precondition reports that it could not observe it; it never reports
+a pass, and it never reports a failure it did not witness.
+
 
 ## Live state of the two ACTIVATE targets
 
@@ -225,6 +347,152 @@ Three consequences govern the whole of this unit:
    phase belongs **inside** the existing section, ahead of its task listing —
    not in a second, parallel section.
 
+## The resolver, stated as an executable boundary
+
+*Added at revision 9 to address findings `S15`, `S16` and `S17`. Before this
+revision the resolver was specified as behavior with no invocable surface, no
+declaration source, no typed result and no wired consumer - it could have
+landed as agent prose or as dead code and nothing would have detected it.*
+
+### Module and entry point
+
+The resolver is a single module, `src/autoharness/harness_surfaces.py`,
+following this repository's existing flat snake_case module convention
+(`backlog_root.py`, `verify_workspace.py`, `schema_contracts.py`).
+
+Its sole public entry point is:
+
+```python
+def resolve_harness_surfaces(
+    *,
+    workspace_root: Path,
+    autoharness_home: Path,
+    shipment_id: str,
+) -> HarnessResolution: ...
+```
+
+Keyword-only, fully explicit. It takes no ambient configuration, reads no
+environment for its inputs, and **writes no state anywhere**. It is a pure
+function of the bytes it reads.
+
+The public surface is exactly: `HarnessResolution`, `SurfaceStatus`,
+`Readiness`, and `resolve_harness_surfaces`. `Readiness` is an enum with
+members `HARNESS_READY`, `NO_HARNESS` and `UNRESOLVED`; `SurfaceStatus` is a
+frozen dataclass; `HarnessResolution` is a frozen dataclass carrying the
+adjudicated `readiness`, the per-surface `surfaces` tuple, the `shipment_id`,
+and `inputs_sha256`.
+
+### Where declarations come from
+
+**The shipment manifest is authoritative for membership.** For a given
+`shipment_id`, the resolver enumerates that shipment's items and reads
+declarations from its **task** members only.
+
+A task declares its harness surfaces through **validated labels** and through
+nothing else. The only accepted forms are:
+
+* `harness-surface:<id>` - one label per required surface; or
+* exactly `harness-surface:none` - an explicit, auditable declaration that the
+  task requires no harness surface.
+
+Colon-qualified labels are schema-valid in this workspace; the `family:code`,
+`family:test` and `family:docs` labels are existing precedent. A task carrying
+**no** `harness-surface:` label at all is **not** treated as `none`: it is
+`UNRESOLVED`, which is a distinct and non-passing state (see the state table).
+Silence is never consent.
+
+`<id>` must match a surface the manifest knows. The tasks of this unit
+(`181.001-T` through `181.005-T`) each carry `harness-surface:harness-architect`.
+
+### How a surface resolves
+
+For each declared `<id>` the resolver requires **exactly one** manifest
+`artifacts:` entry mapping an installed path to an authoritative `template`.
+Zero matching entries, or more than one, is `UNRESOLVED` - never a silent pick.
+
+Readiness for a surface requires **both** of:
+
+1. **Rendered-byte match.** Rendering the authoritative template, substituting
+   only `UPPERCASE_PLACEHOLDER` tokens from the manifest's `variables_used`,
+   normalising to **canonical LF bytes**, reproduces the installed file
+   byte-for-byte.
+2. **Manifest checksum match.** The manifest's recorded `checksum` for that
+   entry equals the SHA-256 of the installed file's raw LF bytes.
+
+Both must hold. Either alone is insufficient: (1) alone would accept an entry
+whose recorded checksum has drifted, and (2) alone would accept an installed
+file that no longer corresponds to its template. **This pair is exactly what
+would have caught the S14 defect**, because the installed actor does not match
+what its template renders from the manifest's `variables_used`.
+
+Only placeholders matching `{{[A-Z0-9_]+}}` are substituted. Lowercase or
+mixed-case `{{...}}` tokens are intentional literal content and are left
+untouched.
+
+### The CLI
+
+```text
+autoharness harness resolve --workspace . --shipment <id> --json
+```
+
+Deterministic, side-effect-free, and safe to run repeatedly. Exit codes are
+part of the contract:
+
+| Exit | Meaning |
+|---|---|
+| `0` | `HARNESS_READY` - every declared surface resolved and verified |
+| `1` | `NO_HARNESS` - adjudicated, well-formed, and not ready |
+| `2` | Invalid, unsafe, ambiguous or raced input |
+
+Exit `1` and exit `2` are **not interchangeable**: `1` is a legitimate
+adjudication the caller may act on, `2` means no adjudication was reached and
+the caller must halt. No MCP tool and no operation-framework registration is in
+scope for `187-S`.
+
+### Freshness is recomputation, not storage
+
+**No readiness state is persisted anywhere.** There is no cache file, no
+backlog field and no checkpoint key holding a readiness verdict. The freshness
+carrier is recomputation itself.
+
+Every `HarnessResolution` carries `inputs_sha256`, a digest binding **all** of:
+the shipment item list, the resolved task declarations, the relevant manifest
+entries and `variables_used`, the authoritative template bytes, and the
+installed file bytes. The resolver reads its inputs, computes, then **re-reads
+and re-digests**; a second-read mismatch is a detected race and yields exit `2`.
+
+Consumers therefore invoke freshly, every time:
+
+* **Ship** invokes the CLI at pre-task time.
+* **Checkpoint resume** invokes the CLI again on resume. It does **not** trust
+  any pre-crash result.
+* **P-004**, in its own later unit, calls `resolve_harness_surfaces` directly
+  and emits the returned `inputs_sha256` as evidence.
+
+**A token never authorizes.** `inputs_sha256` is evidence that a specific
+computation ran over specific bytes. It is not a capability, it does not grant
+readiness, and no caller may present a previously obtained digest in place of
+recomputing. A stale digest proves only that the inputs have changed.
+
+### Containment - fail closed, before any read
+
+Every candidate path is checked **before it is opened**, in two stages:
+
+1. **Lexical.** Reject absolute paths, drive-qualified paths (`C:\...`), UNC
+   paths (`\\server\share`), environment-variable references, home-directory
+   references (`~`), and any `..` segment.
+2. **Canonical.** Fully resolve the path and require it to be contained within
+   the canonical workspace root, comparing **path components** rather than
+   string prefixes so that a sibling directory such as `../workspace-evil`
+   cannot satisfy a prefix test against `workspace`. Symlinks and Windows
+   junctions that resolve outside the root are rejected here, after resolution.
+
+A path failing either stage is **never opened**. Unreadable, non-regular
+(device, FIFO, directory-where-a-file-is-required) or ambiguous inputs yield
+exit `2` and no external read is attempted. There is no best-effort mode and no
+silent skip.
+
+
 ## Contract
 
 The Ship agent's **existing** harness-generation step gains a leading
@@ -267,7 +535,7 @@ without that refresh leaves the manifest asserting a digest of a file the same
 commit has already rewritten — an installed-artifact parity hole in a unit
 whose entire purpose is closing a template-versus-mirror parity gap — and is an
 **immediate revert**, not a fixup commit. The refresh is a **commit member, not
-a third surface**: `D1`–`D3`, `G1`–`G8` and `P1`–`P6` all remain scoped to the
+a third surface**: `D1`–`D3`, `G1`–`G8` and `PAR-1`–`PAR-6` all remain scoped to the
 two Ship surfaces exactly as written below, and none of them reads the
 manifest. This binds a **future implementation commit**; it authorizes no
 staging-time edit to the live manifest, and none has occurred.
@@ -358,7 +626,7 @@ inserted between the end of `### Step 1: Pre-Flight Checks` and the line
   claim:
 
   * **Class B's five upstream references are the ONLY line-number stability
-    this unit asserts as load-bearing**, and they are exactly the set `P6b` is
+    this unit asserts as load-bearing**, and they are exactly the set `PAR-6b` is
     evaluated against. Class C's `:184`/`:214` are stable too, but no gate or
     criterion reads them.
   * **The class-A heading MUST be re-located and re-validated by exact,
@@ -367,8 +635,8 @@ inserted between the end of `### Step 1: Pre-Flight Checks` and the line
     pre-insertion line number `:336` is a **pre-insertion locator only** and
     is invalid as a post-insertion address.
   * **NO GATE, CRITERION OR HALT CONDITION MAY REQUIRE THE PRE-INSERTION
-    CLASS-A LINE NUMBER AFTER THE INSERTION**, and none does: `P6a` is a
-    property of heading **text**; `P6b` names **class-B** lines only; `D1`–`D3`
+    CLASS-A LINE NUMBER AFTER THE INSERTION**, and none does: `PAR-6a` is a
+    property of heading **text**; `PAR-6b` names **class-B** lines only; `D1`–`D3`
     match **whole lines**, not line numbers; `G1`–`G8` are **counts**. `G8`'s
     post-commit anchor-integrity check is satisfied by *exactly one* whole-line
     `D2` match **wherever it now sits**, not at `:336`.
@@ -387,17 +655,17 @@ After the commit, all six must hold. `181.004-T` states them as assertions and
 
 | # | Criterion |
 |---|---|
-| P1 | The template contains **exactly one** harness-generation section, still headed `### Step 2: Harness Generation (P-002 / P-004)`. |
-| P2 | The mirror contains **exactly one** harness-generation section, headed `### Step 1.5: Harness Generation (P-002 / P-004)`. |
-| P3 | The two sections carry the **same ordered procedure**: the surface-resolution phase first, then the queued-task listing, then the `harness-ready` partition, then the `harness-architect` invocation for the unlabelled batch, then the post-scaffold label confirmation and gap halt. |
-| P4 | The two sections carry the **same state tokens and the same halt conditions** — `HARNESS_READY`, `NO_HARNESS`, halt-before-partition on `NO_HARNESS`, halt-and-report on a post-scaffold label gap. |
-| P5 | They differ **only** in (a) resolved template variables and (b) the step number in the heading. In the mirror, `{{BUILD_CHECK_COMMAND}}` resolves to `python -m py_compile src/autoharness/cli.py`, bound from `.autoharness/harness-manifest.yaml` → `variables_used`; `{{STATUS_QUEUED}}` resolves to `queued`, bound from `.autoharness/backlog-registry.yaml` → `status_values.queued` (line 249), because `STATUS_QUEUED` is **not** present in `variables_used` and must not be invented. Any variable that resolves from neither source is a **fail-closed halt**, not a guess. No other difference is permitted. |
-| P6 | Two clauses, both required. **`P6a`** — **no other heading in either file is added, removed, renumbered or retitled.** **`P6b`** — the mirror's **five** class-B top-level `Step 2` cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve to `### Step 2: Task Execution Loop`. **Those five line numbers remain valid post-commit because all five lie strictly above the insertion point and are line-number stable** (see *The mirror section's heading and placement*), whereas **the class-A target heading itself SHIFTS and is resolved by exact whole-line heading identity, never by its pre-insertion line number `:336`**. `P6b` is scoped to class B **deliberately**: the four class-C lowercase references (`:184`, `:214`, `:377`, `:748`) resolve to numbered item 2 of their own enclosing procedures and are not resolved against the top-level step sequence, so requiring them to resolve to the Task Execution Loop would state an invariant that **never held** and would fail a perfectly correct commit. See *Live state of the two ACTIVATE targets*, consequence 2, for the three-class partition. |
+| PAR-1 | The template contains **exactly one** harness-generation section, still headed `### Step 2: Harness Generation (P-002 / P-004)`. |
+| PAR-2 | The mirror contains **exactly one** harness-generation section, headed `### Step 1.5: Harness Generation (P-002 / P-004)`. |
+| PAR-3 | The two sections carry the **same ordered procedure**: the surface-resolution phase first, then the queued-task listing, then the `harness-ready` partition, then the `harness-architect` invocation for the unlabelled batch, then the post-scaffold label confirmation and gap halt. |
+| PAR-4 | The two sections carry the **same state tokens and the same halt conditions** — `HARNESS_READY`, `NO_HARNESS`, halt-before-partition on `NO_HARNESS`, halt-and-report on a post-scaffold label gap. |
+| PAR-5 | They differ **only** in (a) resolved template variables and (b) the step number in the heading. In the mirror, `{{BUILD_CHECK_COMMAND}}` resolves to `python -m py_compile src/autoharness/cli.py`, bound from `.autoharness/harness-manifest.yaml` → `variables_used`; `{{STATUS_QUEUED}}` resolves to `queued`, bound from `.autoharness/backlog-registry.yaml` → `status_values.queued` (line 249), because `STATUS_QUEUED` is **not** present in `variables_used` and must not be invented. Any variable that resolves from neither source is a **fail-closed halt**, not a guess. No other difference is permitted. |
+| PAR-6 | Two clauses, both required. **`PAR-6a`** — **no other heading in either file is added, removed, renumbered or retitled.** **`PAR-6b`** — the mirror's **five** class-B top-level `Step 2` cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve to `### Step 2: Task Execution Loop`. **Those five line numbers remain valid post-commit because all five lie strictly above the insertion point and are line-number stable** (see *The mirror section's heading and placement*), whereas **the class-A target heading itself SHIFTS and is resolved by exact whole-line heading identity, never by its pre-insertion line number `:336`**. `PAR-6b` is scoped to class B **deliberately**: the four class-C lowercase references (`:184`, `:214`, `:377`, `:748`) resolve to numbered item 2 of their own enclosing procedures and are not resolved against the top-level step sequence, so requiring them to resolve to the Task Execution Loop would state an invariant that **never held** and would fail a perfectly correct commit. See *Live state of the two ACTIVATE targets*, consequence 2, for the three-class partition. |
 
-`P6` was a single clause through revision 4, and its second half asserted that
+`PAR-6` was a single clause through revision 4, and its second half asserted that
 **ten** references resolve to the Task Execution Loop. Finding `S10` showed
 that four of the ten never did, so the criterion could not be satisfied even by
-a correct commit. Splitting it into `P6a`/`P6b` and scoping `P6b` to the five
+a correct commit. Splitting it into `PAR-6a`/`PAR-6b` and scoping `PAR-6b` to the five
 references that genuinely resolve there makes the criterion **true** and
 **mechanically satisfiable** while protecting exactly the same commit. The
 conservative instruction it supports — renumber nothing, use `Step 1.5` — is
@@ -412,7 +680,7 @@ not an inference from the fact that one commit touched both.
 label space for this unit.** Finding `S11` found two authoritative surfaces
 answering differently to the same label: `181.005-T` had defined `D2`/`D3`
 swapped relative to the plan, had re-used `G5`/`G6`/`G7` for different
-referents, and had shifted `P1`–`P6` by one — while `181.003-T` and
+referents, and had shifted `PAR-1`–`PAR-6` by one — while `181.003-T` and
 `181.004-T` cross-referenced *the plan's* numbering. A contract whose stated
 purpose is to be mechanical cannot do that.
 
@@ -423,15 +691,15 @@ by adding aliases. Aliases would leave exactly the ambiguity `S11` objected to.
 |---|---|---|
 | `D1`–`D3` | detection literals | *Detection — exact literals, no fuzzy matching*, above |
 | `G1`–`G8` | counted gates (`G1`–`G3` pre-commit, `G4`–`G8` post-commit) | *Duplicate prevention — counted, not asserted*, above |
-| `P1`–`P6` | parity criteria (`P6` = `P6a` + `P6b`) | *Parity criteria — what "at parity" means, exactly*, above |
+| `PAR-1`–`PAR-6` | parity criteria (`PAR-6` = `PAR-6a` + `PAR-6b`) | *Parity criteria — what "at parity" means, exactly*, above |
 
 Every consuming record now uses these referents and only these:
 
 | Record | Cites | Status at revision 5 |
 |---|---|---|
-| `181.003-T` | `D1`–`D3`, `G1`–`G8`, `P1`–`P6`; content contract bound to `P3`, `P4`, `P5` | `G1`-`G7` → `G1`-`G8`; referents already matched |
-| `181.004-T` | pre-commit `G1`–`G3`; records the class-A/B/C partition for `P6b` | `G1`-`G7` → `G1`-`G8`; ten-line predicate replaced by the partition |
-| `181.005-T` | `D1`–`D3`, `G1`–`G8`, `P1`–`P6` | **rewritten** — swapped `D2`/`D3` corrected, private `G5`/`G6`/`G7` and shifted `P1`–`P6` removed |
+| `181.003-T` | `D1`–`D3`, `G1`–`G8`, `PAR-1`–`PAR-6`; content contract bound to `PAR-3`, `PAR-4`, `PAR-5` | `G1`-`G7` → `G1`-`G8`; referents already matched |
+| `181.004-T` | pre-commit `G1`–`G3`; records the class-A/B/C partition for `PAR-6b` | `G1`-`G7` → `G1`-`G8`; ten-line predicate replaced by the partition |
+| `181.005-T` | `D1`–`D3`, `G1`–`G8`, `PAR-1`–`PAR-6` | **rewritten** — swapped `D2`/`D3` corrected, private `G5`/`G6`/`G7` and shifted `PAR-1`–`PAR-6` removed |
 
 **Coverage is preserved, failure mode by failure mode.** Nothing detectable
 under revision 4's two label sets is undetectable under revision 5's single one:
@@ -439,20 +707,20 @@ under revision 4's two label sets is undetectable under revision 5's single one:
 | Failure mode | Detected by (canonical) |
 |---|---|
 | Template section appended with an identical heading | `G1`/`G4` — count becomes 2 |
-| Template section appended with the same title, different step number | `G5`; `P1` |
-| Template heading retitled, moved or deleted | `G1` (pre), `G4` (post), `P1` |
-| Mirror section absent or wrongly headed | `G6`, `P2` |
+| Template section appended with the same title, different step number | `G5`; `PAR-1` |
+| Template heading retitled, moved or deleted | `G1` (pre), `G4` (post), `PAR-1` |
+| Mirror section absent or wrongly headed | `G6`, `PAR-2` |
 | Mirror section written as a renumbered `### Step N: Harness Generation` | `G7` |
 | A mirror **anchor** heading renumbered, retitled or consumed | `G8` — *the check formerly carried only as the record's private `G6`* |
-| Any **other** mirror heading renumbered or retitled | `P6a` |
-| A class-B top-level `Step 2` cross-reference broken | `P6b` |
-| Unresolved `{{...}}` left in the mirror section | `P5` |
-| Semantic drift between the two sections | `P3`, `P4` |
+| Any **other** mirror heading renumbered or retitled | `PAR-6a` |
+| A class-B top-level `Step 2` cross-reference broken | `PAR-6b` |
+| Unresolved `{{...}}` left in the mirror section | `PAR-5` |
+| Semantic drift between the two sections | `PAR-3`, `PAR-4` |
 
 The one gap `S11` identified — renumbering a **non-anchor** mirror heading being
-caught by the plan's `P6` but by none of the record's gates — is closed, because
-`P6a` is now the record's own criterion rather than a differently-numbered one.
-The record's former `G7` ("the two sections satisfy parity `P1`–`P6`") is
+caught by the plan's `PAR-6` but by none of the record's gates — is closed, because
+`PAR-6a` is now the record's own criterion rather than a differently-numbered one.
+The record's former `G7` ("the two sections satisfy parity `PAR-1`–`PAR-6`") is
 **removed rather than renumbered**: it was a wrapper that restated parity inside
 the gate family, and parity is asserted explicitly and separately. Removing it
 loses no check and ends the collision on `G7`.
@@ -502,7 +770,7 @@ returning `NO_HARNESS` against a scratch harness root in which a required
 surface is absent. It additionally asserts the pre-commit gates `G1`–`G3` hold
 against live file content, so a stale premise is caught **before** activation
 rather than during it, and it **re-derives and records the class-A/B/C `step 2`
-partition** so that `P6b` is evaluated post-commit against a recorded five-line
+partition** so that `PAR-6b` is evaluated post-commit against a recorded five-line
 class-B set rather than re-derived under time pressure. The scratch-root
 exercise uses a fixture template under
 the test tree; it never writes under `.github/skills/`, and it never generates
@@ -513,7 +781,7 @@ text into both surfaces simultaneously: **update in place** the template's
 existing `### Step 2: Harness Generation (P-002 / P-004)`, and **insert** the
 mirror's new `### Step 1.5: Harness Generation (P-002 / P-004)` at the fixed
 anchor. Those two files are the **only** surfaces this commit may change, and
-`G1`–`G8` plus `P1`–`P6` bound it.
+`G1`–`G8` plus `PAR-1`–`PAR-6` bound it.
 
 > Splitting this across commits produces a reachable state in which exactly one
 > of the two Ship surfaces declares the phase. Today the workspace is already
@@ -528,15 +796,35 @@ publication baseline and this unit's precondition.
 
 ## Tasks
 
-| ID | Phase | Task | Size | Cx |
-|---|---|---|---|---|
-| `181.001-T` | RED | lifecycle-state contract tests incl. `NO_HARNESS` reachability | S | medium |
-| `181.002-T` | PREPARE | harness-surface requirement resolver (Python, `src/`) | S | medium |
-| `181.003-T` | PREPARE | author the canonical phase **text** as test-owned fixture data — **agent-procedure design, no Python** | S | medium |
-| `181.004-T` | VERIFY | lifecycle evidence + pre-commit gates `G1`–`G3`, actor already present in the publication baseline, no live reference yet | XS | low |
-| `181.005-T` | ACTIVATE | one commit: update the template's existing `Step 2` in place, install the mirror's `Step 1.5` | M | high |
+*Task surfaces and sizes re-derived at revision 9 against the executable
+boundary defined above (finding `S15`). Sizes moved where the added contract
+made the honest estimate larger; none was left at its revision-8 value merely
+to avoid re-sizing.*
 
-Edges: `181.001-T` → `181.002-T` → `181.003-T` → `181.004-T` → `181.005-T`.
+| ID | Phase | Task | Surfaces (max 3) | Size | Cx |
+|---|---|---|---|---|---|
+| `181.001-T` | RED | Contract tests for `resolve_harness_surfaces`: readiness adjudication, the exhaustive state table incl. `UNRESOLVED` vs `NO_HARNESS`, and containment rejection | `tests/test_harness_surfaces.py` | M | high |
+| `181.002-T` | PREPARE | Implement `resolve_harness_surfaces` and its public types; pure, no state writes | `src/autoharness/harness_surfaces.py` | M | high |
+| `181.003-T` | PREPARE | Author the canonical phase **text** as test-owned fixture data - agent-procedure design, no Python | `tests/fixtures/ship_harness_phase/template-step2-harness-generation.md`, `tests/fixtures/ship_harness_phase/mirror-step1_5-harness-generation.md` | S | medium |
+| `181.004-T` | VERIFY | Lifecycle evidence + pre-commit gates `G1`-`G3`; record the class-B line set; observe `HARNESS_READY` **and** `NO_HARNESS` reachable | (evidence only, no new source file) | S | medium |
+| `181.005-T` | ACTIVATE | One commit: update the template's existing `Step 2` in place, install the mirror's `Step 1.5`, refresh the single manifest entry | `templates/agents/_ship.agent.md.tmpl`, `.github/agents/_ship.agent.md`, `.autoharness/harness-manifest.yaml` | M | high |
+
+Edges: `181.001-T` -> `181.002-T` -> `181.003-T` -> `181.004-T` -> `181.005-T`.
+
+**Every task is bounded to at most three files.** `181.005-T` sits exactly at
+that bound and may not absorb another surface; if the activation ever needs a
+fourth file, it splits.
+
+**The CLI surface is deliberately deferred.** `autoharness harness resolve` is
+specified above as part of the resolver contract, but wiring it into
+`src/autoharness/cli.py` would make `181.002-T` a four-file task. It is carried
+as the first task of the follow-on unit rather than silently widening this one.
+
+**Declaration labels.** `181.001-T` through `181.005-T` each carry the label
+`harness-surface:harness-architect`, which is what makes them visible to the
+resolver as declaring that surface. The label is the declaration; the prose
+here only describes it.
+
 
 ### Sizing and complexity, re-derived at revision 4
 
@@ -548,7 +836,7 @@ Two axes, independently assigned, never conflated.
   `src/` module (`S8`); it also had to decide, unaided, how its phase related to
   a template section nobody had read (`S7`). Both sources of uncertainty are
   now removed: the deliverable is exactly two fixture files, the target heading
-  and insertion anchor are fixed literals, and the parity criteria `P1`–`P6`
+  and insertion anchor are fixed literals, and the parity criteria `PAR-1`–`PAR-6`
   are stated for it rather than left to judgement. What remains is bounded
   prose authoring against a specified contract — one sitting, `S`, and
   `medium` rather than `high` because judgement is still required to keep the
@@ -560,7 +848,7 @@ Two axes, independently assigned, never conflated.
   (1) `181.003-T` reduces the commit to a **transcription** of already-reviewed
   text rather than an authoring act; (2) `181.004-T` asserts the pre-commit
   gates `G1`–`G3` against live file content **before** activation is reached;
-  (3) `G4`–`G8` and `P1`–`P6` make the commit's success a counted, mechanical
+  (3) `G4`–`G8` and `PAR-1`–`PAR-6` make the commit's success a counted, mechanical
   property instead of a claim. It is not split further because the atomicity
   requirement is precisely that both files move together — splitting it would
   reintroduce the defect it exists to prevent.
@@ -615,9 +903,9 @@ and tested by `181.001-T`. `181.003-T` produces Markdown fixture text only.
 | R2 | The lifecycle step slows every shipment start | The resolver short-circuits when all required surfaces are already present, which is the steady state after the first execution. |
 | R3 | `NO_HARNESS` becomes a routine blocker | It is only reachable when a required surface has no authoritative template. The resolver reports the missing template path, so the remedy is explicit rather than a retry loop. |
 | R4 | The ACTIVATE commit appends a **second** harness-generation section to the template instead of updating the existing one | The primary risk of this unit, and the defect `S7` caught. Detection is by exact heading literal (`D1`); the outcome is **counted** both before (`G1`) and after (`G4`, `G5`). A pre-count other than exactly 1, or a post-count other than exactly 1, halts or fails the commit. Plan and record both say **update in place**; neither says "add". |
-| R5 | The mirror insertion renumbers an existing step and silently breaks its internal `Step 2` cross-references | The mirror section is `Step 1.5`, chosen so nothing is renumbered. `P6a` forbids renumbering any heading, `P6b` asserts the **five** class-B top-level cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve, `G7` detects a renumbered `Step N: Harness Generation` and `G8` detects a renumbered anchor. `181.004-T` records the class-A/B/C partition pre-commit so the post-commit check is mechanical rather than a re-derivation. The four class-C lowercase references are procedure-local and out of scope of this risk. |
+| R5 | The mirror insertion renumbers an existing step and silently breaks its internal `Step 2` cross-references | The mirror section is `Step 1.5`, chosen so nothing is renumbered. `PAR-6a` forbids renumbering any heading, `PAR-6b` asserts the **five** class-B top-level cross-references (`:275`, `:283`, `:302`, `:305`, `:326`) still resolve, `G7` detects a renumbered `Step N: Harness Generation` and `G8` detects a renumbered anchor. `181.004-T` records the class-A/B/C partition pre-commit so the post-commit check is mechanical rather than a re-derivation. The four class-C lowercase references are procedure-local and out of scope of this risk. |
 | R6 | `181.003-T` edits a live Ship surface while claiming to be inert | It writes to test-owned fixture paths only; both live surfaces are untouched until `181.005-T`. `181.004-T`'s "no executed Ship step references the lifecycle yet" assertion is now a statement about **file content**, not only about wiring. |
-| R7 | A template variable in the mirror transcription resolves from no named source and is improvised | `P5` names the source for each: `BUILD_CHECK_COMMAND` from `.autoharness/harness-manifest.yaml` → `variables_used`; `STATUS_QUEUED` from `.autoharness/backlog-registry.yaml` → `status_values.queued`, because it is **not** in `variables_used`. Any variable resolving from neither is a fail-closed halt. |
+| R7 | A template variable in the mirror transcription resolves from no named source and is improvised | `PAR-5` names the source for each: `BUILD_CHECK_COMMAND` from `.autoharness/harness-manifest.yaml` → `variables_used`; `STATUS_QUEUED` from `.autoharness/backlog-registry.yaml` → `status_values.queued`, because it is **not** in `variables_used`. Any variable resolving from neither is a fail-closed halt. |
 
 ## Hardening review
 
@@ -643,9 +931,9 @@ went unnoticed through two attempts. `H9`–`H12` close that class.
 | H8 | Does anything in this unit still assume it installs the actor? | It must not, and the propagation is the risk. At revision 4 the Rollout, Blast radius, Rollback, this pass, the Tasks table, the Out-of-scope list and **all five** task records state the same reduced scope. A single surface left at revision-1 framing is what blocked revision 2, because Ship executes records rather than narrative. |
 | **H9** | **Does the ACTIVATE commit's target already contain the section this unit intends to add?** | **Yes — and revision 3 did not know it.** `templates/agents/_ship.agent.md.tmpl:326` already carries `### Step 2: Harness Generation (P-002 / P-004)`. This is now the governing fact of the unit: the template section is **updated in place**, never re-added, under exact-literal detection `D1` and counted gates `G1`/`G4`/`G5`. An instruction to "add the step to both files" is withdrawn from the plan and from every record, because against a file that already has the section it authorizes exactly the duplicate this unit must not produce. |
 | **H10** | **Is the stated atomicity hazard the drift that actually exists?** | **It was not; it is now.** Revision 3 argued against "the installed mirror has a lifecycle step its template does not declare". The live drift is the exact inverse — template ahead, mirror empty. The argument is replaced: a split commit would not create divergence, it would merely **reverse the direction** of the divergence that already exists. Only a single commit reconciling both surfaces ends it. The conclusion (one commit) survives; the reasoning that reached it does not, and has been rewritten rather than patched. |
-| **H11** | **Could the mirror insertion break the mirror's own internal cross-references?** | It could, and that is why the heading is `Step 1.5` rather than `Step 2`. The mirror's `### Step 2` is `Task Execution Loop` (`:336`), and **five** passages — `:275`, `:283`, `:302`, `:305`, `:326`, all inside `### Step 0.5: Work Intake` — are genuine top-level cross-references to it. Revisions 3 and 4 said **ten**, conflating those five with the file's four *lowercase*, procedure-local `step 2` references (`:184`, `:214`, `:377`, `:748`) and with the heading itself; finding `S10` rejected that, and the three-class partition under *Live state of the two ACTIVATE targets* replaces it. The corrected count does **not** weaken the answer: renumbering is still forbidden by `P6a`, the five surviving references are asserted by `P6b`, `G7` detects a renumbered harness heading and `G8` detects a renumbered anchor. Fractional numbering is already this file's own convention (`Step 0.1b`/`0.1c`/`0.1d`/`0.5`), so the insertion introduces no new document grammar. |
+| **H11** | **Could the mirror insertion break the mirror's own internal cross-references?** | It could, and that is why the heading is `Step 1.5` rather than `Step 2`. The mirror's `### Step 2` is `Task Execution Loop` (`:336`), and **five** passages — `:275`, `:283`, `:302`, `:305`, `:326`, all inside `### Step 0.5: Work Intake` — are genuine top-level cross-references to it. Revisions 3 and 4 said **ten**, conflating those five with the file's four *lowercase*, procedure-local `step 2` references (`:184`, `:214`, `:377`, `:748`) and with the heading itself; finding `S10` rejected that, and the three-class partition under *Live state of the two ACTIVATE targets* replaces it. The corrected count does **not** weaken the answer: renumbering is still forbidden by `PAR-6a`, the five surviving references are asserted by `PAR-6b`, `G7` detects a renumbered harness heading and `G8` detects a renumbered anchor. Fractional numbering is already this file's own convention (`Step 0.1b`/`0.1c`/`0.1d`/`0.5`), so the insertion introduces no new document grammar. |
 | **H12** | **Is `181.003-T` genuinely inert if the phase text lands in a live file?** | It would not be — which is why it no longer does. `181.003-T` writes the canonical text to **test-owned fixture paths**, and `181.005-T` transcribes it into the two live surfaces. Had `181.003-T` edited the template in place it would have modified the template's **executed** `Step 2` while claiming to be inert, and the activation commit would no longer have been atomic across both surfaces. This is the `169.011-T` pattern: author the canonical source as data, transcribe it at ACTIVATE. |
-| **H13** | **Does any gate, criterion or evidence requirement address a line that the commit itself moves?** | **It did — at revision 5, in the evidence record, and finding `S12` caught it.** Revision 5 asserted that class-A and class-B lines all lie *above* the insertion point and do not shift. The class-A line **is** the insertion point (`:336`), so the heading it names is the insertion **successor** and shifts by the inserted block length. Revision 6 withdraws that claim and states the stability exactly: class B's five upstream references are line-number stable and are the only stability the unit relies on; class-C `:184`/`:214` are also stable but unread; class A shifts and **must be re-located and re-validated by exact whole-line heading identity**; class-C `:377`/`:748` shift. The corrected statement does **not** weaken anything: no gate ever depended on the false claim (`P6a` is heading text, `P6b` is class-B only, `D1`–`D3` are whole-line matches, `G1`–`G8` are counts), and the rule is now stated positively — **no gate may require the pre-insertion class-A line number after the insertion**. The conservative `Step 1.5` insertion, `P6a`/`P6b` and the three-class partition are unchanged. |
+| **H13** | **Does any gate, criterion or evidence requirement address a line that the commit itself moves?** | **It did — at revision 5, in the evidence record, and finding `S12` caught it.** Revision 5 asserted that class-A and class-B lines all lie *above* the insertion point and do not shift. The class-A line **is** the insertion point (`:336`), so the heading it names is the insertion **successor** and shifts by the inserted block length. Revision 6 withdraws that claim and states the stability exactly: class B's five upstream references are line-number stable and are the only stability the unit relies on; class-C `:184`/`:214` are also stable but unread; class A shifts and **must be re-located and re-validated by exact whole-line heading identity**; class-C `:377`/`:748` shift. The corrected statement does **not** weaken anything: no gate ever depended on the false claim (`PAR-6a` is heading text, `PAR-6b` is class-B only, `D1`–`D3` are whole-line matches, `G1`–`G8` are counts), and the rule is now stated positively — **no gate may require the pre-insertion class-A line number after the insertion**. The conservative `Step 1.5` insertion, `PAR-6a`/`PAR-6b` and the three-class partition are unchanged. |
 
 ### Blast radius
 
@@ -676,10 +964,33 @@ is expressed as counted gates rather than as a description.
 
 ### Rollback
 
-`181.001-T`–`181.004-T` are inert: they add Python, tests and fixture data that
+**Rollback is approval-gated. It is not self-authorizing.** *(Revision 9,
+finding `S18`.)*
+
+A `git revert` is a destructive history operation. This workspace already
+settled how such an operation is authorized: policy `P-007`, decisions `G1`-`G9`,
+established for `git restore` that the agent must hold a **fresh, live,
+non-synthesizable operator approval** before the command runs. The same
+standard binds here.
+
+| Requirement | Rule |
+|---|---|
+| **Freshness** | The approval must be obtained *for this rollback*. A prior approval, a standing authorization, a backlog comment or a plan sentence is **never** authorization. A backlog comment is audit evidence only. |
+| **Binding** | The approval must name the **exact activation commit SHA** to be reverted. An approval that names no SHA, or a different SHA, does not authorize this revert. |
+| **Revalidation** | The approval must be **revalidated immediately before** the command is issued. If the target SHA changed, the branch moved, or the approval cannot be re-read, the revert **must not run**. |
+| **No channel, no revert** | If no independent approval channel is reachable, this is a **fail-closed halt** - including in dark / AFK / unattended modes. Absence of a channel is never implied consent. |
+| **Violation** | Issuing `git revert` without a fresh, SHA-bound, revalidated approval is a **P-005 policy violation**. Record it and halt. |
+
+The refusal path must name the missing channel and the exact human-runnable
+command, so a human can complete the operation manually.
+
+**What the revert does, once authorized.**
+
+`181.001-T`-`181.004-T` are inert: they add Python, tests and fixture data that
 nothing invokes, and they touch **neither** live Ship surface.
 
 `181.005-T` reverts as a unit. A `git revert` of that single commit:
+
 
 * restores `templates/agents/_ship.agent.md.tmpl`'s `### Step 2: Harness
   Generation (P-002 / P-004)` to its exact pre-commit body — the section itself
@@ -713,9 +1024,9 @@ the commit did not.
 observed its own failure state has not tested its precondition.
 
 Additionally, and unchanged in substance since revision 4: the ACTIVATE commit
-is not complete until `P1`–`P6` are verified **by reading both files after the
-commit**. At revision 5 `P6` is verified as its two clauses `P6a` and `P6b`,
-and `P6b` is evaluated against the **five** class-B cross-reference lines
+is not complete until `PAR-1`–`PAR-6` are verified **by reading both files after the
+commit**. At revision 5 `PAR-6` is verified as its two clauses `PAR-6a` and `PAR-6b`,
+and `PAR-6b` is evaluated against the **five** class-B cross-reference lines
 recorded by `181.004-T` — not against the ten-line case-insensitive occurrence
 set, which finding `S10` showed could not be satisfied. Parity is a
 property of the two artifacts, never an inference from the fact that one commit
@@ -736,8 +1047,49 @@ commit is not complete until the `.autoharness/harness-manifest.yaml`
 `checksum` for `.github/agents/_ship.agent.md` has been rewritten to a fresh
 `sha256` of the post-commit mirror **and** that equality has been re-derived by
 digesting the file again and comparing. Parity here is the same kind of claim
-as `P1`-`P6`: a property of the artifacts, read after the commit, never an
+as `PAR-1`-`PAR-6`: a property of the artifacts, read after the commit, never an
 inference from the fact that the commit intended to update both. This floor is
 scoped to that **one** entry; no other manifest entry is read, refreshed or
 asserted by this unit, and `.github/skills/harness-architect/SKILL.md`'s entry
 belongs to the publication baseline and is untouched here.
+
+
+**Executable verification commands, added at revision 9 (finding `S23`).**
+Every phase below is stated as a command an executor runs verbatim.
+
+Targeted RED - the new contract tests must fail before the implementation
+exists, and must fail with the expected marker rather than with a collection or
+import error:
+
+```text
+PYTHONPATH=src python -m unittest -v tests.test_harness_surfaces
+```
+
+Targeted GREEN - the same module, after implementation:
+
+```text
+PYTHONPATH=src python -m unittest -v tests.test_harness_surfaces
+```
+
+Compile check:
+
+```text
+python -m py_compile src/autoharness/cli.py
+```
+
+Full suite - the canonical gate, which must pass before the unit closes:
+
+```text
+PYTHONPATH=src python -m unittest discover -s tests
+```
+
+Workspace verification and documentation lint:
+
+```text
+python -m autoharness.verify_workspace
+markdownlint "**/*.md"
+```
+
+A RED phase that fails for the wrong reason is **not** a RED phase. The
+distinction between an expected-failure marker and an import or collection
+error is part of the floor, not an implementation detail.
