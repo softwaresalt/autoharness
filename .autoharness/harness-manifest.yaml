@@ -234,6 +234,10 @@ artifacts:
     template: "skills/harvest/SKILL.md.tmpl"
     checksum: "d268983c3723804e3c7b46913ff3df9c7b616113a369bbc230d2639e52c7e533"
     note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; backlog CLI operation variables rendered with the single-brace parameter form documented in the install-harness variable resolution table (backlogit update {id}) rather than the registry's raw double-brace tokens; written LF-only and checksum computed with SHA-256 over the raw LF file bytes"
+  - path: ".github/skills/harness-architect/SKILL.md"
+    primitive: 4
+    template: "skills/harness-architect/SKILL.md.tmpl"
+    checksum: "49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716"
   - path: ".github/skills/impl-plan/SKILL.md"
     primitive: 4
     template: "skills/impl-plan/SKILL.md.tmpl"
