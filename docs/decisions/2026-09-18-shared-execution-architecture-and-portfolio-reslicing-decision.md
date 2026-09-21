@@ -5,8 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 date: 2026-09-18
 status: decided
-revision: 6
-revision_note: "REVISION 6 REBASES D9 AND THE DAG ON AN INSTALLED-ACTOR FACT AND RETIRES THE BOOTSTRAP PRECURSOR. THE ACTOR WAS INSTALLED OUTSIDE THIS PORTFOLIO: the bounded Auto-Tune harness-maintenance commit 07b4be79263252b1820701fd123d0aed85c1db2a (chore(harness): install harness architect skill) created .github/skills/harness-architect/SKILL.md and registered it in .autoharness/harness-manifest.yaml in the SAME commit, at exact checksum parity (49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716). That elective harness-maintenance action IS the actual producer installation and it discharges D11 for that entry at the publication baseline. CONSEQUENCES, ALL RECORDED AS FACT RATHER THAN AS COMPLETION: (1) 188-S, 182-F and 182.001-T through 182.004-T are ARCHIVED with archived_status queued. THEY WERE NEVER CLAIMED BY SHIP, NEVER EXECUTED AND NEVER SHIPPED; no task passed through its planned RED / RED-CONFIRM / ACTIVATE / VERIFY lifecycle and no composed-state token was ever emitted. NOTHING IN THIS REVISION CLAIMS THE PLANNED TDD LIFECYCLE RAN. (2) THE PRE-0 / STAGED-LABEL ADMISSION APPARATUS IS WITHDRAWN AS AN EXECUTION PATH, not re-described and not re-scoped, because its only purpose was to build the FIRST actor through a pipeline that already required it and that purpose has no remaining subject. The four authored harness-ready labels are WITHDRAWN as invalid live-queue semantics. NO P-004 BOOTSTRAP EXCEPTION IS PRESERVED, REVIVED OR INVENTED: no carve-out, no grant, no --force, no force-audit entry, no expiring authority. The revision-4 withdrawal of the revision-3 claim carve-out STANDS and is not reinstated in any form. Every remaining unit is subject to the ordinary, unmodified P-002 ready-queue filter and P-004 red-phase precondition, satisfied by its OWN harness generation at claim time. (3) EVERY 188-S EDGE IS REMOVED - from 176-S, 178-S, 180-S, archived 184-S, 185-S, 186-S and 187-S - because each existed SOLELY to await actor installation. ALL NON-188 TECHNICAL DEPENDENCIES ARE PRESERVED UNCHANGED. (4) 187-S BECOMES AN EXPLICIT dag-root with an empty dependency set; the never-technical 184-S edge remains withdrawn. ROOT STATUS IS A GRAPH FACT AND NOT AN EXECUTION AUTHORIZATION - ordinary pre-claim, P-002/P-004 harness generation over its own implementation tasks, independent review, CI and closure all remain in force. INSTALLATION ALONE CONFERS NO TASK CLAIM. (5) 184-S REMAINS CONDITIONALLY WITHHELD on TRANSPORT_DECIDED and 185-S alone retains its technical edge on it, so 185-S and transitively 186-S, 176-S, 178-S and 180-S stay unclaimable - unaffected by the installation. (6) The governing bootstrap plan is retained as a SUPERSEDED / COMPLETED-EXTERNALLY decision record and its verdict manifest is terminal, SUPERSEDED and NON-AUTHORIZING, asserting NO PASS for plan revision 5, which was never independently reviewed. HISTORICAL REVIEW EVIDENCE IS IMMUTABLE AND UNTOUCHED: attempts 01-04, the Stage targeted terminal review and the PRE-0 evidence artifact remain exactly as written and remain truthful records of observations that WERE taken during planning; they are NOT execution evidence and never became any. PRESERVED WITHOUT WEAKENING: D11 and its invariant text in substance, INCLUDING the revision-5 restoration of the 178-S entry (one refreshed entry, three commit files, mirror-only manifest tracking) and every manifest-parity rule; D1-D8 and D10 in substance; and the full per-unit entry-count list minus the retired 188-S registration. HISTORICAL: revision 5 made the D9 bootstrap path mechanically ordered by relocating the P-004 evidence carrier to an immutable committed artifact and establishing label-after-evidence ordering in the commit graph over labels-absent base 3ad5fcc7, and restored 178-S to D11 entry-count list. Revision 4 withdrew the revision-3 D9 CLAIM CARVE-OUT in full and added D11. Revision 3 added the D9 claim bound now withdrawn. Revision 2 added D9 and D10. The D9 entry under preserved_from_superseded_decision refers to the SUPERSEDED 2026-09-17 deliberation D9 and is unrelated to this document D9."
+revision: 7
+revision_note: "REVISION 7 RECORDS THE ACTOR AS BOTH STRUCTURALLY PRESENT AND BEHAVIOURALLY CONFORMANT, AND RETIRES TWO EXECUTION GRAPHS THAT NEVER RAN. Revision 6 recorded structural installation by 07b4be79 but left the harness-architect actor behaviourally non-conformant with P-004: its installed Step 5.2 invoked pytest while P-004 and the manifest require the canonical command. Revision 6 attributed that to an install-time variable precedence defect and harvested a corrective release unit (191-S / 185-F / 185.001-T-185.006-T). BOTH THE DIAGNOSIS AND THE UNIT ARE WITHDRAWN. The real defects were a stale installed render plus a manifest variable that was never seeded; _derive_template_variables already treats manifest variables_used as authoritative because profile-derived defaults apply through setdefault. Ship review-remediation commits 1cb0dc81 and b8ac632a corrected both directly on this branch, and independent attempt-08 finding S26 separately held 191-S structurally unexecutable under ordinary P-002/P-004. 191-S, 185-F and 185.001-T-185.006-T are therefore ARCHIVED AS RETIRED, NEVER CLAIMED, NEVER EXECUTED AND NEVER SHIPPED; the 187-S -> 191-S edge is withdrawn and 187-S is restored as an explicit dag-root. This revision additionally retires 176-S, 168-F and the live 168 tasks: they encode the superseded P-004 design that independent attempt-01 finding O1 blocked, they were never claimed or executed, and the P-004 gate is re-harvested fresh after the foundations actually ship rather than restored. SM-1 is reconciled with P-004 plan revision 7. D1-D8, D10, D11 and every unrelated decision, state-machine table and DAG edge are UNCHANGED; D11 manifest parity is preserved verbatim."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -705,88 +705,125 @@ edge-less shipment blocks as `unsequenced` rather than passing as a root. A
 root that is stated only in prose is therefore not a root. (PR #457 threads
 `PRRT_kwDORzpWpM6kHrxD`, `PRRT_kwDORzpWpM6kHrxY`, `PRRT_kwDORzpWpM6kHrxc`.)
 
-### D9 — The harness-architect actor was installed by elective harness maintenance; the bootstrap precursor is retired (revision 6)
+### D9 — The harness-architect actor is installed and behaviourally conformant; every bootstrap and corrective precursor is retired (revision 7)
 
 D4 decided *that* the actor must really exist. It did not decide *how the first
 one gets built*, and PR #457 review thread `PRRT_kwDORzpWpM6kHrw5` showed the
 omission was fatal: `187-S`, the unit that installs the lifecycle, **could not
-reach execution at all**. Two independent axes:
+reach execution at all** — its tasks write Python under `src/`, so P-002/P-004
+demand a harness-ready state whose only declared producer was the actor `187-S`
+itself was to install.
 
-| Axis | Deadlock |
+#### Current state: the actor is structurally present **and** behaviourally conformant
+
+The actor was never built by any shipment in this portfolio. It reached its
+current, conformant state through **three commits on this branch, none of them
+a shipment execution**:
+
+| Commit | What it established |
 |---|---|
-| Self-bootstrap | `187-S`'s tasks write Python under `src/`, so P-002/P-004 require a harness-ready state whose only declared producer is the actor `187-S` itself was to install. It cannot bootstrap itself through an actor that does not exist. |
-| Graph order | `187-S` depended on `184-S`, a code-bearing substrate shipment needing the *same* absent lifecycle. |
+| `07b4be79263252b1820701fd123d0aed85c1db2a` | **Structural installation.** *"chore(harness): install harness architect skill"* — an elective harness-maintenance action that created `.github/skills/harness-architect/SKILL.md` and registered it in `.autoharness/harness-manifest.yaml` in the same commit, satisfying `D11` at the installing commit rather than by later fixup. |
+| `1cb0dc8140a809d63c3193d58431cd14408788b7` | **Behavioural correction.** Ship review remediation: replaced the installed Step 5.2 `pytest` invocation with the canonical command, mirrored the change into the authoritative template with placeholders preserved, strengthened the red-phase guardrail to require per-test expected-marker correlation, added the contract test, and refreshed the manifest checksum in the same commit. |
+| `b8ac632a93751fb29c51a8e5bf0f5e036b65cfb3` | **Behavioural completion.** Seeded the manifest variable the render requires, closing the last divergence between the rendered template and the installed mirror. |
 
-Revisions 2–5 answered this by designing an in-pipeline bootstrap precursor
-(`188-S` / `182-F`) and, around it, an admission apparatus: a producer-side
-`PRE-0` act, a committed P-004 evidence artifact, and four authored
-`harness-ready` labels ordered after that evidence in the commit graph.
+**Structural installation and behavioural conformance are distinct properties
+and this decision keeps them distinct.** `07b4be79` is recorded as structural
+installation ONLY and never as evidence of P-004 conformance. Conformance rests
+on `1cb0dc81` and `b8ac632a`, evidenced by the canonical suite running **2358
+passed / 0 failed / 54 skipped** with manifest parity holding.
 
-#### What actually happened: the actor was installed outside the pipeline
+#### The revision-6 corrective unit is retired, and its diagnosis was wrong
 
-**The first actor was not built by any shipment.** On 2026-09-20 the bounded
-Auto-Tune harness-maintenance commit
-`07b4be79263252b1820701fd123d0aed85c1db2a` — *"chore(harness): install harness
-architect skill"* — installed `.github/skills/harness-architect/SKILL.md` and
-registered it in `.autoharness/harness-manifest.yaml` in the same commit. That
-commit is an **elective harness-maintenance action** taken through the
-workspace's ordinary harness-maintenance path, outside this portfolio's
-execution pipeline. **It is the actual producer installation.**
+Revision 6 recorded the actor as structurally installed but behaviourally
+non-conformant, attributed that to an **install-time variable precedence
+defect**, and harvested a corrective release unit — `191-S` / `185-F` /
+`185.001-T`…`185.006-T` — to fix it.
 
-Manifest parity holds exactly at the publication baseline and is
-re-derivable: the on-disk file digests to
-`49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716`, and the
-`artifacts:` entry recording that path carries the identical checksum. This is
-`D11` satisfied by the installing commit itself, not by any later fixup.
+**That diagnosis is withdrawn as false.** `_derive_template_variables` already
+treats the manifest's `variables_used` as authoritative: profile-derived
+defaults are applied through `setdefault`, which is a no-op once the manifest
+key exists. There was no precedence defect to correct. The actual defects were
+a **stale installed render** and a **manifest variable that was never seeded at
+all** — both fixed directly by `1cb0dc81` and `b8ac632a`.
 
-#### Consequence: `188-S` / `182-F` are retired, not completed
+`191-S`, `185-F` and `185.001-T`…`185.006-T` are therefore **archived as
+RETIRED**. They were **never claimed by Ship, never executed and never
+shipped**; no task passed through any lifecycle phase and no ACTIVATE commit
+was authored under them. Two independent grounds support the retirement, and
+either alone would suffice:
 
-`188-S`, `182-F` and `182.001-T`…`182.004-T` are **archived** with
-`archived_status: queued` — the status they actually held. They were **never
-claimed by Ship, never executed and never shipped**. No task passed through its
-planned RED / RED-CONFIRM / ACTIVATE / VERIFY lifecycle, no ACTIVATE commit was
-authored under them, and no composed-state token was ever written to
-`.autoharness/gates/harness-architect-bootstrap.txt`. **Nothing in this
-decision may be read as claiming that the planned TDD lifecycle ran.** The
-retirement is a truthful record of superseded planning work, not a completion.
+* **Externally satisfied.** The deliverable exists, correctly, through the two
+  Ship commits above.
+* **Structurally unexecutable.** Independent plan-review attempt 08 finding
+  `S26` (P0) held that `191-S` could never have cleared its own gates: it
+  needed a conformant actor in order to generate the harness that would make it
+  claimable, and its own purpose was to produce that conformant actor. Removing
+  the `187-S → 191-S` edge dissolves a **circular** dependency, not merely a
+  satisfied one.
 
-#### The admission apparatus is superseded, and no bootstrap exception survives
+**Nothing in this decision may be read as claiming `191-S` shipped.**
 
-The entire `PRE-0` / staged-`harness-ready` construction existed for exactly one
+#### The superseded P-004 defect graph is retired pending fresh re-harvest
+
+`176-S`, `168-F` and every live `168.00x-T` / `168.01x-T` task encoded the
+**superseded** P-004 gate design — a caller-supplied declaration document with
+an `expected_green_characterization` set, an `autoharness gate p004` entrypoint
+that does not exist, and a skill contract keyed to both. Independent
+plan-review attempt 01 finding `O1` (P0) held that leaving those records live
+while deferring them in prose is insufficient, because **a queued shipment
+manifest is an executable instruction set, not commentary**.
+
+They are **archived as RETIRED, superseded, never claimed and never executed**.
+The original defect linkage is preserved on each archived record: **the
+requirement survives; only the carrier does not.**
+
+**Re-harvest is forward-only.** The P-004 gate is re-harvested **fresh** by
+Stage against the then-current repository state — a new feature, new tasks and
+a new shipment — and **only** after `185-S` and `187-S` have actually shipped
+and the governing plan holds an independent PASS. The archived records are
+**never restored**, no empty queued shipment is created in the interim, and no
+restoration of any other archived unit may revive `191-S`, `176-S` or `168-F`.
+
+#### The admission apparatus remains superseded, and no exception survives
+
+The `PRE-0` / staged-`harness-ready` construction existed for exactly one
 purpose: to build the **first** actor through a pipeline that already required
-that actor. The elective maintenance path installed it directly, so that
-construction has **no remaining subject**.
-
-Accordingly, and without substitution:
+it. The actor now exists and is conformant, so that construction has **no
+remaining subject**. Accordingly, and without substitution:
 
 * **`PRE-0` is withdrawn as an execution path.** It is not re-described, not
   re-scoped and not carried forward. No step of any live record performs it.
 * **The four authored `harness-ready` labels are withdrawn** as invalid live
-  queue semantics. They were authored to admit tasks that will now never be
-  claimed, and they are removed from the live queue together with those
-  records.
+  queue semantics, removed together with the records they were authored to
+  admit.
 * **No P-004 bootstrap exception is preserved, revived or invented.** There is
   no carve-out, no grant, no `--force`, no force-audit entry, no expiring
   authority and no self-authorization anywhere on this path. The revision-3
-  claim carve-out — already withdrawn at revision 4 as not machine-admissible,
-  because P-002's Enforcement mechanically filters Ship's ready queue and
-  backlog prose cannot waive an installed filter — stays withdrawn and is
-  **not** reinstated in any form.
-* **Every remaining unit is subject to the ordinary, unmodified gates.** P-002's
-  ready-queue filter and P-004's red-phase precondition apply exactly as
-  written, satisfied by each unit's **own** harness generation at claim time
-  against the now-installed actor. If a unit's harness is not generated, P-004
-  still fails closed.
+  claim carve-out — withdrawn at revision 4 because P-002's Enforcement
+  mechanically filters Ship's ready queue and backlog prose cannot waive an
+  installed filter — stays withdrawn and is **not** reinstated in any form.
+* **Every remaining unit is subject to the ordinary, unmodified gates**,
+  satisfied by each unit's **own** harness generation at claim time against the
+  now-conformant actor. If a unit's harness is not generated, P-004 still fails
+  closed.
+
+#### `188-S` / `182-F` remain retired and never executed
+
+`188-S`, `182-F` and `182.001-T`…`182.004-T` stay **archived** with
+`archived_status: queued` — the status they actually held. They were **never
+claimed, never executed and never shipped**, no composed-state token was ever
+written to `.autoharness/gates/harness-architect-bootstrap.txt`, and **nothing
+here may be read as claiming their planned TDD lifecycle ran.**
 
 #### What is preserved
 
 Historical review evidence is **immutable and untouched**: independent
-plan-review attempts 01–04, the Stage targeted terminal review, and the `PRE-0`
-evidence artifact
+plan-review attempts 01–08 across the affected plans, the Stage targeted
+terminal review, and the `PRE-0` evidence artifact
 `docs/reviews/review-history/2026-09-20-harness-architect-bootstrap-pre0-evidence.md`
-remain exactly as written. They are truthful records of observations that
-**were** taken during planning. They are **not** execution evidence for any
-unit and never became any. The governing plan
+remain exactly as written. They are truthful records of observations taken
+**during planning**; they are **not** execution evidence for any unit and never
+became any. The governing plan
 `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` is retained as a
 **superseded / completed-externally decision record**, not as a live executable
 plan, and its verdict manifest is terminal, superseded and **non-authorizing**,
@@ -797,25 +834,35 @@ reviewed.
 
 Every `188-S` edge existed **solely** to await actor installation, so every such
 edge is **removed**: from `176-S`, `178-S`, `180-S`, the archived `184-S`,
-`185-S`, `186-S` and `187-S`. **All non-`188` technical dependencies are
-preserved unchanged** — `176-S → 185-S, 187-S`; `178-S → 185-S`;
+`185-S`, `186-S` and `187-S`. The `187-S → 191-S` edge added at revision 6 is
+**withdrawn** with the unit that created it. **All non-`188`, non-`191`
+technical dependencies are preserved unchanged** — `178-S → 185-S`;
 `180-S → 185-S`; `184-S → 182-S`; `185-S → 184-S`; `186-S → 185-S`.
 
-**`187-S` becomes an explicit `dag-root`.** Its only prerequisite was `188-S`,
-the actor now exists in the same publication branch, and the never-technical
-`184-S` edge remains withdrawn — `181-F` consumes no operation registry, result
-model or transport. It therefore declares an empty dependency set and carries
-the `dag-root` label so `pre_claim` derives `declared_root` rather than blocking
-as `UNSEQUENCED_SHIPMENT`.
+**`187-S` is an explicit `dag-root`.** It declares an **empty dependency set**
+and carries the `dag-root` label so `pre_claim` derives `declared_root` rather
+than blocking as `UNSEQUENCED_SHIPMENT`. Its only remaining prerequisite — a
+conformant actor — is satisfied in the same publication branch, and the
+never-technical `184-S` edge remains withdrawn: `181-F` consumes no operation
+registry, result model or transport.
 
-**Installation confers no task claim.** `187-S`'s root status means no shipment
+**Root status confers no task claim.** `187-S`'s root status means no shipment
 must ship before it — nothing more. Execution still requires ordinary
 pre-claim, its own P-002/P-004 harness generation over its actual
 implementation tasks, independent review, CI and closure. `184-S` remains
 conditionally withheld on `TRANSPORT_DECIDED`; `185-S` alone retains its
 technical edge on `184-S`, which is why `185-S`, and transitively `186-S`,
-`176-S`, `178-S` and `180-S`, stay unclaimable. That is the correct fail-closed
-outcome and is entirely unaffected by the actor installation.
+`178-S` and `180-S`, stay unclaimable. That is the correct fail-closed outcome
+and is entirely unaffected by the actor's installation or conformance.
+
+**One consequence is recorded rather than silently repaired.** `168-S` — an
+unrelated shipment that carries the `160-F` family and is **not** a member of
+the retired `168-F` task graph — declares `dependencies: ['166-S', '176-S']`.
+Retiring `176-S` leaves that edge pointing at an archived record, so `168-S`
+becomes unclaimable. The edge is **preserved, not deleted**: it is a truthful
+statement of what `168-S` was sequenced behind, deleting it would be an
+unreviewed scope expansion, and fail-closed unclaimability is the safe outcome.
+Resequencing `168-S` requires its own operator direction.
 
 ### D11 — Manifest-tracked installed artifacts are registered in the same atomic unit that creates or modifies them
 
@@ -997,19 +1044,42 @@ portfolio built on an undecided substrate must not be claimable.
 
 ## State-machine tables
 
-### SM-1 — P-004 red-phase gate (`176-S`)
+### SM-1 — P-004 red-phase gate (retired carrier; re-harvested fresh)
+
+Reconciled with `docs/plans/2026-09-18-p004-observation-gate-plan.md` **revision
+7**. The `expected_green_characterization` set is **removed from the decision
+entirely**; the expected-test set is **derived by the gate, never supplied by a
+caller**.
 
 | State | Reached when | Terminal |
 |---|---|---|
-| `RED_CONFIRMED` (pass) | compilation exits 0 **and** collection reports no error **and** every declared harness test emits an expected failure marker | yes |
-| `RED_NOT_CONFIRMED` (fail) | compilation non-zero, **or** collection error, **or** any declared test passes | yes |
-| `NO_OBSERVATION` | a declared test emits no outcome token at all | yes — classified **fail**, never pass |
+| `RED_CONFIRMED` (pass) | the canonical compile command exits 0, **and** the canonical unittest command exits non-zero, **and** every derived expected harness test fails with its **own** expected marker, **and** no unexpected failure or error exists | yes |
+| `RED_NOT_CONFIRMED` (fail) | the commands ran and observation completed, but any derived expectation is unmet — a compile failure, an expected harness test that passes, a marker that does not correlate, or any unexpected failure or error | yes |
+| `NO_OBSERVATION` | no trustworthy observation could be taken — discovery failed, a loader error occurred, the derived expected set is empty, or the harness-surface resolver did not return `HARNESS_READY` | yes — classified **fail**, never pass |
 
-Producer: `autoharness op harness p004-gate` (created in `176-S`, on `P2`).
+**Derivation, not declaration.** Each generated harness test function in the
+configured test roots carries a unique sentinel
+`raise NotImplementedError("P004:<qualified-test-id>")`. The gate parses those
+roots with a safe AST walk, validates that each marker matches the qualified
+discovered test ID, and requires at least one. Discovery remains
+whole-suite: established unrelated tests may pass, but any unexpected failure,
+error or skip **of an expected harness test** blocks.
+
+**Resolver precondition is separate from the gate token.** The harness-surface
+resolver's `UNRESOLVED` and `NO_HARNESS` states are preserved as distinct
+precondition detail with distinct exit codes; **neither executes any command**,
+and both collapse to the final gate token `NO_OBSERVATION`.
+
+Producer: the typed operation `harness/p004-gate`, registered through the
+`184-S`-delivered registry and transport substrate and reachable identically as
+`autoharness op harness p004-gate` and over MCP.
 Consumer: the Ship pre-task harness-generation lifecycle (created in `P4`).
-Activation commit: `176-S` ACTIVATE.
+Carrier status: `176-S` / `168-F` are **RETIRED, never executed (D9)**. This
+table binds the **fresh** unit that Stage re-harvests once `185-S` and `187-S`
+have shipped and the plan holds an independent PASS.
 Reachability: `RED_CONFIRMED` is reachable — it is the state the live policy's
 postcondition `Compilation: PASS` + `Red Phase: CONFIRMED` already describes.
+
 
 ### SM-2 — Review-authority gate (`P3`)
 
@@ -1149,28 +1219,32 @@ plans harvested from this decision. The summary map is:
 
 | Unit | ID | Feature | Kind | Sources | Depends on | Disposition |
 |---|---|---|---|---|---|---|
-| `B0` | `188-S` | `182-F` | bootstrap | — (D9) | — | **RETIRED at revision 6 — archived, externally satisfied by `07b4be79`, never claimed or executed (D9)** |
+| `B0` | `188-S` | `182-F` | bootstrap | — (D9) | — | **RETIRED at revision 6 — archived, externally satisfied, never claimed or executed (D9)** |
+| `C0` | `191-S` | `185-F` | corrective | — (D9) | — | **RETIRED at revision 7 — archived, never claimed or executed; diagnosis withdrawn as false, deliverable satisfied by `1cb0dc81` + `b8ac632a`, and held structurally unexecutable by attempt-08 `S26` (D9)** |
 | `S1` | `182-S` | `176-F` | spike | 71200CBB, 76EBDE6D | — (**`dag-root`**) | new |
 | `S2` | `183-S` | `177-F` | spike | 7F9CB5E9 | — (**`dag-root`**) | new |
 | `P1` | `184-S` | `178-F` | foundation | 86498B64+14F4D6F3, 71200CBB, 76EBDE6D | `S1` | **WITHHELD — archived, conditional future (D10)**; `B0` edge removed at revision 6 |
-| `P2` | `185-S` | `179-F` | foundation | 86498B64+14F4D6F3, 71200CBB, C9CD24F3 | `P1` | queued, unclaimable while `P1` withheld; `B0` edge removed at revision 6 |
+| `P2` | `185-S` | `179-F` | foundation | 86498B64+14F4D6F3, 71200CBB, C9CD24F3 | `P1` | queued, unclaimable while `P1` withheld; `B0` edge removed at revision 6. **Not to be confused with the retired `185-F` feature** (D9), which is unrelated and never executed. |
 | `P3` | `186-S` | `180-F` | foundation | C9CD24F3 | `P2` | **absorbs `179-S`**; `B0` edge removed at revision 6 |
-| `P4` | `187-S` | `181-F` | foundation | 76EBDE6D | — (**`dag-root`**) | `P1` edge removed at revision 2 (D9); `B0` edge removed at revision 6 — now an explicit root |
-| — | `176-S` | `168-F` | defect | 76EBDE6D | `P2`, `P4` | retained, reduced; stale `dag-root` removed; `B0` edge removed at revision 6 |
+| `P4` | `187-S` | `181-F` | foundation | 76EBDE6D | — (**`dag-root`**) | `P1` edge removed at revision 2, `B0` edge at revision 6, the revision-6 `191-S` edge at revision 7 (D9) — an explicit root with an empty dependency set |
+| — | `176-S` | `168-F` | defect | 76EBDE6D | — | **RETIRED at revision 7 — archived, superseded design, never claimed or executed; re-harvested fresh after `P2` and `P4` ship (D9)** |
 | — | `177-S` | `169-F` | defect | 3EF5AAF2 | — (**`dag-root`**) | retained, reduced |
 | — | `178-S` | `170-F` | defect | 86498B64 + 14F4D6F3 | `P2` | retained, reduced; `B0` edge removed at revision 6 |
 | — | `179-S` | `171-F` | defect | C9CD24F3 | — | **archived → absorbed into `P3`** |
 | — | `180-S` | `172-F` | defect | 71200CBB | `P2` | retained, reduced; `B0` edge removed at revision 6 |
 | — | `181-S` | `173-F` | defect | 7F9CB5E9 | `S2` | **WITHHELD — archived, conditional future (D10)** |
 
-Six defect units become five. The four foundations exist because four separate
-units were each assuming the same four missing producers. At revision 2 a fifth,
-strictly narrower unit — `B0`/`188-S` — was added because the *first* of those
-producers could not be built by a unit that already needed it (D9). **At
-revision 6 that unit is retired**: the producer was installed outside the
-pipeline by `07b4be79`, so `B0` never executed and every edge awaiting it is
-removed. Two units remain withheld from the executable queue because no
-installed claim gate can enforce the verdict that authorizes them (D10).
+Six defect units become four. The four foundations exist because four separate
+units were each assuming the same four missing producers. Two additional units
+were added later and **both are now retired without ever having executed** (D9):
+`B0`/`188-S` at revision 2, to build the *first* actor through a pipeline that
+already required it, and `C0`/`191-S` at revision 6, to correct that actor's
+behaviour. Neither subject survives — the actor is installed by `07b4be79` and
+made conformant by `1cb0dc81` and `b8ac632a` — so every edge awaiting either is
+removed. **`176-S` is retired at revision 7** as a superseded design and is
+re-harvested fresh rather than restored, leaving four live defect units. Two
+units remain withheld from the executable queue because no installed claim gate
+can enforce the verdict that authorizes them (D10).
 
 ### Governing plans
 
@@ -1181,13 +1255,14 @@ in `docs/reviews/`. The six 2026-09-17 defect plans are marked
 | Unit | Plan | Supersedes |
 |---|---|---|
 | `B0` | `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` (**`plan_role: superseded`** — retained as a completed-externally decision record, not a live plan; **no PASS for revision 5**) | — |
+| `C0` | — (**no governing plan was ever authored**; the unit was harvested at revision 6 and retired at revision 7 without execution) | — |
 | `S1` | `docs/plans/2026-09-18-operation-transport-spike-plan.md` | — |
 | `S2` | `docs/plans/2026-09-18-conformance-isolation-spike-plan.md` | — |
 | `P1` | `docs/plans/2026-09-18-operation-substrate-transport-plan.md` (`plan_role: conditional-future`, preserved intact) | — |
 | `P2` | `docs/plans/2026-09-18-safe-operation-primitives-plan.md` | — |
 | `P3` | `docs/plans/2026-09-18-review-authority-foundation-plan.md` | `2026-09-17-single-governing-plan-contract-plan.md` |
-| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**rev 2** under D9; awaits first independent review) | — |
-| `176-S` | `docs/plans/2026-09-18-p004-observation-gate-plan.md` | `2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
+| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**revision 10**; attempt 08 FAIL against revision 9; awaiting independent attempt 09) | — |
+| `176-S` (retired) | `docs/plans/2026-09-18-p004-observation-gate-plan.md` (**revision 7**; attempt 01 FAIL against revision 6; awaiting attempt 02; **withheld from harvest** until `P2` and `P4` ship) | `2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
 | `177-S` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` | `2026-09-17-post-claim-member-status-contract-plan.md` |
 | `178-S` | `docs/plans/2026-09-18-branch-ensure-operation-plan.md` | `2026-09-17-workspace-authoritative-branch-resolution-plan.md` |
 | `180-S` | `docs/plans/2026-09-18-checkpoint-authority-plan.md` | `2026-09-17-checkpoint-resume-hint-contract-plan.md` |
