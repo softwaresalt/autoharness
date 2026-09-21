@@ -841,9 +841,18 @@ portfolio:**
 
 **Scope, stated precisely so the invariant is not over-applied:**
 
-* It binds on **installed artifacts only** — the 72 entries under the
-  manifest's `artifacts:` key, which today are paths under `.github/` and
-  `.autoharness/`.
+* It binds on **installed artifacts only**, and the binding is stated as a
+  **membership rule, not a cardinality**: an artifact is covered **if and only
+  if `.autoharness/harness-manifest.yaml` carries an entry for it under the
+  `artifacts:` key**, whatever the number of such entries happens to be at any
+  moment and whatever directory that path sits in. **THE ENTRY COUNT IS NOT
+  LOAD-BEARING AND IS DELIBERATELY NOT RESTATED HERE**: the manifest grows and
+  shrinks as the harness is installed, tuned and retired, so any count written
+  into this prose goes stale without any decision changing. **MEMBERSHIP IS
+  ALSO NOT A PATH-PREFIX RULE**: the tracked set is not confined to `.github/`
+  and `.autoharness/` — it includes repository-root files and other tracked
+  directories — so coverage MUST be decided by looking the path up in the
+  `artifacts:` key and never by inspecting its directory.
 * It does **not** bind on `templates/`. No template path is manifest-tracked
   (zero entries), so a template edit carries no manifest obligation and a
   template-and-mirror pair refreshes **one** entry, not two.
