@@ -1,32 +1,45 @@
 ---
 title: "Foundation: Ship pre-task harness-generation lifecycle"
-description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. At revision 5 the two remaining non-blocking P2 findings are closed at their root: the mirror's 'Step 2' reference set is replaced by an EXACT THREE-CLASS PARTITION derived line-by-line from live content (one heading, five top-level cross-references, four procedure-local lowercase sub-step references), making parity criterion P6 truthful and satisfiable while preserving the conservative Step-1.5 insertion; and the D/G/P label vocabulary is UNIFIED on the plan's numbering across the plan and all three consuming task records, extended to G1-G8 so no failure-mode check is lost. At revision 6 the single open P2 (S12) is corrected at its root: the claim that class-A and class-B lines all lie ABOVE the insertion point and do not shift is WITHDRAWN as false for class A, because the class-A heading at :336 IS the insertion successor and necessarily shifts. The exact truthful stability is now carried consistently on the plan, 181.004-T, 181.005-T, 181-F, 187-S and the verdict manifest: class B's five upstream references are line-number stable, class A is the shifted successor heading that must be re-located and re-validated by exact whole-line heading identity, and class-C lines below the insertion point shift. No gate may require the pre-insertion class-A line number after insertion. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption."
+description: "Installs the Ship pre-task harness-generation LIFECYCLE that invokes the actor policy P-004 already names. At revision 2 the ACTOR INSTALL ITSELF is no longer performed here - it moved to the narrow one-time precursor 188-S, because this unit could not bootstrap itself through an actor that did not exist. At revision 4 the unit is re-grounded in live workspace state: the Ship agent TEMPLATE already carries a harness-generation section and the INSTALLED MIRROR carries none, so this unit RECONCILES THE EXISTING TEMPLATE SECTION IN PLACE - never duplicating it - and INSTALLS the corresponding dogfood mirror section in the SAME commit, reaching template/mirror parity rather than assuming it. At revision 5 the two remaining non-blocking P2 findings are closed at their root: the mirror's 'Step 2' reference set is replaced by an EXACT THREE-CLASS PARTITION derived line-by-line from live content (one heading, five top-level cross-references, four procedure-local lowercase sub-step references), making parity criterion P6 truthful and satisfiable while preserving the conservative Step-1.5 insertion; and the D/G/P label vocabulary is UNIFIED on the plan's numbering across the plan and all three consuming task records, extended to G1-G8 so no failure-mode check is lost. At revision 6 the single open P2 (S12) is corrected at its root: the claim that class-A and class-B lines all lie ABOVE the insertion point and do not shift is WITHDRAWN as false for class A, because the class-A heading at :336 IS the insertion successor and necessarily shifts. The exact truthful stability is now carried consistently on the plan, 181.004-T, 181.005-T, 181-F, 187-S and the verdict manifest: class B's five upstream references are line-number stable, class A is the shifted successor heading that must be re-located and re-validated by exact whole-line heading identity, and class-C lines below the insertion point shift. No gate may require the pre-insertion class-A line number after insertion. It also defines the lifecycle states including an explicit NO_HARNESS failed-precondition state. Closes the assumed-skill bootstrap gap at its root so the P-004 gate work in 176-S consumes an installed producer instead of an assumption. At revision 8 that producer is a COMPLETED FACT rather than pending precursor work: .github/skills/harness-architect/SKILL.md is part of the PUBLICATION BASELINE, installed at exact manifest checksum parity by the bounded Auto-Tune harness-maintenance commit 07b4be79263252b1820701fd123d0aed85c1db2a; the precursor 188-S and its feature 182-F are RETIRED AND ARCHIVED WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED; and 187-S is an explicit dag-root with no shipment dependencies. Revision 8 restates those external facts ONLY and changes NO reviewed criterion, task contract, blast radius, rollback bound, verification floor or sizing. INSTALLATION ALONE CONFERS NO TASK CLAIM."
 doc_type: plan
 source: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 date: 2026-09-18
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 plan_role: active
-revision: 7
+revision: 8
+revision_scope: graph-fact-synchronization-only
+revision_8_note: "Revision 8 is a GRAPH-FACT SYNCHRONIZATION ONLY and is NOT a remediation, not a correction log and not a re-scoping. The harness-architect actor is now part of the publication baseline, installed by the bounded Auto-Tune harness-maintenance commit 07b4be79263252b1820701fd123d0aed85c1db2a at exact manifest checksum parity; 188-S and 182-F are retired and archived WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED; and 187-S carries the dag-root label because its only prerequisite was 188-S. This revision restates those external facts wherever this plan asserted them as future work. NOTHING THE TERMINAL REVIEW JUDGED HAS CHANGED: D1-D3, G1-G8, P1-P6, the three-class A/B/C partition, the S12 addressing rule, the conservative Step 1.5 insertion, the no-renumbering rule, the ACTIVATE three-file contract, the D11 manifest-parity binding, the blast radius, the rollback confinement, the verification floor, the task set, the task edges and every size/complexity value are ALL UNCHANGED AND BYTE-IDENTICAL IN SUBSTANCE."
 verdict: PASS
+verdict_revision: 7
+verdict_carried_to_revision: 8
+verdict_carry_basis: no-reviewed-criterion-changed
+verdict_carry_claim_is_falsifiable: true
 disposition: PASS-P3-ONLY
-verdict_note: "TERMINAL VERDICT: Independent terminal attempt 06 judged revision 7 and returned PASS: zero P0, zero P1, zero P2 and one carried P3 (S13). Attempt 06 is TERMINAL FOR PUSH B and no further remediation cycle is authorized. Acceptance-matrix criteria A1-A4 are GitHub-dependent and were NOT OBSERVABLE in that session; they are recorded as not observed and expressly NOT asserted. A5-A8 pass locally. This verdict is review-axis only: 187-S remains dependency-gated on 188-S and its tasks are not claimable until 188-S reaches shipped. HISTORICAL AUTHORING NOTE: Revision 7 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan. THE FINDING: 181.005-T activates .github/agents/_ship.agent.md, a manifest-tracked installed artifact, and neither the ACTIVATE contract, the Blast radius, the Rollback nor the Verification floor required the atomic .autoharness/harness-manifest.yaml checksum refresh that edit entails, so the plan stated a two-file contract under which an activation commit leaves the manifest asserting a digest of a file the same commit has already rewritten. THE REMEDIATION: the ACTIVATE contract now states three files - two edited Ship surfaces plus the single manifest entry recording the installed one - and binds decision D11 for exactly one entry refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest. Blast radius names the manifest member, Rollback restores it together with the mirror, hardening H7 is restated at three files, and a Manifest-parity floor is added to the Verification floor. THE MANIFEST IS A COMMIT MEMBER, NOT A THIRD SURFACE: D1-D3, G1-G8 and P1-P6 remain scoped to the two Ship surfaces exactly as written, none of them reads the manifest, the class-A/B/C partition and the S12 addressing rule are untouched, and size/complexity hold at M/high. .github/skills/harness-architect/SKILL.md and its manifest entry belong to 188-S and are not touched here. THE LIVE MANIFEST IS NOT EDITED: this is a future implementation contract. That revision-7 content is what TERMINAL ATTEMPT 06 independently judged and PASSED; Stage asserted no PASS, performed no self-review, and closed no finding - every closure recorded here was made by an independent attempt. HISTORICAL, revision 6 record, preserved and superseded: Revision 6 remediates the single open P2 (S12) raised by independent plan-review attempt 04 of revision 5 (ADVISORY / PROCEED-WITH-ADVISORY, P0 0 / P1 0 / P2 1 / P3 1), which CLOSED S10 and S11 and confirmed S1-S9 closed. S12 (P2): revision 5 asserted that 'every class-A and class-B line lies ABOVE the insertion point (:336), so none of their line numbers changes; only the class-C lines at :377 and :748 shift'. THAT CLAIM IS FALSE FOR CLASS A AND IS WITHDRAWN, along with all three of its sub-claims. The class-A line IS :336 and D2 defines the insertion as occurring immediately BEFORE it, so the class-A heading is the INSERTION SUCCESSOR and NECESSARILY SHIFTS. The truthful statement now carried on every carrier is: CLASS B's FIVE UPSTREAM CROSS-REFERENCES (:275, :283, :302, :305, :326) are LINE-NUMBER STABLE across the insertion and are the only stability this unit asserts as load-bearing (they are exactly the set P6b is evaluated against); class-C :184 and :214 are also above and stable but no criterion reads them; CLASS A (:336) SHIFTS to :336+N and MUST BE RE-LOCATED AND RE-VALIDATED BY EXACT WHOLE-LINE HEADING IDENTITY ('### Step 2: Task Execution Loop') after the insertion, its pre-insertion line number being a PRE-INSERTION LOCATOR ONLY; and class-C :377 and :748 shift to :377+N and :748+N. NO GATE, CRITERION OR HALT CONDITION MAY REQUIRE THE PRE-INSERTION CLASS-A LINE NUMBER AFTER THE INSERTION, and none does - P6a is a property of heading text, P6b names class-B lines only, D1-D3 match whole lines, and G1-G8 are counts (G8 in particular is satisfied by exactly one whole-line D2 match wherever it now sits). The correction is propagated to 181.004-T's VERIFY evidence requirements and 181.005-T's ACTIVATE contract, and to 181-F, 187-S and the verdict manifest, consistently. PRESERVED WITHOUT WEAKENING: P6a and P6b as split at revision 5, the conservative Step 1.5 insertion, the no-renumbering rule, the three-class partition and its three count identities, the canonical single D1-D3 / G1-G8 / P1-P6 vocabulary, and every S1-S11 closure. S13 (P3) is NOT remediated: under the operator's standing disposition it is carried as a non-blocking follow-up in stash 703B6FAF, outside this shipment's scope, and it is the single finding still open against this plan. END OF HISTORICAL RECORD."
+verdict_note: "TERMINAL VERDICT: Independent terminal attempt 06 judged revision 7 and returned PASS: zero P0, zero P1, zero P2 and one carried P3 (S13). Attempt 06 is TERMINAL FOR PUSH B and no further remediation cycle is authorized. Acceptance-matrix criteria A1-A4 are GitHub-dependent and were NOT OBSERVABLE in that session; they are recorded as not observed and expressly NOT asserted. A5-A8 pass locally. This verdict is review-axis only: it opens the review gate and NOTHING ELSE. 187-S is now an explicit dag-root with no shipment dependencies, because its only prerequisite 188-S is retired and the harness-architect actor is part of the publication baseline. ROOT STATUS IS NOT A CLAIM: this unit's tasks become claimable only through ordinary pre-claim checks and this unit's OWN P-002 / P-004 harness generation at claim time, followed by independent review, CI and closure. INSTALLATION ALONE CONFERS NO TASK CLAIM. HISTORICAL AUTHORING NOTE: Revision 7 remediates one finding of the PR #457 current-HEAD Copilot review of Push A, a P-021 C1 in-scope completion of this already-published plan. THE FINDING: 181.005-T activates .github/agents/_ship.agent.md, a manifest-tracked installed artifact, and neither the ACTIVATE contract, the Blast radius, the Rollback nor the Verification floor required the atomic .autoharness/harness-manifest.yaml checksum refresh that edit entails, so the plan stated a two-file contract under which an activation commit leaves the manifest asserting a digest of a file the same commit has already rewritten. THE REMEDIATION: the ACTIVATE contract now states three files - two edited Ship surfaces plus the single manifest entry recording the installed one - and binds decision D11 for exactly one entry refreshed in the same commit and the same rollback unit, followed by a checksum-parity re-digest. Blast radius names the manifest member, Rollback restores it together with the mirror, hardening H7 is restated at three files, and a Manifest-parity floor is added to the Verification floor. THE MANIFEST IS A COMMIT MEMBER, NOT A THIRD SURFACE: D1-D3, G1-G8 and P1-P6 remain scoped to the two Ship surfaces exactly as written, none of them reads the manifest, the class-A/B/C partition and the S12 addressing rule are untouched, and size/complexity hold at M/high. .github/skills/harness-architect/SKILL.md and its manifest entry belong to 188-S and are not touched here. THE LIVE MANIFEST IS NOT EDITED: this is a future implementation contract. That revision-7 content is what TERMINAL ATTEMPT 06 independently judged and PASSED; Stage asserted no PASS, performed no self-review, and closed no finding - every closure recorded here was made by an independent attempt. HISTORICAL, revision 6 record, preserved and superseded: Revision 6 remediates the single open P2 (S12) raised by independent plan-review attempt 04 of revision 5 (ADVISORY / PROCEED-WITH-ADVISORY, P0 0 / P1 0 / P2 1 / P3 1), which CLOSED S10 and S11 and confirmed S1-S9 closed. S12 (P2): revision 5 asserted that 'every class-A and class-B line lies ABOVE the insertion point (:336), so none of their line numbers changes; only the class-C lines at :377 and :748 shift'. THAT CLAIM IS FALSE FOR CLASS A AND IS WITHDRAWN, along with all three of its sub-claims. The class-A line IS :336 and D2 defines the insertion as occurring immediately BEFORE it, so the class-A heading is the INSERTION SUCCESSOR and NECESSARILY SHIFTS. The truthful statement now carried on every carrier is: CLASS B's FIVE UPSTREAM CROSS-REFERENCES (:275, :283, :302, :305, :326) are LINE-NUMBER STABLE across the insertion and are the only stability this unit asserts as load-bearing (they are exactly the set P6b is evaluated against); class-C :184 and :214 are also above and stable but no criterion reads them; CLASS A (:336) SHIFTS to :336+N and MUST BE RE-LOCATED AND RE-VALIDATED BY EXACT WHOLE-LINE HEADING IDENTITY ('### Step 2: Task Execution Loop') after the insertion, its pre-insertion line number being a PRE-INSERTION LOCATOR ONLY; and class-C :377 and :748 shift to :377+N and :748+N. NO GATE, CRITERION OR HALT CONDITION MAY REQUIRE THE PRE-INSERTION CLASS-A LINE NUMBER AFTER THE INSERTION, and none does - P6a is a property of heading text, P6b names class-B lines only, D1-D3 match whole lines, and G1-G8 are counts (G8 in particular is satisfied by exactly one whole-line D2 match wherever it now sits). The correction is propagated to 181.004-T's VERIFY evidence requirements and 181.005-T's ACTIVATE contract, and to 181-F, 187-S and the verdict manifest, consistently. PRESERVED WITHOUT WEAKENING: P6a and P6b as split at revision 5, the conservative Step 1.5 insertion, the no-renumbering rule, the three-class partition and its three count identities, the canonical single D1-D3 / G1-G8 / P1-P6 vocabulary, and every S1-S11 closure. S13 (P3) is NOT remediated: under the operator's standing disposition it is carried as a non-blocking follow-up in stash 703B6FAF, outside this shipment's scope, and it is the single finding still open against this plan. END OF HISTORICAL RECORD."
 awaiting_attempt: null
 latest_attempt: 6
 review_manifest: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 4
+decision_revision: 6
 source_stash_ids:
   - 76EBDE6D
 source_stash_note: "Corrected at revision 4 (finding S9). The governing decision's portfolio table assigns 76EBDE6D to this unit by name - docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md line 993, row 'P4 | 187-S | 181-F | foundation | 76EBDE6D' - and every live carrier already cites it: the 187-S title and body, 181-F, 181.002-T and 181.005-T. 76EBDE6D is an ARCHIVED stash entry, retrievable at .backlogit/archive/stash.jsonl line 234: 'P-021 RELIABILITY FOLLOW-UP: P-004 red-phase precondition is unsatisfiable on this workspace.' That is this unit's genuine origin. The prior value 3EF5AAF2 was a MIS-CITATION, not a second genuine source: the same decision table assigns it at line 995 to 177-S / 169-F, the post-claim member-status portfolio, and it is the declared source of docs/plans/2026-09-18-post-claim-member-status-contract-plan.md. It has no relation to the Ship harness-generation lifecycle. This unit is SINGLE-SOURCE; no multi-source relation is claimed because none exists."
 feature_id: 181-F
 shipment_id: 187-S
 unit_role: precursor-foundation
-depends_on_shipments:
-  - 188-S
+depends_on_shipments: []
 removed_depends_on_shipments:
   - 184-S
+  - 188-S
+dag_root: true
+dag_root_note: "187-S is an explicit dag-root: its ONLY prerequisite was 188-S, and that unit is retired because the harness-architect actor it was to install is now part of the publication baseline. ROOT STATUS IS A GRAPH FACT, NOT AN EXECUTION AUTHORIZATION. Execution of this unit's tasks still requires ordinary pre-claim checks, this unit's OWN P-002 / P-004 harness generation at claim time, independent review, CI and closure. INSTALLATION ALONE CONFERS NO TASK CLAIM."
+actor_installed_in_baseline: true
+actor_installed_by_commit: 07b4be79263252b1820701fd123d0aed85c1db2a
+actor_artifact: .github/skills/harness-architect/SKILL.md
+actor_artifact_sha256: 49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716
 bootstrap_precursor_plan: docs/plans/2026-09-20-harness-architect-bootstrap-plan.md
+bootstrap_precursor_status: RETIRED-SUPERSEDED-COMPLETED-EXTERNALLY
 gates:
   - 176-S
 requires_plan_hardening: true
@@ -110,22 +123,24 @@ phase — reconciled into the Ship agent's existing harness-generation step and
 mirrored into the installed agent — the resolver that locates the installed
 actor, the lifecycle state contract the P-004 gate consumes, and the
 `HARNESS_READY` / `NO_HARNESS` token contract. All ordinary harness-backed
-work, executed *after* `188-S` has installed the actor, with no special
-authority of any kind.
+work, executed against an actor that is **already present in the publication
+baseline**, with no special authority of any kind.
 
 **What this unit no longer owns.** Generating
 `.github/skills/harness-architect/` from its template. That single file is
-`188-S`'s entire deliverable.
+**already installed**, by the bounded Auto-Tune harness-maintenance commit
+`07b4be79263252b1820701fd123d0aed85c1db2a`, at exact manifest checksum parity.
 
-**No waiver anywhere on this path.** `188-S` consumes no bootstrap grant,
-writes no bootstrap grant, uses no `--force`, and touches no force-audit log.
-It executes the complete procedure already specified in
-`templates/skills/harness-architect/SKILL.md.tmpl`, so the **full** mechanical
-P-004 evidence — `py_compile` exit 0 and a failing `unittest discover` carrying
-the expected RED markers — is genuinely produced rather than suspended. If the
-lifecycle is not installed, P-004 still fails closed.
+**No waiver anywhere on this path.** No bootstrap grant is consumed, written or
+inherited here; no `--force` is used and no force-audit log is touched. Because
+the actor exists in the baseline, the **full** mechanical P-004 evidence —
+`py_compile` exit 0 and a failing `unittest discover` carrying the expected RED
+markers — is genuinely produced by this unit's own harness generation at claim
+time rather than suspended. If the lifecycle is not installed, P-004 still fails
+closed.
 
-**Dependency:** this unit now declares exactly one predecessor, `188-S`.
+**Dependency:** this unit declares **no** shipment predecessor. `187-S` is an
+explicit `dag-root`. That is a graph fact, not an execution authorization.
 
 ## What P-004 already requires
 
@@ -139,8 +154,8 @@ and its postcondition records `Compilation: PASS` and `Red Phase: CONFIRMED`.
 This matters for scope: attempt-08's P0 on `176-S` (the gate omits the
 compilation channel) is a **regression against live policy**, not a gap in it.
 `176-S` restores the observation; this unit supplies the **lifecycle step** that
-produces the state the observation reads. The actor that step invokes is
-supplied by `188-S`, not here.
+produces the state the observation reads. The actor that step invokes is part of
+the publication baseline, not produced here.
 
 ## Live state of the two ACTIVATE targets
 
@@ -219,7 +234,8 @@ surface-resolution phase, executed before it lists any task:
 This is a **real installed lifecycle phase in the Ship agent**, not a
 documentation note and not an assumption recorded in a plan. `harness-architect`
 — the only surface this portfolio requires — is already present when the phase
-first runs, because `188-S` installed it. No task in this unit exercises the
+first runs, because it is part of the publication baseline. No task in this unit
+exercises the
 phase against `.github/skills/harness-architect/`; `181.004-T` exercises it
 against a fixture template in a scratch root instead.
 
@@ -447,8 +463,8 @@ loses no check and ends the collision on `G7`.
 | Consumer | the P-004 gate in `176-S`; Ship's own pre-task sequence |
 
 `HARNESS_READY` is reachable for the only surface currently required, because
-`188-S` has already installed `.github/skills/harness-architect/SKILL.md` before
-this unit becomes claimable. The resolver therefore observes a surface that
+`.github/skills/harness-architect/SKILL.md` is **already installed in the
+publication baseline**. The resolver therefore observes a surface that
 exists rather than one it would have to create.
 
 `NO_HARNESS` is distinct from a policy failure. A gate that cannot observe its
@@ -473,8 +489,9 @@ ACTIVATE commit later transcribed.
 
 **VERIFY.** `181.004-T` — RED assertions observed failing, then passing. The
 resolver is observed returning `HARNESS_READY` only after actually locating the
-installed `.github/skills/harness-architect/SKILL.md` — **already installed by
-`188-S`, and consumed here read-only as a satisfied precondition** — and
+installed `.github/skills/harness-architect/SKILL.md` — **present in the
+publication baseline, and consumed here read-only as a satisfied
+precondition** — and
 returning `NO_HARNESS` against a scratch harness root in which a required
 surface is absent. It additionally asserts the pre-commit gates `G1`–`G3` hold
 against live file content, so a stale premise is caught **before** activation
@@ -500,8 +517,8 @@ anchor. Those two files are the **only** surfaces this commit may change, and
 > edges are not atomic.
 
 **No task in this unit generates, installs, modifies or deletes
-`.github/skills/harness-architect/SKILL.md`.** That file is `188-S`'s entire
-deliverable and this unit's precondition.
+`.github/skills/harness-architect/SKILL.md`.** That file is part of the
+publication baseline and this unit's precondition.
 
 ## Tasks
 
@@ -510,7 +527,7 @@ deliverable and this unit's precondition.
 | `181.001-T` | RED | lifecycle-state contract tests incl. `NO_HARNESS` reachability | S | medium |
 | `181.002-T` | PREPARE | harness-surface requirement resolver (Python, `src/`) | S | medium |
 | `181.003-T` | PREPARE | author the canonical phase **text** as test-owned fixture data — **agent-procedure design, no Python** | S | medium |
-| `181.004-T` | VERIFY | lifecycle evidence + pre-commit gates `G1`–`G3`, actor already installed by `188-S`, no live reference yet | XS | low |
+| `181.004-T` | VERIFY | lifecycle evidence + pre-commit gates `G1`–`G3`, actor already present in the publication baseline, no live reference yet | XS | low |
 | `181.005-T` | ACTIVATE | one commit: update the template's existing `Step 2` in place, install the mirror's `Step 1.5` | M | high |
 
 Edges: `181.001-T` → `181.002-T` → `181.003-T` → `181.004-T` → `181.005-T`.
@@ -558,8 +575,9 @@ Two axes, independently assigned, never conflated.
   `181.005-T` is **again held** at `M`/`high`.
 
 **No task in this unit generates `.github/skills/harness-architect/`**, at
-revision 2, 3, 4, 5 or 6. `188-S` installs it, and `181.004-T` observes it as an
-already-satisfied precondition rather than producing it.
+revision 2, 3, 4, 5, 6, 7 or 8. It is part of the publication baseline, and
+`181.004-T` observes it as an already-satisfied precondition rather than
+producing it.
 
 **No task in this unit produces Python at `181.003-T`.** The `src/` deliverable
 of this unit is the resolver and the state contract, authored by `181.002-T`
@@ -571,8 +589,8 @@ and tested by `181.001-T`. `181.003-T` produces Markdown fixture text only.
   consumes this unit's `HARNESS_READY` state.
 * Any edit to policy P-004's text. Its precondition is correct as written;
   this unit satisfies it rather than changing it.
-* Generating `.github/skills/harness-architect/` itself. That is the entire
-  deliverable of the one-time precursor `188-S`; this unit consumes it.
+* Generating `.github/skills/harness-architect/` itself. It is already present
+  in the publication baseline; this unit consumes it.
 * Generating any other absent skill surface. The resolver reports; only
   `harness-architect` is required by this portfolio, and installing more would
   widen the activation commit beyond its contract.
@@ -587,7 +605,7 @@ and tested by `181.001-T`. `181.003-T` produces Markdown fixture text only.
 
 | # | Risk | Mitigation |
 |---|---|---|
-| R1 | The `harness-architect` template is stale relative to current skill conventions | `188-S` generates and validates it under its own verification floor; `181.004-T` re-observes frontmatter and structure before activation, so a stale template fails VERIFY in either unit rather than landing broken. |
+| R1 | The `harness-architect` template is stale relative to current skill conventions | The installed actor is part of the publication baseline at exact manifest checksum parity; `181.004-T` re-observes frontmatter and structure before activation, so a stale template fails VERIFY here rather than landing broken. |
 | R2 | The lifecycle step slows every shipment start | The resolver short-circuits when all required surfaces are already present, which is the steady state after the first execution. |
 | R3 | `NO_HARNESS` becomes a routine blocker | It is only reachable when a required surface has no authoritative template. The resolver reports the missing template path, so the remedy is explicit rather than a retry loop. |
 | R4 | The ACTIVATE commit appends a **second** harness-generation section to the template instead of updating the existing one | The primary risk of this unit, and the defect `S7` caught. Detection is by exact heading literal (`D1`); the outcome is **counted** both before (`G1`) and after (`G4`, `G5`). A pre-count other than exactly 1, or a post-count other than exactly 1, halts or fails the commit. Plan and record both say **update in place**; neither says "add". |
@@ -609,13 +627,13 @@ went unnoticed through two attempts. `H9`–`H12` close that class.
 
 | # | Question | Answer |
 |---|---|---|
-| H1 | Is the lifecycle phase real, or does it just assume the actor it invokes? | Real, and the assumption is exactly what it removes. `181.004-T` observes the resolver returning `HARNESS_READY` only after it has actually located `.github/skills/harness-architect/SKILL.md` and matched it against its authoritative template, and returning `NO_HARNESS` against a scratch root where a required surface is absent. This unit does not generate the actor and does not validate it into existence: `188-S` installs it under its own verification floor, so a stale or non-conforming template fails **there**, before this unit is claimable. |
+| H1 | Is the lifecycle phase real, or does it just assume the actor it invokes? | Real, and the assumption is exactly what it removes. `181.004-T` observes the resolver returning `HARNESS_READY` only after it has actually located `.github/skills/harness-architect/SKILL.md` and matched it against its authoritative template, and returning `NO_HARNESS` against a scratch root where a required surface is absent. This unit does not generate the actor and does not validate it into existence: the actor is part of the publication baseline at exact manifest checksum parity, so a stale or non-conforming surface is caught by `181.004-T`'s own pre-commit observation rather than assumed away. |
 | H2 | Could `NO_HARNESS` be silently treated as a pass? | It is a distinct terminal state, and the P-004 gate in `176-S` consumes it as a failed precondition. The rule is the same one this portfolio applies everywhere: an unobserved precondition is not a satisfied one. |
 | H3 | Does this unit amend policy P-004? | No, and it must not. P-004's precondition already requires `py_compile` exit 0 and a non-zero test run. The defect is an implementation that stopped observing one channel. Amending the policy would delete the requirement instead of satisfying it. No task in this unit may edit `.github/policies/workflow-policies.md` or `templates/policies/`, in the ACTIVATE commit or anywhere else. |
 | H4 | Why not a waiver or a force flag? | Both were evaluated and rejected. A waiver suspends the gate for exactly the case it exists to catch, and an override reachable by the agent it constrains is not a gate. |
-| H5 | Does the phase run on every task? | Pre-task, per shipment, short-circuiting when all required surfaces are present — which is the steady state after `188-S`. A per-task full re-resolution would be a cost with no added guarantee. |
-| H6 | Could the resolver install surfaces beyond the one required? | It resolves; it does not install. Only `harness-architect` is required by this portfolio and it is already installed by `188-S` before this unit runs. Generating anything in the ACTIVATE commit would widen it past its stated contract and is out of scope. |
-| H7 | Could reverting this unit remove `188-S`'s deliverable? | No, and the Rollback section states so explicitly. The ACTIVATE commit touches exactly three files — the Ship agent template, its installed mirror, and the single `.autoharness/harness-manifest.yaml` entry recording that mirror — so its revert cannot reach `.github/skills/harness-architect/` **or** that file's own manifest entry, which `188-S` registers and this unit never touches. |
+| H5 | Does the phase run on every task? | Pre-task, per shipment, short-circuiting when all required surfaces are present — which is the steady state, because the actor is in the publication baseline. A per-task full re-resolution would be a cost with no added guarantee. |
+| H6 | Could the resolver install surfaces beyond the one required? | It resolves; it does not install. Only `harness-architect` is required by this portfolio and it is already present in the publication baseline. Generating anything in the ACTIVATE commit would widen it past its stated contract and is out of scope. |
+| H7 | Could reverting this unit remove the installed actor? | No, and the Rollback section states so explicitly. The ACTIVATE commit touches exactly three files — the Ship agent template, its installed mirror, and the single `.autoharness/harness-manifest.yaml` entry recording that mirror — so its revert cannot reach `.github/skills/harness-architect/` **or** that file's own manifest entry, which belongs to the publication baseline and which this unit never touches. |
 | H8 | Does anything in this unit still assume it installs the actor? | It must not, and the propagation is the risk. At revision 4 the Rollout, Blast radius, Rollback, this pass, the Tasks table, the Out-of-scope list and **all five** task records state the same reduced scope. A single surface left at revision-1 framing is what blocked revision 2, because Ship executes records rather than narrative. |
 | **H9** | **Does the ACTIVATE commit's target already contain the section this unit intends to add?** | **Yes — and revision 3 did not know it.** `templates/agents/_ship.agent.md.tmpl:326` already carries `### Step 2: Harness Generation (P-002 / P-004)`. This is now the governing fact of the unit: the template section is **updated in place**, never re-added, under exact-literal detection `D1` and counted gates `G1`/`G4`/`G5`. An instruction to "add the step to both files" is withdrawn from the plan and from every record, because against a file that already has the section it authorizes exactly the duplicate this unit must not produce. |
 | **H10** | **Is the stated atomicity hazard the drift that actually exists?** | **It was not; it is now.** Revision 3 argued against "the installed mirror has a lifecycle step its template does not declare". The live drift is the exact inverse — template ahead, mirror empty. The argument is replaced: a split commit would not create divergence, it would merely **reverse the direction** of the divergence that already exists. Only a single commit reconciling both surfaces ends it. The conclusion (one commit) survives; the reasoning that reached it does not, and has been rewritten rather than patched. |
@@ -641,8 +659,9 @@ went unnoticed through two attempts. `H9`–`H12` close that class.
   No other entry is created, refreshed or rewritten, and no
   `declared_surface_count` anywhere in the portfolio moves: the manifest is a
   commit member, not a declared surface.
-* **No new installed skill.** The `harness-architect` actor is installed by
-  `188-S`; this unit neither generates, modifies nor removes it.
+* **No new installed skill.** The `harness-architect` actor is already present
+  in the publication baseline; this unit neither generates, modifies nor removes
+  it.
 * **No policy text**, in template or installed form.
 
 Every future shipment execution passes through the reconciled step, so a defect
@@ -675,7 +694,8 @@ creates. Naming that plainly matters: a reviewer must be able to tell that the
 revert restores a documented prior state rather than leaving fresh divergence.
 
 **The revert must not touch `.github/skills/harness-architect/SKILL.md`.** That
-file is `188-S`'s deliverable, it is not produced by this unit, and every
+file is part of the publication baseline, it is not produced by this unit, and
+every
 code-bearing shipment in the portfolio is gated on its existence. Deleting it
 would turn a unit-scoped revert into a portfolio-wide regression. **The revert
 must also not touch any policy text**, in template or installed form, because
@@ -714,4 +734,4 @@ as `P1`-`P6`: a property of the artifacts, read after the commit, never an
 inference from the fact that the commit intended to update both. This floor is
 scoped to that **one** entry; no other manifest entry is read, refreshed or
 asserted by this unit, and `.github/skills/harness-architect/SKILL.md`'s entry
-belongs to `188-S` and is untouched here.
+belongs to the publication baseline and is untouched here.

@@ -1,14 +1,16 @@
 ---
 title: "Plan review verdict manifest — Ship pre-task harness-generation lifecycle"
-description: "Mutable verdict manifest for docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. MANIFEST REVISION 11. THE VERDICT OF RECORD IS PASS, determined by INDEPENDENT TERMINAL ATTEMPT 06 against plan REVISION 7 on committed base a192e50c, with P0 0 / P1 0 / P2 0 and one carried P3 (S13). Attempt 06 is TERMINAL FOR PUSH B of PR #457 and no further remediation cycle is authorized after it; awaiting_attempt is NULL. PUBLICATION AND EXECUTION ARE DISTINCT GATES: the PASS opens SM-2 HARVEST_ADMITTED on the review axis and confers NO claim and NO Ship authorization - 187-S declares a blocks edge on 188-S (queued) and its tasks are not claimable until 188-S ships. Manifest revision 11 adds a separately rostered Stage-executed TARGETED TERMINAL REVIEW of carrier consistency; it is NOT an independent attempt, asserts NO verdict, consumes no attempt number, raised NO findings and closed NO finding."
+description: "Mutable verdict manifest for docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. MANIFEST REVISION 11. THE VERDICT OF RECORD IS PASS, determined by INDEPENDENT TERMINAL ATTEMPT 06 against plan REVISION 7 on committed base a192e50c, with P0 0 / P1 0 / P2 0 and one carried P3 (S13). Attempt 06 is TERMINAL FOR PUSH B of PR #457 and no further remediation cycle is authorized after it; awaiting_attempt is NULL. PUBLICATION AND EXECUTION ARE DISTINCT GATES: the PASS opens SM-2 HARVEST_ADMITTED on the review axis and confers NO claim and NO Ship authorization - 187-S is now an explicit dag-root with NO shipment dependencies, because its only prerequisite 188-S is RETIRED and the harness-architect actor is part of the PUBLICATION BASELINE, installed by commit 07b4be79263252b1820701fd123d0aed85c1db2a; ROOT STATUS IS A GRAPH FACT AND NOT AN EXECUTION AUTHORIZATION, and 187-S tasks become claimable only through ordinary pre-claim checks, the unit's OWN P-002 / P-004 harness generation at claim time, independent review, CI and closure. Manifest revision 12 synchronizes the dependency and claimability statements ONLY, against plan revision 8's graph-fact synchronization; NO attempt, NO finding, NO count and NO verdict is altered, and the terminal attempt-06 PASS against plan revision 7 is preserved verbatim. Manifest revision 11 added a separately rostered Stage-executed TARGETED TERMINAL REVIEW of carrier consistency; it is NOT an independent attempt, asserts NO verdict, consumes no attempt number, raised NO findings and closed NO finding."
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
-manifest_revision: 11
+manifest_revision: 12
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
-plan_revision: 7
+plan_revision: 8
+plan_revision_reviewed: 7
+plan_revision_8_scope: graph-fact-synchronization-only
 feature_id: 181-F
 shipment_id: 187-S
 latest_attempt: 6
@@ -54,7 +56,11 @@ targeted_reviews:
     findings_raised: []
     note: "Operator-directed targeted terminal review of lifecycle CARRIER consistency after the bootstrap label-ordering repair. NOT an independent attempt and asserts NO verdict; attempt 06's PASS is the verdict of record and is neither superseded nor re-derived here. It closed three stale-narrative defects that lived in the carriers rather than in the reviewed plan content: the self-contradicting verdict_note tail asserting a NULL verdict at revision 6; the 'awaiting independent attempt 05' narratives on 187-S, 181-F and 181.005-T; and the false claim in .backlogit/archive/184-S.md that 187-S keeps a declared dependency on 184-S. It verified that the D11 manifest-parity rule - three commit files, exactly one refreshed Ship manifest entry - survives unchanged on 181-F, 181.005-T, 187-S and the plan. It raised NO findings and did NOT close S13."
 publication_eligible: true
-publication_eligibility_note: "PUBLICATION-ELIGIBLE ON THE REVIEW AXIS ONLY. Verdict PASS with zero P0, P1 and P2 opens SM-2's HARVEST_ADMITTED, which is defined against verdict PASS. EXECUTION REMAINS SEPARATELY GATED: 187-S declares a blocks edge on 188-S (status queued), so 187-S tasks are NOT claimable until 188-S reaches shipped. Two distinct gates; this verdict lifts only the first."
+publication_eligibility_note: "PUBLICATION-ELIGIBLE ON THE REVIEW AXIS ONLY. Verdict PASS with zero P0, P1 and P2 opens SM-2's HARVEST_ADMITTED, which is defined against verdict PASS. EXECUTION REMAINS SEPARATELY GATED AND THIS VERDICT DOES NOT LIFT IT: 187-S is an explicit dag-root with NO shipment dependencies - the 188-S edge is removed because 188-S is RETIRED and the harness-architect actor is part of the publication baseline - but ROOT STATUS IS A GRAPH FACT, NOT AN EXECUTION AUTHORIZATION and INSTALLATION ALONE CONFERS NO TASK CLAIM. 187-S tasks become claimable only through ordinary pre-claim checks, the unit's OWN P-002 / P-004 harness generation at claim time, independent review, CI and closure. Two distinct gates; this verdict lifts only the first."
+dag_root: true
+depends_on_shipments: []
+actor_installed_in_baseline: true
+actor_installed_by_commit: 07b4be79263252b1820701fd123d0aed85c1db2a
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-01.md
@@ -181,7 +187,7 @@ carried_forward_context:
   - "OBSERVATION RECORDED AT ATTEMPT 04, NOT A FINDING, 188-S NOT MUTATED: docs/reviews/2026-09-20-harness-architect-bootstrap-plan-review.md carries plan_revision 3, latest_attempt 3 and a verdict_note saying attempt 03 ran 'against plan revision 3', while its description says attempt 03 ran 'against plan revision 4'. Classified as IMMATERIAL TO 187-S: this unit consumes 188-S only as a blocks dependency edge and as the installer of the harness-architect surface, nothing in the 187-S plan, feature, shipment or task records reads 188-S's manifest description or governing plan revision number, and no 187-S gate, criterion, edge or claim decision turns on it. It is distinct from B6, which concerns the 188-S SHIPMENT RECORD rather than its manifest. Surfaced for operator decision in a 188-S-authorized cycle; 188-S's PASS verdict, manifest and reviewed plan contract are UNCHANGED. CAPTURE STATUS AT MANIFEST REVISION 8: this observation is now ALSO CAPTURED as a DISTINCT low-priority P3 follow-up in active stash entry 703B6FAF, Item 5, outside this shipment's scope and separate from Item 3 (B6, the 188-S SHIPMENT RECORD self-contradiction). 188-S was still NOT mutated and no 188-S reviewed content was changed in this cycle."
   - "ATTEMPT-05 CYCLE STATUS: S12 is CLOSED by independent re-derivation against live content at HEAD 8847fc46; S13 is RE-VERIFIED AS STILL TRUE and remains OPEN at P3, not lowered; NO new findings were raised. Attempt 05 performed NO remediation and proposes NO remediation cycle — it was run review-only under an explicit operator boundary (no branch or worktree change, no implementation, no plan/backlog/stash mutation, no push, no PR interaction, no 188-S mutation, no Ship claim or execution) and wrote only its immutable attempt artifact and this manifest. S1-S11 closures were re-verified and all remain valid: canonical D1-D3/G1-G8/P1-P6 labels (the only out-of-family tokens being D9 and P4, which ARE S13 and not a new defect); update-in-place (template D1 literal occurs exactly once at :326, exactly one G5 heading); mirror insertion (G2 count 0, harness-ready 0, harness-architect 0); rollback unit-scoped over two files with the harness-architect deliverable and all policy text explicitly out of reach; sizing {M:1, S:3, XS:1} with unsized 0 and 181.005-T held at M/high; the 187-S -> 188-S blocks edge as the ONLY edge with 188-S a dependency-free DAG root and the graph acyclic; and P5 bindings re-derived exact (BUILD_CHECK_COMMAND at harness-manifest :470, STATUS_QUEUED absent from variables_used which begins at :462 — its sole file occurrence at :196 is unrelated prose — binding instead from backlog-registry status_values.queued at :249). Integrity gates clean: git diff --check exit 0 with zero tracked modifications; YAML frontmatter parses on the plan, this manifest, the attempt-04 and attempt-05 artifacts, 181-F, all five 181.x records and 187-S; the plan's only {{...}} matches are the intentional inline-code literals at :349 and :404 (moved from :305/:360 only because the S12 correction added text above them); all 17 referenced paths resolve except .github/skills/harness-architect/ and its SKILL.md, which are 188-S's not-yet-executed deliverable and an expected-absent forward reference. 188-S METADATA P3s WERE INSPECTED FOR LEAKAGE ONLY AND NONE LEAKED: B4 (1D0033E0), B5 (703B6FAF Item 1), B6 (703B6FAF Item 3), S13 (Item 4) and the 188-S verdict-manifest mismatch (Item 5) are each represented exactly once, neither stash ID is a manifest member, and the single occurrence of each inside 187-S.md:42 and 188-S.md:46 is PROSE in a claimability paragraph. THE VERDICT IS PASS: SM-2's HARVEST_ADMITTED OPENS on the review axis. EXECUTION REMAINS SEPARATELY GATED on 188-S reaching shipped (currently queued) — a dependency gate this verdict does not and cannot lift. No severity was lowered and no finding count was decremented other than p2_open, on evidence."
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 4
+decision_revision: 6
 tags:
   - "plan-review"
   - "verdict-manifest"
@@ -225,10 +231,14 @@ is defined against `verdict: PASS` and therefore **opens** for this unit — the
 plan-review gate no longer blocks it.
 
 **Execution is separately gated, and this verdict does not lift that.** `187-S`
-declares a `blocks` edge on `188-S`, which is still `queued`, so `187-S` tasks
-are **not claimable** until `188-S` reaches `shipped`. A review gate and a
-dependency gate are distinct and must not be conflated: the plan is cleared;
-the shipment is still waiting on its precursor.
+is an explicit `dag-root` with **no** shipment dependencies — the `188-S` edge
+is removed because `188-S` is retired and the `harness-architect` actor is part
+of the publication baseline. **Root status is a graph fact, not an execution
+authorization, and installation alone confers no task claim.** `187-S` tasks
+become claimable only through ordinary pre-claim checks, the unit's **own**
+P-002/P-004 harness generation at claim time, independent review, CI and
+closure. A review gate and an execution gate are distinct and must not be
+conflated: the plan is cleared; execution is not.
 
 **Counts are real**, asserted by an independent reviewer rather than by Stage.
 No severity was lowered and no finding was downgraded to reach them. `S13`
@@ -635,16 +645,19 @@ empty. (Attempt 05 was terminal for its own cycle and closed `S12`; revision 7
 followed it to remediate the current-HEAD Copilot finding, so attempt 05's
 remediation column now names revision 7.) The `PASS` confers **review-axis
 eligibility only**: SM-2's `HARVEST_ADMITTED` opens, but `187-S` tasks remain
-not claimable until `188-S` reaches `shipped`.
+not claimable on the strength of this verdict alone: `187-S` is a `dag-root`,
+but root status is a graph fact and not an execution authorization, and
+claimability still requires ordinary pre-claim checks, the unit's own
+P-002/P-004 harness generation, review, CI and closure.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` at revision 7
-* Feature: `181-F` — Shipment: `187-S` (queued, depends on `188-S`)
+* Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` at revision 8 (reviewed content: revision 7)
+* Feature: `181-F` — Shipment: `187-S` (queued, **`dag-root`**, no shipment dependencies)
 * Source stash: `76EBDE6D` (archived — `.backlogit/archive/stash.jsonl` line 234)
-* Bootstrap precursor: `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` (`188-S`)
+* Bootstrap precursor: `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` (`188-S`) — **retired and superseded**; the actor is in the publication baseline via commit `07b4be79263252b1820701fd123d0aed85c1db2a`
 * Governing decision: the 2026-09-18 shared-execution-architecture and
-  portfolio-reslicing decision, revision 4, `D9` and `D11` (manifest parity)
+  portfolio-reslicing decision, revision 6, `D9` and `D11` (manifest parity)
 * Bounding decision: `docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md`
 * Origin of revision 2: PR-457 Copilot review thread `PRRT_kwDORzpWpM6kHrw5`
 * Origin of revision 7: PR-457 current-HEAD Copilot thread on `.backlogit/queue/181.005-T.md:19`
