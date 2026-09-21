@@ -5,45 +5,45 @@ doc_type: review-manifest
 source: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
-manifest_revision: 15
+manifest_revision: 16
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 plan_revision: 9
-plan_revision_reviewed: 8
+plan_revision_reviewed: 9
 plan_revision_9_scope: full-rewrite-addressing-attempt-07-findings
 feature_id: 181-F
 shipment_id: 187-S
-latest_attempt: 7
-latest_attempt_reviewed_revision: 8
+latest_attempt: 8
+latest_attempt_reviewed_revision: 9
 review_terminal: false
-terminal_designation: superseded-by-fresh-operator-authorization
+terminal_designation: not-terminal-remediation-authorized
 terminal_disposition: FAIL-BLOCKING-P0-AND-P1
-terminal_note: "Attempt 07 was terminal UNDER THE AUTHORIZATION THAT DISPATCHED IT and CONSUMED attempt number 7 with a terminal FAIL. A FRESH EXPLICIT OPERATOR AUTHORIZATION has since been granted, which permitted exactly one Stage remediation cycle - delivered as plan revision 9 - and one subsequent independent attempt 08 to judge it. The attempt-07 artifact remains IMMUTABLE and UNTOUCHED. Attempt 06 PASS remains SCOPED TO PLAN REVISION 7 and is not carried forward."
-awaiting_attempt: 8
-awaiting_attempt_against_revision: 9
-reviewed_content_head: be9542a5
-reviewed_content_head_note: "Attempt 07 reviewed plan revision 8 at COMMITTED base be9542a5. Revision 9 has NOT been reviewed; attempt 08 will establish its own reviewed base."
-gate_result: null
-verdict: null
+terminal_note: "Attempt 08 CONSUMED attempt number 8 and is NOT terminal: the operator directive that dispatched it explicitly authorizes continued remediation after recording. Attempt 07 remains terminal under ITS OWN dispatching authorization and its artifact is IMMUTABLE and UNTOUCHED. Attempt 06 PASS remains SCOPED TO PLAN REVISION 7 and is not carried forward to any later revision."
+awaiting_attempt: null
+awaiting_attempt_against_revision: null
+reviewed_content_head: b11d6555
+reviewed_content_head_note: "Attempt 08 reviewed plan revision 9 at COMMITTED base b11d6555. Attempt 07 reviewed revision 8 at committed base be9542a5."
+gate_result: FAIL
+verdict: FAIL
 verdict_is_pass: false
-verdict_note: "THERE IS NO VERDICT FOR PLAN REVISION 9. The last independent verdict is attempt 07 FAIL/BLOCK against revision 8 (P0 1 / P1 6 / P2 4 / P3 2) under the standing decision rule (P0 or P1 FAIL, P2-only ADVISORY, P3-or-none PASS). Revision 9 is a Stage full rewrite intended to address S14-S25; whether it does is for attempt 08 to determine. STAGE ASSERTS NO PASS AND CLOSES NO FINDING. Structurally, revision 9 (a) splits the actor P-004 conformance correction out as its own prerequisite release unit - feature 185-F, shipment 191-S - and withdraws the false claim that external commit 07b4be79 satisfied the BEHAVIORAL prerequisite, recording it as STRUCTURAL INSTALLATION ONLY; (b) specifies the resolver as an executable boundary with a named module, typed output, label-based declarations, a CLI and exit codes; (c) makes RECOMPUTATION the freshness carrier and persists no readiness state; (d) adds fail-closed workspace containment; (e) approval-gates rollback under this workspace own P-007 G1-G9 precedent; (f) rewrites the problem frame as current state and marks bootstrap text non-authoritative; and (g) adds exact canonical commands, an exhaustive state table and executable verification commands. SM-2 HARVEST_ADMITTED is defined against a PASS held by the CURRENT revision and is SHUT. EXECUTION is separately gated and is also not open: 187-S is NO LONGER A DAG ROOT - it now depends on 191-S."
+verdict_note: "FAIL/BLOCK as independently determined by attempt 08 against plan REVISION 9 at committed base b11d6555, under the standing decision rule (P0 or P1 FAIL, P2-only ADVISORY, P3-or-none PASS). One P0 and eleven P1s are open and blocking. Revision 9 is a GENUINE STRUCTURAL ADVANCE - it splits actor conformance into a prerequisite unit, specifies the resolver as an executable boundary, makes recomputation the freshness carrier, approval-gates rollback and rewrites the problem frame as current state - and it is STILL NOT SHIPPABLE. THE NEW CENTRAL DEFECT (S26, P0): the prerequisite shipment 191-S writes Python under src/ and tests/ and is therefore subject to the ordinary P-002/P-004 gates whose machinery 187-S builds DOWNSTREAM of it, so 191-S must satisfy a gate that does not exist until after it completes - the 188-S self-bootstrap deadlock reintroduced one level up. The remaining blockers: the CLI autoharness harness resolve is specified and activated by two consumers but owned by NO feature, task or shipment (S27); checkpoint-resume recomputation names no integration point in the actual crash-recovery surface (S28); surface-ID mapping and canonical shipment/task lookup are ambiguous and the zero-match case contradicts the adjudication table (S29); the two trust roots workspace_root and autoharness_home are conflated and containment is check-then-open TOCTOU with no no-follow open or post-open identity re-verification (S30); and the executable 181.001-T through 181.005-T carriers still describe the revision-8 world (S31). S32-S34 are non-blocking supporting items. S14 IS CLOSED AT THIS ATTEMPT BY EXTERNAL EVIDENCE ONLY - see closed_findings_evidence. NO OTHER FINDING IS CLOSED and no severity was lowered. SM-2 HARVEST_ADMITTED is SHUT. EXECUTION is separately shut and now shut in a new way: 187-S depends on 191-S and S26 finds 191-S unable to clear its own gates."
 p0_open: 1
-p1_open: 6
-p2_open: 4
+p1_open: 11
+p2_open: 7
 p3_open: 2
-open_findings: [S13, S14, S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25]
-blocking_findings: [S14, S15, S16, S17, S18, S19, S20]
+open_findings: [S13, S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31, S32, S33, S34]
+blocking_findings: [S15, S16, S17, S18, S19, S20, S26, S27, S28, S29, S30, S31]
 findings_closed_at_attempt_02: [S1, S2, S3, S4, S5, S6]
 findings_closed_at_attempt_03: [S7, S8, S9]
 findings_closed_at_attempt_04: [S10, S11]
 findings_closed_at_attempt_05: [S12]
-findings_addressed_pending_review: [S14, S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25]
-open_counts_note: "ALL THIRTEEN FINDINGS REMAIN OPEN AND THE COUNTS ARE UNCHANGED. Stage performed a full rewrite at plan revision 9 that is INTENDED to address S14-S25, and those IDs are listed under findings_addressed_pending_review, but ADDRESSED IS NOT CLOSED. A finding is closed by an INDEPENDENT ATTEMPT that verifies the closure, never by the agent that wrote the remediation. S13 is carried at its recorded severity and was not addressed. S19 in particular remains open even though the revision-9 rewrite necessarily overwrote the stale strings it cites, for exactly that reason. The counts P0 1 / P1 6 / P2 4 / P3 2 are the counts asserted by independent attempt 07 and stand until attempt 08 says otherwise."
-remediation_authorization: fresh-operator-authorization-one-cycle-consumed-attempt-08-authorized
+findings_addressed_pending_review: [S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25]
+open_counts_note: "TWENTY-ONE findings are open: S26 (P0); S15-S20 and S27-S31 (P1, all eleven blocking); S21-S24 and S32-S34 (P2); S25 and the carried S13 (P3). EXACTLY ONE finding was closed at attempt 08 - S14 - and it was closed by EXTERNAL SHIP REVIEW-REMEDIATION COMMITS, not by plan revision 9, not by feature 185-F and not by shipment 191-S, none of which has executed. Revision 9 lists S15-S25 as findings_addressed_pending_review and much of that remediation is substantive, but ADDRESSED IS NOT CLOSED: a finding is closed by an independent attempt that verifies the closure. Attempt 08 declined to close them because the remediation is not independently verifiable while the new blockers stand - a containment contract cannot be verified closed when its trust boundary is undefined (S30 bears on S17), and an executable boundary cannot be verified closed when its CLI is unowned (S27 bears on S15). NO severity was lowered, deferred or waived."
+remediation_authorization: authorized-by-fresh-operator-directive-after-recording
 latest_remediation_revision: 9
 latest_disposition: FAIL-BLOCKING-P0-AND-P1
-latest_disposition_note: "Attempt 07 returned FAIL/BLOCK against revision 8 and is the latest INDEPENDENT disposition. Plan revision 9 is a Stage remediation carrying NO disposition of its own. Attempt 06 PASS-P3-ONLY is scoped to revision 7 and recorded in its own roster entry."
-latest_artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-07.md
+latest_disposition_note: "Attempt 08 returned FAIL/BLOCK against revision 9 and is the latest independent disposition. Attempt 06 PASS-P3-ONLY is scoped to revision 7 and recorded in its own roster entry."
+latest_artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-08.md
 targeted_reviews:
   - id: targeted-terminal-review-01
     artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-targeted-terminal-review-01.md
@@ -60,19 +60,33 @@ targeted_reviews:
     findings_raised: []
     note: "Operator-directed targeted terminal review of lifecycle CARRIER consistency after the bootstrap label-ordering repair. NOT an independent attempt and asserts NO verdict; attempt 06's PASS is the verdict of record and is neither superseded nor re-derived here. It closed three stale-narrative defects that lived in the carriers rather than in the reviewed plan content: the self-contradicting verdict_note tail asserting a NULL verdict at revision 6; the 'awaiting independent attempt 05' narratives on 187-S, 181-F and 181.005-T; and the false claim in .backlogit/archive/184-S.md that 187-S keeps a declared dependency on 184-S. It verified that the D11 manifest-parity rule - three commit files, exactly one refreshed Ship manifest entry - survives unchanged on 181-F, 181.005-T, 187-S and the plan. It raised NO findings and did NOT close S13."
 publication_eligible: false
-publication_eligibility_note: "NOT PUBLICATION-ELIGIBLE, and no PASS is claimed or implied. Plan revision 9 has received NO independent review, so SM-2 HARVEST_ADMITTED - defined against a PASS verdict held by the CURRENT revision - is SHUT. The last independent verdict, attempt 07 FAIL against revision 8, does not carry forward either: a verdict never transfers across a revision boundary in any direction. THE EXECUTION GATE IS SEPARATE AND IS ALSO NOT OPEN: 187-S IS NO LONGER A DAG ROOT. Its dag-root label is withdrawn and it now declares an explicit dependency on 191-S, the prerequisite shipment that corrects harness-architect P-004 conformance. 188-S remains RETIRED AND ARCHIVED WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED. Graph position is a GRAPH FACT, NOT AN EXECUTION AUTHORIZATION, and INSTALLATION ALONE CONFERS NO TASK CLAIM."
+publication_eligibility_note: "NOT PUBLICATION-ELIGIBLE. Independent attempt 08 returned FAIL/BLOCK against plan revision 9 with one P0 and eleven P1 blocking findings open, so SM-2 HARVEST_ADMITTED - defined against a PASS verdict held by the CURRENT revision - is SHUT. Plan revision 9 is preserved unchanged by attempt 08 and no remediation was performed at that attempt. THE EXECUTION GATE IS SEPARATE AND IS ALSO NOT OPEN, AND IS NOW SHUT IN A NEW WAY: 187-S is NOT a dag-root and declares an explicit dependency on 191-S, and finding S26 holds that 191-S cannot itself clear the ordinary P-002/P-004 gates because the machinery those gates require is built DOWNSTREAM by 187-S. 188-S remains RETIRED AND ARCHIVED WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED, and 191-S HAS NOT SHIPPED - it remains queued. Graph position is a GRAPH FACT, NOT AN EXECUTION AUTHORIZATION."
 dag_root: false
 depends_on_shipments: [191-S]
 actor_installed_in_baseline: true
 actor_installed_by_commit: 07b4be79263252b1820701fd123d0aed85c1db2a
 actor_installation_is_structural_only: true
-actor_behaviorally_conformant: false
-actor_conformance_note: "Commit 07b4be79 made the harness-architect actor PRESENT and manifest-registered. PRESENCE IS NOT CONFORMANCE. The installed .github/skills/harness-architect/SKILL.md prescribes pytest, while P-004 and the manifest variables_used.TEST_COMMAND both require exactly PYTHONPATH=src python -m unittest discover -s tests. No carrier may claim the actor is P-004-compliant until 191-S has shipped and its verification has been observed."
+actor_behaviorally_conformant: true
+actor_conformance_note: "RESOLVED EXTERNALLY AT ATTEMPT 08, AND NOT BY 191-S. Commit 07b4be79 made the harness-architect actor PRESENT and manifest-registered, which was never behavioral satisfaction. The BEHAVIORAL correction was then performed directly on this branch by Ship review-remediation commits 1cb0dc81 and b8ac632a: the installed .github/skills/harness-architect/SKILL.md Step 5.2 now runs the canonical PYTHONPATH=src python -m unittest discover -s tests, the source template retains its {{TEST_COMMAND}} and {{UNIMPLEMENTED_MARKER}} placeholders and remains ecosystem-agnostic, red-phase guardrail prose now requires per-test marker correlation and rejects zero-discovery/wrong-reason/collection/skip/xfail/pass evidence, tests/test_harness_architect_p004_contract.py was added, and variables_used.UNIMPLEMENTED_MARKER was added to the manifest. Canonical suite 2358 passed / 0 failed / 54 skipped with manifest parity. THIS DOES NOT MEAN 191-S SHIPPED - it has not; it remains queued, and attempt 08 finding S26 additionally holds that it cannot currently clear its own gates."
 actor_conformance_owner_feature: 185-F
 actor_conformance_owner_shipment: 191-S
+actor_conformance_resolved_externally: true
+actor_conformance_resolving_commits: [1cb0dc8140a809d63c3193d58431cd14408788b7, b8ac632a93751fb29c51a8e5bf0f5e036b65cfb3]
+actor_conformance_resolved_by_191_s: false
+prerequisite_shipment_shipped: false
+canonical_suite_at_attempt_08: "2358 passed / 0 failed / 54 skipped"
+closed_findings_evidence:
+  - finding: S14
+    closed_at_attempt: 8
+    closed_by: external-ship-review-remediation
+    closing_commits: [1cb0dc8140a809d63c3193d58431cd14408788b7, b8ac632a93751fb29c51a8e5bf0f5e036b65cfb3]
+    closed_by_this_plan: false
+    closed_by_191_s: false
+    note: "S14 is the ONLY finding closed at attempt 08. It was closed by external Ship review-remediation commits landed directly on this branch, NOT by plan revision 9, NOT by feature 185-F and NOT by shipment 191-S. No record may be read as implying 191-S shipped."
 parity_criteria_vocabulary: PAR-1..PAR-6b
 review_state_authority: sole-authority-for-this-plan-live-carriers-are-pointer-only
 attempts_roster_note: "THE PER-ATTEMPT NOTES BELOW ARE HISTORICAL VERBATIM RECORDS OF WHAT EACH ATTEMPT SAID AT THE TIME IT RAN, AND ARE NOT CURRENT-STATE ASSERTIONS. They are preserved unedited precisely so that the review history stays auditable. Several of them describe 187-S as gated on 188-S reaching shipped; that was true when those attempts ran and is NO LONGER TRUE - 188-S was RETIRED AND ARCHIVED WITHOUT EVER HAVING BEEN CLAIMED, EXECUTED OR SHIPPED. THE CURRENT EXECUTION GATE IS 191-S, declared on 187-S as an explicit dependency. Where a roster note and the top-level fields of this manifest disagree, THE TOP-LEVEL FIELDS GOVERN."
+revision_7_pass_scoping_note: "ANY REVISION-7 PASS NARRATIVE ANYWHERE IN THIS MANIFEST, INSIDE THE ATTEMPT ROSTER OR OUTSIDE IT, IS HISTORICAL AND IS SCOPED TO PLAN REVISION 7 ALONE. It is NOT a current-state assertion, it was never validly carried to revision 8 or 9, and it confers NOTHING on the current revision. The CURRENT verdict is FAIL, determined by independent attempt 08 against revision 9. Where any PASS prose and the top-level fields of this manifest disagree, THE TOP-LEVEL FIELDS GOVERN. Recorded in response to attempt-08 finding S33, which remains OPEN: this scoping note bounds the contradiction but does not remove the stale prose, and only an independent attempt may close the finding."
 attempts:
   - attempt: 1
     artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-01.md
@@ -203,6 +217,32 @@ attempts:
     learnings_scope: bounded-docs-only
     learnings_note: "The Learnings persona returned NO revision-specific finding under a bounded docs-only scope and supplied relevant citations only. Its silence is a SCOPE ARTIFACT and is NOT evidence that the learnings axis is clean."
     remediation_note: "Attempt 07 performed NO remediation, proposes NO remediation cycle and did NOT modify the plan. It is the FIRST independent review of revision 8 and the first after the external retirement of 188-S/182-F. It returned FAIL/BLOCK on one P0 (S14) and six P1s (S15-S20), raised S21-S25 as non-blocking supporting items, closed NOTHING and carried S13 at P3 without lowering it. Attempt 07 CONSUMES the attempt number and is TERMINAL under its dispatching authorization; further remediation or review REQUIRES A FRESH EXPLICIT OPERATOR AUTHORIZATION."
+  - attempt: 8
+    artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-08.md
+    reviewed_revision: 9
+    reviewed_content_head: b11d6555
+    reviewed_content_state: committed
+    gate_result: FAIL
+    verdict: FAIL
+    verdict_is_pass: false
+    p0: 1
+    p1: 11
+    p2: 7
+    p3: 2
+    blocking: [S15, S16, S17, S18, S19, S20, S26, S27, S28, S29, S30, S31]
+    closed_predecessor_findings: [S14]
+    carried_predecessor_findings: [S13, S15, S16, S17, S18, S19, S20, S21, S22, S23, S24, S25]
+    findings_raised: [S26, S27, S28, S29, S30, S31, S32, S33, S34]
+    remediation_revision: null
+    disposition: FAIL-BLOCKING-P0-AND-P1
+    terminal_designation: not-terminal-remediation-authorized
+    dispatch_mode: multi-agent
+    personas_applied: [constitution, python, scope-boundary, learnings, architecture, agent-native-parity]
+    security_lens_triggered: false
+    learnings_scope: full
+    learnings_note: "The Learnings persona ran at full scope and contributed substantively: it cited the 188-S self-bootstrap retirement as direct precedent for S26 and cited P-007 G1-G9 as the settled approval pattern that revision 9 correctly adopted for rollback."
+    closure_note: "EXACTLY ONE finding closed: S14, by EXTERNAL Ship review-remediation commits 1cb0dc81 and b8ac632a, with the installed actor running the canonical unittest command, manifest parity holding and the canonical suite at 2358 passed / 0 failed / 54 skipped. NOT closed by plan revision 9, NOT by 185-F, NOT by 191-S. 191-S HAS NOT SHIPPED."
+    remediation_note: "Attempt 08 performed NO remediation and did NOT modify the plan. It is the FIRST independent review of revision 9 and it PROPOSES a further remediation cycle, which the dispatching operator directive explicitly authorizes. It returned FAIL/BLOCK on one P0 (S26, the reintroduced self-bootstrap deadlock at 191-S) and eleven P1s, raised S32-S34 as non-blocking supporting items, closed ONLY S14 on external evidence, and carried S13 and S15-S25 OPEN without lowering any severity. Revision 9 is recorded as a genuine structural advance that is nonetheless not shippable."
 carried_forward_context:
   - "S1 (P1, was blocking) — CLOSED AT ATTEMPT 02. Verified on nine live carriers that no task generates, installs, modifies or deletes 188-S's deliverable and that rollback is unit-scoped: plan Rollout, Blast radius, Rollback and Tasks; the 187-S and 181-F records; and the 181.002-T, 181.004-T and 181.005-T records. The hardening pass is genuinely re-derived rather than re-dated - H1 is rewritten and H7/H8 are new questions that did not exist at revision 2."
   - "S2 (P1, was blocking) — CLOSED AT ATTEMPT 02. 181.002-T is titled and bodied as the harness-surface requirement resolver, states it GENERATES NO SKILL AND INSTALLS NO SKILL, MUST NOT write/modify/delete anything under .github/skills/, MUST NOT generate any file from any template, and consumes the harness-architect surface READ-ONLY as an already-satisfied precondition installed by 188-S/182-F/182.003-T. It DETERMINES nothing else and DECIDES nothing else."
