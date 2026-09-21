@@ -1,22 +1,33 @@
 ---
 title: Plan review verdict manifest — P-004 three-channel observation gate
-description: Mutable verdict manifest for docs/plans/2026-09-18-p004-observation-gate-plan.md. MANIFEST REVISION 3. The plan is at REVISION 7 and HAS NOW BEEN INDEPENDENTLY REVIEWED. The most recent independent attempt is 02, which judged plan REVISION 7 at committed base 844cee9c and returned FAIL/BLOCK at P0 2 / P1 19 / P2 4 / P3 0 - 25 findings open, 21 blocking. awaiting_attempt is 3. Revision 7 correctly retires the superseded 176-S / 168-F carriers, removes expected-green characterization entirely and derives the expected set rather than accepting it from the caller, but the derivation contract depends on a unique per-test AST sentinel THE INSTALLED ACTOR DOES NOT PRODUCE, so the gate would adjudicate NO_OBSERVATION unconditionally. NO FINDING IS CLOSED; O1-O10 are CARRIED OPEN. THE PLAN REMAINS WITHHELD FROM HARVEST with no live feature, tasks or shipment. NOT PUBLICATION-ELIGIBLE; publication, execution and harvest are distinct gates and none is open.
+description: 'Mutable verdict manifest for docs/plans/2026-09-18-p004-observation-gate-plan.md. MANIFEST REVISION 4. REVIEW OF THIS PLAN IS BLOCKED. The plan is at REVISION 8 and its kind has changed: it is no longer an implementation plan but a status: blocked REQUIREMENTS CONTRACT, blocked_on 185-S and 187-S. NO ATTEMPT 03 IS AUTHORIZED OR SCHEDULED, awaiting_attempt is null, and no attempt-03 artifact exists or may be created. The reason is structural, not procedural: attempts 01 and 02 both blocked on questions that CANNOT BE ANSWERED before the foundations ship - the exact registry, transport, OperationResult adapter, CLI and MCP paths and signatures this gate must call do not exist yet, so any revision naming them would be inventing them, and a third attempt would re-find the same unanswerable questions. The most recent independent attempt is 02, which judged plan REVISION 7 at committed base 844cee9c and returned FAIL/BLOCK at P0 2 / P1 19 / P2 4 / P3 0. ALL 25 FINDINGS O1-O25 REMAIN FULLY OPEN AND NONE IS ADDRESSED-PENDING-REVIEW: revision 8 preserves the validated design direction as REQUIREMENTS and deliberately declines to assert implementation detail, so it does not claim to have remediated anything. Review resumes only after 185-S and 187-S ship and Stage re-derives the delivered surfaces. Publication, execution and harvest are all SHUT.'
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-p004-observation-gate-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
+review_status: BLOCKED
 plan_id: p004-observation-gate
 plan_path: docs/plans/2026-09-18-p004-observation-gate-plan.md
-plan_revision: 7
+plan_revision: 8
 plan_revision_reviewed: 7
-awaiting_attempt_against_revision: 7
+awaiting_attempt_against_revision: null
+plan_status: blocked
+plan_role: blocked-requirements-contract
+blocked_on:
+- 185-S
+- 187-S
+review_blocked: true
+review_authorized: false
+review_scheduled: false
+review_resumes_when: 'BOTH 185-S and 187-S have shipped AND Stage has re-derived the exact delivered registry, transport, OperationResult adapter, CLI and MCP paths and signatures from what those units actually built. Until then no independent attempt may be dispatched against this plan.'
 publication_eligible: false
 publication_eligibility_note: 'NOT PUBLICATION-ELIGIBLE. Independent attempt 02 judged plan revision 7 FAIL/BLOCK at P0 2 / P1 19 / P2 4; that is the standing verdict. THE EXECUTION GATE IS SEPARATE AND ALSO NOT OPEN: this plan is WITHHELD FROM HARVEST and has no live carriers. Its re-harvest requires 185-S and 187-S to have shipped and this plan to hold an independent PASS.'
 feature_id: null
 shipment_id: null
 latest_attempt: 2
 review_terminal: false
-awaiting_attempt: 3
+awaiting_attempt: null
+awaiting_attempt_note: 'NULL BY DESIGN AND NOT AN OMISSION. No attempt 03 is authorized or scheduled, and no attempt-03 artifact exists or may be created. This is NOT a terminal PASS, NOT a convergence terminal and NOT an abandonment - the plan is BLOCKED, and its review resumes under review_resumes_when.'
 reviewed_content_head: 844cee9c
 gate_result: FAIL
 verdict: FAIL
@@ -25,6 +36,7 @@ p1_open: 19
 p2_open: 4
 remediation_authorization: authorized-by-operator-directive-after-recording
 latest_remediation_revision: null
+latest_remediation_revision_note: 'NULL DELIBERATELY. Revision 8 is a CONVERSION, not a remediation: it changes the document''s kind from implementation plan to blocked requirements contract. It closes no finding, addresses no finding pending review, and claims no progress against O1-O25.'
 latest_disposition: FAIL-BLOCKING-P0-AND-P1
 latest_artifact: docs/reviews/review-history/2026-09-18-p004-observation-gate-plan-review-attempt-02.md
 verdict_is_pass: false
@@ -192,8 +204,8 @@ attempts:
   learnings_note: The Learnings persona cited P-007 G1-G9 as the settled approval pattern revision 7 correctly adopted at O9, and cited attempt-01 O1 as the precedent for treating a queued shipment manifest as an executable instruction set rather than a document subordinate to plan prose.
   remediation_note: Attempt 02 performed NO remediation and did NOT modify the plan. It is the FIRST independent review of revision 7. It PROPOSES a further remediation cycle, which the dispatching operator directive explicitly authorizes after recording.
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 7
-manifest_revision: 3
+decision_revision: 8
+manifest_revision: 4
 plan_revision_7_scope: full-rewrite-current-state-addressing-attempt-01-findings
 latest_attempt_reviewed_revision: 7
 carriers_status: RETIRED-NEVER-EXECUTED
@@ -212,16 +224,16 @@ retired_carriers:
 - 168.011-T
 - 168.012-T
 retired_carriers_note: 'Archived as RETIRED, SUPERSEDED, NEVER CLAIMED AND NEVER EXECUTED at the revision-7 remediation. This is the structural remediation of O1: the superseded instruction set no longer exists in the live queue. The original defect linkage is preserved on each archived record and the records are NEVER RESTORED; re-harvest is forward-only.'
-harvest_gate: Stage re-harvests a FRESH feature, task set and shipment only after BOTH 185-S and 187-S have shipped AND this plan holds an independent PASS. No empty queued shipment is created in the interim.
+harvest_gate: 'Stage re-harvests a FRESH feature, task set and shipment only after BOTH 185-S and 187-S have shipped AND this plan holds an independent PASS. No empty queued shipment is created in the interim. REVIEW IS ADDITIONALLY BLOCKED: no independent attempt may be dispatched against this plan until both foundation shipments ship and Stage re-derives the delivered surfaces, so the PASS this harvest gate requires cannot even be sought yet.'
 findings_addressed_pending_review: []
 open_counts_note: Counts are AS DETERMINED BY ATTEMPT 02 against plan revision 7 and are NOT re-derived by Stage. They comprise the ten findings O1-O10 CARRIED OPEN from attempt 01 plus the fifteen findings O11-O25 RAISED AT ATTEMPT 02. No finding has ever been closed on this plan.
 retired_prerequisite_shipment: 191-S
 review_state_authority: THIS MANIFEST IS THE SOLE AUTHORITY for this plan's review state. The plan's own verdict fields are pointers, not a second record.
 open_findings_count: 25
 blocking_findings_count: 21
-findings_addressed_pending_review_note: 'EMPTY BY DESIGN. Attempt 02 was a RECORDING-ONLY turn: no remediation was performed and no plan, carrier, source, template, skill or manifest file was modified. Nothing is pending review that was not already judged by attempt 02.'
-plan_pointer_fields_stale: true
-plan_pointer_fields_stale_note: The plan's own latest_attempt / awaiting_attempt fields still read 1 and 2 because plan edits were FORBIDDEN by the directive that dispatched attempt 02. THIS MANIFEST IS AUTHORITATIVE; the plan's fields are pointers only, per review_state_authority. Reconcile them at the next remediation cycle.
+findings_addressed_pending_review_note: 'EMPTY BY DESIGN AND IT STAYS EMPTY AT REVISION 8. All 25 findings O1-O25 remain FULLY OPEN at the severities attempt 02 assigned. Revision 8 is a CONVERSION of the document''s kind - implementation plan to status: blocked requirements contract - not a remediation. It preserves the validated design direction as REQUIREMENTS and deliberately declines to assert implementation detail it cannot yet derive, so it claims no remediation of anything and nothing is pending review.'
+plan_pointer_fields_stale: false
+plan_pointer_fields_stale_note: 'RECONCILED AT REVISION 8. The plan now reads latest_attempt 2 and awaiting_attempt null, matching this manifest. THIS MANIFEST REMAINS AUTHORITATIVE: the plan''s fields are pointers only, per review_state_authority, and where they ever disagree this file governs.'
 ---
 
 # Verdict manifest — P-004 red-phase observation gate
@@ -234,16 +246,34 @@ for this plan's review state.
 
 | | |
 |---|---|
-| Plan revision | **7** — current-state rewrite addressing attempt-01 findings |
+| Plan revision | **8** — `status: blocked` **requirements contract**, not an implementation plan |
 | Last independent attempt | **02**, which judged revision **7** at committed base `844cee9c` |
 | Verdict of record | **FAIL / BLOCK** — `P0` 2 / `P1` 19 / `P2` 4 / `P3` 0 |
-| Awaiting | independent attempt **03** against revision **7** |
+| Awaiting | **nothing — review is BLOCKED.** No attempt **03** is authorized or scheduled |
 | Publication eligible | **false** |
 | Harvest state | **withheld** — no live feature, tasks or shipment |
+| Blocked on | `185-S` **and** `187-S` |
 
 The authoritative artifact is
 `docs/reviews/review-history/2026-09-18-p004-observation-gate-plan-review-attempt-02.md`.
-The attempt-01 artifact is **immutable and untouched**.
+Both attempt artifacts are **immutable and untouched**.
+
+### Why review is blocked rather than awaiting
+
+Attempts 01 and 02 both blocked on the **same class of question**, and it is a
+class this plan **cannot answer yet**. The gate must register a typed operation
+through a registry that `184-S` has not delivered, adapt to an `OperationResult`
+shape that does not exist, derive CLI and MCP surfaces from a transport that is
+undecided, and enumerate activation paths and manifest entries for files nobody
+has written. **A revision naming those surfaces would be inventing them**, and a
+reviewer would correctly block on the invention — which is precisely what
+attempt 02 did across `O17`–`O22`.
+
+Dispatching attempt 03 would therefore spend a review cycle re-deriving
+unanswerable findings and would produce a third FAIL that teaches nothing. The
+honest state is **BLOCKED**, and revision 8 makes the document match it: the
+validated design direction is preserved as **requirements**, the false
+implementation detail is removed, and review resumes when the substrate is real.
 
 ## Findings
 
@@ -353,13 +383,12 @@ unspecified (`O17`).
 `disposition`. Both attempt artifacts are **immutable**; attempt 01 was not
 touched when attempt 02 was recorded.
 
-## Pointer reconciliation outstanding
+## Pointer reconciliation
 
-The plan's own `latest_attempt` / `awaiting_attempt` fields still read **1** and
-**2**. Plan edits were **forbidden** by the directive that dispatched attempt
-02, so they were not reconciled. **This manifest is authoritative** and the
-plan's fields are pointers only, per `review_state_authority`. Reconcile at the
-next remediation cycle.
+Revision 8 reconciles the plan's own pointer fields to `latest_attempt: 2` and
+`awaiting_attempt: null`. **This manifest remains authoritative**; the plan's
+fields are pointers only, per `review_state_authority`, and where the two ever
+disagree this file governs.
 
 ## Publication, execution and harvest are three distinct gates
 
@@ -370,13 +399,20 @@ next remediation cycle.
 * **Harvest** — requires `185-S` **and** `187-S` shipped **and** an independent
   `PASS` on this plan. **Shut.** No empty queued shipment is created in the
   interim, and the archived carriers are **never restored**.
+* **Review** — a fourth gate, and it is **shut too.** This is the state this
+  manifest revision adds. Review is not merely *pending*; it is **blocked**, and
+  it reopens only under `review_resumes_when`. The old `176-S` / `168-F` /
+  `168.00x-T` carriers are **permanently retired**; when the foundations ship,
+  Stage harvests a **fresh** feature, task set and shipment under **new IDs**,
+  and `168-S` remains held by the archived `176-S` until that replacement
+  shipment exists.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-p004-observation-gate-plan.md`, revision **7**
+* Plan: `docs/plans/2026-09-18-p004-observation-gate-plan.md`, revision **8** (`status: blocked`)
 * Supersedes: `docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md`
 * Source stash: `76EBDE6D`
-* Governing decision: the 2026-09-18 shared-execution-architecture and portfolio-reslicing decision, revision **7**, `SM-1` and `D11`
+* Governing decision: the 2026-09-18 shared-execution-architecture and portfolio-reslicing decision, revision **8**, `SM-1` and `D11`
 * Finding namespace: `O`-prefix, reserved for `p004-observation-gate` and distinct from the `S`-prefix namespace of `ship-harness-lifecycle-foundation`
 
 ## Authority
@@ -384,3 +420,8 @@ next remediation cycle.
 Only an **independent** plan-review attempt may assert a verdict or close a
 finding. Stage may remediate and may record disposition, and may never do
 either of the former. `SM-2` `HARVEST_ADMITTED` is **SHUT**.
+
+Stage may also declare a plan **blocked**, as it has here, because that is a
+statement about *prerequisites*, not about *quality*. Declaring a plan blocked
+**closes no finding, lowers no severity and confers no eligibility** — all 25
+findings stay open at the severity attempt 02 assigned them.

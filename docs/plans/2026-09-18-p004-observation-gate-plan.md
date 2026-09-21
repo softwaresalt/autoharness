@@ -1,38 +1,48 @@
 ---
-title: "P-004 red-phase observation gate"
-description: "Replaces the P-004 red-phase precondition's agent-prose observation with a typed, shell-free, machine-checkable gate. The expected test and marker set is DERIVED by the gate from the generated harness itself and is never supplied by a caller. The gate is exposed as ONE registered operation reachable identically from the CLI and over MCP. This plan is WITHHELD FROM HARVEST: it has no live feature, tasks or shipment, and Stage re-harvests it fresh only after 185-S and 187-S have shipped and this plan holds an independent PASS."
+title: "P-004 red-phase observation gate - BLOCKED requirements contract"
+description: "BLOCKED. This is a requirements and decision contract, not an implementation plan. Revision 8 deliberately STOPS specifying implementation detail, because every such detail written before the foundations exist has been fiction: the operation registry, transport envelope, exec primitive and harness-surface resolver this gate must consume are all undelivered, so their exact module paths, signatures and schemas CANNOT be known yet. Revisions 6 and 7 were reviewed against invented surfaces and failed for that reason. Revision 8 records WHAT the gate must be true of, WHAT was learned from attempts 01 and 02, and WHAT must exist before any of it can be specified. It has NO live feature, NO tasks and NO shipment. NO INDEPENDENT REVIEW ATTEMPT IS SCHEDULED OR AUTHORIZED; review resumes only after 185-S and 187-S have shipped and Stage has re-derived the exact delivered surfaces."
 doc_type: plan
 source: docs/plans/2026-09-18-p004-observation-gate-plan.md
 date: 2026-09-18
 plan_id: p004-observation-gate
 plan_path: docs/plans/2026-09-18-p004-observation-gate-plan.md
-plan_role: active-withheld-from-harvest
-revision: 7
-revision_scope: full-rewrite-current-state-addressing-attempt-01-findings
-revision_7_note: "Revision 7 is a REWRITE as a current-state contract, not a correction log. It addresses independent attempt 01 (FAIL against revision 6, findings O1-O10). FOUR STRUCTURAL CHANGES. (1) The superseded carriers are gone: 176-S, 168-F and every live 168 task are ARCHIVED AS RETIRED, never claimed and never executed, because a queued shipment manifest is an executable instruction set and prose deferral is insufficient (O1). This plan now has NO live tasks and NO shipment, and is withheld from harvest. (2) expected_green_characterization is REMOVED ENTIRELY (O3). (3) The expected test and marker set is DERIVED by the gate through safe AST parsing of the generated harness and is NEVER caller-supplied (O4). (4) The commands are shell-free argv specifications with an allowlisted PYTHONPATH=src environment override (O5), the API is typed with an exact result schema (O7), and the gate is ONE registered operation with CLI and MCP parity (O7). Rollback requires fresh live SHA-bound operator approval (O9), and 191-S - which revision 6 named as a prerequisite - is RETIRED, never executed, its deliverable satisfied by direct Ship remediation commits (O2)."
+plan_role: blocked-requirements-contract
+status: blocked
+revision: 8
+revision_scope: full-rewrite-as-blocked-requirements-contract
+revision_8_note: "Revision 8 CHANGES THE KIND OF DOCUMENT THIS IS. Revisions 1-7 were implementation plans for a gate whose every dependency is undelivered, and each was reviewed against surfaces that do not exist: attempt 01 blocked on live carriers encoding a superseded design (O1); attempt 02 blocked on a derivation contract whose sentinel the installed actor does not emit (O11), a result schema the specified runner cannot populate (O14), a self-referential digest (O16) and a transport envelope that was asserted rather than specified (O17). THE COMMON CAUSE IS NOT POOR DRAFTING. It is that an implementation plan for an unbuilt substrate can only be guesswork, and reviewing guesswork consumes attempts without converging. Revision 8 therefore withdraws the invented implementation detail, preserves the VALIDATED DESIGN DIRECTION as requirements, and BLOCKS. No attempt 03 is scheduled or authorized."
+blocked: true
+blocked_on:
+  - 185-S
+  - 187-S
+blocked_reason: "This gate consumes four surfaces that do not exist: the operation registry and transport envelope (184-S, itself archived and withheld), the fixed-argv exec primitive (185-S / 179-F), the harness-surface resolver and its typed result (187-S / 181-F), and a harness-architect actor whose emitted marker grammar is whatever those units settle on. Their exact module paths, function signatures, result schemas and registration mechanics CANNOT be specified in advance. Writing them speculatively is what produced O5, O7, O14, O17 and O19."
+unblock_condition: "BOTH 185-S and 187-S have actually SHIPPED, AND Stage has re-derived from the delivered code the exact registry API, exec-primitive signature, resolver entry point and result schema, CLI and MCP registration paths, and manifest entries. Only then may this document become an implementation plan again."
 verdict: null
 verdict_is_pass: false
 verdict_asserted_against_revision: null
-disposition: PENDING-INDEPENDENT-REVIEW
+disposition: BLOCKED-PENDING-FOUNDATIONS
 publication_eligible: false
-publication_eligible_basis: "No independent review has judged revision 7. Attempt 01 returned FAIL against revision 6."
+publication_eligible_basis: "BLOCKED. Publication eligibility requires an independent PASS against the current revision, and NO REVIEW IS SCHEDULED. Attempt 02 returned FAIL against revision 7; that is the standing verdict and it is not carried forward as an assertion about revision 8."
 last_independent_verdict: FAIL
-last_independent_verdict_attempt: 1
-last_independent_verdict_revision: 6
-verdict_note: "NO VERDICT IS ASSERTED AGAINST REVISION 7. The verdict manifest at review_manifest is the SOLE AUTHORITY for this plan's review state; this field is a pointer, not a second record. Revision 7 remediates O1-O10 and CLOSES NOTHING."
-awaiting_attempt: 2
-awaiting_attempt_against_revision: 7
-latest_attempt: 1
-latest_attempt_reviewed_revision: 6
+last_independent_verdict_attempt: 2
+last_independent_verdict_revision: 7
+verdict_note: "NO VERDICT IS ASSERTED AGAINST REVISION 8, AND NONE WILL BE SOUGHT UNTIL THE UNBLOCK CONDITION IS MET. The verdict manifest at review_manifest is the SOLE AUTHORITY for review state; these fields are POINTERS. Revision 8 CLOSES NO FINDING: O1-O25 all remain open, and they are NOT recorded as addressed-pending-review, because revision 8 does not attempt to address them - it withdraws the premise that they could be addressed yet."
+awaiting_attempt: null
+awaiting_attempt_against_revision: null
+review_scheduled: false
+review_authorized: false
+review_resumption_condition: "Independent review resumes ONLY after 185-S and 187-S have shipped AND Stage has re-derived the exact delivered surfaces. Requesting an attempt before then repeats the attempt-01 and attempt-02 failure mode and is not authorized."
+latest_attempt: 2
+latest_attempt_reviewed_revision: 7
 review_manifest: docs/reviews/2026-09-18-p004-observation-gate-plan-review.md
 source_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
-decision_revision: 7
+decision_revision: 8
 decision_state_machine: SM-1
 source_stash_ids:
   - 76EBDE6D
 feature_id: null
 shipment_id: null
-carriers_status: RETIRED-NEVER-EXECUTED
+carriers_status: RETIRED-NEVER-EXECUTED-PERMANENTLY
 retired_carriers:
   - 176-S
   - 168-F
@@ -44,326 +54,236 @@ retired_carriers:
   - 168.006-T
   - 168.007-T
   - 168.008-T
+  - 168.009-T
   - 168.010-T
   - 168.011-T
   - 168.012-T
-retired_carriers_note: "ARCHIVED AS RETIRED, SUPERSEDED, NEVER CLAIMED AND NEVER EXECUTED. They encoded the superseded design that attempt-01 finding O1 blocked. The original defect linkage is preserved on each archived record: THE REQUIREMENT SURVIVES, ONLY THE CARRIER DOES NOT. These records are NEVER RESTORED; re-harvest is forward-only."
-unit_role: gate-implementation
+retired_carriers_note: "PERMANENTLY RETIRED. These records are NEVER restored, revived or re-opened under any restoration clause. The underlying requirement - that P-004 declares a red-phase precondition with no executable producer - REMAINS OPEN and is carried by this document. When the unblock condition is met, Stage harvests a FRESH feature, task set and shipment under NEW IDs against the then-current repository state. Retiring the carrier retired the superseded DESIGN, never the requirement."
+held_successor_shipment: 168-S
+held_successor_note: "168-S declares dependencies ['166-S', '176-S'] and 176-S is archived, so 168-S is UNCLAIMABLE. That is a deliberate FAIL-CLOSED HOLD, not an oversight. The edge is preserved as a truthful record of what 168-S was sequenced behind. It is cleared ONLY by an operator-directed re-sequencing of 168-S onto the fresh replacement shipment once one exists. NOTHING HERE MAY BE READ AS MEANING 176-S CAN SHIP - it cannot, ever."
+unit_role: gate-requirements
 supersedes_plan: docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md
-harvest_gate: "Stage re-harvests a FRESH feature, task set and shipment only after BOTH 185-S and 187-S have shipped AND this plan holds an independent PASS. No empty queued shipment is created in the interim."
+harvest_gate: "NO HARVEST. Stage creates a fresh feature, task set and shipment only after the unblock condition is met AND this document has been rewritten as an implementation plan AND that plan holds an independent PASS. No empty or perpetually blocked queued shipment is created in the interim."
 depends_on_units:
   - 185-S
   - 187-S
-depends_on_units_note: "185-S delivers the operation registry and transport substrate (via the archived 184-S) that this gate registers into. 187-S delivers the harness-surface resolver this gate calls as a precondition. Neither has shipped."
-retired_prerequisite_shipment: 191-S
-retired_prerequisite_note: "Revision 6 named 191-S as a prerequisite for actor P-004 conformance. 191-S is RETIRED, NEVER CLAIMED AND NEVER EXECUTED; the conformance it was to deliver was achieved directly by Ship review-remediation commits 1cb0dc8140a809d63c3193d58431cd14408788b7 and b8ac632a93751fb29c51a8e5bf0f5e036b65cfb3. Nothing here may be read as claiming 191-S shipped."
-gate_module: src/autoharness/gates/red_phase.py
-gate_operation_id: harness/p004-gate
-gate_cli: "autoharness op harness p004-gate --shipment <id> --json"
-expected_set_is_caller_supplied: false
-expected_green_characterization: removed
-resolver_module: src/autoharness/harness_surfaces.py
-resolver_consumption: direct-python-function-call
-resolver_state_is_persisted: false
-no_harness_maps_to: NO_OBSERVATION
+findings_open:
+  - O1
+  - O2
+  - O3
+  - O4
+  - O5
+  - O6
+  - O7
+  - O8
+  - O9
+  - O10
+  - O11
+  - O12
+  - O13
+  - O14
+  - O15
+  - O16
+  - O17
+  - O18
+  - O19
+  - O20
+  - O21
+  - O22
+  - O23
+  - O24
+  - O25
+findings_closed: []
+findings_addressed_pending_review: []
+findings_note: "ALL TWENTY-FIVE FINDINGS REMAIN OPEN. None is closed and none is recorded as addressed-pending-review. Revision 8 does not claim to have addressed them; it withdraws the premise that a speculative implementation plan could. Several - O5, O7, O14, O17, O19, O20 - are recorded below as REQUIREMENTS the future implementation plan must satisfy, which is a different thing from a remediation."
 requires_plan_hardening: true
-hardening_rationale: "Implements a mandatory policy gate that every future shipment traverses, spawns subprocesses, parses source with AST, and registers a new operation on the CLI and MCP surfaces simultaneously. A false PASS here silently disables P-004 workspace-wide."
+hardening_rationale: "When it becomes an implementation plan again, this unit will implement a mandatory policy gate that every future shipment traverses, spawn subprocesses, parse source with the AST module and mutate a policy-bearing label. That hardening obligation is recorded now and discharged later."
 tags:
   - p-004
   - gate
   - policy
-  - python
+  - blocked
+  - requirements-contract
 ---
 
-# P-004 red-phase observation gate
+# P-004 red-phase observation gate - BLOCKED requirements contract
 
-## Status — withheld from harvest
+## Status
 
-**This plan has no live feature, no live tasks and no shipment.** The carriers
-that once held them — `176-S`, `168-F` and the `168.00x-T` / `168.01x-T` task
-set — are **archived as retired, superseded, never claimed and never
-executed**. They encoded the superseded design, and attempt-01 finding `O1`
-held that leaving them live while deferring them in prose is insufficient,
-because **a queued shipment manifest is an executable instruction set, not
-commentary**.
+**BLOCKED.** This document is a **requirements and decision contract**, not an
+implementation plan. It has no live feature, no tasks and no shipment, and
+**no independent review attempt is scheduled or authorized.**
 
-**Re-harvest is forward-only.** Stage creates a **fresh** feature, task set and
-shipment against the then-current repository state, and only when **all three**
-hold:
+## Why this document changed kind
 
-1. `185-S` has shipped — the operation registry and transport substrate exist;
-2. `187-S` has shipped — the harness-surface resolver exists;
-3. this plan holds an **independent PASS**.
+Revisions 1-7 were implementation plans. Two independent attempts reviewed
+them, and both failed on the same underlying cause:
 
-The archived records are **never restored**, and **no empty queued shipment**
-is created in the interim.
+| Attempt | Reviewed | Verdict | What it actually found |
+|---|---|---|---|
+| 01 | revision 6 | FAIL, `P0` 1 / `P1` 8 / `P2` 1 | Live carriers still instructed an executor to build a superseded design (`O1`) |
+| 02 | revision 7 | FAIL, `P0` 2 / `P1` 19 / `P2` 4 | The derivation contract's sentinel has no producer (`O11`); the result schema cannot be populated by the specified runner (`O14`); the evidence digest is self-referential (`O16`); the transport envelope is asserted, not specified (`O17`) |
 
-## The defect
+`O5`, `O7`, `O14`, `O17`, `O19` and `O20` are all the **same defect in
+different clothes**: each names a surface - an exec primitive, an operation
+registry, a result envelope, an activation file set - that **does not exist
+yet**, and then specifies how to use it. That specification could only ever be
+a guess, and a review of a guess is not convergence. It is attempt consumption.
 
-P-004 requires that, before Ship executes a task, the generated harness is
-observed **RED**. Today that observation is performed by agent prose: the agent
-runs commands, reads output and asserts a conclusion. Nothing is typed, nothing
-is machine-checkable, and a misread — or an invented — conclusion silently
-disables the gate for every shipment in the workspace.
+**The correct response is to stop guessing and to stop reviewing.** Nothing is
+gained by producing revision 9 for attempt 03 against the same absent
+substrate.
 
-## Contract
+## What must exist before this becomes a plan again
 
-### What P-004 requires — stated once, exactly
-
-A gate result of `RED_CONFIRMED` requires **all four**, with no exceptions:
-
-1. the canonical compile command succeeds;
-2. the canonical unittest command exits **non-zero**;
-3. **every** expected harness test fails **with its own expected marker**;
-4. **no unexpected failure or error exists.**
-
-**There is no expected-green characterization.** The concept is removed from
-this plan entirely, not deferred and not renamed. Established unrelated tests
-may pass — whole-suite discovery is retained — but passing is never *asserted*
-about any test, and the gate never characterizes a green outcome as expected.
-
-### The expected set is derived, never supplied
-
-The caller supplies **identifiers only**. It never supplies test IDs, markers,
-argv, environment or an expected set.
-
-* Each generated harness test function in the configured test roots contains a
-  unique sentinel:
-
-  ```python
-  raise NotImplementedError("P004:<qualified-test-id>")
-  ```
-
-* The gate parses those roots with a **safe AST walk** — `ast.parse` only, with
-  **no import, no execution and no evaluation** of the parsed source.
-* For each discovered sentinel, the marker payload after `P004:` MUST equal the
-  **qualified discovered test ID** of the function containing it. A mismatch is
-  a derivation failure.
-* **At least one** expected test must be derived.
-
-### Outcome classification
-
-| Final gate token | Reached when |
-|---|---|
-| `RED_CONFIRMED` | all four requirements above hold |
-| `RED_NOT_CONFIRMED` | observation completed, but any requirement fails — compile failure, an expected harness test that passes, a marker that does not correlate, or any unexpected failure or error |
-| `NO_OBSERVATION` | no trustworthy observation could be taken |
-
-`NO_OBSERVATION` is reached by: discovery failure, a unittest loader error, an
-empty derived expected set, a marker/ID correlation failure, or a
-harness-surface resolver precondition that did not return `HARNESS_READY`.
-**`NO_OBSERVATION` is classified FAIL, never PASS.**
-
-Any **unexpected** failure, error **or skip of an expected harness test**
-blocks. A skip is not a pass and is not ignorable: an expected harness test
-that is skipped was not observed failing.
-
-### Resolver precondition
-
-The gate calls `resolve_harness_surfaces` in
-`src/autoharness/harness_surfaces.py` **directly as a Python function** and
-emits the returned `inputs_sha256` into its own evidence. It does **not** shell
-out to the resolver CLI and does **not** read any persisted readiness state —
-none exists.
-
-| Resolver state | Gate behaviour | Error-detail exit |
+| Needed | Delivered by | State today |
 |---|---|---|
-| `HARNESS_READY` | proceed to command execution | — |
-| `NO_HARNESS` | **no command is executed**; final token `NO_OBSERVATION` | 1 |
-| `UNRESOLVED` | **no command is executed**; final token `NO_OBSERVATION` | 2 |
+| Operation registry and transport envelope | `184-S` / `178-F` | **archived and withheld** under `D10`, pending `TRANSPORT_DECIDED` |
+| Fixed-argv exec primitive, bounded reader | `185-S` / `179-F` | queued, **unclaimable** while `184-S` is withheld |
+| Harness-surface resolver, typed result, CLI | `187-S` / `181-F` | queued, `dag-root`, **plan not yet passed review** |
+| Actor marker grammar the gate parses | settled by the above | **not settled** - see `O11` |
 
-`NO_HARNESS` and `UNRESOLVED` are **preserved as distinct error detail with
-distinct exit codes** even though both collapse to the same final gate token.
-Neither executes any command.
+Until `185-S` and `187-S` have **actually shipped**, the exact module paths,
+function signatures, result schemas, registration mechanics, CLI and MCP paths
+and manifest entries are unknowable. Writing them is what produced the
+findings above.
 
-### Commands — shell-free argv specifications
+## The requirements - validated direction, preserved
 
-Compilation:
+What follows is **what must be true**, not how to build it. Each item survived
+independent review as a *direction*; none may be read as an implementation
+specification, and each must be re-derived against the delivered surfaces
+before it is turned into a task.
 
-```
-argv = ["python", "-m", "py_compile", "src/autoharness/cli.py"]
-env  = inherited, unmodified
-```
+### R1 - the whole-suite policy is unsatisfiable and must be amended, not worked around
 
-Test execution — the canonical command is
-`PYTHONPATH=src python -m unittest discover -s tests`. The leading
-`PYTHONPATH=src` is **not a shell construct** and is not passed to a shell. It
-is parsed against a **closed allowlist of environment assignments** —
-`PYTHONPATH` only — and applied as an environment override:
+The installed P-004 precondition demands a whole-suite `unittest discover` run
+exiting non-zero **with every generated harness test failing**, on a repository
+whose established suite passes. Attempt 02 found (`O21`) that the non-zero-exit
+requirement, the retained whole-suite discovery and the
+established-tests-may-pass allowance cannot all hold as stated.
 
-```
-argv = ["python", "-m", "unittest", "discover", "-s", "tests"]
-env  = inherited + {"PYTHONPATH": "src"}
-```
+**Requirement:** the gate is **task-scoped and structured**, not whole-suite
+and exit-code-derived. Amending the policy text is part of the future unit's
+scope, performed **after** the foundations ship - never a local reinterpretation
+by the gate.
 
-An assignment prefix naming any variable outside the allowlist is a
-**derivation failure**, not a silently-dropped token.
+### R2 - the actor does not apply the label; Ship does
 
-Both invocations run with `shell=False`, `cwd` = the workspace root, and a
-bounded timeout. Every outcome is mapped explicitly:
+Attempt 02 found (`O11`) that direct actor mutation of a policy-bearing label
+bypasses the very gate that is supposed to authorize it.
 
-| Condition | Mapping |
-|---|---|
-| Spawn failure (`FileNotFoundError`, `PermissionError`) | `NO_OBSERVATION` |
-| Timeout expiry | `NO_OBSERVATION` |
-| Terminated by signal | `NO_OBSERVATION` |
-| Output decode failure | `NO_OBSERVATION` |
-| Clean exit, any code | observation proceeds; the code is recorded |
+**Requirement:** `harness-architect` **no longer applies `harness-ready`**.
+Ship applies it, **exclusively**, and **only** after a `RED_CONFIRMED` gate
+result. The actor produces artifacts; it does not adjudicate.
 
-**The caller never supplies argv or env.** Both are constructed by the gate
-from the canonical specification above.
+### R3 - the expected set is declared by the producer, not inferred from test bodies
 
-## Typed API
+Attempt 02 found (`O11`) that the plan's per-test sentinel
+`raise NotImplementedError("P004:<qualified-test-id>")` **has no producer**:
+the manifest variable `UNIMPLEMENTED_MARKER` is the constant literal
+`raise NotImplementedError("...")`. It also found (`O12`) that an
+unconditionally raising test is **vacuous** - it fails regardless of the subject
+- and (`O13`) that the expected set was neither shipment-scoped nor owned.
 
-Module `src/autoharness/gates/red_phase.py`:
+**Requirement:**
 
-```python
-class ResolverPrecondition(str, Enum):
-    HARNESS_READY = "HARNESS_READY"
-    NO_HARNESS = "NO_HARNESS"
-    UNRESOLVED = "UNRESOLVED"
+* The actor emits a **module-level literal declaration**, conventionally
+  `P004_HARNESS`, carrying the task ID, the mapping from qualified test ID to
+  the expected production-stub marker, and the source files under test.
+* The declaration is a **literal data structure that does not execute** -
+  readable by `ast.literal_eval` after a safe parse, with no call, no
+  comprehension, no name reference and no import.
+* **Test bodies never contain an unconditional marker raise.** The marker is
+  raised by the **production stub** the test exercises.
+* The gate validates the **actual exception raised by exercising each declared
+  test**, not the text of the test's source.
 
-class GateToken(str, Enum):
-    RED_CONFIRMED = "RED_CONFIRMED"
-    RED_NOT_CONFIRMED = "RED_NOT_CONFIRMED"
-    NO_OBSERVATION = "NO_OBSERVATION"
+This makes the expected set producer-owned, shipment-scoped and falsifiable -
+the three properties `O11`, `O12` and `O13` found missing.
 
-@dataclass(frozen=True)
-class ExpectedTest:
-    qualified_id: str
-    marker: str
-    source_path: str          # root-relative, redacted
+### R4 - one structured run, gate-owned, never a parse of human output
 
-@dataclass(frozen=True)
-class ObservedTest:
-    qualified_id: str
-    outcome: str              # "fail" | "error" | "pass" | "skip"
-    marker_seen: str | None
-    marker_correlates: bool
+Attempt 02 found (`O14`) that default `unittest` output cannot supply
+per-test outcomes, markers and correlation.
 
-@dataclass(frozen=True)
-class CommandObservation:
-    argv: tuple[str, ...]
-    env_overrides: Mapping[str, str]
-    exit_code: int | None
-    duration_ms: int
-    failure_mode: str | None  # spawn | timeout | signal | decode | None
+**Requirement:** the gate owns a **single structured child run** with a
+machine-readable result protocol of its own design. It does **not** parse
+default human-readable output, and it does **not** run the suite twice.
+Policy text, actor and gate are updated in **one atomic unit** - a gate that
+expects a declaration the installed actor does not emit is exactly `O11`.
 
-@dataclass(frozen=True)
-class P004GateResult:
-    schema_version: int
-    token: GateToken
-    reason_code: str
-    shipment_id: str
-    resolver_precondition: ResolverPrecondition
-    resolver_inputs_sha256: str | None
-    expected: tuple[ExpectedTest, ...]
-    observed: tuple[ObservedTest, ...]
-    unexpected_failures: tuple[str, ...]
-    commands: tuple[CommandObservation, ...]
-    evidence_sha256: str
-    errors: tuple[str, ...]
+### R5 - identifiers in, trusted context injected
 
-def evaluate_red_phase(
-    *,
-    workspace_root: Path,
-    autoharness_home: Path,
-    shipment_id: str,
-) -> P004GateResult: ...
-```
+Attempt 02 found (`O20`) that exposing `workspace_root` and
+`autoharness_home` as caller parameters **inverts the trust boundary**: the
+caller supplies the roots the containment checks are performed against.
 
-`resolver_precondition` is carried **separately** from `token`, so a
-`NO_OBSERVATION` caused by an unusable harness surface is distinguishable from
-one caused by a loader error. `evidence_sha256` binds the canonical JSON of the
-whole result with domain separation, and `resolver_inputs_sha256` carries the
-resolver's own digest unmodified.
+**Requirement:** the public operation accepts **identifiers only**. Trusted
+context is injected by the invoking surface, never supplied by the caller.
 
-## One registered operation
+### R6 - registration is an ACTIVATE act
 
-The gate is registered as **exactly one** typed operation, `harness/p004-gate`,
-through the registry and transport substrate delivered by the archived `184-S`
-and shipped by `185-S`. From that single registration the CLI form
-`autoharness op harness p004-gate` and the MCP form are **derived**, not
-separately implemented.
+Attempt 02 found (`O18`) that registering an operation makes it discoverable
+and invocable, so "register it inert during PREPARE" contradicts `D2`.
 
-**Human and agent paths use the same operation.** The Ship skill invokes the
-operation and records the returned `P004GateResult` **verbatim**; it does not
-run unittest itself, does not parse runner output and does not re-derive the
-expected set. This is what prevents the prose surface and the executable
-surface from diverging.
+**Requirement:** registration happens at **ACTIVATE** and nowhere earlier. The
+exact `OperationResult` adapter, transport schema, CLI and MCP parity paths,
+activation file set and manifest entries are **derived from the delivered
+`184-S`/`185-S` substrate**, and enumerated exhaustively then - satisfying
+`O17` and `O19` with facts rather than assertions.
 
-## Rollout — TDD order
+### R7 - digests project, never self-reference
 
-1. **RED** — failing contract tests for derivation, classification, command
-   specification and the resolver precondition. Negative tests must be
-   **non-vacuous**: each asserts a specific wrong outcome is *not* produced, and
-   composed states are exercised — a passing expected test alongside a failing
-   one, a correct marker alongside a mismatched one, an unexpected error
-   alongside a correct expected failure.
-2. **PREPARE** — implement `red_phase.py` and register the operation, inert.
-3. **VERIFY** — evidence over every classification row, every command failure
-   mode and every resolver precondition.
-4. **ACTIVATE** — one atomic commit wiring the operation into the policy text,
-   the Ship skill template and its installed mirror, with the harness manifest
-   refreshed in the same commit and the same rollback unit (`D11`).
+Attempt 02 found (`O16`) that `evidence_sha256` was defined over the document
+that contains it.
 
-**Careful mode and freeze scope.** The activation commit freezes its scope to
-the enumerated files; no opportunistic edit enters it.
+**Requirement:** every digest is computed over an **explicit projection** of
+the result that **excludes the digest field itself**, with domain separation
+and explicit absence sentinels.
 
-## Rollback
+### R8 - bounds, containment, typed outcomes, approval-gated rollback
 
-Rollback is a `git revert` of the single ACTIVATE commit, restoring the policy,
-the skill template, the installed mirror and the manifest entry **together as
-one unit**.
+Attempt 02 found (`O15`) that AST containment, grammar and resource bounds were
+undefined.
 
-**It requires FRESH, LIVE operator approval, obtained immediately before the
-revert command is issued and bound to the exact activation commit SHA.** The
-approval must name that SHA and is re-validated in the moment the command is
-about to run. An approval obtained earlier in the session, or for a different
-SHA, is not an approval. If the operator is unreachable, dark or AFK, the agent
-**halts and reports**. Proceeding without that approval is a P-005 violation.
-**There is no unconditional revert path.**
+**Requirement:** the AST walk is confined to files under the canonical
+workspace root, with an explicit accepted grammar, explicit per-file and
+aggregate bounds, and an explicit mapping for syntax errors. Outcomes are typed
+and exhaustive; the resolver's non-ready states are preserved distinctly, and
+**neither executes any command**. Rollback requires **fresh, live, SHA-bound
+operator approval** with a safety mode and an explicit halt when the operator is
+dark or AFK. There is no unconditional revert path.
 
-## Out of scope
+## What this document does not do
 
-The harness-architect actor's content or conformance; the harness-surface
-resolver itself (`187-S`); the operation registry and transport substrate
-(`184-S` / `185-S`); any change to the canonical commands; any change to P-002,
-gate semantics, grants, `--force` or waivers.
+* It does **not** name a gate module path, function signature, dataclass shape,
+  result schema, operation ID, CLI path or MCP tool name. Those were `O5`,
+  `O7`, `O14`, `O17`, `O19` and `O20`, and they are unknowable today.
+* It does **not** claim any finding is addressed. All twenty-five remain open.
+* It does **not** request a review.
+* It does **not** create, restore or revive a carrier.
 
-## Risks
+## Carriers
 
-| Risk | Mitigation |
-|---|---|
-| A false `RED_CONFIRMED` silently disables P-004 workspace-wide | Four independent requirements, all derived; `NO_OBSERVATION` is FAIL; non-vacuous negative tests |
-| AST parsing executes untrusted source | `ast.parse` only — no import, no execution, no evaluation |
-| A caller injects an expected set or argv | Callers supply identifiers only; argv and env are constructed by the gate |
-| The prose and executable surfaces diverge | One registered operation; the skill records the result verbatim |
-| Rollback destroys working state without consent | Fresh, live, SHA-bound approval revalidated immediately before the command |
+`176-S`, `168-F` and `168.001-T` ... `168.012-T` are **permanently retired**:
+archived, never claimed, never executed, and **never restored under any
+restoration clause**. When the unblock condition is met, Stage harvests a
+**fresh** feature, task set and shipment under **new IDs** against the
+then-current repository state.
 
-## Hardening review
+`168-S` - an unrelated shipment carrying the `160-F` family - declares
+`dependencies: ['166-S', '176-S']`. Because `176-S` is archived, `168-S` is
+**unclaimable**. That is a deliberate **fail-closed hold**, preserved as a
+truthful record of what `168-S` was sequenced behind. It clears only by an
+operator-directed re-sequencing onto the fresh replacement shipment once one
+exists. **`176-S` can never ship.**
 
-### Adversarial questions
+## Provenance
 
-* *Can a shipment pass the gate with no harness tests?* No — an empty derived
-  expected set is `NO_OBSERVATION`, which is FAIL.
-* *Can a skipped harness test be counted as failing?* No — skip is a distinct
-  observed outcome and blocks.
-* *Can `PYTHONPATH=src` be turned into shell injection?* No — it is parsed
-  against a closed allowlist into an environment override; `shell=False`
-  throughout.
-* *Can a stale readiness answer authorize execution?* No — the resolver
-  persists nothing and is called directly at evaluation time.
-
-### Blast radius
-
-A mandatory policy gate traversed by every future shipment; subprocess
-execution; AST parsing of workspace source; simultaneous CLI and MCP surface
-registration.
-
-### Verification floor
-
-Targeted RED and GREEN on the gate's own test modules; the full canonical
-suite; the canonical compile command; and evidence covering every
-classification row, every command failure mode and every resolver precondition
-state.
+* Supersedes `docs/plans/2026-09-17-p004-red-phase-precondition-scoping-plan.md`
+* Source stash `76EBDE6D`
+* Governing decision: the 2026-09-18 shared-execution-architecture and
+  portfolio-reslicing decision, revision **8**, `SM-1` and `D10`
+* Verdict manifest: `docs/reviews/2026-09-18-p004-observation-gate-plan-review.md`
+* Finding namespace: `O`-prefix, reserved for `p004-observation-gate`

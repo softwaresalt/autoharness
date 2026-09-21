@@ -5,8 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 date: 2026-09-18
 status: decided
-revision: 7
-revision_note: "REVISION 7 RECORDS THE ACTOR AS BOTH STRUCTURALLY PRESENT AND BEHAVIOURALLY CONFORMANT, AND RETIRES TWO EXECUTION GRAPHS THAT NEVER RAN. Revision 6 recorded structural installation by 07b4be79 but left the harness-architect actor behaviourally non-conformant with P-004: its installed Step 5.2 invoked pytest while P-004 and the manifest require the canonical command. Revision 6 attributed that to an install-time variable precedence defect and harvested a corrective release unit (191-S / 185-F / 185.001-T-185.006-T). BOTH THE DIAGNOSIS AND THE UNIT ARE WITHDRAWN. The real defects were a stale installed render plus a manifest variable that was never seeded; _derive_template_variables already treats manifest variables_used as authoritative because profile-derived defaults apply through setdefault. Ship review-remediation commits 1cb0dc81 and b8ac632a corrected both directly on this branch, and independent attempt-08 finding S26 separately held 191-S structurally unexecutable under ordinary P-002/P-004. 191-S, 185-F and 185.001-T-185.006-T are therefore ARCHIVED AS RETIRED, NEVER CLAIMED, NEVER EXECUTED AND NEVER SHIPPED; the 187-S -> 191-S edge is withdrawn and 187-S is restored as an explicit dag-root. This revision additionally retires 176-S, 168-F and the live 168 tasks: they encode the superseded P-004 design that independent attempt-01 finding O1 blocked, they were never claimed or executed, and the P-004 gate is re-harvested fresh after the foundations actually ship rather than restored. SM-1 is reconciled with P-004 plan revision 7. D1-D8, D10, D11 and every unrelated decision, state-machine table and DAG edge are UNCHANGED; D11 manifest parity is preserved verbatim."
+revision: 8
+revision_note: "REVISION 8 IS A POINTER AND CURRENT-STATE CORRECTION ONLY; IT RETIRES NOTHING, RESTORES NOTHING AND CHANGES NO DECISION SEMANTICS. Independent lifecycle attempt 09 (FAIL against plan revision 10) found that D10's downstream-consequence paragraph still listed `176-S` among the queued-but-unclaimable successors of `184-S`, although revision 7 had already archived `176-S` as retired; a retired record cannot be queued, so the sentence was self-contradictory. That list is corrected to the three units that are genuinely queued and unclaimable - `185-S`, `186-S`, `178-S` and `180-S` - and the retired units are described as withheld from harvest rather than blocked by an edge. The same attempt found the governing-plan pointers stale. The `P4` pointer now reads plan revision 11, attempt 09 FAIL against revision 10, awaiting independent attempt 10. The retired-`176-S` pointer now reads plan revision 8, attempt 02 FAIL against revision 7, BLOCKED with NO attempt 03 authorized or scheduled - that plan was converted from an implementation contract into a requirements contract because it cannot be made implementation-ready before `185-S` and `187-S` deliver the substrate its exact paths and signatures must be derived from, and reviewing it again first would burn review cycles on unresolvable questions. SM-1 is reconciled with that revision 8. D1-D11 semantics, D11 manifest parity verbatim, every state-machine table, every DAG edge, `187-S` as dag-root with no dependencies, and `184-S -> 182-S` are ALL UNCHANGED."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -1036,9 +1036,21 @@ structurally binding rather than advisory.
 
 **Downstream consequence, accepted deliberately.** `185-S` genuinely needs
 `184-S`'s registry, so it retains that edge and is therefore queued-but-
-unclaimable; `186-S`, `176-S`, `178-S` and `180-S` inherit that transitively.
-Each record states so explicitly. This is the correct fail-closed outcome: a
-portfolio built on an undecided substrate must not be claimable.
+unclaimable; `186-S`, `178-S` and `180-S` inherit that transitively. Each record
+states so explicitly. This is the correct fail-closed outcome: a portfolio built
+on an undecided substrate must not be claimable.
+
+**`176-S` is not on this list and must not be added to it.** It was retired and
+archived at revision 7, and a retired record is *withheld from harvest*, not
+*queued-but-unclaimable* — the two states are different and the distinction is
+load-bearing. An unclaimable queued record becomes claimable the moment its edge
+clears; a retired record never becomes claimable at all, because the path back
+into the queue is a fresh Stage harvest under new IDs and never a restoration.
+Revision 7 archived `176-S`, `168-F` and the live `168` tasks; listing any of
+them here would re-describe a retired unit as a merely-blocked one and would
+imply an automatic return that does not exist. `187-S` is likewise absent from
+this list for the opposite reason: it is a `dag-root` with no dependencies, it
+is queued and it *is* claimable.
 
 ---
 
@@ -1047,7 +1059,11 @@ portfolio built on an undecided substrate must not be claimable.
 ### SM-1 — P-004 red-phase gate (retired carrier; re-harvested fresh)
 
 Reconciled with `docs/plans/2026-09-18-p004-observation-gate-plan.md` **revision
-7**. The `expected_green_characterization` set is **removed from the decision
+8**, which is a `status: blocked` **requirements contract** rather than an
+implementation plan: it carries no live tasks, no shipment and no scheduled
+review attempt, and it resumes independent review only after `185-S` and `187-S`
+ship and Stage re-derives the delivered registry, transport, CLI and MCP paths
+and signatures from what those units actually built. The `expected_green_characterization` set is **removed from the decision
 entirely**; the expected-test set is **derived by the gate, never supplied by a
 caller**.
 
@@ -1261,8 +1277,8 @@ in `docs/reviews/`. The six 2026-09-17 defect plans are marked
 | `P1` | `docs/plans/2026-09-18-operation-substrate-transport-plan.md` (`plan_role: conditional-future`, preserved intact) | — |
 | `P2` | `docs/plans/2026-09-18-safe-operation-primitives-plan.md` | — |
 | `P3` | `docs/plans/2026-09-18-review-authority-foundation-plan.md` | `2026-09-17-single-governing-plan-contract-plan.md` |
-| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**revision 10**; attempt 08 FAIL against revision 9; awaiting independent attempt 09) | — |
-| `176-S` (retired) | `docs/plans/2026-09-18-p004-observation-gate-plan.md` (**revision 7**; attempt 01 FAIL against revision 6; awaiting attempt 02; **withheld from harvest** until `P2` and `P4` ship) | `2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
+| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**revision 11**; attempt 09 FAIL against revision 10; awaiting independent attempt 10) | — |
+| `176-S` (retired) | `docs/plans/2026-09-18-p004-observation-gate-plan.md` (**revision 8**, `status: blocked` — a requirements contract, not an implementation plan; attempt 02 FAIL against revision 7; **NO attempt 03 is authorized or scheduled**; `blocked_on: [185-S, 187-S]`; **withheld from harvest** until `P2` and `P4` ship) | `2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
 | `177-S` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` | `2026-09-17-post-claim-member-status-contract-plan.md` |
 | `178-S` | `docs/plans/2026-09-18-branch-ensure-operation-plan.md` | `2026-09-17-workspace-authoritative-branch-resolution-plan.md` |
 | `180-S` | `docs/plans/2026-09-18-checkpoint-authority-plan.md` | `2026-09-17-checkpoint-resume-hint-contract-plan.md` |

@@ -1,14 +1,14 @@
 ---
 title: Plan review verdict manifest — Ship pre-task harness-generation lifecycle
-description: 'Mutable verdict manifest for docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. It is also the SOLE AUTHORITY for this plan''s review state - the live carriers 181-F, 181.001-T through 181.005-T and 187-S point here and restate nothing. MANIFEST REVISION 17. THERE IS NO VERDICT OF RECORD FOR THE CURRENT PLAN REVISION. The plan is at REVISION 10, a current-state rewrite performed by Stage under continuing operator authorization to address the findings recorded at attempt 08. REVISION 10 HAS NOT BEEN REVIEWED BY ANY INDEPENDENT ATTEMPT. The most recent independent attempt is 08, which judged plan revision 9 at committed base b11d6555 and returned FAIL/BLOCK at P0 1 / P1 11 / P2 7 / P3 2. awaiting_attempt is 9. TWENTY FINDINGS REMAIN OPEN AND ARE REMEDIATED-PENDING-REVIEW: Stage remediates, Stage never closes. Exactly one finding is closed - S14, closed at attempt 08 on external Ship evidence alone. PUBLICATION AND EXECUTION REMAIN DISTINCT GATES AND NEITHER IS OPEN.'
+description: 'Mutable verdict manifest for docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md. This file is a selection surface, not a review: it names which immutable attempt artifact is authoritative right now, and nothing else. It is also the SOLE AUTHORITY for this plan''s review state - the live carriers 181-F, 181.001-T through 181.007-T and 187-S point here and restate nothing. MANIFEST REVISION 19. THERE IS NO VERDICT OF RECORD FOR THE CURRENT PLAN REVISION. The plan is at REVISION 11, a current-state rewrite performed by Stage under continuing operator authorization to address the findings recorded at attempt 09. REVISION 11 HAS NOT BEEN REVIEWED BY ANY INDEPENDENT ATTEMPT. The most recent independent attempt is 09, which judged plan revision 10 at committed base 844cee9c and returned FAIL/BLOCK at P0 2 / P1 22 / P2 13 / P3 2. awaiting_attempt is 10, now against revision 11. THIRTY-NINE FINDINGS REMAIN OPEN AND ARE REMEDIATED-PENDING-REVIEW: Stage remediates, Stage never closes. Exactly one finding is closed - S14, closed at attempt 08 on external Ship evidence alone. Revision 11 corrects the wrong Ship activation paths, moves rendering onto the manifest top-level variables_used, makes the declaration and aggregation model total, specifies handle-bound no-follow traversal, splits the oversized PREPARE task into 181.002-T, 181.006-T and 181.007-T, and reconciles every carrier. PUBLICATION AND EXECUTION REMAIN DISTINCT GATES AND NEITHER IS OPEN.'
 doc_type: review-manifest
 source: docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md
 date: 2026-09-18
 manifest_shape: attempt-roster
-manifest_revision: 18
+manifest_revision: 19
 plan_id: ship-harness-lifecycle-foundation
 plan_path: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
-plan_revision: 10
+plan_revision: 11
 plan_revision_reviewed: 10
 feature_id: 181-F
 shipment_id: 187-S
@@ -19,7 +19,7 @@ terminal_designation: not-terminal-remediation-authorized
 terminal_disposition: FAIL-BLOCKING-P0-AND-P1
 terminal_note: 'Attempt 09 CONSUMED attempt number 9 and is NOT terminal: the operator directive that dispatched it explicitly authorizes continued remediation after recording. This is a FAIL, not a convergence terminal and not a terminal PASS.'
 awaiting_attempt: 10
-awaiting_attempt_against_revision: 10
+awaiting_attempt_against_revision: 11
 reviewed_content_head: 844cee9c
 reviewed_content_head_note: Attempt 09 reviewed plan revision 10 at COMMITTED base 844cee9c. Attempt 08 reviewed revision 9 at committed base b11d6555. Attempt 07 reviewed revision 8 at committed base be9542a5.
 gate_result: FAIL
@@ -111,10 +111,49 @@ findings_closed_at_attempt_04:
 - S11
 findings_closed_at_attempt_05:
 - S12
-findings_addressed_pending_review: []
+findings_addressed_pending_review:
+- S13
+- S15
+- S16
+- S17
+- S18
+- S19
+- S20
+- S21
+- S22
+- S23
+- S24
+- S25
+- S26
+- S27
+- S28
+- S29
+- S30
+- S31
+- S32
+- S33
+- S34
+- S35
+- S36
+- S37
+- S38
+- S39
+- S40
+- S41
+- S42
+- S43
+- S44
+- S45
+- S46
+- S47
+- S48
+- S49
+- S50
+- S51
+- S52
 open_counts_note: Counts are AS DETERMINED BY ATTEMPT 09 against plan revision 10 and are NOT re-derived by Stage. They comprise the twenty-one findings S13 and S15-S34 CARRIED OPEN from attempt 08 plus the eighteen findings S35-S52 RAISED AT ATTEMPT 09. S14 remains the ONLY closed finding on this plan; its closure was recorded at attempt 08 on external Ship evidence and is neither extended nor re-argued.
 remediation_authorization: authorized-by-operator-directive-after-recording
-latest_remediation_revision: 10
+latest_remediation_revision: 11
 latest_disposition: FAIL-BLOCKING-P0-AND-P1
 latest_disposition_note: Attempt 09 returned FAIL/BLOCK against revision 10 and is the latest independent disposition. Attempt 06 PASS-P3-ONLY is scoped to revision 7 and is recorded in its own immutable artifact; it is NOT a current-state verdict and confers no publication eligibility on any later revision.
 latest_artifact: docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-09.md
@@ -528,9 +567,9 @@ findings_raised_at_attempt_09:
 - S50
 - S51
 - S52
-findings_addressed_pending_review_note: 'EMPTY BY DESIGN. Attempt 09 was a RECORDING-ONLY turn: no remediation was performed and no plan, carrier, source, template, skill or manifest file was modified. Nothing is pending review that was not already judged by attempt 09.'
-plan_pointer_fields_stale: true
-plan_pointer_fields_stale_note: The plan's own latest_attempt / awaiting_attempt fields still read 8 and 9 because plan edits were FORBIDDEN by the directive that dispatched attempt 09. THIS MANIFEST IS AUTHORITATIVE; the plan's and the carriers' fields are pointers only, per review_state_authority. This is also recorded as finding S46. Reconcile at the next remediation cycle.
+findings_addressed_pending_review_note: 'All 39 open findings - S13 and S15-S52 - are addressed by plan revision 11 and by the reconciled carriers 181-F, 181.001-T through 181.007-T and 187-S, and are recorded as REMEDIATED-PENDING-REVIEW. THAT IS A STAGE DISPOSITION AND NEVER A VERDICT: not one finding is closed here, not one severity is lowered, and the counts above are exactly as attempt 09 determined them. S14 is untouched and remains the only closed finding on this plan, closed at attempt 08 on external Ship evidence. Only independent attempt 10 may close anything.'
+plan_pointer_fields_stale: false
+plan_pointer_fields_stale_note: 'RECONCILED AT REVISION 11. The condition recorded as finding S46 arose because the directive dispatching attempt 09 forbade plan edits; that directive no longer binds. Plan revision 11 now reads latest_attempt 9 and awaiting_attempt 10, matching this manifest. S46 is REMEDIATED-PENDING-REVIEW and is NOT closed. THIS MANIFEST REMAINS AUTHORITATIVE: the plan''s and the carriers'' fields are pointers only, and where they ever disagree this file governs.'
 ---
 
 # Verdict manifest — Ship pre-task harness-generation lifecycle
@@ -538,16 +577,19 @@ plan_pointer_fields_stale_note: The plan's own latest_attempt / awaiting_attempt
 This file is a **selection surface**, not a review. It names which immutable
 attempt artifact is authoritative right now, and it is the **sole authority**
 for this plan's review state. The live carriers `181-F`,
-`181.001-T`…`181.005-T` and `187-S` carry a pointer here and restate nothing.
+`181.001-T`…`181.007-T` and `187-S` carry a pointer here and restate nothing.
+Revision 11 split the oversized single PREPARE task into `181.002-T`
+(secure-read primitive), `181.006-T` (resolver core) and `181.007-T`
+(CLI/JSON adapter), so the roster is now **seven** tasks, not five.
 
 ## Current state
 
 | | |
 |---|---|
-| Plan revision | **10** — current-state rewrite addressing attempt-08 findings |
+| Plan revision | **11** — current-state rewrite addressing attempt-09 findings `S35`–`S52` and all carried findings |
 | Last independent attempt | **09**, which judged revision **10** at committed base `844cee9c` |
 | Verdict of record | **FAIL / BLOCK** — `P0` 2 / `P1` 22 / `P2` 13 / `P3` 2 |
-| Awaiting | independent attempt **10** against revision **10** |
+| Awaiting | independent attempt **10** against revision **11** |
 | Publication eligible | **false** |
 | Execution gate | separately **shut** |
 
@@ -668,10 +710,10 @@ asserts **no** verdict and consumes **no** attempt number.
 
 ## Provenance
 
-* Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md`, revision **10** (last reviewed content: revision 10, at attempt 09)
+* Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md`, revision **11** (last reviewed content: revision 10, at attempt 09)
 * Feature `181-F` — Shipment `187-S` (queued, **`dag-root`**, **no** shipment dependencies)
 * Source stash `76EBDE6D` (archived)
-* Governing decision: `docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md`, revision **7**, `D9` and `D11`
+* Governing decision: `docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md`, revision **8**, `D9`, `D10` and `D11`
 * Bounding decision: `docs/decisions/2026-09-20-pr457-bounded-review-convergence-deliberation.md`
 * Retired predecessors: `188-S` / `182-F` and `191-S` / `185-F` — archived, never claimed, never executed
 * Bootstrap precursor plan: `docs/plans/2026-09-20-harness-architect-bootstrap-plan.md` — retired, superseded, non-authorizing
@@ -684,10 +726,16 @@ either of the former. `SM-2` `HARVEST_ADMITTED` is **SHUT**. Publication
 eligibility and execution authorization are **distinct gates**, and both are
 currently shut.
 
-## Pointer reconciliation outstanding
+## Pointer reconciliation
 
-The plan's own `latest_attempt` / `awaiting_attempt` fields still read **8** and
-**9**, and the live carriers restate nothing but point here. Plan edits were
-**forbidden** by the directive that dispatched attempt 09, so they were not
-reconciled. **This manifest is authoritative.** The condition is also recorded
-as finding `S46`; reconcile at the next remediation cycle.
+The condition recorded as finding `S46` — the plan's own `latest_attempt` /
+`awaiting_attempt` fields reading **8** and **9** while this manifest read **9**
+and **10** — arose because the directive that dispatched attempt 09 **forbade
+plan edits**. That directive no longer binds. Revision 11 reconciles the plan's
+pointer fields to `latest_attempt: 9` and `awaiting_attempt: 10`, and the
+carriers `181-F`, `181.001-T`…`181.007-T` and `187-S` are pointer-only.
+
+`S46` is therefore **REMEDIATED-PENDING-REVIEW**, like every other open finding.
+**It is not closed.** Only independent attempt 10 may close it. **This manifest
+remains authoritative** over every pointer it and the plan both state; where they
+ever disagree, this file governs.
