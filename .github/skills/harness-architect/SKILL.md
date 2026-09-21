@@ -123,11 +123,32 @@ with a non-compiling harness.
 
 #### Step 5.2: Red phase check
 
-Run `pytest` for the harness tests. ALL tests MUST fail with
-the expected failure marker (raise NotImplementedError("...")).
+Run `PYTHONPATH=src python -m unittest discover -s tests` for the harness tests,
+invoking exactly the resolved test command with no runner substitution.
+EVERY generated harness test MUST be discovered AND MUST fail with its
+own expected failure marker (raise NotImplementedError("...")); evaluate
+each test individually rather than relying on an aggregate non-zero
+exit code.
 
-If any test passes (false positive) or fails with an unexpected error
-(compilation vs runtime), fix the harness.
+The following outcomes are NEVER valid red-phase evidence and MUST be
+treated as harness defects requiring a fix before proceeding:
+
+* **Zero-discovery**: the test command reports zero tests collected —
+  test discovery failed to find the harness at all.
+* **Wrong-reason failure**: a test fails for a reason other than the
+  expected failure marker (a different exception type or message).
+* **Collection/import/syntax failure**: the run aborts during
+  collection due to an import error, syntax error, or module-load
+  failure — this is not the same signal as a running test raising the
+  expected marker.
+* **Skip or expected-failure (xfail)**: a test reported as skipped or
+  marked expected-to-fail counts as no observation, not as red
+  evidence.
+* **Pass**: a test that passes (false positive) means the harness does
+  not yet exercise the not-yet-implemented behavior.
+
+If any test exhibits one of these outcomes, fix the harness until
+every test is discovered and fails for the expected reason.
 
 ### Step 6: Apply harness-ready label
 

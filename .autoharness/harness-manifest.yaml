@@ -237,7 +237,8 @@ artifacts:
   - path: ".github/skills/harness-architect/SKILL.md"
     primitive: 4
     template: "skills/harness-architect/SKILL.md.tmpl"
-    checksum: "49f6bae3945bf823aecbe959fa38197c05325d19b14d5608e5b0b47eeda41716"
+    checksum: "12eca9a036ca95243e27e7d15d474cfd629d96155f5f9ce85f4ea06f75acac3d"
+    note: "PR #457 attempt-08 review finding S14/P0: the structurally-installed actor (commit 07b4be79) hard-coded Step 5.2's red-phase command as `pytest`, which this repository cannot run (no [tool.pytest] in pyproject.toml) and which disagreed with the already-correct `variables_used.TEST_COMMAND` above and P-004's precondition in .github/policies/workflow-policies.md -- both require `PYTHONPATH=src python -m unittest discover -s tests`, this repository's real CI gate (.github/workflows/ci.yml). `_derive_template_variables` already treats manifest `variables_used` as authoritative (profile-derived defaults use `.setdefault`, a no-op once the manifest key exists), so this was a stale-render defect in the previously installed artifact, not a precedence-order defect -- no renderer/precedence change was made. Step 5.2 corrected to the canonical command and its guardrail prose strengthened to require per-test marker correlation, rejecting zero-discovery, wrong-reason failures, collection/import/syntax failures, skips/xfails, and passes as red-phase evidence (mirrored in the source template templates/skills/harness-architect/SKILL.md.tmpl, which keeps {{TEST_COMMAND}}/{{UNIMPLEMENTED_MARKER}} placeholders and remains ecosystem-agnostic). Checksum computed with SHA-256 over the raw LF file bytes."
   - path: ".github/skills/impl-plan/SKILL.md"
     primitive: 4
     template: "skills/impl-plan/SKILL.md.tmpl"
