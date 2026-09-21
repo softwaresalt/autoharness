@@ -5,8 +5,8 @@ doc_type: decision
 source: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 date: 2026-09-18
 status: decided
-revision: 8
-revision_note: "REVISION 8 IS A POINTER AND CURRENT-STATE CORRECTION ONLY; IT RETIRES NOTHING, RESTORES NOTHING AND CHANGES NO DECISION SEMANTICS. Independent lifecycle attempt 09 (FAIL against plan revision 10) found that D10's downstream-consequence paragraph still listed `176-S` among the queued-but-unclaimable successors of `184-S`, although revision 7 had already archived `176-S` as retired; a retired record cannot be queued, so the sentence was self-contradictory. That list is corrected to the three units that are genuinely queued and unclaimable - `185-S`, `186-S`, `178-S` and `180-S` - and the retired units are described as withheld from harvest rather than blocked by an edge. The same attempt found the governing-plan pointers stale. The `P4` pointer now reads plan revision 11, attempt 09 FAIL against revision 10, awaiting independent attempt 10. The retired-`176-S` pointer now reads plan revision 8, attempt 02 FAIL against revision 7, BLOCKED with NO attempt 03 authorized or scheduled - that plan was converted from an implementation contract into a requirements contract because it cannot be made implementation-ready before `185-S` and `187-S` deliver the substrate its exact paths and signatures must be derived from, and reviewing it again first would burn review cycles on unresolvable questions. SM-1 is reconciled with that revision 8. D1-D11 semantics, D11 manifest parity verbatim, every state-machine table, every DAG edge, `187-S` as dag-root with no dependencies, and `184-S -> 182-S` are ALL UNCHANGED."
+revision: 9
+revision_note: "REVISION 9 reconciles the surviving defect-contract count and points P4 to lifecycle plan revision 12. It preserves the retired/withheld graph and all P-004 blocked language."
 depth: deep
 deciders: operator, Stage
 decision_status: decided
@@ -1250,7 +1250,7 @@ plans harvested from this decision. The summary map is:
 | — | `180-S` | `172-F` | defect | 71200CBB | `P2` | retained, reduced; `B0` edge removed at revision 6 |
 | — | `181-S` | `173-F` | defect | 7F9CB5E9 | `S2` | **WITHHELD — archived, conditional future (D10)** |
 
-Six defect units become four. The four foundations exist because four separate
+Six original defect units reduce to four surviving defect contracts: three retained executable units (`177-S`, `178-S`, `180-S`) plus one conditionally withheld unit (`181-S`). The four foundations exist because four separate
 units were each assuming the same four missing producers. Two additional units
 were added later and **both are now retired without ever having executed** (D9):
 `B0`/`188-S` at revision 2, to build the *first* actor through a pipeline that
@@ -1261,6 +1261,19 @@ removed. **`176-S` is retired at revision 7** as a superseded design and is
 re-harvested fresh rather than restored, leaving four live defect units. Two
 units remain withheld from the executable queue because no installed claim gate
 can enforce the verdict that authorizes them (D10).
+
+## Surviving defect-contract count
+
+The current portfolio has **four surviving defect contracts**:
+
+1. `177-S` — retained;
+2. `178-S` — retained;
+3. `180-S` — retained; and
+4. `181-S` — conditionally withheld in the archive pending its authorizing isolation verdict.
+
+`176-S` is retired as a superseded P-004 design and is not a surviving contract. `179-S` is absorbed into the `186-S` foundation and is not separately surviving. This resolves the prior three-versus-four wording inconsistency without changing execution eligibility.
+
+The intentional fail-closed hold `168-S -> archived 176-S` remains untouched. It prevents the stale successor from proceeding until the P-004 gate is freshly re-harvested after its prerequisites. The P-004 plan and review remain blocked; no attempt 03 is authorized or scheduled here.
 
 ### Governing plans
 
@@ -1277,7 +1290,7 @@ in `docs/reviews/`. The six 2026-09-17 defect plans are marked
 | `P1` | `docs/plans/2026-09-18-operation-substrate-transport-plan.md` (`plan_role: conditional-future`, preserved intact) | — |
 | `P2` | `docs/plans/2026-09-18-safe-operation-primitives-plan.md` | — |
 | `P3` | `docs/plans/2026-09-18-review-authority-foundation-plan.md` | `2026-09-17-single-governing-plan-contract-plan.md` |
-| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**revision 11**; attempt 09 FAIL against revision 10; awaiting independent attempt 10) | — |
+| `P4` | `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (**revision 12**; attempt 10 FAIL against revision 11; awaiting independent attempt 11) | — |
 | `176-S` (retired) | `docs/plans/2026-09-18-p004-observation-gate-plan.md` (**revision 8**, `status: blocked` — a requirements contract, not an implementation plan; attempt 02 FAIL against revision 7; **NO attempt 03 is authorized or scheduled**; `blocked_on: [185-S, 187-S]`; **withheld from harvest** until `P2` and `P4` ship) | `2026-09-17-p004-red-phase-precondition-scoping-plan.md` |
 | `177-S` | `docs/plans/2026-09-18-post-claim-member-status-contract-plan.md` | `2026-09-17-post-claim-member-status-contract-plan.md` |
 | `178-S` | `docs/plans/2026-09-18-branch-ensure-operation-plan.md` | `2026-09-17-workspace-authoritative-branch-resolution-plan.md` |
