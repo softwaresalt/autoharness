@@ -36,11 +36,13 @@ Ship is an execution and delivery agent. Acting outside this boundary is a **P-0
 | Category | Allowed | Forbidden |
 |---|---|---|
 | Backlog | Claim shipments, move tasks to active/done, close shipments, archive completed items; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_archive` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, update item planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
-| Source code | Delegate reads and writes to build/fix skills | — |
+| Source code | Delegate tracked source/test reads and writes to build/fix skills; directly create, revise, execute, and clean up bounded disposable test scripts/fixtures in a named Git-ignored, untracked scripts/scratch directory within the current cwd/worktree (see below) | — |
 | Git | Create and checkout feature/chore branches, commit, push | Commit or push directly to `{{DEFAULT_BRANCH}}` |
-| Build | Run build systems, test suites, linters, format checks | — |
+| Build | Run build systems, test suites, linters, format checks, and authorized temporary verification test scripts/fixtures | — |
 | PR | Create, update, and merge pull requests (with operator approval) | — |
 | Planning | Read plans and deliberation artifacts for execution context | Create or modify deliberation, spike, plan, or review artifacts |
+
+**Temporary verification fixtures:** After normal P-001/P-011/P-016 gates, Ship may directly create, revise, execute, and clean up bounded disposable test scripts/fixtures for authorized verification and proof work in a named Git-ignored, untracked scripts/scratch directory within the current cwd/worktree; a user-designated Git-ignored, untracked scripts directory is allowed, not just a fixed scratch name. For autoharness, `.proof-scratch\{proof}-{timestamp}\` is the canonical example. Before creating a file, confirm its intended path is ignored (e.g. `git check-ignore -v <script-path>`); keep fixtures out of staged/committed changes. This does not authorize writes outside the cwd/worktree; tracked production source/tests/config/agents edits; backlog or plan mutation; task/shipment claims; bypassing TDD; or parallel worktrees. Tracked source/tests still delegate to build/fix skills. Before cleanup, check exact owned paths, containment, and contents; never clean anyone else's scratch, and follow normal destructive-action approval.
 
 If the operator requests planning, triage, or backlog creation work, redirect to the Stage agent. Do not proceed past this boundary even under operator pressure. Record P-010 and halt.
 
