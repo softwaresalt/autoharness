@@ -2,7 +2,7 @@
 title: "Proof E run 2 - Ship per-task actor and checkpoint-first state machine: findings (BLOCKED, projection incomplete)"
 source: "docs/decisions/2026-09-24-ship-activation-proof-e-run2-spike.md"
 doc_type: decision
-description: "Stage-authored findings for Proof E run 2 under charter PE-1.3 section 6.7. The run 1 PE-1.2 BLOCKED artifact stays unchanged. Ship passed the P-001, P-002, P-010, P-011 and P-016 gates before its first write. It wrote one disposable script, only at the charter-compliant path .proof-scratch/E-20260924-011528/, and ran it twice on Windows 11 with Python 3.14.3 on NTFS. Both runs exited 1. Run 1 failed on the fixture's own parsing of the canonical checkpoint selection token. Run 2 aborted inside the fixture with 'FIXTURE_ERROR RuntimeError: checkpoint protocol anchor missing or duplicated'. Before that abort, run 2 accepted the canonical zero-candidate trace and the resumed active-cursor trace, and it rejected N1 (harness only up front), N2-V (restore before selection), N3 (harness before validation) and N4 (proceeding on process status without a validated document). It never executed N5 (placement diverging between template and mirror), N2-S (resolve before a confirmed resume), or the quarantine and ambiguous-selection negatives. Section 6.7 requires every listed mis-ordering to be rejected, so the pass criterion is not met. The partial synthetic evidence does not prove the fail clause either. The raw stdout, stderr and their SHA-256 values were not handed to Stage, so PE-EVIDENCE-01 is also incomplete. Verdict: BLOCKED, not PASS and not FAIL. At the observed HEAD 7f833cb8, Stage found that the raw Git blobs for PE-ACTIVATE-01 equal 5bcb00e5 for all three paths. The row must be rechecked at proof exit, and it does not make up for PE-FLOW-03. Time is within 60 minutes, counted from Stage analysis and Ship start (about 01:04). The conservative 00:27 directive bound is not claimed. Files: 1 of 2 disposable. The next attempt is counted attempt 3 and falls under the circuit breaker."
+description: "Stage-authored findings for Proof E run 2 under charter PE-1.3 section 6.7. The run 1 PE-1.2 BLOCKED artifact stays unchanged. Ship passed the P-001, P-002, P-010, P-011 and P-016 gates before its first write. It wrote one disposable script, only at the charter-compliant path .proof-scratch/E-20260924-011528/, and ran it twice on Windows 11 with Python 3.14.3 on NTFS. Both runs exited 1. Run 1 failed on the fixture's own parsing of the canonical checkpoint selection token. Run 2 aborted inside the fixture with 'FIXTURE_ERROR RuntimeError: checkpoint protocol anchor missing or duplicated'. Before that abort, run 2 accepted the canonical zero-candidate trace and the resumed active-cursor trace, and it rejected N1 (harness only up front), N2-V (restore before selection), N3 (harness before validation) and N4 (proceeding on process status without a validated document). It never executed N5 (placement diverging between template and mirror), N2-S (resolve before a confirmed resume), or the quarantine and ambiguous-selection negatives. Section 6.7 requires every listed mis-ordering to be rejected, so the pass criterion is not met. The partial synthetic evidence does not prove the fail clause either. The raw stdout, stderr and their SHA-256 values were not handed to Stage, so PE-EVIDENCE-01 is also incomplete. Verdict: BLOCKED, not PASS and not FAIL. At the observed HEAD 7f833cb8, Stage found that the raw Git blobs for PE-ACTIVATE-01 equal 5bcb00e5 for all three paths. The row must be rechecked at proof exit, and it does not make up for PE-FLOW-03. Time is within 60 minutes, counted from Stage analysis and Ship start (about 01:04). The conservative upper bound, from the 00:27:37.827 directive to commit 6ee65c4a at 01:24:24, is 56m46s (56m47s rounded up), also within 60 minutes, so the run 2 time bound was met. Files: 1 of 2 disposable. The next attempt is counted attempt 3 and falls under the circuit breaker."
 docline:
   type: spike
   date: 2026-09-24
@@ -224,9 +224,13 @@ Proofs B, C and G have not been run.
 * **Time.** The bound is 60 minutes (section 6.2). This run is counted from the
   start of Stage's read-only analysis and Ship's start (about 01:04 -07:00) to
   this authoring (about 01:25 -07:00), which is within 60 minutes. The
-  conservative bound from the operator directive at 00:27 would pass 60
-  minutes by commit time, so **it is not claimed**. Whether run 1 consumed
-  Proof E's time bound is still an open question.
+  conservative upper bound runs from the operator directive
+  (2026-09-24T00:27:37.827-07:00) to the run 2 findings commit `6ee65c4a`
+  (2026-09-24T01:24:24-07:00): 56m46s, or 56m47s rounded up. That is also
+  within 60 minutes, even though it includes unrelated Proof D time, so **the
+  Proof E run 2 time bound was met**. Run 1's time verdict is separate and
+  unchanged: whether run 1 consumed Proof E's time bound is still an open
+  question.
 * **Files.** 1 of 2 disposable files.
 * **Scope.** No claim was made, and no production file, template, mirror,
   manifest, review, plan, backlog item or charter was edited. This artifact is
