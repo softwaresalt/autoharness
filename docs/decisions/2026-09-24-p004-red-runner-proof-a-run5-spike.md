@@ -2,7 +2,7 @@
 title: "Proof A run 5 (PE-1.4) - live P-004 RED conformance: A-STATIC adjudication and findings (PASS, synthetic fixture only)"
 source: "docs/decisions/2026-09-24-p004-red-runner-proof-a-run5-spike.md"
 doc_type: decision
-description: "Stage-authored Proof A findings under charter PE-1.4 section 6.3. Ship's run 5 driver (.proof-scratch/A-run5-20260924-160006/proof_driver.py, 12521 B, SHA-256 052447ac...b29e4a, re-hashed read-only by Stage) generated ten disposable source-layout workspaces and ran the exact canonical command PYTHONPATH=src python -m unittest discover -s tests in each, with no -v flag and no subset. All ten native runs exited 1. Every stdout was empty. Driver stdout was 17466 B (SHA-256 6ab05c08...823932), driver stderr was empty and the driver exited 0. Positive case: Ran 5, FAILED (errors=3). Three named ERROR blocks each carried exactly their own NotImplementedError marker, and the unrelated and characterization tests passed anonymously. All nine required rejections are refused under the written contract. A-STATIC settles the historical R1/R2 'canonical output alone' question as R2 from the cited text of P-004, charter section 6.3 and harness-architect Step 5.2, under the operator's bounded instruction. It does not edit any row and does not expand scope. Verdict PASS for the synthetic fixture only. It is not P-004 gate evidence for any task and makes no harness-ready or claim assertion. The file-bound count (one authored script) and the classification of the tool-wrapper Temp spools are labeled assumptions that the operator must ratify at proof exit. PE-EVIDENCE-01 is still open, because host facts and per-run stderr digests were not transcribed into this artifact."
+description: "Stage-authored Proof A findings under charter PE-1.4 section 6.3. Ship's run 5 driver (.proof-scratch/A-run5-20260924-160006/proof_driver.py, 12521 B, SHA-256 052447ac...b29e4a, re-hashed read-only by Stage) generated ten disposable source-layout workspaces and ran the exact canonical command PYTHONPATH=src python -m unittest discover -s tests in each, with no -v flag and no subset. All ten native runs exited 1. Every stdout was empty. Driver stdout was 17466 B (SHA-256 6ab05c08...823932), driver stderr was empty and the driver exited 0. Positive case: Ran 5, FAILED (errors=3). Three named ERROR blocks each carried exactly their own NotImplementedError marker, and the unrelated and characterization tests passed anonymously. All nine required rejections are refused under the written contract. A-STATIC settles the historical R1/R2 'canonical output alone' question as R2 from the cited text of P-004, charter section 6.3 and harness-architect Step 5.2, under the operator's bounded instruction. It does not edit any row and does not expand scope. Verdict PASS for the synthetic fixture only. It is not P-004 gate evidence for any task and makes no harness-ready or claim assertion. The in-place addendum of 2026-09-24 copies in the PE-EVIDENCE-01 fields from Ship's existing handoff, with no new execution. Those fields are the host (Windows 11 10.0.26200 SP0, NTFS, Python 3.14.3 64-bit), the ten per-run stderr lengths and SHA-256 values, the timing, the P-010 and P-002 itemization, the .backlogit ignored-status comparison and the refresh record. With them, PE-EVIDENCE-01 is met. The file-bound count (authored disposable scripts, not generated section 6.3 setup data) and the tool-wrapper spool classification are recorded as Stage interpretations of the charter text. They are not operator sign-offs, and the operator may still veto them at proof exit."
 docline:
   type: spike
   date: 2026-09-24
@@ -44,7 +44,15 @@ harness_ready_asserted: false
 backlog_item_created: false
 plan_changed: false
 time_bound_status: met
-file_bound_status: "met under labeled assumption (authored scripts); operator ratification required"
+file_bound_status: "met under the Stage interpretation (authored disposable scripts = 1; the 40 generated section 6.3 setup data files are not counted); not an operator sign-off; operator veto possible at proof exit"
+tool_spool_status: "Stage interpretation: automatic tool-wrapper spools are not agent-directed Ship writes and not raw proof output; disclosed; not an operator sign-off"
+pe_evidence_01_status: "met (addendum 2026-09-24, transcribed from Ship's existing handoff, no new execution)"
+host: {os: "Windows 11 10.0.26200 SP0", filesystem: "NTFS (C:)", interpreter: "Python 3.14.3 64-bit"}
+addendum:
+  date: 2026-09-24
+  base_commit: 99e9ff5f
+  scope: "PE-EVIDENCE-01 transcription and interpretation record only; no charter, plan or backlog edit; no runner, test or index sync"
+  verdict_changed: false
 scratch_cleanup_status: "retained at authoring; Stage deleted nothing"
 stage_model_route: "claude-opus-5.5/anthropic/high requested; unverified by Stage (route not self-verifiable)"
 ---
@@ -63,8 +71,9 @@ stage_model_route: "claude-opus-5.5/anthropic/high requested; unverified by Stag
 | A-static | Met. `ERROR` for an uncaught own-marker `NotImplementedError` is consistent with "fails with its own expected marker". Each of the nine required rejections is refused under the written contract. Attribution is read under R2, decided below from the cited text |
 | Fail clause | Not triggered. No required rejection qualifies. Each positive roster test is individually attributed from canonical output alone. No runner classification contradicts P-004 |
 | Time bound (60m, Stage plus Ship) | **Met** (see Time and File Bounds) |
-| File bound (3 disposable) | **Met under a labeled assumption** (one authored script), which the operator must ratify at proof exit. Under a literal per-file count of generated data (41 files), `PE-SCOPE-07` makes this run `FAIL` |
-| Open for proof exit | `PE-EVIDENCE-01` field gaps; operator ratification of the file-bound count, the tool-spool classification and the R2 reading (see Unresolved Gates) |
+| File bound (3 disposable) | **Met under the Stage interpretation** recorded in the addendum. One authored disposable script is counted. The 40 generated setup data files that section 6.3 requires are not counted. This is an interpretation, not an operator sign-off. If the operator vetoes it at proof exit, the literal count of 41 makes the run `FAIL` under `PE-SCOPE-07` |
+| `PE-EVIDENCE-01` | **Met** by the addendum, which copies the fields from Ship's existing handoff |
+| Open for proof exit | Operator review of the three Stage interpretations: the R2 reading, the file-bound count and the spool classification (see Unresolved Gates). Also the portfolio-level `PE-FLOW-02` |
 | Earlier verdicts | Invocations 1-3 stay `BLOCKED` (PE-1.1), as recorded. Run 4 has no verdict |
 
 This artifact does not state that the harness-architect actor accepted or
@@ -148,9 +157,9 @@ These are taken verbatim in substance from charter section 6.3 (lines
 | P-011 | Branch `chore/stage-176-s-workflow-defects`, HEAD `36f65975`, clean before the first write |
 | P-016 | One worktree |
 | `PE-ACTIVATE-01` | The three blobs match `4acba14a` |
-| P-010 self-check, P-002 | Not itemized in the summary relayed to Stage. The Ship handoff is the record (see Unresolved Gates) |
+| P-010 self-check, P-002 | Itemized in the addendum. P-010: only scratch writes were authorized. P-002: no claim and no `harness-ready` consumption |
 | Driver | Native exit 0. stdout 17466 B, SHA-256 `6ab05c08...823932` (full value below). stderr 0 B |
-| Canonical runs | 10, each native exit 1. Each stdout 0 B, SHA-256 of empty input. Per-run stderr byte lengths and full SHA-256 are in the Ship handoff and in the driver's `RUN` lines |
+| Canonical runs | 10, each native exit 1. Each stdout 0 B, SHA-256 of empty input. The addendum lists each run's stderr byte length and full SHA-256 |
 | Separate collector | A separate Ship evidence-collector command exited 5 because it expected 31 generated files and found 41. It is not a runner or driver result, and no runner was re-executed |
 | Tool-wrapper spools | Three automatic spools by the tool wrapper to the OS Temp directory, of document, search and bounded summary output. They are not raw runner output and not agent-issued file writes (classified under Evidence Caveats) |
 | Cleanup | Not performed, per operator instruction |
@@ -430,21 +439,181 @@ No required rejection qualifies. The first Fail disjunct is not triggered.
   "Ship write" to include host-level tool plumbing, the constraint cannot be
   avoided. The host spools above an output-size threshold by itself, and it
   also writes the session transcript outside the working directory for every
-  agent session, so no invocation could comply. Under that reading the run is
-  `BLOCKED` on the section 6.1 gate, not `FAIL`. **Disclosure:** during this
+  agent session, so no invocation could comply. The addendum (Tool-Wrapper
+  Spool Interpretation) records Stage's reading of the text. **Disclosure:** during this
   Stage session the wrapper also spooled one Stage directory listing of
   scratch paths, sizes and timestamps to OS Temp
   (`...\AppData\Local\Temp\...-copilot-tool-output-...txt`). It was not runner
-  output. It is recorded under the same classification.
+  output. It is recorded under the same classification. During the addendum
+  session the wrapper spooled one more Stage read-only output to OS Temp: a
+  `Select-String` over the driver source, a `.backlogit` file count and
+  `git status --porcelain --ignored -- .backlogit`. It held no runner output
+  and falls under the same classification.
 * **Collector exit 5.** This is an evidence-tooling expectation error (31
   versus 41). It is not a runner result, and there was no re-execution.
+
+## Addendum (2026-09-24): `PE-EVIDENCE-01` Record and Interpretations
+
+**Scope.** This addendum sits on base commit `99e9ff5f`. It copies into this
+artifact the `PE-EVIDENCE-01` facts that Ship already reported in its existing
+handoff. There was no new Ship execution, and Stage re-ran nothing. Stage
+edited no charter, plan or backlog, ran no proof runner, test or index sync,
+and changed no verdict. Where Stage's own read-only corroboration appears, it
+is labeled and is not Ship evidence.
+
+### Host
+
+| Field | Value (Ship-reported) |
+|---|---|
+| OS and version | Windows 11, 10.0.26200, SP0 |
+| Filesystem | NTFS (`C:`) |
+| Interpreter | Python 3.14.3, 64-bit |
+| Proof A host requirement (section 6.2: Windows) | Met |
+
+### Exact Runner Invocation (all ten cases)
+
+| Field | Value |
+|---|---|
+| Canonical command | `PYTHONPATH=src python -m unittest discover -s tests`, once per case, each case in its own separately generated workspace |
+| Python argv | `[sys.executable, '-m', 'unittest', 'discover', '-s', 'tests']` |
+| cwd | That case's workspace root |
+| env | `dict(os.environ, PYTHONPATH='src', PYTHONDONTWRITEBYTECODE='1')`, with `TEMP` and `TMP` set to `<workspace>/.tmp` |
+| Flags or subset | None: no `-v`, no pattern, no subset |
+| Driver launch | The driver reads no `sys.argv` (0 occurrences, Stage source read). It refuses to run anywhere other than the recorded scratch path. Its behavior is fixed by the script SHA-256 below. The shell line Ship typed to launch the driver is not quoted in the relayed handoff. `PE-EVIDENCE-01` needs the exact proof commands, and the ten runner commands above are those commands |
+
+### Per-Run Results (Ship-reported)
+
+Every run: native exit `1`. stdout was 0 B, SHA-256
+`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+
+| # | Case | Exit | stderr bytes | stderr SHA-256 (full) |
+|---|---|---|---|---|
+| P | `positive` | 1 | 2118 | `1355b0031965152de9c9ee772f1df2a23c7c6d711d8aef7531e6430c734b0813` |
+| N1 | `marker_assertion` | 1 | 2167 | `a9113aa1e276b1cd0229b9f20fed53462a0d92f13c78ad2c42ecef57cf09be40` |
+| N2 | `passing_roster_test` | 1 | 1503 | `aaa2428f08a4a54683768f7b196f54a6d122237d03752e58ed01a1c29f8c3a79` |
+| N3 | `skipped_roster_test` | 1 | 1514 | `acd2f0cf43643a7c3cf949c1a54f532dd472ea088f38189afe9348a8b084643d` |
+| N4 | `expected_failure` | 1 | 1512 | `dec7fe2c9c2544a96c53bcad28665a04e25e35a93fbb5cdce371228bee34b529` |
+| N5 | `unexpected_success` | 1 | 1677 | `c32b5a1373581e9f6aa30e95a45d5fcbfa8e9d88f3bb2ed17be76ed529af8d8c` |
+| N6 | `wrong_marker` | 1 | 2136 | `b3ba137a47f7b57da53576bcb8c0333c387c90d878b77b87763713a92ce0d21d` |
+| N7 | `cross_test_marker` | 1 | 2172 | `9d845b44a5f95a5b616f597a6d292c7aa72b3d50bbfb5f8f5676b147ed1ec350` |
+| N8 | `zero_discovery_one_roster_test` | 1 | 1546 | `16d3f58eb409d5d2a01ea56e74ab8717c6063e92d8e35f430677f7c07beff6c6` |
+| N9 | `roster_import_error` | 1 | 970 | `1e63f52ace3a2d8c620cdd6ec1af9d87620b53a20d98383f5513146dff7d5de5` |
+
+Raw runner stderr was captured in the driver process's memory, and only
+lengths, hashes and bounded projections were reported. No raw proof output
+was written outside scratch.
+
+### Driver, Collector and Refresh Executions
+
+| Execution | Exit | stdout | stderr |
+|---|---|---|---|
+| Driver (`proof_driver.py`, 12521 B, `052447ac2a5c778c5d0555359d9bd1ea658335c618370de08fbac5a355b29e4a`) | 0 | 17466 B, `6ab05c082956edae6fe25d22f05b7cc9c332e7cdd9f7840d03b1e0eec8823932` | 0 B, `e3b0c442...b855` (empty) |
+| Index refresh: exact CLI `backlogit sync` (the registered transport; native exit code) | 0 | 23 B, `cf46e51cd5d2efb42eed64050ed1021ad708c7bc50d4b54d51bcd0427d1ae873` | 0 B |
+| Separate Ship evidence collector | 5 | Not relayed | Not relayed |
+
+**Collector exit 5: disclosed, and outside the row.** The collector is not
+one of the ten runner commands, not the driver and not the refresh. It is a
+Ship post-hoc tally, and it exited 5 because it expected 31 generated files
+where 41 exist (1 driver plus 10 workspaces with 4 files each, which Stage's
+read-only re-hash confirms). The failure is in the collector's own
+expectation. It is not a fixture or runner discrepancy. No A-runner or
+A-static finding depends on the collector's output. The fixture listing comes
+from the driver's hashed `FILE` lines and Stage's re-hash, and the runner
+facts come from the driver. So the collector's missing stdout and stderr
+digests leave no `PE-EVIDENCE-01` field empty. Nothing was re-executed
+because of it.
+
+### Timing
+
+| Point | Value |
+|---|---|
+| Scratch stamp | 16:00:06 -07:00 |
+| Fixture execution start and end (Ship) | 16:01:20 to 16:01:22 -07:00 |
+| Driver-reported elapsed | 2.248 s |
+| Stage findings commit `99e9ff5f` | 16:13:49 -07:00 |
+| Combined Stage plus Ship | 13m49s (Ship-reported), or 13m43s measured from the scratch stamp. Either is at most 60m |
+
+### Per-Invocation Gates and Safety Statement (Ship-reported)
+
+| Gate | Result |
+|---|---|
+| P-010 self-check | Passed. Only scratch writes were authorized |
+| P-002 | No claim and no `harness-ready` consumption |
+| P-011 | Branch `chore/stage-176-s-workflow-defects` clean |
+| P-016 | Exactly one worktree |
+| P-001 | After the refresh, active counts were 0. `173-S` closure READY, compaction done |
+| `PE-ACTIVATE-01` | The three blobs match `4acba14a` |
+| Refresh footprint | Before the sync, the ignored footprint was `.backlogit/backlogit.db`, `-shm` and `-wal` only, each Git-ignored. These are exactly the cache paths that section 6.1 permits |
+| `.backlogit` ignored status before and after fixture execution | Identical: 843 lines, SHA-256 `aa6f5600360375972f29839042057f64f3feb09078070494dbd513d862cd6517` |
+| Tracked tree | Ship found it clean before the first write. Stage's `git status --porcelain` was empty when `99e9ff5f` was authored, after execution. The scratch directory is Git-ignored |
+
+*Stage read-only corroboration, not Ship evidence.* When the addendum was
+authored, `git status --porcelain --ignored -- .backlogit` returned 843 lines,
+all `!!`. They include the three cache paths plus pre-existing ignored
+`.lock` entries. The byte hash taken now (`028e25ce...`) is not compared with
+Ship's, because Ship's capture method (encoding and line endings) is not
+recorded, and lock files can change with time. Only the line count is
+offered as corroboration.
+
+### File-Bound Interpretation (Stage reading, not an operator sign-off)
+
+Stage reads the Proof A bound "3 disposable" (section 6.2) as counting
+**authored disposable scripts**, not the setup data that those scripts
+generate as section 6.3 requires. Count: 1 authored script. On disk there are
+41 files: the script plus 40 generated data files. The grounds come from the
+charter text:
+
+1. **Section 6.2 counts units that include generated trees.** Proof F's bound
+   is "1 script, disposable repo". A disposable repository holds many files,
+   so the table's unit is the authored artifact, not every file that
+   artifact produces. Proof G run 2 took the same reading.
+2. **Section 6.3 requires the setup data.** It requires a `src/` stub, three
+   roster tests, an unrelated passing test, a characterization test and nine
+   rejection variants, one of them a separately failing roster module. The
+   40 generated files exist because the question requires them. The bound
+   is not being used to buy extra scope.
+3. **A literal count would reward weaker evidence.** *(This corrects the
+   original Time and File Bounds text, which said a literal count "cannot
+   fit".)* A literal three-file count could technically be met: one stub and
+   one test module could be rewritten in place for each variant. But that
+   would leave no retained per-variant fixture to hash. `PE-EVIDENCE-01`
+   requires a fixture listing with a SHA-256 per file. A reading of the bound
+   that pushes Ship to destroy the evidence another `P1` row demands is not a
+   coherent reading of the charter as a whole.
+
+This is Stage's interpretation, recorded for continued autonomous work. It is
+not operator ratification, and Stage asserts none. If the operator prefers
+the literal count at proof exit, `PE-SCOPE-07` makes run 5 `FAIL` (41 > 3).
+That remains a residual unknown (Unresolved Gates, item 2).
+
+### Tool-Wrapper Spool Interpretation (Stage reading, not an operator sign-off)
+
+Section 6.1 bans raw proof output from being written outside scratch ("never
+written outside the recorded scratch directory", line 517). Stage reads that
+ban as applying to raw proof data, and here it was met: raw runner stderr
+stayed captured in memory, and only lengths and SHA-256 were reported.
+Section 6.1's "Ship's ... writes" (lines 462-467) is read as agent-directed
+writes. The host tool wrapper automatically spooled document, search and
+bounded summary output (three times in Ship's session, and twice more in
+Stage's sessions, disclosed in Evidence Caveats). Those spools are host
+plumbing, not agent-directed file writes and not raw runner output, so they
+do not breach section 6.1. The disclosure is kept. This is Stage's
+interpretation, not an operator sign-off. On a veto, the result is `BLOCKED`,
+not `FAIL` (Unresolved Gates, item 3).
+
+### Verdict After Addendum
+
+**`PASS`** for the synthetic fixture only. It is unchanged, and the evidence
+now in the record supports it. `PE-EVIDENCE-01` is met. The three Stage
+interpretations (R2, the file-bound count and the spool classification) are
+recorded, and none of them is presented as operator-approved.
 
 ## Time and File Bounds
 
 | Bound | Charter | Recorded |
 |---|---|---|
-| Time (Stage plus Ship) | 60m | Run 5 starts at its scratch stamp 16:00:06 -07:00 (Ship also reports it as about 16:01). Stage analysis ran from about 16:05 -07:00. The commit timestamp of this artifact is the authoritative end, and it is before 17:00:06. **Met.** If the operator also pooled run 4 (scratch stamp 15:48:28), the commit time decides that reading too. It is not claimed here, and section 3.3 line 352 gives each new run its own bound |
-| File (3 disposable) | 3 | **Labeled assumption, not a charter change, needing operator ratification.** Following the Proof G run 2 addendum and the Proof F run 2 precedent, Stage counts **authored scripts**: 1 (`proof_driver.py`). The 40 generated fixture data files in ten workspaces are excluded. Section 6.3's mandatory setup (a `src/` stub, a roster module, the unrelated and characterization tests, and nine rejection variants, one needing a separately failing roster module) cannot fit in three literal files per workspace alongside a driver. **Met under that assumption.** Under a literal count of everything generated (41), `PE-SCOPE-07` makes run 5 `FAIL`. Stage does not assert an overrun |
+| Time (Stage plus Ship) | 60m | Ship's fixture execution ran from 16:01:20 to 16:01:22 -07:00, and the driver reported 2.248 s. The original findings commit `99e9ff5f` is stamped 16:13:49 -07:00. Ship reports 13m49s combined. Measured from the scratch stamp (16:00:06), the combined time is 13m43s. **Met** on either start reference. This addendum's commit is also before 17:00:06. Pooling with run 4 is not claimed, because section 3.3 line 352 gives each new run its own bound |
+| File (3 disposable) | 3 | **Stage interpretation, not a charter change and not an operator sign-off.** The bound counts **authored disposable scripts**: 1 (`proof_driver.py`, 12521 B). It does not count the 40 generated data files that section 6.3 setup requires (41 files on disk in total). The grounds are in the addendum (File-Bound Interpretation). **Met under that interpretation.** Under a literal count of everything generated (41), `PE-SCOPE-07` makes run 5 `FAIL`. The operator may choose that reading at proof exit. Stage does not assert an overrun |
 
 ## Per-Criterion Verdict
 
@@ -461,30 +630,27 @@ No required rejection qualifies. The first Fail disjunct is not triggered.
 | Exact command, no `-v`, no subset, Windows method recorded | Met |
 | `PE-EVIDENCE-03` | Met for Proof A. The runner half comes from Ship's actual execution in a synthetic source-layout workspace. The policy half is this static comparison. There is no actor claim and no gate-evidence claim |
 | `PE-FLOW-02` | Not yet met at portfolio level. Proof A contributes `PASS`. Proof exit is not reached: the section 3.3 and section 10 runs still owed include PE-1.4 runs of B and E, and C run 2 is `BLOCKED` at `309ab0e2`. No Phase 2 artifact exists |
-| `PE-EVIDENCE-01` | **Not met in this artifact.** Present: question, exact command, scratch path, stdout and driver digests, per-file fixture SHA-256 (Stage re-hash, with Ship's `FILE` lines in the hashed driver stdout), gate results including the refresh record, bounds, and the safety observation. Missing: host OS and version, filesystem and interpreter (in Ship's `HOST` line), per-run stderr lengths and full SHA-256, Ship-side elapsed seconds (`PROOF_END`), the P-010 and P-002 itemization, and the before/after `git status --porcelain --ignored -- .backlogit` comparison |
-| `PE-AUTH-01` (this commit) | This commit changes only this `docs/decisions/*-spike.md` file. Stage ran no fixture command, build, test, lint, index refresh or backlog mutation |
-| `PE-AUTH-02` | Ship reported one worktree, refresh exit 0, P-001 after the refresh, P-011 clean and P-016. P-010 and P-002 were not itemized in the relayed summary |
+| `PE-EVIDENCE-01` | **Met (addendum).** Every listed field is now present, taken from Ship's existing handoff: question; host OS and version; filesystem; interpreter; the exact commands (ten runner argv, cwd and env, plus the refresh command); stdout and stderr lengths and SHA-256 for every runner, driver and refresh execution; the fixture listing with per-file SHA-256; the per-criterion verdict; elapsed time; file count; scratch path; per-invocation gate results, including the refresh record; and the safety statement. The collector's exit 5 is disclosed and falls outside the row (see the addendum) |
+| `PE-AUTH-01` (both commits) | `99e9ff5f` and the addendum commit each change only this `docs/decisions/*-spike.md` file. Stage ran no fixture command, build, test, lint, index refresh or backlog mutation |
+| `PE-AUTH-02` | Met on Ship's report: one worktree; refresh exit 0; P-001 after the refresh; P-010 authorized scratch writes only; P-002 had no claim and no `harness-ready` consumption; P-011 branch clean; P-016 |
 | `PE-AUTH-03`, `PE-ACTIVATE-03`, `PE-SCOPE-04` | No authorization, P-004 red assertion, claim, `harness-ready` or publication assertion |
 | `PE-ACTIVATE-01` | At authoring, `git rev-parse HEAD:<path>` gives `4ccd7fdc...`, `e22916b6...` and `251f46e8...` for the three paths, which equal `4acba14a`. The tracked tree is clean. Final check is at proof exit |
-| `PE-SCOPE-07` | Time met. File bound met under the labeled assumption |
+| `PE-SCOPE-07` | Time met. File bound met under the Stage interpretation (addendum) |
 | `PE-FLOW-04` | Not engaged. Run 4 was a driver defect, not a `FAIL` |
 
 ## Unresolved Gates
 
-1. **`PE-EVIDENCE-01` fields.** Transcribe the missing fields from the existing
-   Ship handoff into a Stage addendum artifact that cross-references this one.
-   The missing fields are the `HOST` record, the ten per-run stderr lengths and
-   SHA-256, `PROOF_END` elapsed, the P-010 and P-002 itemization, and the
-   `.backlogit` ignored-status before/after. No re-run is needed. Until then
-   this row blocks proof exit (`P1`).
-2. **File-bound count.** The operator must ratify, at proof exit, that the
-   bound counts authored scripts rather than generated data (shared with
-   Proof G).
-3. **Tool-wrapper spool classification.** The operator must confirm, at proof
-   exit, that automatic host-tool spools are not "Ship writes" under section
-   6.1. If not, the result is `BLOCKED` with the unavoidable host constraint
-   stated above.
-4. **R2 reading.** Recorded here from the cited text. On an operator veto, the
+1. **`PE-EVIDENCE-01` fields: closed by the addendum.** No re-run was needed.
+2. **File-bound count.** Stage records its interpretation in the addendum. No
+   operator sign-off is claimed. The operator can still veto it at proof exit.
+   A veto would turn the verdict into `FAIL` under `PE-SCOPE-07` (41 files).
+   Until the operator reviews it, the item is a residual unknown, not an
+   asserted approval. Proof G shares this item.
+3. **Tool-wrapper spool classification.** Stage records its interpretation in
+   the addendum. No operator sign-off is claimed. If the operator vetoes it,
+   the result is `BLOCKED` under the unavoidable host constraint stated in
+   Evidence Caveats.
+4. **R2 reading.** Recorded from the cited text. On an operator veto, the
    result is `BLOCKED` pending PE-1.5 (the section 6.3 line 652 wording
    above).
 5. **Inadmissible-run time accounting** (charter section 3.2, line 230). This
@@ -493,6 +659,8 @@ No required rejection qualifies. The first Fail disjunct is not triggered.
 6. **Scratch hygiene.** Both `A-run4-...` and `A-run5-...` are retained,
    because no cleanup was approved. Ship removes them only under the section
    6.1 cleanup rule.
+7. **Portfolio `PE-FLOW-02`.** Proof exit still needs the PE-1.4 runs owed for
+   B and E, plus a resolution of C run 2 (`BLOCKED`). This is outside Proof A.
 
 ## Recommendation
 
@@ -505,16 +673,22 @@ stub-backed roster tests, each attributed individually from default canonical
 output with exactly its own marker. All nine required rejections, including
 partial non-discovery and the import-error form, are refused under the written
 P-004 and Step 5.2 text. The R2 reading is grounded in that text. Confidence is
-medium rather than high for three reasons: the runner facts are a relayed
-parser projection of hashed output; `PE-EVIDENCE-01` fields are missing; and
-three operator ratifications are pending.
+medium rather than high for two reasons. First, Stage has not seen the raw
+stderr: it holds Ship's parser projection plus full digests. Second, three
+Stage interpretations (R2, the file-bound count and the spool classification)
+are recorded without an operator sign-off. `PE-EVIDENCE-01` no longer lowers
+confidence, because the addendum closes it.
 
 ## Next Steps
 
-1. The operator reviews the R2 reading, the file-bound assumption and the
-   spool classification at proof exit.
-2. Stage records the missing `PE-EVIDENCE-01` fields from the Ship handoff in a
-   new addendum artifact. This artifact is not edited.
+1. At proof exit, the operator reviews the R2 reading, the file-bound
+   interpretation and the spool interpretation. Stage claims no approval of
+   any of them.
+2. Done: Stage copied the missing `PE-EVIDENCE-01` fields from the Ship
+   handoff. The request for this addendum came later and named this existing
+   artifact explicitly, so the fields are recorded here in place. That
+   supersedes the earlier "new addendum artifact; this artifact is not edited"
+   step. The addendum changes no verdict.
 3. No actor invocation, `harness-ready` action, backlog item, shipment action,
    review, plan, attempt 12 or revision 13 is scheduled. `187-S` stays
    `queued`.
