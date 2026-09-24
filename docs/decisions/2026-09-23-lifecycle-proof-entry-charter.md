@@ -1,21 +1,27 @@
 ---
-title: "Lifecycle proof-entry charter and acceptance matrix, version 1.1"
-description: "Operator-approved proof-entry charter for the Ship pre-task harness-generation lifecycle, issued under the 2026-09-23 Option B governance reset with proportionate Option D containment. Freezes lifecycle plan revision 12 and review attempt 11 as diagnostic evidence; fixes the proportionate threat model (operator-controlled local workspace, ordinary static containment on actual Windows and Linux, no race or hardlink-alias claims); defines a seven-proof bounded portfolio with narrow questions, time and file bounds and pass/fail criteria; and fixes acceptance matrix PE-1.1, in which every row carries an existing normative source, a verifiable pass criterion, evidence, violation severity and deferral status. Version 1.1 is an operator-approved correction of proof actor and timing only: Stage performs read-only analysis and authors the findings; Ship runs verification-only disposable fixture commands in a named scratch directory inside the one current worktree; no additional worktree is used; Linux evidence that cannot be produced at proof entry is PENDING, never PASS, and becomes a non-waivable execution and release gate. Frozen for proof entry only: the implementation acceptance matrix is ratified after proof evidence and before any new review epoch. Subordinate to the constitution and the workflow policy registry; overrides nothing."
+title: "Lifecycle proof-entry charter and acceptance matrix, version 1.2"
+description: "Operator-approved proof-entry charter for the Ship pre-task harness-generation lifecycle, issued under the 2026-09-23 Option B governance reset with proportionate Option D containment. Freezes lifecycle plan revision 12 and review attempt 11 as diagnostic evidence; fixes the proportionate threat model (operator-controlled local workspace, ordinary static containment on actual Windows and Linux, no race or hardlink-alias claims); defines a seven-proof bounded portfolio with narrow questions, time and file bounds and pass/fail criteria; and fixes acceptance matrix PE-1.1, in which every row carries an existing normative source, a verifiable pass criterion, evidence, violation severity and deferral status. Version 1.1 is an operator-approved correction of proof actor and timing only: Stage performs read-only analysis and authors the findings; Ship runs verification-only disposable fixture commands in a named scratch directory inside the one current worktree; no additional worktree is used; Linux evidence that cannot be produced at proof entry is PENDING, never PASS, and becomes a non-waivable execution and release gate. Frozen for proof entry only: the implementation acceptance matrix is ratified after proof evidence and before any new review epoch. Version 1.2 (matrix PE-1.2) changes Proof D only, after Proof D failed under PE-1.1: it re-charters section 6.6 and rows PE-DATA-03 and PE-SAFETY-04 against the decided admitted maximum of 48 members, the unchanged max_files=256, an explicit byte non-guarantee (byte exhaustion is a bounded UNRESOLVED failure, never success) and the read-limit exhaustion mapping to UNRESOLVED / 2 at every read and recheck stage; every other row, proof and verdict is unchanged. Subordinate to the constitution and the workflow policy registry; overrides nothing."
 doc_type: decision
 artifact_class: proof-entry-charter
 source: docs/decisions/2026-09-23-lifecycle-proof-entry-charter.md
 date: 2026-09-23
 status: decided
 decision_status: decided
-charter_version: "1.1"
-matrix_id: PE-1.1
-supersedes_version: "1.0"
-superseded_version_commit: 2e3c98a1
+charter_version: "1.2"
+matrix_id: PE-1.2
+supersedes_version: "1.1"
+superseded_version_commit: 1ad7c03a
+version_history:
+  - {version: "1.0", matrix_id: PE-1.0, commit: 2e3c98a1}
+  - {version: "1.1", matrix_id: PE-1.1, commit: 1ad7c03a, scope: "proof actor and timing only"}
+  - {version: "1.2", matrix_id: PE-1.2, scope: "Proof D only (section 6.6, PE-DATA-03, PE-SAFETY-04)", decision: docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md}
 freeze_scope: proof-entry-only
 implementation_matrix_status: not-ratified
 deciders: operator, Stage
 operator_approval: "2026-09-23 - Option B governance reset combined with the proportionate Option D containment scope"
 version_1_1_operator_approval: "2026-09-23 - operator 'Proceed' on the exact proposed correction: PE-1.0 to PE-1.1, proof actor and timing only (no Stage executable proof and no extra worktree; Ship verification-only fixture execution in the one current worktree; Stage read-only analysis and findings authorship; Linux PENDING, never PASS, when no Linux host exists at proof entry)"
+version_1_2_operator_approval: "2026-09-24 - operator instruction to act on Proof D's reopened decisions, authorizing a clearly identified versioned PE-1.2 change limited to Proof D (preserve Proof A and F verdicts; keep B, C, E and G separate); the concrete bound was selected by Stage under that bounded delegation and may be vetoed by the operator before the Proof D run 2 handoff"
+head_at_version_1_2: b6366cef
 parent_decision: docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md
 governing_decision: docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md
 governing_decision_revision: 9
@@ -47,7 +53,7 @@ labels:
   - governance-reset
 ---
 
-# Lifecycle proof-entry charter (version 1.1)
+# Lifecycle proof-entry charter (version 1.2)
 
 ## 1. Purpose
 
@@ -65,8 +71,9 @@ The charter does three things and nothing else:
 1. fixes the threat model and platform mandate the proofs must satisfy;
 2. defines a bounded portfolio of seven executable proofs, and assigns each
    proof step to the role allowed to perform it;
-3. fixes acceptance matrix **PE-1.1**, the only set of criteria a proof or a
-   proof-phase artifact is judged against.
+3. fixes acceptance matrix **PE-1.2**, the only set of criteria a proof or a
+   proof-phase artifact is judged against from version 1.2 onward (section 3
+   explains how verdicts recorded under PE-1.1 carry forward).
 
 ## 2. Authority and precedence
 
@@ -91,11 +98,51 @@ reading.
 
 | Aspect | Rule |
 |---|---|
-| What is frozen | This charter and matrix PE-1.1, for **proof entry only** |
+| What is frozen | This charter and matrix PE-1.2, for **proof entry only** |
 | What is not ratified | The implementation acceptance matrix. It is drafted from proof evidence and ratified by the operator **after** proof exit and **before** any new review epoch opens |
 | How it changes | Only by an operator-approved version bump (1.2, 2.0, ...), recorded as a new charter version. Proof authors and proof executors cannot edit rows mid-proof |
-| Current version | 1.1, operator-approved on 2026-09-23. It supersedes version 1.0 (`2e3c98a1`), which assigned executable proofs to a Stage spike worktree that the Stage role boundary does not permit. Version 1.1 corrects proof actor and timing only. The threat model, the acceptance criteria, the seven proof questions and the evidence standards are unchanged, and every row keeps its ID. Proofs are judged against PE-1.1 only |
-| Change requests | A requirement discovered during a proof that is not a PE-1.1 row is recorded as a change request in that proof's evidence. It is not a proof-phase blocker |
+| Current version | 1.2 (matrix PE-1.2), approved on 2026-09-24 under the operator's bounded delegation (frontmatter `version_1_2_operator_approval`). It supersedes version 1.1 (`1ad7c03a`). Version 1.1 superseded version 1.0 (`2e3c98a1`) and corrected proof actor and timing only. See section 3.1 for the exact version 1.2 change |
+| Change requests | A requirement discovered during a proof that is not a PE-1.2 row is recorded as a change request in that proof's evidence. It is not a proof-phase blocker |
+
+### 3.1 Version 1.2 change record (Proof D only)
+
+**Why.** Proof D ended `FAIL` under PE-1.1
+(`docs/decisions/2026-09-23-read-budget-proof-d-spike.md`). Section 6.1 sends
+a `FAIL` back to architecture or charter, and `PE-FLOW-04` allows a failed proof
+to run again only under a new charter version. The reopened decisions are
+settled in
+`docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md`.
+
+**What changed. Only these three items are changed, and each is marked
+"(PE-1.2)" where it appears:**
+
+| Item | PE-1.1 | PE-1.2 |
+|---|---|---|
+| Section 6.6, Proof D | The question asks whether the admitted maximum fits "the read limits". The pass criterion requires `C(N_max)` to fit "the chosen file and byte limits", with frozen plan revision 12's `1..512` as a diagnostic input | Proof D run 2. The admitted membership is `1..48`, with `max_files=256` and the revision 12 read plan unchanged. The file-slot fit and its margin are **guaranteed** and exhaustively checked. The byte fit is **explicitly not guaranteed**, and the proof must show that byte exhaustion is a bounded `UNRESOLVED / 2` failure, never success. Every read-limit error at every read or recheck stage reduces to `UNRESOLVED / 2` |
+| Row `PE-DATA-03` | `C(N) <= max_files` for every admitted `N`; exhaustion yields `UNRESOLVED` | Adds the admitted range `1..48`, the margin rule, the byte non-guarantee and per-stage exhaustion |
+| Row `PE-SAFETY-04` | "The Proof D equation passes" | "Proof D run 2 passes under section 6.6 (PE-1.2)". The Proof G half is unchanged |
+
+Sections 1 (item 3), 4.1, 6.2 (row D), 7 (heading note), 8 (item 1) and 10
+(addendum) are updated only to refer to these items.
+
+**What did not change.** The following are all unchanged: the threat model and
+platform mandate (section 5), the execution rules (section 6.1), and Proofs A,
+B, C, E, F and G, including their questions, bounds and pass/fail criteria. All
+other matrix rows also keep their ID and text, as do the proof-exit rules
+(section 8). The frozen diagnostic record (section 4.2) stays frozen, so plan
+revision 12 is not edited. The public-contract change from 512 to 48 is recorded
+in the decision above. It is not a correction of the plan.
+
+**Carried-forward verdicts.** Proof A (`BLOCKED`) and Proof F (`PASS`) were
+judged under PE-1.1 against rows that PE-1.2 leaves unchanged. Their verdicts
+stand as recorded and are not re-run. Proof D run 1 stays **`FAIL`** under
+PE-1.1. It is never re-labelled. Proof D run 2 is judged against PE-1.2. This
+version bump does not mark any proof `PASS`.
+
+**Change request, not a change (Proof C).** The read-limit reason values that
+the decision reuses (`FILE_COUNT_LIMIT`, `TOTAL_SIZE_LIMIT`, `FILE_SIZE_LIMIT`
+as `UNRESOLVED` reasons) are recorded as a change request for Proof C's truth
+table and schema parity. Proof C's question, bounds and rows are unchanged.
 
 ## 4. Scope
 
@@ -105,7 +152,8 @@ reading.
   verification-only fixture execution in an untracked scratch directory, and
   the Stage-authored findings artifacts.
 * One Stage-authored proof-exit report that lists every proof verdict against
-  PE-1.1.
+  PE-1.2 (with the section 3.1 carry-forward of verdicts recorded under
+  PE-1.1).
 
 ### 4.2 Frozen diagnostic record (read-only)
 
@@ -261,7 +309,7 @@ a proof-phase or review-phase finding.
 | A | Does the canonical whole-suite command plus a unique per-test `NotImplementedError` marker yield evidence that P-004 accepts, and are all P-004 rejected outcomes refused? | 60m | 3 disposable | Windows | `PE-EVIDENCE-03`, `PE-FLOW-02` | `S69`, `S78` |
 | B | Can a consumer tell a genuine resolver verdict from any impostor by process status plus exactly one schema-valid document? | 60m | 2 disposable | Windows | `PE-INTERFACE-02`, `PE-SAFETY-05` | `S72` |
 | C | Is a one-entry `SurfaceSpec` with total member and manifest reason codes a closed, schema-parity-complete truth table? | 75m | 2 disposable | Windows | `PE-INTERFACE-03`, `PE-DATA-01`, `PE-DATA-02` | `S70`, `S76` |
-| D | Does one budget equation over every admitted member, candidate and recheck fit the read limits at the admitted maximum? | 45m | 1 disposable | any | `PE-DATA-03`, `PE-SAFETY-04` | `S71` |
+| D | (PE-1.2, run 2) With the admitted maximum at 48 members, does the one budget equation over every admitted member, candidate and recheck fit `max_files` with the recorded margin, and does every read-limit error, including byte exhaustion that is not guaranteed to fit, reduce to `UNRESOLVED / 2`? | 45m | 1 disposable | any | `PE-DATA-03`, `PE-SAFETY-04` | `S71` |
 | E | Can one state machine, anchored on the exact Ship template and installed mirror, express per-task harness placement and checkpoint-first restore? | 60m | 2 disposable | any | `PE-FLOW-03`, `PE-ACTIVATE-01` | `S73`, `S72` |
 | F | Does the established raw staged-blob checksum procedure replay exactly? | 30m | 1 script, disposable repo | Windows | `PE-DATA-04` | `S74` |
 | G | Does ordinary resolved-path containment with bounded reads satisfy every SAFETY row on actual Windows and actual Linux? | 90m | 2 disposable | Windows at proof entry; Linux at proof entry if a host exists, otherwise `PENDING` (section 6.9) | `PE-SAFETY-01` to `PE-SAFETY-07`, `PE-EVIDENCE-02`, `PE-INTERFACE-01` | Settles `S54`, the outside-root half of `S77` and the functional half of `S79`; confirms the scope retirement of `S53`, `S75`, `S80` and the `S55` non-claim |
@@ -382,23 +430,65 @@ authors findings.
 * **Fail.** Any input maps to zero or more than one outcome, any code is
   unreachable, or schema and runtime disagree.
 
-### 6.6 Proof D - budget equation
+### 6.6 Proof D - budget equation (PE-1.2, run 2)
 
-* **Question.** Can the admitted maximum membership intrinsically exhaust the
-  read budget?
-* **Actors.** Stage derives `C(N)` read-only. Ship runs the exhaustive check
-  in scratch. Stage records the verdict from Ship's output.
-* **Setup.** Derive a closed-form claim count `C(N)` over every claim source:
-  queue candidates, archive candidates, stable absence entries, manifest
-  reads, template reads, installed reads, and ledger rechecks. Revision 12's
-  values (`max_files=256`, membership `1..512`) are diagnostic inputs only.
-* **Pass.** `C(N)` is checked exhaustively for every admitted `N` and for the
-  real `187-S` membership (seventeen manifest items). `C(N_max)` fits the
-  chosen file and byte limits with a recorded margin. Budget exhaustion maps to
-  an explicit reducer class that yields `UNRESOLVED`, never `NO_HARNESS`.
-* **Fail.** Any admitted `N` exceeds the budget. The remedy (a lower admitted
-  bound, a larger budget, or a different read plan) is an architecture change
-  routed to the charter.
+* **Status of run 1.** Run 1 under PE-1.1 is `FAIL`
+  (`docs/decisions/2026-09-23-read-budget-proof-d-spike.md`). That verdict
+  stands. This section charters run 2 against the decision
+  `docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md`.
+  Its inputs are **decided parameters**, not diagnostic values.
+* **Question.** With the admitted membership at `1..48`, does the claim count
+  fit `max_files=256` with the recorded margin for every admitted input? Does
+  every read-limit error at every read or recheck stage, including byte
+  exhaustion that is explicitly not guaranteed to fit, reduce to
+  `UNRESOLVED / 2`, never `NO_HARNESS / 1` or `HARNESS_READY / 0`?
+* **Actors.** Stage derives the model read-only. Ship runs the exhaustive
+  check in scratch. Stage records the verdict from Ship's output.
+* **Inputs.** `C(N,U,rho) = 4(N+1) + 3U(1+rho)` over every claim source (queue
+  and archive candidates, stable absence, manifest, template and installed
+  reads, ledger rechecks). `N` in `1..48`, `U` in `{0,1}`, `rho` in `{0,1}`.
+  `max_files=256`, `max_file_bytes=4 MiB`, `max_total_bytes=32 MiB` (unchanged).
+  Read-limit errors are `FILE_COUNT_LIMIT`, `TOTAL_SIZE_LIMIT` and
+  `FILE_SIZE_LIMIT`. They map to reducer class 1b (after mutation, before class
+  2), with the triggering code as `reason_code`.
+* **Pass. All four parts are required.**
+  1. **File-slot guarantee.** All 192 admitted `(N,U,rho)` cases are simulated
+     claim by claim and each equals the closed form. `C_max = C(48,1,1) = 202`
+     is recorded with its margin of 54. The margin rule
+     `C(N,U,1) + (N+1) <= 256` holds for every admitted `N`. The real `187-S`
+     case gives `C(17,1,1) = 78`. Over-limit memberships `N` in `{49, 512, 513}`
+     yield `MEMBERS_TOO_MANY -> UNRESOLVED / 2` with at most 4 claims and no
+     member lookup.
+  2. **Byte distinction.** The run computes the worst-case byte demand
+     `[2(N+1) + 3U(1+rho)] * max_file_bytes` at `N=48, U=1, rho=1` (416 MiB).
+     It records that this exceeds `max_total_bytes`, so **no byte fit is
+     claimed**. At least one admitted case whose reservations exceed 32 MiB,
+     including one at `N=17`, yields `UNRESOLVED / 2 / TOTAL_SIZE_LIMIT`, and a file over
+     `max_file_bytes` yields `UNRESOLVED / 2 / FILE_SIZE_LIMIT`. Neither case
+     yields success.
+  3. **Exhaustion at every stage.** A read-limit error is injected at each
+     stage: shipment queue or archive candidate, member queue or archive
+     candidate, manifest, template, installed, candidate recheck, and surface
+     recheck. Byte codes apply only where a present file is read. Each injection
+     is combined with each would-be outcome (`NO_SURFACES_REQUIRED`,
+     `ALL_SURFACES_PRESENT`, `MISSING`, `STALE`). Every case yields
+     `UNRESOLVED / 2` with the injected code. A disagreement observed on a
+     completed recheck before the error still yields
+     `INPUT_CHANGED_DURING_RESOLUTION`.
+  4. **Negative controls, each caught.** The run includes the four run 1
+     controls, plus these: admitted maximum 512 (must produce an over-budget
+     case); an installed-read exhaustion mapped to `MISSING` (exit 1); an
+     exhausted candidate recorded as stable absence; an incomplete recheck
+     treated as agreement; and a model that reports success when reservations
+     exceed 32 MiB.
+* **Fail.** Any of the following is `FAIL`: an admitted case exceeds 256 or
+  breaks the margin rule; a closed form and a simulation disagree; any
+  exhaustion case yields exit 0 or exit 1, or the wrong reason; a negative
+  control is not caught; the findings claim a byte fit for every admitted
+  member; or the time or file bound is exceeded. A `FAIL` returns to
+  architecture or charter (section 6.1).
+* **Boundary.** The fixture models the decided contract. It tests no
+  production code and creates no reason code beyond those named above.
 
 ### 6.7 Proof E - Ship per-task actor and checkpoint-first state machine
 
@@ -511,7 +601,10 @@ authors findings.
   the Linux gate forward, and is never reported as `PASS`. `BLOCKED` when
   Windows could not be executed.
 
-## 7. Acceptance matrix PE-1.1
+## 7. Acceptance matrix PE-1.2
+
+PE-1.2 equals PE-1.1 except rows `PE-DATA-03` and `PE-SAFETY-04`, each marked
+"(PE-1.2)" (section 3.1).
 
 ### 7.1 Severity and deferral legend
 
@@ -580,7 +673,7 @@ for it.
 | `PE-SAFETY-01` | Lexically invalid paths are rejected | Constitution section III (traversal attempts rejected) and section IV | Every Proof G lexical case returns its closed code on Windows, and on Linux when executed; a Linux `PENDING` is recorded as `PENDING` | Proof G per-host results | `P1` | `not-deferrable` (Linux half: `linux-execution-gate`) |
 | `PE-SAFETY-02` | A resolved target outside its root is rejected, including static symlink and junction escapes; in-root links resolving inside are accepted | Constitution sections III and IV | Every Proof G resolved-path case behaves as specified on Windows, and on Linux when executed; a Linux `PENDING` is recorded as `PENDING` | Proof G per-host results | `P1` | `operator-deferrable` for the Windows symlink sub-case only, when the host lacks symlink privilege; the junction case is `not-deferrable`; Linux half: `linux-execution-gate` |
 | `PE-SAFETY-03` | Static containment within the workspace root and the autoharness root | Constitution section III; parent decision threat model | Reads under `.autoharness/` succeed; escapes from either root fail; the Windows root comparison is case-insensitive; the Linux half holds when executed or is recorded `PENDING` | Proof G per-host results | `P1` | `not-deferrable` (Linux half: `linux-execution-gate`) |
-| `PE-SAFETY-04` | Reads are bounded per file, in total and by count, with explicit exhaustion codes | Constitution section I (explicit error handling; silent failures forbidden); attempt 11 `S71` lineage | The Proof D equation passes, and the Proof G bound cases pass on Windows and on Linux when executed; a Linux `PENDING` is recorded as `PENDING` | Proofs D and G findings | `P1` | `not-deferrable` (Linux half of Proof G: `linux-execution-gate`) |
+| `PE-SAFETY-04` | Reads are bounded per file, in total and by count, with explicit exhaustion codes (PE-1.2) | Constitution section I (explicit error handling; silent failures forbidden); attempt 11 `S71` lineage; `docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md` | Proof D run 2 passes under section 6.6 (PE-1.2), and the Proof G bound cases pass on Windows and on Linux when executed; a Linux `PENDING` is recorded as `PENDING` | Proof D run 2 and Proof G findings | `P1` | `not-deferrable` (Linux half of Proof G: `linux-execution-gate`) |
 | `PE-SAFETY-05` | Every rejection is explicit and closed; there is no silent fallback or partial success | P-012; constitution sections I and V | No Proof B case, and no Proof G case on any executed host, returns success with missing or truncated content | Proofs B and G findings | `P1` | `not-deferrable` (Linux half of Proof G: `linux-execution-gate`) |
 | `PE-SAFETY-06` | No artifact claims race, TOCTOU or hardlink-alias resistance | Parent decision (non-claims) | Text audit of proof artifacts and the matrix draft finds no such claim | Audit record in the proof-exit report | `P2-critical` | `not-deferrable` |
 | `PE-SAFETY-07` | Non-regular targets and reserved device names are rejected | Constitution section III | The corresponding Proof G cases return closed codes on Windows, and on Linux when executed (reserved device names are Windows-only cases); a Linux `PENDING` is recorded as `PENDING` | Proof G per-host results | `P2-critical` | `not-deferrable` (Linux half: `linux-execution-gate`) |
@@ -591,7 +684,7 @@ for it.
 |---|---|---|---|---|---|---|
 | `PE-DATA-01` | Member and global manifest reason codes are closed, with fixed precedence | Parent decision (closed `SurfaceSpec` map); attempt 11 `S70` and `S76` lineage | Proof C maps every input class to exactly one outcome, and every code is reachable | Proof C truth table | `P1` | `not-deferrable` |
 | `PE-DATA-02` | The result schema and runtime outputs have exact parity | Constitution section V; `S76` lineage | Proof C: every output validates, every schema branch is reachable, mutated outputs are rejected | Proof C validation log | `P1` | `not-deferrable` |
-| `PE-DATA-03` | The budget equation holds for every admitted member, candidate and recheck | Attempt 11 `S71` lineage; plan revision 12 lines 78 and 144 (diagnostic inputs) | `C(N) <= max_files` for every admitted `N`; exhaustion yields `UNRESOLVED` | Proof D derivation and exhaustive check | `P1` | `not-deferrable` |
+| `PE-DATA-03` | The budget equation holds for every admitted member, candidate and recheck (PE-1.2) | Attempt 11 `S71` lineage; `docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md`; plan revision 12 lines 78 and 144 (frozen diagnostic record, superseded for the admitted range by the decision) | With the admitted range `1..48`, `C(N,U,rho) <= 256` and `C(N,U,1) + (N+1) <= 256` for every admitted input (`C_max = 202`, margin 54). No byte fit is claimed, and byte exhaustion is shown to be a bounded `UNRESOLVED / 2` failure. Every read-limit error at every read and recheck stage yields `UNRESOLVED / 2`, never `NO_HARNESS / 1` or `HARNESS_READY / 0` | Proof D run 2 derivation and exhaustive check (section 6.6) | `P1` | `not-deferrable` |
 | `PE-DATA-04` | Manifest checksums are computed from raw staged blob bytes | `docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md` section 1; the SHA-256-over-raw-LF-bytes convention recorded in `.autoharness/harness-manifest.yaml` entry notes | Proof F staged digest equals HEAD digest | Proof F transcript with both digests | `P1` | `not-deferrable` |
 
 ### 7.8 TASK
@@ -626,7 +719,9 @@ Proof exit is reached when every proof is `PASS`, or is `FAIL` or `BLOCKED`
 with a recorded route, or (Proof G only) is `PENDING-LINUX` with its Linux
 gate carried forward. The Stage-authored proof-exit report:
 
-1. lists each proof verdict against its PE-1.1 rows;
+1. lists each proof verdict against its PE-1.2 rows (verdicts recorded under
+   PE-1.1 on unchanged rows carry forward per section 3.1; Proof D is reported
+   by its run 2 verdict, with run 1 `FAIL` also listed);
 2. audits every `not-deferrable` row;
 3. drafts, but does not ratify, the implementation acceptance matrix;
 4. carries every Linux `PENDING` result into that draft as a `not-deferrable`
@@ -679,8 +774,19 @@ is opened. If a P-001 conflict with an active release unit, or any other
 per-invocation gate, rejects the execution, Ship halts and returns to the
 operator. `187-S` remains queued and is not claim-ready.
 
+**Version 1.2 addendum (Proof D run 2).** Proof D run 2 may be handed to Ship
+for verification-only execution under section 6.1 once version 1.2 is
+committed, unless the operator vetoes the decided bound first. It uses the
+section 6.6 (PE-1.2) inputs, with its own 45-minute and one-file bound, in a new
+scratch directory. Run 2 does not pool run 1's budget. A read-only check at
+`b6366cef` found that run 1's scratch path `.proof-scratch/` no longer exists.
+Its hygiene closure is left for the proof-exit report, and it does not change
+any verdict. Until run 2 is recorded, Proof D's verdict is run 1 `FAIL`.
+
 ## Cross-references
 
+* Proof D run 1 findings: `docs/decisions/2026-09-23-read-budget-proof-d-spike.md`
+* Version 1.2 decision: `docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md`
 * Parent decision: `docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md`
 * Governing decision: `docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md` (revision 9)
 * Frozen plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (revision 12)
