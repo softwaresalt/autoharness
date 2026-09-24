@@ -1,17 +1,27 @@
 ---
-title: "Pausing the non-convergent lifecycle review loop: a governance reset, a proof-first rebaseline, and a release-unit split for the Ship pre-task harness-generation lifecycle"
-description: "Stage deep deliberation opened after the eleventh consecutive FAIL/BLOCK verdict against the Ship pre-task harness-generation lifecycle plan. Attempts 07-11 reviewed revisions 8, 9, 10, 11 and 12; every attempt closed most of its predecessor's findings and every attempt raised a fresh set, so the loop has never reached zero and shows no mechanism by which it would. Diagnoses the root cause as plan review being used as implementation research over an unbuilt three-subsystem shipment, and proposes Option B: freeze the current artifacts as a diagnostic record, charter an operator-approved versioned acceptance matrix, answer the open questions with nine bounded executable proofs instead of more prose revisions, and re-slice 187-S into independently valuable release units. Recommends Option B but remains exploring: four operator decisions are unresolved and this artifact mutates nothing."
+title: "Lifecycle review convergence reset: Option B governance reset with proportionate Option D containment"
+description: "Stage deep decision, approved by the operator on 2026-09-23, issued after the eleventh consecutive FAIL/BLOCK verdict against the Ship pre-task harness-generation lifecycle plan. Attempts 07-11 reviewed revisions 8-12; each closed most of its predecessor's findings and each raised a fresh set, so the loop showed no path to zero. Diagnoses the root cause as plan review being used as implementation research over an unbuilt three-subsystem shipment. Decides Option B (freeze the current artifacts as a diagnostic record, charter a versioned acceptance matrix, answer the open questions with bounded executable proofs, and re-slice 187-S into independently valuable release units) combined with the proportionate Option D containment scope. That scope assumes an operator-controlled local workspace with no hostile concurrent filesystem actor. It requires ordinary static containment on actual Windows and Linux, bounded reads and explicit failure, and it makes no TOCTOU or hardlink-alias claim. Seven bounded proofs, defined in the companion proof-entry charter, replace the retired native-security proof portfolio. Mutates no plan, review, backlog or shipment state."
 doc_type: decision
 source: docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md
 date: 2026-09-23
-status: exploring
-decision_status: exploring
+decision_date: 2026-09-23
+status: decided
+decision_status: decided
+decision_approval: operator
+decided_option: "B+D"
+containment_scope: proportionate-ordinary-static-containment
+platform_mandate: [windows, linux]
 depth: deep
 deciders: operator, Stage
+revision: 2
+revision_note: "Revision 2 records the operator's 2026-09-23 decision. Revision 1 (commit 082df7b2) was the exploring deliberation; git history retains it."
 promoted_to: none
-promoted_to_note: "Deliberate-only. No plan, no revision 13, no attempt 12, no backlog item, no shipment and no carrier is created, edited or retired by this artifact. Option B is a recommendation awaiting operator approval; the four unresolved decisions below gate every subsequent step."
+promoted_to_note: "Remains none until Phase 1 proof entry. This decision does not create, edit or retire any plan, revision 13, attempt 12, backlog item, carrier or shipment. The companion proof-entry charter defines proof entry."
+linked_artifacts:
+  - docs/decisions/2026-09-23-lifecycle-proof-entry-charter.md
 branch: chore/stage-176-s-workflow-defects
 head_at_deliberation: 246d8b73
+head_at_decision: 082df7b2
 subject_plan: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 subject_plan_revision: 12
 subject_plan_revision_commit: 0806b601
@@ -27,102 +37,135 @@ shipment_id: 187-S
 attempts_reviewed: [7, 8, 9, 10, 11]
 revisions_reviewed: [8, 9, 10, 11, 12]
 proposed_epoch_id: LIFECYCLE-E2-R1
-mutation_performed: false
+resolved_decisions: [C1]
+open_decisions: [C2, C3, C4]
+state_mutation_performed: false
 review_performed: false
 retrieval_state: degraded
-policies: [P-001, P-005, P-006, P-009, P-010, P-012, P-016, P-017, P-020]
+policies: [P-001, P-002, P-004, P-005, P-006, P-009, P-010, P-012, P-016, P-017, P-020]
 labels:
   - deliberation
   - deep
-  - exploring
+  - decided
   - review-convergence
   - governance-reset
   - proof-first
+  - proportionate-containment
   - ship-lifecycle
 ---
 
-# Pausing the non-convergent lifecycle review loop
+# Lifecycle review convergence reset
+
+## Decision
+
+On **2026-09-23** the operator approved **Option B**: a governance reset, a
+proof-first rebaseline and a release-unit split. The operator combined it with
+the **proportionate Option D** containment scope. The operator made this choice
+after challenging the adversarial threat assumptions that had driven the
+reviewed plan's secure-reader design.
+
+| Element | Decision |
+|---|---|
+| Governance | Option B. The current artifacts are frozen as a diagnostic record. A charter and a versioned acceptance matrix precede any proof. Proofs precede any plan. Review runs under frozen rubric, personas and route, with the stop rules in the governance section below |
+| Threat model | The operator controls the local development workspace. There is no hostile concurrent filesystem actor |
+| Containment | Static containment within the configured workspace root and the autoharness root. Lexical rejection of invalid paths. Rejection of any path whose resolved target lies outside its root, including ordinary symlink and junction escapes. Bounded reads with explicit, closed failure codes |
+| Non-claims | No TOCTOU or race resistance, no hardlink alias resistance, and no resistance to hostile concurrent mutation are claimed |
+| Platforms | Windows **and** Linux, both first-release functional support, verified by tests executed on each actual operating system. There is no POSIX-only first release |
+| Removed obligations | `NtCreateFile` `RootDirectory` descent and other handle-relative traversal, a public `TraversalAdapter`, and native-platform security spikes |
+| Proof portfolio | Seven bounded proofs, defined in `docs/decisions/2026-09-23-lifecycle-proof-entry-charter.md` |
+| Resolved | C1 (threat model and platform mandate) |
+| Still open | C2 (release-unit split), C3 (migration and the fate of `187-S`), C4 (`P2` publication policy, reviewer lead and routing). Each is a bounded proposal pending future operator approval |
+
+`promoted_to` stays `none` until Phase 1 proof entry. The intended next Stage
+step is bounded proof experiments, taken only after the charter is coherent.
+`187-S` remains `queued` and is **not** claim-ready as a result of Phase 0.
 
 ## Question
 
-The Ship pre-task harness-generation lifecycle plan has been independently
-reviewed eleven times and has failed eleven times. The operator has asked for
-the loop to be paused and for a coherent, comprehensive strategy to replace it.
-
-This artifact answers one question:
+The Ship pre-task harness-generation lifecycle plan was independently reviewed
+eleven times and failed eleven times. The operator asked for the loop to be
+paused and for a coherent strategy to replace it:
 
 > **What should replace the plan-revise-review loop, given that five
-> consecutive revisions have each closed most of their predecessor's findings
-> and each raised a fresh set, so the loop has no demonstrated path to zero?**
+> consecutive revisions each closed most of their predecessor's findings and
+> each raised a fresh set, so the loop has no demonstrated path to zero?**
 
-It is a deliberation, not a decision of record and not a review. It mutates
-nothing. It recommends **Option B** — governance reset, proof-first
-rebaseline, release-unit split — and remains `decision_status: exploring`
-until the operator resolves the four decisions listed at the end.
+## Decision chronology
 
-## What this artifact deliberately does not do
+| Step | Event |
+|---|---|
+| 1 | Attempt 11 recorded a terminal FAIL against revision 12 at `246d8b73` |
+| 2 | Stage opened this deliberation as `exploring` at `082df7b2`. It recommended Option B and left four operator decisions open, the first being the threat model and platform mandate |
+| 3 | The operator challenged the adversarial threat assumptions behind the handle-relative, race-resistant reader design |
+| 4 | The recommendation was refined to Option B governance combined with a proportionate Option D reader: portable, ordinary filesystem operation for an operator-controlled development workspace on Windows and Linux, rather than a race-proof boundary against hostile junction or hardlink manipulation |
+| 5 | The operator selected that combination on 2026-09-23. C1 is resolved; C2, C3 and C4 remain open |
+
+## What this decision does not do
 
 Stage's role boundary (P-010) and the operator's instruction both constrain
-this session. For the avoidance of doubt, none of the following happened:
+this session. None of the following is authorized or performed:
 
 | Not done | Reason |
 |---|---|
-| Edit the lifecycle plan or create revision 13 | Revision 13 is not authorized; creating it would repeat the failure mode this artifact diagnoses |
-| Run a review or authorize/create attempt 12 | `attempt_12_authorized: false` in the manifest; Stage does not self-authorize review |
-| Edit the verdict manifest or any attempt artifact | Attempt artifacts are immutable; the manifest is the review skill's authority, not Stage's |
-| Edit the governing decision (revision 9) | It governs the whole portfolio; amending it is a separate, operator-approved act |
-| Create, edit, retire or archive any backlog item, carrier, shipment or stash entry | 187-S and 181-F remain exactly as they are |
-| Create, resolve or prune a checkpoint | No session checkpoint was written |
-| Touch the two pre-existing locks under `docs/plans/` and `docs/reviews/` | They belong to the blocked P-004 work; they were read-only observed and left alone |
-| Touch source, templates, tests or `.autoharness/harness-manifest.yaml` | Stage does not write production surfaces |
-| Push, open, or comment on anything in GitHub | No network mutation |
-| Remove or modify untracked working-tree files | All pre-existing untracked artifacts preserved |
+| Edit the lifecycle plan or create revision 13 | Revision 13 would repeat the failure mode diagnosed here |
+| Run a review or create attempt 12 | The manifest records `attempt_12_authorized: false`; Stage does not self-authorize review |
+| Edit the verdict manifest or any attempt artifact | Attempt artifacts are immutable; the manifest is the review skill's authority |
+| Record the `HALTED_NONCONVERGENT` transition | It is a manifest mutation, performed once by review-skill authority on operator instruction |
+| Edit the governing decision (revision 9) | Amending it is a separate, operator-approved act |
+| Create, edit, claim, retire or re-charter any backlog item, carrier, shipment or stash entry | `187-S` and `181-F` remain exactly as they are; retirement or re-charter is C3 |
+| Write production code, templates, tests, schemas, configuration or the harness manifest | Stage does not write production surfaces |
+| Run executable proofs or native security spikes | Proofs are Phase 1; native security spikes are removed from scope |
+| Touch the pre-existing P-004 locks under `docs/plans/` and `docs/reviews/` | They belong to blocked P-004 work, and P-004 follow-up is out of scope |
+| Push, open or comment on anything in GitHub | No network mutation |
+| Modify dirty or untracked working-tree files | All pre-existing dirty and untracked artifacts are preserved |
 
-The only repository mutation is the creation of this one file and one commit
-containing only this file.
+The only repository change is this rewrite and the companion charter, in one
+commit.
 
 ## Evidence base and retrieval conditions
 
-Every claim below was read directly from the repository at
-`head_at_deliberation: 246d8b73` on branch `chore/stage-176-s-workflow-defects`.
+Every claim below was read directly from the repository on branch
+`chore/stage-176-s-workflow-defects`: the deliberation at `246d8b73` and the
+decision at `082df7b2`.
 
 ### Retrieval degradation (P-012)
 
 | Capability | State | Effect |
 |---|---|---|
-| Indexed knowledge retrieval (engram) | `TOOL_UNAVAILABLE` — circuit-open | No semantic search. Compound learnings were located by exact directory listing and read by exact path. Not retried. |
-| Intercom visibility | `TOOL_UNAVAILABLE` | No phase broadcasts. Operator visibility is reduced to this artifact and the session summary. |
-| Graphtor-docs | `TOOL_UNAVAILABLE` | Documentation questions resolved by direct reads under `docs/`, `.github/` and `.autoharness/`. |
-| backlogit MCP | `TOOL_OK` | `backlogit_sync_index` returned 1472 indexed items; shipment and checkpoint reads succeeded. |
+| Indexed knowledge retrieval (engram) | Circuit-open; not retried | No semantic search. Compound learnings were located by directory listing and read by exact path |
+| Intercom visibility | Unavailable | No phase broadcasts. Operator visibility is limited to this artifact and the session summary |
+| Graphtor-docs | Unavailable | Documentation questions were resolved by direct reads |
+| backlogit MCP | Available | Index sync reported 1472 items; the shipment read and the Stage checkpoint enumeration (all resolved, none active) succeeded |
 
-**This degradation is a session condition, not a defect in the strategy below
-and not a defect in the reviewed plan.** It is recorded because a reader
-comparing this artifact to a later, fully-instrumented session should know
-that discovery here was bounded and exact rather than broad and semantic. It
-narrows confidence about *undiscovered* related work; it does not weaken any
-cited finding, all of which were read from their source files.
+This degradation is a session condition. It is not a defect in the strategy or
+in the reviewed plan. It narrows confidence about undiscovered related work,
+and it does not weaken any cited finding, since each was read from its source
+file.
 
 ### Primary evidence
 
 | Artifact | Exact state observed |
 |---|---|
-| Lifecycle plan | revision **12**, commit `0806b601` |
-| Verdict manifest | revision **21**, `verdict: FAIL`, `disposition: FAIL-BLOCKING-P1`, `decision: BLOCK` |
+| Lifecycle plan | Revision **12**, commit `0806b601` |
+| Verdict manifest | Revision **21**; `verdict: FAIL`, `disposition: FAIL-BLOCKING-P1`, `decision: BLOCK` |
 | Finding counts at attempt 11 | `P0` 0, `P1` 8, `P2` 4, `P3` 1; 13 merged, 8 blocking |
 | Publication gate | `portfolio-strict-zero-p0-p1-p2`; `publication_eligible: false` |
-| Attempt 12 | `attempt_12_exists: false`, `attempt_12_authorized: false`, awaiting revision 13 |
-| Terminal attempt artifact | attempt 11, `review_terminal: true`, `terminal-fail-recording-only-no-follow-on-authorized`, commit `246d8b73` |
-| Governing decision | revision **9**, `status: decided`, `promoted_to: plan` |
-| Shipment `187-S` | `status: queued`, covering feature `181-F` + 16 live tasks; `181.001-T` archived, not a live member |
-| Live P-004 | `.github/policies/workflow-policies.md` — canonical whole-suite command, per-test marker correlation, closed rejected-outcome list |
-| Installed actor | `.github/skills/harness-architect/SKILL.md:124-131` requires `raise NotImplementedError("...")` per generated test |
-| Manifest bindings | `.autoharness/harness-manifest.yaml:472` `TEST_COMMAND`, `:473` `UNIMPLEMENTED_MARKER: 'raise NotImplementedError("...")'` |
-| Pre-existing locks | `docs/plans/.2026-09-18-p004-observation-gate-plan.md.lock`, `docs/reviews/.2026-09-18-p004-observation-gate-plan-review.md.lock` — untouched |
+| Attempt 12 | Does not exist; `attempt_12_authorized: false` |
+| Terminal attempt | Attempt 11, `review_terminal: true`, commit `246d8b73` |
+| Governing decision | Revision **9**, `status: decided`, `promoted_to: plan` |
+| Shipment `187-S` | `status: queued`; covering feature `181-F` plus 16 live tasks; `181.001-T` archived and not a live member |
+| Live P-004 | `.github/policies/workflow-policies.md`: canonical whole-suite command, per-test marker correlation, closed list of rejected outcomes |
+| Installed actor | `.github/skills/harness-architect/SKILL.md` Step 4 item 3 and Step 5.2 require `raise NotImplementedError("...")` stubs and per-test marker attribution |
+| Manifest bindings | `.autoharness/harness-manifest.yaml:472` `TEST_COMMAND`; `:473` `UNIMPLEMENTED_MARKER`; `:237-239` the `harness-architect` surface entry |
+| Ship surfaces | `templates/agents/_ship.agent.md.tmpl` Step 2 (line 326) "runs once, up front - not in a loop"; the installed mirror `.github/agents/_ship.agent.md` has a different step structure and no `harness-architect` reference |
+| Containment norms | `.github/instructions/constitution.instructions.md` sections III and IV: operations resolve within the configured root; traversal and symlink escapes are refused |
+| Reviewer routing | The working configuration, inspected read-only, declares no `model_routing.anchor_review` key |
+| Pre-existing locks | `docs/plans/.2026-09-18-p004-observation-gate-plan.md.lock` and `docs/reviews/.2026-09-18-p004-observation-gate-plan-review.md.lock`, both untouched |
 
-### The 187-S budget, computed from the carriers
+### The 187-S budget
 
-Summing the `IMPLEMENTATION BUDGET` / `VERIFICATION BUDGET` line of each of
-the sixteen live carriers:
+The sum of each of the sixteen live carriers' implementation and verification
+budget lines:
 
 ```text
 181.002  90    181.008 105    181.013 100
@@ -134,14 +177,13 @@ the sixteen live carriers:
                        total = 1485 minutes = 24.75 hours
 ```
 
-Sixteen tasks, 24.75 engineering hours, in **one** shipment, all serial, none
-of which has produced a single line of executable code. Size composition is
-15 x `S` and 1 x `XS`, with the archived `181.001-T` the only `M`.
+That is sixteen serial tasks and 24.75 engineering hours in **one** shipment,
+and none of them has produced executable code. The size composition is 15 x `S`
+and 1 x `XS`; archived `181.001-T` is the only `M`.
 
 ## The convergence record
 
-This is the core evidence. Each row is read from that attempt's own immutable
-frontmatter.
+Each row is read from that attempt's own immutable frontmatter.
 
 | Attempt | Revision reviewed | Verdict | New findings raised | Blocking |
 |---|---|---|---|---|
@@ -151,346 +193,282 @@ frontmatter.
 | 10 | 11 | FAIL / BLOCK | `S53`-`S66` (14) | 14 (`P1` 14, `P2` 2) |
 | 11 | 12 | FAIL / BLOCK | `S69`-`S81` (13) | 8 (`P1` 8, `P2` 4, `P3` 1) |
 
-Read this table carefully, because it contains both the good news and the
-fatal news.
+**Blockers are declining:** 24, then 14, then 8. Revision 12 is genuinely
+better than revision 11. Attempt 11 closed eleven attempt-10 findings outright
+and partially closed three more.
 
-**The good news.** Blockers are declining: 24, then 14, then 8. Revision 12 is
-genuinely better than revision 11 — attempt 11 closed eleven of the attempt-10
-findings outright and partially closed three more. Nobody is doing bad work.
+**The discovery rate is flat:** each revision raised 12, 9, 18, 14 and then 13
+new findings. A loop converges when the discovery rate falls, not when the
+backlog of known defects is worked off.
 
-**The fatal news.** *Every single revision raised a fresh set of findings:
-12, 9, 18, 14, 13.* Eighty-one findings have been issued and the number of
-newly-discovered defects has never approached zero. A loop converges when the
-discovery rate falls, not when the backlog of known defects is worked off. The
-discovery rate here is flat.
+The mechanism shows in the attempt-11 record. Revision 12 closed `S61` by
+enumerating eleven member reason codes, which exposed `S76`, because the
+manifest reason codes never got the same treatment. It closed `S56` by naming
+modules and types, which exposed `S75`, because `TraversalAdapter` became
+public without a contract. It closed `S66` by splitting into sixteen tasks,
+which exposed `S80`, because the complexity labels were chosen to satisfy the
+split rather than derived from the work.
 
-The mechanism is visible in the attempt-11 record. Revision 12 closed `S61`
-(membership totalization) by enumerating eleven closed member reason codes —
-and that very act exposed `S76`, because the *manifest* reason codes were
-never given the same treatment. It closed `S56` (public contract) by naming
-the modules and types — and that act exposed `S75`, because naming
-`TraversalAdapter` as public without specifying it created a new, larger hole.
-It closed `S66` (oversized tasks) by splitting into sixteen tasks — and that
-act exposed `S80`, because the complexity labels were chosen to satisfy the
-splitting constraint rather than derived from the work.
+**Each revision turns an unanswered question into a more precisely stated
+unanswered question.** That is what research looks like, not convergence.
+`docs/compound/093-S-review-loop-convergence.md` recorded the same shape at
+PR #229: fresh containment and safety-critical code invites deep, iterative
+scrutiny, and without an explicit stop condition the loop does not converge in
+any bounded number of cycles.
 
-**Each revision converts an unanswered question into a more precisely stated
-unanswered question.** That is what research looks like. It is not what
-convergence looks like. Five more revisions would produce five more precisely
-stated unanswered questions, and the loop would still not terminate, because
-nothing in it ever executes anything.
+## Architecture diagnosis
 
-`docs/compound/093-S-review-loop-convergence.md` recorded this exact shape at
-PR #229: *"Without an explicit stop condition, this loop does not naturally
-converge to zero findings within any bounded number of cycles for a codebase
-this novel (fresh containment/safety-critical code invites deep, iterative
-scrutiny)."* The subject here is fresh containment/safety-critical code. The
-prediction has held for five revisions.
+### Root cause: plan review used as implementation research
 
----
+A plan review asks whether a plan is implementable as written. It is a cheap
+gate for catching structural mistakes before code exists.
 
-# Part 1 — Architecture diagnosis
-
-## 1.1 The root cause: plan review is being used as implementation research
-
-A plan review asks *"is this plan implementable as written?"* It is a cheap,
-fast gate designed to catch structural mistakes before anyone writes code.
-
-For five revisions it has instead been asked *"what is the correct design of a
+For five revisions it was asked instead to establish the correct design of a
 cross-platform secure filesystem reader, a backlog resolver with a closed
-reason taxonomy, and a Ship lifecycle activation?"* That is a research
-question, and prose review is close to the worst available instrument for
-answering it, because prose cannot fail. A specification that is wrong in a
-way no reader notices passes review; a specification that is right but
-unfamiliar attracts findings. The only thing that reliably falsifies a claim
-about `NtCreateFile` semantics is running `NtCreateFile`.
+reason taxonomy, and a Ship lifecycle activation. That is a research question,
+and prose review is a poor instrument for it, because prose cannot fail. The
+only reliable way to falsify a claim about how a platform resolves a junction,
+or how a test runner classifies an exception, is to execute it on that
+platform. Attempt 11 confirmed by directory inspection that the planned modules
+do not exist: eleven reviews, 24.75 hours of planned work and 81 findings, with
+zero executed lines.
 
-Attempt 11's own closure assessment states the consequence plainly: the planned
-modules *"do not exist at the reviewed HEAD, which was confirmed by directory
-inspection only."* Eleven reviews, 24.75 hours of planned work, 81 findings —
-and zero executed lines.
+### Recurring issue families
 
-## 1.2 Recurring issue families that survived every revision
+Four families persisted across revisions in changed form. They signal
+unresolved architecture, not careless editing.
 
-Four families have persisted across revisions in changed form. They are the
-signature of unresolved architecture, not of sloppy editing.
+| Family | Early form | Form at attempt 11 | Why it recurs | Disposition under B+D |
+|---|---|---|---|---|
+| RED / P-004 evidence ownership | `S14` (attempt 07, `P0`): wrong red-phase command in the actor | `S69` (marker exception type, characterization carve-out); `S78` (command not pinned to the canonical form) | The plan asserts the actor is conformant and keeps actor changes out of scope, while specifying an evidence shape the actor rejects | Proof A settles it by execution |
+| Registry and reason taxonomy closure | `S61`, `S63` (attempt 10) | `S70` (surface registry undefined); `S76` (global manifest reason codes not enumerated) | One enum is totalized at a time; a taxonomy closes only when the whole classification pipeline closes at once | One-entry `SurfaceSpec`; Proof C |
+| Ship placement and checkpoint restore | `S58`, `S59` (attempt 10) | `S73` (per-task invariant against pre-loop anchors); `S72` (verdict consumed by exit status) | The per-task contract is anchored at a step whose own text says it runs once, up front | Proofs B and E |
+| Secure traversal containment | `S53`, `S54`, `S55` (attempt 10) | `S75` (undefined `TraversalAdapter`); `S77` (hardlink aliasing, unreachable `OUTSIDE_TRUST_ROOT`); `S79` (Windows reparse flags) | Race-resistant containment properties are platform facts that prose can assert indefinitely | Rescoped to ordinary containment; Proofs D and G |
 
-| Family | Early form | Current form (attempt 11) | Why it recurs |
-|---|---|---|---|
-| **RED / P-004 evidence ownership** | `S14` (attempt 07, `P0`): installed actor hard-coded the wrong red-phase command | `S69` (marker exception type + characterization carve-out), `S78` (observation command not pinned to the canonical whole-suite form) | The plan asserts the actor is already conformant and puts actor changes out of scope, while specifying an evidence shape the actor rejects. The contradiction is a *scope* decision that no revision has been permitted to make. |
-| **Registry / reason taxonomy closure** | `S61`, `S63` (attempt 10): membership and manifest classification not total | `S70` (surface registry never defined), `S76` (global manifest reason codes never enumerated) | The plan keeps totalizing one enum at a time. A taxonomy is only closed when the *whole* classification pipeline is closed at once, including the map it classifies against. |
-| **Ship placement / checkpoint restore** | `S58`, `S59` (attempt 10): restore replacement and asymmetric placement | `S73` (per-task invariant vs. pre-loop anchors), `S72` (verdict consumed by exit status alone) | The plan states a per-task contract and anchors it at a step whose own retained text says it *"runs once, up front — not in a loop"*. Prose can hold both sentences; a state machine cannot. |
-| **Secure traversal containment** | `S53`, `S54`, `S55` (attempt 10): handle traversal, byte cap, same-size mutation | `S75` (undefined `TraversalAdapter`), `S77` (hardlink aliasing, unreachable `OUTSIDE_TRUST_ROOT`), `S79` (contradictory Windows reparse flags) | Containment properties are platform facts. They can be asserted in prose indefinitely without ever being true. |
-
-## 1.3 Fresh defects that each revision introduced
-
-Equally important: the revisions did not merely fail to finish. They
-manufactured new, genuine defects that did not exist before.
+### Fresh defects the revisions introduced
 
 | Defect | Finding | What went wrong |
 |---|---|---|
-| **Mutually incompatible budgets** | `S71` (`P1`) | `max_files=256` (plan line 78) against a membership bound of `1..512` (line 144), with queue *and* archive candidates consulted and then re-observed. `(1+N) x 2` claims, repeated on recheck, breaks at roughly `N = 63` — well inside the legal range. `187-S` itself (~77 claims) fits, so dogfood execution would never surface it. |
-| **Exit-code aliasing** | `S72` (`P1`) | Ship maps process exit 1 to `NO_HARNESS` and 2 to `UNRESOLVED` without first requiring that a resolver document was emitted. Startup failure, unknown command and argparse usage errors all produce the same statuses, so a crashed resolver is indistinguishable from a clean verdict. |
-| **Ambiguous checksum procedure** | `S74` (`P1`) | Plan line 231 says "the exact installed bytes" and names no method, in the terminal task of the DAG, directly contradicting the documented procedure in `docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md` §1 (compute from the LF-normalized committed blob via `git cat-file -p :<path>`, never a PowerShell capture). |
-| **Unearned public adapter debt** | `S75` (`P1`) | `TraversalAdapter` and `adapter=None` were made *public* before any implementation existed to constrain them. Five serial tasks across four files must now agree on a contract nothing fixes, and a caller-supplied adapter can defeat every containment guarantee while all result types still report success. |
-| **Unsupported estimates** | `S80` (`P2`) | The two NT-API tasks are labelled `size: S` / `complexity: medium` with no precedent in the codebase (`src/` has exactly two `ctypes` references, neither marshalling NT structures). The plan's own risk table names the mitigation "no high-complexity live task" — the label satisfies the constraint instead of describing the work. |
+| Mutually incompatible budgets | `S71` (`P1`) | `max_files=256` (plan line 78) against a membership bound of `1..512` (line 144), with queue and archive candidates consulted and then re-observed. It breaks near `N = 63`; `187-S` itself fits, so dogfooding would never surface it |
+| Exit-code aliasing | `S72` (`P1`) | Ship maps exit 1 to `NO_HARNESS` and exit 2 to `UNRESOLVED` without first requiring a resolver document, so a crashed resolver is indistinguishable from a clean verdict |
+| Ambiguous checksum procedure | `S74` (`P1`) | Plan line 231 says "the exact installed bytes" and names no method, contradicting `docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md` section 1 |
+| Unearned public adapter debt | `S75` (`P1`) | `TraversalAdapter` and `adapter=None` were made public before any implementation constrained them; a caller-supplied adapter could defeat containment while results still report success |
+| Unsupported estimates | `S80` (`P2`) | The two NT-API tasks are labelled `S` / `medium` with no codebase precedent for NT structure marshalling |
 
-The pattern connecting all five: **abstractions were published before anything
-earned them.** A public adapter seam, a general registry, a 512-member bound —
-each was specified in advance of a single executed call that would have shown
-what shape it needed.
+The common pattern: **abstractions were published before anything earned
+them.**
 
-## 1.4 Revision 12 is a requirements inventory, not an implementation-ready plan
+### Revision 12 is a requirements inventory
 
-This is not a criticism of its quality. As an inventory it is good. But it is
-the wrong artifact class to hand to Ship, and one shipment currently combines
-three genuinely independent subsystems:
+As an inventory it is good. But it is the wrong artifact to hand to Ship, and it
+bundles three independent subsystems:
 
-1. **A cross-platform secure-input security subsystem** — handle-relative
-   traversal, no-follow guarantees, NT API marshalling, identity and version
-   snapshots, budget accounting. Safety-critical, platform-specific, novel to
-   this codebase.
-2. **A backlog/manifest resolver** — record membership, surface
-   classification, manifest snapshot, reducer, evidence digest, versioned
-   result schema, CLI. Pure domain logic, fully testable in memory.
-3. **A Ship lifecycle activation** — template and mirror edits, checkpoint
-   restore reordering, manifest checksum refresh. A three-file atomic change
-   to the live agent.
+1. **A containment reader.** Revision 12 specifies it as handle-relative,
+   no-follow traversal with NT API marshalling, identity and version snapshots,
+   and budget accounting. Under B+D it becomes a portable reader built on
+   ordinary path resolution with bounded reads.
+2. **A backlog and manifest resolver.** Membership, surface classification,
+   manifest snapshot, reducer, digest, versioned result schema and CLI. This is
+   pure domain logic, testable in memory.
+3. **A Ship lifecycle activation.** Template, mirror and manifest checksum
+   changes: one atomic change to the live agent.
 
-These have different risk profiles, different evidence needs, different
-failure modes and different audiences. Bundling them means the *entire* unit
-is blocked by whichever component is least understood — currently the Windows
-NT traversal — and that every review must hold all three in view at once,
-which is precisely how a reviewer generates 13-18 findings per pass.
+Bundling them blocks the whole unit on its least-understood part and forces
+every review to hold all three in view at once. That is how a reviewer produces
+13-18 findings per pass.
 
-## 1.5 The stable boundaries this work actually has
+### Stable boundaries
 
-The recurring families point at the boundaries the design keeps reaching for:
-
-* **An internal secure-input package with private platform adapters.** Not
-  public. The adapter seam exists so tests can inject a fake syscall table;
-  that is a test seam, and test seams belong behind a private name until
-  something outside the package genuinely needs to supply one.
-* **A resolver domain with a closed `SurfaceSpec` map, a reducer, and a
-  digest.** The map is data, not an abstraction: surface ID to manifest
-  artifact path to expected template, with one exact match predicate.
-* **A versioned result schema** as the single interchange contract between
-  resolver and every consumer.
-* **A thin CLI** that is a pure adapter over the resolver — parses, calls,
-  serializes one document, exits with the document's own code.
+* **An internal containment helper with no adapter seam.** It resolves paths
+  with the standard library, compares them against resolved roots, and reads
+  within fixed bounds. There is no public or caller-supplied adapter, and any
+  test seam stays private.
+* **A resolver domain with a closed `SurfaceSpec` map, a reducer and a
+  digest.** The map is data: surface ID to installed artifact path to expected
+  template, with one exact match predicate.
+* **A versioned result schema** as the single interchange contract.
+* **A thin CLI** that parses, calls, serializes exactly one document, and exits
+  with that document's own code.
 * **Ship as a consumer of a validated document**, never of a process status.
 
-Two corollaries follow directly, and both *remove* work:
+Two corollaries remove work:
 
 * **Support exactly one surface initially: `harness-architect`.** All sixteen
-  live tasks already declare `harness-surface:harness-architect`, and
-  `.autoharness/harness-manifest.yaml:237-240` already tracks
-  `.github/skills/harness-architect/SKILL.md` with an existing template. The
-  one surface in use resolves today; the general registry is speculative.
-  A closed one-entry map with an explicit `SURFACE_UNSUPPORTED` outcome for
-  everything else is smaller, safer and answers `S70` completely.
-* **Delete the unearned public abstractions** — the public `TraversalAdapter`,
+  live tasks declare `harness-surface:harness-architect`, and the manifest
+  already tracks that surface with a template. A one-entry map with an explicit
+  `SURFACE_UNSUPPORTED` outcome for everything else answers `S70` completely.
+* **Delete the unearned public abstractions:** the public `TraversalAdapter`,
   the public `adapter=` parameter, and the general surface registry. This
-  retires `S75` by construction rather than by specifying it, and shrinks the
-  contract that must be reviewed.
+  retires `S75` by construction.
 
-## 1.6 The architectural rule going forward
+### The architectural rule
 
-> **No future plan is written until the executable proofs pass. When a proof
-> fails, the architecture decision changes — it does not trigger another prose
-> remediation.**
+> **No future plan is written until the required proofs pass. When a proof
+> fails, the architecture or charter decision changes. A failure never
+> triggers another prose remediation.**
 
-This is the load-bearing sentence of the whole strategy. It is what makes the
-loop terminate. Today a failure produces a revision; a revision produces new
-findings; new findings produce a failure. Under this rule a failure produces a
-*changed design*, and designs have a finite number of viable shapes.
+This rule makes the loop terminate. Today a failure produces a revision, a
+revision produces new findings, and new findings produce a failure. Under this
+rule a failure produces a changed design, and designs have a finite number of
+viable shapes.
 
----
+## Containment scope (proportionate Option D)
 
-# Part 2 — The proof-first work
+### Threat model
 
-No production implementation is authorized by this artifact. What follows is a
-portfolio of nine small, executable experiments. Each has one fixed question,
-a fixed file and time budget, and a pass/fail criterion that is decided by
-running something, not by reading something.
+The resolver reads this repository's own backlog, manifest, template and
+installed files, inside a development workspace that the operator controls. The
+threat model admits **no hostile concurrent filesystem actor**. The hazards it
+does admit are ordinary ones: a malformed or escaping path, a static link that
+points outside the workspace, oversized or unexpected input, and a target that
+is not a regular file.
 
-A proof is **not** a prototype and **not** a first draft of the feature. Its
-only output is an answer plus the evidence for it. Proof code is expected to be
-thrown away.
+### Required properties
 
-## Proof 1 — RED / P-004 conformance (1 test file + temp fixtures, 60m)
+1. **Static containment roots.** The configured workspace root and the
+   autoharness root (`.autoharness/`), each resolved once per run.
+2. **Lexical rejection** of invalid paths before any filesystem access: empty,
+   NUL-bearing, absolute where relative is required, and escaping `..`. On
+   Windows this also covers drive-relative, UNC and device-prefixed forms,
+   alternate data streams, reserved device names, and trailing dots or spaces.
+3. **Resolved-path rejection.** A target whose final resolved path lies outside
+   its root is rejected, including ordinary symlink and junction escapes
+   present at read time. Links that resolve inside the root are allowed. On
+   Windows, root comparison is case-insensitive.
+4. **Bounded reads.** Per-file byte, total byte and file-count limits, each
+   with its own explicit exhaustion code. There is no silent truncation.
+5. **Explicit failure.** Every rejection maps to a closed failure code. There
+   is no silent fallback and no partial success.
 
-**Question:** what evidence shape does the *installed* actor actually accept?
+### Non-claims
 
-Run the exact canonical whole-suite command. Generate current-task tests that
-reach production stubs raising the exact unique `NotImplementedError` marker.
-Prove the run exits non-zero, that each generated test is individually
-discovered, and that it fails with *its own* marker. Then prove rejection: a
-marker-bearing `AssertionError`, a pass, a skip, and a wrong/cross-test marker
-must each be refused as evidence. Prove that characterization assertions living
-*outside* the generated roster do not contaminate the observation.
+The reader does **not** claim TOCTOU or race resistance, hardlink alias
+resistance, or resistance to hostile concurrent mutation. No later plan, task,
+test name or review response may claim these properties. Adding any of them as
+a requirement is a threat-model change and requires a re-charter.
 
-**Settles:** `S69` and `S78`, and the scope question of whether
-`.github/policies/workflow-policies.md` and the actor skill must enter scope.
+### Platform mandate
 
-## Proof 2 — CLI authenticity (1 test file, 60m)
+Windows and Linux are both first-release platforms, and each is verified by
+tests executed on that actual operating system. Mocked or simulated platforms
+are not evidence. A POSIX-only first release is not adopted, because this is a
+Windows-hosted development workspace and the dogfood path must run locally.
 
-**Question:** can Ship distinguish a real resolver verdict from a crash?
+### Risk grading
 
-Invoke the exact module form with the source environment set. Prove Ship
-accepts only one schema-valid JSON document whose requested shipment, state,
-reason, exit code and process status all match. Then prove halt-with
-`resolver-not-observed` for every impostor: startup failure, unknown command,
-parser/usage error, help output, malformed JSON, and trailing output after the
-document.
+Risk is graded per hazard class. A single blanket grade is not used, because
+it would conflate classes that are mitigated with classes that are outside the
+model.
 
-**Settles:** `S72`.
+| Hazard class | In model | Treatment | Residual risk |
+|---|---|---|---|
+| Lexical traversal and malformed paths | Yes | Lexical rejection | Low |
+| Static symlink or junction escape present at read time | Yes | Resolved-path rejection | Low |
+| Oversized or excess input | Yes | Bounded reads with explicit codes | Low |
+| Non-regular target or reserved device name | Yes | Explicit rejection | Low |
+| Concurrent swap between check and use (TOCTOU) | No | Not defended; recorded non-claim | Accepted by the operator as outside the model |
+| Hardlink alias to outside content | No | Not defended; recorded non-claim. The retired handle-relative design did not close this vector either (`S77`) | Accepted by the operator as outside the model |
+| Hostile local process | No | Not defended. The workspace's advisory lock skill makes the same bound explicit | Accepted by the operator as outside the model |
 
-## Proof 3 — POSIX traversal, on Linux CI (<=2 files, 60m)
+If the workspace trust boundary changes (for example, shared or multi-tenant
+hosts, or untrusted checkouts), the accepted classes re-enter the model through
+a re-charter.
 
-**Question:** do the POSIX containment invariants hold when executed?
+### Normative alignment
 
-Held-descriptor relative traversal with no-follow; a successful nested read; a
-symlink swapped in mid-traversal must be refused; capture the exact flag/call
-trace; capture identity and version fields.
+Constitution section III requires every filesystem operation to resolve within
+the configured workspace root and requires path traversal attempts to be
+rejected. Section IV refuses paths that resolve outside the tree through
+absolute paths, `..`, symlinks or environment expansion. The required properties
+above implement those statements as written. This decision does not amend or
+reinterpret the constitution. If a later review contends that the constitution
+requires race-proof guarantees, that contention goes to the operator as a
+constitutional question. It is not a finding to be absorbed into a plan.
 
-**Settles:** the POSIX half of `S53`/`S75`/`S77`.
+### Disposition of reader-family findings
 
-## Proof 4 — Windows traversal, on actual Windows (<=2 files, 120m)
+| Finding | Subject | Disposition |
+|---|---|---|
+| `S53` | Handle-relative traversal | Retired from scope: handle-relative traversal is no longer required |
+| `S54` | Byte cap | Retained as a bounded-read requirement; Proof G |
+| `S55` | Same-size mutation between reads | Out of model (concurrent mutation); recorded non-claim |
+| `S71` | Budget incompatibility | Retained; Proof D |
+| `S75` | Public `TraversalAdapter` | Retired by construction: no adapter seam |
+| `S77` | Hardlink aliasing; unreachable `OUTSIDE_TRUST_ROOT` | Hardlink half becomes a recorded non-claim; the outside-root half is answered by resolved-path rejection with a closed code; Proof G |
+| `S79` | Windows reparse flag precedence and final-path check | Native flag half retired; the Windows junction and symlink behaviour is tested functionally in Proof G |
+| `S80` | NT-API task sizing | Retired: no NT-API tasks remain |
 
-**Question:** does `RootDirectory`-relative `NtCreateFile` descent work here?
+These dispositions describe the future scope. The attempt-11 record itself is
+not edited.
 
-Per-component `RootDirectory`-relative `NtCreateFile`; junction and reparse
-point must be refused with the observed `NTSTATUS` recorded; normalized final
-path captured; identity and version captured; trace captured. **No descendant
-pathname fallback is permitted** — if the handle-relative path fails, the proof
-fails. It does not quietly reopen by string.
+## Proof-first work
 
-This is the largest budget in the portfolio because it is the largest unknown:
-nothing in `src/` marshals NT structures today.
+This decision authorizes no production implementation. The questions are
+answered by a portfolio of **seven** bounded, executable proofs. Each has one
+narrow question, fixed time and file bounds, and a pass/fail criterion decided
+by running something. Proof code is disposable. Its only durable output is an
+answer and the evidence for it.
 
-**Settles:** `S79`, the Windows half of `S53`, and the real input to `S80`.
+| Proof | Question | Budget | Settles |
+|---|---|---|---|
+| A | Live P-004 canonical whole-suite command plus a unique `NotImplementedError` marker: acceptance and every rejected failure mode | 60m, 3 files | `S69`, `S78` |
+| B | CLI authenticity: status plus exactly one schema-valid document | 60m, 2 files | `S72` |
+| C | One-entry `SurfaceSpec` and a total member and manifest reason truth table with schema parity | 75m, 2 files | `S70`, `S76` |
+| D | One budget equation for all admitted members, candidates and rechecks | 45m, 1 file | `S71` |
+| E | Ship per-task actor placement and a checkpoint-first state machine against the exact template and mirror | 60m, 2 files | `S73`, placement half of `S72` |
+| F | Raw staged and HEAD checksum replay of the established compound learning | 30m, 1 script in a disposable repository | `S74` |
+| G | Portable ordinary-path containment functional tests on actual Windows and Linux, including static symlink and junction escapes and read bounds | 90m, 2 files | `S54`, `S77`, `S79` (functional) |
 
-## Proof 5 — Adapter authority (1 file, 45m, runs *after* Proofs 3 and 4)
+Total: **420 minutes (7.0 hours), at most 13 disposable files.** The charter
+fixes each proof's setup, pass criteria, required rejections, failure routing
+and host requirements.
 
-**Question:** must the adapter seam be public or private?
+Relative to the retired nine-proof portfolio, the POSIX traversal, Windows
+`NtCreateFile` traversal and adapter-authority proofs are removed with their
+native mechanisms. Proof G replaces them with one functional containment proof
+that runs on both platforms. The budget, taxonomy, CLI, P-004, state-machine
+and checksum proofs carry forward as Proofs D, C, B, A, E and F.
 
-Write an adversarial adapter that omits the mandatory flags and attempt to
-obtain a working reader through it. The result decides the seam.
+A `FAIL` returns to architecture or charter. It never returns to a prose
+rewrite. `BLOCKED` (for example, when no Linux host is available) goes to the
+operator and never counts as `PASS`.
 
-**Expected recommendation:** *private test seam* — unless the reader can
-independently enforce the invariants regardless of which adapter is supplied.
-If the reader cannot, a public seam is a containment hole and must not exist.
+## Governance reset
 
-**Settles:** `S75`.
+### Immediate freeze
 
-## Proof 6 — Budget arithmetic truth table (1 test file, 45m)
+* No revision 13, no attempt 12, no carrier synchronization, no remediation.
+* Revision 12 and attempts 07 through 11 are preserved unchanged as the
+  diagnostic record.
+* The `HALTED_NONCONVERGENT` state is recorded once, in the verdict manifest,
+  by review-skill authority on operator instruction. This decision does not
+  record it, and no other artifact restates it.
 
-**Question:** can the admitted maximum shipment exhaust the reader budget?
+### Charter and versioned acceptance matrix
 
-Build a truth table over the real claim sources: queue candidates, archive
-candidates, stable absence entries, manifest reads, template reads, installed
-reads, and ledger rechecks. Prove the formula and prove that the admitted
-maximum membership *cannot intrinsically exhaust* the file budget.
-
-**Settles:** `S71`, and forces the missing reducer class for budget exhaustion.
-
-## Proof 7 — `SurfaceSpec` and reason taxonomy ratification (2 files, 75m)
-
-**Question:** is the taxonomy closed and does the schema match the runtime?
-
-Ratify exactly one supported mapping (`harness-architect`). Prove every unknown
-but well-formed surface ID yields `SURFACE_UNSUPPORTED` -> `UNRESOLVED`, never
-`NO_HARNESS`. Enumerate closed global manifest failure codes with fixed
-precedence. Prove reducer/schema parity — every runtime outcome validates
-against the schema's `oneOf`, and no schema branch is unreachable.
-
-**Settles:** `S70` and `S76`.
-
-## Proof 8 — Checksum replay (disposable repo, 30m, no repository files)
-
-**Question:** none. **This is established procedure, not research.**
-
-`docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md` §1 already
-answers it. Proof 8 exists only to replay the known-good steps so the terminal
-activation task cannot improvise: read the raw staged `:<path>` bytes via a
-Python subprocess with binary capture, then verify against the `HEAD` blob.
-Runs in a disposable repository and touches **no file in this repository**.
-
-**Settles:** `S74`.
-
-## Proof 9 — Ship consumer state machine (small fixture proof)
-
-**Question:** where exactly does the per-task harness call sit?
-
-A small fixture standing in for the template and mirror loops. Prove per-task
-placement *inside* the exact template and mirror loops; prove
-checkpoint-validate-and-resolve *before* cursor restore; prove the consumer
-gates on a validated document rather than on status alone.
-
-**Budget derivation.** This proof is bounded by the same rule as the rest of
-the portfolio, and its size follows from the two surfaces it must model: the
-template loop and the mirror loop. That is **2 files** (one fixture, one test)
-and **60 minutes** — the same shape and budget as Proofs 1 and 2, which also
-assert structure over a fixed small surface. It is deliberately *not* given
-Proof 4's 120 minutes, because unlike the NT work it has no unknown external
-API: both loops already exist and were quoted verbatim in attempt 11's `S73`.
-
-**Settles:** `S73` and the placement half of `S72`.
-
-## Portfolio total
-
-Nine proofs, **555 minutes (9.25 hours)**, at most 13 files, none of them
-production code. Compare with 24.75 hours of blocked implementation that has
-produced nothing for five revisions.
-
----
-
-# Part 3 — Governance reset
-
-## 3.1 Immediate freeze
-
-Effective on operator approval of this deliberation:
-
-* No revision 13. No attempt 12. No carrier synchronization. No remediation.
-* Revision 12 and attempt 11 are **preserved unchanged as the diagnostic
-  record** of how the loop failed. They are not errors to be corrected; they
-  are the evidence.
-
-The lifecycle state should become `HALTED_NONCONVERGENT`. **This artifact does
-not make that transition** — recording it is a mutation of the manifest, which
-Stage will not perform here. It happens only after the operator approves.
-
-## 3.2 Charter and versioned acceptance matrix, before any proof
-
-Before proofs run and before any new plan is written, the operator approves a
-**charter** (scope, threat model, platform support, budget) and a **versioned
-acceptance matrix**. The matrix is the contract review evaluates against, and
-it is frozen before evaluation begins.
-
-Nine categories, each row carrying five fields:
+The companion charter fixes scope, threat model, platforms and budget. It also
+fixes acceptance matrix **PE-1.0**. Every row carries a normative source, a
+pass criterion, evidence, a violation severity and a deferral status, in nine
+categories:
 
 | Category | What it fixes |
 |---|---|
 | `AUTH` | Who may authorize what; role boundaries |
 | `SCOPE` | What is in and out; which files may be touched |
 | `FLOW` | Control flow, ordering, state transitions |
-| `INTERFACE` | Public and private surfaces, signatures, seams |
+| `INTERFACE` | Public and private surfaces, seams |
 | `SAFETY` | Containment, threat model, fail-closed behaviour |
 | `DATA` | Schemas, enums, taxonomies, digests |
 | `TASK` | Decomposition, sizing, the 2-hour rule |
 | `EVIDENCE` | What proves a row satisfied |
 | `ACTIVATE` | Rollout, atomicity, rollback |
 
-Every row records: **normative source**, **pass criterion**, **evidence**,
-**violation severity**, and **deferral rule**.
+PE-1.0 is frozen **for proof entry only**. The implementation acceptance matrix
+is drafted from proof evidence and ratified after proof exit, before any new
+review epoch opens. Against a frozen matrix, a requirement that is not a row is
+a change request, not a blocker.
 
-Why this ends the loop: today a reviewer evaluates a plan against their own
-reading of the whole policy corpus, so each reviewer pass legitimately
-discovers new requirements. Against a frozen matrix, a requirement that is not
-a row is not a blocker — it is a change request.
-
-## 3.3 One authority chain
+### One authority chain
 
 ```text
 charter + acceptance matrix
@@ -511,335 +489,268 @@ structured mutable review index
 immutable evidence artifacts
 ```
 
-Each fact lives in exactly one place. In a future migration, duplicated
-latest-attempt and verdict prose is removed from operative artifacts — today
-the same verdict is restated in the manifest, the attempt artifact, the
-shipment description and sixteen carriers, which is sixteen extra places for
-authority to drift.
+Each fact lives in exactly one place. Today the same verdict is restated in the
+manifest, the attempt artifact, the shipment description and sixteen carriers,
+which gives authority sixteen extra places to drift. Removing those restatements
+belongs to a later migration (C3).
 
-## 3.4 Issue taxonomy and what may block
+### Issue taxonomy and what may block
 
-| Class | Meaning | Blocks? |
+| Class | Meaning | Blocks |
 |---|---|---|
 | `CRITERION` | Violates a frozen matrix row | **Yes** |
-| `EVIDENCE` | Matrix-required evidence missing | **Yes** |
-| `CONSISTENCY` | Two artifacts disagree | No — mechanical check |
+| `EVIDENCE` | Matrix-required evidence is missing | **Yes** |
+| `CONSISTENCY` | Two artifacts disagree | No; mechanical check |
 | `RISK` | Hazard noted, no row violated | No |
-| `CHANGE` | New requirement not in the matrix | No — change control |
-| `PROCESS` | Workflow/hygiene observation | No |
+| `CHANGE` | New requirement not in the matrix | No; change control |
+| `PROCESS` | Workflow or hygiene observation | No |
 | `DUPLICATE` / `CHILD` | Restates or narrows an existing finding | No |
 
-**Only frozen `CRITERION` violations and matrix-required missing `EVIDENCE`
-can block.** New requirements go to change control; they are not in-epoch
-blockers. This single rule is what prevents attempts 12 through 20 from
-rediscovering the attempt-7-through-11 pattern.
+### Finding identity and closure
 
-## 3.5 Finding identity and closure
+* Stable finding IDs are tied to matrix rows, so identity survives revisions.
+* Each finding closes independently, on named evidence.
+* Residue after a partial close gets an explicitly linked child.
+* Nothing is carried forward, as open or as closed, without revalidation.
 
-* Stable finding IDs tied to matrix rows, so a finding's identity survives
-  revisions.
-* Each finding closes **independently**, on specific named evidence.
-* Residue after a partial close gets an explicitly **linked child**, never a
-  silent carry-forward. (Attempt 11 did this correctly for `S56` -> `S75` and
-  `S63` -> `S76`; it should be the rule, not good practice.)
-* **No carry-forward without revalidation.** A finding is not assumed still
-  open, or still closed, across a revision.
+### Reviewer stability
 
-## 3.6 Reviewer stability
+Freeze before the epoch begins: lead reviewer, rubric version, persona set,
+severity mapping and routing. Then run one initial full review, delta reviews
+against changes only, and one final full consistency pass. **A reviewer route
+change pauses the epoch.** Attempt 11 ran with a declared same-model
+degradation for the Architecture Strategist persona because no anchor route is
+configured. A rubric executed by a different route is a different rubric. The
+lead and the routing are **not selected** by this decision (C4).
 
-Freeze **before** the epoch begins: lead reviewer, rubric version, persona
-set, severity mapping, routing. Then:
-
-1. one **initial full review**;
-2. **delta reviews** against changes only;
-3. one **final full consistency pass**.
-
-**A reviewer route change pauses the epoch.** Attempt 11 ran with
-`anchor_review_route_state: TOOL_DEGRADED` — `.autoharness/config.yaml` declares
-no `model_routing.anchor_review` key, so the Architecture Strategist persona ran
-the same-model rubric. That was correctly declared, not hidden. But a rubric
-executed by a different route is a different rubric, and a loop that changes
-its measuring instrument between attempts cannot demonstrate convergence.
-
-## 3.7 Three distinct gates
-
-The current single gate is doing three unrelated jobs at once.
+### Three distinct gates
 
 | Gate | Question | Criterion |
 |---|---|---|
-| **Publication** | Is the contract sound enough to publish? | Zero admitted `P0`/`P1`. `P2` is publishable **unless predesignated critical** in the matrix. |
-| **Execution** | May implementation begin? | All required proofs pass. |
-| **Claim / closure** | May this ship and close? | Ordinary runtime, CI and P-020 gates. |
+| Publication | Is the contract sound enough to publish? | Zero admitted `P0` and `P1`. The **proposed default** is that only matrix-critical `P2` blocks (C4) |
+| Execution (implementation) | May implementation begin? | All required proofs pass and the implementation matrix is ratified |
+| Claim / closure | May this ship and close? | Ordinary runtime, CI, P-002/P-004 and P-020 gates |
 
-**Do not use a blanket zero-`P2` rule.** Today's
-`portfolio-strict-zero-p0-p1-p2` gate is why `S81` — an argument-passing style
-inconsistency, correctly rated `P3` — sits in the same blocking bucket as a
-containment hole. A gate that cannot distinguish a keyword-argument preference
-from a security defect gives the operator no signal about how close the work
-actually is. Criticality is predesignated per matrix row, in advance, not
-argued per finding.
+A blanket zero-`P2` rule is not used. The current
+`portfolio-strict-zero-p0-p1-p2` gate puts `S81`, an argument-passing style
+inconsistency rated `P3`, in the same blocking bucket as a containment defect.
+Criticality is predesignated per matrix row, not argued per finding.
 
-## 3.8 Remediation budget
+### Remediation budget
 
 | Limit | Value |
 |---|---|
-| Consolidated revisions per epoch | **2 maximum** |
-| Local remediation cycles after a review | **1 maximum**, in recommended recovery |
-| New API / subsystem / threat / platform mechanism | Requires **re-charter** |
-| Implementation tasks per shipment | **6 maximum** |
-| Engineering hours per shipment | **8 maximum** |
-| High-uncertainty native work | Requires a **spike** first |
-| Contract growth | **>20% ends the epoch** |
+| Consolidated revisions per epoch | At most **2** |
+| Local remediation cycles after a review | At most **1** |
+| New API, subsystem, threat class or platform mechanism | Requires a **re-charter** |
+| Implementation tasks per shipment | At most **6** |
+| Engineering hours per shipment | At most **8** |
+| Budget overrun or repeated failure | Escalates per P-013.6 and ends in a permitted outcome |
+| Contract growth over 20% | Ends the epoch |
 
-`187-S` violates the task limit by 167% (16 vs 6) and the hour limit by 209%
-(24.75 vs 8).
+`187-S` exceeds the task limit by 167% (16 against 6) and the hour limit by
+209% (24.75 against 8).
 
-## 3.9 Stop conditions and permitted outcomes
+### Stop conditions and permitted outcomes
 
-Stop the epoch immediately if **any** of:
+Stop the epoch immediately if **any** of these occurs:
 
 * blockers do not decline across revisions;
-* newly admitted findings >= findings closed;
+* newly admitted findings are at least as many as findings closed;
 * scope, rubric or reviewer route changes mid-epoch;
 * an authority mismatch is found between artifacts;
 * a new subsystem turns out to be required;
-* any budget in 3.8 is exceeded;
+* any remediation budget limit is exceeded;
 * a second remediation fails.
 
-On stop, the permitted outcomes are: **split**, **spike**,
-**re-charter / new epoch**, **explicit risk acceptance**, **defer**, or
-**cancel**. *"Another attempt"* is not on the list. That omission is the point.
+On stop, the permitted outcomes are **split**, **spike**, **re-charter / new
+epoch**, **explicit risk acceptance**, **defer** or **cancel**. Another attempt
+is not a permitted outcome.
 
-## 3.10 Epoch identity
+### Epoch identity
 
-Identify epochs by a token derived from the subject digest, matrix version and
-rubric version — for example **`LIFECYCLE-E2-R1`** — never by attempt number.
-"Attempt 12" invites attempt 13. `LIFECYCLE-E2-R1` makes it explicit that a
-*different contract* is being evaluated under a *different rubric*, and that
-the attempt-7-through-11 record belongs to a closed epoch.
+Epochs are named by a token derived from the subject digest, matrix version and
+rubric version, for example **`LIFECYCLE-E2-R1`**, never by attempt number. The
+attempt 07-11 record belongs to a closed epoch.
 
----
+## Recovery phases
 
-# Part 4 — Recommended recovery, phase by phase
+### Phase 0 - operator reset (complete with this decision and the charter)
 
-## Phase 0 — Operator reset (gate: operator approval)
+The operator approved B+D and resolved C1. The companion charter fixes PE-1.0
+and the proof portfolio. The current artifacts are frozen as the diagnostic
+record.
 
-Operator approves the reset charter and scope, and **chooses the threat model
-and platform support**. Current artifacts are frozen as the diagnostic record.
-Nothing proceeds until this gate clears — the threat-model answer determines
-whether Phase 1 contains Proof 4 at all.
+### Phase 1 - bounded proof portfolio (gate: proof exit)
 
-## Phase 1 — Bounded executable proof portfolio (gate: all required proofs pass)
+Run the seven proofs under the spike skill, in one recorded, time-boxed P-016
+spike worktree. A failed proof reopens architecture or charter; it does not
+open a remediation cycle.
 
-Run the nine proofs. Each has a fixed question, a fixed budget, and pass/fail
-evidence.
+### Phase 2 - release-unit re-slice (gate: implementation matrix ratified)
 
-**A failed proof reopens the architecture decision.** It does not open a
-remediation cycle. If Proof 4 shows `RootDirectory` descent is not viable here,
-that is an architecture answer, and Options C or D come back onto the table.
-
-## Phase 2 — Re-slice into independently valuable release units (gate: matrix approved)
-
-Likely shape:
+The following is a **bounded proposal (C2)**, pending operator approval:
 
 | Unit | Content | Independent value |
 |---|---|---|
-| **A** | Actor / P-004 conformance + per-task lifecycle semantics | The evidence contract becomes true and testable |
-| **B** | Resolver + `SurfaceSpec` + schema + CLI | A working, callable resolver |
-| **C** | Secure-input platform work — **only if the threat model and proofs require it** | Containment, if genuinely needed |
-| **D** | Final Ship activation | The lifecycle goes live |
+| A | Actor and P-004 conformance, plus per-task lifecycle semantics | The evidence contract becomes true and testable |
+| B | Resolver, one-entry `SurfaceSpec`, result schema and CLI | A working, callable resolver |
+| C | Portable ordinary-containment reader on Windows and Linux; may fold into B if B stays within budget | Required containment and bounds |
+| D | Final Ship activation: template, mirror and manifest checksum in one task and one commit | The lifecycle goes live |
 
-Define the DAG. **Do not harvest until the matrix is approved.** Each unit must
-satisfy 3.8: <=6 tasks, <=8 hours, independently valuable.
+Each unit must satisfy the remediation budget: at most 6 tasks, at most 8
+hours, independently valuable. Nothing is harvested before the implementation
+matrix is ratified. Whether `187-S` is **retired or re-chartered** (never
+patched) is **C3**.
 
-**`187-S` (16 tasks, ~24.75h) must be retired or re-chartered — not patched.**
-It cannot be brought within budget by editing carriers; it is three subsystems
-in one unit, and its size is a symptom of that.
+### Phase 3 - compact active plan (gate: deterministic consistency checks)
 
-## Phase 3 — Compact active plan (gate: deterministic consistency checks pass)
+Generate a compact plan from the ratified matrix and proof results. Carriers
+are minimal generated projections. Cross-artifact consistency is checked by
+script before review.
 
-Generate a compact active plan **from the approved matrix and the proof
-results**. Carriers are minimal generated projections, not hand-authored prose.
-Run deterministic consistency checks before review — the kind of cross-artifact
-drift attempt 11 had to verify by hand should be a script's job.
+### Phase 4 - new review epoch (gate: publication)
 
-## Phase 4 — New review epoch (gate: publication)
+The epoch opens with the lead, rubric, personas and route fixed (C4). At most
+one local remediation cycle is allowed. Any architectural or new-mechanism
+finding routes back to Phase 1 or Phase 0.
 
-Fixed lead, rubric, personas. Publication gate: zero `P0`/`P1`, with only
-predesignated-critical `P2` blocking. **At most one local remediation cycle.**
-Any architectural or new-mechanism finding routes back to Phase 1 or Phase 0 —
-it is never absorbed as a fix.
+### Phase 5 - implementation (gate: ordinary runtime, closure and P-020)
 
-## Phase 5 — Implementation (gate: ordinary runtime / closure / P-020)
+1. Inert implementation of foundations: code lands, nothing is wired.
+2. Atomic template, mirror and manifest activation in one task and one commit.
+3. One dogfood task proving the exact marker transition from RED to GREEN.
+4. Ordinary runtime, closure and P-020 gates.
 
-1. **Inert implementation of foundations** — code lands, nothing is wired.
-2. **Atomic template / mirror / manifest activation** — one task, one commit.
-3. **One dogfood task** proving the exact marker transitions RED -> GREEN.
-4. Ordinary runtime, closure and P-020 gates afterwards.
+## Options considered
 
----
+### Option A - patch revision 12 and run attempt 12
 
-# Part 5 — Options considered
+**Rejected.** Attempts 8 through 11 each did exactly this, and each produced
+9-18 fresh findings. Revision 13 would keep the same three subsystems, the same
+prose instrument, the same unexecuted code and the same open questions.
 
-## Option A — Patch revision 12 and run attempt 12
+### Option B - governance reset, proof-first rebaseline, release-unit split
 
-Fix `S69`-`S81` in a revision 13 and request attempt 12.
+**Selected, as the governance frame.** It is the only option that changes the
+instrument. Open questions become decidable by execution, review runs against a
+frozen contract, and the stop conditions guarantee a terminal outcome other
+than another attempt. Under revision 12's native containment scope, B's proof
+portfolio needed nine proofs and 555 minutes, including `NtCreateFile`
+traversal and adapter-authority work with no codebase precedent.
 
-**Rejected.** This is exactly what attempts 8, 9, 10 and 11 each did, and each
-produced 9-18 fresh findings. Nothing about revision 13 differs structurally
-from revisions 9 through 12: the same three subsystems, the same prose
-instrument, the same unexecuted code, the same open architecture questions.
-The prior is set by five observations, and it is not favourable. Choosing A is
-choosing to run the same experiment a sixth time.
+### Option C - POSIX-only first release, Windows deferred
 
-## Option B — Governance reset + proof-first rebaseline + release-unit split — **RECOMMENDED**
+**Not adopted.** C was a scope answer that composed with B: it dropped the
+Windows proof and deferred Windows support to a later epoch. The C1 answer
+mandates Windows and Linux in the first release. This is also a Windows-hosted
+workspace, where a POSIX-only reader would not exercise the dogfood path. Once
+the native mechanisms leave scope under D, the Windows cost that motivated C
+largely disappears as well.
 
-Freeze; charter and matrix; nine executable proofs; re-slice into bounded,
-independently valuable units; new review epoch under a frozen rubric.
+### Option D - proportionate ordinary containment in place of the bespoke race-resistant reader
 
-**Recommended** because it is the only option that changes the *instrument*.
-Every open question becomes decidable by execution; the review gate is
-evaluated against a frozen contract; and the stop conditions guarantee
-termination in an outcome other than "try again". Cost is 9.25 hours of
-throwaway proof work — roughly one third of the already-blocked 24.75 hours —
-and it is the only option that retires whole finding families by construction
-(private seam retires `S75`; one-entry surface map retires `S70`).
+**Selected, as the containment scope of B.** D retires handle-relative
+traversal, NT marshalling and the public adapter. It keeps static containment,
+lexical and resolved-path rejection, bounded reads and explicit failure, on
+both platforms. It rests on an explicit threat-model statement recorded by the
+operator: an operator-controlled workspace with no hostile concurrent actor. It
+names its non-claims instead of leaving them implicit. It retires `S53`, `S75`
+and `S80` and the native half of `S79`, and it turns the hardlink half of `S77`
+into a recorded non-claim. The budget, taxonomy and CLI questions still need
+their proofs.
 
-## Option C — Narrow to Linux/POSIX only now, defer Windows
+### Trade-off table
 
-Drop Proof 4 and release units involving Windows; ship POSIX first.
-
-**Viable only if the operator changes the portability requirement and the
-threat model.** It is attractive — Proof 4 is the single largest unknown and
-`S79`/`S80` are both Windows-specific — but this is a Windows-hosted
-development workspace, so a POSIX-only reader would not exercise the dogfood
-path locally. This is a genuine product decision, not a technical shortcut, and
-Stage will not presume it. If the operator takes C, it composes with B rather
-than replacing it: the same governance reset applies to a smaller scope.
-
-## Option D — Cancel the custom secure reader, accept ordinary containment
-
-Drop the bespoke reader; use ordinary path validation and reads.
-
-**Viable only with an explicit, recorded risk acceptance and threat-boundary
-reduction.** It is by far the cheapest — it deletes the entire hardest
-subsystem, all of `S53`-`S55`, `S71`, `S75`, `S77`, `S79`, `S80`, and Proofs 3,
-4, 5 and 6 — and it deserves serious consideration precisely because the
-resolver reads *this repository's own backlog files* under an assumed-trusted
-workspace root. If that trust boundary is real, the custom reader may be
-defending against an adversary that does not exist in the threat model. But
-cancelling it is a security decision with a named owner, not an engineering
-convenience, and `S77` already shows the current design does not close hardlink
-aliasing anyway.
-
-## Trade-off table
-
-| | **A: patch + attempt 12** | **B: reset + proofs + split** | **C: POSIX-only now** | **D: cancel secure reader** |
+| | A: patch + attempt 12 | B with revision-12 native scope | B + C: POSIX-only first | **B + D: proportionate (selected)** |
 |---|---|---|---|---|
-| Changes the instrument | No | **Yes** | Partly | Partly |
-| Evidence type | Prose review | **Execution** | Execution (POSIX) | Execution (reduced) |
-| Near-term cost | ~1 revision + 1 review | **9.25h proofs + charter** | ~6h proofs + charter | ~3h proofs + charter |
-| Blocked work released | None | **All, in bounded units** | POSIX subset | Most |
-| Termination guaranteed | **No** | **Yes** — stop conditions | Yes, narrower | Yes |
-| Retires finding families | No | **Yes, by construction** | Windows families only | Reader families only |
-| Requires operator product decision | No | Scope + matrix approval | **Yes** — portability | **Yes** — risk acceptance |
-| Requires threat-model change | No | No | **Yes** | **Yes** |
-| Residual risk | **High** — loop continues | Low | Medium — Windows deferred | **Medium-high** — containment reduced |
-| Recommended | No | **Yes** | Only with C1 answered | Only with C1 answered |
+| Changes the instrument | No | Yes | Yes | **Yes** |
+| Evidence type | Prose review | Execution, including native API proofs | Execution, POSIX only | **Execution, portable on both OSes** |
+| Proof cost before any plan | None, but one revision and one review per cycle with no bound | 9 proofs, 555m (9.25h) | 8 proofs, 435m (7.25h), plus a later Windows epoch | **7 proofs, 420m (7.0h)** |
+| First-release platforms | Windows and Linux (as planned) | Windows and Linux | Linux only | **Windows and Linux** |
+| Native security mechanisms | Planned, unproven | `NtCreateFile`, handle-relative POSIX, adapter authority | Handle-relative POSIX, adapter authority | **None** |
+| Termination guaranteed | No | Yes, by stop conditions | Yes | **Yes** |
+| Finding families retired by construction | None | `S70`, `S75` | `S70`, `S75`; Windows findings deferred | **`S70`, `S75`, `S53`, `S80`, native half of `S79`** |
+| Residual risk | High: the loop continues | Low containment risk, high delivery risk from novel NT work | Windows functional gap in a Windows-hosted workspace | **Low for in-model classes; out-of-model classes accepted as recorded non-claims** |
+| Threat-model statement | None | Implicit adversarial | Implicit adversarial, narrower platform | **Explicit: operator-controlled workspace** |
+| Outcome | Rejected | Superseded by the B+D scope | Not adopted | **Selected** |
 
-Options C and D are not independent of B. Each is a *scope* answer to the
-threat-model question; whichever scope the operator picks, B's governance and
-proof machinery is how it gets executed.
+Options C and D were never alternatives to B's governance. Each was a scope
+answer to C1, and B's governance and proof machinery executes whichever scope
+applies. Under that machinery, the operator chose D's scope.
 
----
+## Success criteria
 
-# Part 6 — Success criteria
+The strategy has worked if all of the following hold:
 
-The strategy has worked if all of the following hold.
-
-1. **No new plan revision is written until all required proofs pass**, or the
+1. No new plan revision is written until all required proofs pass, or the
    operator explicitly changes the architecture.
-2. **The acceptance matrix, rubric and personas are frozen before evaluation
-   begins.**
-3. **Each release unit is <= 6 tasks and <= 8 hours and is independently
-   valuable.**
-4. **Blockers decline monotonically across at most two remediation revisions.**
-5. **No repeated finding family appears without proof of a remediation
-   regression** — a family recurring is a signal the proof was wrong, and is
-   handled as an architecture reopen.
-6. **Authority and state are single-source and mechanically consistent** —
-   verified by script, not by a reviewer reading sixteen carriers.
-7. **Publication, execution and activation gates are distinct**, with
-   separately stated criteria.
-8. **The future review ends in publish, split/spike/re-charter, or
-   defer/cancel — never in an unbounded retry.**
+2. The acceptance matrix, rubric and personas are frozen before evaluation
+   begins.
+3. Each release unit is at most 6 tasks and 8 hours, and independently
+   valuable.
+4. Blockers decline monotonically across at most two consolidated revisions.
+5. No finding family recurs without proof of a remediation regression. A
+   recurring family is handled as an architecture reopen.
+6. Authority and state are single-source and mechanically consistent, which is
+   verified by script.
+7. Publication, execution and claim gates are distinct, with separately stated
+   criteria.
+8. The future review ends in publish, split, spike, re-charter, defer or
+   cancel, never in an unbounded retry.
+9. No artifact claims TOCTOU or hardlink-alias resistance, and native security
+   mechanisms return only through a re-charter.
 
-Criteria 1, 4, 5 and 8 are the ones that directly falsify the failure mode
-observed across attempts 07-11.
+Criteria 1, 4, 5 and 8 directly falsify the failure mode seen across attempts
+07-11.
 
----
+## Operator decisions
 
-# Part 7 — Unresolved operator decisions
+### C1 - threat model and platform mandate (resolved 2026-09-23)
 
-This deliberation cannot proceed past Phase 0 without these four answers. They
-are listed in dependency order.
+Resolved by the B+D approval. The workspace is operator-controlled with no
+hostile concurrent filesystem actor. Ordinary static containment is required
+with the stated non-claims. Windows and Linux are both mandatory in the first
+release, verified on each actual OS.
 
-## C1 — Threat model and platform mandate
+### C2 - release-unit split (open; bounded proposal)
 
-**What is the required threat model, and are both Windows and POSIX mandatory
-in the first release?**
+**Proposal:** the A / B / C / D split in Phase 2, with unit C allowed to fold
+into B when budget permits. **Gates:** Phase 2 and the DAG shape.
 
-Gates: Options C and D, Proof 4 (120m — the largest single budget), release
-unit C's existence, and findings `S77`, `S79`, `S80`. Nothing else can be
-sized until this is answered.
+### C3 - migration and the fate of 187-S (open; bounded proposal)
 
-## C2 — Release-unit split
+**Proposal:** migrate to the acceptance matrix and a structured review index,
+and retire or re-charter `187-S`. Patching is not an option, because `187-S`
+cannot be brought within budget by editing carriers. **Gates:** Phases 2 and 3.
+Until C3 is decided, `187-S` stays `queued` and is not claim-ready.
 
-**Do you accept the recommended A / B / C / D release-unit split?**
+### C4 - `P2` publication policy, reviewer lead and routing (open; bounded proposal)
 
-Gates: Phase 2, the shape of the DAG, and whether 8-hour units are achievable.
+**Proposal:** only matrix-critical `P2` blocks publication. The reviewer lead
+and routing are pending ratification, and neither is selected here. If anchor
+routing is wanted, it must be configured before the epoch opens, because a
+mid-epoch route change pauses the epoch. **Gates:** Phase 4.
 
-## C3 — Migration and the fate of 187-S
+## Next step
 
-**Do you approve migration to the acceptance matrix and structured review
-index, and the retirement or re-charter of `187-S`?**
-
-Gates: Phase 2 and Phase 3. Note this is explicitly *retire or re-charter*, not
-*patch* — `187-S` cannot be brought within budget by editing carriers.
-
-## C4 — `P2` publication policy and reviewer routing
-
-**Which `P2` publication policy, and who is reviewer lead with what routing?**
-
-Gates: Phase 4, section 3.7's publication gate, and section 3.6's
-route-stability rule. Relevant input:
-`.autoharness/config.yaml` declares no `model_routing.anchor_review` key, which
-is why attempt 11 ran the Architecture Strategist same-model as a declared
-degradation. If anchor routing is wanted for the next epoch, it must be
-configured *before* the epoch opens, because changing it mid-epoch pauses the
-epoch under 3.6.
-
----
-
-## Recommendation
-
-**Adopt Option B.** Freeze the current artifacts as a diagnostic record,
-charter the acceptance matrix, run the nine bounded proofs, and re-slice into
-release units — with the scope of that work set by the operator's answer to C1.
-
-`decision_status` remains **`exploring`** and `promoted_to` remains **`none`**.
-No plan, queue item, shipment or carrier is linked to this artifact. It becomes
-a decision of record only when the operator resolves C1 through C4.
+The intended next Stage step is the bounded Phase 1 proof experiments defined in
+the charter, taken only after the charter is coherent. That step expands to no
+branch or worktree beyond the single recorded P-016 spike worktree the charter
+permits.
 
 ## Cross-references
 
+* Charter: `docs/decisions/2026-09-23-lifecycle-proof-entry-charter.md`
 * Plan: `docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md` (revision 12, `0806b601`)
 * Verdict manifest: `docs/reviews/2026-09-18-ship-harness-lifecycle-foundation-plan-review.md` (revision 21)
 * Terminal attempt: `docs/reviews/review-history/2026-09-18-ship-harness-lifecycle-foundation-plan-review-attempt-11.md`
-* Prior attempts: `...-plan-review-attempt-07.md`, `-08`, `-09`, `-10` under `docs/reviews/review-history/`
+* Prior attempts: attempts 07-10 under `docs/reviews/review-history/`
 * Governing decision: `docs/decisions/2026-09-18-shared-execution-architecture-and-portfolio-reslicing-decision.md` (revision 9)
-* Policy: `.github/policies/workflow-policies.md` (P-004)
+* Constitution: `.github/instructions/constitution.instructions.md`
+* Policy: `.github/policies/workflow-policies.md` (P-004, P-010, P-016)
 * Actor: `.github/skills/harness-architect/SKILL.md` (Step 5.2)
+* Ship surfaces: `templates/agents/_ship.agent.md.tmpl`, `.github/agents/_ship.agent.md`
 * Manifest bindings: `.autoharness/harness-manifest.yaml` (`TEST_COMMAND`, `UNIMPLEMENTED_MARKER`)
 * Learnings: `docs/compound/093-S-review-loop-convergence.md`,
   `docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md`,
