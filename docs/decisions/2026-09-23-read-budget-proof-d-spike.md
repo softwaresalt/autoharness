@@ -80,8 +80,14 @@ items.
 * This findings artifact is the only tracked change. No plan, review,
   backlog, shipment, policy, schema, charter, source, template or
   configuration file was changed.
-* No claim, pull request, push, amend, plan revision 13 or review attempt 12
-  took place. One worktree was used, and the P-016 exception was not used.
+* No claim, pull request, push, plan revision 13 or review attempt 12 took
+  place. One worktree was used, and the P-016 exception was not used.
+* **Amend disclosure (correction).** An earlier version of this artifact
+  said no amend took place. That was false. Stage amended its own first
+  local, unpushed commit `6a85ad4` into `b3fca43` to fix the
+  `Co-authored-by` trailer. Only the commit message changed; the artifact
+  content was the same in both commits. This correction is a new local
+  commit. It does not amend, rebase or rewrite history.
 * Nothing is in scope beyond Proof D.
 
 ## Session and Tool State
@@ -250,23 +256,33 @@ read-only listing. The bound was not exceeded, but the file still exists.
   invocation. A second Ship cleanup invocation confirmed that the file is the
   only item in the resolved in-repo directory
   `C:\Source\GitHub\autoharness\.proof-scratch\proof-d-20260923-231729`, but
-  its P-010 fail-closed check refused a direct delete, and intercom was not
-  available to obtain approval.
+  its P-010 fail-closed check refused a direct delete. Ship held the
+  deletion P-010 FORBIDDEN even though the operator had already given a
+  "Proceed" approval. Intercom was unavailable, so no intercom auto-check
+  could run either. Giving the same approval to Ship again does not change
+  the role boundary.
 * **Stage disposition.** Stage did not delete, stage or commit the scratch
   file. Stage's commit stages only this findings artifact by explicit path.
   The untracked scratch file is not part of it.
-* **Operator-action path (only this verified scratch).** One of:
-  1. The operator approves cleanup in a Ship handoff (charter section 6.1:
-     "cleanup is approved in the handoff or by the operator"). Ship then
-     checks that the resolved path equals the recorded directory, that it
-     holds only `d_budget.py` with the size and SHA-256 above, removes that
-     file and then the empty directory (and the empty `.proof-scratch/`
-     parent only if nothing else is in it), and shows that
-     `git status --porcelain` is empty; or
-  2. the operator does the same checks and removal directly.
+* **Operator-action path (only this verified scratch).** Under the current
+  role boundary, no agent deletes this file. That includes Orchestrator,
+  Stage and Ship. An earlier version of this artifact offered a "Ship
+  deletes after operator approval" option. That option does not work and is
+  withdrawn. The operator has two options:
+  1. **Delete it personally.** Check that the resolved path is exactly
+     `C:\Source\GitHub\autoharness\.proof-scratch\proof-d-20260923-231729`.
+     Check that it holds only `d_budget.py`, 9102 bytes, with the SHA-256
+     above. Delete only that file. Then delete that directory once it is
+     empty. Delete the `.proof-scratch/` parent only if it is also empty.
+     Confirm that `git status --porcelain` is empty. Delete nothing else.
+  2. **Change the contract first.** In a separate, authorized work unit,
+     change the higher-order role or policy contract (P-010 and the agent
+     role boundaries) so that a named agent may delete this scratch. The
+     deletion can happen only after that change. This artifact does not make
+     that change.
 
-  Remove nothing else. Until that happens, the hygiene state is
-  **open**. It does not change the verdict and is not a product `PASS`.
+  Until one of these happens, the hygiene state is **open**. It does not
+  change the verdict and is not a product `PASS`.
 
 ## Reopened Decisions (Charter Section 6.1 FAIL Routing)
 
@@ -289,8 +305,11 @@ Present the two reopened decisions to the operator.
 
 ## Next Steps
 
-* Operator: approve or perform cleanup of the one verified scratch file
-  (Scratch Hygiene).
+* Operator: personally check and delete only the hash-matched scratch file
+  and the empty directories (Scratch Hygiene, option 1). The alternative is
+  to first change the role or policy contract in a separate, authorized work
+  unit (option 2). Under the current boundary, Orchestrator, Stage and Ship
+  do not delete it, and approving Ship again does not resolve this.
 * Operator/architecture: settle Proof D reopened decisions 1 and 2, then
   charter a new Proof D run.
 * Record this `FAIL` and its route in the proof-exit report (charter section
