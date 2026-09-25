@@ -5,9 +5,9 @@ description: "Coordinates the Stage → Ship pipeline for continuous iteration: 
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, web, 'microsoft-docs/*', 'backlogit/*', ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo
 max_subagent_tier: 3
-reasoning_effort: "xhigh"
-model_provider: "openai"
-model_family: "gpt-6-sol"
+reasoning_effort: "high"
+model_provider: "anthropic"
+model_family: "claude-opus-5.5"
 subagent_depth: 3
 ---
 
