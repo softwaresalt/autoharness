@@ -1,22 +1,23 @@
 ---
-title: "Lifecycle proof-entry charter and acceptance matrix, version 1.4"
-description: "Operator-approved proof-entry charter for the Ship pre-task harness-generation lifecycle, issued under the 2026-09-23 Option B governance reset with proportionate Option D containment. Freezes lifecycle plan revision 12 and review attempt 11 as diagnostic evidence; fixes the proportionate threat model (operator-controlled local workspace, ordinary static containment on actual Windows and Linux, no race or hardlink-alias claims); defines a seven-proof bounded portfolio with narrow questions, time and file bounds and pass/fail criteria; and fixes acceptance matrix PE-1.1, in which every row carries an existing normative source, a verifiable pass criterion, evidence, violation severity and deferral status. Version 1.1 is an operator-approved correction of proof actor and timing only: Stage performs read-only analysis and authors the findings; Ship runs verification-only disposable fixture commands in a named scratch directory inside the one current worktree; no additional worktree is used; Linux evidence that cannot be produced at proof entry is PENDING, never PASS, and becomes a non-waivable execution and release gate. Frozen for proof entry only: the implementation acceptance matrix is ratified after proof evidence and before any new review epoch. Version 1.2 (matrix PE-1.2) changes Proof D only, after Proof D failed under PE-1.1: it re-charters section 6.6 and rows PE-DATA-03 and PE-SAFETY-04 against the decided admitted maximum of 48 members, the unchanged max_files=256, an explicit byte non-guarantee (byte exhaustion is a bounded UNRESOLVED failure, never success) and the read-limit exhaustion mapping to UNRESOLVED / 2 at every read and recheck stage; every other row, proof and verdict is unchanged. Version 1.3 (matrix PE-1.3) changes only two terms of Proof E (section 6.7) and the PE-ACTIVATE-01 comparator, after Proof E was recorded BLOCKED under PE-1.2: 'checkpoint validate-and-resolve' means unique selection plus owner and schema validation before restore, never a status resolution before resume; 'retained text' means the text kept after the planned activation edits; and PE-ACTIVATE-01 compares raw Git blobs at the operator-approved snapshot 5bcb00e5 instead of 082df7b2. No proof is re-run or re-labelled and Proof E stays BLOCKED. Version 1.4 (matrix PE-1.4) is a bounded, operator-approved correction with three parts. First, Ship alone runs its existing Step 0.1 backlog index refresh (backlogit_sync_index, or the registered backlogit sync CLI fallback) before any semantic backlog read in every proof invocation. The refresh may rewrite only Git-ignored, tool-managed cache under the current working directory. It is not a backlog edit and not a new release unit. A refresh that fails, or cannot be verified, on both transports makes the invocation BLOCKED. Second, PE-ACTIVATE-01 now compares against the operator-authorized setup snapshot 4acba14a, because the setup commits d20820ec and 4acba14a changed only the Ship role-permission rows and the mirror checksum. The 5bcb00e5 record is kept under version 1.3. Third, Proof C (section 6.5) is re-chartered for run 2. It is tested against a governing reason set that includes FILE_COUNT_LIMIT, TOTAL_SIZE_LIMIT and FILE_SIZE_LIMIT as class 1b UNRESOLVED / 2 reasons. It also carries an explicit Stage candidate (a proposal, not ratified API), per-execution raw or hashed output, and a real-surface render control that uses the top-level variables_used mapping. Every earlier verdict stays as recorded. Proof B, Proof D run 2 and Proof F are historical PASS verdicts without recorded Ship index refresh, so each needs a new admissible PE-1.4 run before proof exit. Subordinate to the constitution and the workflow policy registry; overrides nothing."
+title: "Lifecycle proof-entry charter and acceptance matrix, version 1.5"
+description: "Operator-approved proof-entry charter for the Ship pre-task harness-generation lifecycle, issued under the 2026-09-23 Option B governance reset with proportionate Option D containment. Freezes lifecycle plan revision 12 and review attempt 11 as diagnostic evidence; fixes the proportionate threat model (operator-controlled local workspace, ordinary static containment on actual Windows and Linux, no race or hardlink-alias claims); defines a seven-proof bounded portfolio with narrow questions, time and file bounds and pass/fail criteria; and fixes acceptance matrix PE-1.1, in which every row carries an existing normative source, a verifiable pass criterion, evidence, violation severity and deferral status. Version 1.1 is an operator-approved correction of proof actor and timing only: Stage performs read-only analysis and authors the findings; Ship runs verification-only disposable fixture commands in a named scratch directory inside the one current worktree; no additional worktree is used; Linux evidence that cannot be produced at proof entry is PENDING, never PASS, and becomes a non-waivable execution and release gate. Frozen for proof entry only: the implementation acceptance matrix is ratified after proof evidence and before any new review epoch. Version 1.2 (matrix PE-1.2) changes Proof D only, after Proof D failed under PE-1.1: it re-charters section 6.6 and rows PE-DATA-03 and PE-SAFETY-04 against the decided admitted maximum of 48 members, the unchanged max_files=256, an explicit byte non-guarantee (byte exhaustion is a bounded UNRESOLVED failure, never success) and the read-limit exhaustion mapping to UNRESOLVED / 2 at every read and recheck stage; every other row, proof and verdict is unchanged. Version 1.3 (matrix PE-1.3) changes only two terms of Proof E (section 6.7) and the PE-ACTIVATE-01 comparator, after Proof E was recorded BLOCKED under PE-1.2: 'checkpoint validate-and-resolve' means unique selection plus owner and schema validation before restore, never a status resolution before resume; 'retained text' means the text kept after the planned activation edits; and PE-ACTIVATE-01 compares raw Git blobs at the operator-approved snapshot 5bcb00e5 instead of 082df7b2. No proof is re-run or re-labelled and Proof E stays BLOCKED. Version 1.4 (matrix PE-1.4) is a bounded, operator-approved correction with three parts. First, Ship alone runs its existing Step 0.1 backlog index refresh (backlogit_sync_index, or the registered backlogit sync CLI fallback) before any semantic backlog read in every proof invocation. The refresh may rewrite only Git-ignored, tool-managed cache under the current working directory. It is not a backlog edit and not a new release unit. A refresh that fails, or cannot be verified, on both transports makes the invocation BLOCKED. Second, PE-ACTIVATE-01 now compares against the operator-authorized setup snapshot 4acba14a, because the setup commits d20820ec and 4acba14a changed only the Ship role-permission rows and the mirror checksum. The 5bcb00e5 record is kept under version 1.3. Third, Proof C (section 6.5) is re-chartered for run 2. It is tested against a governing reason set that includes FILE_COUNT_LIMIT, TOTAL_SIZE_LIMIT and FILE_SIZE_LIMIT as class 1b UNRESOLVED / 2 reasons. It also carries an explicit Stage candidate (a proposal, not ratified API), per-execution raw or hashed output, and a real-surface render control that uses the top-level variables_used mapping. Every earlier verdict stays as recorded. Proof B, Proof D run 2 and Proof F are historical PASS verdicts without recorded Ship index refresh, so each needs a new admissible PE-1.4 run before proof exit. Version 1.5 (matrix PE-1.5) is a bounded delegated correction of Proof E's section 6.7 retained-text scope only, after Proof E run 4 was recorded BLOCKED under PE-1.4 on a retained-text reading fork. It adds two template passages to the section 6.7 planned replacements: the Session start sentences that restore memory context before the recovery state machine, and the context-overflow Resumption Protocol. It also states the post-activation contract they must meet: no memory-context, cursor, phase or next-action restore before the unfiltered anomaly scan and explicit unique owner and schema validation, with operator confirmation where a candidate exists; no bypass through any memory checkpoint; zero candidates are normal continuation; resolution only after a confirmed successful resume. The installed mirror has no matching passage, so its planned insertion and retained recovery protocol are unchanged. No Ship surface is edited now. Every matrix row, pass criterion, the PE-1.3 validate-and-resolve term, the PE-1.4 index refresh, the Proof C candidate and the activation baseline 4acba14a are unchanged. Every recorded verdict stands, Proof E run 4 stays BLOCKED, and Proof E needs a fresh run 5 under PE-1.5. Subordinate to the constitution and the workflow policy registry; overrides nothing."
 doc_type: decision
 artifact_class: proof-entry-charter
 source: docs/decisions/2026-09-23-lifecycle-proof-entry-charter.md
 date: 2026-09-23
 status: decided
 decision_status: decided
-charter_version: "1.4"
-matrix_id: PE-1.4
-supersedes_version: "1.3"
-superseded_version_commit: 7f833cb8
+charter_version: "1.5"
+matrix_id: PE-1.5
+supersedes_version: "1.4"
+superseded_version_commit: 52c985cb
 version_history:
   - {version: "1.0", matrix_id: PE-1.0, commit: 2e3c98a1}
   - {version: "1.1", matrix_id: PE-1.1, commit: 1ad7c03a, scope: "proof actor and timing only"}
   - {version: "1.2", matrix_id: PE-1.2, commit: 286aa4af, scope: "Proof D only (section 6.6, PE-DATA-03, PE-SAFETY-04)", decision: docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md}
   - {version: "1.3", matrix_id: PE-1.3, commit: 7f833cb8, scope: "Proof E terms (section 6.7) and PE-ACTIVATE-01 comparator only", record: "section 3.2", findings: docs/decisions/2026-09-24-ship-activation-proof-e-spike.md}
-  - {version: "1.4", matrix_id: PE-1.4, scope: "Ship Step 0.1 index refresh in proofs (sections 4.3, 6.1; PE-AUTH-01, PE-AUTH-02, PE-EVIDENCE-01), PE-ACTIVATE-01 setup-snapshot comparator, and Proof C run 2 (section 6.5; PE-DATA-01, PE-DATA-02) only", record: "section 3.3", findings: docs/decisions/2026-09-24-surface-taxonomy-proof-c-spike.md}
+  - {version: "1.4", matrix_id: PE-1.4, commit: 52c985cb, scope: "Ship Step 0.1 index refresh in proofs (sections 4.3, 6.1; PE-AUTH-01, PE-AUTH-02, PE-EVIDENCE-01), PE-ACTIVATE-01 setup-snapshot comparator, and Proof C run 2 (section 6.5; PE-DATA-01, PE-DATA-02) only", record: "section 3.3", findings: docs/decisions/2026-09-24-surface-taxonomy-proof-c-spike.md}
+  - {version: "1.5", matrix_id: PE-1.5, scope: "Proof E section 6.7 retained-text planned replacement set only (template Session start memory-context restore and context-overflow Resumption Protocol, with their post-activation contract); no row or pass-criterion text changed", record: "section 3.4", findings: docs/decisions/2026-09-24-ship-activation-proof-e-run4-spike.md}
 freeze_scope: proof-entry-only
 implementation_matrix_status: not-ratified
 deciders: operator, Stage
@@ -28,6 +29,8 @@ version_1_3_operator_approval: "2026-09-24 - operator order 'Don't just tell me 
 head_at_version_1_3: a04e1e5a
 version_1_4_operator_approval: "2026-09-24 - operator order, relayed verbatim as 'You have not yet marked the task as complete ... stop planning and start implementing ... make good decisions and keep working autonomously until ... finished', with the Orchestrator's relayed bounding: approval of the necessary proof-entry contract correction PE-1.4 only (Ship Step 0.1 index refresh inside proofs, the PE-ACTIVATE-01 setup-snapshot comparator 4acba14a, and Proof C run 2 under Decision 2), and explicitly not approval to claim or merge any shipment or to relax P-001, P-002, P-009, P-011, P-014 or P-016"
 head_at_version_1_4: 4acba14a
+version_1_5_operator_approval: "2026-09-24 - bounded delegated decision; the operator did not literally select 'Option A'. Operator general instruction of 2026-09-24T14:58:27-07:00, given after the previous session's failed proofs and relayed to Stage by the Orchestrator as 'If ... open questions or ambiguities—make good decisions and keep working; if error resolve or alternative; complete remaining steps' (a relayed wording with elisions; Stage did not see the original and quotes nothing beyond the relay), with the Orchestrator's publicly recorded selection of Proof E run 4 Option A (add template Session start lines 1004-1006 and the context-overflow Resumption Protocol lines 1103-1107, at 4acba14a, to the section 6.7 planned replacements), bounded to that section 6.7 retained-text scope only; explicitly not approval to claim or merge any shipment, to edit any Ship surface or manifest now, or to relax P-001, P-002, P-004, P-011, P-016 or any other safety gate; the operator may veto before the Proof E run 5 handoff"
+head_at_version_1_5: 945a224e
 activation_baseline_commit: 4acba14a
 activation_baseline_commit_version_1_3: 5bcb00e5
 parent_decision: docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md
@@ -61,7 +64,7 @@ labels:
   - governance-reset
 ---
 
-# Lifecycle proof-entry charter (version 1.4)
+# Lifecycle proof-entry charter (version 1.5)
 
 ## 1. Purpose
 
@@ -79,10 +82,10 @@ The charter does three things and nothing else:
 1. fixes the threat model and platform mandate the proofs must satisfy;
 2. defines a bounded portfolio of seven executable proofs, and assigns each
    proof step to the role allowed to perform it;
-3. fixes acceptance matrix **PE-1.4**, the only set of criteria a proof or a
-   proof-phase artifact is judged against from version 1.4 onward (section 3
-   explains how verdicts recorded under PE-1.1, PE-1.2 and PE-1.3 carry
-   forward, and which proofs need a new PE-1.4 run).
+3. fixes acceptance matrix **PE-1.5**, the only set of criteria a proof or a
+   proof-phase artifact is judged against from version 1.5 onward (section 3
+   explains how verdicts recorded under PE-1.1, PE-1.2, PE-1.3 and PE-1.4
+   carry forward, and which proofs still need a new run).
 
 ## 2. Authority and precedence
 
@@ -107,11 +110,11 @@ reading.
 
 | Aspect | Rule |
 |---|---|
-| What is frozen | This charter and matrix PE-1.4, for **proof entry only** |
+| What is frozen | This charter and matrix PE-1.5, for **proof entry only** |
 | What is not ratified | The implementation acceptance matrix. It is drafted from proof evidence and ratified by the operator **after** proof exit and **before** any new review epoch opens |
-| How it changes | Only by an operator-approved version bump (1.4, 2.0, ...), recorded as a new charter version. Proof authors and proof executors cannot edit rows mid-proof |
-| Current version | 1.4 (matrix PE-1.4), approved on 2026-09-24 (frontmatter `version_1_4_operator_approval`). It supersedes version 1.3 (`7f833cb8`), which changed Proof E terms and the `PE-ACTIVATE-01` comparator only. Version 1.3 superseded version 1.2 (`286aa4af`), which changed Proof D only. Version 1.2 superseded version 1.1 (`1ad7c03a`), and version 1.1 superseded version 1.0 (`2e3c98a1`) and corrected proof actor and timing only. See section 3.1 for the version 1.2 change, section 3.2 for the version 1.3 change and section 3.3 for the exact version 1.4 change |
-| Change requests | A requirement discovered during a proof that is not a PE-1.4 row is recorded as a change request in that proof's evidence. It is not a proof-phase blocker |
+| How it changes | Only by an operator-approved version bump (1.6, 2.0, ...), recorded as a new charter version. Proof authors and proof executors cannot edit rows mid-proof |
+| Current version | 1.5 (matrix PE-1.5), a bounded delegated decision of 2026-09-24 (frontmatter `version_1_5_operator_approval`; authority recorded in section 3.4). It supersedes version 1.4 (`52c985cb`), which changed the Ship index refresh in proofs, the `PE-ACTIVATE-01` setup-snapshot comparator and Proof C run 2 only. Version 1.4 superseded version 1.3 (`7f833cb8`), which changed Proof E terms and the `PE-ACTIVATE-01` comparator only. Version 1.3 superseded version 1.2 (`286aa4af`), which changed Proof D only. Version 1.2 superseded version 1.1 (`1ad7c03a`), and version 1.1 superseded version 1.0 (`2e3c98a1`) and corrected proof actor and timing only. See section 3.1 for the version 1.2 change, section 3.2 for the version 1.3 change, section 3.3 for the version 1.4 change and section 3.4 for the exact version 1.5 change |
+| Change requests | A requirement discovered during a proof that is not a PE-1.5 row is recorded as a change request in that proof's evidence. It is not a proof-phase blocker |
 
 ### 3.1 Version 1.2 change record (Proof D only)
 
@@ -353,6 +356,145 @@ Each new run gets its own section 6.2 time and file bound and a new scratch
 directory. Budgets do not pool with earlier runs. The 420-minute total in
 section 6.2 counts one admissible run per proof.
 
+### 3.4 Version 1.5 change record (Proof E section 6.7 retained-text replacement set only)
+
+**Why.** Proof E run 4 was recorded `BLOCKED` under PE-1.4
+(`docs/decisions/2026-09-24-ship-activation-proof-e-run4-spike.md`, committed
+at `945a224e`). The execution was admissible, and the fixture met the section
+6.7 pass criterion over the text it modeled. But Stage's retained-text audit
+found two template passages that the section 6.7 planned replacements did
+not remove and the fixture did not model:
+
+* **Session start**: template lines 1002-1004 at `082df7b2`, which are lines
+  1004-1006 at `4acba14a` and at `945a224e`. It scans `{{DOCS_MEMORY}}/`
+  for the most recent memory or checkpoint file, restores context ("completed
+  items, branch context, PR status, and prior build decisions"), and only
+  then runs the recovery state machine.
+* **`### Resumption Protocol`**: template lines 1101-1105 at `082df7b2`,
+  which are lines 1103-1107 at `4acba14a` and at `945a224e`. On session
+  start, it restores context from a `{{DOCS_MEMORY}}/` checkpoint with status
+  `context-overflow` and resumes from the recorded next step. There is no
+  selection, validation or confirmation.
+
+Stage checked that each span is byte-identical at both commits. Neither span
+has a counterpart in the installed mirror. The verdict depended on a reading
+the charter did not settle. Under the reading scoped to the CheckpointV1
+cursor, the run passes (`PASS`). Under the unscoped reading, it fails
+(`FAIL`). Section 2 routes such a fork to the operator as a charter change.
+Run 4 recorded two options. Option A adds both passages to the planned
+replacements. Option B scopes "cursor restore" to the CheckpointV1 cursor.
+
+**Authority (bounded delegation, recorded as it happened).** The operator did
+not literally select Option A. The authority is the operator's general
+instruction of 2026-09-24T14:58:27-07:00, given after the previous session's
+failed proofs. The Orchestrator relayed it to Stage as "If ... open questions
+or ambiguities—make good decisions and keep working; if error resolve or
+alternative; complete remaining steps". Stage did not see the original and
+quotes nothing beyond the relay. Under that instruction, the Orchestrator
+publicly selected Option A and bounded it to this section 6.7 scope. The
+frontmatter records this as `version_1_5_operator_approval`. It follows the
+version 1.4 precedent: a broad operator directive, bounded by the
+Orchestrator and recorded without inventing a quote.
+
+Stage judged this delegation sufficient under section 3, for four reasons:
+
+1. Option A is the reading the higher Ship recovery protocol dictates. It is
+   not a convenience choice (section 2). In both Ship surfaces, the retained
+   recovery protocol states "There is no automatic resume under any
+   condition". That is template line 1034 and mirror line 198 at `4acba14a`.
+   The protocol also requires, before any restore:
+   * an unfiltered enumeration and anomaly scan;
+   * an explicit, unique operator selection;
+   * an owner and CheckpointV1 schema check;
+   * operator confirmation.
+
+   The `context-overflow` Resumption Protocol resumes with none of these.
+   The Session start sentences restore context before the enumeration.
+   Option B would keep a template path that the same template's recovery
+   protocol forbids.
+2. Option A is the stricter, fail-closed reading. It makes no verdict `PASS`.
+   Run 4 stays `BLOCKED`, and only a fresh run can change Proof E's status.
+3. It matches frozen plan revision 12 line 229: "Checkpoint handling is
+   replacement, not additive correction. Remove the template's current early
+   sentence that restores memory context before checkpoint validation ...
+   Tests prove the prior cursor-first text/path is absent and no later bypass
+   exists." The plan is a frozen diagnostic input (section 4.2). The plan
+   agrees with this scope, but it does not set it and is not edited.
+4. The change is bounded. It adds two spans to one list, and it states the
+   contract those spans must meet after activation. It changes no row, no
+   pass criterion and no actor's authority.
+
+This version does not approve claiming, merging or changing any shipment. It
+does not approve editing any Ship surface or the manifest. It does not relax
+P-001, P-002, P-004, P-011, P-016 or any other safety gate. The operator may
+veto it before the Proof E run 5 handoff. A veto leaves Proof E `BLOCKED`,
+and the fork goes back to the operator for a new version.
+
+**What changed. Only these items are changed, and each is marked "(PE-1.5)"
+where it appears:**
+
+| Item | PE-1.4 | PE-1.5 |
+|---|---|---|
+| Section 6.7, term "retained text", planned replacements | Template Step 2 and Step 3, replaced by the per-task T1-T3 step inside Step 4. Mirror: T1-T3 inserted inside Step 2 | The same, plus two template replacements: the Session start span and the `### Resumption Protocol` span (line numbers above). Neither span is retained text. The mirror's planned insertion and its retained recovery protocol are unchanged, because the mirror has no matching passage |
+| Section 6.7, new bullet "Post-activation restore contract" | None | The contract that the replacement text for both spans, and every retained Ship text, must meet after activation (section 6.7) |
+| Section 6.7, new bullet "Scope of the restore mis-ordering" | None stated | The mis-ordering "cursor restore before checkpoint validate-and-resolve" covers memory-context, phase and next-action restore from any source, including a docs-memory or `context-overflow` checkpoint. The pass criterion's text is unchanged |
+
+Sections 1 (item 3), 3 (table), 4.1, 7 (heading note), 8 (item 1) and 10
+(addendum and cross-references) are updated only to refer to these items. The
+frontmatter records the version, the approval and the head commit. It also
+records commit `52c985cb` for version 1.4, which the version 1.4 record left
+open. That fills in the record. It is not a re-label.
+
+**What did not change.** All of the following are unchanged:
+
+* Every matrix row's ID, requirement, normative source, pass criterion,
+  evidence, severity and deferral. That includes `PE-FLOW-03` and
+  `PE-ACTIVATE-02`, and `PE-ACTIVATE-02` needs no pointer change, because
+  section 6.7 already names it as the task that applies the planned
+  replacements.
+* The PE-1.3 term "checkpoint validate-and-resolve". Status resolution still
+  never happens before a confirmed successful resume.
+* The retained Crash-Resumption recovery order in both surfaces.
+* The PE-1.4 section 6.1 rules, including Ship's Step 0.1 index refresh.
+* The section 6.5 Stage candidate for Proof C.
+* The `PE-ACTIVATE-01` comparator `4acba14a` and its blob IDs.
+* The threat model (section 5).
+* Proofs A, B, C, D, F and G, and every other part of Proof E: its question,
+  actors, anchors, bounds, pass list, fail clause and boundary.
+* The frozen diagnostic record (section 4.2) and sections 3.1 to 3.3.
+
+No Ship surface, manifest, config, source, backlog item, shipment or stash
+entry is changed.
+
+**Carried-forward verdicts and required runs.** Every recorded verdict stands
+as recorded, under the version it was recorded against, and none is
+re-labelled:
+
+* Proof E runs 1 to 3 (`a04e1e5a`, `6ee65c4a`, `383ae6be`) stay `BLOCKED`.
+* Proof E run 4 (`945a224e`) stays `BLOCKED` under PE-1.4. PE-1.5 does not
+  turn run 4's modeled result into a `PASS`.
+* The runs recorded under PE-1.4 for the other proofs keep the verdicts their
+  findings record:
+  * Proof A run 5: `PASS`, synthetic fixture (`99e9ff5f`; addendum
+    `4d132bf9`).
+  * Proof B run 2: `BLOCKED` (`669ee9f6`). Proof B run 3: `PASS`, disposable
+    stub and predicate (`6920cb7c`).
+  * Proof C run 2: `BLOCKED` (`309ab0e2`).
+  * Proof D run 3: `FAIL` (`8179feb1`). Proof D run 4: `PASS`, synthetic
+    contract (`36f65975`).
+  * Proof F run 2: `PASS` (`8b39a08b`).
+  * Proof G: `PENDING-LINUX` (`6daf80bb`; addendum `06f8930b`).
+
+  The rows and sections those proofs are judged against are the same in
+  PE-1.4 and PE-1.5. So each of these runs keeps, under PE-1.5, the standing
+  for proof exit it had under PE-1.4. Where the section 3.3 table requires a
+  new PE-1.4 run of a proof other than E, a run recorded under PE-1.4, or one
+  recorded later under PE-1.5, meets that requirement. This version requires
+  no re-run of any proof other than E.
+* Proof E leaves `BLOCKED` only through a fresh, admissible run 5 under
+  section 6.7 (PE-1.5) and section 6.1 (section 10 addendum). Run 5 gets its
+  own section 6.2 budget.
+
 ## 4. Scope
 
 ### 4.1 In scope
@@ -362,8 +504,8 @@ section 6.2 counts one admissible run per proof.
   Ship's separate section 6.1 index refresh, PE-1.4), and the Stage-authored
   findings artifacts.
 * One Stage-authored proof-exit report that lists every proof verdict against
-  PE-1.4 (with the section 3.1, 3.2 and 3.3 carry-forward of verdicts recorded
-  under PE-1.1, PE-1.2 and PE-1.3).
+  PE-1.5 (with the section 3.1 to 3.4 carry-forward of verdicts recorded
+  under PE-1.1, PE-1.2, PE-1.3 and PE-1.4).
 
 ### 4.2 Frozen diagnostic record (read-only)
 
@@ -913,7 +1055,20 @@ authors findings.
     before Step 4.1 Claim;
   * in the installed mirror, the same per-task pre-claim step T1-T3 is inserted
     inside Step 2 "Task Execution Loop" (line 336), immediately before its
-    per-task step 1 Claim (line 357).
+    per-task step 1 Claim (line 357);
+  * (PE-1.5) in the template, two more passages are replaced, and neither is
+    retained text:
+    * the Session start memory-context restore (lines 1002-1004; lines
+      1004-1006 at `4acba14a`). It scans `{{DOCS_MEMORY}}/`, restores context,
+      and then runs the recovery state machine "before shipment validation";
+    * the `### Resumption Protocol` (lines 1101-1105; lines 1103-1107 at
+      `4acba14a`). It resumes from a `context-overflow` checkpoint in
+      `{{DOCS_MEMORY}}/`.
+
+    The replacement text for both must meet the post-activation restore
+    contract below. The mirror has no matching passage, so this adds nothing
+    to the mirror's planned insertion and changes none of its retained
+    recovery text.
 
   T1-T3 are the per-task sub-steps of the canonical body in frozen plan
   revision 12 (line 227): T1 resolves the actor surface and keeps exits 0, 1
@@ -922,9 +1077,43 @@ authors findings.
   task proceeds to Claim. Plan revision 12 line 225, which places a mirror
   section before the Step 2 heading, is a frozen diagnostic input and does not
   set this placement. The Crash-Resumption protocols' recovery order (template
-  line 1006, mirror line 170) is retained text. Neither file is edited during
+  line 1006, mirror line 170) is retained text. (PE-1.5) Template line 1006 at
+  `082df7b2` is the Crash-Resumption heading, which is line 1008 at
+  `4acba14a`. It is not the Session start item that is line 1006 at
+  `4acba14a`, which is replaced. Neither file is edited during
   proofs. A mismatch between current text and the planned post-activation text
   is an expected input to this proof, not by itself a `FAIL`.
+* **Post-activation restore contract (PE-1.5).** After the activation
+  (`PE-ACTIVATE-02`), the replacement text for the two template passages
+  above, and all retained text of both Ship surfaces, must meet these rules:
+  1. Ship restores no memory context, task cursor, phase or next-action
+     intent, from any source, before the retained recovery state machine has
+     done the following:
+     * run its unfiltered enumeration and its anomaly scan;
+     * when a `ship`-owned active candidate exists, obtained an explicit,
+       unique operator selection, validated the owner (`agent == ship`) and
+       the CheckpointV1 schema, and obtained operator confirmation.
+  2. No memory checkpoint provides a path around these steps. That includes
+     a `{{DOCS_MEMORY}}/` file and a `context-overflow` checkpoint. None of
+     them restores the task cursor, phase or next-action intent at any point.
+     A resume after a `context-overflow` halt goes only through the recovery
+     state machine. The retained halt text, which records the checkpoint
+     path as the resumption point, stays unchanged.
+  3. Zero valid `ship`-owned active candidates is the normal continuation.
+     It is not a failure and not an operator handoff. The recovery state
+     machine still runs before shipment validation.
+  4. Status resolution happens only after a confirmed successful resume,
+     under the PE-1.3 term above, which is unchanged.
+
+  The activation task writes the replacement wording. This charter fixes
+  only the contract.
+* **Scope of the restore mis-ordering (PE-1.5).** The pass list's
+  mis-ordering "cursor restore before checkpoint validate-and-resolve"
+  covers memory-context, phase and next-action restore from any source. It
+  includes a restore from a docs-memory file or from a `context-overflow`
+  checkpoint. The fixture must reject such a restore whenever it comes before
+  the steps in contract rule 1. It must also reject any memory-checkpoint
+  resume that bypasses those steps. The pass criterion's text is unchanged.
 * **Fail.** No single state machine satisfies both files without contradicting
   retained text (PE-1.3 term above). That reopens the activation design.
 * **Boundary.** No edit to either file. The fixture models them and does not
@@ -1012,9 +1201,13 @@ authors findings.
   the Linux gate forward, and is never reported as `PASS`. `BLOCKED` when
   Windows could not be executed.
 
-## 7. Acceptance matrix PE-1.4
+## 7. Acceptance matrix PE-1.5
 
-PE-1.4 equals PE-1.3 except rows `PE-AUTH-01`, `PE-AUTH-02`, `PE-DATA-01`,
+PE-1.5 equals PE-1.4 in every row ID, requirement, normative source, pass
+criterion, evidence, severity and deferral. The only change is the section
+6.7 scope (PE-1.5; section 3.4) against which these are read: `PE-FLOW-03`,
+through its anchors "listed in section 6.7", and the future activation
+(`PE-ACTIVATE-02`). PE-1.4 equals PE-1.3 except rows `PE-AUTH-01`, `PE-AUTH-02`, `PE-DATA-01`,
 `PE-DATA-02`, `PE-EVIDENCE-01` and `PE-ACTIVATE-01`, each marked "(PE-1.4)"
 (section 3.3). PE-1.3 equals PE-1.2 except row `PE-ACTIVATE-01`, as it read
 under PE-1.3 (section 3.2). PE-1.2 equals PE-1.1 except rows `PE-DATA-03` and
@@ -1133,15 +1326,15 @@ Proof exit is reached when every proof is `PASS`, or is `FAIL` or `BLOCKED`
 with a recorded route, or (Proof G only) is `PENDING-LINUX` with its Linux
 gate carried forward. The Stage-authored proof-exit report:
 
-1. lists each proof verdict against its PE-1.4 rows. Verdicts recorded under
-   PE-1.1, PE-1.2 and PE-1.3 are listed as recorded, per sections 3.1, 3.2 and
-   3.3. Proofs B, D and F are reported by their PE-1.4 run verdicts, with
+1. lists each proof verdict against its PE-1.5 rows. Verdicts recorded under
+   PE-1.1, PE-1.2, PE-1.3 and PE-1.4 are listed as recorded, per sections 3.1
+   to 3.4. Proofs B, D and F are reported by their PE-1.4 run verdicts, with
    their historical `PASS` also listed. Proof C is reported by its PE-1.4
    run 2 verdict, with run 1 `FAIL` also listed, and Proof D's run 1 `FAIL`
-   is listed too. Proof E is reported by its PE-1.4 execution verdict, with
-   its three earlier `BLOCKED` runs also listed. A historical verdict whose
+   is listed too. Proof E is reported by its PE-1.5 run 5 verdict, with
+   its four earlier `BLOCKED` runs also listed. A historical verdict whose
    Ship invocations lack the section 6.1 refresh evidence never satisfies a
-   PE-1.4 proof-exit row by itself;
+   proof-exit row by itself;
 2. audits every `not-deferrable` row;
 3. drafts, but does not ratify, the implementation acceptance matrix;
 4. carries every Linux `PENDING` result into that draft as a `not-deferrable`
@@ -1230,12 +1423,45 @@ invocation, each keeping its own verdict, evidence and bound. Until each run
 is recorded, each proof's verdict stays as the section 3.3 table lists it.
 `187-S` stays queued and is not claim-ready.
 
+**Version 1.5 addendum (Proof E run 5).** Once version 1.5 is committed, and
+unless the operator vetoes it first, a fresh Proof E run 5 may be handed to
+Ship for verification-only execution. Run 5 follows these rules:
+
+* It follows section 6.1 (PE-1.4, unchanged): Ship's own Step 0.1 refresh,
+  with fail-closed handling; bounded, active-filtered P-001 projections; the
+  unfiltered, bounded checkpoint anomaly scan; and the `4acba14a` blob and
+  porcelain check of the three `PE-ACTIVATE-01` paths before the first write.
+  Run 5 uses a new scratch directory recorded before the first write and
+  its own 60-minute, two-file bound.
+* It is judged against section 6.7 (PE-1.5). The fixture reads both surfaces
+  from `HEAD` raw Git blobs. It treats the two added template spans as
+  planned replacements: it checks that each span exists as an anchor, and it
+  does not treat either span as retained text.
+* The fixture keeps every run 4 case. It must also reject at least these
+  two traces:
+  * a memory-context or next-action restore before the enumeration, the
+    anomaly scan, and the selection, owner and schema validation and
+    confirmation;
+  * a `context-overflow` memory-checkpoint resume without selection,
+    validation and confirmation.
+* It must still accept the canonical traces, including the zero-candidate
+  normal continuation. The run 4 fixture may be reused as a base, but by
+  itself it does not exercise these rejections.
+* Every negative must be graded by its intended reason, with no expected
+  value passed to the checker, and the full `PE-EVIDENCE-01` handoff is
+  required.
+
+Until run 5 is recorded, Proof E's verdict is run 4 `BLOCKED` (PE-1.4).
+Nothing here authorizes an activation, a claim, a harvest or any Ship-surface
+or manifest edit. `187-S` stays queued and is not claim-ready.
+
 ## Cross-references
 
 * Proof D run 1 findings: `docs/decisions/2026-09-23-read-budget-proof-d-spike.md`
 * Version 1.2 decision: `docs/decisions/2026-09-24-read-budget-admitted-bound-and-exhaustion-decision.md`
 * Proof E findings (version 1.3 input): `docs/decisions/2026-09-24-ship-activation-proof-e-spike.md`
 * Proof E runs 2 and 3 findings: `docs/decisions/2026-09-24-ship-activation-proof-e-run2-spike.md`, `docs/decisions/2026-09-24-ship-activation-proof-e-run3-spike.md`
+* Proof E run 4 findings (version 1.5 input): `docs/decisions/2026-09-24-ship-activation-proof-e-run4-spike.md`
 * Proof C run 1 findings (version 1.4 input): `docs/decisions/2026-09-24-surface-taxonomy-proof-c-spike.md`
 * Proof A, B, D run 2 and F findings (version 1.4 refresh audit): `docs/decisions/2026-09-23-p004-red-runner-proof-a-spike.md`, `docs/decisions/2026-09-24-cli-authenticity-proof-b-spike.md`, `docs/decisions/2026-09-24-read-budget-proof-d-run2-spike.md`, `docs/decisions/2026-09-23-staged-blob-checksum-proof-f-spike.md`
 * Parent decision: `docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md`
