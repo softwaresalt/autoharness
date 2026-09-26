@@ -1,15 +1,15 @@
 ---
 title: "Ship lifecycle release units A to D (rebaselined plan, LIFECYCLE-E4 subject)"
-description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 7 revises the subject (revision 6) of epoch LIFECYCLE-E4, the operator's re-charter of the IM-14 non-claim audit after the E3 epoch stop; not publication-eligible; not implementation-ready until a LIFECYCLE-E4 PASS."
+description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 8 revises the subject (revision 6) of epoch LIFECYCLE-E4, the operator's re-charter of the IM-14 non-claim audit after the E3 epoch stop; not publication-eligible; not implementation-ready until a LIFECYCLE-E4 PASS."
 doc_type: plan
 source: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
 plan_path: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 plan_role: active
-revision: 7
+revision: 8
 status: pending-review
-prior_revision: {revision: 6, commit: 33ad886b, blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809}
+prior_revision: {revision: 7, commit: 79c18cc0, blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c}
 review_epoch: LIFECYCLE-E4
 review_manifest: docs/reviews/2026-09-25-ship-lifecycle-release-units-plan-review.md
 review_epoch_family: LIFECYCLE-E4
@@ -746,18 +746,18 @@ judgment.
   resistance claim." The audit asserts it.
 * **Residue.** Everything outside `FLOOR`, and any claim the test misses
   inside it, falls to a recorded agent text audit, this release only; no
-  operator duty. It is incremental: each unit is audited once and
-  checked off, and re-opened only when a later commit modifies its lines
-  or changes a DAG dependency the unit describes or relies on; the
-  auditor names those units and re-audits only their affected lines.
-  Units: this plan and its manifest, by an E4 persona at the blob that
-  passes the final full consistency pass, recorded there; read-only by
-  Ship, each non-merge harvest commit's diff before claiming S(A)
-  (session note), each shipment's merge diff at its closure (closure
-  note, with the `LEDGER` count), D3's prepared template and mirror
-  lines before D3 is presented ready (readiness record) and each closure
-  pull request (its body). Stage audits later plan or manifest edits as
-  units. Ship writes no planning or review artifact.
+  operator duty. Each unit is audited once and checked off, and
+  re-opened only when a later commit modifies its lines or changes a DAG
+  dependency it describes or relies on; the auditor names it and
+  re-audits only the affected lines. Units: this plan and its manifest,
+  by an E4 persona at the blob passing the final full consistency pass,
+  recorded there; by Ship, each non-merge harvest commit's diff before
+  claiming S(A) (session note), each shipment's merge diff at its
+  closure (closure note, with `LEDGER` count), D3's prepared template
+  and mirror lines before it is presented ready (readiness record) and
+  each closure pull request diff (body record); by Stage, each later
+  plan or manifest commit, before the next Ship claim or closure (its
+  message). Ship writes no planning or review artifact.
 * **Controls.** Must fail: each claim form in IM-14-F05, F10 and F11;
   `race_free`, `test_toctou_safe`, `TOCTTOU`, `hard-linked`;
   `race-`/`free`, `hard-`/`link` and `TOC-`/`TOU` split over two lines;
