@@ -16,6 +16,8 @@ reviews:
   - {step: delta-review-1, subject_revision: 2, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: REVISE, blocking_open: 2}
   - {step: consolidated-revision-2, subject_revision: 3, subject_commit: bd7002d5, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: REVISE, blocking_claimed_fixed: 2}
   - {step: delta-review-2, subject_revision: 3, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: REVISE, blocking_open: 3}
+  - {epoch: LIFECYCLE-E3-703d0de1, step: initial-review, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, decision: REVISE, blocking_open: 5}
+  - {epoch: LIFECYCLE-E3-703d0de1, step: consolidated-revision-1, subject_revision: 5, subject_commit: 01cb89b9, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: pending-delta-review, blocking_claimed_fixed: 5}
 consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
 status: epoch-stopped
@@ -584,3 +586,101 @@ harvest_permitted: false
 | Changed frontmatter lines | 2-3 (title, description), 10 (`revision: 4`), 12-13 (`prior_revision`, `review_epoch`), 15-16 (epoch family and token rule), 21 (`hardening_pass`) |
 | Not changed | Every other line, frozen at revision 3. No task, reason code, public name, subsystem or threat class added |
 | Growth against revision 1 (`2d562820`) | File bytes 82261 (+18.94%, limit 82995); body bytes 76372 (+19.75%, limit 76533); words 12076 (+18.42%, limit 12237) |
+
+## E3 Initial Review
+
+```text
+epoch: LIFECYCLE-E3-703d0de1
+subject: plan revision 4, commit 48cafb4a, blob 703d0de11fa5515a4abba0146d2f792bbe9991a6
+scope: changes only (E3-open regions)
+decision: REVISE
+```
+
+| Persona | Route | Decision |
+|---|---|---|
+| Architecture Strategist (lead) | `gpt-6-sol` | REVISE |
+| Security Lens Reviewer | `gpt-6-sol` | REVISE |
+| Agent-Native Parity Reviewer | `gpt-6-sol` | REVISE |
+| Constitution Reviewer | caller route (`claude-opus-5.5`) | REVISE |
+| Python reviewer | caller route (`claude-opus-5.5`) | REVISE |
+| Scope reviewer | caller route (`claude-opus-5.5`) | REVISE |
+| Learnings reviewer | caller route (`claude-opus-5.5`) | REVISE |
+
+**Closed by construction (all seven agree).** The E2 blockers
+IM-14-F07.1, IM-14-F08 and IM-14-F11; also IM-14-F09, IM-14-F10,
+IM-14-F12, IM-14-F13, IM-14-F14, IM-14-F15 and CONST-G2-F01 (final LF).
+`AUDITED` and `LEDGER` are test-local constants, not public names. No
+new task, reason code, public name, subsystem or threat class. Anchors
+and Markdown intact. The Python reviewer recorded its share of the
+agent residue text audit: the scoped revision 4 sections contain no
+resistance claim; `LEDGER` count n/a.
+
+### Findings (stable IDs)
+
+Reviewer IDs collided, so Stage assigned stable IDs. Line references are
+to revision 4.
+
+| Stable ID | Raised by (confidence) | Blocking | Revision 4 lines | Summary |
+|---|---|---|---|---|
+| IM-14-F16 (E3-B1) | Lead F16 (9); Learnings F16 (8); Scope F16 (8); Constitution CONST-E3-F01 (8); Python E3PY-03 (8) | **Yes** | L190, L323, L454, L725-729, L739-744 | `LEDGER` timing deadlock: tasks add entries for their own lines, but non-floor lines are scanned only once a later closure lists the merge, so the unused-entry rule turns every shipment's own CI red from C5 on |
+| IM-14-F17 (E3-B2) | Parity F17 (8); Learnings F17 (7); Scope F20 (P3); Constitution CONST-E3-F04 (P3) | **Yes** | L750-757 | Residue text audit not executable: who audits what, where it is recorded, "Ship at harvest" when harvest is Stage-owned (P-010), and the meaning of the `LEDGER` count before C5 |
+| IM-14-F18 (E3-B3) | Parity F16 (9) | **Yes** | L454, L724-749 | D3's activation edit is unexamined before merge: it is listed only at a later closure and the Ship surfaces are not floor files |
+| IM-14-F19 (E3-B4) | Security F16 (9); Python E3PY-01 (8); Learnings F22 (P3) | **Yes** | L733-740, L757-761 | Detector token-boundary escapes: `TOC-`/`TOU` across lines, snake_case (`test_toctou_safe`, `race_free`, `RACE_SAFE`), `hard-linked` and `hard linking`, `TOCTOUs` and `TOCTTOU` |
+| IM-14-F20 (E3-B5) | Python E3PY-02 (8); Scope F17 (7); Learnings F20 (P3); Constitution CONST-E3-F02 (P3) | **Yes** | L735-751 | Pair-hit clearing undefined: clearing checks "its line", a pair's hash is undefined, the required sentence may wrap, and the pair control asserts a hit rather than a failure |
+| IM-14-F21 (E3-N1) | Lead F17 (P2, 9); Constitution CONST-E3-F05 (P3) | No | L725-729, L745-748, L323 | No post-S(D) switch to the floor-only check, so git scan, unshallow and historical fail-on-skip persist forever |
+| IM-14-F22 (E3-N2) | Learnings F18b; Scope F21; Python E3PY-06a; Constitution CONST-E3-F05 | No | L323 | `git fetch --unshallow` fails on a full clone under `set -e`; guard with `git rev-parse --is-shallow-repository` |
+| IM-14-F23 (E3-N3) | Learnings F19; Scope F18; Constitution CONST-E3-F02; Python E3PY-04/05 | No | L730-731 | Diff and hash determinism: `--no-color --no-ext-diff --no-textconv`, bytes, strict UTF-8, CR strip, hash without diff marker, hunk-state header parsing, fail a listed commit with no added line |
+| IM-14-F24 (E3-N4) | Learnings F21; Scope F19; Constitution CONST-E3-F03 | No | L725-729 | `AUDITED` composition: S(C)'s closure re-appends S(A)'s closure merge; multi-commit harvests and multi-merge shipments |
+| IM-14-F25 (E3-N5) | Learnings F18a, F18c | No | L741-748 | Unused-entry check only after a full scan; assert each listed SHA is an ancestor of the default branch |
+| IM-14-F26 (E3-N6) | Python E3PY-06b (6) | — | L323 | **Informational** (below threshold): the coverage module is not in the CI module list |
+| NOROW-F19 (E3-N7) | Scope NOROW-F19 (P3) | No | frozen (C3 note) | Four versus five features trace note; outside E3 scope |
+
+## E3 Consolidated Revision 1 (subject revision 5)
+
+| Field | Value |
+|---|---|
+| Subject | Plan revision 5, commit `01cb89b9`, blob `057a7615a5a53e53698bb53604ad7fba5382e744`, 836 lines, LF, final newline |
+| Revisions used | 1 of 2 |
+| Author | Stage (`claude-opus-5.5` / `anthropic` / `high`) |
+| Changed body lines (revision 5 numbering) | 190 (IM-14 trace row); 323 (C5 Change cell); 721-765 (Non-Claim Audit Inventory, from revision 4 lines 721-761) |
+| Changed frontmatter lines | 3 (description: revision 5 sentence), 10 (`revision: 5`), 12 (`prior_revision` revision 4, `48cafb4a`, `703d0de1`) |
+| Not changed | Every other line, including D3 preflight item 6 (line 454), which claims no scan of a future commit. No task, reason code, public name, subsystem or threat class added |
+| Review state | Pending delta review of the changes, then the final full consistency pass |
+
+### Contract Growth (revision 1 versus revision 5)
+
+Offsets came only from compressing the E3-open regions; the new detector
+pattern is shorter than the one it replaces.
+
+| Measure | Revision 1 | Revision 4 | Revision 5 | Limit | Growth |
+|---|---:|---:|---:|---:|---:|
+| File bytes | 69163 | 82261 | 82440 | 82995 | +19.20% |
+| Body bytes (after frontmatter) | 63778 | 76372 | 76533 | 76533 | +19.999% (at the limit) |
+| Words | 10198 | 12076 | 12091 | 12237 | +18.56% |
+| Tasks | 17 | 17 | 17 | 20 | 0% |
+| Reason codes / `ReadErrorCode` values | 47 / 8 | 47 / 8 | 47 / 8 | unchanged | 0% |
+| New public names | none | alias only | alias only | unchanged | unchanged |
+| Lines (not a limit) | 769 | 832 | 836 | none | +8.7% |
+
+### Dispositions
+
+Line references are to revision 5 (blob `057a7615`).
+
+| ID | Blocking | Disposition | Evidence in revision 5 |
+|---|---|---|---|
+| IM-14-F16 | **Yes** | Fixed | L728-732 (C5 seeds `AUDITED` through S(A)'s closure; each closure appends what landed since; both add `LEDGER` entries for hits in the lines they newly audit, confirmed by local review; tasks ledger only floor hits); L745-746 (unused entry fails only after a full scan); L190 (closures extend `AUDITED` and `LEDGER`) |
+| IM-14-F17 | **Yes** | Fixed | L753-760 (agent-performed, release-scoped, no operator duty; E3 persona audits plan and manifest, recorded here; Ship audits read-only the harvest commits before claiming S(A) in its session note with `LEDGER` n/a, each shipment's merge diff at its closure, the last also its pull request, in the closure note with the `LEDGER` count; Ship writes no planning or review artifact) |
+| IM-14-F18 | **Yes** | Fixed | L758-760 (before D3 is presented ready, Ship audits D3's added template and mirror lines, recorded in the readiness record); L454 unchanged and claims no future-commit scan |
+| IM-14-F19 | **Yes** | Fixed | L739-742 (`_` and `-` as spaces, whitespace collapsed; pair joined by a space or else with a trailing hyphen dropped; compact pattern with `rac` inflections, `toctt?ous?`, `time of check`, `hard ?link\w*` and `symlink ?swap\w*`, shorter than revision 4's); L761-765 (controls `race_free`, `test_toctou_safe`, `TOCTTOU`, `hard-linked`, `TOC-`/`TOU`; negatives `trace-free`, `embrace-safe`, `grace period`). Stage re-checked the stated rule against all listed controls, `TOCTOUs`, `hard linking`, `RACE_SAFE`, `racetrack` and `trace_id`, and the required sentence |
+| IM-14-F20 | **Yes** | Fixed | L740-746 (pairs only where neither line hits; "line or pair" in the clearing clause; the hash is of that normalized unit, the line or the join that hit; the floor uses the same rule, L736-738); L750-752 (required sentence on one physical line); L761-763 (split-pair controls listed under "Must fail") |
+| IM-14-F21 | No | Fixed | L731-733 (S(D)'s closure, after its full scan, marks the list final; then only the floor runs); L733 and L749 (git scan and fail-on-skip only until final); L323 (unshallow only until `AUDITED` is final) |
+| IM-14-F22 | No | Fixed | L323 (`git fetch --unshallow` only if `git rev-parse --is-shallow-repository` prints `true`) |
+| IM-14-F23 | No | Fixed in part; rest deferred to C5 implementation | L734-736 (`--no-ext-diff --no-textconv`; a listed commit with no added line fails). Deferred for the body-byte budget (0 bytes of headroom): `--no-color`, byte capture with strict UTF-8, CR strip, hashing without the diff marker stated explicitly, and hunk-state header parsing. These are implementation mechanics of C5's test and do not change the contract |
+| IM-14-F24 | No | Fixed | L726-729 (each commit or merge landing the harvest, a shipment or a closure, listed once; each closure appends what landed since). The closure-time assertion that none is missing is left to C5 implementation |
+| IM-14-F25 | No | Fixed | L745-746 (unused-entry check only after a full scan); L727-728 (each listed commit asserted an ancestor of the base branch) |
+| IM-14-F26 | — | Informational; carried to harvest | No change (below threshold). Harvest records the coverage module's absence from the C5 CI module list |
+| NOROW-F19 | No | Carried to harvest | Outside E3 scope (frozen C3 note) |
+
+Totals: 5 blocking fixed; 4 non-blocking fixed and 1 fixed in part with
+the rest deferred; 1 informational and 1 out-of-scope finding carried to
+harvest. No finding declined.
