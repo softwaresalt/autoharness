@@ -85,3 +85,24 @@ for text that claims race, TOCTOU or hardlink-alias resistance.
 
 Result: **no-claim x7**. The only mention of race, TOCTOU or hardlink-alias is the plan's
 Non-claim section, which disclaims them.
+
+## Harvest Record
+
+Harvested under this record's PASS verdict and operator ruling OP-1, in harvest commit
+`7ca13f66ec763235083b13551a2a0b6e00f7245c`.
+
+| Item | ID | Notes |
+|---|---|---|
+| Feature | `190-F` | IM-10 harness-architect render parity (source stash `9144435A`) |
+| Task IM10-1 | `190.001-T` | LF pin and check-attr test; `harness-surface:none`; size S, complexity low |
+| Task IM10-2 | `190.002-T` | Byte-exact re-render and checksum refresh; `harness-surface:none`; size S, complexity low |
+| Shipment S(IM-10) | `196-S` | Queued; items `190-F`, `190.001-T`, `190.002-T`; no `dag-root` label |
+
+Edges (dependent, then prerequisite, type `blocks`):
+
+* `190.002-T` -> `190.001-T` (IM10-1 blocks IM10-2)
+* `196-S` -> `195-S` (S(B-entry) blocks S(IM-10))
+
+Stash: `9144435A` archived, consumed by this harvest. `D1D63858` (chore, low) was added for
+IM10-CR-F04. S(D) is not harvested here. It gets `blocks` edges from `195-S` and `196-S` when
+it is harvested.
