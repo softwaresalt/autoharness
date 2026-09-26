@@ -40,7 +40,7 @@ e3_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48caf
 e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: {at: "2026-09-25T22:29:53-07:00", outcome: re-charter, next: "LIFECYCLE-E4 (IM-14 audit re-chartered)"}}
 e4_epoch: {id: LIFECYCLE-E4-5cf1d52a, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: EPOCH_STOPPED}
 e4_stop: {epoch: LIFECYCLE-E4-5cf1d52a, last_subject_revision: 8, last_subject_commit: d47f64b1, last_subject_blob: 8d397c0559ae96da709620fc3db044124c068423, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 2, consolidated_revisions_limit: 2, blocking_open: [NOROW-F20, IM-14-F64], residue_audit: {blob: 8d397c0559ae96da709620fc3db044124c068423, personas: 7, result: no-claim}, stop_conditions_triggered: [authority-mismatch-between-artifacts, remediation-budget-exhausted-with-open-blockers, blockers-do-not-decline-across-revisions], operator_decision: {at: "2026-09-25T23:16:08-07:00", outcome: new-epoch, next: "LIFECYCLE-E5 (harvest_gate, Bottom Line Status, residue harvest clause)"}}
-next_epoch: {id: pending (LIFECYCLE-E5-<first 8 hex of the revision 9 blob>), subject_revision: 9, derived_from: {revision: 8, commit: d47f64b1, blob: 8d397c0559ae96da709620fc3db044124c068423}, scope: "frontmatter (harvest_gate, revision and epoch metadata, hardening_pass only if needed), Bottom Line Status line, residue-rule harvest clause", blockers_targeted: [NOROW-F20, IM-14-F64], verdict: pending, harvest_permitted: false}
+next_epoch: {id: LIFECYCLE-E5-b7a77c76, subject_revision: 9, subject_commit: 42fec73f, subject_blob: b7a77c7644fa97dff01c724480abfcbcea8f346d, derived_from: {revision: 8, commit: d47f64b1, blob: 8d397c0559ae96da709620fc3db044124c068423}, scope: "frontmatter (harvest_gate, revision and epoch metadata, hardening_pass only if needed), Bottom Line Status line, residue-rule harvest clause", blockers_targeted: [NOROW-F20, IM-14-F64], verdict: pending, harvest_permitted: false}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -1255,9 +1255,9 @@ pass.
 ## Epoch LIFECYCLE-E5
 
 ```text
-epoch: LIFECYCLE-E5-<first 8 hex of the revision 9 blob> (fixed when revision 9 is committed)
+epoch: LIFECYCLE-E5-b7a77c76
 opened_by: operator ruling 2026-09-25T23:16:08-07:00
-subject: plan revision 9, derived from revision 8 (commit d47f64b1, blob 8d397c0559ae96da709620fc3db044124c068423)
+subject: plan revision 9, commit 42fec73f, blob b7a77c7644fa97dff01c724480abfcbcea8f346d, derived from revision 8 (commit d47f64b1, blob 8d397c0559ae96da709620fc3db044124c068423)
 verdict: pending
 harvest_permitted: false
 ```
@@ -1277,3 +1277,42 @@ harvest_permitted: false
 | E2, E3 and E4 | Verdicts stay `EPOCH_STOPPED` |
 | E4 residue audit | The no-claim record bound to blob `8d397c05` stands for unchanged lines; changed lines are new units |
 | E5 verdict | Pending; `harvest_permitted` stays `false` |
+
+### Revision 9 (E5 subject)
+
+| Field | Value |
+|---|---|
+| Epoch token | `LIFECYCLE-E5-b7a77c76` (first 8 hex of the revision 9 blob) |
+| Subject | Plan revision 9, commit `42fec73f`, blob `b7a77c7644fa97dff01c724480abfcbcea8f346d`, 839 lines, LF, final newline |
+| Author | Stage |
+| Changed body lines (revision 9 numbering) | 70 (Bottom Line Status); 754-756 (harvest clause of the Residue bullet; one line added by the wrap) |
+| Changed frontmatter lines | 2 (title: `LIFECYCLE-E5 subject`), 3 (description: revision 9 sentence), 10 (`revision: 9`), 12 (`prior_revision` revision 8, `d47f64b1`, `8d397c05`), 13, 15 and 16 (`review_epoch`, epoch family and token rule: `LIFECYCLE-E5`), 49 (`harvest_gate`) |
+| Not changed | Every other line, including the rest of the Residue bullet (its plan-and-manifest unit still reads "by an E4 persona", L753, frozen), `hardening_pass` (not needed for consistency) and every task, reason code, public name, subsystem and threat class |
+| Side effect | The rewritten description sentence no longer contains the NOROW-F21 wording ("revises the subject (revision 6)"); its disposition is left to the E5 review |
+
+| Change | Before (revision 8) | After (revision 9) | Target |
+|---|---|---|---|
+| 1. `harvest_gate` (L49) | "Harvest only after a LIFECYCLE-E2 review PASS recorded in the review manifest. Not before." | "Harvest only after a publication PASS of the governing review epoch, recorded in the review manifest and bound to the plan blob it reviewed. Not before." Generic: it cannot go stale when an epoch stops, and matches OP-5 (harvest reads its verdict from the manifest) | NOROW-F20 |
+| 2. Bottom Line Status (L70) | "Revision 3, consolidated revision 2 of 2 of `LIFECYCLE-E2-R1-2d562820` (findings in the review manifest). Not publication-eligible. Not implementation-ready. No backlog item exists yet" | "Revision 9, `LIFECYCLE-E5` subject (verdict in the review manifest). Not publication-eligible. Not implementation-ready. No backlog item yet" (current, and 44 bytes shorter) | NOROW-F20 |
+| 3. Residue, Ship clause (L754-756) | "by Ship, each non-merge harvest commit's diff before claiming S(A) (session note)" | "by Ship, each non-merge harvest commit's own diff before the first Ship claim or closure after it lands (session note)". A late S(D) harvest commit (OP-1) is audited before the next Ship claim or closure; no historical rescan | IM-14-F64 |
+
+#### Contract Growth (revision 1 versus revision 9)
+
+| Measure | Revision 1 | Revision 8 | Revision 9 | Limit | Growth |
+|---|---:|---:|---:|---:|---:|
+| File bytes | 69163 | 82415 | 82455 | 82995 | +19.22% (540 left) |
+| Body bytes (after frontmatter) | 63778 | 76532 | 76527 | 76533 | +19.99% (6 left) |
+| Words | 10198 | 12108 | 12121 | 12237 | +18.86% (116 left) |
+| Tasks | 17 | 17 | 17 | 20 | 0% |
+| Lines (not a limit) | 769 | 838 | 839 | none | +9.1% |
+
+Measured as in earlier revisions: file bytes are the blob size; body
+bytes are the bytes after the closing frontmatter `---` line; words are
+whitespace-separated tokens of the whole file. The body is net-negative
+(-5 bytes): the shorter Status line (-44) pays for the Residue clause
+(+37, and +2 for the indent of the added wrapped line). The frontmatter
+grows by 45 bytes, inside the file limit.
+
+**Residue audit (Stage, revision 8 rule).** The changed lines make no
+race, TOCTOU or hardlink-alias resistance claim (no-claim), recorded in
+the revision 9 commit message.
