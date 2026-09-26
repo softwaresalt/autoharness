@@ -12,7 +12,8 @@ rubric: {version: R1, skill_path: .github/skills/plan-review/SKILL.md, skill_blo
 matrix_version: "IM-01 to IM-17 (a04dea18; ratified 2634bac2; IM-17 closed b8a7b100; IM-16 decided 8fa08913); PE-1.7 (e65887d8)"
 reviews:
   - {step: initial-full-review, subject_revision: 1, subject_commit: c7363567, subject_blob: 2d5628206de3ab8083ec8ac173fa5283663f9b01, decision: REVISE, blocking_open: 7}
-consolidated_revisions_used: 0
+  - {step: consolidated-revision-1, subject_revision: 2, subject_commit: fcae22da, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: pending-delta-review, blocking_claimed_fixed: 7}
+consolidated_revisions_used: 1
 consolidated_revisions_limit: 2
 status: open
 publication_eligible: false
@@ -174,3 +175,96 @@ section below.
 Publication is **not met**: 7 blocking findings are open. The next step is
 consolidated revision 1 of 2, then delta reviews against changes only, then
 one final full consistency pass.
+
+## Consolidated Revision 1 (subject revision 2)
+
+| Field | Value |
+|---|---|
+| Subject | Plan revision 2, commit `fcae22da`, blob `1828ecb9462762945979fbbfc1a73320f5975653` (842 lines) |
+| Revisions used | 1 of 2 |
+| Author | Stage (`claude-opus-5.5` / `anthropic` / `high`) |
+| Review state | Pending delta reviews against changes only. No finding is closed until a delta review checks its named evidence |
+
+### Contract Growth (limit: over 20% ends the epoch)
+
+Measured against revision 1 (blob `2d562820`):
+
+| Measure | Revision 1 | Revision 2 | Growth |
+|---|---:|---:|---:|
+| File bytes | 69163 | 82011 | +18.6% |
+| Body bytes (after frontmatter) | 63778 | 76224 | +19.5% |
+| Words | 10198 | 12061 | +18.3% |
+| Lines | 769 | 842 | +9.5% |
+| Tasks | 17 | 17 | 0% |
+| Reason codes / `ReadErrorCode` values | 47 / 8 | 47 / 8 | 0% |
+| New public names | none | `verify_workspace.render_template` (alias) | +1 |
+| Summed estimate (minutes) | 1390 | 1555 | +11.9% |
+| Shipments | 4 | 5 | +25% (B split, required by section 9 budgets; see note) |
+
+Every text-size measure is within 20%. The shipment count is higher only
+because the section 9 budget rule required B to split. No task,
+reason code or public contract was added for that. Whether a
+budget-required split counts as contract growth is for the Orchestrator to
+rule on.
+
+Orchestrator ruling: the B split into S(B-core)/S(B-entry) is required by
+the ratified section 9 per-shipment budget and adds no task, reason code or
+public contract; it is not contract growth. Contract growth is measured on
+the text/contract measures, all within 20% (max +19.5% body bytes). The
+operator may overrule.
+
+### Dispositions
+
+Line references are to revision 2 (blob `1828ecb9`).
+
+| ID | Blocking | Disposition | Evidence in revision 2 |
+|---|---|---|---|
+| IM-10-F01 | **Yes** | Fixed | L186 (IM-10 row); L482 and L494-498 (`S(IM-10) -> S(D)`; S(D) harvested only once the IM-10 shipment exists); PD-02; OP-1 |
+| IM-07-F01 | **Yes** | Fixed | L183 (IM-07 row); L417 (B5 one document plus one LF); L433 (D1 capture contract and entry); L434 (real-CLI handoff test, exits 0/1/2 plus an impostor); L444 (D2: no T2, T3 or Claim after `resolver-not-observed`); invariant 6 |
+| IM-05-F01 | **Yes** | Fixed | L181; L301 (`os.open` unbuffered, reads only through `_read_chunk`, request bound); L302 (recorded request sizes, at most 65 bytes requested for 4096 B, short reads) |
+| IM-01-F01 | **Yes** | Fixed | L177; L323 (`export TMPDIR`, effective fixture root asserted under `$RUNNER_TEMP`, filesystem type of that root); L324 (evidence fields) |
+| IM-14-F01 | **Yes** | Fixed | L190 and the `PE-SAFETY-06` row; L721-755 (one inventory across A to D, carriers and closures; a missing file fails); extended by B1, B5, D1, D2 and D4, and run by D3's preflight |
+| IM-14-F02 | **Yes** | Fixed | L737-752 (whitespace collapse including newlines, `[-\s]*` patterns, broader affirmative forms, positive and negative controls) |
+| IM-13-F01 | **Yes** | Fixed | L135 (FI-9); L159-168 (Marker Convention: prefix plus per-test suffix, pairwise distinct, test-to-marker map); L189; A1 and A2 (L224, L231); every `Marker` row marked `(prefix)` |
+| IM-01-F02 | No | Fixed | L323 (`set -euo pipefail`, log file, exit code gated before the summary) |
+| IM-01-F03 | No | Fixed | L291 (Linux case-sensitivity branch under the same ID) |
+| IM-05-F02 | No | Fixed | L301 (`O_BINARY`); L302 (`\r\n\x1a` returned byte-exact) |
+| IM-07-F02 | No | Fixed | L762 (B rollback includes D1) |
+| IM-07-F03 | No | Fixed | L433-434 (`object_pairs_hook`, `parse_constant`, controls) |
+| IM-14-F03 | No | Fixed | L119 (history reworded); L754-755 |
+| IM-14-F04 | No | Fixed | L279-281 (C1 writes the docstring sentence and tests it); the inventory's required-sentence rule |
+| IM-02-F01 | No | Partly fixed; the pin is deferred | L578 (risk row: B uses LF fixtures, and D3 preflight (4) fails closed). The template `eol=lf` pin and renormalize are deferred to the IM-10 unit, which owns that template's bytes |
+| IM-03-F01 | No | Fixed | L362-364 (equal except `$id`; `1.0.0` mirror SHA-256 pinned) |
+| IM-04-F01 | No | Fixed | L374 (listed order disagrees with task-ID and first-seen order) |
+| IM-04-F02 | No | Fixed | L373-374 (two fixed names probed by `isdir`, not a claim; no override, no `backlog_root.py`; override-set test) |
+| IM-06-F01 | No | Fixed | L182; L263-265 (`_is_contained`, `_read_chunk`); L406 (`_resolve` limits) |
+| IM-08-F01 | No | Fixed | L457 (P-009 merge commit, two-parent check) |
+| IM-08-F02 | No | Fixed | L444 (T1 to T3 do not depend on `queued`) |
+| IM-08-F03 | No | Fixed | L444 (no contradicting order statement) |
+| IM-09-F01 | No | Fixed | L467-468 (L1, L3, L4, L5 enumerated from the Proof E run 5 limitations table) |
+| IM-11-F01 | No | Fixed | L141-157 (re-estimate 550 minutes; B split into S(B-core) and S(B-entry)); L424; frontmatter `release_units`; PD-15 |
+| IM-12-F01 | No | Fixed | L188; L224; L235; D3 preflight (1) |
+| IM-13-F02 | No | Fixed | L224 and L235 (LF-normalized comparison) |
+| IM-16-F01 | No | Fixed | L406-407 (private `_resolve` limits hook; read-limit codes reached with small limits) |
+| `PE-SAFETY-03-F01` | No | Fixed | L201; L290-291 (`ValueError` -> `OUTSIDE_TRUST_ROOT`; cross-drive case) |
+| `PE-SAFETY-07-F01` | No | Fixed | L681 (`/dev` targets listed; cleanup unlinks and never follows) |
+| NOROW-F01 | No | Fixed | L384 (public alias `render_template`); PD-09; Risky Actions row |
+| NOROW-F02 | No | Fixed | PD-16; Out of Scope |
+| NOROW-F03 | No | Deferred | `IO` stays a closed code with a defined mapping (Unit B table). A portable `IO` fixture needs a per-OS mechanism: POSIX permission bits, or a Windows byte-range lock. Proof G does not cover that. C3 may add it if cheap. It is a `CHANGE`, so non-blocking |
+| NOROW-F04 | No | Fixed | L511 (`181.001-T` trace row) |
+| NOROW-F05 | No | Fixed | L458 (rollback through a `chore/` pull request, merge commit, SHA recheck) |
+| NOROW-F06 | No | Fixed | L225 and L236 (pre-edit run recorded as gap characterization) |
+| NOROW-F07 | No | Fixed | L456 (`careful` and `freeze-scope`; boundary is the three paths) |
+| NOROW-F08 | No | Fixed | L704 (`TMP`/`TEMP` point at the in-workspace `.proof-scratch/tmp`) |
+| NOROW-F09 | No | Fixed | L604 (monitoring recorded in Ship `docs/memory/`; does not hold S(D) open) |
+| NOROW-F10 | No | Fixed | L396 (golden `inputs_sha256` fixture) |
+| NOROW-F11 | No | Fixed | L498 (P-015 single closure; successors stay `queued`) |
+| NOROW-F12 | No | Fixed | L601 (A is code-affecting for closure) |
+
+Totals: 39 fixed, 1 partly fixed with the rest deferred (IM-02-F01), 1
+deferred (NOROW-F03), 0 declined. All 7 blocking findings are marked fixed
+and wait for delta-review confirmation.
+
+**Stage-found correction (not a review finding).** B5's `--help` now prints
+to stdout with exit 0 (L417), matching argparse. Revision 1 said usage on
+stderr with exit 2.
