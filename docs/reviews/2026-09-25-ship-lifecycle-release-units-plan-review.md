@@ -26,6 +26,8 @@ publication_eligible: false
 harvest_permitted: false
 stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails]
 operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}
+operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}
+next_epoch: {id: "LIFECYCLE-E3-pending", scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: pending}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -519,3 +521,55 @@ scoped to the IM-14 audit section only. Its baseline is plan revision 3
 (blob `ffa663de030a0a07baa5b62ea1078b750a0a4009`), and every other section
 stays frozen. Until then the verdict stays `EPOCH_STOPPED` and harvest
 stays blocked.
+
+### Operator Ratification of the IM-14 Spike
+
+```text
+decided_at: 2026-09-25T21:10:37-07:00
+subject: docs/decisions/2026-09-26-im14-non-claim-audit-redesign-spike.md (commit 27bcc254)
+verdict: EPOCH_STOPPED (unchanged for E2)
+harvest_permitted: false (unchanged)
+```
+
+The operator's three rulings, as relayed verbatim by the Orchestrator:
+
+1. "Design RATIFIED (O2/O3 hybrid as specified in the spike's drop-in
+   section)."
+2. "E3 scope widened as recommended: E3 may also align C5's Change cell
+   (plan rev 3 L323, incl. its CI module list) with the new section."
+3. "Manual coverage of the plan and its review manifest ACCEPTED", with
+   this operator clarification, quoted: "it is not my intention that all
+   plan and review records should be manually reviewed, which would be
+   onerous for the operator."
+
+**Binding interpretation of ruling 3.** The "text audit" for the residue
+is performed by an agent: a review persona in E3, and Ship at harvest and
+at each closure. It is recorded as a disposition with the `LEDGER` count.
+The operator is not a required participant. It covers only this release's
+IM-14 residue: this plan, this review manifest and the final closure pull
+request, as the spike lists. It creates no standing obligation to review
+plan or review records generally.
+
+## Epoch LIFECYCLE-E3 (IM-14 audit)
+
+```text
+epoch: LIFECYCLE-E3-<pending: first 8 hex of the revision 4 blob>
+opened_by: operator ratification 2026-09-25T21:10:37-07:00
+subject: plan revision 4 (pending)
+baseline: plan revision 3, commit bd7002d5, blob ffa663de030a0a07baa5b62ea1078b750a0a4009
+verdict: pending
+harvest_permitted: false
+```
+
+| Field | Value |
+|---|---|
+| Scope (open) | The plan's "Non-Claim Audit Inventory" section; C5's Change cell, including its CI module list; any IM-14 or `PE-SAFETY-06` trace-row text (for example the IM-14 row at revision 3 line 190) that would otherwise contradict the new section; and the final-newline fix CONST-G2-F01 |
+| Frozen | Everything else, at revision 3 |
+| Design source | The ratified spike's drop-in specification, with ruling 3's binding interpretation folded in |
+| Rubric, personas and routes | Unchanged from E2 (rulings 5, `2ca9d9a5`). Lead Architecture Strategist, Security Lens and Parity on `gpt-6-sol` / `openai` / `high`. Constitution, Python, Scope and Learnings on the caller route |
+| Cadence | One initial review of the scoped changes, then delta reviews, then one final full consistency pass |
+| Budget | At most 2 consolidated revisions |
+| Blocking rule | C4 unchanged: only matrix-critical `P2` blocks, besides `P0` and `P1` |
+| Growth | Still cumulative against revision 1 blob `2d562820`: body bytes, file bytes and words each at most 20% over revision 1 |
+| E2 | Verdict stays `EPOCH_STOPPED`, and `harvest_permitted` stays `false` |
+| E3 verdict | Pending |
