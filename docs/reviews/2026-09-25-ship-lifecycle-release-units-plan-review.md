@@ -1,6 +1,6 @@
 ---
 title: "Review manifest: ship lifecycle release units A to D plan (governing epoch LIFECYCLE-E5)"
-description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. The governing epoch is LIFECYCLE-E5-b7a77c76 (subject plan revision 9, commit 42fec73f, blob b7a77c76): its initial review and its final full consistency pass each passed 7 of 7 with no consolidated revision, closing NOROW-F20 and IM-14-F64 (verdict PASS; publication met; harvest not yet permitted, awaiting OP-5). Earlier epochs, all under the parameters frozen in 2ca9d9a5 and all EPOCH_STOPPED with publication not met and nothing harvested: LIFECYCLE-E2-R1-2d562820 (initial full review of revision 1, blob 2d562820, seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews, blockers 7 -> 2 -> 3; stopped with 3 IM-14 blockers open); LIFECYCLE-E3-703d0de1 (IM-14 audit; revisions 4 and 5; stopped after delta review 1: 5 blockers closed, 7 new admitted); LIFECYCLE-E4-5cf1d52a (re-chartered IM-14 audit; revisions 6 to 8; used both consolidated revisions and stopped at the final full consistency pass with 2 blockers, one an authority mismatch). Findings, verdicts and dispositions live here and never in the plan."
+description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. The governing epoch is LIFECYCLE-E5-b7a77c76 (subject plan revision 9, commit 42fec73f, blob b7a77c76): its initial review and its final full consistency pass each passed 7 of 7 with no consolidated revision, closing NOROW-F20 and IM-14-F64 (verdict PASS; publication met). Operator rulings OP-5, OP-2 and OP-1 (2026-09-25T23:56:45-07:00) permit harvest of S(A), S(C), S(B-core) and S(B-entry); S(D) is withheld until the IM-10 shipment exists. Earlier epochs, all under the parameters frozen in 2ca9d9a5 and all EPOCH_STOPPED with publication not met and nothing harvested: LIFECYCLE-E2-R1-2d562820 (initial full review of revision 1, blob 2d562820, seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews, blockers 7 -> 2 -> 3; stopped with 3 IM-14 blockers open); LIFECYCLE-E3-703d0de1 (IM-14 audit; revisions 4 and 5; stopped after delta review 1: 5 blockers closed, 7 new admitted); LIFECYCLE-E4-5cf1d52a (re-chartered IM-14 audit; revisions 6 to 8; used both consolidated revisions and stopped at the final full consistency pass with 2 blockers, one an authority mismatch). Findings, verdicts and dispositions live here and never in the plan."
 doc_type: review-manifest
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
@@ -35,15 +35,17 @@ verdict: PASS
 decision: PASS
 publication: met
 publication_eligible: true
-harvest_permitted: false
-harvest_permitted_reason: "awaiting OP-5"
-harvest_prerequisites: {OP-5: "pending: authorize harvest to read dispatch_mode and decision from the E5 verdict entry bound to blob b7a77c76", OP-2: "pending: keep or defer IM-09 D4 (default: D4 harvested as planned)", OP-1: "blocks the harvest of S(D) only"}
+harvest_permitted: true
+harvest_permitted_scope: [S(A), S(C), S(B-core), S(B-entry)]
+harvest_withheld: {shipment: S(D), reason: "gated on the IM-10 shipment existing (OP-1 approved; IM-10 not yet scheduled as a shipment)"}
+harvest_prerequisites: {OP-5: "authorized 2026-09-25T23:56:45-07:00: harvest reads dispatch_mode and decision from the E5 verdict entry bound to blob b7a77c76", OP-2: "keep 2026-09-25T23:56:45-07:00: IM-09 D4 stays in Unit D", OP-1: "approved 2026-09-25T23:56:45-07:00: IM-10 release unit (stash 9144435A) to be scheduled to ship before S(D); S(D) harvest waits for the IM-10 shipment"}
+operator_rulings_harvest: {at: "2026-09-25T23:56:45-07:00", OP-5: authorized, OP-2: keep, OP-1: approved}
 e2_stop: {epoch: LIFECYCLE-E2-R1-2d562820, last_subject_revision: 3, last_subject_commit: bd7002d5, last_subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 2, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails], operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}, operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}}
 e3_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
 e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: {at: "2026-09-25T22:29:53-07:00", outcome: re-charter, next: "LIFECYCLE-E4 (IM-14 audit re-chartered)"}}
 e4_epoch: {id: LIFECYCLE-E4-5cf1d52a, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: EPOCH_STOPPED}
 e4_stop: {epoch: LIFECYCLE-E4-5cf1d52a, last_subject_revision: 8, last_subject_commit: d47f64b1, last_subject_blob: 8d397c0559ae96da709620fc3db044124c068423, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 2, consolidated_revisions_limit: 2, blocking_open: [NOROW-F20, IM-14-F64], residue_audit: {blob: 8d397c0559ae96da709620fc3db044124c068423, personas: 7, result: no-claim}, stop_conditions_triggered: [authority-mismatch-between-artifacts, remediation-budget-exhausted-with-open-blockers, blockers-do-not-decline-across-revisions], operator_decision: {at: "2026-09-25T23:16:08-07:00", outcome: new-epoch, next: "LIFECYCLE-E5 (harvest_gate, Bottom Line Status, residue harvest clause)"}}
-e5_epoch: {id: LIFECYCLE-E5-b7a77c76, subject_revision: 9, subject_commit: 42fec73f, subject_blob: b7a77c7644fa97dff01c724480abfcbcea8f346d, derived_from: {revision: 8, commit: d47f64b1, blob: 8d397c0559ae96da709620fc3db044124c068423}, scope: "frontmatter (harvest_gate, revision and epoch metadata, hardening_pass only if needed), Bottom Line Status line, residue-rule harvest clause", blockers_targeted: [NOROW-F20, IM-14-F64], blockers_closed: [NOROW-F20, IM-14-F64], consolidated_revisions_used: 0, residue_audit: {blob: b7a77c7644fa97dff01c724480abfcbcea8f346d, personas: 7, result: no-claim}, verdict: PASS, decision: PASS, publication: met, harvest_permitted: false, harvest_permitted_reason: "awaiting OP-5"}
+e5_epoch: {id: LIFECYCLE-E5-b7a77c76, subject_revision: 9, subject_commit: 42fec73f, subject_blob: b7a77c7644fa97dff01c724480abfcbcea8f346d, derived_from: {revision: 8, commit: d47f64b1, blob: 8d397c0559ae96da709620fc3db044124c068423}, scope: "frontmatter (harvest_gate, revision and epoch metadata, hardening_pass only if needed), Bottom Line Status line, residue-rule harvest clause", blockers_targeted: [NOROW-F20, IM-14-F64], blockers_closed: [NOROW-F20, IM-14-F64], consolidated_revisions_used: 0, residue_audit: {blob: b7a77c7644fa97dff01c724480abfcbcea8f346d, personas: 7, result: no-claim}, verdict: PASS, decision: PASS, publication: met, harvest_permitted_at_verdict: false, harvest_permitted: true, harvest_authorized_by: "OP-5 (2026-09-25T23:56:45-07:00); scope S(A), S(C), S(B-core), S(B-entry); S(D) withheld"}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -1449,3 +1451,28 @@ at harvest):
 | E4 | IM-14-F47 (in part), IM-14-F49 to F55, IM-14-F57 to F59, IM-14-F60 (rest), IM-14-F62, IM-14-F63, IM-14-F65, NOROW-F22, NOROW-F23 |
 | E5 | IM-14-F66, IM-14-F67, IM-14-F68, NOROW-F24, NOROW-F25, NOROW-F26 |
 | Closed, not carried | NOROW-F20, IM-14-F64 (closed in E5); NOROW-F21 (moot); NOROW-F27 (closed in manifest) |
+
+## Operator Rulings: OP-5, OP-2, OP-1 (harvest authorization)
+
+Recorded at `2026-09-25T23:56:45-07:00`. Operator text, verbatim:
+
+```text
+OP-5: Authorized / OP-2: Keep / OP-1: Approved
+```
+
+| Item | Ruling | Meaning |
+|---|---|---|
+| OP-5 | Authorized | Harvest reads `dispatch_mode` and `decision` from the E5 verdict entry of this manifest, bound to plan blob `b7a77c7644fa97dff01c724480abfcbcea8f346d`. No `## Plan Review` section is appended to the plan; the plan blob stays unchanged. Harvesting any other blob does not satisfy the verdict |
+| OP-2 | Keep | IM-09 is kept: D4 (post-activation recovery fixture) stays in Unit D and is harvested with S(D) |
+| OP-1 | Approved | The IM-10 release unit (stash `9144435A`) is approved and is to be scheduled to ship before S(D). It gates the harvest of S(D) only |
+
+**Harvest scope now:** S(A), S(C), S(B-core) and S(B-entry), in the
+plan's dependency order (S(A) is the DAG root; each successor is blocked
+by its predecessor and stays queued).
+
+**Withheld:** S(D). It is harvested only after the IM-10 shipment exists.
+
+This section supersedes the "Harvest is not yet permitted" statement in
+the E5 Verdict above; the verdict, its binding to blob `b7a77c76` and the
+harvest-carry set are unchanged. The harvest-carry set lands as notes on
+each carrier at harvest.
