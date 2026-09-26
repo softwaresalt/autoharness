@@ -25,7 +25,7 @@ publication: not-met
 publication_eligible: false
 harvest_permitted: false
 stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails]
-operator_decision: pending
+operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -499,3 +499,23 @@ regex net:
 
 Then a new epoch E3 scoped to the IM-14 audit section only, with revision 3
 as its baseline and every other section frozen.
+
+### Operator Decision
+
+```text
+decided_at: 2026-09-25T20:47:56-07:00
+outcome: spike
+verdict: EPOCH_STOPPED (unchanged)
+harvest_permitted: false (unchanged)
+```
+
+The operator chose **spike** from the permitted outcomes: a spike to
+redesign the IM-14 non-claim audit. Rationale, quoted: "A misaligned audit
+will only become a long-term continuous nuisance to the development
+workflows."
+
+**Next.** After the operator ratifies the spike, a new epoch E3 opens,
+scoped to the IM-14 audit section only. Its baseline is plan revision 3
+(blob `ffa663de030a0a07baa5b62ea1078b750a0a4009`), and every other section
+stays frozen. Until then the verdict stays `EPOCH_STOPPED` and harvest
+stays blocked.
