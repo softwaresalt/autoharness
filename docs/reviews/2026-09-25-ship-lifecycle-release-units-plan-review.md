@@ -19,6 +19,8 @@ reviews:
   - {epoch: LIFECYCLE-E3-703d0de1, step: initial-review, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, decision: REVISE, blocking_open: 5}
   - {epoch: LIFECYCLE-E3-703d0de1, step: consolidated-revision-1, subject_revision: 5, subject_commit: 01cb89b9, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: REVISE, blocking_claimed_fixed: 5, blocking_open: 7}
   - {epoch: LIFECYCLE-E3-703d0de1, step: delta-review-1, subject_revision: 5, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: REVISE, blocking_closed: 5, blocking_open: 7}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: initial-review, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, decision: REVISE, blocking_open: 3}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-1, subject_revision: 7, subject_commit: 79c18cc0, subject_blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c, decision: pending-delta-review, blocking_claimed_fixed: 3}
 consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
 status: epoch-stopped
@@ -925,3 +927,109 @@ an indented `TOU` still joins with `TOC-`.
 | IM-14-F41 | Moot by construction | No `AUDITED`; the final closure pull request is a residue unit (L757) |
 | IM-14-F26 | Carried to harvest | The coverage module is not in the C5 CI module list (cell frozen apart from the unshallow removal) |
 | NOROW-F19 | Carried to harvest | Outside E4 scope |
+
+## E4 Initial Review
+
+```text
+epoch: LIFECYCLE-E4-5cf1d52a
+subject: plan revision 6, commit 33ad886b, blob 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809
+scope: changes only (E4-open regions); fresh reviewer sessions
+decision: REVISE
+```
+
+| Persona | Fresh session | Route | Decision |
+|---|---|---|---|
+| Security Lens Reviewer | `f0eaa4a1` | `gpt-6-sol` | PASS |
+| Architecture Strategist (lead) | `687d2cb2` | `gpt-6-sol` | PASS |
+| Python reviewer | `fca7a513` | `claude-opus-5.5` | PASS |
+| Agent-Native Parity Reviewer | `b466cc0a` | `gpt-6-sol` | REVISE |
+| Scope reviewer | `5bb49836` | `claude-opus-5.5` | REVISE |
+| Learnings reviewer | `296b2a2d` | `claude-opus-5.5` | REVISE |
+| Constitution Reviewer | `a8c11c68` | `claude-opus-5.5` | REVISE |
+
+**Closed or moot (unanimous).** The seven E3 blockers IM-14-F27 to
+IM-14-F33. Learnings reads F27 as closed only in part; that residue is
+IM-14-F43. Constitution's reading of F27 is IM-14-F46.
+
+**Stop-condition check.** Blockers declined (7 -> 3), and the new
+blockers (3) are fewer than those closed (7). Not triggered.
+
+### Findings (stable IDs)
+
+Line references are to revision 6.
+
+| Stable ID | Raised by (confidence) | Sev | Blocking | Revision 6 lines | Summary and remedy |
+|---|---|---|---|---|---|
+| IM-14-F42 (E4-B1) | Parity E4-ANP-F01 (10) | P2 | **Yes** | L725-728 | `FLOOR` reads as requiring all three files at C5, but B1's and D1's files do not exist yet, so C5's CI goes red. Remedy: C5 lists `harness_read.py`, B1 adds `harness_surfaces.py`, D1 adds `harness_verdict.py`; a listed file missing fails |
+| IM-14-F43 (E4-B2) | Scope E4-SBA-F01 (7); Learnings E4-LR-F01 (7) | P2 | **Yes** | L757 | Only the final closure pull request is a unit, so the closure pull requests of S(A), S(C), S(B-core) and S(B-entry) go unaudited. Remedy: each closure pull request is a unit, recorded where it is not circular (its body, which is not in its own diff) |
+| IM-14-F44 (E4-B3) | Constitution E4-CR-F01 (8) | P2 | **Yes** | L746 | "Everything outside `FLOOR`" drops claims inside floor files that the detector cannot see (`raceFree`, `isTOCTOUSafe`, "cannot be swapped between check and use"), contradicting the E3 F35 disposition. Remedy: residue also covers claims the test misses inside `FLOOR` |
+| IM-14-F45 | Constitution CR-F04 | P3 | No | L753 | "Harvest commits' own diffs" could be read as the merge's first-parent diff; say "each non-merge harvest commit's diff" |
+| IM-14-F46 | Constitution CR-F03 | P3 | No | L757-758 | Stage, not Ship, audits later plan or manifest edits as units |
+| IM-14-F47 | Python PY-F01 | P3 | No | L731-734 | Hyphen-dropped join only when line 1 ends with `-`; removing the required sentence replaces it with nothing |
+| IM-14-F48 | Scope SBA-F03 | P3 | No | L759 | "It may run the detector as an aid" is optional (36 B) |
+| IM-14-F49 | Constitution CR-F02 | P3 | No | L760-766 | Controls for a missing `FLOOR` file and an unused entry |
+| IM-14-F50 | Constitution CR-F05 | P3 | No | L747-757 | A checked-off record binds commit SHA and disposition; location of the final closure pull request record |
+| IM-14-F51 | Constitution CR-F06; Python PY-F03; Learnings LR-F03; Scope SBA-F02 | P3 | No | frozen B1 L362, B3 L385, B5, D2 L441 | Frozen "added to the audit inventory" cells: `FLOOR` grows only by B1 and D1; the rest is residue |
+| IM-14-F52 | Python PY-F02; Learnings LR-F02 | P3 | No | frozen B2, B4a, B4b Files | These tasks edit `harness_surfaces.py` without the audit test in Files; add it when touching a trigger or ledgered line |
+| IM-14-F53 | Python PY-F04 | P3 | No | L739-740 | The `LEDGER` path key is the repo-relative POSIX string used in `FLOOR` |
+| IM-14-F54 | Learnings LR-F04 | P3 | No | L753-754 | The manifest commit recording PASS lands through the harvest commits |
+| IM-14-F55 | Learnings LR-F05 | P3 | No | L755-757 | S(D)'s merge diff repeats D3's checked-off lines; skip them unless changed |
+
+## E4 Consolidated Revision 1 (subject revision 7)
+
+| Field | Value |
+|---|---|
+| Subject | Plan revision 7, commit `79c18cc0`, blob `0aa8b652bee6f4a0ca67316d450ca781f8953c1c`, 838 lines, LF, final newline |
+| Revisions used | 1 of 2 |
+| Author | Stage (`claude-opus-5.5` / `anthropic` / `high`) |
+| Changed body lines (revision 7 numbering) | 727-729 (Floor: staged `FLOOR`); 733-734 (Reading: hyphen join condition); 747-760 (Residue) |
+| Changed frontmatter lines | 3 (description: revision 7 sentence), 10 (`revision: 7`), 12 (`prior_revision` revision 6, `33ad886b`, `5cf1d52a`) |
+| Not changed | Every other line, including L190, the C5 cell, D3 preflight item 6 and every Files and Verification cell. No task, reason code, public name, subsystem or threat class added |
+| Review state | Pending delta review of the changes, then the final full consistency pass |
+
+### Contract Growth (revision 1 versus revision 7)
+
+| Measure | Revision 1 | Revision 6 | Revision 7 | Limit | Growth |
+|---|---:|---:|---:|---:|---:|
+| File bytes | 69163 | 82363 | 82414 | 82995 | +19.16% |
+| Body bytes (after frontmatter) | 63778 | 76498 | 76531 | 76533 | +19.997% (2 bytes left) |
+| Words | 10198 | 12098 | 12107 | 12237 | +18.72% |
+| Tasks | 17 | 17 | 17 | 20 | 0% |
+| Lines (not a limit) | 769 | 837 | 838 | none | +9.0% |
+
+The IM-14-F48 cut (36 bytes) paid for part of the blocker fixes.
+
+**Rule check (Stage, throwaway).** The rules at revision 7 L725-743
+were re-run against every control at L761-767, the F05, F10 and F11
+forms, `time-of-`/`check` and indented second lines. Three cases were
+added: C5's stage with only `harness_read.py` listed passes, a listed
+file missing fails, and `TOC`/`TOU` with no hyphen is not joined.
+All 32 cases matched.
+
+### Dispositions
+
+Line references are to revision 7 (blob `0aa8b652`).
+
+| ID | Blocking | Disposition | Evidence in revision 7 |
+|---|---|---|---|
+| IM-14-F42 | **Yes** | Fixed | L727-729 (C5 lists `harness_read.py`, B1 adds `harness_surfaces.py` and D1 `harness_verdict.py`; a listed file missing fails) |
+| IM-14-F43 | **Yes** | Fixed | L758-759 (each closure pull request is a unit, recorded in its body, which is outside its diff) |
+| IM-14-F44 | **Yes** | Fixed | L747-748 (residue covers everything outside `FLOOR` and any claim the test misses inside it) |
+| IM-14-F45 | No | Fixed | L755 (each non-merge harvest commit's diff) |
+| IM-14-F46 | No | Fixed | L759-760 (Stage audits later plan or manifest edits as units) |
+| IM-14-F47 | No | Fixed in part | L733-734 (hyphen join only when the first line ends in `-`). The "replace with nothing" reading of sentence removal is carried to C5 |
+| IM-14-F48 | No | Fixed | L760 (the optional detector-aid clause is cut) |
+| IM-14-F49 | No | Carried to harvest | C5 adds controls for a missing listed file and an unused entry (both rules are already stated at L729 and L743) |
+| IM-14-F50 | No | Carried to harvest | Each checked-off record names the commit SHA and the disposition. The closure pull request location is fixed by IM-14-F43 |
+| IM-14-F51 | No | Carried to harvest | Note on B1, B3, B5 and D2: `FLOOR` grows only by B1 and D1; other paths are residue units |
+| IM-14-F52 | No | Carried to harvest | B2, B4a and B4b add the audit test to Files when they touch a trigger or ledgered line of `harness_surfaces.py` |
+| IM-14-F53 | No | Carried to harvest | C5 note: the `LEDGER` path key is the repo-relative POSIX string used in `FLOOR` |
+| IM-14-F54 | No | Carried to harvest | The manifest commit recording PASS lands through the harvest commits and is audited as a unit |
+| IM-14-F55 | No | Carried to harvest | At S(D)'s closure, D3's checked-off lines are skipped unless changed (the incremental rule at L749-752) |
+
+**Harvest carries** (0 plan bytes): IM-14-F47 (in part) and IM-14-F49 to
+F55, plus the E3 carries IM-14-F26, IM-14-F35 (C5 note), IM-14-F39 and
+NOROW-F19.
+
+Totals: 3 blocking fixed; 4 non-blocking fixed, 1 fixed in part; 7
+carried to harvest. No finding declined.
