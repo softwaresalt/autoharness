@@ -96,12 +96,12 @@ The escalation route resolves via a role-scoped precedence:
    role-agnostic route) resolves instead, with a deprecation notice. This
    workspace declares no nested `stage.escalation` or `ship.escalation`
    override, so this is this workspace's currently-resolved escalation
-   route: `model_family = gpt-5.6-sol`, `model_provider = openai`,
-   `reasoning_effort = high` — a distinct vendor/family from the Stage role
-   route (`claude-opus-5`/`anthropic`), so the handoff can provide genuinely
+   route: `model_family = gpt-6-sol`, `model_provider = openai`,
+   `reasoning_effort = xhigh` — a distinct vendor/family from the Stage role
+   route (`claude-opus-5.5`/`anthropic`), so the handoff can provide genuinely
    independent analysis rather than a same-route no-op.
 3. **Tier3 fallback**: any field still unresolved after (1)/(2) falls back
-   per-field to `model_routing.tier3` (`claude-opus-5`; this workspace's
+   per-field to `model_routing.tier3` (`claude-opus-5.5`; this workspace's
    `tier3` is a plain model-identifier string, so its provider/reasoning-
    effort sub-fields resolve empty via fallback).
 
