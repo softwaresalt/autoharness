@@ -1,6 +1,6 @@
 ---
 title: "Review manifest: ship lifecycle release units A to D plan (LIFECYCLE-E2)"
-description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. It records epoch LIFECYCLE-E2-R1-2d562820 under the parameters frozen in 2ca9d9a5: the initial full review of plan revision 1 (blob 2d562820), seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews followed (blockers 7 -> 2 -> 3), and the epoch stopped with 3 IM-14 blockers open (verdict EPOCH_STOPPED; publication not met; nothing harvested). Epoch LIFECYCLE-E3-703d0de1 (IM-14 audit; subjects revisions 4 and 5) then stopped after delta review 1: 5 blockers closed, 7 new admitted (verdict EPOCH_STOPPED; publication not met; nothing harvested). Findings, verdicts and dispositions live here and never in the plan."
+description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. It records epoch LIFECYCLE-E2-R1-2d562820 under the parameters frozen in 2ca9d9a5: the initial full review of plan revision 1 (blob 2d562820), seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews followed (blockers 7 -> 2 -> 3), and the epoch stopped with 3 IM-14 blockers open (verdict EPOCH_STOPPED; publication not met; nothing harvested). Epoch LIFECYCLE-E3-703d0de1 (IM-14 audit; subjects revisions 4 and 5) then stopped after delta review 1: 5 blockers closed, 7 new admitted (verdict EPOCH_STOPPED; publication not met; nothing harvested). Epoch LIFECYCLE-E4-5cf1d52a (re-chartered IM-14 audit; subjects revisions 6 to 8) used both consolidated revisions and stopped at the final full consistency pass with 2 blockers, one an authority mismatch (verdict EPOCH_STOPPED; publication not met; nothing harvested). Findings, verdicts and dispositions live here and never in the plan."
 doc_type: review-manifest
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
@@ -22,7 +22,9 @@ reviews:
   - {epoch: LIFECYCLE-E4-5cf1d52a, step: initial-review, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, decision: REVISE, blocking_open: 3}
   - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-1, subject_revision: 7, subject_commit: 79c18cc0, subject_blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c, decision: REVISE, blocking_claimed_fixed: 3, blocking_open: 1}
   - {epoch: LIFECYCLE-E4-5cf1d52a, step: delta-review-1, subject_revision: 7, subject_blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c, decision: REVISE, blocking_closed: 3, blocking_open: 1}
-  - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-2, subject_revision: 8, subject_commit: d47f64b1, subject_blob: 8d397c0559ae96da709620fc3db044124c068423, decision: pending-delta-review, blocking_claimed_fixed: 1}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-2, subject_revision: 8, subject_commit: d47f64b1, subject_blob: 8d397c0559ae96da709620fc3db044124c068423, decision: PASS, blocking_claimed_fixed: 1}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: delta-review-2, subject_revision: 8, subject_blob: 8d397c0559ae96da709620fc3db044124c068423, decision: PASS, blocking_closed: 1, blocking_open: 0}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: final-full-consistency-pass, subject_revision: 8, subject_blob: 8d397c0559ae96da709620fc3db044124c068423, decision: REVISE, blocking_open: 2, residue_audit: no-claim}
 consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
 status: epoch-stopped
@@ -36,7 +38,8 @@ operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 s
 operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}
 e3_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
 e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: {at: "2026-09-25T22:29:53-07:00", outcome: re-charter, next: "LIFECYCLE-E4 (IM-14 audit re-chartered)"}}
-next_epoch: {id: LIFECYCLE-E4-5cf1d52a, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: pending}
+next_epoch: {id: LIFECYCLE-E4-5cf1d52a, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: EPOCH_STOPPED}
+e4_stop: {epoch: LIFECYCLE-E4-5cf1d52a, last_subject_revision: 8, last_subject_commit: d47f64b1, last_subject_blob: 8d397c0559ae96da709620fc3db044124c068423, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 2, consolidated_revisions_limit: 2, blocking_open: [NOROW-F20, IM-14-F64], residue_audit: {blob: 8d397c0559ae96da709620fc3db044124c068423, personas: 7, result: no-claim}, stop_conditions_triggered: [authority-mismatch-between-artifacts, remediation-budget-exhausted-with-open-blockers, blockers-do-not-decline-across-revisions], operator_decision: pending}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -871,7 +874,7 @@ harvest_permitted: false
 | Stop conditions | As in the convergence-reset deliberation (`docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md`, stop conditions); another attempt is not a permitted outcome on stop |
 | Carried findings | E3's F26, F34 to F41 and NOROW-F19: disposed of in E4 where the re-charter makes them moot, otherwise carried to harvest |
 | E2 and E3 | Verdicts stay `EPOCH_STOPPED`; `harvest_permitted` stays `false` |
-| E4 verdict | Pending |
+| E4 verdict | `EPOCH_STOPPED` at the final full consistency pass (see [E4 Epoch Stop](#e4-epoch-stop)); publication not met; `harvest_permitted` stays `false` |
 
 ### Revision 6 (E4 subject)
 
@@ -1129,3 +1132,94 @@ F55, F26, F35, F39 and NOROW-F19.
 
 Totals: 1 blocking fixed; 1 non-blocking fixed, 1 fixed in part; 3
 carried to harvest. No finding declined.
+
+## E4 Delta Review 2 (subject revision 8)
+
+```text
+epoch: LIFECYCLE-E4-5cf1d52a
+subject: plan revision 8, commit d47f64b1, blob 8d397c0559ae96da709620fc3db044124c068423
+scope: changes only
+decision: PASS (7 of 7)
+```
+
+All seven personas passed, in the same sessions as delta review 1.
+IM-14-F56 and IM-14-F61 are closed.
+
+| Stable ID | Raised by | Sev | Summary (harvest carry) |
+|---|---|---|---|
+| IM-14-F62 | Constitution CR-F09; Scope (timing note) | P3 | A record in a commit message can be lost by an amend; audit the staged diff at commit time |
+| IM-14-F63 | Learnings | P3 | A line can be audited twice once (at the Stage commit and again in a shipment diff); the first audit checks it off (with IM-14-F60) |
+| NOROW-F21 | Constitution CR-F10 | P3 | The plan description says "Revision 8 revises the subject (revision 6)" while `prior_revision` is 7. It is accurate (revision 6 is the E4 subject) but easy to misread. Plan text; not corrected under E4 |
+
+## E4 Final Full Consistency Pass (subject revision 8)
+
+```text
+subject: plan revision 8, blob 8d397c0559ae96da709620fc3db044124c068423
+decision: REVISE (4 PASS, 3 REVISE; 2 blocking)
+```
+
+| Persona | Session / route | Decision | Blocking IDs | `residue_audit` |
+|---|---|---|---|---|
+| Architecture Strategist (lead) | `687d2cb2` / `gpt-6-sol` | REVISE | NOROW-F20 (P1, 9) | no-claim |
+| Agent-Native Parity Reviewer | `b466cc0a` / `gpt-6-sol` | REVISE | NOROW-F20 (P1, 10) | no-claim |
+| Security Lens Reviewer | `f0eaa4a1` / `gpt-6-sol` | REVISE | IM-14-F64 (P2-critical, 8) | no-claim |
+| Constitution Reviewer | `a8c11c68` / `claude-opus-5.5` | PASS | none | no-claim |
+| Python reviewer | `fca7a513` / `claude-opus-5.5` | PASS | none | no-claim |
+| Scope reviewer | `5bb49836` / `claude-opus-5.5` | PASS | none | no-claim |
+| Learnings reviewer | `296b2a2d` / `claude-opus-5.5` | PASS | none | no-claim |
+
+**IM-14 persona residue audit (the plan and manifest unit).** All seven
+personas returned no-claim at blob
+`8d397c0559ae96da709620fc3db044124c068423`. This record stands, bound to
+that blob, whatever the epoch outcome. Any later edit to the plan or
+manifest is a new unit under the revision 8 Residue rule.
+
+### Blocking
+
+| Stable ID | Raised by (confidence) | Sev | Plan lines (rev 8) | Summary |
+|---|---|---|---|---|
+| NOROW-F20 | Lead (9); Parity (10); corroborated as non-blocking by Constitution CR-F11/CR-F12, Python (7), Scope SBA-F05, Learnings LR-F08 (P2)/LR-F09 | P1 | L49 (`harvest_gate`); Bottom Line Status (L70) | **Authority mismatch.** `harvest_gate` requires a "LIFECYCLE-E2 review PASS", but E2 is permanently `EPOCH_STOPPED` and E4 governs, so no PASS can satisfy the gate. The Status still says revision 3 / E2. It is a prerequisite for harvest, not a harvest carry, and needs an operator-authorized correction and review. The gate fails closed |
+| IM-14-F64 | Security E4-SLR-F02 (8) | P2 (IM-14-critical) | L755-760; OP-1 (L506-515, L613) | Non-merge harvest commits are audited only "before claiming S(A)". OP-1 lets S(D) be harvested later (after the IM-10 shipment exists), so a late harvest commit has no audit checkpoint, and Stage's later-edit rule covers only plan and manifest commits. Required: audit each harvest commit's own diff before the first Ship claim or closure after it lands. No historical rescan |
+
+### Non-Blocking (harvest carries unless the next epoch absorbs them)
+
+| Stable ID | Raised by | Sev | Summary |
+|---|---|---|---|
+| IM-14-F65 | Scope SBA-F06; Learnings LR-F10 | P3 | Add D4 (~L470, "test files added to the audit inventory") to the IM-14-F51 note |
+| NOROW-F22 | Constitution CR-F13; Scope SBA-F07; Learnings LR-F11; Python | P3 | The Plan-Harden record stops at revisions 3 and 4; add a no-new-signal note for revisions 5 to 8 |
+| NOROW-F23 | Constitution CR-F14 | P3 | L646 labels "Constitution V (explicit contracts)", but Principle V is Structured Observability |
+
+The stale `harvest_gate` and Status text (CR-F11, CR-F12, SBA-F05,
+LR-F08, LR-F09) is merged into NOROW-F20 and not counted separately.
+
+## E4 Epoch Stop
+
+```text
+epoch: LIFECYCLE-E4-5cf1d52a
+decision: EPOCH_STOPPED
+publication: not met
+harvest: not permitted
+operator_decision: pending
+```
+
+| Field | Value |
+|---|---|
+| Last subject | Plan revision 8, commit `d47f64b1`, blob `8d397c0559ae96da709620fc3db044124c068423` |
+| Consolidated revisions used | 2 of 2 (budget exhausted) |
+| Blocking trend | 3 (initial) -> 1 (delta 1) -> 0 (delta 2) -> 2 (final full consistency pass) |
+| Open blockers | NOROW-F20 (P1, authority mismatch), IM-14-F64 (P2, IM-14-critical) |
+| Stop conditions triggered | "An authority mismatch is found between artifacts" (NOROW-F20: the plan's gate names E2, but E4 governs); the remediation budget is exhausted with 2 blockers open; blockers rose (0 -> 2) |
+| Publication gate | **Not met** |
+| Harvest | Nothing harvested. Harvest reads its verdict from this manifest under OP-5, and `EPOCH_STOPPED` is not `PASS`, so it fails closed. The plan's `harvest_gate` also fails closed |
+| Plan revisions after the stop | None in E4. No revision 9 |
+| Record that stands | The IM-14 persona residue audit: no-claim at blob `8d397c05` |
+| E2 and E3 | Unchanged: `EPOCH_STOPPED` |
+
+**Where the blockers are.** One is procedural: the stale E2 gate and
+Status text (NOROW-F20). The other is a single IM-14 checkpoint for late
+harvest commits (IM-14-F64). Both remedies are small, but the plan has 1
+body byte of growth headroom.
+
+**Permitted outcomes (operator decision pending).** Split, spike,
+re-charter or new epoch, explicit risk acceptance, defer, or cancel. No
+outcome is chosen here.
