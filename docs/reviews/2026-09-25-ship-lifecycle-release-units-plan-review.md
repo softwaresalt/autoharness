@@ -40,6 +40,7 @@ harvest_permitted_scope: [S(A), S(C), S(B-core), S(B-entry)]
 harvest_withheld: {shipment: S(D), reason: "gated on the IM-10 shipment existing (OP-1 approved; IM-10 not yet scheduled as a shipment)"}
 harvest_prerequisites: {OP-5: "authorized 2026-09-25T23:56:45-07:00: harvest reads dispatch_mode and decision from the E5 verdict entry bound to blob b7a77c76", OP-2: "keep 2026-09-25T23:56:45-07:00: IM-09 D4 stays in Unit D", OP-1: "approved 2026-09-25T23:56:45-07:00: IM-10 release unit (stash 9144435A) to be scheduled to ship before S(D); S(D) harvest waits for the IM-10 shipment"}
 operator_rulings_harvest: {at: "2026-09-25T23:56:45-07:00", OP-5: authorized, OP-2: keep, OP-1: approved}
+harvest: {verdict_source: "E5 Verdict under OP-5, plan blob b7a77c7644fa97dff01c724480abfcbcea8f346d", status: harvested-4-of-5, shipments: {S(A): {feature: 186-F, shipment: 192-S, dag_root: true}, S(C): {feature: 187-F, shipment: 193-S, blocked_by: 192-S}, S(B-core): {feature: 188-F, shipment: 194-S, blocked_by: 193-S}, S(B-entry): {feature: 189-F, shipment: 195-S, blocked_by: 194-S}}, commits: [2b678b4d, 45c85206, e5334864, 90f23361, d633cd58], s_d: withheld, s_d_gate: "IM-10 shipment (stash 9144435A, OP-1)"}
 e2_stop: {epoch: LIFECYCLE-E2-R1-2d562820, last_subject_revision: 3, last_subject_commit: bd7002d5, last_subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 2, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails], operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}, operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}}
 e3_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
 e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: {at: "2026-09-25T22:29:53-07:00", outcome: re-charter, next: "LIFECYCLE-E4 (IM-14 audit re-chartered)"}}
@@ -1476,3 +1477,91 @@ This section supersedes the "Harvest is not yet permitted" statement in
 the E5 Verdict above; the verdict, its binding to blob `b7a77c76` and the
 harvest-carry set are unchanged. The harvest-carry set lands as notes on
 each carrier at harvest.
+
+## Harvest Record (S(A), S(C), S(B-core), S(B-entry))
+
+Recorded by Stage. **Verdict source:** the E5 Verdict entry of this
+manifest, read under OP-5 (`dispatch_mode: explicit-model subagent`,
+`decision: PASS`), bound to plan blob
+`b7a77c7644fa97dff01c724480abfcbcea8f346d`. No `## Plan Review` section
+was appended to the plan; the plan blob is unchanged. **Status:** 4 of 5
+release units harvested; S(D) is withheld until the IM-10 shipment exists
+(OP-1).
+
+### Harvested Items
+
+| Unit | Feature | Tasks (plan task) | Shipment | Harvest commit |
+|---|---|---|---|---|
+| S(A) | `186-F` | `186.001-T` (A1), `186.002-T` (A2) | `192-S` | `2b678b4d` |
+| S(C) | `187-F` | `187.001-T` (C1), `187.002-T` (C2), `187.003-T` (C3), `187.004-T` (C4), `187.005-T` (C5) | `193-S` | `45c85206` |
+| S(B-core) | `188-F` | `188.001-T` (B1), `188.002-T` (B2), `188.003-T` (B3) | `194-S` | `e5334864`, fix `d633cd58` |
+| S(B-entry) | `189-F` | `189.001-T` (B4a), `189.002-T` (B4b), `189.003-T` (B5) | `195-S` | `90f23361` |
+
+`d633cd58` restores two acceptance-criteria bullet breaks in each of
+`188.001-T`, `188.002-T` and `188.003-T`; the bullet text is unchanged.
+
+### Dependency Edges
+
+- Task `blocks` edges (each task is blocked by its predecessor):
+  `186.001-T` -> `186.002-T`; `187.001-T` -> `187.002-T` -> `187.003-T`
+  -> `187.004-T` -> `187.005-T`; `188.001-T` -> `188.002-T` ->
+  `188.003-T`; `189.001-T` -> `189.002-T` -> `189.003-T`.
+- Shipment `blocks` edges: `192-S` -> `193-S` -> `194-S` -> `195-S`
+  (`193-S` is blocked by `192-S`, and so on). The plan's B3 -> B4a order
+  crosses the S(B-core)/S(B-entry) boundary and is carried by the
+  `195-S` <- `194-S` shipment edge; no cross-shipment task edge exists.
+- `dag-root` label: `192-S` only. `193-S`, `194-S` and `195-S` stay
+  `queued` behind their predecessors.
+
+### Carry Landing
+
+Every carry in the E5 Verdict harvest-carry set, with its carrier or
+landing place. "Ship record" means: Ship record practice at each residue
+checkpoint (plan Non-Claim Audit Inventory); Ship reads this table
+before claiming `192-S`.
+
+| Carry | Origin | Landed on |
+|---|---|---|
+| IM-16-F02.1 | E2 | `188.002-T` (B2), S(B-core) `194-S` |
+| CONST-II-F01 | E2 | `187.001-T` (C1) and `187.005-T` (C5), S(C) `193-S`; `188.001-T` (B1) and `188.003-T` (B3), S(B-core) `194-S`; `189.003-T` (B5), S(B-entry) `195-S`, with a recorded not-applied determination on `189.001-T` (B4a). D tasks: S(D) harvest |
+| NOROW-F18 | E2 | `187.005-T` (C5), S(C) `193-S`; repeat on D1: S(D) harvest |
+| NOROW-F03 | E2 deferral | `187.003-T` (C3, optional), S(C) `193-S` |
+| IM-02-F01 | E2 deferral | IM-10 unit (stash `9144435A`); context notes only, not carries, on `188.003-T` and `189.001-T` |
+| IM-14-F26 | E3 | `187.005-T` (C5), S(C) `193-S` |
+| IM-14-F35 | E3 | `187.005-T` (C5 note), S(C) `193-S` |
+| IM-14-F39 | E3 | Ship record |
+| NOROW-F19 | E3 | Next plan revision (no behavior change; not blocking) |
+| IM-14-F47 (in part) | E4 | `187.005-T` (C5), S(C) `193-S` |
+| IM-14-F49 | E4 | `187.005-T` (C5), S(C) `193-S` |
+| IM-14-F50 | E4 | Ship record |
+| IM-14-F51 | E4 | `188.001-T` (B1) and `188.003-T` (B3), S(B-core) `194-S`; `189.003-T` (B5), S(B-entry) `195-S` |
+| IM-14-F52 | E4 | `188.002-T` (B2), S(B-core) `194-S`; `189.001-T` (B4a) and `189.002-T` (B4b), S(B-entry) `195-S` |
+| IM-14-F53 | E4 | `187.005-T` (C5), S(C) `193-S` |
+| IM-14-F54 | E4 | Ship record |
+| IM-14-F55 | E4 | S(D) harvest |
+| IM-14-F57 | E4 | `187.005-T` (C5), S(C) `193-S` |
+| IM-14-F58 | E4 | Ship record |
+| IM-14-F59 | E4 | Ship record |
+| IM-14-F60 (rest) | E4 | Ship record |
+| IM-14-F62 | E4 | Ship record |
+| IM-14-F63 | E4 | Ship record |
+| IM-14-F65 | E4 | S(D) harvest |
+| NOROW-F22 | E4 | Next plan revision (no behavior change; not blocking) |
+| NOROW-F23 | E4 | Next plan revision (no behavior change; not blocking) |
+| IM-14-F66 | E5 | Next plan revision (no behavior change; not blocking) |
+| IM-14-F67 | E5 | Features `187-F`, `188-F` and `189-F` (harvest notes) and `187.005-T` (C5 note) |
+| IM-14-F68 | E5 | Ship record |
+| NOROW-F24 | E5 | Next plan revision (no behavior change; not blocking) |
+| NOROW-F25 | E5 | Next plan revision (no behavior change; not blocking) |
+| NOROW-F26 | E5 | Next plan revision (no behavior change; not blocking) |
+
+S(A) carries no carry: `186.001-T` and `186.002-T` each record "none".
+
+### Ship Residue Audit of the Harvest Commits
+
+Per the plan's Residue rule (plan lines 754 to 756), Ship audits each
+non-merge harvest commit's own diff before the first Ship claim or
+closure after it lands, and records the result in a session note. The
+audit units are the five harvest commits: `2b678b4d`, `45c85206`,
+`e5334864`, `90f23361` and `d633cd58`. Each carries a Stage residue-audit
+note in its commit message; that note does not replace the Ship audit.
