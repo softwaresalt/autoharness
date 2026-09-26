@@ -1,15 +1,15 @@
 ---
 title: "Ship lifecycle release units A to D (rebaselined plan, LIFECYCLE-E2 subject)"
-description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 2 answers the LIFECYCLE-E2-R1-2d562820 initial full review; not publication-eligible; not implementation-ready until a LIFECYCLE-E2 PASS."
+description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 3 is consolidated revision 2 of 2 of LIFECYCLE-E2-R1-2d562820, answering its delta reviews; not publication-eligible; not implementation-ready until a LIFECYCLE-E2 PASS."
 doc_type: plan
 source: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
 plan_path: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 plan_role: active
-revision: 2
+revision: 3
 status: pending-review
-prior_revision: {revision: 1, commit: c7363567, blob: 2d5628206de3ab8083ec8ac173fa5283663f9b01}
+prior_revision: {revision: 2, commit: fcae22da, blob: 1828ecb9462762945979fbbfc1a73320f5975653}
 review_epoch: LIFECYCLE-E2-R1-2d562820
 review_manifest: docs/reviews/2026-09-25-ship-lifecycle-release-units-plan-review.md
 review_epoch_family: LIFECYCLE-E2
@@ -18,7 +18,7 @@ publication_eligible: false
 implementation_ready: false
 requires_plan_hardening: yes
 hardening_status: hardened
-hardening_pass: "plan-harden run as its own pass on 2026-09-25 (revision 1), and its checks re-run over every section revision 2 touched"
+hardening_pass: "plan-harden run as its own pass on 2026-09-25 (revision 1), and its checks re-run over every section revisions 2 and 3 touched"
 supersedes_plan: docs/plans/2026-09-18-ship-harness-lifecycle-foundation-plan.md
 supersedes_note: "The revision 12 plan is the frozen diagnostic record for the retired 187-S / 181-F (charter section 4.2, PE-SCOPE-01). It is not edited. This plan does not restate it and does not inherit any of its contracts except where a section below cites it as a frozen diagnostic input."
 governing_sources:
@@ -67,7 +67,7 @@ labels:
 | Order | **A -> C -> B -> D**, as five shipments: S(A) -> S(C) -> S(B-core) -> S(B-entry) -> S(D). A is the only `dag-root`. S(D) also waits on the separate IM-10 shipment |
 | Does C fold into B? | **No.** B alone needs 550 minutes and ships as two shipments. C adds 5 tasks and 435 minutes (see [Budgets](#release-units-and-budgets)) |
 | Linux | IM-01 is a **non-waivable** release gate for C, B and D. Windows evidence never satisfies it |
-| Status | Revision 2, answering the `LIFECYCLE-E2-R1-2d562820` initial full review (findings in the review manifest). Not publication-eligible. Not implementation-ready. No backlog item exists yet |
+| Status | Revision 3, consolidated revision 2 of 2 of `LIFECYCLE-E2-R1-2d562820` (findings in the review manifest). Not publication-eligible. Not implementation-ready. No backlog item exists yet |
 
 ## Authority and Status
 
@@ -140,8 +140,6 @@ containment (Option D) and split the work into independently valuable units.
 
 ## Release Units and Budgets
 
-| Unit | Content | Independent value | Tasks | Minutes | Within budget |
-|---|---|---|---:|---:|---|
 | Shipment | Content | Independent value | Tasks | Minutes | Within budget |
 |---|---|---|---:|---:|---|
 | S(A) | P-002/P-004 policy and harness-architect actor text: per-task expected-RED roster (R2), `harness-surface` task scoping, characterization carve-out | The evidence contract is true, per task, and checked by structural tests | 2 | 170 | Yes |
@@ -165,7 +163,9 @@ method name. It reaches a RED-phase stub that raises exactly
 derives the suffix deterministically from the test's distinct request.
 The harness asserts the roster's markers are pairwise distinct, and the RED
 record maps each roster test to its marker. Two roster tests sharing one
-marker is a cross-test marker, which FI-9 refuses (IM-13-F01).
+marker is a cross-test marker, which FI-9 refuses. Structural tests that
+reach no stub (API, docstring, schema parity, pinned hash, alias, audit)
+are recorded outside the roster, like characterization tests.
 
 ## Requirements Trace (implementation matrix)
 
@@ -176,7 +176,7 @@ predesignated `P2-critical` are marked. Severity and deferral are as ratified.
 |---|---|---|---|---|
 | IM-01 | P1, non-waivable | Linux-native execution of the full Proof G case set in CI | C5 (gate); precondition of shipping C, B and D | C5's CI job on `ubuntu-latest` runs the four containment modules with `TMPDIR` exported; the job fails on a non-zero unittest exit or any skipped test, and records `platform.system()`, the kernel and the filesystem type of the effective fixture root. The Proof G case-ID coverage test (C5) proves G01 to G32 each map to a named test |
 | IM-02 | P1 | Cross-platform acceptance | C5 + D3 preflight | Windows: Ship's local run of the containment modules on NTFS, recorded. Linux: IM-01 CI evidence. D3 halts if either is missing |
-| IM-03 | P1 | Closed taxonomy and result schema, schema-parity-complete; reproduce 47 codes, 2/4/41, 9 mutants | B1, B5 | B1: registry equals FI-6 (governing constant held separately), derived counts, schema branch per code, 9 mutant rejections. B5: every code reachable through the real resolver and CLI on fixtures; every output validates |
+| IM-03 | P1 | Closed taxonomy and result schema, schema-parity-complete; reproduce 47 codes, 2/4/41, 9 mutants | B1, B5 | B1: registry equals FI-6 (governing constant held separately), derived counts, schema branch per code, 9 mutant rejections. B5: all 47 codes through the real reducer `_resolve` (small limits for read-limit codes), and through `resolve_shipment` and the CLI every code reachable with the defaults; every output validates |
 | IM-04 | P1 | Admitted `1..48`, `max_files=256`, no byte fit, `UNRESOLVED / 2` at every stage; plus multi-error first-code, byte-code applicability at absent candidates, precedence without short-circuit | B2 (bound), B4b (stages and the three tests) | B2: 1, 48 admitted; 49, 512, 513 -> `MEMBERS_TOO_MANY` with at most 4 claims and zero member lookups. B4b: injection at each of the 7 `ReadStage` values; the three limitation tests named in [B4b](#b4b-reducer-early-return-and-resolver-entry) |
 | IM-05 | P1 | Bounded raw reads loop to EOF or cap+1; same measure on both OSes | C3 | cap, cap+1, 4096 B over cap, total and count tests; unbuffered binary reads on both hosts, with every raw read request bounded by the remaining limit + 1; short reads continue the loop; `\r\n\x1a` bytes returned unchanged |
 | IM-06 | P1 | No public or caller-supplied traversal adapter; test seams private | C1 (API), C3 (usage seam) | API test asserts the public names and that no public callable accepts an adapter or opener parameter. The private patch points are named in [Unit C](#unit-c-portable-ordinary-containment-reader) and [B4b](#b4b-reducer-early-return-and-resolver-entry) |
@@ -187,7 +187,7 @@ predesignated `P2-critical` are marked. Severity and deferral are as ratified.
 | IM-11 | P1 | At most 6 tasks and 8 hours per shipment; independent value; two-axis sizing | Harvest (all units) | [Budgets](#release-units-and-budgets) table (B split into two shipments); harvest writes `size` and `complexity` on every task |
 | IM-12 | P1 | Manifest checksums from raw staged-blob bytes | A1, A2, D3 | Before refresh, the recorded checksum equals the SHA-256 of `HEAD:<path>`, else halt on drift. Python subprocess with binary capture of `git cat-file -p :<path>` before commit and `HEAD:<path>` after; `git add --renormalize` only when an `eol=lf` pin is added; no PowerShell text capture |
 | IM-13 | P1 | P-004 RED uses the exact canonical command and per-test marker attribution under R2 | A1, A2 (text); every `harness-surface:harness-architect` task (practice) | A1/A2 structural tests; each code task's RED record (task ID, exact command, native exit, per-roster-test outcome and its own marker per the [Marker Convention](#marker-convention)) before implementation |
-| IM-14 | **P2-critical** | No artifact claims race, TOCTOU or hardlink-alias resistance | All units | The one [non-claim audit inventory](#non-claim-audit-inventory) covers every A to D artifact; C5 creates the audit, B1, B5, D1, D2 and D4 extend it, and D3's preflight and each closure run it |
+| IM-14 | **P2-critical** | No artifact claims race, TOCTOU or hardlink-alias resistance | All units | The one [non-claim audit inventory](#non-claim-audit-inventory) covers every A to D artifact and every path in each shipment's diff; C5 creates the audit, B1, B3, B5, D1, D2 and D4 extend it, and D3's preflight and each closure run it |
 | IM-15 | P1 | Publication, execution and claim/closure gates distinct; a test or proof `PASS` confers no claim authority | All units | No carrier or artifact asserts claim readiness from a review or test result; ordinary P-001/P-002/P-004/P-020 gates at claim and closure |
 | IM-16 | P1 | Early return decided; test both orders | C3 (usage seam), B4b (private limits hook) | Test (a) disagreement first -> `INPUT_CHANGED_DURING_RESOLUTION`; test (b) read-limit first -> the read-limit code, native code and stage in diagnostics, and **zero** further claims after the first limit error; (b) covers all three codes and each feasible stage; infeasible stages recorded with reasons |
 | IM-17 | P1 (closed) | The ratified 47-code list is the contract; no revision | B1 | B1's registry test compares against a constant copied from the hash-pinned block; any difference fails |
@@ -262,7 +262,7 @@ serial.
   There is **no adapter, opener or callback parameter** anywhere (IM-06).
   Tests use real temporary directories. The private patch points are
   exactly `_is_contained(root, target)` (C2) and `_read_chunk(fd, n)` (C3);
-  tests patch nothing else (IM-06-F01).
+  tests patch no other module function; C1's resolve counter and C3's open counter only spy on `os.path.realpath` and `os.open`.
 
 **Order of checks per request.** Lexical (no filesystem access) -> file
 claim (one slot, never refunded; over the count limit -> `FILE_COUNT_LIMIT`
@@ -358,9 +358,9 @@ is a re-charter.
 
 | Field | Value |
 |---|---|
-| Files | `src/autoharness/harness_surfaces.py`; `schemas/harness-resolution.schema.json`; `schemas/harness-resolution/1.0.0.schema.json`; `src/autoharness/schema_contracts.py`; `tests/test_harness_resolution_contract.py` |
+| Files | `src/autoharness/harness_surfaces.py`; `schemas/harness-resolution.schema.json`; `schemas/harness-resolution/1.0.0.schema.json`; `src/autoharness/schema_contracts.py`; `tests/test_harness_resolution_contract.py`; `tests/test_harness_noclaim_audit.py` |
 | Change | Frozen result types, the state/exit table, `ReadStage`, and the 47-code registry with class, state and exit, in listed order (FI-6). The result field set is that of the proven `c3_schema.json` (FI-7), with `declarations` as ratified. Both schema files are new and equal except `$id` (the root file's `$id` names the unversioned path, the mirror's names `harness-resolution/1.0.0`), `additionalProperties: false`, closed enums, one `oneOf` branch per code binding state and exit; register the contract with `current_version` `1.0.0` (per `docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md`) |
-| Verification | Registry equals a test-local constant copied from the hash-pinned block, and the governing 8 codes from a second constant, never derived from the registry; derived counts 47 and 2/4/41 recorded; the two schema files are equal after removing `$id`, and the `1.0.0` mirror's SHA-256 is pinned in the test; every code has exactly one schema branch; the 9 Proof C mutants are rejected, including `READ_BUDGET_EXHAUSTED` and a class 1b code replaced by `MEMBERS_TOO_MANY`; the module and both schemas are added to the audit inventory |
+| Verification | Registry equals a test-local constant copied from the hash-pinned block, and the governing 8 codes from a second constant, never derived from the registry; derived counts 47 and 2/4/41 recorded; the two schema files are equal after removing `$id`, and the `1.0.0` mirror's SHA-256 over LF-normalized bytes is pinned in the test; every code has exactly one schema branch; the 9 Proof C mutants are rejected, including `READ_BUDGET_EXHAUSTED` and a class 1b code replaced by `MEMBERS_TOO_MANY`; B1's paths are added to the audit inventory |
 | Marker | `AHLC_B1_RESOLUTION_CONTRACT` (prefix) |
 | Label | `harness-surface:harness-architect` |
 | Estimate | 85 min; size `M`; complexity `medium` |
@@ -371,7 +371,7 @@ is a re-charter.
 |---|---|
 | Files | `src/autoharness/harness_surfaces.py`; `tests/test_harness_surfaces_records.py` |
 | Change | Backlog root: `.backlog/` or legacy `.backlogit/`; neither -> `BACKLOG_ROOT_NOT_FOUND`; both -> `BACKLOG_ROOT_AMBIGUOUS`. The two fixed names are probed with `os.path.isdir` under the workspace root; a probe is not a file claim. `BACKLOGIT_WORKSPACE_DIR` and `backlog_root.py` are not used, so no override can select a root. Shipment ID syntax, then both exact candidates (`queue/<id>.md`, `archive/<id>.md`); exactly one present; frontmatter `id` and `artifact_type` must agree. `custom_fields.items` 1..48 unique (FI-1); feature and task members only; features never expand; at least one task. Each task declares exactly one `harness-surface:<id>` label or `harness-surface:none`; feature members declare none; class 3 tie-break in listed order; an unknown well-formed surface -> `SURFACE_UNSUPPORTED` |
-| Verification | One fixture per class 2 and class 3 code; 1 and 48 admitted; 49, 512, 513 -> `MEMBERS_TOO_MANY` with `usage.files_claimed <= 4` and no member candidate read; mixed, duplicate, malformed and missing declarations; class 3 tie-break fixtures in which listed order disagrees with both task-ID order and first-encountered order; with `BACKLOGIT_WORKSPACE_DIR` set, the result is unchanged |
+| Verification | One fixture per class 2 and class 3 code; 1 and 48 admitted; 49, 512, 513 -> `MEMBERS_TOO_MANY` with `usage.files_claimed <= 4` on the reader the test passes in, and no member candidate read; mixed, duplicate, malformed and missing declarations; class 3 tie-break fixtures in which listed order disagrees with both task-ID order and first-encountered order; with `BACKLOGIT_WORKSPACE_DIR` set, the result is unchanged |
 | Marker | `AHLC_B2_RECORDS_MEMBERSHIP` (prefix) |
 | Label | `harness-surface:harness-architect` |
 | Estimate | 95 min; size `S`; complexity `medium` |
@@ -380,9 +380,9 @@ is a re-charter.
 
 | Field | Value |
 |---|---|
-| Files | `src/autoharness/harness_surfaces.py`; `tests/test_harness_surfaces_manifest.py` |
+| Files | `src/autoharness/harness_surfaces.py`; `src/autoharness/verify_workspace.py` (alias only); `tests/test_harness_surfaces_manifest.py`; `tests/test_harness_noclaim_audit.py` |
 | Change | Only when the surface union is non-empty. One manifest read and one YAML parse through a `yaml.SafeLoader` subclass that rejects duplicate mapping keys (`MANIFEST_DUPLICATE_KEY`), decode (`MANIFEST_DECODE_INVALID`), YAML (`MANIFEST_YAML_INVALID`) and shape (`MANIFEST_SHAPE_INVALID`) checks; a global failure emits no per-surface rows. Per surface, in order: zero path matches -> `MISSING` / `MANIFEST_ENTRY_NOT_FOUND`; several -> `INVALID` / `MANIFEST_ENTRY_AMBIGUOUS`; template mismatch -> `INVALID` / `MANIFEST_TEMPLATE_MISMATCH`; then template read and render with the manifest's one top-level `variables_used` mapping through the existing pure renderer, called via a new module-level alias `verify_workspace.render_template` bound to `_render_template` (one grammar; UTF-8, LF), unresolved placeholders -> `INVALID` / `TEMPLATE_VARIABLE_UNRESOLVED`; installed missing -> `MISSING`; render or checksum disagreement -> `STALE` (`RENDER_MISMATCH` or `CHECKSUM_MISMATCH`); both equal -> `PRESENT` |
-| Verification | One fixture per class 5, 6 and 7 code, all in temporary workspaces; no test reads the real repository surface (IM-10); a duplicate key nested below the top level is rejected |
+| Verification | One fixture per class 5, 6 and 7 code, all in temporary workspaces; no test reads the real repository surface (IM-10); a duplicate key nested below the top level is rejected; `render_template is _render_template`; B2's and B3's paths are added to the audit inventory |
 | Marker | `AHLC_B3_MANIFEST_CLASSIFY` (prefix) |
 | Label | `harness-surface:harness-architect` |
 | Estimate | 100 min; size `S`; complexity `medium` |
@@ -403,8 +403,8 @@ is a re-charter.
 | Field | Value |
 |---|---|
 | Files | `src/autoharness/harness_surfaces.py`; `tests/test_harness_surfaces_reducer.py` |
-| Change | The keyword-only entry `resolve_shipment(*, workspace_root, shipment_id)`, which calls the private `_resolve(*, workspace_root, shipment_id, limits)` with the FI-2 defaults. `_resolve`'s `limits` is the only B patch point (IM-06); no public caller can pass limits. Reducer order 1, 1b, 2 to 8 with first-applicable selection (FI-6). Early return (FI-5): the first read-limit error stops all further read and recheck requests |
-| Verification | IM-16 and IM-04 tests call `_resolve` with small `ReadLimits` so every read-limit code is reachable (with the defaults, `FILE_COUNT_LIMIT` is not). **IM-16 (a)**: a completed disagreeing ledger recheck, and separately a completed disagreeing surface recheck, each followed by a read-limit error -> `INPUT_CHANGED_DURING_RESOLUTION`. **IM-16 (b)**: for each of the three read-limit codes and each feasible stage, a read-limit error first with a later recheck arranged to disagree -> that code, native code and stage in diagnostics, and `usage.files_claimed` unchanged after the error; infeasible stages recorded with the reason (for example, byte codes at an absent candidate). **IM-04**: two read-limit errors in both orders -> the first-occurring code at the reducer; byte codes never raised at an absent candidate; each higher class beats every lower class without short-circuiting the collection of lower-class facts |
+| Change | The keyword-only entry `resolve_shipment(*, workspace_root, shipment_id)`, which calls the private `_resolve(*, workspace_root, shipment_id, limits)` with the FI-2 defaults. `_resolve`'s `limits` is the only B patch point (IM-06); no public caller can pass limits. `_resolve` returns the result and the reader's `ReadUsage`; `resolve_shipment` returns only the result. Reducer order 1, 1b, 2 to 8 with first-applicable selection (FI-6). Early return (FI-5): the first read-limit error stops all further read and recheck requests |
+| Verification | IM-16 and IM-04 tests call `_resolve` with small `ReadLimits` so every read-limit code is reachable (with the defaults, `FILE_COUNT_LIMIT` is not). **IM-16 (a)**: a completed disagreeing ledger recheck, and separately a completed disagreeing surface recheck, each followed by a read-limit error -> `INPUT_CHANGED_DURING_RESOLUTION`. **IM-16 (b)**: for each of the three read-limit codes and each feasible stage, a read-limit error first with a later recheck arranged to disagree -> that code, native code and stage in diagnostics, and `usage.files_claimed` unchanged after the error; infeasible stages recorded with the reason (for example, byte codes at an absent candidate). **IM-04**: two read-limit errors in both orders -> the first-occurring code at the reducer; byte codes never raised at an absent candidate; each higher class beats every lower class, with the lower-class fact first in both encounter and task-ID order, without short-circuiting the collection of lower-class facts |
 | Marker | `AHLC_B4B_REDUCER_EARLY_RETURN` (prefix) |
 | Label | `harness-surface:harness-architect` |
 | Estimate | 110 min; size `S`; complexity `medium` |
@@ -413,9 +413,9 @@ is a re-charter.
 
 | Field | Value |
 |---|---|
-| Files | `src/autoharness/cli.py`; `tests/test_harness_resolve_cli.py` |
-| Change | `harness resolve --workspace <path> --shipment <id> --json`. Parse errors behave as ordinary argparse (usage on stderr, exit 2, no document); `--help` prints help to stdout, exits 0 and emits no document. After a successful parse, `--json` writes exactly one UTF-8 document followed by one LF, as `sys.stdout.buffer.write(doc + b"\n")`, writes nothing to stderr (CR-B5), and exits with the document's `exit_code`. `cli.py` and the captured `harness resolve --help` text are added to the audit inventory |
-| Verification | Every one of the 47 codes is reachable through `resolve_shipment` and the CLI on fixtures (read-limit codes through `_resolve`), and every output validates against the B1 schema (IM-03); stdout is exactly one document plus one LF; stderr is empty on every post-parse path; exit equals `exit_code`; parse errors emit no JSON |
+| Files | `src/autoharness/cli.py`; `tests/test_harness_resolve_cli.py`; `tests/test_harness_noclaim_audit.py` |
+| Change | `harness resolve --workspace <path> --shipment <id> --json`. Parse errors behave as ordinary argparse (usage on stderr, exit 2, no document); `--help` prints help to stdout, exits 0 and emits no document. After a successful parse, `--json` writes exactly one UTF-8 document followed by one LF, as `sys.stdout.buffer.write(doc + b"\n")`, writes nothing to stderr (CR-B5), and exits with the document's `exit_code`. B4a's to B5's paths and the captured `harness resolve --help` text are added to the audit inventory |
+| Verification | All 47 codes through `_resolve` (small limits for read-limit codes); every code reachable with the defaults also through `resolve_shipment` and the CLI; every output validates against the B1 schema (IM-03); stdout is exactly one document plus one LF; stderr is empty on every post-parse path; exit equals `exit_code`; parse errors emit no JSON |
 | Marker | `AHLC_B5_CLI_ENVELOPE` (prefix) |
 | Label | `harness-surface:harness-architect` |
 | Estimate | 80 min; size `S`; complexity `medium` |
@@ -429,8 +429,8 @@ file). S(B-core) holds B1 to B3 and S(B-entry) holds B4a to B5.
 
 | Field | Value |
 |---|---|
-| Files | `src/autoharness/harness_verdict.py`; `tests/test_harness_verdict.py`; `tests/test_harness_verdict_handoff.py` |
-| Change | `accept_resolution(*, requested_shipment, process_status, stdout: bytes, stderr: bytes) -> Accepted | NotObserved`. **Capture contract:** Ship runs `harness resolve ... --json` with stdout and stderr each redirected as raw bytes to its own file, records the native exit status, then runs `python -m autoharness.harness_verdict --shipment <id> --status <int> --stdout-file <path> --stderr-file <path>`. The entry reads both files as bounded bytes and prints exactly one line: `accepted <state> <reason_code> <exit_code>` (exit 0) or `resolver-not-observed <sub-code>` (exit 1); an entry usage error (exit 2) is also not observed. Accepted only when stdout holds exactly one UTF-8 JSON document followed by at most one LF, schema-valid against B1, with shipment, state, reason, `exit_code` and process status all consistent, and stderr empty. Otherwise the literal outcome `resolver-not-observed` (CR-B2) with a diagnostic sub-code. Sub-codes are diagnostics only; nothing branches on them (CR-B1). `exit_code` must be a JSON integer token, never a float such as `1.0` (CR-B3). Parsing is total: bounded input size, nesting depth bounded before `json.loads`, and `RecursionError` or `MemoryError` -> `resolver-not-observed` (CR-B4). `object_pairs_hook` rejects duplicate keys and `parse_constant` rejects `NaN` and `Infinity`. The module is added to the audit inventory |
+| Files | `src/autoharness/harness_verdict.py`; `tests/test_harness_verdict.py`; `tests/test_harness_verdict_handoff.py`; `tests/test_harness_noclaim_audit.py` |
+| Change | `accept_resolution(*, requested_shipment, process_status, stdout: bytes, stderr: bytes) -> Accepted | NotObserved`. **Capture contract:** Ship runs `harness resolve ... --json` with stdout and stderr each redirected as raw bytes to its own file under the Git-ignored `.proof-scratch/harness-resolve/`, records the native exit status, then runs `python -m autoharness.harness_verdict --shipment <id> --status <int> --stdout-file <path> --stderr-file <path>`. The entry reads both files as bounded bytes and prints exactly one line: `accepted <state> <reason_code> <exit_code>` (exit 0) or `resolver-not-observed <sub-code>` (exit 1); an entry usage error (exit 2) is also not observed. Ship deletes both files after the entry returns. Accepted only when stdout holds exactly one UTF-8 JSON document followed by at most one LF, schema-valid against B1, with shipment, state, reason, `exit_code` and process status all consistent, and stderr empty. Otherwise the literal outcome `resolver-not-observed` (CR-B2) with a diagnostic sub-code. Sub-codes are diagnostics only; nothing branches on them (CR-B1). `exit_code` must be a JSON integer token, never a float such as `1.0` (CR-B3). Parsing is total: bounded input size, nesting depth bounded before `json.loads`, and `RecursionError` or `MemoryError` -> `resolver-not-observed` (CR-B4). `object_pairs_hook` rejects duplicate keys and `parse_constant` rejects `NaN` and `Infinity`. The module is added to the audit inventory |
 | Verification | The Proof B impostor table (startup failure, unknown command, usage error, help text, empty stdout, malformed JSON, two documents, leading or trailing output, status/document mismatch, shipment mismatch, schema-invalid), plus float `exit_code`, deep nesting, oversized input, duplicate keys, `NaN` and a second trailing LF -> `resolver-not-observed`; one genuine document per state accepted. **Handoff test:** the real B5 CLI runs in a subprocess over fixture workspaces giving exits 0, 1 and 2, and an impostor (`harness bogus`, argparse exit 2) is also run; each capture goes through the entry in a subprocess, and the printed line and exit code are asserted |
 | Marker | `AHLC_D1_VERDICT_CONSUMER` (prefix) |
 | Label | `harness-surface:harness-architect` |
@@ -440,8 +440,8 @@ file). S(B-core) holds B1 to B3 and S(B-entry) holds B4a to B5.
 
 | Field | Value |
 |---|---|
-| Files | `tests/test_ship_harness_activation.py`; `tests/fixtures/ship_activation/expected_anchors.json` |
-| Change | Tests over both Ship surfaces for the post-activation text: the per-task pre-claim step (T1 resolve under D1's capture contract, with exits 0/1/2 kept distinct and consumed only through D1's printed line; on `resolver-not-observed` or any D1 exit other than 0, the task halts with no T2, T3 or Claim; T2 harness-architect for the current task when it declares the surface; T3 the current task's valid RED record before Claim; a `harness-surface:none` task skips T2 and T3; T1 to T3 do not depend on a member being `queued`, because a backlogit 1.10 claim moves members to `active`); no Ship passage states an order that contradicts T1 -> T2 -> T3 -> Claim or FI-13; the template's run-once Step 2 and the `harness-ready` prefilter of Step 3 removed; the template's session-start memory restore and `### Resumption Protocol` replaced to meet restore contract rules 1 to 4; the recovery machine still invoked at session start (E L6) and the C1-C6 wiring intact (E O4); template and mirror semantically equal at their own anchors. The test files are added to the audit inventory |
+| Files | `tests/test_ship_harness_activation.py`; `tests/fixtures/ship_activation/expected_anchors.json`; `tests/test_harness_noclaim_audit.py` |
+| Change | Tests over both Ship surfaces for the post-activation text: the per-task pre-claim step (T1 resolve under D1's capture contract, including its capture path and cleanup, with exits 0/1/2 kept distinct and consumed only through D1's printed line; on `resolver-not-observed` or any D1 exit other than 0, the task halts with no T2, T3 or Claim; T2 harness-architect for the current task when it declares the surface; T3 the current task's valid RED record before Claim; a `harness-surface:none` task skips T2 and T3; T1 to T3 do not depend on a member being `queued`, because a backlogit 1.10 claim moves members to `active`); no Ship passage states an order that contradicts T1 -> T2 -> T3 -> Claim or FI-13; the template's run-once Step 2 and the `harness-ready` prefilter of Step 3 removed; the template's session-start memory restore and `### Resumption Protocol` replaced to meet restore contract rules 1 to 4; the recovery machine still invoked at session start (E L6) and the C1-C6 wiring intact (E O4); template and mirror semantically equal at their own anchors. The test files are added to the audit inventory |
 | Verification | The tests fail against the pre-activation surfaces, and each failure names the missing anchor. This is a recorded gap characterization, **not** P-004 RED evidence (R2 refuses assertion failures) |
 | Label | `harness-surface:none` |
 | Estimate | 100 min; size `S`; complexity `medium` |
@@ -463,7 +463,7 @@ file). S(B-core) holds B1 to B3 and S(B-entry) holds B4a to B5.
 
 | Field | Value |
 |---|---|
-| Files | `tests/test_ship_recovery_state_machine.py`; `tests/fixtures/ship_activation/recovery_traces.json` |
+| Files | `tests/test_ship_recovery_state_machine.py`; `tests/fixtures/ship_activation/recovery_traces.json`; `tests/test_harness_noclaim_audit.py` |
 | Change | A state-machine test that closes the Proof E run 5 limitations L1, L3, L4 and L5 (`docs/decisions/2026-09-24-ship-activation-proof-e-run5-spike.md`, limitations table): L1, the fixture reads the activated rendered mirror (`docs/memory/`, never `{{DOCS_MEMORY}}/`); L3, the event vocabulary is closed, so `phase_restore`, `cursor_restore` and any unknown event type are rejected; L4, a candidate present without select, owner and confirm, and the post-validation next-action branch, are each exercised; L5, a `context_overflow_resume` after a full valid recovery that restores no next action has an explicit expected outcome taken from the activated text. The test files are added to the audit inventory |
 | Verification | Canonical trace accepted; each L3 event and each FI-13 mis-ordering (every adjacent pair swapped) rejected; the L4 and L5 cases give their asserted outcomes |
 | Label | `harness-surface:none` |
@@ -495,19 +495,16 @@ only. **S(D) is harvested only once the IM-10 shipment exists**, so its
 `blocks` edge from S(IM-10) is created with it. S(D) therefore cannot be
 claimed, and D2's red tests cannot sit in flight, while IM-10 waits behind
 P-001 (IM-10-F01). The IM-10 plan places its shipment behind an existing
-shipment, so S(A) stays the only `dag-root`. Each shipment closes on its
-own (P-015). Successors stay `queued` behind their `blocks` edges.
-
-**Why this order.** A first, because every later code task produces RED
-evidence under A's wording. C before B, because the resolver reads only
-through the reader. D last, because it consumes B's document and switches
-Ship live.
+shipment, so S(A) stays the only `dag-root`. Each shipment is its own
+feature and closes on its own on the close-path classifier's verdict,
+never by `shipment ship` over part of a feature (P-015). Successors stay
+`queued` behind their `blocks` edges.
 
 ## Trace From the Retired Tasks
 
 | Retired item | Concern (revision 12) | Successor |
 |---|---|---|
-| `181-F` | Feature | One feature per unit: A, C, B, D |
+| `181-F` | Feature | One feature per shipment: A, C, B-core, B-entry, D |
 | `181.001-T` | Standalone RED test writing (archived as superseded before revision 12 ran) | None. Per-task RED under A1, A2 and the [Marker Convention](#marker-convention) |
 | `181.002-T` | Reader contracts and lexical validation | C1 |
 | `181.008-T` | Budgets and bounded reads | C3 (snapshot, `RACE` and `IDENTITY_MISMATCH` semantics retired by Option D) |
@@ -562,7 +559,7 @@ Only `76EBDE6D` is a source of this plan. The others stay separate (charter
 | PD-09 | Render uses the existing pure `_render_template` through a public alias | One renderer; no second placeholder grammar; no cross-module private import |
 | PD-10 | D2 failures are gap characterization, not RED | R2 refuses assertion failures; D3 is `harness-surface:none` |
 | PD-11 | A2 edits template and installed file in parallel and does not re-render | IM-10 requires the reflow reconciliation in its own operator-approved unit |
-| PD-12 | IM-10 stays outside A to D and gates D3 | Without it the real resolver reports `STALE` for `harness-architect`, and the activated Ship would halt on every task |
+| PD-12 | IM-10 stays outside A to D and gates S(D) | Without it the real resolver reports `STALE` for `harness-architect`, and the activated Ship would halt on every task |
 | PD-13 | CR-B1: sub-codes are diagnostics only | Ship branches only on accepted or `resolver-not-observed`, so no sub-code taxonomy becomes contract |
 | PD-14 | Migration check for `1..48` | Read at plan time: the largest shipment membership in `.backlogit/queue` and `.backlogit/archive` is 20 (`168-S`, queued). No current shipment is affected |
 | PD-15 | B ships as S(B-core) and S(B-entry) | The review re-estimate is 550 minutes, and section 9 permits a split, not an overrun |
@@ -576,7 +573,7 @@ Only `76EBDE6D` is a source of this plan. The others stay separate (charter
 | Linux CI unavailable or a push is not approved | IM-01 cannot be waived. C, B and D do not ship; D3's preflight halts |
 | A shipment grows past 480 minutes | Split, never a seventh task or a longer estimate; escalate per P-013.6 (B is already split, PD-15) |
 | A CRLF template checkout on Windows (templates are not `eol=lf` pinned) makes the real resolver report `STALE` | B's tests use LF fixture bytes. D3 preflight (4) fails closed rather than passing. The template pin and `git add --renormalize` belong to the IM-10 unit |
-| IM-10 unit not approved | D3 halts; A to C and D1, D2 remain valuable and inert |
+| IM-10 unit not approved | S(D) is not harvested or claimable; A, C and B remain inert |
 | Ship text overlap with `177-S`, `178-S` or `180-S` | D3's preflight lists every change to the three paths since `08787a4b`; any unplanned change halts and returns to Stage |
 | `harness-surface:none` misused on a code task | A1 restricts it to budgets without `src/` Python; harvest assigns labels from the file budgets in this plan |
 | The P-004 observation-gate plan still names `187-S` in `blocked_on` | Not edited here (frozen, locked). Its re-pointing to the successor shipments is an operator item |
@@ -598,9 +595,10 @@ Requires plan hardening: yes
 
 | Unit | Runtime surface | What runtime verification proves | Closure artifact |
 |---|---|---|---|
-| A | None (text); code-affecting for closure because it edits `tests/` | Structural tests and checksum replay | Shipment closure note listing both checksum replays |
+| A | None (text); code-affecting for closure because it changes procedure text | Structural tests and checksum replay | Closure note listing both checksum replays; closure-anchor refresh in a separate evidence-only commit |
 | C | None user-facing (internal module) | Windows run of the four modules on NTFS; Linux CI step with zero skips (IM-01, IM-02) | CI job URL, runner OS, kernel, filesystem type, test counts |
-| B | CLI `harness resolve` | One document per class; stderr empty; exit equals `exit_code`; schema-valid | A recorded CLI transcript (bytes and SHA-256) for one fixture per state |
+| B-core | None (library and schema) | B1 to B3 suites green | Closure note with suite result |
+| B-entry | CLI `harness resolve` | One document per class; stderr empty; exit equals `exit_code`; schema-valid | A recorded CLI transcript (bytes and SHA-256) for one fixture per state |
 | D | Ship agent behavior | D2 and D4 green; D3 preflight record; one real dry resolution accepted by D1 | Activation record: SHA, three paths, checksum replay, rollback trigger, owner. The post-activation monitoring is recorded in Ship's `docs/memory/` session notes. It does not hold S(D) open |
 
 Ship records every command and outcome. Stage runs none of them.
@@ -690,7 +688,7 @@ claim, push, pull request or merge by Stage.
   worktree; `git status --porcelain` is empty for the task's files before
   the first write; the canonical command runs from the repository root.
 * **Blocked paths.** No Linux evidence -> C, B and D do not ship. IM-10 not
-  shipped -> D3 halts. Any task over its estimate by more than 30 minutes ->
+  shipped -> S(D) is not claimable, and D3 preflight (4) re-checks. Any task over its estimate by more than 30 minutes ->
   stop and return to Stage for a split.
 * **Monitoring after D3.** The first three Ship sessions after activation
   record each T1 outcome. Any `resolver-not-observed`, or any exit 1 or 2
@@ -720,38 +718,39 @@ claim, push, pull request or merge by Stage.
 
 ### Non-Claim Audit Inventory
 
-IM-14 and `PE-SAFETY-06` are `P2-critical`. This list is the only audit
-scope. The matrix, C5, D3 and closure all cite it.
+IM-14 and `PE-SAFETY-06` are `P2-critical`. The matrix, C5, D3 and closure
+all cite this scope.
 
-| Unit | Artifacts in the inventory | Added by |
+| Unit | Listed artifacts | Added by |
 |---|---|---|
-| A | `.github/policies/workflow-policies.md` and its template; `.github/skills/harness-architect/SKILL.md` and its template | C5 |
-| C | `src/autoharness/harness_read.py`; the four `tests/test_harness_read_*.py` modules and `tests/test_harness_read_case_coverage.py` | C5 |
-| B | `src/autoharness/harness_surfaces.py`; both `schemas/harness-resolution*` files; `src/autoharness/cli.py` and the captured `harness resolve --help` text; B's test modules | B1, B5 |
-| D | `src/autoharness/harness_verdict.py`; D1, D2 and D4 test modules and fixtures; the D3 activation diff | D1, D2, D4, D3 preflight |
-| All | Harvested carriers and closure records of these shipments | Checked at harvest and at each closure, by the same scan run over the item bodies |
+| A | `.github/policies/workflow-policies.md`, `.github/skills/harness-architect/SKILL.md` and their templates; `.autoharness/harness-manifest.yaml` | C5 |
+| C | `src/autoharness/harness_read.py`; C's test modules; `.github/workflows/ci.yml` | C5 |
+| B | B1: `harness_surfaces.py`, `schema_contracts.py`, both `schemas/harness-resolution*` files, B1's test module. B3: `verify_workspace.py`, B2's and B3's test modules. B5: `cli.py`, the captured `harness resolve --help` text, B4a's to B5's test modules | B1, B3, B5 |
+| D | `src/autoharness/harness_verdict.py`; D1, D2 and D4 test modules and fixtures; the Ship template and mirror | D1, D2, D4, D3 preflight |
+| All | Harvested carriers and closure records of these shipments | Checked at harvest and at each closure, by the same scan over the item bodies |
 
-* **Rule.** Every listed file must exist when its unit has shipped, and a
-  missing file fails. The audit test `tests/test_harness_noclaim_audit.py`
-  holds the patterns, so it is not scanned.
+* **Scope rule.** Every run scans the listed artifacts of each shipped
+  unit plus every path added or modified in the current shipment's diff
+  against its base (closure and D3 preflight pass the base commit). A
+  listed path missing after its unit shipped, or a listed or diffed path
+  left unscanned, fails. Exempt only: files that quote the patterns (the
+  audit test, this plan, its review manifest). S(A) closes before the
+  audit exists, so C5's first run audits A retroactively; B3's additions
+  put B-core's modules in scope before S(B-core) closes.
 * **Normalization.** Before the scan and the presence check, whitespace
-  runs, including newlines, collapse to one space. Patterns allow `[-\s]*`
-  between words.
-* **Patterns (case-insensitive).** `race-free`, `race-safe`,
-  `race-resistant`, `race-proof`, `TOCTOU-safe`, `TOCTOU-free`,
-  `TOCTOU-resistant`, `prevents TOCTOU`, `prevents race`,
-  `hardlink-alias resistant`, `hardlink-safe`, and `resist`, `immune`,
-  `protect`, `defend` or `guard` followed by `against` or `to` and then
-  `race`, `TOCTOU` or `hardlink`. Any hit fails.
+  runs, including newlines, collapse to one space.
+* **Patterns (case-insensitive).** With `T` for
+  `\b(?:race|toctou|hard[-\s]*link(?:[-\s]*alias)?)\w*`:
+  `T[-\s]*(?:free|safe|resistant|proof)\b`, `\bprevent\w*[-\s]*T` and
+  `\b(?:resist|immun|protect|defen[cds]|guard)\w*[-\s]*(?:against|to)[-\s]*T`.
+  Any hit fails.
 * **Required sentence.** C1 writes it in the reader module docstring:
   "This reader makes no race, TOCTOU or hardlink-alias resistance claim."
   The audit asserts it is present.
-* **Controls.** Positive controls must hit: a claim wrapped across lines
-  (`race-` then a newline then `free`), a hyphenated form and a mixed-case
-  form. Negative controls must not hit: the required sentence, `trace` and
-  `brace`.
-* The plan's history wording avoids claim forms (IM-14-F03). Carriers cite
-  this inventory and never copy the pattern list.
+* **Controls.** Must hit: `race-` then a newline then `free`,
+  `TOCTOU-safe`, `Race-Proof`, `resistant to race` and `protects against
+  TOCTOU`. Must not hit: the required sentence, `trace-free` and
+  `embrace-safe`. Carriers cite this inventory and never copy the patterns.
 
 ### Rollback and Closure by Unit
 
@@ -759,7 +758,7 @@ scope. The matrix, C5, D3 and closure all cite it.
 |---|---|---|---|---|---|
 | A | Operator rejects the merged wording, or a structural test regresses | Revert A2's commit, then A1's, with operator approval (a policy change); replay both manifest checksums | Allowed only while no C, B or D task has recorded RED evidence under A's wording. After that, return to Stage, because those records would lose their contract | Operator | Until the first C task records RED |
 | C | Linux or Windows containment defect found after merge | Revert C's commits. The reader has no caller until B, so the revert is inert | Blocks B. If B-core or B-entry has merged, B is reverted first | Ship, with operator approval | Until B-core merges |
-| B | Resolver or schema defect found after merge | Revert B-entry's commits, then B-core's. There is no Ship caller until D3 | If a release tag included B, removing schema `1.0.0` or the CLI command is a contract removal and needs an operator decision instead of a plain revert. If D has merged, roll back D first, including D1, which validates against B1's schema | Ship, with operator approval | Until D3 merges or a release is tagged |
+| B | Resolver or schema defect found after merge | Revert B-entry's commits, then B-core's. There is no Ship caller until D3 | No release tag includes S(B-core) before S(B-entry) closes, so a schema defect B-entry finds reverts B-core, never a `1.1.0` bump. If a release tag included B, removing schema `1.0.0` or the CLI command is a contract removal and needs an operator decision instead of a plain revert. If D has merged, roll back D first, including D1, which validates against B1's schema | Ship, with operator approval | Until D3 merges or a release is tagged |
 | D | See the monitoring bullet above | D3's Rollback row | D1 stays; D2 and D4 are reverted with D3 | Operator | Three Ship sessions or seven days, whichever is longer |
 
 Partial rollout is safe by construction. A, C and B are inert until D3
@@ -801,42 +800,25 @@ do not block harvest.
 
 ### Plan-Harden Record
 
-**Revision 2 re-run.** The plan-harden checks were re-run over every
-section revision 2 touched: verification depth, rollback, guardrails and
-risk triggers.
+**Revision 3 re-run.** Checks re-run over every touched section. No new
+signal, risky action or public name. The audit scope became a rule over
+listed artifacts plus each shipment's diff; the patterns became
+inflection-tolerant. Each change is tied to its finding ID in the review
+manifest.
 
-* No new hardening signal appeared.
-* B's split adds no risky action.
-* The new public alias (B3) was added to Risky Actions.
-* The rollback rows now cover B's two shipments, and D1 alongside B.
-* The audit became one inventory.
-* Stage also corrected B5's `--help` behavior. argparse prints help to
-  stdout with exit 0, not usage on stderr with exit 2.
+**Revision 2 re-run.** No new signal. Changes: the B3 alias in Risky
+Actions; rollback rows for B's two shipments and D1; one audit inventory;
+B5's `--help` prints to stdout with exit 0, as argparse does.
 
-Each change is tied to its finding ID in the review manifest.
-
-**Revision 1 pass.** The `plan-harden` skill was run as its own pass over
-the impl-plan inline hardening above. It checked the four required outputs: verification depth,
-rollback, guardrails and risk triggers. Learnings and instructions
-consulted, in addition to those listed above: `.github/skills/plan-harden/SKILL.md`,
-`.github/skills/plan-review/SKILL.md` (R1 blob verified),
-`.github/skills/harvest/SKILL.md` (Phase 1 verdict source),
-`.github/workflows/ci.yml` (path-gated `test` job; `ci gate` treats a
-skipped `test` job as OK), the Proof G spike's case and reparse-point
-tables (`docs/decisions/2026-09-24-ordinary-path-containment-proof-g-spike.md`),
-and the charter's `PE-SAFETY-07` row.
-
-Four verification defects were corrected in place. None changed a unit, a
-task, an estimate, an order or a matrix mapping:
-
-| Where | Defect | Correction |
-|---|---|---|
-| C4 | The `/dev/null`-through-an-in-root-symlink case expected `NOT_REGULAR_FILE`, but the plan's own check order puts containment first, so it would return `OUTSIDE_TRUST_ROOT`. The case IDs also named G32, which is missing file and missing parent, as junction-to-directory | The device-node case uses `workspace_root=/dev`; the symlink case expects `OUTSIDE_TRUST_ROOT`; the IDs are now G30a and G30b (non-regular) and G32a and G32b (missing) |
-| C2 and C5 | Junctions do not exist on Linux, so C5's zero-skip gate could not pass on the "each host" case set | On Linux, the junction cases run under the same IDs with directory-symlink analogues. Skips are accounted for per host |
-| C5 | The filesystem type was recorded only for the checkout, but the fixtures are created under the temporary directory. A skipped path-gated `test` job reports green | `TMPDIR` is pinned to `$RUNNER_TEMP`, both filesystem types are checked against a native allowlist, and IM-01 evidence must show the step executed |
-| D3 | A D3-only revert would leave D2's and D4's activated-text tests red | The rollback reverts D4, D3 and D2 together, then replays checksums and runs the full suite green |
-
-Added: invariants 9 to 12, three risky actions, the IM-14 audit
-mechanism, Windows evidence and skip accounting, unit D closure coupling,
-per-unit rollback and closure, the rubric integrity check, the supporting
-route reading, and the harvest verdict-source gap (OP-5).
+**Revision 1 pass.** The `plan-harden` skill ran as its own pass over the
+four required outputs (verification depth, rollback, guardrails, risk
+triggers), also consulting the `plan-harden`, `plan-review` (R1 blob
+verified) and `harvest` skills, `.github/workflows/ci.yml`, the Proof G
+spike tables and the charter's `PE-SAFETY-07` row. It corrected four
+verification defects in place (C4 device-node expectation and case IDs;
+Linux junction analogues for C2 and C5; C5's fixture-root filesystem and
+skipped-job evidence; D3's three-commit rollback) without changing a unit,
+task, estimate, order or mapping, and added invariants 9 to 12, three
+risky actions, the audit, Windows evidence, skip accounting, unit D
+closure coupling, per-unit rollback, the rubric check, the supporting
+route reading and OP-5.
