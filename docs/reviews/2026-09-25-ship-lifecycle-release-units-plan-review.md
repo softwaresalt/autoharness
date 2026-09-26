@@ -32,7 +32,7 @@ operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 s
 operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}
 e3_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
 e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: {at: "2026-09-25T22:29:53-07:00", outcome: re-charter, next: "LIFECYCLE-E4 (IM-14 audit re-chartered)"}}
-next_epoch: {id: pending (LIFECYCLE-E4-<first 8 hex of the revision 6 blob>), subject_revision: 6, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: pending}
+next_epoch: {id: LIFECYCLE-E4-5cf1d52a, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: pending}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -846,9 +846,9 @@ what has already passed.
 ## Epoch LIFECYCLE-E4 (IM-14 audit, re-chartered)
 
 ```text
-epoch: LIFECYCLE-E4-<first 8 hex of the revision 6 blob> (fixed when revision 6 is committed)
+epoch: LIFECYCLE-E4-5cf1d52a
 opened_by: operator re-charter 2026-09-25T22:29:53-07:00
-subject: plan revision 6, derived from revision 5 (commit 01cb89b9, blob 057a7615a5a53e53698bb53604ad7fba5382e744)
+subject: plan revision 6, commit 33ad886b, blob 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, derived from revision 5 (commit 01cb89b9, blob 057a7615a5a53e53698bb53604ad7fba5382e744)
 verdict: pending
 harvest_permitted: false
 ```
@@ -868,3 +868,60 @@ harvest_permitted: false
 | Carried findings | E3's F26, F34 to F41 and NOROW-F19: disposed of in E4 where the re-charter makes them moot, otherwise carried to harvest |
 | E2 and E3 | Verdicts stay `EPOCH_STOPPED`; `harvest_permitted` stays `false` |
 | E4 verdict | Pending |
+
+### Revision 6 (E4 subject)
+
+| Field | Value |
+|---|---|
+| Epoch token | `LIFECYCLE-E4-5cf1d52a` (first 8 hex of the revision 6 blob) |
+| Subject | Plan revision 6, commit `33ad886b`, blob `5cf1d52a48840d43aacfe8795b9b6ceba8d7f809`, 837 lines, LF, final newline |
+| Changed body lines (revision 6 numbering) | 190 (IM-14 row); 323 (C5 Change cell: unshallow sentence removed, the rest verbatim); 721-766 (Non-Claim Audit Inventory) |
+| Changed frontmatter lines | 2-3 (title, description), 10 (`revision: 6`), 12-13 (`prior_revision`, `review_epoch`), 15-16 (epoch family and token rule) |
+| Not changed | D3 preflight item 6 (line 454; "passes with no skip" still holds, since the floor test has no skip path). Every Files cell, frozen: B1 and D1 still own the floor files; the cells of B2/B3, B5, D2 and D4 that list the audit test are now vestigial (their lines are residue units) but do not contradict. B1's and B3's Verification cells ("paths are added to the audit inventory") are outside E4 scope and read as the inventory section, not `FLOOR` |
+| Contract limits | No task, reason code, public name, subsystem or threat class added. `FLOOR` and `LEDGER` are test-local constants |
+
+#### Contract Growth (revision 1 versus revision 6)
+
+| Measure | Revision 1 | Revision 5 | Revision 6 | Limit | Growth |
+|---|---:|---:|---:|---:|---:|
+| File bytes | 69163 | 82440 | 82363 | 82995 | +19.09% |
+| Body bytes (after frontmatter) | 63778 | 76533 | 76498 | 76533 | +19.94% |
+| Words | 10198 | 12091 | 12098 | 12237 | +18.63% |
+| Tasks | 17 | 17 | 17 | 20 | 0% |
+| Lines (not a limit) | 769 | 836 | 837 | none | +8.8% |
+
+#### Rule Check (Stage, throwaway)
+
+Stage ran a throwaway Python check of the rules as written at L729-742
+against every control at L760-766. It covered the IM-14-F05, F10 and
+F11 forms and `time-of-`/`check`, with the second line of each split
+pair indented. All 29 cases matched: every must-fail case failed, and
+the path-bound entry passed on its own path and failed on another. The
+check also confirmed that invalid UTF-8 fails, that a CRLF copy yields
+the same units as LF, that no negative hits, that the required sentence
+hits and clears, and that an unused entry fails. Two wording choices
+came from this check. The space join is tried first, so `time-of-` /
+`check` is still caught. Whitespace at the hyphen join is dropped, so
+an indented `TOU` still joins with `TOC-`.
+
+#### E3 Findings Under the Re-charter
+
+| ID | Disposition in revision 6 | Evidence |
+|---|---|---|
+| IM-14-F27 | Addressed | L751-758: the E4 persona audits the plan and manifest at the PASS blob; later edits land in harvest or closure commits, which are residue units |
+| IM-14-F28 | Moot by construction | No final mode: `FLOOR` is fully scanned on every run and every entry must be used (L725-728, L738-742) |
+| IM-14-F29 | Moot by construction | No `AUDITED` list or history scan; the harvest commits' own diffs are residue units, never the whole-branch merge (L753) |
+| IM-14-F30 | Addressed | Every adjacent pair is checked, including after a cleared line; spanning matches only (L731-735); control at L763 |
+| IM-14-F31 | Addressed | `LEDGER` is keyed to `(path, SHA-256)` (L739-740); control at L763-764 |
+| IM-14-F32 | Addressed | Reading, normalization and hash contract fixed in the plan (L729-735); invalid UTF-8 and CRLF controls (L764-765) |
+| IM-14-F33 | Moot by construction | No commit list and no final marker to complete |
+| IM-14-F34 | Addressed | Raw join, then normalization (L731-734) |
+| IM-14-F35 | Covered by the residue audit | camelCase in floor lines is reviewed in the shipment merge diffs (L746-757); carried to harvest as a C5 note |
+| IM-14-F36 | Moot by construction | No git scan and no unshallow; the L323 clause is removed |
+| IM-14-F37 | Addressed | E4 persona audit bound to the blob that passes the final full consistency pass (L751-753) |
+| IM-14-F38 | Moot by construction | No final full scan |
+| IM-14-F39 | Carried to harvest | Map "session note", "closure note" and "readiness record" to existing Ship record types |
+| IM-14-F40 | Addressed | CR removed before normalization (L729-730); CRLF control |
+| IM-14-F41 | Moot by construction | No `AUDITED`; the final closure pull request is a residue unit (L757) |
+| IM-14-F26 | Carried to harvest | The coverage module is not in the C5 CI module list (cell frozen apart from the unshallow removal) |
+| NOROW-F19 | Carried to harvest | Outside E4 scope |
