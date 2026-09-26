@@ -1565,3 +1565,52 @@ closure after it lands, and records the result in a session note. The
 audit units are the five harvest commits: `2b678b4d`, `45c85206`,
 `e5334864`, `90f23361` and `d633cd58`. Each carries a Stage residue-audit
 note in its commit message; that note does not replace the Ship audit.
+
+### S(D) Harvest (5 of 5)
+
+Recorded by Stage under the same verdict source (E5 Verdict, OP-5, plan
+blob `b7a77c7644fa97dff01c724480abfcbcea8f346d`) and OP-1: S(D) was
+harvested once the IM-10 shipment existed. OP-2 keeps IM-09, so D4
+stays. **Status:** 5 of 5 release units harvested. The plan blob is
+unchanged.
+
+| Unit | Feature | Tasks (plan task) | Shipment | Harvest commit |
+|---|---|---|---|---|
+| S(D) | `191-F` | `191.001-T` (D1), `191.002-T` (D2), `191.003-T` (D3), `191.004-T` (D4) | `197-S` | `c70e72d0` |
+
+- Task `blocks` edges: `191.001-T` -> `191.002-T` -> `191.003-T` ->
+  `191.004-T` (each task is blocked by its predecessor).
+- Shipment `blocks` edges: `195-S` -> `197-S` and `196-S` -> `197-S`
+  (`197-S` is blocked by both). `196-S` is itself blocked by `195-S`.
+- Labels: `191.001-T` `harness-surface:harness-architect`; `191.002-T`,
+  `191.003-T` and `191.004-T` `harness-surface:none`, from the plan's
+  file budgets. No `dag-root`: `192-S` stays the only `dag-root`, and
+  `197-S` stays `queued`.
+- IM-10 unit: feature `190-F`, tasks `190.001-T` (IM10-1) -> `190.002-T`
+  (IM10-2), shipment `196-S`, from stash `9144435A` (archived). Review
+  record: `docs/reviews/2026-09-26-im10-harness-architect-render-parity-plan-review.md`.
+  D3's preflight (4) needs `196-S` shipped; the `196-S` -> `197-S` edge
+  enforces it and the preflight re-checks it.
+
+#### Carry Landing Updates (S(D) rows)
+
+| Carry | Origin | Landed on |
+|---|---|---|
+| CONST-II-F01 (D part) | E2 | `191.001-T` (D1, the audit test's `FLOOR` addition), `191.002-T` (D2) and `191.004-T` (D4), S(D) `197-S`, with a recorded not-applied determination on `191.003-T` (D3 adds no test) |
+| NOROW-F18 (repeat on D1) | E2 | `191.001-T` (D1), S(D) `197-S` |
+| IM-14-F51 (D2 part) | E4 | `191.002-T` (D2), S(D) `197-S`. The E4 disposition names D2; the earlier Carry Landing row lists only the B tasks |
+| IM-14-F55 | E4 | `191.003-T` (D3) and the `197-S` description (closure audit) |
+| IM-14-F65 | E4 | `191.004-T` (D4), joined to the IM-14-F51 note, S(D) `197-S` |
+| IM-14-F67 | E5 | Feature `191-F` and shipment `197-S` (harvest notes) |
+
+#### Ship Harvest-Commit Audit List (extended)
+
+Ship audits each of these non-merge harvest commits' own diff before the
+first Ship claim or closure after it lands, and records the result in a
+session note: `2b678b4d`, `45c85206`, `e5334864`, `90f23361`,
+`d633cd58`, the IM-10 harvest commit `7ca13f66`, and the S(D) harvest
+commit `c70e72d0`. Each carries a Stage residue-audit note in its commit
+message; that note does not replace the Ship audit. The IM-10 review
+record commit `d50309c7`, the IM-10 harvest record commit `43822556` and
+this record's own commit are review-artifact commits: under the Residue
+rule Stage audits them in their messages, and Ship reads those notes.
