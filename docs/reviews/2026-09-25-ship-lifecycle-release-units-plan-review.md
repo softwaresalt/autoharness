@@ -1,6 +1,6 @@
 ---
 title: "Review manifest: ship lifecycle release units A to D plan (LIFECYCLE-E2)"
-description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. It records epoch LIFECYCLE-E2-R1-2d562820 under the parameters frozen in 2ca9d9a5: the initial full review of plan revision 1 (blob 2d562820), seven personas, all REVISE, 41 consolidated findings of which 7 block. Findings, verdicts and dispositions live here and never in the plan."
+description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. It records epoch LIFECYCLE-E2-R1-2d562820 under the parameters frozen in 2ca9d9a5: the initial full review of plan revision 1 (blob 2d562820), seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews followed (blockers 7 -> 2 -> 3), and the epoch stopped with 3 IM-14 blockers open (verdict EPOCH_STOPPED; publication not met; nothing harvested). Findings, verdicts and dispositions live here and never in the plan."
 doc_type: review-manifest
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
@@ -14,11 +14,18 @@ reviews:
   - {step: initial-full-review, subject_revision: 1, subject_commit: c7363567, subject_blob: 2d5628206de3ab8083ec8ac173fa5283663f9b01, decision: REVISE, blocking_open: 7}
   - {step: consolidated-revision-1, subject_revision: 2, subject_commit: fcae22da, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: REVISE, blocking_claimed_fixed: 7}
   - {step: delta-review-1, subject_revision: 2, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: REVISE, blocking_open: 2}
-  - {step: consolidated-revision-2, subject_revision: 3, subject_commit: bd7002d5, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: pending-delta-review, blocking_claimed_fixed: 2}
+  - {step: consolidated-revision-2, subject_revision: 3, subject_commit: bd7002d5, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: REVISE, blocking_claimed_fixed: 2}
+  - {step: delta-review-2, subject_revision: 3, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: REVISE, blocking_open: 3}
 consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
-status: open
+status: epoch-stopped
+verdict: EPOCH_STOPPED
+decision: EPOCH_STOPPED
+publication: not-met
 publication_eligible: false
+harvest_permitted: false
+stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails]
+operator_decision: pending
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -394,3 +401,101 @@ Line references are to revision 3 (blob `ffa663de`).
 
 Totals: 19 fixed (both blocking), 1 accepted as-is, 1 resolved by
 ruling, 1 deferred. No finding declined.
+
+## Delta Review 2 (subject revision 3)
+
+```text
+dispatch_mode: multi-agent
+dispatch_route: explicit-model gpt-6-sol, dispatcher Orchestrator
+decision: REVISE
+```
+
+The same seven reviewer agents checked revision 3 (blob `ffa663de`)
+against changes only.
+
+| Persona | Route | Decision |
+|---|---|---|
+| Architecture Strategist (lead) | `gpt-6-sol` | PASS |
+| Agent-Native Parity Reviewer | `gpt-6-sol` | PASS |
+| Python reviewer | `claude-opus-5.5` | PASS |
+| Security Lens Reviewer | `gpt-6-sol` | REVISE |
+| Scope reviewer | `claude-opus-5.5` | REVISE |
+| Constitution Reviewer | `claude-opus-5.5` | REVISE (corroborating Security only) |
+| Learnings reviewer | `claude-opus-5.5` | REVISE |
+
+**Closed on named revision 3 evidence.** IM-14-F01, IM-14-F01.1,
+IM-14-F05, IM-14-F06, IM-03-F02, IM-03-F03, IM-06-F01.1, IM-16-F02,
+IM-13-F03, IM-11-F02, IM-11-F03, IM-04-F01.1, IM-10-F01.1, IM-07-F04,
+NOROW-F11.1, NOROW-F12.1, NOROW-F13, NOROW-F14, NOROW-F15, NOROW-F16
+(accepted as-is) and NOROW-F17 (resolved by ruling). IM-14-F07 is closed
+in part; its residue is IM-14-F07.1. NOROW-F03 stays open and deferred,
+with the deferral accepted.
+
+### Open Blocking Findings (IM-14 / `PE-SAFETY-06`, `P2-critical`)
+
+| ID | Raised by (confidence) | Revision 3 lines | Summary |
+|---|---|---|---|
+| IM-14-F07.1 | Scope (8); Learnings concurs (8) | L190, L726, L730, L732-739; A1/A2 Files (L222, L233) | A1 and A2 modify `tests/test_harness_architect_p004_contract.py`, which inventory row A omits. C5's retroactive run scans A's listed artifacts, not S(A)'s diff. Row "All" says carriers are checked at harvest by the same scan, but harvest precedes C5, so that scan does not exist yet |
+| IM-14-F08 | Security (8.4); Constitution corroborates (7) | L730-738 | The exemption covers whole files that quote the patterns (audit test, plan, review manifest), so their remaining prose is never scanned. The wording reads as a property-based class, not a closed list. Revision 3 also dropped the earlier IM-14-F03 guard (plan history avoids claim forms). Remedy: a closed three-path list asserted by the test that exempts only literal pattern declarations and fixtures, with the rest scanned |
+| IM-14-F11 | Learnings (7) | L742-752 | The patterns miss claims with an intervening word or compound: `race-condition-free`, `race condition safe`, `guards against a TOCTOU race`, `protects against the race`, `prevents a race`, `free of race conditions`, `safe from TOCTOU`, `provides TOCTOU resistance`. Same class as IM-14-F05, which was ruled blocking. IM-14-F10 covers the reversed-order subset |
+
+### Non-Blocking New Findings
+
+Carried to the next epoch or to harvest. Two findings are below the
+confidence threshold and are informational only.
+
+| ID | Raised by (confidence) | Sev | Status | Summary |
+|---|---|---|---|---|
+| IM-14-F09 | Python (8) | P2 | Open | How the audit base reaches the test under `unittest discover` is unnamed (for example an `AHLC_AUDIT_BASE` variable). Closure and D3 must show the base is set, and fail closed otherwise |
+| IM-14-F10 | Python (7) | P3 | Open | Reversed-order claims ("free of race conditions", "safe from TOCTOU") |
+| IM-14-F12 | Learnings (7) | P3 | Open | The Ship template and mirror are added to the inventory "at D3 preflight", but D3 is frozen-scope and D4 is deferrable. D2 should add them |
+| IM-14-F13 | Learnings (6) | — | **Informational** (below threshold) | Renames and copies (`R`, `C`) escape an added-or-modified diff filter |
+| IM-14-F14 | Python (IM-14-F08, 7); Scope (IM-14-F09, 7) | P2/P3 | Open | Whole pre-existing files are now listed with no baseline scan; negations give false positives; no rule for pre-existing hits outside freeze scope |
+| IM-14-F15 | Scope (IM-14-F08, 7) | — | Open | Exemption wording as a class versus a closed list (overlaps IM-14-F08) |
+| IM-16-F02.1 | Python (7) | P3 | Open | B2's usage observation implies an unnamed private helper that accepts a reader |
+| CONST-II-F01 | Constitution (7) | P2 | Open | Structural tests "may pass": record the pre-implementation failing run as gap characterization (Principle II evidence) |
+| CONST-VII-F01 | Constitution (6) | — | **Informational** (below threshold) | Deletion scope and overwrite behavior of the capture cleanup |
+| CONST-G2-F01 | Constitution (8) | P3 | Open | The plan lost its final newline (MD047); one byte |
+| NOROW-F18 | Parity (8) | P3 | Open | `.proof-scratch/` is ignored here but not guaranteed in installed workspaces; verify the ignore rule before writing |
+| NOROW-F19 | Scope (7) | P3 | Open | The C3 record said four features; the plan now has five. Add a trace note |
+
+## Epoch Stop
+
+```text
+decision: EPOCH_STOPPED
+publication: not met
+harvest: not permitted
+```
+
+| Field | Value |
+|---|---|
+| Epoch | `LIFECYCLE-E2-R1-2d562820` |
+| Last subject | Plan revision 3, commit `bd7002d5`, blob `ffa663de030a0a07baa5b62ea1078b750a0a4009` |
+| Consolidated revisions used | 2 of 2 |
+| Blocking trend | 7 (initial review) -> 2 (after revision 2) -> 3 (after revision 3) |
+| Stop conditions triggered | "Blockers do not decline across revisions" (2 -> 3) and "a second remediation fails" |
+| Publication gate | **Not met** |
+| Harvest | Nothing harvested. Harvest reads its verdict from this manifest under OP-5, and `EPOCH_STOPPED` is not `PASS`, so it fails closed |
+| Plan revisions after the stop | None. No revision 4 and no local fix |
+
+**Where the blockers are.** All three open blockers are confined to the
+IM-14 non-claim audit surface: the C5 audit test, the inventory, the
+pattern set and the exemptions. Every other part of units A, C, B-core,
+B-entry and D converged, with no open P0 or P1 and no other open
+matrix-critical P2.
+
+**Permitted outcomes (operator decision pending).** Split, spike,
+re-charter or new epoch, explicit risk acceptance, defer, or cancel. No
+outcome is chosen here.
+
+**Orchestrator recommendation.** A time-boxed spike on the IM-14 audit
+mechanism, designing a bounded, closed detector instead of an open-ended
+regex net:
+
+1. Scope from diff hunks.
+2. Closed path and line exemptions.
+3. A fixed claim vocabulary with a mandatory recorded non-claim
+   attestation.
+
+Then a new epoch E3 scoped to the IM-14 audit section only, with revision 3
+as its baseline and every other section frozen.
