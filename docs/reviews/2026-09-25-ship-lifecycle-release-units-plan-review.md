@@ -30,8 +30,9 @@ harvest_permitted: false
 stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails]
 operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}
 operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}
-next_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
-e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: pending}
+e3_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
+e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: {at: "2026-09-25T22:29:53-07:00", outcome: re-charter, next: "LIFECYCLE-E4 (IM-14 audit re-chartered)"}}
+next_epoch: {id: pending (LIFECYCLE-E4-<first 8 hex of the revision 6 blob>), subject_revision: 6, derived_from: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}, scope: "IM-14 section, C5 Change cell, IM-14 row, D3 preflight item 6 and noclaim-audit Files cells only if contradicting, frontmatter", verdict: pending}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -797,3 +798,73 @@ cuts elsewhere or a growth ruling.
 **Permitted outcomes (operator decision pending).** Split, spike,
 re-charter or new epoch, explicit risk acceptance, defer, or cancel. No
 outcome is chosen here.
+
+## Operator Re-charter of the IM-14 Audit (E3 outcome)
+
+```text
+at: 2026-09-25T22:29:53-07:00
+outcome: re-charter / new epoch (LIFECYCLE-E4)
+```
+
+**Ruling (verbatim).** "Re-charter the IM-14 audit. F29 is concerning
+in that it seems like it would significantly grow the transcript on
+each new audit. Once something has already passed an audit, it should
+be checked off the audit list UNLESS a DAG dependency of a new commit
+would be impacted or implicated by the changes in the commit."
+
+| From spike `27bcc254` | Status |
+|---|---|
+| History scan: the closed `AUDITED` commit list, the `git diff` scan, the CI unshallow, the final-marker transition | **Superseded** |
+| Closed trigger vocabulary and detector | Retained |
+| Digest `LEDGER` in the test | Retained, now keyed to `(path, SHA-256)` |
+| Required sentence | Retained |
+| Agent text audit for residue; no operator duty | Retained, now incremental |
+
+**Orchestrator interpretation of "checked off" (an interpretation; the
+operator may correct it).** The audit is incremental and never re-reads
+what has already passed.
+
+* Each unit is audited once: the harvest commit or commits themselves
+  (their own `<sha>^1 <sha>` diff, never the whole-branch merge of the
+  harvest pull request), the added lines of each shipment's own merge
+  diff, D3's prepared template and mirror added lines (before D3 is
+  presented ready), and the final closure pull request's added lines.
+  Once dispositioned, a unit is checked off (recorded once: commit SHA,
+  disposition and, where it applies, the `LEDGER` count) and later
+  closures do not re-audit it.
+* Exception (re-open): a checked-off unit is audited again only when a
+  later commit modifies its lines, or changes a DAG dependency that the
+  unit describes or relies on (for example a surface, module or
+  contract whose behavior the audited text states), so that the prior
+  text could now become or imply a resistance claim. The auditing agent
+  names the implicated units and audits only their affected lines.
+* The automated floor check is a deterministic unit test over three
+  small files. It runs in CI on every run but produces no agent
+  transcript and no growing record, so it is not an "audit list" in the
+  operator's sense.
+
+## Epoch LIFECYCLE-E4 (IM-14 audit, re-chartered)
+
+```text
+epoch: LIFECYCLE-E4-<first 8 hex of the revision 6 blob> (fixed when revision 6 is committed)
+opened_by: operator re-charter 2026-09-25T22:29:53-07:00
+subject: plan revision 6, derived from revision 5 (commit 01cb89b9, blob 057a7615a5a53e53698bb53604ad7fba5382e744)
+verdict: pending
+harvest_permitted: false
+```
+
+| Field | Value |
+|---|---|
+| Scope (open) | The Non-Claim Audit Inventory section; C5's Change cell (the unshallow clause is removed); the IM-14 row; D3 preflight item 6 and any Files cell listing `tests/test_harness_noclaim_audit.py`, each only if it now contradicts; frontmatter |
+| Frozen | Everything else, at revision 5 |
+| Design source | The re-chartered design (floor-only automated check; fixed reading, normalization and hash contract; pair matches that span the join; path-bound `LEDGER`; incremental agent text audit for residue), under the operator ruling above |
+| Rubric, severity mapping, personas, routes | Frozen, unchanged from E2 and E3 (rulings 5, `2ca9d9a5`): only P0, P1 and matrix-critical P2 (IM-14, `PE-SAFETY-06`, `PE-SAFETY-07`) block. The same seven personas. Lead, Security and Parity on `gpt-6-sol`; Constitution, Python, Scope and Learnings on `claude-opus-5.5` |
+| Reviewer sessions | Fresh sessions of the same persona and model; not a route change |
+| Contract limits | No new task, reason code, public name, subsystem or threat class |
+| Growth | Unchanged, cumulative against revision 1 blob `2d562820`: body bytes at most 76533, file bytes at most 82995, words at most 12237 |
+| Budget | At most 2 consolidated revisions |
+| Cadence | One initial review of the scoped changes, then delta reviews, then one final full consistency pass |
+| Stop conditions | As in the convergence-reset deliberation (`docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md`, stop conditions); another attempt is not a permitted outcome on stop |
+| Carried findings | E3's F26, F34 to F41 and NOROW-F19: disposed of in E4 where the re-charter makes them moot, otherwise carried to harvest |
+| E2 and E3 | Verdicts stay `EPOCH_STOPPED`; `harvest_permitted` stays `false` |
+| E4 verdict | Pending |
