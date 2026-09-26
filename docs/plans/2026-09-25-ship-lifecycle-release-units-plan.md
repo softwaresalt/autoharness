@@ -1,19 +1,19 @@
 ---
-title: "Ship lifecycle release units A to D (rebaselined plan, LIFECYCLE-E4 subject)"
-description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 8 revises the subject (revision 6) of epoch LIFECYCLE-E4, the operator's re-charter of the IM-14 non-claim audit after the E3 epoch stop; not publication-eligible; not implementation-ready until a LIFECYCLE-E4 PASS."
+title: "Ship lifecycle release units A to D (rebaselined plan, LIFECYCLE-E5 subject)"
+description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 9 is the subject of epoch LIFECYCLE-E5, the operator's new epoch after the E4 epoch stop; not publication-eligible; not implementation-ready until a publication PASS recorded in the review manifest."
 doc_type: plan
 source: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
 plan_path: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 plan_role: active
-revision: 8
+revision: 9
 status: pending-review
-prior_revision: {revision: 7, commit: 79c18cc0, blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c}
-review_epoch: LIFECYCLE-E4
+prior_revision: {revision: 8, commit: d47f64b1, blob: 8d397c0559ae96da709620fc3db044124c068423}
+review_epoch: LIFECYCLE-E5
 review_manifest: docs/reviews/2026-09-25-ship-lifecycle-release-units-plan-review.md
-review_epoch_family: LIFECYCLE-E4
-review_epoch_token_rule: "LIFECYCLE-E4-<first 8 hex of this file's reviewed blob SHA-1>, fixed at epoch open in the review manifest"
+review_epoch_family: LIFECYCLE-E5
+review_epoch_token_rule: "LIFECYCLE-E5-<first 8 hex of this file's reviewed blob SHA-1>, fixed at epoch open in the review manifest"
 publication_eligible: false
 implementation_ready: false
 requires_plan_hardening: yes
@@ -46,7 +46,7 @@ release_units:
   - {unit: B, shipment: S(B-entry), tasks: 3, minutes: 275, dag: "after S(B-core)"}
   - {unit: D, shipment: S(D), tasks: 4, minutes: 395, dag: "after S(B-entry) and the IM-10 shipment; D3 also gated on IM-01"}
 c_folds_into_b: false
-harvest_gate: "Harvest only after a LIFECYCLE-E2 review PASS recorded in the review manifest. Not before."
+harvest_gate: "Harvest only after a publication PASS of the governing review epoch, recorded in the review manifest and bound to the plan blob it reviewed. Not before."
 labels:
   - ship-lifecycle
   - harness-architect
@@ -67,7 +67,7 @@ labels:
 | Order | **A -> C -> B -> D**, as five shipments: S(A) -> S(C) -> S(B-core) -> S(B-entry) -> S(D). A is the only `dag-root`. S(D) also waits on the separate IM-10 shipment |
 | Does C fold into B? | **No.** B alone needs 550 minutes and ships as two shipments. C adds 5 tasks and 435 minutes (see [Budgets](#release-units-and-budgets)) |
 | Linux | IM-01 is a **non-waivable** release gate for C, B and D. Windows evidence never satisfies it |
-| Status | Revision 3, consolidated revision 2 of 2 of `LIFECYCLE-E2-R1-2d562820` (findings in the review manifest). Not publication-eligible. Not implementation-ready. No backlog item exists yet |
+| Status | Revision 9, `LIFECYCLE-E5` subject (verdict in the review manifest). Not publication-eligible. Not implementation-ready. No backlog item yet |
 
 ## Authority and Status
 
@@ -751,8 +751,9 @@ judgment.
   dependency it describes or relies on; the auditor names it and
   re-audits only the affected lines. Units: this plan and its manifest,
   by an E4 persona at the blob passing the final full consistency pass,
-  recorded there; by Ship, each non-merge harvest commit's diff before
-  claiming S(A) (session note), each shipment's merge diff at its
+  recorded there; by Ship, each non-merge harvest commit's own diff
+  before the first Ship claim or closure after it lands (session note),
+  each shipment's merge diff at its
   closure (closure note, with `LEDGER` count), D3's prepared template
   and mirror lines before it is presented ready (readiness record) and
   each closure pull request diff (body record); by Stage, each later
