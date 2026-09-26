@@ -20,7 +20,9 @@ reviews:
   - {epoch: LIFECYCLE-E3-703d0de1, step: consolidated-revision-1, subject_revision: 5, subject_commit: 01cb89b9, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: REVISE, blocking_claimed_fixed: 5, blocking_open: 7}
   - {epoch: LIFECYCLE-E3-703d0de1, step: delta-review-1, subject_revision: 5, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: REVISE, blocking_closed: 5, blocking_open: 7}
   - {epoch: LIFECYCLE-E4-5cf1d52a, step: initial-review, subject_revision: 6, subject_commit: 33ad886b, subject_blob: 5cf1d52a48840d43aacfe8795b9b6ceba8d7f809, decision: REVISE, blocking_open: 3}
-  - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-1, subject_revision: 7, subject_commit: 79c18cc0, subject_blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c, decision: pending-delta-review, blocking_claimed_fixed: 3}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-1, subject_revision: 7, subject_commit: 79c18cc0, subject_blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c, decision: REVISE, blocking_claimed_fixed: 3, blocking_open: 1}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: delta-review-1, subject_revision: 7, subject_blob: 0aa8b652bee6f4a0ca67316d450ca781f8953c1c, decision: REVISE, blocking_closed: 3, blocking_open: 1}
+  - {epoch: LIFECYCLE-E4-5cf1d52a, step: consolidated-revision-2, subject_revision: 8, subject_commit: d47f64b1, subject_blob: 8d397c0559ae96da709620fc3db044124c068423, decision: pending-delta-review, blocking_claimed_fixed: 1}
 consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
 status: epoch-stopped
@@ -1032,4 +1034,98 @@ F55, plus the E3 carries IM-14-F26, IM-14-F35 (C5 note), IM-14-F39 and
 NOROW-F19.
 
 Totals: 3 blocking fixed; 4 non-blocking fixed, 1 fixed in part; 7
+carried to harvest. No finding declined.
+
+## E4 Delta Review 1 (subject revision 7)
+
+```text
+epoch: LIFECYCLE-E4-5cf1d52a
+subject: plan revision 7, commit 79c18cc0, blob 0aa8b652bee6f4a0ca67316d450ca781f8953c1c
+scope: changes only
+decision: REVISE
+```
+
+| Persona | Session | Route | Decision |
+|---|---|---|---|
+| Agent-Native Parity Reviewer | `b466cc0a` | `gpt-6-sol` | PASS |
+| Python reviewer | `fca7a513` | `claude-opus-5.5` | PASS |
+| Scope reviewer | `5bb49836` | `claude-opus-5.5` | PASS |
+| Learnings reviewer | `296b2a2d` | `claude-opus-5.5` | PASS |
+| Constitution Reviewer | `a8c11c68` | `claude-opus-5.5` | PASS |
+| Security Lens Reviewer | `f0eaa4a1` | `gpt-6-sol` | PASS |
+| Architecture Strategist (lead) | `687d2cb2` | `gpt-6-sol` | REVISE |
+
+**Withdrawals.** Security raised E4-SLR-F01 (the PR body is mutable),
+and the Lead raised E4-AS-F02 (the same point). The Orchestrator
+clarified that "(its body)" names the record carrier and that the unit
+is the closure pull request's commit diff, and both reviewers withdrew
+their findings. Neither is counted. Both suggested an unambiguous
+wording, recorded as IM-14-F61.
+
+**Closed.** All E4 initial blockers, IM-14-F42, IM-14-F43 and IM-14-F44.
+IM-14-F45, F46 and F48 hold. IM-14-F47 is accepted in part, and
+Constitution accepts IM-14-F50 as partial.
+
+**Stop-condition check.** Blockers declined (3 -> 1), and the new
+blocker (1) is fewer than those closed (3). Not triggered.
+
+| Stable ID | Raised by (confidence) | Sev | Blocking | Revision 7 lines | Summary and remedy |
+|---|---|---|---|---|---|
+| IM-14-F56 | Lead E4-AS-F01 (8) | P2 | **Yes** | L747-760 | Stage's audit of later plan or manifest edits has no deadline, so it could be relied on before it is dispositioned. Remedy: Stage dispositions each later edit, bound to its content, before the next Ship claim or closure; pay by cutting "read-only" |
+| IM-14-F57 | Python E4-PY-F05; Scope SBA-F04; Learnings LR-F06; Constitution CR-F07 | P3 | No | L733-734 | `TOC- ` (trailing whitespace) then `TOU` escapes the hyphen join; strip trailing whitespace before the ends-in-`-` test, and add a `TOC- `/`TOU` control |
+| IM-14-F58 | Constitution CR-F08 | P3 | No | L758-759 | Copy the closure pull request disposition into the merge commit message |
+| IM-14-F59 | Parity E4-ANP-F02 | P3 | No | L754-758 | Name the existing Ship record carriers (advisory) |
+| IM-14-F60 | Learnings LR-F07 | P3 | No | L759-760 | Record Stage's audit in the edit's commit message, which is outside its own diff; the first agent to audit a line checks it off |
+| IM-14-F61 | Security (suggestion); Lead (after withdrawing E4-AS-F02) | P3 | No | L758-759 | Disambiguate "each closure pull request (its body)" as "the closure PR diff, with the body as the record" |
+
+## E4 Consolidated Revision 2 (subject revision 8)
+
+| Field | Value |
+|---|---|
+| Subject | Plan revision 8, commit `d47f64b1`, blob `8d397c0559ae96da709620fc3db044124c068423`, 838 lines, LF, final newline |
+| Revisions used | 2 of 2 (the last) |
+| Author | Stage (`claude-opus-5.5` / `anthropic` / `high`) |
+| Changed body lines (revision 8 numbering) | 749-760 (Residue bullet only) |
+| Changed frontmatter lines | 3 (description: revision 8 sentence), 10 (`revision: 8`), 12 (`prior_revision` revision 7, `79c18cc0`, `0aa8b652`) |
+| Not changed | Every other line, including the Floor, Reading, Detector, Clearing, Required sentence and Controls bullets. No task, reason code, public name, subsystem or threat class added |
+| Review state | Pending delta review of the changes, then the final full consistency pass |
+
+### Contract Growth (revision 1 versus revision 8)
+
+| Measure | Revision 1 | Revision 7 | Revision 8 | Limit | Growth |
+|---|---:|---:|---:|---:|---:|
+| File bytes | 69163 | 82414 | 82415 | 82995 | +19.16% |
+| Body bytes (after frontmatter) | 63778 | 76531 | 76532 | 76533 | +19.997% (1 byte left) |
+| Words | 10198 | 12107 | 12108 | 12237 | +18.73% |
+| Tasks | 17 | 17 | 17 | 20 | 0% |
+| Lines (not a limit) | 769 | 838 | 838 | none | +9.0% |
+
+These edits were paid for inside the Residue bullet. "Read-only" was cut
+(the final sentence already bars Ship writes). "It is incremental:" was
+cut, since the rule itself states it. "The unit" became "it", and "the
+`LEDGER` count" became "`LEDGER` count".
+
+**Rule check (Stage, throwaway).** The rule bullets (L725-746) are
+unchanged from revision 7. Re-run against every control, the rules
+gave the same 32 of 32 results. A literal `TOC- `/`TOU` case (the
+IM-14-F57 carry) escapes as written.
+
+### Dispositions
+
+Line references are to revision 8 (blob `8d397c05`).
+
+| ID | Blocking | Disposition | Evidence in revision 8 |
+|---|---|---|---|
+| IM-14-F56 | **Yes** | Fixed | L758-760 (by Stage, each later plan or manifest commit, before the next Ship claim or closure, recorded in its message; the commit binds the audit to its content, and the message is outside its own diff) |
+| IM-14-F61 | No | Fixed | L758 ("each closure pull request diff (body record)": the diff is the unit, the body the record) |
+| IM-14-F57 | No | Carried to harvest | C5: strip trailing whitespace before the ends-in-`-` test; add a `TOC- `/`TOU` control |
+| IM-14-F58 | No | Carried to harvest | The closure merge commit message copies the closure pull request disposition |
+| IM-14-F59 | No | Carried to harvest | Map session note, closure note, readiness record and body record to existing Ship carriers (with IM-14-F39) |
+| IM-14-F60 | No | Fixed in part; rest carried | The commit-message location is in the plan (L759-760). Carried: the first agent to audit a line checks it off |
+
+**Harvest carries** (0 plan bytes): IM-14-F57, F58, F59 and the rest of
+F60, together with the earlier carries: IM-14-F47 (in part), F49 to
+F55, F26, F35, F39 and NOROW-F19.
+
+Totals: 1 blocking fixed; 1 non-blocking fixed, 1 fixed in part; 3
 carried to harvest. No finding declined.
