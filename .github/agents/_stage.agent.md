@@ -7,7 +7,7 @@ tools: vscode/getProjectSetupInfo, vscode/installExtension, vscode/memory, vscod
 max_subagent_tier: 3
 reasoning_effort: "high"
 model_provider: "anthropic"
-model_family: "claude-opus-5"
+model_family: "claude-opus-5.5"
 subagent_depth: 2
 ---
 
@@ -545,7 +545,7 @@ before falling back to the operator-halt checkpoint:
    carried over from this file's frontmatter or a prior session's resolved
    value, and MUST NOT invent a last-known-good fallback.
 3. **Same-route guard (role-scoped, H3)**: Stage's explicit role route
-   (`claude-opus-5`) is identical to this workspace's `tier3` family. If the
+   (`claude-opus-5.5`) is identical to this workspace's `tier3` family. If the
    `escalation` route were ever unset (or reset to an unset/matching value),
    resolution would fall back to `tier3` and land on the same model family
    as Stage's own route — that must be treated as `ESCALATION_DEGRADED`
@@ -553,7 +553,7 @@ before falling back to the operator-halt checkpoint:
    `escalation-protocol.instructions.md` rather than silently "escalating"
    to an identical model. This workspace's
    `config.model_routing.escalation` currently declares an explicit, distinct
-   route (`gpt-5.6-sol`/`openai`/`high`) specifically to keep genuine
+   route (`gpt-6-sol`/`openai`/`xhigh`) specifically to keep genuine
    escalation available; re-verify this guard whenever the escalation or
    tier3 route configuration changes.
 4. **Hand off and halt**: when the route is not degraded, record it in the

@@ -1,4 +1,7 @@
 {
   "effortLevel": "high",
-  "model": "gpt-5.6-sol"
+  "model": "gpt-6-sol",
+  "mergeStrategy": "merge",
+  "respectGitignore": false,
+  "includeCoAuthoredBy": true
 }

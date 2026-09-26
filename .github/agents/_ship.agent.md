@@ -7,7 +7,7 @@ tools: vscode, execute, read, agent, edit, search, web, 'microsoft-docs/*', 'bac
 max_subagent_tier: 3
 reasoning_effort: "high"
 model_provider: "anthropic"
-model_family: "claude-sonnet-5"
+model_family: "claude-opus-5.5"
 subagent_depth: 2
 ---
 
@@ -44,13 +44,15 @@ Ship is an execution and delivery agent. Acting outside this boundary is a **P-0
 
 | Category | Allowed | Forbidden |
 |---|---|---|
-| Backlog | Claim shipments, move tasks to active/done, close shipments (single-artifact safe-close), archive completed items; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_archive` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, edit planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
-| Source code | Delegate reads and writes to build/fix skills | — |
+| Backlog | Claim shipments, move tasks to active/done, close shipments (single-artifact safe-close), archive completed items; when backlogit is configured, refresh the disposable backlog query index via `backlogit_sync_index` or its registered `backlogit sync` CLI fallback before semantic shipment/task reads as required by Step 0.1, without changing backlog item, shipment, or stash markdown as part of that cache refresh; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_archive` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, edit planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
+| Source code | Delegate tracked source/test reads and writes to build/fix skills; directly create, revise, execute, and clean up bounded disposable test scripts/fixtures in a named Git-ignored, untracked scripts/scratch directory within the current cwd/worktree (see below) | — |
 | Git | Create/checkout feature/chore + post-merge branches, commit, push | Commit or push directly to `main` |
-| Build | Run build systems, test suites, linters, format checks | — |
+| Build | Run build systems, test suites, linters, format checks, and authorized temporary verification test scripts/fixtures | — |
 | PR | Create, update, and merge pull requests (with operator approval) | — |
 | Planning | Read plans and deliberation artifacts for execution context | Create or modify deliberation, spike, plan, or review artifacts |
 | Documentation / Knowledge | Write compound learnings, documentation updates, and session memory (`docs/compound/`, `docs/`, `docs/memory/`) during post-merge closure and knowledge graduation | — |
+
+**Temporary verification fixtures:** After normal P-001/P-011/P-016 gates, Ship may directly create, revise, execute, and clean up bounded disposable test scripts/fixtures for authorized verification and proof work in a named Git-ignored, untracked scripts/scratch directory within the current cwd/worktree; a user-designated Git-ignored, untracked scripts directory is allowed, not just a fixed scratch name. For autoharness, `.proof-scratch\{proof}-{timestamp}\` is the canonical example. Before creating a file, confirm its intended path is ignored (e.g. `git check-ignore -v <script-path>`); keep fixtures out of staged/committed changes. This does not authorize writes outside the cwd/worktree; tracked production source/tests/config/agents edits; backlog or plan mutation; task/shipment claims; bypassing TDD; or parallel worktrees. Tracked source/tests still delegate to build/fix skills. Before cleanup, check exact owned paths, containment, and contents; never clean anyone else's scratch, and follow normal destructive-action approval.
 
 **P-010 self-check**: Before any state-mutating operation, self-check the pending
 operation against this table per `.github/instructions/role-enforcement.instructions.md`

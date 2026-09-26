@@ -1,0 +1,185 @@
+---
+name: harness-architect
+description: "Scaffolds compilable but failing test harnesses for feature and chore tasks"
+argument-hint: "feature=001-{SUFFIX_FEATURE} tasks=001.001-{SUFFIX_TASK},001.002-{SUFFIX_TASK}"
+input:
+  properties:
+    feature:
+      type: string
+      description: "Feature or chore ID to scaffold harnesses for"
+    tasks:
+      type: string
+      description: "Comma-separated task IDs to scaffold (optional, defaults to all ready tasks)"
+  required:
+    - feature
+---
+
+# Harness Architect Skill
+
+Scaffold strict test harnesses for a feature's or chore's ready work items.
+The output must compile cleanly, fail for the intended not-yet-implemented
+behavior, and leave clear harness commands for downstream build execution.
+
+## Purpose
+
+Use this skill when a release unit needs executable test boundaries before
+implementation starts. The skill prepares the red phase and stops there. It
+does not implement production logic.
+
+## Agent-Intercom Communication
+
+When the `agent-intercom` capability pack is installed, call `ping` at
+session start. If reachable, broadcast at every step. If unreachable,
+warn the operator that visibility is degraded and continue locally.
+
+| Event | Level | Message prefix |
+|---|---|---|
+| Session start | info | `[HARNESS] Starting: feature={input.feature}` |
+| Tasks loaded | info | `[HARNESS] Ready tasks: {task_count}` |
+| Codebase analyzed | info | `[HARNESS] Context gathered: {module_count} modules` |
+| Harness generated | info | `[HARNESS] Generated: {test_file} ({scenario_count} scenarios)` |
+| Compilation check | info | `[HARNESS] Compilation: {result}` |
+| Red phase check | info | `[HARNESS] Red phase: {result}` |
+| Label applied | success | `[HARNESS] harness-ready: {task_id}` |
+| Complete | success | `[HARNESS] Complete: {task_count} tasks harnessed` |
+
+## Inputs
+
+* `${input:feature}`: (Required) Feature or chore ID such as `001-F`
+* `${input:tasks}`: (Optional) Comma-separated task IDs to scaffold.
+  When omitted, use all ready tasks under the feature.
+
+## Workflow
+
+### Step 1: Claim the ready task set
+
+1. Load the feature or chore and its ready descendants through backlog
+   query or queue operations.
+2. If `${input:tasks}` is present, restrict the scope to that explicit
+   task set.
+3. Exclude blocked, done, or otherwise non-ready work items.
+4. Preserve the work-item-to-task mapping so each harness can be traced
+   back to the correct backlog item.
+
+### Step 2: Read task intent
+
+1. Read each selected task's title, description, acceptance criteria,
+   and file references.
+2. Pull in feature-level acceptance criteria when task text depends on
+   broader feature behavior.
+3. Translate acceptance criteria into named test scenarios before writing
+   code.
+4. Identify the correct module, test tier, and affected files for each
+   harness.
+
+When the `agent-engram` capability pack is installed, prefer indexed
+symbol lookup and code-graph tools over broad grep when surveying
+existing modules, test patterns, and import paths.
+
+### Step 3: Determine execution posture
+
+For each task, select the appropriate harness strategy:
+
+| Posture | When to use | Harness pattern |
+|---|---|---|
+| **test-first** | New functionality with clear inputs/outputs | Write failing tests for expected behavior |
+| **characterization-first** | Modifying existing behavior | Write tests that capture current behavior then modify |
+| **migration-first** | Moving code between modules | Write tests at the destination, verify source behavior |
+| **spike** | Exploratory with uncertain approach | Write minimal integration test, implement spike, expand tests |
+
+### Step 4: Generate failing harness skeletons
+
+1. Create test files that express the task intent as compilable tests.
+2. Prefer table-driven or parameterized tests when the task describes
+   multiple scenarios.
+3. Create matching production stubs with raise NotImplementedError("...") bodies
+   so the module compiles while the tests still fail for the intended
+   reason.
+4. Keep signatures, types, and module names aligned with the current
+   codebase.
+
+### File placement rules
+
+Write harness files into the module that matches the work item's scope:
+
+* **Unit harnesses**: colocated with the production code in the
+  appropriate src/autoharness subdirectory
+* **Integration harnesses**: in `tests/integration/` when the
+  task spans modules or runtime boundaries
+* **Contract harnesses**: in `tests/contract/` when the task
+  defines API, CLI, or schema behavior
+
+Write companion stub files into the production module that the tests
+exercise. Do not place scaffolding in unrelated modules.
+
+### Step 5: Verify harness
+
+#### Step 5.1: Compilation check
+
+Run `python -m py_compile src/autoharness/cli.py` including tests. The harness MUST compile.
+
+If compilation fails, fix the harness until it compiles. Do not proceed
+with a non-compiling harness.
+
+#### Step 5.2: Red phase check
+
+Run `PYTHONPATH=src python -m unittest discover -s tests` for the harness tests,
+invoking exactly the resolved test command with no runner substitution.
+EVERY generated harness test MUST be discovered AND MUST fail with its
+own expected failure marker (raise NotImplementedError("...")); evaluate
+each test individually rather than relying on an aggregate non-zero
+exit code.
+
+The following outcomes are NEVER valid red-phase evidence and MUST be
+treated as harness defects requiring a fix before proceeding:
+
+* **Zero-discovery**: the test command reports zero tests collected —
+  test discovery failed to find the harness at all.
+* **Wrong-reason failure**: a test fails for a reason other than the
+  expected failure marker (a different exception type or message).
+* **Collection/import/syntax failure**: the run aborts during
+  collection due to an import error, syntax error, or module-load
+  failure — this is not the same signal as a running test raising the
+  expected marker.
+* **Skip or expected-failure (xfail)**: a test reported as skipped or
+  marked expected-to-fail counts as no observation, not as red
+  evidence.
+* **Pass or unexpectedSuccess**: a test that passes outright, or is
+  reported as an `unexpectedSuccess` (an `expectedFailure`-decorated
+  test that unexpectedly succeeded), is a false positive -- the
+  harness does not yet exercise the not-yet-implemented behavior.
+
+If any test exhibits one of these outcomes, fix the harness until
+every test is discovered and fails for the expected reason.
+
+### Step 6: Apply harness-ready label
+
+After both checks pass (P-004 gate satisfied):
+
+1. Update each task with `harness-ready` label using the backlog tool's
+   update operation.
+2. Add an implementation note with the harness command.
+3. Record the harness manifest: `Compilation: PASS`,
+   `Red Phase: CONFIRMED`.
+
+## Completion Criteria
+
+The skill is complete only when the selected tasks have:
+
+* harness files in the correct modules
+* structural stubs with intentional not-implemented behavior
+* a successful `python -m py_compile src/autoharness/cli.py` result after scaffolding
+* all harness tests failing with the expected marker
+* clear mapping from backlog task to harness command
+
+## Guardrails
+
+* Do not implement production logic — stubs only.
+* Do not skip compilation verification.
+* Do not apply the harness-ready label until both compilation and red
+  phase checks pass.
+* Keep test scenarios traceable to acceptance criteria.
+
+## Model Routing
+
+This skill operates at **Tier 2 (Standard)** — test scaffolding is structured but routine.
