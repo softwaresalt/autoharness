@@ -1,6 +1,6 @@
 ---
 title: "Review manifest: ship lifecycle release units A to D plan (LIFECYCLE-E2)"
-description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. It records epoch LIFECYCLE-E2-R1-2d562820 under the parameters frozen in 2ca9d9a5: the initial full review of plan revision 1 (blob 2d562820), seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews followed (blockers 7 -> 2 -> 3), and the epoch stopped with 3 IM-14 blockers open (verdict EPOCH_STOPPED; publication not met; nothing harvested). Findings, verdicts and dispositions live here and never in the plan."
+description: "Review manifest for the single governing plan docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md. It records epoch LIFECYCLE-E2-R1-2d562820 under the parameters frozen in 2ca9d9a5: the initial full review of plan revision 1 (blob 2d562820), seven personas, all REVISE, 41 consolidated findings of which 7 block; two consolidated revisions and two delta reviews followed (blockers 7 -> 2 -> 3), and the epoch stopped with 3 IM-14 blockers open (verdict EPOCH_STOPPED; publication not met; nothing harvested). Epoch LIFECYCLE-E3-703d0de1 (IM-14 audit; subjects revisions 4 and 5) then stopped after delta review 1: 5 blockers closed, 7 new admitted (verdict EPOCH_STOPPED; publication not met; nothing harvested). Findings, verdicts and dispositions live here and never in the plan."
 doc_type: review-manifest
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
@@ -17,7 +17,8 @@ reviews:
   - {step: consolidated-revision-2, subject_revision: 3, subject_commit: bd7002d5, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: REVISE, blocking_claimed_fixed: 2}
   - {step: delta-review-2, subject_revision: 3, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: REVISE, blocking_open: 3}
   - {epoch: LIFECYCLE-E3-703d0de1, step: initial-review, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, decision: REVISE, blocking_open: 5}
-  - {epoch: LIFECYCLE-E3-703d0de1, step: consolidated-revision-1, subject_revision: 5, subject_commit: 01cb89b9, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: pending-delta-review, blocking_claimed_fixed: 5}
+  - {epoch: LIFECYCLE-E3-703d0de1, step: consolidated-revision-1, subject_revision: 5, subject_commit: 01cb89b9, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: REVISE, blocking_claimed_fixed: 5, blocking_open: 7}
+  - {epoch: LIFECYCLE-E3-703d0de1, step: delta-review-1, subject_revision: 5, subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, decision: REVISE, blocking_closed: 5, blocking_open: 7}
 consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
 status: epoch-stopped
@@ -29,7 +30,8 @@ harvest_permitted: false
 stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails]
 operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}
 operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}
-next_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: pending}
+next_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: EPOCH_STOPPED}
+e3_stop: {epoch: LIFECYCLE-E3-703d0de1, last_subject_revision: 5, last_subject_commit: 01cb89b9, last_subject_blob: 057a7615a5a53e53698bb53604ad7fba5382e744, status: epoch-stopped, verdict: EPOCH_STOPPED, decision: EPOCH_STOPPED, publication: not-met, publication_eligible: false, harvest_permitted: false, consolidated_revisions_used: 1, consolidated_revisions_limit: 2, stop_conditions_triggered: [blockers-do-not-decline-across-revisions, newly-admitted-findings-at-least-as-many-as-closed], operator_decision: pending}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -574,7 +576,7 @@ harvest_permitted: false
 | Blocking rule | C4 unchanged: only matrix-critical `P2` blocks, besides `P0` and `P1` |
 | Growth | Still cumulative against revision 1 blob `2d562820`: body bytes, file bytes and words each at most 20% over revision 1 |
 | E2 | Verdict stays `EPOCH_STOPPED`, and `harvest_permitted` stays `false` |
-| E3 verdict | Pending |
+| E3 verdict | `EPOCH_STOPPED` after delta review 1 (see [E3 Epoch Stop](#e3-epoch-stop)); publication not met; `harvest_permitted` stays `false` |
 
 ### Revision 4 (E3 subject)
 
@@ -684,3 +686,114 @@ Line references are to revision 5 (blob `057a7615`).
 Totals: 5 blocking fixed; 4 non-blocking fixed and 1 fixed in part with
 the rest deferred; 1 informational and 1 out-of-scope finding carried to
 harvest. No finding declined.
+
+## E3 Delta Review 1 (subject revision 5)
+
+```text
+epoch: LIFECYCLE-E3-703d0de1
+subject: plan revision 5, commit 01cb89b9, blob 057a7615a5a53e53698bb53604ad7fba5382e744
+dispatch_mode: multi-agent, dispatcher Orchestrator
+scope: changes only
+decision: REVISE
+```
+
+| Persona | Reviewer session | Route | Decision |
+|---|---|---|---|
+| Architecture Strategist (lead) | E3 lead session | `gpt-6-sol` | REVISE |
+| Agent-Native Parity Reviewer | E3 parity session | `gpt-6-sol` | REVISE |
+| Constitution Reviewer | E3 constitution session | `claude-opus-5.5` | REVISE |
+| Security Lens Reviewer | `1f0fd656` (replaces `c5d5b001`) | `gpt-6-sol` | REVISE |
+| Python reviewer | E3 python session | `claude-opus-5.5` | PASS |
+| Learnings reviewer | E3 learnings session | `claude-opus-5.5` | PASS |
+| Scope reviewer | `8ab6cc56` (replaces `515ac98b`) | `claude-opus-5.5` | PASS |
+
+**Reviewer replacement (not a route change).** The original Security
+session `c5d5b001` ran out of context and returned nothing, and the
+original Scope session `515ac98b` ran out of context with an unverified
+REVISE. Neither result is counted. Each was replaced by a fresh session
+of the same persona on the same model (`1f0fd656`, `gpt-6-sol`;
+`8ab6cc56`, `claude-opus-5.5`). Persona, rubric and route are unchanged,
+so the "reviewer route changes mid-epoch" stop condition does not apply.
+Scope's frozen-region check was clean: revision 5 changes only the
+E3-open regions.
+
+**Closed on revision 5 evidence.** All five initial E3 blockers:
+IM-14-F16, IM-14-F17, IM-14-F18, IM-14-F19 and IM-14-F20. The Lead
+closed F16 and F21 but reads F17 as still open, and Security reads F20
+as closed only in part. Those residues are admitted below as the new
+IM-14-F27 and IM-14-F30, not counted as reopened findings. Also closed:
+IM-14-F21, IM-14-F22 and IM-14-F25. The IM-14-F23 and IM-14-F24
+deferrals were accepted by Lead, Parity (advisory), Constitution,
+Python, Learnings and Scope, but rejected by Security, whose rejections
+are admitted as IM-14-F32 and IM-14-F33.
+
+### New Blocking Findings (IM-14 / `PE-SAFETY-06`, `P2-critical`)
+
+| Stable ID | Raised by (confidence) | Sev | Revision 5 lines | Summary | Proposed remedy |
+|---|---|---|---|---|---|
+| IM-14-F27 | Lead (residue of F17, 8) | P2 | L753-760 | The E3 reviewer audits the plan and manifest as they were during E3, but both change later. Ship's harvest and closure audits cover harvest commits and shipment diffs, not the plan and manifest as they stand then | At harvest and at each closure, Ship audits the plan and manifest as they stand then, recording the disposition and the `LEDGER` count |
+| IM-14-F28 | Parity IM-14-F21.1 (9); Constitution CONST-E3-F07 (P3, duplicate) | P2 | L732-746 | After the list is final only the floor runs, but the unused-entry rule would then fail every non-floor `LEDGER` entry (for example S(C)'s fixture entries), so the canonical test goes permanently red | In final mode, apply the unused-entry check to floor entries only, or have S(D)'s closure keep only floor entries |
+| IM-14-F29 | Constitution CONST-E3-F06 (7) | P2 | L725-728 | "Each commit or merge landing the harvest" includes the merge of the harvest PR, whose first-parent diff is the whole branch (charter, proofs, spike, plan, manifest). That means hundreds of hits for C5 to ledger, contradicting the ratified "0 pre-existing surfaced" | List the harvest commit itself (`sha^1 sha` = the harvest's own lines) and each merge that lands a shipment or closure |
+| IM-14-F30 | Security SEC-1 (0.96); Python F28py (P3, duplicate) | P2 | L739-746 | Pairs are scanned only when neither line hits. A line holding the required sentence plus `TOC-` clears on its own, and a next line `TOU resistance` has no hit, so that pair is never scanned: an escape | Scan every adjacent pair, or pairs where neither line has an uncleared hit, with a control for this case |
+| IM-14-F31 | Security SEC-2 (0.93) | P2 | L743-746 | A `LEDGER` entry is keyed only by the normalized unit's hash and a label, so a `fixture` entry also clears an identical claim on a production path | Bind each entry to its path (or occurrence) as well as its hash |
+| IM-14-F32 | Security SEC-3 (0.88) | P2 | L734-746 (IM-14-F23 deferral) | Deferring determinism is not acceptable: the hash is a contract that must match across hosts | The plan must state the contract: raw bytes with `--no-color`; strict UTF-8, else fail; hunk-aware CR and marker strip; raw pair join with the trailing hyphen dropped, then `_`/`-` to space and whitespace collapsed; SHA-256 of the UTF-8 bytes |
+| IM-14-F33 | Security SEC-4 (0.81) | P2 | L725-732 (IM-14-F24 deferral) | Deferring the completeness check is not acceptable | Before the final marker, the closure independently lists the landing commits, compares that list exactly with `AUDITED`, and refuses the final marker on any omission |
+
+Constitution also rated IM-14-F20 and IM-14-F23 partial but acceptable.
+
+### Non-Blocking Findings (carried to the next epoch or to harvest)
+
+| Stable ID | Raised by | Sev | Revision 5 lines | Summary |
+|---|---|---|---|---|
+| IM-14-F34 | Python F27py | P3 | L739-742 | Normalization order: map `_` and `-` to space after the hyphen-dropped pair join (a 0-byte swap) |
+| IM-14-F35 | Python F29py | P3 | L739-742 | camelCase claims (for example `raceFree`) remain residue |
+| IM-14-F36 | Learnings F27l | P3 | L323, L733, L747-749 | After the list is final the git scan is absent, not skipped; drop "Until `AUDITED` is final" from L323 to pay for it |
+| IM-14-F37 | Learnings F28l | P3 | L753-755 | Bind the E3 reviewer's audit to the blob that passes the final full consistency pass (harvest carry) |
+| IM-14-F38 | Scope | P3 | L731-732 | S(D)'s final full scan is never CI-verified; record the pre-final result, or mark final in a separate commit |
+| IM-14-F39 | Scope | P3 | L756-760 | "Readiness record" and "session note" must name existing Ship record types |
+| IM-14-F40 | Scope | P3 | L734-736 | CR-strip residual: `.gitattributes` does not pin `src/*.py` to LF |
+| IM-14-F41 | Parity IM-14-F24.1 (partial) | P3 | L726 | The final closure's own landing cannot be listed in `AUDITED` (it would be self-referential); say that its recorded text audit covers it |
+| IM-14-F26 | Python E3PY-06b (re-raised) | P3 | L323 | The coverage module is not in the CI module list (carried to harvest) |
+
+Advisory notes, no ID: Learnings would accept the IM-14-F24 deferral
+only as a harvest carry into each closure carrier (list the first-parent
+merges since the last listed commit and record exclusions), and the
+IM-14-F23 deferral only with a C5 control that `++ race-free` must fail.
+Python suggests C5 check ancestry red-first. NOROW-F19 stays carried to
+harvest.
+
+## E3 Epoch Stop
+
+```text
+epoch: LIFECYCLE-E3-703d0de1
+decision: EPOCH_STOPPED
+publication: not met
+harvest: not permitted
+operator_decision: pending
+```
+
+| Field | Value |
+|---|---|
+| Last subject | Plan revision 5, commit `01cb89b9`, blob `057a7615a5a53e53698bb53604ad7fba5382e744` |
+| Consolidated revisions used | 1 of 2 |
+| Blocking trend | 5 (initial review of revision 4) -> 7 (delta review 1 of revision 5) |
+| Findings closed versus admitted | 5 blocking closed; 7 new blocking admitted |
+| Stop conditions triggered | "Blockers do not decline across revisions" (5 -> 7) and "newly admitted findings are at least as many as findings closed" (7 >= 5), per the convergence-reset deliberation (`docs/decisions/2026-09-23-lifecycle-review-convergence-reset-deliberation.md`, stop conditions) |
+| Growth headroom | Body bytes 76533 of 76533 (0 bytes left); file bytes 82440 of 82995; words 12091 of 12237 |
+| Publication gate | **Not met** |
+| Harvest | Nothing harvested. Harvest reads its verdict from this manifest under OP-5, and `EPOCH_STOPPED` is not `PASS`, so it fails closed |
+| Plan revisions after the stop | None. "Another attempt is not a permitted outcome", so there is no revision 6, and the second consolidated revision goes unused |
+| E2 | Unchanged: `EPOCH_STOPPED` |
+
+**Where the blockers are.** All seven open blockers are again confined
+to the IM-14 non-claim audit: which commits are listed and whether that
+list is complete (IM-14-F29, IM-14-F33); the final mode and the ledger
+(IM-14-F28, IM-14-F31); pair coverage (IM-14-F30); the hash contract
+(IM-14-F32); and residue coverage of the current plan and manifest
+(IM-14-F27). No P0, P1 or other matrix-critical P2 is open elsewhere.
+Body bytes have no headroom left, so any in-plan remedy would need
+cuts elsewhere or a growth ruling.
+
+**Permitted outcomes (operator decision pending).** Split, spike,
+re-charter or new epoch, explicit risk acceptance, defer, or cancel. No
+outcome is chosen here.
