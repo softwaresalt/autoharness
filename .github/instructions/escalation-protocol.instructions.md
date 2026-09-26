@@ -101,9 +101,10 @@ The escalation route resolves via a role-scoped precedence:
    route (`claude-opus-5.5`/`anthropic`), so the handoff can provide genuinely
    independent analysis rather than a same-route no-op.
 3. **Tier3 fallback**: any field still unresolved after (1)/(2) falls back
-   per-field to `model_routing.tier3` (`claude-opus-5.5`; this workspace's
-   `tier3` is a plain model-identifier string, so its provider/reasoning-
-   effort sub-fields resolve empty via fallback).
+   per-field to `model_routing.tier3`. This workspace's `tier3` is a mapping
+   (`model_family = claude-opus-5.5`, `model_provider = anthropic`,
+   `reasoning_effort = high`), so provider and reasoning effort resolve to
+   those values rather than empty via fallback.
 
 This mirrors the P-013.5 `stage`/`ship` role-route fallback pattern: a
 targeted override, never a parallel tier taxonomy.

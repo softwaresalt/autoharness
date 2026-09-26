@@ -107,7 +107,7 @@ artifacts:
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "73afa025c1c9e1b0f219bb52ac1dc17a6cabe466666279844ca9091074185f00"
+    checksum: "f34209a5f8fd022a2a58314ccc45ce936476e8720860e3654ab59ef396a50553"
     note: "checksum refreshed 2026-09-25 for an operator-approved model-routing change (orchestrator and ship routes set to claude-opus-5.5/anthropic/high, matching stage; route comments corrected), which also records the previously unrecorded 89b0db6d routing change; computed from the LF-normalized staged git blob `git cat-file blob :<path>`; checksum refreshed 157-S/149-F PR #420 Copilot review round 6 fix: det:D-ART/ART-01@1's applies_when.changed_paths_any now also matches the default `.backlog/**` root (previously matched only the legacy `.backlogit/**` path, so a default-`.backlog/`-rooted change was marked not_applicable before the fixed producer ever ran); no detector behavior/schema_version change otherwise. Checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>` per the procedure established in 115-S"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
@@ -382,7 +382,7 @@ artifacts:
   - path: ".github/instructions/escalation-protocol.instructions.md"
     primitive: 5
     template: "instructions/escalation-protocol.instructions.md.tmpl"
-    checksum: "527fe3d8635949529c3ffe6a4ef4929a69771be2098c2b64135b316c2a54bf15"
+    checksum: "afb325e1dca8782d6f8d0f06d2a619fed8d7df6b069c9233b5fe7075c416b30f"
     note: "telemetry-driven auto-escalation protocol instruction (P-013.6, installed 106.001-T/106.003-T, 110-S); either-agent install condition (Stage or Ship present), distinct from the two-agent-only role-enforcement gate; vars resolved ESCALATION_FAMILY=gpt-5.6-sol, ESCALATION_PROVIDER=openai, ESCALATION_REASONING_EFFORT=high; checksum refreshed 121-S/113.003-T (F02FD596: nested per-role escalation precedence -- <role>.escalation -> legacy flat (DEPRECATED) -> tier3 -- both-present AMBIGUOUS fail-closed (H2), and role-scoped ESCALATION_DEGRADED same-route guard (H3); this workspace declares no nested override so ESCALATION_FAMILY/PROVIDER/REASONING_EFFORT above remain this workspace's currently-resolved legacy-flat values); checksum refreshed 116-S adversarial/Copilot remediation (analysis/handoff wording; no post-threshold re-execution); checksum refreshed again on PR #348 Copilot review round 4 fix (Escalation-Payload Contract table gained a `resolved_escalation_route` field -- the `(model_family, model_provider, reasoning_effort)` tuple actually resolved for the handoff -- and the Terminal Engram Handoff section now names that field explicitly instead of a bare 'the payload'; checksum computed from the LF-normalized (.gitattributes eol=lf) committed git blob via `git cat-file -p :<path>`, verified identical to the raw working-tree read per the same procedure established in 115-S)"
   - path: ".github/instructions/concurrency.instructions.md"
     primitive: 5
