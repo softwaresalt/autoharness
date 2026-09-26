@@ -1,19 +1,19 @@
 ---
-title: "Ship lifecycle release units A to D (rebaselined plan, LIFECYCLE-E3 subject)"
-description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 5 revises the subject (revision 4) of epoch LIFECYCLE-E3, scoped to the IM-14 non-claim audit after the E2 epoch stop and the operator-ratified spike (27bcc254); not publication-eligible; not implementation-ready until a LIFECYCLE-E3 PASS."
+title: "Ship lifecycle release units A to D (rebaselined plan, LIFECYCLE-E4 subject)"
+description: "Single governing plan for the four C2 release units that succeed the retired 187-S / 181-F: A (P-002/P-004 and actor evidence conformance with per-task semantics), C (portable ordinary-containment reader, Windows and Linux), B (one-entry SurfaceSpec resolver, result schema and CLI, delivered as two shipments, B-core and B-entry, to stay within budget) and D (Ship-side validated-document consumer and the one-task, one-commit Ship activation). Every ratified implementation-matrix row IM-01 to IM-17 is mapped to a unit, a task and a verification. Carries the Decision 1 admitted bound (1..48 members, max_files 256, C_max 202, margin 54, no byte fit), the class 1b read-limit mapping, the OD-11-ratified 47-code list and precedence, the OD-10 early-return rule with the IM-16 both-order tests, P-002/P-004 TDD under the ratified R2 reading, the non-waivable Linux-native gate IM-01 and the section 9 budgets (at most 6 tasks and 8 hours per shipment). C does not fold into B: the combined unit would exceed both budgets. Shipments are sequenced A -> C -> B-core -> B-entry -> D with A as the only dag-root, and S(D) also waits on the separate IM-10 shipment. Revision 6 is the subject of epoch LIFECYCLE-E4, the operator's re-charter of the IM-14 non-claim audit after the E3 epoch stop; not publication-eligible; not implementation-ready until a LIFECYCLE-E4 PASS."
 doc_type: plan
 source: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 date: 2026-09-25
 plan_id: ship-lifecycle-release-units
 plan_path: docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
 plan_role: active
-revision: 5
+revision: 6
 status: pending-review
-prior_revision: {revision: 4, commit: 48cafb4a, blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6}
-review_epoch: LIFECYCLE-E3
+prior_revision: {revision: 5, commit: 01cb89b9, blob: 057a7615a5a53e53698bb53604ad7fba5382e744}
+review_epoch: LIFECYCLE-E4
 review_manifest: docs/reviews/2026-09-25-ship-lifecycle-release-units-plan-review.md
-review_epoch_family: LIFECYCLE-E3
-review_epoch_token_rule: "LIFECYCLE-E3-<first 8 hex of this file's reviewed blob SHA-1>, fixed at epoch open in the review manifest"
+review_epoch_family: LIFECYCLE-E4
+review_epoch_token_rule: "LIFECYCLE-E4-<first 8 hex of this file's reviewed blob SHA-1>, fixed at epoch open in the review manifest"
 publication_eligible: false
 implementation_ready: false
 requires_plan_hardening: yes
@@ -187,7 +187,7 @@ predesignated `P2-critical` are marked. Severity and deferral are as ratified.
 | IM-11 | P1 | At most 6 tasks and 8 hours per shipment; independent value; two-axis sizing | Harvest (all units) | [Budgets](#release-units-and-budgets) table (B split into two shipments); harvest writes `size` and `complexity` on every task |
 | IM-12 | P1 | Manifest checksums from raw staged-blob bytes | A1, A2, D3 | Before refresh, the recorded checksum equals the SHA-256 of `HEAD:<path>`, else halt on drift. Python subprocess with binary capture of `git cat-file -p :<path>` before commit and `HEAD:<path>` after; `git add --renormalize` only when an `eol=lf` pin is added; no PowerShell text capture |
 | IM-13 | P1 | P-004 RED uses the exact canonical command and per-test marker attribution under R2 | A1, A2 (text); every `harness-surface:harness-architect` task (practice) | A1/A2 structural tests; each code task's RED record (task ID, exact command, native exit, per-roster-test outcome and its own marker per the [Marker Convention](#marker-convention)) before implementation |
-| IM-14 | **P2-critical** | No artifact claims race, TOCTOU or hardlink-alias resistance | All units | The one [non-claim audit](#non-claim-audit-inventory): C5 creates it, B1 and D1 add floor files, closures extend `AUDITED` and `LEDGER`, and D3's preflight and closures run it with no skip |
+| IM-14 | **P2-critical** | No artifact claims race, TOCTOU or hardlink-alias resistance | All units | The one [non-claim audit](#non-claim-audit-inventory): C5 creates it, B1 and D1 add floor files, D3's preflight runs it with no skip, and each closure does the incremental text audit |
 | IM-15 | P1 | Publication, execution and claim/closure gates distinct; a test or proof `PASS` confers no claim authority | All units | No carrier or artifact asserts claim readiness from a review or test result; ordinary P-001/P-002/P-004/P-020 gates at claim and closure |
 | IM-16 | P1 | Early return decided; test both orders | C3 (usage seam), B4b (private limits hook) | Test (a) disagreement first -> `INPUT_CHANGED_DURING_RESOLUTION`; test (b) read-limit first -> the read-limit code, native code and stage in diagnostics, and **zero** further claims after the first limit error; (b) covers all three codes and each feasible stage; infeasible stages recorded with reasons |
 | IM-17 | P1 (closed) | The ratified 47-code list is the contract; no revision | B1 | B1's registry test compares against a constant copied from the hash-pinned block; any difference fails |
@@ -320,7 +320,7 @@ outside is `OUTSIDE_TRUST_ROOT` and one that points inside is
 | Field | Value |
 |---|---|
 | Files | `.github/workflows/ci.yml` (one new step in the existing `ubuntu-latest` test job); `tests/test_harness_read_case_coverage.py`; `tests/test_harness_noclaim_audit.py` |
-| Change | The CI step uses `shell: bash`, `set -euo pipefail` and `export TMPDIR="$RUNNER_TEMP"`. Until `AUDITED` is final it runs `git fetch --unshallow` if `git rev-parse --is-shallow-repository` prints `true`. It runs `PYTHONPATH=src python -m unittest -v tests.test_harness_read_lexical tests.test_harness_read_containment tests.test_harness_read_bounds tests.test_harness_read_nonregular tests.test_harness_noclaim_audit` logging output, and fails on a non-zero exit or unless the summary is `OK` with no `skipped=`. It prints `platform.system()`, `uname -r`, and `stat -f -c %T` of the checkout and of the effective fixture root (`python -c "import tempfile; print(tempfile.gettempdir())"` under the same environment), asserts that root is under `$RUNNER_TEMP`, and fails unless both types are `ext2/ext3` (ext4), `xfs` or `btrfs` (so `tmpfs`, `overlayfs`, `9p` and `fuse` fail). The coverage test asserts every Proof G case ID G01 to G32 appears in a test name, G31 is Linux-only, and every other ID has a variant that runs on both hosts. The audit test implements the [non-claim audit](#non-claim-audit-inventory) |
+| Change | The CI step uses `shell: bash`, `set -euo pipefail` and `export TMPDIR="$RUNNER_TEMP"`. It runs `PYTHONPATH=src python -m unittest -v tests.test_harness_read_lexical tests.test_harness_read_containment tests.test_harness_read_bounds tests.test_harness_read_nonregular tests.test_harness_noclaim_audit` logging output, and fails on a non-zero exit or unless the summary is `OK` with no `skipped=`. It prints `platform.system()`, `uname -r`, and `stat -f -c %T` of the checkout and of the effective fixture root (`python -c "import tempfile; print(tempfile.gettempdir())"` under the same environment), asserts that root is under `$RUNNER_TEMP`, and fails unless both types are `ext2/ext3` (ext4), `xfs` or `btrfs` (so `tmpfs`, `overlayfs`, `9p` and `fuse` fail). The coverage test asserts every Proof G case ID G01 to G32 appears in a test name, G31 is Linux-only, and every other ID has a variant that runs on both hosts. The audit test implements the [non-claim audit](#non-claim-audit-inventory) |
 | Verification | The pull request's CI log for the new step, with the job URL, runner OS, kernel, the unittest exit code, the effective fixture root, both filesystem types and zero skips, recorded by Ship as IM-01 evidence. The `test` job is path-gated and `ci gate` treats a skipped `test` job as OK, so the evidence must show the step itself executed; a green `ci gate` alone is not IM-01 evidence. Stage runs none of it |
 | Label | `harness-surface:none` for the workflow step; the coverage and audit tests are structural |
 | Estimate | 80 min; size `S`; complexity `low` |
@@ -719,50 +719,51 @@ claim, push, pull request or merge by Stage.
 ### Non-Claim Audit Inventory
 
 IM-14 and `PE-SAFETY-06` are `P2-critical`. A text audit (charter 7.6):
-the test guarantees coverage; recorded agent dispositions supply
+the test guarantees floor coverage; recorded agent dispositions supply
 judgment.
 
-* **Audited commits.** `AUDITED`, a closed list in
-  `tests/test_harness_noclaim_audit.py`, holds once each commit or merge
-  landing the harvest, a shipment or a closure on the base branch, each
-  asserted its ancestor. C5 seeds it through S(A)'s closure; each
-  closure appends what landed since. Both add `LEDGER` entries for hits
-  in the lines they newly audit, confirmed by local review; tasks ledger
-  only floor hits. S(D)'s closure, after its full scan, marks the list
-  final; then only the floor runs.
-* **Scan.** Until final, every added line, on any path, of each listed
-  commit's first-parent diff (`git diff --no-renames --no-ext-diff
-  --no-textconv -U0 <sha>^1 <sha>`); a listed commit with no added line
-  fails. Always, every line of the floor files, which must exist:
-  `harness_read.py` (C5), `harness_surfaces.py` (B1),
-  `harness_verdict.py` (D1).
-* **Detector.** Case-insensitive, `_` and `-` as spaces, whitespace
-  collapsed, on each line and each adjacent pair where neither hits,
-  joined by a space or else with a trailing hyphen dropped:
+* **Floor.** `tests/test_harness_noclaim_audit.py` (C5) scans only
+  `FLOOR`, a closed list of files read from the working tree, with no
+  git and no skip path: `harness_read.py` (C5), `harness_surfaces.py`
+  (B1), `harness_verdict.py` (D1). A missing `FLOOR` file fails.
+* **Reading.** Bytes, decoded as strict UTF-8 or the test fails; CR
+  removed. Each line is lowercased, `_` and `-` become spaces, and
+  whitespace runs collapse. Each adjacent pair is joined raw with a
+  space or, if that has no spanning match, with the first line's
+  trailing hyphen and all whitespace at the join dropped, then
+  normalized; only matches spanning the join count. A unit (line or
+  join) hashes as SHA-256 of its normalized UTF-8.
+* **Detector.**
   `\b(?:rac(?:e[sd]?|ing|y)|toctt?ous?|time of check|hard ?link\w*|symlink ?swap\w*)\b`.
-* **Clearing.** A hit clears only if its line or pair has no hit once the
-  required sentence is removed, or that normalized unit's SHA-256 is in
-  the closed `LEDGER` as `non-claim` or `fixture`. Any other hit fails;
-  after a full scan, so does an unused entry.
-* **Base and skips.** Only `AUDITED`, never an environment variable.
-  Without git or a listed commit the scan skips, naming the reason;
-  until final, the C5 step, D3 preflight and closures fail on it.
+* **Clearing.** A line hit clears if the line has no hit once the
+  required sentence is removed. Any hit clears if its `(path, SHA-256)`
+  is in the closed `LEDGER` as `non-claim`; the task adding the line (C5
+  for C's lines) adds the entry, confirmed by local review. Any other
+  hit fails, as does an entry unused on a run.
 * **Required sentence.** On one physical line of the reader module
   docstring (C1): "This reader makes no race, TOCTOU or hardlink-alias
   resistance claim." The audit asserts it.
-* **Residue.** Claims outside this closed vocabulary fall to a recorded
-  agent text audit, this release only; no operator duty. An E3 persona
-  audits this plan and its manifest, recorded there. Ship audits,
-  read-only, the harvest commits before claiming S(A) (session note;
-  `LEDGER` n/a), each shipment's merge diff at its closure (the last
-  also its pull request; closure note, with the `LEDGER` count) and D3's
-  added template and mirror lines before D3 is presented ready
-  (readiness record). Ship writes no planning or review artifact.
+* **Residue.** Everything outside `FLOOR` falls to a recorded agent text
+  audit, this release only; no operator duty. It is incremental: each
+  unit is audited once and checked off, and re-opened only when a later
+  commit modifies its lines or changes a DAG dependency the unit
+  describes or relies on; the auditor names those units and re-audits
+  only their affected lines. Units: this plan and its manifest, by an E4
+  persona at the blob that passes the final full consistency pass,
+  recorded there; read-only by Ship, the harvest commits' own diffs
+  before claiming S(A) (session note), each shipment's merge diff at its
+  closure (closure note, with the `LEDGER` count), D3's prepared
+  template and mirror lines before D3 is presented ready (readiness
+  record) and the final closure pull request. Later plan or manifest
+  edits land in those commits. Ship writes no planning or review
+  artifact; it may run the detector as an aid.
 * **Controls.** Must fail: each claim form in IM-14-F05, F10 and F11;
   `race_free`, `test_toctou_safe`, `TOCTTOU`, `hard-linked`;
-  `race-`/`free`, `hard-`/`link` and `TOC-`/`TOU` split over two lines.
-  Must not hit: `trace-free`, `embrace-safe`, `grace period`. The
-  required sentence hits and clears.
+  `race-`/`free`, `hard-`/`link` and `TOC-`/`TOU` split over two lines;
+  a required-sentence line ending `TOC-` then `TOU resistance`; a
+  `LEDGER` entry for one path used on another; invalid UTF-8. A CRLF
+  copy hashes as LF. Must not hit: `trace-free`, `embrace-safe`,
+  `grace period`. The required sentence hits and clears.
 
 ### Rollback and Closure by Unit
 
