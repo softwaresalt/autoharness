@@ -12,8 +12,10 @@ rubric: {version: R1, skill_path: .github/skills/plan-review/SKILL.md, skill_blo
 matrix_version: "IM-01 to IM-17 (a04dea18; ratified 2634bac2; IM-17 closed b8a7b100; IM-16 decided 8fa08913); PE-1.7 (e65887d8)"
 reviews:
   - {step: initial-full-review, subject_revision: 1, subject_commit: c7363567, subject_blob: 2d5628206de3ab8083ec8ac173fa5283663f9b01, decision: REVISE, blocking_open: 7}
-  - {step: consolidated-revision-1, subject_revision: 2, subject_commit: fcae22da, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: pending-delta-review, blocking_claimed_fixed: 7}
-consolidated_revisions_used: 1
+  - {step: consolidated-revision-1, subject_revision: 2, subject_commit: fcae22da, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: REVISE, blocking_claimed_fixed: 7}
+  - {step: delta-review-1, subject_revision: 2, subject_blob: 1828ecb9462762945979fbbfc1a73320f5975653, decision: REVISE, blocking_open: 2}
+  - {step: consolidated-revision-2, subject_revision: 3, subject_commit: bd7002d5, subject_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, decision: pending-delta-review, blocking_claimed_fixed: 2}
+consolidated_revisions_used: 2
 consolidated_revisions_limit: 2
 status: open
 publication_eligible: false
@@ -268,3 +270,127 @@ and wait for delta-review confirmation.
 **Stage-found correction (not a review finding).** B5's `--help` now prints
 to stdout with exit 0 (L417), matching argparse. Revision 1 said usage on
 stderr with exit 2.
+
+## Delta Review 1 (subject revision 2)
+
+```text
+dispatch_mode: multi-agent
+dispatch_route: explicit-model gpt-6-sol, dispatcher Orchestrator
+decision: REVISE
+```
+
+The same seven reviewer agents checked revision 2 against changes only.
+Lead (`gpt-6-sol`), Security (`gpt-6-sol`) and Python returned REVISE.
+Parity (`gpt-6-sol`), Constitution, Scope and Learnings returned PASS.
+
+**Closed on named evidence.** IM-10-F01, IM-07-F01, IM-05-F01, IM-01-F01,
+IM-13-F01, IM-14-F02, IM-14-F03, IM-14-F04, IM-01-F02, IM-01-F03,
+IM-05-F02, IM-07-F02, IM-07-F03, IM-02-F01 (deferral accepted), IM-03-F01,
+IM-04-F02, IM-08-F01 to F03, IM-09-F01, IM-11-F01, IM-12-F01, IM-13-F02,
+IM-16-F01, `PE-SAFETY-03-F01`, `PE-SAFETY-07-F01`, NOROW-F01, NOROW-F02
+and NOROW-F04 to F10.
+
+**Reopened.** IM-14-F01 was closed by four reviewers but held open by
+Security and re-raised by Lead. It is treated as open and blocking, with
+the residue recorded as IM-14-F01.1.
+
+**Identity resolution.** Reviewer-local IDs collided. Stable IDs below;
+merged local IDs are named in the Raised-by column.
+
+| ID | Raised by (local ID) | Row class | Blocking | Summary |
+|---|---|---|---|---|
+| IM-14-F01.1 | Lead (IM-14-F05), Security (IM-14-F01, IM-14-F01.1) | IM-14, `P2-critical` | **Yes** | The inventory omits changed artifacts (C5's CI workflow, `schema_contracts.py`, `verify_workspace.py`, the manifest); extending tasks omit the audit test from Files; no per-shipment scope statement |
+| IM-14-F05 | Python (IM-14-F05) | IM-14, `P2-critical` | **Yes** | Patterns miss inflected claims ("resistant to race", "protects against TOCTOU"); no inflected positive control |
+| IM-14-F06 | Learnings (IM-14-F05) | IM-14 | No | Negative controls `trace` and `brace` test nothing; anchor with `\b` |
+| IM-14-F07 | Constitution (IM-14-F05, P3), Scope (IM-14-F05) | IM-14 | No | S(A) closes before the audit exists; B2 and B3 modules join late |
+| IM-03-F02 | Lead, Parity (IM-03-F02) | IM-03 | No | `FILE_COUNT_LIMIT` is reachable only through `_resolve`, not the public resolver or CLI |
+| IM-03-F03 | Python (IM-03-F02) | IM-03 | No | Pinned schema hash breaks on a CRLF checkout |
+| IM-11-F02 | Learnings (IM-11-F02) | IM-11 | No | S(B-core) is a partial-feature shipment; `shipment ship` hazard (097-S) |
+| IM-11-F03 | Scope (IM-11-F03) | IM-11 | No | S(B-core) could publish schema `1.0.0` before B-entry's 47-code check |
+| IM-07-F04 | Constitution (IM-07-F04) | IM-07 | No | D1's capture files have no named in-workspace, Git-ignored path or cleanup |
+| IM-16-F02 | Python (IM-16-F02) | IM-16 | No | `usage.files_claimed` is unobservable from outside `_resolve` |
+| IM-13-F03 | Python (IM-13-F03) | IM-13 | No | Structural tests reach no stub, so FI-9 refuses their RED |
+| IM-10-F01.1 | Constitution (IM-10-F01.1), Scope (IM-10-F02) | IM-10 | No | Stale "D3 halts; D1, D2 remain valuable" text |
+| IM-06-F01.1 | Python (IM-06-F01.1, P3) | IM-06 | No | "Tests patch nothing else" versus C1's and C3's counters |
+| IM-04-F01.1 | Learnings (IM-04-F01.1) | IM-04 | No | Class-precedence fixtures must put the lower-class fact first |
+| NOROW-F11.1 | Learnings (NOROW-F11.1, P3) | none | No | Close path is the classifier verdict |
+| NOROW-F12.1 | Learnings (NOROW-F12.1, P3) | none | No | A's code-affecting rationale is procedure text; anchor refresh in its own commit |
+| NOROW-F13 | Constitution, Python (NOROW-F13), Scope (IM-11-F02), Learnings (IM-11-F03) | none | No | Duplicated table header and separator |
+| NOROW-F14 | Constitution (NOROW-F14) | none | No | B3 Files omit `verify_workspace.py` and the alias test |
+| NOROW-F15 | Scope (NOROW-F13) | none | No | Runtime Verification has one B row for two shipments |
+| NOROW-F16 | Scope (NOROW-F15, P3 advisory) | none | No | Public alias versus private import |
+| NOROW-F17 | Scope (NOROW-F14) | none | No | Growth headroom |
+| NOROW-F03 | Scope (NOROW-F03, P3) | none | No | `IO` unfixtured (re-raised) |
+
+## Consolidated Revision 2 (subject revision 3)
+
+| Field | Value |
+|---|---|
+| Subject | Plan revision 3, commit `bd7002d5`, blob `ffa663de030a0a07baa5b62ea1078b750a0a4009` (823 lines) |
+| Revisions used | 2 of 2. A failed second remediation ends the epoch |
+| Author | Stage (`claude-opus-5.5` / `anthropic` / `high`) |
+| Review state | Pending delta reviews against changes only, then the final full consistency pass |
+
+### Orchestrator Growth Ruling
+
+Contract growth stays measured cumulatively against the epoch baseline,
+revision 1 blob `2d562820`, on text measures (file bytes, body bytes,
+words) and contract measures (tasks, reason codes, public names). The limit
+is at most +20.0% each. Shipment count is exempt under the prior B-split
+ruling. Changing the baseline mid-epoch would be a rubric change, so it is
+not changed. Revision 3 therefore had to be size-neutral: body bytes at
+most 76533, file bytes at most 82995, words at most 12237. Additions were
+offset by condensing history and rationale prose, never contract text.
+
+### Contract Growth (revision 1 versus revision 3)
+
+| Measure | Revision 1 | Revision 3 | Limit | Growth |
+|---|---:|---:|---:|---:|
+| File bytes | 69163 | 81929 | 82995 | +18.5% |
+| Body bytes (after frontmatter) | 63778 | 76103 | 76533 | +19.3% |
+| Words | 10198 | 12001 | 12237 | +17.7% |
+| Tasks | 17 | 17 | 20 | 0% |
+| Reason codes / `ReadErrorCode` values | 47 / 8 | 47 / 8 | unchanged | 0% |
+| New public names | none | `verify_workspace.render_template` (alias, unchanged since revision 2) | unchanged | +1 |
+| Lines (not a limit) | 769 | 823 | none | +7.0% |
+| Shipments (exempt) | 4 | 5 | exempt | +25% |
+
+**Correction to the revision 2 table.** Re-measured from blob `1828ecb9`,
+revision 2 is 82037 file bytes (+18.6%), 76250 body bytes (+19.6%) and
+12064 words (+18.3%). The earlier table (82011, 76224, 12061) was measured
+before a final edit. Every value stayed within 20%.
+
+Revision 3 adds no task, reason code, public name, subsystem or threat
+class.
+
+### Dispositions
+
+Line references are to revision 3 (blob `ffa663de`).
+
+| ID | Blocking | Disposition | Evidence in revision 3 |
+|---|---|---|---|
+| IM-14-F01.1 | **Yes** | Fixed | L732-739 (scope rule: listed artifacts of each shipped unit plus every added or modified path in the shipment's diff against its base; a missing listed path or an unscanned listed or diffed path fails); L724-729 (table adds `.github/workflows/ci.yml`, `schema_contracts.py`, `verify_workspace.py`, the manifest, the Ship template and mirror); L190 (IM-14 row, B3 added); audit test in Files of C5, B1, B3, B5, D1, D2, D4 (L322, L361, L383, L416, L432, L443, L466) |
+| IM-14-F05 | **Yes** | Fixed | L742-746 (`\b`-anchored patterns, `\w*` after every stem and after race, TOCTOU and hardlink); L750-753 (positive controls include `resistant to race` and `protects against TOCTOU`) |
+| IM-14-F06 | No | Fixed | L750-753 (negative controls `trace-free`, `embrace-safe`, the required sentence) |
+| IM-14-F07 | No | Fixed | L737-739 (C5's first run audits A retroactively; B3 puts B-core's modules in scope before S(B-core) closes); L385 |
+| IM-03-F02 | No | Fixed | L179 (IM-03 row); L418 (B5: all 47 codes through `_resolve`, defaults-reachable codes through `resolve_shipment` and the CLI) |
+| IM-03-F03 | No | Fixed | L363 (pinned SHA-256 over LF-normalized bytes; no `.gitattributes` change) |
+| IM-11-F02 | No | Fixed | L498-501 (each shipment its own feature; closes on the classifier verdict, never `shipment ship` over part of a feature); L507 |
+| IM-11-F03 | No | Fixed | L761 (no release tag includes S(B-core) before S(B-entry) closes; a B-entry-found defect reverts B-core, never `1.1.0`) |
+| IM-07-F04 | No | Fixed | L433 (capture files under Git-ignored `.proof-scratch/harness-resolve/`, deleted after the entry returns); L444 (D2 asserts path and cleanup) |
+| IM-16-F02 | No | Fixed | L406 (`_resolve` returns the result and `ReadUsage` privately); L374 (B2 reads usage from the reader it passes in) |
+| IM-13-F03 | No | Fixed | L166-168 (structural tests recorded outside the roster) |
+| IM-10-F01.1 | No | Fixed | L562 (PD-12 gates S(D)); L576 (S(D) not harvested or claimable; A, C and B inert); L691 (S(D) not claimable; D3 preflight (4) re-checks) |
+| IM-06-F01.1 | No | Fixed | L265 (no other module function patched; counters only spy on `os.path.realpath` and `os.open`) |
+| IM-04-F01.1 | No | Fixed | L407 (lower-class fact first in encounter and task-ID order) |
+| NOROW-F11.1 | No | Fixed | L498-501 |
+| NOROW-F12.1 | No | Fixed | L598 (procedure-text rationale; anchor refresh in a separate evidence-only commit) |
+| NOROW-F13 | No | Fixed | L143 (one header) |
+| NOROW-F14 | No | Fixed | L383 (`verify_workspace.py` in Files); L385 (alias identity test) |
+| NOROW-F15 | No | Fixed | L600-601 (B-core and B-entry rows) |
+| NOROW-F16 | No | Accepted as-is | Advisory. The alias stays (PD-09) |
+| NOROW-F17 | No | Resolved by ruling | Orchestrator growth ruling above |
+| NOROW-F03 | No | Deferred (reaffirmed) | Unchanged from consolidated revision 1; deferral accepted by Scope |
+
+Totals: 19 fixed (both blocking), 1 accepted as-is, 1 resolved by
+ruling, 1 deferred. No finding declined.
