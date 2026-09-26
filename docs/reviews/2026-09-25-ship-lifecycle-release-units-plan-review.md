@@ -27,7 +27,7 @@ harvest_permitted: false
 stop_conditions_triggered: [blockers-do-not-decline-across-revisions, second-remediation-fails]
 operator_decision: {at: "2026-09-25T20:47:56-07:00", outcome: spike, next: "E3 scoped to the IM-14 audit section after spike ratification"}
 operator_ratification: {at: "2026-09-25T21:10:37-07:00", spike_commit: 27bcc254, design: ratified, e3_scope_widened: true, residue_text_audit: "agent-performed, recorded, release-scoped; operator not required"}
-next_epoch: {id: "LIFECYCLE-E3-pending", scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: pending}
+next_epoch: {id: LIFECYCLE-E3-703d0de1, subject_revision: 4, subject_commit: 48cafb4a, subject_blob: 703d0de11fa5515a4abba0146d2f792bbe9991a6, scope: "IM-14 section, C5 Change cell, contradicting IM-14/PE-SAFETY-06 trace text, CONST-G2-F01", baseline_blob: ffa663de030a0a07baa5b62ea1078b750a0a4009, verdict: pending}
 recorded_by: Stage
 consolidated_by: "Orchestrator (raw collection and blocking classification); Stage (classification check, identity resolution, dispositions)"
 ---
@@ -553,9 +553,9 @@ plan or review records generally.
 ## Epoch LIFECYCLE-E3 (IM-14 audit)
 
 ```text
-epoch: LIFECYCLE-E3-<pending: first 8 hex of the revision 4 blob>
+epoch: LIFECYCLE-E3-703d0de1
 opened_by: operator ratification 2026-09-25T21:10:37-07:00
-subject: plan revision 4 (pending)
+subject: plan revision 4, commit 48cafb4a, blob 703d0de11fa5515a4abba0146d2f792bbe9991a6
 baseline: plan revision 3, commit bd7002d5, blob ffa663de030a0a07baa5b62ea1078b750a0a4009
 verdict: pending
 harvest_permitted: false
@@ -573,3 +573,14 @@ harvest_permitted: false
 | Growth | Still cumulative against revision 1 blob `2d562820`: body bytes, file bytes and words each at most 20% over revision 1 |
 | E2 | Verdict stays `EPOCH_STOPPED`, and `harvest_permitted` stays `false` |
 | E3 verdict | Pending |
+
+### Revision 4 (E3 subject)
+
+| Field | Value |
+|---|---|
+| Epoch token | `LIFECYCLE-E3-703d0de1` (first 8 hex of the revision 4 blob) |
+| Subject | Plan revision 4, commit `48cafb4a`, blob `703d0de11fa5515a4abba0146d2f792bbe9991a6`, 832 lines |
+| Changed body lines (revision 4 numbering) | 190 (IM-14 trace row); 323 (C5 Change cell and CI module list); 454 (D3 preflight item 6); 719-761 (Non-Claim Audit Inventory section); 832 (final LF, CONST-G2-F01) |
+| Changed frontmatter lines | 2-3 (title, description), 10 (`revision: 4`), 12-13 (`prior_revision`, `review_epoch`), 15-16 (epoch family and token rule), 21 (`hardening_pass`) |
+| Not changed | Every other line, frozen at revision 3. No task, reason code, public name, subsystem or threat class added |
+| Growth against revision 1 (`2d562820`) | File bytes 82261 (+18.94%, limit 82995); body bytes 76372 (+19.75%, limit 76533); words 12076 (+18.42%, limit 12237) |
