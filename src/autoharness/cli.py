@@ -46,6 +46,7 @@ Usage:
   autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
   autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
   autoharness gate dag-readiness  Read-only ready-set/critical-path/downstream-dependents report
+  autoharness gate closure-evidence  Write-time validation of a post-merge closure artifact
   autoharness telemetry begin   Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
@@ -176,6 +177,9 @@ Subcommands:
   pipeline-topology  Deterministic shipment/worktree topology gate.
   dag-readiness  Read-only ready-set/critical-path/downstream-dependents report over
                  backlogit's existing shipment-blocks DAG.
+  closure-evidence  Write-time validation of a post-merge closure artifact against
+                 the closure-evidence naming contract and the consumer's own
+                 acceptance predicate.
 
 Usage:
   autoharness gate check --base <ref> [--task <id>] [--head <ref>]
@@ -192,6 +196,8 @@ Usage:
                         [--bootstrap-grant-invocation <label>]
                         [--json] [--force]
   autoharness gate dag-readiness [--workspace <path>] [--json]
+  autoharness gate closure-evidence --path <file> [--shipment <id>]
+                        [--workspace <path>] [--json]
 
 pre-review options:
   --base <ref>        Git ref to diff against (the task branch base). Required.
@@ -256,6 +262,24 @@ dag-readiness options:
                       .backlogit/ remains valid). Default: .
   --json              Emit the report as JSON.
 
+closure-evidence options:
+  --path <file>       Closure artifact to validate. Required. A relative path is
+                      interpreted relative to --workspace (never the process
+                      CWD); the resolved path must lie within the workspace root.
+  --shipment <id>     Declared shipment ID (uppercase canonical form, e.g. 175-S).
+                      Default: the shipment ID encoded in the filename.
+  --workspace, -w     Workspace root. Default: .
+  --json              Emit the validation result as JSON (includes failed_check:
+                      workspace | input | filename | frontmatter_predicate |
+                      discoverability, or null on pass).
+
+`closure-evidence` is READ-ONLY and never writes, renames, or repairs an
+artifact. Checks run in order: workspace containment, input readability, the
+canonical write filename, the consumer's own acceptance predicate
+(topology._closure_artifact_complete, reused by import), and discoverability
+for the declared shipment under docs/closure/. Legacy date-prefixed names are
+readable by the topology gate but are never a valid write.
+
 `dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any
 path. It is existence-guarded (zero shipments -> empty report, exit 0) and
 DEGRADES non-fatally (advisory, exit 0) when the backlog is unreachable —
@@ -289,13 +313,15 @@ Exit codes:
      skipped (existing size), dry-run, or (without --strict) a non-blocking
      sizing configuration failure; or copilot-review PASS/not-applicable/forced;
      or pipeline-topology PASS/forced; or dag-readiness report (including
-     empty/degraded — always non-fatal).
+     empty/degraded — always non-fatal); or closure-evidence PASS.
   1  at least one matched file failed its gate (blocked), unless advisory; or
      copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
-     or pipeline-topology BLOCK.
+     or pipeline-topology BLOCK; or closure-evidence validation failure
+     (filename, frontmatter predicate, or discoverability).
   2  invalid arguments or invalid gate configuration; invalid pre-review
      detector input/registry; or pipeline-topology invalid
-     mode/phase/target configuration.
+     mode/phase/target configuration; or closure-evidence invalid input
+     (absent, unreadable, unparseable, or workspace-escaping --path).
   3  sizing write-back configuration failure, only when --strict is given.
 """
 
@@ -384,6 +410,8 @@ def _gate_command(args: list[str]) -> None:
         _gate_pipeline_topology_command(args[1:])
     elif subcommand == "dag-readiness":
         _gate_dag_readiness_command(args[1:])
+    elif subcommand == "closure-evidence":
+        _gate_closure_evidence_command(args[1:])
     else:
         print(f"Unknown gate subcommand: {subcommand}", file=sys.stderr)
         print(GATE_USAGE, file=sys.stderr)
@@ -1646,6 +1674,155 @@ def _gate_dag_readiness_command(rest: list[str]) -> None:
         print(json.dumps(payload, indent=2))
     else:
         print(_format_dag_readiness_report(payload))
+
+
+def _parse_gate_closure_evidence_args(args: list[str]) -> dict:
+    """Parse `autoharness gate closure-evidence` arguments (167.004-T)."""
+    parsed: dict = {
+        "path": None,
+        "shipment": None,
+        "workspace": Path("."),
+        "emit_json": False,
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in ("--path", "--shipment", "--workspace", "-w"):
+            index += 1
+            if index >= len(args):
+                raise ValueError(f"Missing value for {arg}")
+            key = "workspace" if arg in ("--workspace", "-w") else arg[2:]
+            parsed[key] = Path(args[index]) if key == "workspace" else args[index]
+        elif arg == "--json":
+            parsed["emit_json"] = True
+        else:
+            raise ValueError(f"Unknown gate closure-evidence argument: {arg}")
+        index += 1
+    if parsed["path"] is None:
+        raise ValueError("gate closure-evidence requires --path <file>")
+    return parsed
+
+
+def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspace: Path) -> dict:
+    """Validate one closure artifact against the closure-evidence contract.
+
+    Check order (plan U4): workspace containment -> input readability ->
+    canonical write filename -> the consumer's own acceptance predicate ->
+    discoverability for the declared shipment. The acceptance decision is
+    delegated wholesale to ``topology._closure_artifact_complete`` (reused by
+    import, never re-implemented); because that predicate is boolean, its
+    rejection is reported generically, never with a field-level cause (C5).
+    """
+    from autoharness.gates import closure_contract, topology
+
+    canonical_pattern = closure_contract.RECOGNIZED_CLOSURE_PATTERNS[0]
+    root = Path(workspace).resolve()
+    payload: dict = {
+        "gate": "closure-evidence",
+        "path": str(path_arg),
+        "workspace": str(root),
+        "shipment_id": shipment_arg,
+        "canonical_pattern": closure_contract.CANONICAL_CLOSURE_PATTERN_DOC,
+        "passed": False,
+        "exit_code": 2,
+        "failed_check": None,
+        "message": "",
+    }
+
+    def _finish(exit_code: int, failed_check: str | None, message: str) -> dict:
+        payload.update(
+            passed=exit_code == 0, exit_code=exit_code, failed_check=failed_check, message=message
+        )
+        return payload
+
+    try:
+        resolved = closure_contract.assert_path_within_workspace(path_arg, workspace_root=root)
+    except closure_contract.ClosureContractError as exc:
+        return _finish(2, "workspace", f"closure artifact rejected: {exc}")
+    payload["path"] = str(resolved)
+    if not resolved.is_file():
+        return _finish(
+            2, "input", f"closure artifact '{resolved}' does not exist or is not a regular file"
+        )
+    if shipment_arg is not None:
+        try:
+            closure_contract.validate_closure_id(shipment_arg, field="shipment_id")
+        except closure_contract.ClosureContractError as exc:
+            return _finish(2, "input", f"invalid --shipment: {exc}")
+
+    filename = Path(path_arg).name
+    match = canonical_pattern.match(filename)
+    if match is None:
+        return _finish(
+            1,
+            "filename",
+            f"closure artifact filename '{filename}' does not match the canonical write "
+            f"pattern {closure_contract.CANONICAL_CLOSURE_PATTERN_DOC}; legacy date-prefixed "
+            "names are readable by the topology gate but are never a valid write",
+        )
+    encoded_shipment = match.group("shipment_id")
+    declared_shipment = shipment_arg if shipment_arg is not None else encoded_shipment
+    payload["shipment_id"] = declared_shipment
+
+    try:
+        frontmatter = topology._frontmatter(resolved)
+    except topology.BacklogUnavailableError as exc:
+        return _finish(2, "input", f"closure artifact '{resolved}' is unreadable or unparseable: {exc}")
+    if not topology._closure_artifact_complete(frontmatter):
+        return _finish(
+            1,
+            "frontmatter_predicate",
+            f"closure artifact '{resolved}' was rejected by the authoritative acceptance "
+            "predicate topology._closure_artifact_complete; requirement: "
+            f"{closure_contract.CLOSURE_PREDICATE_REQUIREMENT_DOC}",
+        )
+
+    if encoded_shipment != declared_shipment:
+        return _finish(
+            1,
+            "discoverability",
+            f"closure artifact '{resolved}' encodes shipment {encoded_shipment} in its filename "
+            f"but the declared shipment is {declared_shipment}; the topology gate would never "
+            f"discover it for {declared_shipment}",
+        )
+    closure_dir = root / closure_contract.DEFAULT_CLOSURE_DIR
+    discovery = closure_contract.classify_closure_candidates(closure_dir, declared_shipment)
+    if resolved not in {candidate.resolve() for candidate in discovery.canonical_matches}:
+        return _finish(
+            1,
+            "discoverability",
+            f"closure artifact '{resolved}' is not discoverable for shipment {declared_shipment}: "
+            f"the topology gate reads canonical closure evidence only from '{closure_dir}'",
+        )
+    return _finish(
+        0,
+        None,
+        f"closure artifact '{resolved}' satisfies the closure-evidence contract for shipment "
+        f"{declared_shipment}",
+    )
+
+
+def _gate_closure_evidence_command(rest: list[str]) -> None:
+    """Run the read-only write-time closure-evidence validation (167.004-T)."""
+    if any(flag in ("help", "--help", "-h") for flag in rest):
+        print(GATE_USAGE)
+        return
+
+    try:
+        parsed = _parse_gate_closure_evidence_args(rest)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        print(GATE_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    payload = _evaluate_closure_evidence(parsed["path"], parsed["shipment"], parsed["workspace"])
+    if parsed["emit_json"]:
+        print(json.dumps(payload, indent=2))
+    else:
+        label = {0: "PASS", 1: "FAIL"}.get(payload["exit_code"], "INVALID")
+        print(f"Closure-evidence gate — {label}: {payload['message']}")
+    if payload["exit_code"]:
+        sys.exit(payload["exit_code"])
 
 
 TELEMETRY_USAGE = """\
