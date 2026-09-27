@@ -20,7 +20,9 @@ Invoke when a feature, fix, or risky change is ready to hand off into merge, dep
 
 ## Output
 
-* Closure artifact at `docs/closure/{YYYY-MM-DD}-{slug}-closure.md`
+* Closure artifact at `docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md`
+  * **Required frontmatter keys**: `closure_status` (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`) and `compaction_status` (`pending`, `done`, or `degraded`). New artifacts always write `compaction_status`; the legacy `compaction` alias is accepted on read only for already-committed history. Both keys are gate-relevant. The consumer's acceptance requirement, quoted from the closure-evidence contract: "a closure artifact is accepted only when its frontmatter carries a compaction_status (or legacy compaction) of done or degraded AND a closure_status of READY, or of READY_WITH_CONDITIONS with a non-empty conditions list in which every entry is a mapping with satisfied: true (the literal boolean) and a non-empty evidence reference".
+  * **Naming note**: the closure date is carried in frontmatter, never in the filename. Legacy date-prefixed names (`{YYYY-MM-DD}-{shipment_id}-{slug}-closure.md`) remain readable for already-committed history but are never written; recognition on read is not permission to write.
 * Structured releasability evidence summarizing whether the change is `READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`
 * A **compaction status** field (`pending` → `done` / `degraded`) recording P-020 post-merge context compaction state
 * Follow-up tasks or compound-learnings triggers when needed
@@ -94,6 +96,33 @@ Return one of:
 The closure artifact is the canonical releasability evidence record. Do not
 collapse validator outcomes back into free-form prose after they have been
 structured.
+
+### Step 3a: Validate the Closure Artifact with the Closure-Evidence Gate
+
+Run the write-time closure-evidence gate against the artifact:
+
+```text
+autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md --shipment {shipment_id} --json
+```
+
+* **Before every commit of the artifact**, including the first commit while
+  `compaction_status` is still `pending`: a `failed_check` of
+  `workspace_containment`, `input`, `filename`, or `discoverability` blocks the
+  commit. Fix the path, filename, or frontmatter syntax and re-run; never
+  rename the artifact to a legacy date-prefixed form. A `frontmatter_predicate`
+  failure is expected while `compaction_status` is `pending` or
+  `closure_status` is `BLOCKED`, and does not block committing that truthful
+  record. Because the gate stops at the first failed check, this run confirms
+  containment, readability, and the canonical filename; discoverability is
+  confirmed by the final run.
+* **Before the closure is declared complete**, after the compaction status is
+  finalized to `done` or `degraded`: the gate MUST exit `0` before the closure
+  is declared complete. Only an artifact that passes is predecessor-closure
+  evidence. A finalized `BLOCKED` closure (or a `READY_WITH_CONDITIONS` closure
+  with an unsatisfied condition) never passes: it may still be committed as a
+  truthful record when the gate's reported `failed_check` is
+  `frontmatter_predicate`, but the closure is not declared complete and the
+  successor shipment stays blocked, as intended.
 
 ### Step 4: Feed Back into the Harness
 

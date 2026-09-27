@@ -15,7 +15,9 @@ from unittest import mock
 import yaml
 
 from _env_patch import patched_environ
+from _closure_legacy_names import legacy_closure_filename
 from autoharness.cli import _format_dag_readiness_report
+from autoharness.gates.closure_contract import build_closure_path
 from autoharness.gates.topology import (
     ArtifactState,
     BacklogUnavailableError,
@@ -350,7 +352,9 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                 with self.subTest(status=status):
                     for existing in closure_dir.glob('*.md'):
                         existing.unlink()
-                    (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+                    build_closure_path(
+                        'docs/closure', '114-S', '109-F', workspace_root=workspace
+                    ).write_text(
                         f"---\ncompaction_status: {status}\nclosure_status: READY\n---\n",
                         encoding='utf-8',
                     )
@@ -368,7 +372,9 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         def _write(workspace: Path, closure_dir: Path, body: str) -> None:
             for existing in closure_dir.glob('*.md'):
                 existing.unlink()
-            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(body, encoding='utf-8')
+            build_closure_path(
+                'docs/closure', '114-S', '109-F', workspace_root=workspace
+            ).write_text(body, encoding='utf-8')
 
         satisfied_conditions = (
             "conditions:\n"
@@ -430,13 +436,86 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             workspace = Path(tmp)
             closure_dir = workspace / 'docs' / 'closure'
             closure_dir.mkdir(parents=True)
-            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+            build_closure_path(
+                'docs/closure', '114-S', '109-F', workspace_root=workspace
+            ).write_text(
                 "---\ncompaction_status: [unterminated\n---\n",
                 encoding='utf-8',
             )
             reader = FilesystemTopologyReaders(workspace)
             with self.assertRaises(BacklogUnavailableError):
                 reader.closure_complete('114-S')
+
+    # -- 167.002-T (U2): reader rewired onto the closure-evidence contract --
+
+    _VALID_CLOSURE_BODY = "---\ncompaction_status: done\nclosure_status: READY\n---\n"
+    _INVALID_CLOSURE_BODY = "---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n"
+
+    def test_closure_complete_accepts_legacy_named_valid_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            legacy = closure_dir / legacy_closure_filename('162-s', '154-f')
+            legacy.write_text(self._VALID_CLOSURE_BODY, encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertIs(reader.closure_complete('162-S'), True)
+            discovery = reader.closure_discovery('162-S')
+            self.assertEqual(discovery.outcome, 'recognized')
+            self.assertEqual(discovery.canonical_matches, ())
+            self.assertEqual(discovery.legacy_matches, (legacy,))
+
+    def test_closure_complete_canonical_partition_takes_precedence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            canonical = build_closure_path('docs/closure', '162-S', '154-F', workspace_root=workspace)
+            legacy = closure_dir / legacy_closure_filename('162-s', '154-f')
+            legacy.write_text(self._VALID_CLOSURE_BODY, encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+            # Canonical present but invalid: the canonical partition wins
+            # outright, so the valid legacy artifact is never consulted (D5).
+            canonical.write_text(self._INVALID_CLOSURE_BODY, encoding='utf-8')
+            self.assertIs(reader.closure_complete('162-S'), False)
+            # Canonical present and valid.
+            canonical.write_text(self._VALID_CLOSURE_BODY, encoding='utf-8')
+            legacy.write_text(self._INVALID_CLOSURE_BODY, encoding='utf-8')
+            self.assertIs(reader.closure_complete('162-S'), True)
+            self.assertEqual(reader.closure_discovery('162-S').evaluation_order, (canonical,))
+
+    def test_closure_complete_malformed_frontmatter_under_recognized_names_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            reader = FilesystemTopologyReaders(workspace)
+            malformed = "---\ncompaction_status: [unterminated\n---\n"
+            for label, path in (
+                ('legacy', closure_dir / legacy_closure_filename('162-s', '154-f')),
+                ('canonical', build_closure_path('docs/closure', '162-S', '154-F', workspace_root=workspace)),
+            ):
+                with self.subTest(pattern=label):
+                    for existing in closure_dir.glob('*.md'):
+                        existing.unlink()
+                    path.write_text(malformed, encoding='utf-8')
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.closure_complete('162-S')
+
+    def test_closure_complete_unrecognized_or_absent_is_none(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertIsNone(reader.closure_complete('162-S'))  # no closure dir
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            self.assertIsNone(reader.closure_complete('162-S'))  # empty dir
+            # The retired glob-only shape is outside the closed D3 read set.
+            (closure_dir / '162-S-2026-08-05-post-merge-closure.md').write_text(
+                self._VALID_CLOSURE_BODY, encoding='utf-8'
+            )
+            self.assertIsNone(reader.closure_complete('162-S'))
+            self.assertEqual(reader.closure_discovery('162-S').outcome, 'unrecognized')
 
     def test_malformed_shipment_frontmatter_blocks_as_backlog_unavailable(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders
@@ -1796,6 +1875,280 @@ class ShipmentReadinessTests(unittest.TestCase):
             readers=readers,
         )
         self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+
+class ClosureDiscoveryDiagnosticsTests(unittest.TestCase):
+    """167.003-T (U3): distinguishable closure-discovery gate diagnostics."""
+
+    _SHIPMENTS = (
+        _shipment('113-S', 'shipped'),
+        _shipment('114-S', 'queued', deps=('113-S',)),
+    )
+
+    @staticmethod
+    def _filesystem_backed_readers(workspace: Path):
+        backing = FilesystemTopologyReaders(workspace)
+
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return backing.closure_complete(shipment_id)
+
+            def closure_discovery(self, shipment_id: str):
+                return backing.closure_discovery(shipment_id)
+
+        return Readers(shipments=ClosureDiscoveryDiagnosticsTests._SHIPMENTS)
+
+    def _evaluate(self, readers):
+        return evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+
+    def test_attributed_unrecognized_candidate_emits_unrecognized_token(self) -> None:
+        from autoharness.gates.closure_contract import CANONICAL_CLOSURE_PATTERN_DOC
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            (closure_dir / '113-S-notes.md').write_text('notes\n', encoding='utf-8')
+            result = self._evaluate(self._filesystem_backed_readers(workspace))
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_UNRECOGNIZED')
+        check = _check(result, 'shipment_readiness')
+        self.assertEqual(check.status, 'blocked')
+        self.assertIn('113-S-notes.md', check.message)
+        self.assertIn(CANONICAL_CLOSURE_PATTERN_DOC, check.message)
+        self.assertEqual(check.details['closure_discovery_outcome'], 'unrecognized')
+        self.assertEqual(len(check.details['closure_candidate_paths']), 1)
+        self.assertTrue(check.details['closure_candidate_paths'][0].endswith('113-S-notes.md'))
+        self.assertEqual(check.details['closure_expected_pattern'], CANONICAL_CLOSURE_PATTERN_DOC)
+        self.assertIsNone(check.details['closure_complete'])
+
+    def test_absent_and_recognized_invalid_keep_incomplete_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            # A foreign record only: attribution never admits it -> absent.
+            build_closure_path('docs/closure', '11-S', '1-F', workspace_root=workspace).write_text(
+                '---\ncompaction_status: done\nclosure_status: READY\n---\n', encoding='utf-8'
+            )
+            absent = self._evaluate(self._filesystem_backed_readers(workspace))
+            build_closure_path('docs/closure', '113-S', '1-F', workspace_root=workspace).write_text(
+                '---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n', encoding='utf-8'
+            )
+            invalid = self._evaluate(self._filesystem_backed_readers(workspace))
+        self.assertEqual(absent.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        self.assertEqual(_check(absent, 'shipment_readiness').details['closure_discovery_outcome'], 'absent')
+        self.assertEqual(_check(absent, 'shipment_readiness').details['closure_candidate_paths'], [])
+        self.assertEqual(invalid.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        invalid_details = _check(invalid, 'shipment_readiness').details
+        self.assertEqual(invalid_details['closure_discovery_outcome'], 'recognized')
+        self.assertIs(invalid_details['closure_complete'], False)
+
+    def test_reader_without_capability_keeps_todays_behaviour(self) -> None:
+        readers = _FakeReaders(shipments=self._SHIPMENTS)
+        self.assertFalse(hasattr(readers, 'closure_discovery'))
+        result = self._evaluate(readers)
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        details = _check(result, 'shipment_readiness').details
+        for key in ('closure_discovery_outcome', 'closure_candidate_paths', 'closure_expected_pattern'):
+            self.assertNotIn(key, details)
+        self.assertIn('closure_complete', details)
+        self.assertIsNone(details['closure_complete'])
+
+    def test_json_payload_still_carries_closure_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / 'docs' / 'closure').mkdir(parents=True)
+            (workspace / 'docs' / 'closure' / '113-S-notes.md').write_text('x\n', encoding='utf-8')
+            payload = json.loads(json.dumps(self._evaluate(self._filesystem_backed_readers(workspace)).to_dict()))
+        readiness = next(check for check in payload['checks'] if check['name'] == 'shipment_readiness')
+        self.assertIn('closure_complete', readiness['details'])
+        self.assertEqual(payload['token'], 'PREDECESSOR_CLOSURE_UNRECOGNIZED')
+
+
+class _ClosureGateHarnessMixin:
+    """Gate-level closure fixtures shared by the 167-F regression batteries.
+
+    Every fixture lives in a temporary scratch workspace: canonical names come
+    from ``build_closure_path`` and legacy names from the single test-only
+    helper ``legacy_closure_filename`` (plan C6). ``docs/closure/`` of this
+    repository is never read.
+    """
+
+    _READY = "---\ncompaction_status: done\nclosure_status: READY\n---\n"
+
+    def setUp(self) -> None:  # noqa: D401 - unittest hook
+        self._tmp = tempfile.TemporaryDirectory()
+        self.workspace = Path(self._tmp.name).resolve()
+        self.closure_dir = self.workspace / 'docs' / 'closure'
+        self.closure_dir.mkdir(parents=True)
+        self.reader = FilesystemTopologyReaders(self.workspace)
+
+    def tearDown(self) -> None:  # noqa: D401 - unittest hook
+        self._tmp.cleanup()
+
+    def _canonical(self, shipment_id: str, feature_id: str, body: str) -> Path:
+        path = build_closure_path('docs/closure', shipment_id, feature_id, workspace_root=self.workspace)
+        path.write_text(body, encoding='utf-8')
+        return path
+
+    def _legacy(self, shipment_id: str, suffix: str, body: str) -> Path:
+        path = self.closure_dir / legacy_closure_filename(shipment_id, suffix)
+        path.write_text(body, encoding='utf-8')
+        return path
+
+    def _clear(self) -> None:
+        for existing in self.closure_dir.iterdir():
+            existing.unlink()
+
+    def _gate(self, predecessor_id: str):
+        backing = self.reader
+
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return backing.closure_complete(shipment_id)
+
+            def closure_discovery(self, shipment_id: str):
+                return backing.closure_discovery(shipment_id)
+
+        readers = Readers(
+            shipments=(
+                _shipment(predecessor_id, 'shipped'),
+                _shipment('999-S', 'queued', deps=(predecessor_id,)),
+            )
+        )
+        return evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='999-S'),
+            readers=readers,
+        )
+
+
+class ClosureHistoricalFailureShapeTests(_ClosureGateHarnessMixin, unittest.TestCase):
+    """167.008-T (U8): the required historical failure shapes, pinned at the gate."""
+
+    def test_date_prefixed_acceptable_artifact_now_satisfies_the_gate_as_legacy(self) -> None:
+        # The shape that silently failed for 001-S, 008-S, 162-S and 174-S.
+        legacy = self._legacy('162-s', '154-f', self._READY)
+        result = self._gate('162-S')
+        check = _check(result, 'shipment_readiness')
+        self.assertEqual(check.status, 'passed')
+        self.assertNotIn(
+            result.primary_token,
+            ('PREDECESSOR_CLOSURE_INCOMPLETE', 'PREDECESSOR_CLOSURE_UNRECOGNIZED', 'BACKLOG_UNAVAILABLE'),
+        )
+        self.assertIs(self.reader.closure_complete('162-S'), True)
+        discovery = self.reader.closure_discovery('162-S')
+        self.assertEqual(discovery.outcome, 'recognized')
+        self.assertEqual(discovery.legacy_matches, (legacy,))
+        self.assertEqual(discovery.canonical_matches, ())
+
+    def test_recognized_name_without_frontmatter_fails_closed_backlog_unavailable(self) -> None:
+        # The 005-S shape: a recognized name with no frontmatter block at all.
+        for label, make in (
+            ('legacy', lambda: self._legacy('162-s', '154-f', '# closure notes only\n')),
+            ('canonical', lambda: self._canonical('162-S', '154-F', '# closure notes only\n')),
+        ):
+            with self.subTest(pattern=label):
+                self._clear()
+                make()
+                with self.assertRaises(BacklogUnavailableError):
+                    self.reader.closure_complete('162-S')
+                result = self._gate('162-S')
+                self.assertNotEqual(result.exit_code, 0)
+                self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_recognized_name_with_compaction_but_no_closure_status_still_blocks(self) -> None:
+        # The second 005-S axis: compaction evidence alone is never acceptance.
+        body = "---\ncompaction_status: done\n---\n"
+        for label, make in (
+            ('legacy', lambda: self._legacy('162-s', '154-f', body)),
+            ('canonical', lambda: self._canonical('162-S', '154-F', body)),
+        ):
+            with self.subTest(pattern=label):
+                self._clear()
+                make()
+                self.assertIs(self.reader.closure_complete('162-S'), False)
+                result = self._gate('162-S')
+                self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+                self.assertEqual(_check(result, 'shipment_readiness').status, 'blocked')
+
+    def test_adversarial_id_collision_under_both_patterns(self) -> None:
+        # 16-S and 162-S must never satisfy each other, in either direction,
+        # under R1 or R2 -- including a foreign ID appearing only in an R2 suffix.
+        scenarios = (
+            ('R1 16-S vs 162-S', lambda: self._canonical('16-S', '154-F', self._READY), '162-S'),
+            ('R1 162-S vs 16-S', lambda: self._canonical('162-S', '154-F', self._READY), '16-S'),
+            ('R2 16-s vs 162-S', lambda: self._legacy('16-s', '154-f', self._READY), '162-S'),
+            ('R2 162-s vs 16-S', lambda: self._legacy('162-s', '154-f', self._READY), '16-S'),
+            ('R2 suffix names 162-S', lambda: self._legacy('16-S', 'supersedes-162-S', self._READY), '162-S'),
+            ('R2 suffix names 16-S', lambda: self._legacy('162-S', 'supersedes-16-S', self._READY), '16-S'),
+        )
+        for label, make, requested in scenarios:
+            with self.subTest(scenario=label):
+                self._clear()
+                make()
+                self.assertIsNone(self.reader.closure_complete(requested))
+                discovery = self.reader.closure_discovery(requested)
+                self.assertEqual(discovery.outcome, 'absent')
+                self.assertEqual(discovery.candidate_paths, ())
+                result = self._gate(requested)
+                self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+
+class ClosureConditionalStateAndCaseFoldTests(_ClosureGateHarnessMixin, unittest.TestCase):
+    """167.012-T (U12): recognition admits the file, never the verdict (H1.2/H1.3)."""
+
+    def test_blocked_closure_status_under_recognized_legacy_name_still_blocks(self) -> None:
+        self._legacy('162-s', '154-f', "---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n")
+        self.assertEqual(self.reader.closure_discovery('162-S').outcome, 'recognized')
+        self.assertIs(self.reader.closure_complete('162-S'), False)
+        result = self._gate('162-S')
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        self.assertEqual(_check(result, 'shipment_readiness').status, 'blocked')
+
+    def test_ready_with_conditions_absent_or_unsatisfied_still_blocks(self) -> None:
+        header = "---\ncompaction_status: done\nclosure_status: READY_WITH_CONDITIONS\n"
+        bodies = (
+            ('absent conditions block', header + "---\n"),
+            (
+                'unsatisfied condition',
+                header
+                + "conditions:\n  - name: soak window\n    satisfied: false\n    evidence: ci/run/1\n---\n",
+            ),
+        )
+        for body_label, body in bodies:
+            for pattern, make in (
+                ('legacy', lambda body=body: self._legacy('162-s', '154-f', body)),
+                ('canonical', lambda body=body: self._canonical('162-S', '154-F', body)),
+            ):
+                with self.subTest(body=body_label, pattern=pattern):
+                    self._clear()
+                    make()
+                    self.assertIs(self.reader.closure_complete('162-S'), False)
+                    result = self._gate('162-S')
+                    self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+    def test_case_folded_legacy_id_is_tolerated_without_case_blindness(self) -> None:
+        # R2 half: a lowercase legacy ID is recognized through [Ss] + casefold.
+        legacy = self._legacy('162-s', '154-f', self._READY)
+        self.assertEqual(self.reader.closure_discovery('162-S').legacy_matches, (legacy,))
+        self.assertIs(self.reader.closure_complete('162-S'), True)
+        # Case tolerance is not case blindness: a foreign ID in the same case
+        # form is still rejected by attribution.
+        self._clear()
+        self._legacy('16-s', '154-f', self._READY)
+        self.assertEqual(self.reader.closure_discovery('162-S').outcome, 'absent')
+        self.assertIsNone(self.reader.closure_complete('162-S'))
+        # No leak onto R1: a builder-created canonical artifact is compared
+        # exactly, so a differently-cased request is not attributed to it.
+        self._clear()
+        self._canonical('162-S', '154-F', self._READY)
+        self.assertIs(self.reader.closure_complete('162-S'), True)
+        self.assertEqual(self.reader.closure_discovery('162-s').outcome, 'absent')
+        self.assertIsNone(self.reader.closure_complete('162-s'))
 
 
 class DagAuthoritativePredecessorCharacterizationTests(unittest.TestCase, _TopologyWorkspaceMixin):
