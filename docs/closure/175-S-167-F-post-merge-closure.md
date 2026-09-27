@@ -32,7 +32,7 @@ contract module (`src/autoharness/gates/closure_contract.py`):
 | Gate | Result |
 |---|---|
 | Local multi-persona review | 3 review-fix cycles; final `READY_WITH_FOLLOWUPS`, P0=0, P1=0 |
-| Full local build | `python -m unittest discover -s tests`: 2439 tests OK (54 skipped) at `34d88829` |
+| Full local build | `PYTHONPATH=src python -m unittest discover -s tests`: 2439 tests OK (54 skipped) at `34d88829` |
 | Copilot review (P-018) | 2 iterations; 2 threads fixed in `34d88829`, replied, resolved; gate `SATISFIED` |
 | Required CI | ci gate, test, pipeline-topology (ambient), detect code changes: all pass |
 | P-009 merge strategy | merge commit only (squash/rebase disabled); two parents verified |
