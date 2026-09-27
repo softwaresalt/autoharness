@@ -15,7 +15,9 @@ from unittest import mock
 import yaml
 
 from _env_patch import patched_environ
+from _closure_legacy_names import legacy_closure_filename
 from autoharness.cli import _format_dag_readiness_report
+from autoharness.gates.closure_contract import build_closure_path
 from autoharness.gates.topology import (
     ArtifactState,
     BacklogUnavailableError,
@@ -350,7 +352,9 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
                 with self.subTest(status=status):
                     for existing in closure_dir.glob('*.md'):
                         existing.unlink()
-                    (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+                    build_closure_path(
+                        'docs/closure', '114-S', '109-F', workspace_root=workspace
+                    ).write_text(
                         f"---\ncompaction_status: {status}\nclosure_status: READY\n---\n",
                         encoding='utf-8',
                     )
@@ -368,7 +372,9 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
         def _write(workspace: Path, closure_dir: Path, body: str) -> None:
             for existing in closure_dir.glob('*.md'):
                 existing.unlink()
-            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(body, encoding='utf-8')
+            build_closure_path(
+                'docs/closure', '114-S', '109-F', workspace_root=workspace
+            ).write_text(body, encoding='utf-8')
 
         satisfied_conditions = (
             "conditions:\n"
@@ -430,13 +436,86 @@ class FilesystemTopologyReadersTests(unittest.TestCase):
             workspace = Path(tmp)
             closure_dir = workspace / 'docs' / 'closure'
             closure_dir.mkdir(parents=True)
-            (closure_dir / '114-S-2026-08-05-post-merge-closure.md').write_text(
+            build_closure_path(
+                'docs/closure', '114-S', '109-F', workspace_root=workspace
+            ).write_text(
                 "---\ncompaction_status: [unterminated\n---\n",
                 encoding='utf-8',
             )
             reader = FilesystemTopologyReaders(workspace)
             with self.assertRaises(BacklogUnavailableError):
                 reader.closure_complete('114-S')
+
+    # -- 167.002-T (U2): reader rewired onto the closure-evidence contract --
+
+    _VALID_CLOSURE_BODY = "---\ncompaction_status: done\nclosure_status: READY\n---\n"
+    _INVALID_CLOSURE_BODY = "---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n"
+
+    def test_closure_complete_accepts_legacy_named_valid_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            legacy = closure_dir / legacy_closure_filename('162-s', '154-f')
+            legacy.write_text(self._VALID_CLOSURE_BODY, encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertIs(reader.closure_complete('162-S'), True)
+            discovery = reader.closure_discovery('162-S')
+            self.assertEqual(discovery.outcome, 'recognized')
+            self.assertEqual(discovery.canonical_matches, ())
+            self.assertEqual(discovery.legacy_matches, (legacy,))
+
+    def test_closure_complete_canonical_partition_takes_precedence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            canonical = build_closure_path('docs/closure', '162-S', '154-F', workspace_root=workspace)
+            legacy = closure_dir / legacy_closure_filename('162-s', '154-f')
+            legacy.write_text(self._VALID_CLOSURE_BODY, encoding='utf-8')
+            reader = FilesystemTopologyReaders(workspace)
+            # Canonical present but invalid: the canonical partition wins
+            # outright, so the valid legacy artifact is never consulted (D5).
+            canonical.write_text(self._INVALID_CLOSURE_BODY, encoding='utf-8')
+            self.assertIs(reader.closure_complete('162-S'), False)
+            # Canonical present and valid.
+            canonical.write_text(self._VALID_CLOSURE_BODY, encoding='utf-8')
+            legacy.write_text(self._INVALID_CLOSURE_BODY, encoding='utf-8')
+            self.assertIs(reader.closure_complete('162-S'), True)
+            self.assertEqual(reader.closure_discovery('162-S').evaluation_order, (canonical,))
+
+    def test_closure_complete_malformed_frontmatter_under_recognized_names_raises(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            reader = FilesystemTopologyReaders(workspace)
+            malformed = "---\ncompaction_status: [unterminated\n---\n"
+            for label, path in (
+                ('legacy', closure_dir / legacy_closure_filename('162-s', '154-f')),
+                ('canonical', build_closure_path('docs/closure', '162-S', '154-F', workspace_root=workspace)),
+            ):
+                with self.subTest(pattern=label):
+                    for existing in closure_dir.glob('*.md'):
+                        existing.unlink()
+                    path.write_text(malformed, encoding='utf-8')
+                    with self.assertRaises(BacklogUnavailableError):
+                        reader.closure_complete('162-S')
+
+    def test_closure_complete_unrecognized_or_absent_is_none(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp).resolve()
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertIsNone(reader.closure_complete('162-S'))  # no closure dir
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            self.assertIsNone(reader.closure_complete('162-S'))  # empty dir
+            # The retired glob-only shape is outside the closed D3 read set.
+            (closure_dir / '162-S-2026-08-05-post-merge-closure.md').write_text(
+                self._VALID_CLOSURE_BODY, encoding='utf-8'
+            )
+            self.assertIsNone(reader.closure_complete('162-S'))
+            self.assertEqual(reader.closure_discovery('162-S').outcome, 'unrecognized')
 
     def test_malformed_shipment_frontmatter_blocks_as_backlog_unavailable(self) -> None:
         from autoharness.gates.topology import FilesystemTopologyReaders

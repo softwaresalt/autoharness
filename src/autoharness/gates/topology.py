@@ -26,6 +26,11 @@ from pathlib import Path
 from typing import Any, Literal, Protocol
 
 from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
+from autoharness.gates.closure_contract import (
+    DEFAULT_CLOSURE_DIR,
+    ClosureDiscovery,
+    classify_closure_candidates,
+)
 
 VALID_MODES = ("agent", "manual", "ci")
 VALID_PHASES = ("pre_claim", "post_claim", "lifecycle", "ambient", "audit_sequencing")
@@ -711,14 +716,25 @@ class FilesystemTopologyReaders:
         except (FileNotFoundError, OSError):
             return None
 
+    def closure_discovery(self, shipment_id: str) -> ClosureDiscovery:
+        """Reader-internal structured closure discovery (167-F, U2).
+
+        The single source of filesystem observation for closure evidence:
+        ``closure_complete`` is a thin predicate over this result and lists
+        nothing itself. Not a ``TopologyReaders`` protocol member -- the gate
+        reaches it through the optional ``closure_discovery_for`` accessor.
+        """
+        closure_dir = self.workspace / DEFAULT_CLOSURE_DIR
+        try:
+            return classify_closure_candidates(closure_dir, shipment_id)
+        except OSError as exc:
+            raise BacklogUnavailableError(closure_dir, "closure directory is unreadable") from exc
+
     def closure_complete(self, shipment_id: str) -> bool | None:
-        closure_dir = self.workspace / "docs" / "closure"
-        if not closure_dir.exists():
+        discovery = self.closure_discovery(shipment_id)
+        if discovery.outcome != "recognized":
             return None
-        matches = sorted(closure_dir.glob(f"{shipment_id}-*-post-merge-closure.md"))
-        if not matches:
-            return None
-        for candidate in matches:
+        for candidate in discovery.evaluation_order:
             fm = _frontmatter(candidate)
             if _closure_artifact_complete(fm):
                 return True
