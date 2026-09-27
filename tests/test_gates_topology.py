@@ -1877,6 +1877,98 @@ class ShipmentReadinessTests(unittest.TestCase):
         self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
 
 
+class ClosureDiscoveryDiagnosticsTests(unittest.TestCase):
+    """167.003-T (U3): distinguishable closure-discovery gate diagnostics."""
+
+    _SHIPMENTS = (
+        _shipment('113-S', 'shipped'),
+        _shipment('114-S', 'queued', deps=('113-S',)),
+    )
+
+    @staticmethod
+    def _filesystem_backed_readers(workspace: Path):
+        backing = FilesystemTopologyReaders(workspace)
+
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return backing.closure_complete(shipment_id)
+
+            def closure_discovery(self, shipment_id: str):
+                return backing.closure_discovery(shipment_id)
+
+        return Readers(shipments=ClosureDiscoveryDiagnosticsTests._SHIPMENTS)
+
+    def _evaluate(self, readers):
+        return evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+
+    def test_attributed_unrecognized_candidate_emits_unrecognized_token(self) -> None:
+        from autoharness.gates.closure_contract import CANONICAL_CLOSURE_PATTERN_DOC
+
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            (closure_dir / '113-S-notes.md').write_text('notes\n', encoding='utf-8')
+            result = self._evaluate(self._filesystem_backed_readers(workspace))
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_UNRECOGNIZED')
+        check = _check(result, 'shipment_readiness')
+        self.assertEqual(check.status, 'blocked')
+        self.assertIn('113-S-notes.md', check.message)
+        self.assertIn(CANONICAL_CLOSURE_PATTERN_DOC, check.message)
+        self.assertEqual(check.details['closure_discovery_outcome'], 'unrecognized')
+        self.assertEqual(len(check.details['closure_candidate_paths']), 1)
+        self.assertTrue(check.details['closure_candidate_paths'][0].endswith('113-S-notes.md'))
+        self.assertEqual(check.details['closure_expected_pattern'], CANONICAL_CLOSURE_PATTERN_DOC)
+        self.assertIsNone(check.details['closure_complete'])
+
+    def test_absent_and_recognized_invalid_keep_incomplete_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            closure_dir = workspace / 'docs' / 'closure'
+            closure_dir.mkdir(parents=True)
+            # A foreign record only: attribution never admits it -> absent.
+            build_closure_path('docs/closure', '11-S', '1-F', workspace_root=workspace).write_text(
+                '---\ncompaction_status: done\nclosure_status: READY\n---\n', encoding='utf-8'
+            )
+            absent = self._evaluate(self._filesystem_backed_readers(workspace))
+            build_closure_path('docs/closure', '113-S', '1-F', workspace_root=workspace).write_text(
+                '---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n', encoding='utf-8'
+            )
+            invalid = self._evaluate(self._filesystem_backed_readers(workspace))
+        self.assertEqual(absent.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        self.assertEqual(_check(absent, 'shipment_readiness').details['closure_discovery_outcome'], 'absent')
+        self.assertEqual(_check(absent, 'shipment_readiness').details['closure_candidate_paths'], [])
+        self.assertEqual(invalid.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        invalid_details = _check(invalid, 'shipment_readiness').details
+        self.assertEqual(invalid_details['closure_discovery_outcome'], 'recognized')
+        self.assertIs(invalid_details['closure_complete'], False)
+
+    def test_reader_without_capability_keeps_todays_behaviour(self) -> None:
+        readers = _FakeReaders(shipments=self._SHIPMENTS)
+        self.assertFalse(hasattr(readers, 'closure_discovery'))
+        result = self._evaluate(readers)
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        details = _check(result, 'shipment_readiness').details
+        for key in ('closure_discovery_outcome', 'closure_candidate_paths', 'closure_expected_pattern'):
+            self.assertNotIn(key, details)
+        self.assertIn('closure_complete', details)
+        self.assertIsNone(details['closure_complete'])
+
+    def test_json_payload_still_carries_closure_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            (workspace / 'docs' / 'closure').mkdir(parents=True)
+            (workspace / 'docs' / 'closure' / '113-S-notes.md').write_text('x\n', encoding='utf-8')
+            payload = json.loads(json.dumps(self._evaluate(self._filesystem_backed_readers(workspace)).to_dict()))
+        readiness = next(check for check in payload['checks'] if check['name'] == 'shipment_readiness')
+        self.assertIn('closure_complete', readiness['details'])
+        self.assertEqual(payload['token'], 'PREDECESSOR_CLOSURE_UNRECOGNIZED')
+
+
 class DagAuthoritativePredecessorCharacterizationTests(unittest.TestCase, _TopologyWorkspaceMixin):
     def test_c1_explicit_linear_chain_blocks_on_unshipped_predecessor(self) -> None:
         result = evaluate(

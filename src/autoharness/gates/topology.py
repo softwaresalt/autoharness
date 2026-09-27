@@ -27,6 +27,7 @@ from typing import Any, Literal, Protocol
 
 from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
 from autoharness.gates.closure_contract import (
+    CANONICAL_CLOSURE_PATTERN_DOC,
     DEFAULT_CLOSURE_DIR,
     ClosureDiscovery,
     classify_closure_candidates,
@@ -766,6 +767,24 @@ class _NullReaders:
 
     def closure_complete(self, shipment_id: str) -> bool | None:
         return None
+
+
+def closure_discovery_for(readers: Any, shipment_id: str) -> ClosureDiscovery | None:
+    """Optional closure-discovery capability accessor (167-F, U3).
+
+    Duck-types the reader-internal ``closure_discovery`` method (exposed by
+    ``FilesystemTopologyReaders``) and returns ``None`` for any reader that
+    does not expose it or returns something other than a ``ClosureDiscovery``.
+    ``None`` means the gate behaves exactly as it did before this capability
+    existed; the ``TopologyReaders`` protocol is deliberately unchanged.
+    Errors raised by the capability (e.g. ``BacklogUnavailableError``)
+    propagate so they fail closed like ``closure_complete`` does.
+    """
+    method = getattr(readers, "closure_discovery", None)
+    if not callable(method):
+        return None
+    discovery = method(shipment_id)
+    return discovery if isinstance(discovery, ClosureDiscovery) else None
 
 
 def _claim_not_observed(
@@ -1881,6 +1900,36 @@ def _shipment_readiness_check(
             )
         closure_complete = readers.closure_complete(predecessor_id)
         if closure_complete is not True:
+            discovery = closure_discovery_for(readers, predecessor_id)
+            discovery_details: dict[str, Any] = {}
+            if discovery is not None:
+                discovery_details = {
+                    "closure_discovery_outcome": discovery.outcome,
+                    "closure_candidate_paths": [
+                        path.as_posix() for path in discovery.candidate_paths
+                    ],
+                    "closure_expected_pattern": CANONICAL_CLOSURE_PATTERN_DOC,
+                }
+            if discovery is not None and discovery.outcome == "unrecognized":
+                candidate_list = ", ".join(discovery_details["closure_candidate_paths"])
+                return CheckResult(
+                    name="shipment_readiness",
+                    status="blocked",
+                    token="PREDECESSOR_CLOSURE_UNRECOGNIZED",
+                    message=(
+                        f"PREDECESSOR_CLOSURE_UNRECOGNIZED: predecessor {predecessor_id} is terminal "
+                        f"but its closure candidate(s) [{candidate_list}] match no recognized "
+                        f"closure-evidence filename pattern; expected {CANONICAL_CLOSURE_PATTERN_DOC}"
+                    ),
+                    details=_shipment_readiness_details(
+                        target,
+                        shipment,
+                        shipments,
+                        predecessor_id=predecessor_id,
+                        closure_complete=closure_complete,
+                        **discovery_details,
+                    ),
+                )
             return CheckResult(
                 name="shipment_readiness",
                 status="blocked",
@@ -1894,6 +1943,7 @@ def _shipment_readiness_check(
                     shipments,
                     predecessor_id=predecessor_id,
                     closure_complete=closure_complete,
+                    **discovery_details,
                 ),
             )
 
