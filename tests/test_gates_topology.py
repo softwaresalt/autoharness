@@ -1969,6 +1969,135 @@ class ClosureDiscoveryDiagnosticsTests(unittest.TestCase):
         self.assertEqual(payload['token'], 'PREDECESSOR_CLOSURE_UNRECOGNIZED')
 
 
+class _ClosureGateHarnessMixin:
+    """Gate-level closure fixtures shared by the 167-F regression batteries.
+
+    Every fixture lives in a temporary scratch workspace: canonical names come
+    from ``build_closure_path`` and legacy names from the single test-only
+    helper ``legacy_closure_filename`` (plan C6). ``docs/closure/`` of this
+    repository is never read.
+    """
+
+    _READY = "---\ncompaction_status: done\nclosure_status: READY\n---\n"
+
+    def setUp(self) -> None:  # noqa: D401 - unittest hook
+        self._tmp = tempfile.TemporaryDirectory()
+        self.workspace = Path(self._tmp.name).resolve()
+        self.closure_dir = self.workspace / 'docs' / 'closure'
+        self.closure_dir.mkdir(parents=True)
+        self.reader = FilesystemTopologyReaders(self.workspace)
+
+    def tearDown(self) -> None:  # noqa: D401 - unittest hook
+        self._tmp.cleanup()
+
+    def _canonical(self, shipment_id: str, feature_id: str, body: str) -> Path:
+        path = build_closure_path('docs/closure', shipment_id, feature_id, workspace_root=self.workspace)
+        path.write_text(body, encoding='utf-8')
+        return path
+
+    def _legacy(self, shipment_id: str, suffix: str, body: str) -> Path:
+        path = self.closure_dir / legacy_closure_filename(shipment_id, suffix)
+        path.write_text(body, encoding='utf-8')
+        return path
+
+    def _clear(self) -> None:
+        for existing in self.closure_dir.iterdir():
+            existing.unlink()
+
+    def _gate(self, predecessor_id: str):
+        backing = self.reader
+
+        class Readers(_FakeReaders):
+            def closure_complete(self, shipment_id: str):
+                return backing.closure_complete(shipment_id)
+
+            def closure_discovery(self, shipment_id: str):
+                return backing.closure_discovery(shipment_id)
+
+        readers = Readers(
+            shipments=(
+                _shipment(predecessor_id, 'shipped'),
+                _shipment('999-S', 'queued', deps=(predecessor_id,)),
+            )
+        )
+        return evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='999-S'),
+            readers=readers,
+        )
+
+
+class ClosureHistoricalFailureShapeTests(_ClosureGateHarnessMixin, unittest.TestCase):
+    """167.008-T (U8): the required historical failure shapes, pinned at the gate."""
+
+    def test_date_prefixed_acceptable_artifact_now_satisfies_the_gate_as_legacy(self) -> None:
+        # The shape that silently failed for 001-S, 008-S, 162-S and 174-S.
+        legacy = self._legacy('162-s', '154-f', self._READY)
+        result = self._gate('162-S')
+        check = _check(result, 'shipment_readiness')
+        self.assertEqual(check.status, 'passed')
+        self.assertNotIn(
+            result.primary_token,
+            ('PREDECESSOR_CLOSURE_INCOMPLETE', 'PREDECESSOR_CLOSURE_UNRECOGNIZED', 'BACKLOG_UNAVAILABLE'),
+        )
+        self.assertIs(self.reader.closure_complete('162-S'), True)
+        discovery = self.reader.closure_discovery('162-S')
+        self.assertEqual(discovery.outcome, 'recognized')
+        self.assertEqual(discovery.legacy_matches, (legacy,))
+        self.assertEqual(discovery.canonical_matches, ())
+
+    def test_recognized_name_without_frontmatter_fails_closed_backlog_unavailable(self) -> None:
+        # The 005-S shape: a recognized name with no frontmatter block at all.
+        for label, make in (
+            ('legacy', lambda: self._legacy('162-s', '154-f', '# closure notes only\n')),
+            ('canonical', lambda: self._canonical('162-S', '154-F', '# closure notes only\n')),
+        ):
+            with self.subTest(pattern=label):
+                self._clear()
+                make()
+                with self.assertRaises(BacklogUnavailableError):
+                    self.reader.closure_complete('162-S')
+                result = self._gate('162-S')
+                self.assertNotEqual(result.exit_code, 0)
+                self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
+
+    def test_recognized_name_with_compaction_but_no_closure_status_still_blocks(self) -> None:
+        # The second 005-S axis: compaction evidence alone is never acceptance.
+        body = "---\ncompaction_status: done\n---\n"
+        for label, make in (
+            ('legacy', lambda: self._legacy('162-s', '154-f', body)),
+            ('canonical', lambda: self._canonical('162-S', '154-F', body)),
+        ):
+            with self.subTest(pattern=label):
+                self._clear()
+                make()
+                self.assertIs(self.reader.closure_complete('162-S'), False)
+                result = self._gate('162-S')
+                self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+                self.assertEqual(_check(result, 'shipment_readiness').status, 'blocked')
+
+    def test_adversarial_id_collision_under_both_patterns(self) -> None:
+        # 16-S and 162-S must never satisfy each other, in either direction,
+        # under R1 or R2 -- including a foreign ID appearing only in an R2 suffix.
+        scenarios = (
+            ('R1 16-S vs 162-S', lambda: self._canonical('16-S', '154-F', self._READY), '162-S'),
+            ('R1 162-S vs 16-S', lambda: self._canonical('162-S', '154-F', self._READY), '16-S'),
+            ('R2 16-s vs 162-S', lambda: self._legacy('16-s', '154-f', self._READY), '162-S'),
+            ('R2 162-s vs 16-S', lambda: self._legacy('162-s', '154-f', self._READY), '16-S'),
+            ('R2 suffix names 162-S', lambda: self._legacy('16-S', 'supersedes-162-S', self._READY), '162-S'),
+            ('R2 suffix names 16-S', lambda: self._legacy('162-S', 'supersedes-16-S', self._READY), '16-S'),
+        )
+        for label, make, requested in scenarios:
+            with self.subTest(scenario=label):
+                self._clear()
+                make()
+                self.assertIsNone(self.reader.closure_complete(requested))
+                discovery = self.reader.closure_discovery(requested)
+                self.assertEqual(discovery.outcome, 'absent')
+                self.assertEqual(discovery.candidate_paths, ())
+                result = self._gate(requested)
+                self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+
 class DagAuthoritativePredecessorCharacterizationTests(unittest.TestCase, _TopologyWorkspaceMixin):
     def test_c1_explicit_linear_chain_blocks_on_unshipped_predecessor(self) -> None:
         result = evaluate(
