@@ -53,8 +53,11 @@ __all__ = [
     "ClosureContractError",
     "ClosureDiscovery",
     "ClosureDiscoveryOutcome",
+    "assert_path_within_workspace",
     "attribute_closure_candidate",
+    "build_closure_path",
     "classify_closure_candidates",
+    "validate_closure_id",
 ]
 
 
@@ -283,6 +286,114 @@ def classify_closure_candidates(closure_dir: Path | str, shipment_id: str) -> Cl
         unrecognized_candidates=tuple(unrecognized),
         outcome=outcome,
     )
+
+
+# ---------------------------------------------------------------------------
+# C4 -- identifier validation, path construction, workspace containment
+# ---------------------------------------------------------------------------
+
+_FIELD_GRAMMARS: dict[str, re.Pattern[str]] = {
+    "shipment_id": CLOSURE_SHIPMENT_ID_PATTERN,
+    "feature_id": CLOSURE_FEATURE_ID_PATTERN,
+}
+_DRIVE_DESIGNATOR = re.compile(r"\A[A-Za-z]:")
+
+
+def _id_rejection_reason(value: str) -> str:
+    """Name the first category of defect in an identifier the grammar refused."""
+    if not value.strip():
+        return "value is empty or whitespace"
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        return "value contains a null byte or control character"
+    if value.startswith("\\\\") or value.startswith("//"):
+        return "value is a UNC path"
+    if value.startswith("/") or value.startswith("\\"):
+        return "value is an absolute path"
+    if _DRIVE_DESIGNATOR.match(value):
+        return "value carries a drive designator"
+    if "/" in value or "\\" in value:
+        return "value contains a path separator"
+    if value in (".", "..") or value.startswith("../") or value.startswith("..\\"):
+        return "value is a traversal segment"
+    return "value does not match the identifier grammar"
+
+
+def validate_closure_id(value: str, *, field: str) -> str:
+    """Validate ``value`` against the C1 grammar for ``field`` and return it.
+
+    ``field`` is ``"shipment_id"`` or ``"feature_id"``. The validator consumes
+    the C1 grammars rather than restating them, so the builder's accepted
+    domain and R1's captured domain are the same set in both directions.
+    Raises ``ClosureContractError`` naming the field and the offending value.
+    """
+    grammar = _FIELD_GRAMMARS.get(field)
+    if grammar is None:
+        raise ClosureContractError(
+            f"unknown closure identifier field {field!r}; expected one of "
+            f"{sorted(_FIELD_GRAMMARS)}"
+        )
+    if not isinstance(value, str):
+        raise ClosureContractError(
+            f"invalid {field} {value!r}: value must be a string"
+        )
+    if grammar.match(value) is None:
+        raise ClosureContractError(
+            f"invalid {field} {value!r}: {_id_rejection_reason(value)} "
+            f"(expected {grammar.pattern})"
+        )
+    return value
+
+
+def assert_path_within_workspace(path: Path | str, *, workspace_root: Path | str) -> Path:
+    """Resolve ``path`` and assert it lies within the resolved ``workspace_root``.
+
+    ``workspace_root`` resolves first. A relative ``path`` is anchored to the
+    resolved root -- never to the process CWD. The anchored path is resolved
+    (collapsing ``..``, symlinks, reparse points, and junctions) and returned
+    when contained; otherwise ``ClosureContractError`` names the escaping path
+    and the root it escaped.
+    """
+    root = Path(workspace_root).resolve()
+    candidate = Path(path)
+    anchored = candidate if candidate.is_absolute() else root / candidate
+    resolved = anchored.resolve()
+    if not resolved.is_relative_to(root):
+        raise ClosureContractError(
+            f"path '{candidate}' resolves to '{resolved}', which escapes "
+            f"the workspace root '{root}'"
+        )
+    return resolved
+
+
+def build_closure_path(
+    closure_dir: Path | str,
+    shipment_id: str,
+    feature_id: str,
+    *,
+    workspace_root: Path | str,
+) -> Path:
+    """Build the canonical closure-evidence path for ``(shipment_id, feature_id)``.
+
+    Implements C4 exactly: validate both identifiers before any join; resolve
+    ``workspace_root`` first; anchor a relative ``closure_dir`` under the
+    resolved root (never the process CWD); assert the resolved directory, the
+    resolved output path, and the output's parent against the root. The
+    builder never creates a directory and never writes a file.
+    """
+    validated_shipment = validate_closure_id(shipment_id, field="shipment_id")
+    validated_feature = validate_closure_id(feature_id, field="feature_id")
+    root = Path(workspace_root).resolve()
+    resolved_dir = assert_path_within_workspace(closure_dir, workspace_root=root)
+    filename = CANONICAL_CLOSURE_FILENAME_TEMPLATE.format(
+        shipment_id=validated_shipment, feature_id=validated_feature
+    )
+    output = assert_path_within_workspace(resolved_dir / filename, workspace_root=root)
+    if output.parent != resolved_dir:
+        raise ClosureContractError(
+            f"closure path '{output}' does not lie directly in the resolved closure "
+            f"directory '{resolved_dir}' under workspace root '{root}'"
+        )
+    return output
 
 
 # ---------------------------------------------------------------------------
