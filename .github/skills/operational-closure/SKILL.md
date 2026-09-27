@@ -116,10 +116,13 @@ autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}
   containment, readability, and the canonical filename; discoverability is
   confirmed by the final run.
 * **Before the closure is declared complete**, after the compaction status is
-  finalized to `done` or `degraded`: the gate MUST exit `0` before the
-  finalized artifact is committed. Only an artifact that passes is
-  predecessor-closure evidence; a `BLOCKED` closure never passes and keeps the
-  successor shipment blocked, as intended.
+  finalized to `done` or `degraded`: the gate MUST exit `0` before the closure
+  is declared complete. Only an artifact that passes is predecessor-closure
+  evidence. A finalized `BLOCKED` closure (or a `READY_WITH_CONDITIONS` closure
+  with an unsatisfied condition) never passes: it may still be committed as a
+  truthful record when `frontmatter_predicate` is the only failure, but the
+  closure is not declared complete and the successor shipment stays blocked,
+  as intended.
 
 ### Step 4: Feed Back into the Harness
 

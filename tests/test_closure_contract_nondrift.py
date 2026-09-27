@@ -38,7 +38,7 @@ _SHIP_AGENT_PAIR = tuple(site for site in CONSUMER_SITES if site.endswith(("_shi
 # or the canonical ``post-merge-closure`` stem. This is a literal-restatement
 # heuristic: an identifier assembled at runtime from fragments is out of reach
 # of a text scan and is instead prevented by review against the contract.
-_CLOSURE_FILENAME_DEFINITION = re.compile(r"closure(?:\\+)?\.md|post-merge-closure")
+_CLOSURE_FILENAME_DEFINITION = re.compile(r"closure(?:\\+)?\.md|post-merge-closure", re.IGNORECASE)
 
 _OUTPUT_BULLET = re.compile(r"^\* Closure artifact at `(?P<pattern>[^`]+)`\s*$", re.MULTILINE)
 _SHIP_CONTRACT_MARKER = "**Closure-evidence contract**"
@@ -46,7 +46,13 @@ _STEP_3A_HEADING = "### Step 3a: Validate the Closure Artifact with the Closure-
 # Every canonical-shaped path a documentation site restates, and every gate
 # invocation it documents; each must equal the contract-derived form.
 _CANONICAL_PATH_MENTION = re.compile(r"[^\s`\"']*post-merge-closure\.md")
-_GATE_INVOCATION = re.compile(r"autoharness gate closure-evidence --path (?P<path>\S+) --shipment (?P<shipment>\S+)")
+# Flags are parsed independently so a reordered invocation is still checked.
+_GATE_INVOCATION = re.compile(r"autoharness gate closure-evidence(?P<args>[^`\n]*)")
+
+
+def _flag(args: str, flag: str) -> str | None:
+    match = re.search(rf"(?:^|\s){re.escape(flag)}\s+(\S+)", args)
+    return match.group(1) if match else None
 _DOC_SITES = tuple(site for site in CONSUMER_SITES if not site.endswith(".py"))
 
 
@@ -71,8 +77,12 @@ def _section(text: str, heading: str, *, site: str = "") -> str:
     level = len(heading) - len(heading.lstrip("#"))
     start = lines.index(heading)
     end = len(lines)
+    in_fence = False
     for index in range(start + 1, len(lines)):
-        match = re.match(r"^(#+) ", lines[index])
+        if lines[index].lstrip().startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        match = None if in_fence else re.match(r"^(#+) ", lines[index])
         if match and len(match.group(1)) <= level:
             end = index
             break
@@ -110,7 +120,11 @@ class ClosureContractNonDriftTests(unittest.TestCase):
                 self.assertTrue(mentions, f"{site}: no canonical closure path documented")
                 self.assertEqual(set(mentions), {_expected_pattern(site)})
             with self.subTest(site=site, check="gate invocations"):
-                invocations = [match.groupdict() for match in _GATE_INVOCATION.finditer(text)]
+                invocations = [
+                    {"path": _flag(match.group("args"), "--path"), "shipment": _flag(match.group("args"), "--shipment")}
+                    for match in _GATE_INVOCATION.finditer(text)
+                    if "--" in match.group("args")
+                ]
                 self.assertTrue(invocations, f"{site}: no closure-evidence gate invocation documented")
                 for invocation in invocations:
                     self.assertEqual(invocation["path"], _expected_pattern(site))

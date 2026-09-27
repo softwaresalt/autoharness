@@ -1704,6 +1704,29 @@ def _parse_gate_closure_evidence_args(args: list[str]) -> dict:
     return parsed
 
 
+def _lexically_within(path: Path, root: Path) -> bool:
+    """Textual containment check performed before any filesystem access.
+
+    UNC, device (``\\\\?\\``), and other-drive paths never share a common path
+    with a local root, so they are rejected without being opened.
+    """
+    normalized = os.path.normcase(os.path.normpath(str(path)))
+    base = os.path.normcase(os.path.normpath(str(root)))
+    try:
+        return os.path.commonpath([normalized, base]) == base
+    except ValueError:
+        return False
+
+
+def _on_disk_name(path: Path) -> str | None:
+    """Return the directory entry's own spelling of ``path.name``, or None if ambiguous."""
+    names = os.listdir(path.parent)
+    if path.name in names:
+        return path.name
+    folded = [name for name in names if name.casefold() == path.name.casefold()]
+    return folded[0] if len(folded) == 1 else None
+
+
 def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspace: Path) -> dict:
     """Validate one closure artifact against the closure-evidence contract.
 
@@ -1717,7 +1740,11 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
     from autoharness.gates import closure_contract, topology
 
     canonical_pattern = closure_contract.RECOGNIZED_CLOSURE_PATTERNS[0]
-    root = Path(workspace).resolve()
+    try:
+        root = Path(workspace).resolve()
+        root_error: OSError | None = None
+    except OSError as exc:
+        root, root_error = Path(workspace), exc
     payload: dict = {
         "gate": "closure-evidence",
         "path": str(path_arg),
@@ -1736,15 +1763,36 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
         )
         return payload
 
+    if root_error is not None:
+        return _finish(2, "input", f"workspace root '{workspace}' cannot be resolved: {root_error}")
+    lexical = Path(path_arg) if Path(path_arg).is_absolute() else root / path_arg
+    if not _lexically_within(lexical, root):
+        # Rejected textually, before any filesystem call: resolving a UNC or
+        # device path would open it (e.g. an SMB connection) before containment.
+        return _finish(
+            2,
+            "workspace_containment",
+            f"closure artifact rejected: path '{path_arg}' is not lexically within the "
+            f"workspace root '{root}'",
+        )
     try:
         resolved = closure_contract.assert_path_within_workspace(path_arg, workspace_root=root)
     except closure_contract.ClosureContractError as exc:
         return _finish(2, "workspace_containment", f"closure artifact rejected: {exc}")
+    except (RecursionError, NotImplementedError):
+        raise
     except (OSError, RuntimeError) as exc:
         return _finish(2, "input", f"closure artifact path '{path_arg}' cannot be resolved: {exc}")
     payload["path"] = str(resolved)
-    lexical = Path(path_arg) if Path(path_arg).is_absolute() else root / path_arg
-    if lexical.is_symlink():
+    try:
+        is_link = lexical.is_symlink()
+        is_regular = resolved.is_file()
+        # The on-disk name, never the caller's spelling: ``resolve`` keeps the
+        # caller's casing on some case-insensitive filesystems (e.g. APFS).
+        filename = _on_disk_name(resolved) if is_regular and not is_link else resolved.name
+    except OSError as exc:
+        return _finish(2, "input", f"closure artifact '{resolved}' cannot be inspected: {exc}")
+    if is_link:
         # The filename check, the frontmatter read, and discoverability must all
         # observe the same object; a link would validate one name and read another.
         return _finish(
@@ -1753,19 +1801,22 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
             f"closure artifact '{lexical}' is a symbolic link; closure evidence must be a "
             "regular file written at its canonical path",
         )
-    if not resolved.is_file():
+    if not is_regular:
         return _finish(
             2, "input", f"closure artifact '{resolved}' does not exist or is not a regular file"
         )
+    if filename is None:
+        return _finish(
+            2, "input", f"closure artifact '{resolved}' has no unique on-disk directory entry"
+        )
+    resolved = resolved.with_name(filename)
+    payload["path"] = str(resolved)
     if shipment_arg is not None:
         try:
             closure_contract.validate_closure_id(shipment_arg, field="shipment_id")
         except closure_contract.ClosureContractError as exc:
             return _finish(2, "input", f"invalid --shipment: {exc}")
 
-    # The on-disk name (``resolve`` reports the filesystem's own casing), never
-    # the caller's spelling, which a case-insensitive filesystem may not share.
-    filename = resolved.name
     match = canonical_pattern.match(filename)
     if match is None:
         return _finish(
@@ -1803,7 +1854,15 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
     closure_dir = root / closure_contract.DEFAULT_CLOSURE_DIR
     try:
         discovery = closure_contract.classify_closure_candidates(closure_dir, declared_shipment)
-        discovered = {candidate.resolve() for candidate in discovery.canonical_matches}
+        # A symlinked closure-dir entry would let a file stored anywhere be
+        # "discovered" under a different canonical name; only regular entries count.
+        discovered = {
+            candidate.resolve()
+            for candidate in discovery.canonical_matches
+            if not candidate.is_symlink()
+        }
+    except (RecursionError, NotImplementedError):
+        raise
     except (OSError, RuntimeError) as exc:
         return _finish(2, "input", f"closure directory '{closure_dir}' is unreadable: {exc}")
     if resolved not in discovered:

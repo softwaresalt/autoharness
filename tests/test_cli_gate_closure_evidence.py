@@ -216,6 +216,50 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
         self.assertEqual(payload["failed_check"], "input")
         self.assertIn("symbolic link", payload["message"])
 
+    def test_symlinked_closure_dir_entry_is_not_discovery_evidence(self) -> None:
+        # A regular file stored elsewhere must not be "discovered" through a
+        # canonically-named link placed in the consumer's closure directory.
+        notes = self.root / "notes"
+        notes.mkdir()
+        stored = build_closure_path("notes", "175-S", "1-F", workspace_root=self.root)
+        stored.write_text(_READY, encoding="utf-8")
+        alias = self.closure_dir / stored.name.replace("175-S-1-F", "175-S-2-F")
+        try:
+            os.symlink(stored, alias)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"cannot create file symlink: {exc}")
+        payload, code = self._gate(stored)
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["failed_check"], "discoverability")
+
+    def test_unc_and_device_paths_are_rejected_before_filesystem_access(self) -> None:
+        from unittest import mock
+
+        from autoharness.gates import closure_contract
+
+        name = "175-S-167-F-post-merge-closure.md"
+        raws = [f"//attacker/share/{name}", os.path.join("..", "..", name)]
+        if os.name == "nt":
+            raws += [f"\\\\attacker\\share\\{name}", f"\\\\?\\UNC\\attacker\\share\\{name}"]
+        for raw in raws:
+            with self.subTest(raw=raw), mock.patch.object(
+                closure_contract,
+                "assert_path_within_workspace",
+                side_effect=AssertionError("filesystem resolution attempted"),
+            ):
+                payload, code = self._gate(raw)
+                self.assertEqual(code, 2)
+                self.assertEqual(payload["failed_check"], "workspace_containment")
+
+    def test_inspection_oserror_is_invalid_input_not_a_crash(self) -> None:
+        from unittest import mock
+
+        artifact = self._canonical()
+        with mock.patch("pathlib.Path.is_file", side_effect=PermissionError("denied")):
+            payload, code = self._gate(artifact)
+        self.assertEqual(code, 2)
+        self.assertEqual(payload["failed_check"], "input")
+
     def test_filename_check_uses_the_on_disk_name(self) -> None:
         canonical = self._canonical()
         canonical.unlink()
