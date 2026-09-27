@@ -754,6 +754,7 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    compaction is completed — it does not strand the merged PR. A compact-context run that
    **FAILS** is **NON-BLOCKING** (record `compaction: degraded`, log a warning, and
    continue — the merge already landed and the skill is non-destructive).
+   **Closure-evidence contract**: write the closure artifact at the canonical path `docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md` with both gate-relevant frontmatter keys, `closure_status` and `compaction_status`, and run `autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md --shipment {shipment_id}` (exit 0 required) before committing it and again after its compaction status is finalized. Legacy date-prefixed closure names remain readable but are never written.
 7. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
    merge/fallback status, admin fallback result if any, compaction status (P-020),
    closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
