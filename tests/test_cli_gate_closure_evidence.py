@@ -261,6 +261,16 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
         self.assertEqual(payload["failed_check"], "input")
         self.assertIn("cannot be inspected", payload["message"])
 
+    def test_workspace_symlink_loop_is_invalid_input_not_a_crash(self) -> None:
+        from unittest import mock
+
+        artifact = self._canonical()
+        with mock.patch("pathlib.Path.resolve", side_effect=RuntimeError("Symlink loop")):
+            payload, code = self._gate(artifact)
+        self.assertEqual(code, 2)
+        self.assertEqual(payload["failed_check"], "input")
+        self.assertIn("workspace root", payload["message"])
+
     def test_workspace_spelled_through_a_link_is_accepted(self) -> None:
         # The caller's own (unresolved) spelling of the workspace must not be
         # rejected by the textual pre-check that runs before resolution.

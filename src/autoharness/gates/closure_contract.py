@@ -265,17 +265,22 @@ def classify_closure_candidates(closure_dir: Path | str, shipment_id: str) -> Cl
     canonical: list[Path] = []
     legacy: list[Path] = []
     unrecognized: list[Path] = []
-    if directory.is_dir():
-        for entry in sorted(directory.iterdir(), key=lambda path: path.name):
-            name = entry.name
-            if not attribute_closure_candidate(name, shipment_id):
-                continue
-            if _matches_canonical(name, shipment_id):
-                canonical.append(entry)
-            elif _matches_legacy(name, shipment_id):
-                legacy.append(entry)
-            else:
-                unrecognized.append(entry)
+    # Only a missing directory means "absent"; any other filesystem failure
+    # (permission, symlink loop, not-a-directory) propagates to the caller.
+    try:
+        entries = sorted(directory.iterdir(), key=lambda path: path.name)
+    except FileNotFoundError:
+        entries = []
+    for entry in entries:
+        name = entry.name
+        if not attribute_closure_candidate(name, shipment_id):
+            continue
+        if _matches_canonical(name, shipment_id):
+            canonical.append(entry)
+        elif _matches_legacy(name, shipment_id):
+            legacy.append(entry)
+        else:
+            unrecognized.append(entry)
     if canonical or legacy:
         outcome: ClosureDiscoveryOutcome = "recognized"
     elif unrecognized:

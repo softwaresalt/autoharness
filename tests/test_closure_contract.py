@@ -105,6 +105,19 @@ class ClosureNameClassificationMatrixTests(unittest.TestCase):
             self.assertEqual(discovery.legacy_matches, ())
             self.assertEqual(discovery.unrecognized_candidates, ())
 
+    def test_non_missing_directory_failures_propagate(self) -> None:
+        # Only FileNotFoundError means "absent"; other failures must surface so
+        # the topology reader reports BACKLOG_UNAVAILABLE instead of absence.
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            for error in (PermissionError("denied"), NotADirectoryError("file"), OSError("loop")):
+                with self.subTest(error=type(error).__name__), mock.patch(
+                    "pathlib.Path.iterdir", side_effect=error
+                ):
+                    with self.assertRaises(type(error)):
+                        classify_closure_candidates(Path(tmp), "162-S")
+
     def test_identifier_grammars_are_uppercase_only(self) -> None:
         self.assertTrue(CLOSURE_SHIPMENT_ID_PATTERN.match("162-S"))
         self.assertTrue(CLOSURE_FEATURE_ID_PATTERN.match("154-F"))

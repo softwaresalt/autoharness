@@ -1742,8 +1742,11 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
     canonical_pattern = closure_contract.RECOGNIZED_CLOSURE_PATTERNS[0]
     try:
         root = Path(workspace).resolve()
-        root_error: OSError | None = None
-    except OSError as exc:
+        root_error: Exception | None = None
+    except (RecursionError, NotImplementedError):
+        raise
+    except (OSError, RuntimeError) as exc:
+        # RuntimeError: a symlink loop on the supported Python versions.
         root, root_error = Path(workspace), exc
     payload: dict = {
         "gate": "closure-evidence",
