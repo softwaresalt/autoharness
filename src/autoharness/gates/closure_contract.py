@@ -173,7 +173,11 @@ cardinality test."""
 _LEGACY_SHIPMENT_POSITION = re.compile(
     r"\A\d{4}-\d{2}-\d{2}-(?P<shipment_id>[A-Za-z0-9]+-[Ss])(?:-|\Z)", re.ASCII
 )
-# The leading position R1 reserves for the identifier.
+# The leading position R1 reserves for the identifier. The kind segment
+# accepts ``[Ss]`` exactly as plan C3 specifies, but attribution for this
+# position is decided by exact, case-sensitive comparison (C3 step 4): a
+# lowercase canonical-position name is never attributed to an uppercase
+# request, so no lowercase tolerance leaks onto the canonical read path.
 _CANONICAL_SHIPMENT_POSITION = re.compile(
     r"\A(?P<shipment_id>[A-Za-z0-9]+-[Ss])(?:-|\Z)", re.ASCII
 )
@@ -311,10 +315,10 @@ def _id_rejection_reason(value: str) -> str:
         return "value is an absolute path"
     if _DRIVE_DESIGNATOR.match(value):
         return "value carries a drive designator"
+    if value in (".", "..") or value.startswith(("../", "..\\")):
+        return "value is a traversal segment"
     if "/" in value or "\\" in value:
         return "value contains a path separator"
-    if value in (".", "..") or value.startswith("../") or value.startswith("..\\"):
-        return "value is a traversal segment"
     return "value does not match the identifier grammar"
 
 

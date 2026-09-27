@@ -270,12 +270,13 @@ closure-evidence options:
                       Default: the shipment ID encoded in the filename.
   --workspace, -w     Workspace root. Default: .
   --json              Emit the validation result as JSON (includes failed_check:
-                      workspace | input | filename | frontmatter_predicate |
-                      discoverability, or null on pass).
+                      workspace_containment | input | filename |
+                      frontmatter_predicate | discoverability, or null on pass).
 
 `closure-evidence` is READ-ONLY and never writes, renames, or repairs an
-artifact. Checks run in order: workspace containment, input readability, the
-canonical write filename, the consumer's own acceptance predicate
+artifact. Checks run in order: workspace containment, input readability (a
+symbolic link is rejected as input), the canonical write filename (taken from
+the on-disk name), the consumer's own acceptance predicate
 (topology._closure_artifact_complete, reused by import), and discoverability
 for the declared shipment under docs/closure/. Legacy date-prefixed names are
 readable by the topology gate but are never a valid write.
@@ -1738,8 +1739,20 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
     try:
         resolved = closure_contract.assert_path_within_workspace(path_arg, workspace_root=root)
     except closure_contract.ClosureContractError as exc:
-        return _finish(2, "workspace", f"closure artifact rejected: {exc}")
+        return _finish(2, "workspace_containment", f"closure artifact rejected: {exc}")
+    except (OSError, RuntimeError) as exc:
+        return _finish(2, "input", f"closure artifact path '{path_arg}' cannot be resolved: {exc}")
     payload["path"] = str(resolved)
+    lexical = Path(path_arg) if Path(path_arg).is_absolute() else root / path_arg
+    if lexical.is_symlink():
+        # The filename check, the frontmatter read, and discoverability must all
+        # observe the same object; a link would validate one name and read another.
+        return _finish(
+            2,
+            "input",
+            f"closure artifact '{lexical}' is a symbolic link; closure evidence must be a "
+            "regular file written at its canonical path",
+        )
     if not resolved.is_file():
         return _finish(
             2, "input", f"closure artifact '{resolved}' does not exist or is not a regular file"
@@ -1750,7 +1763,9 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
         except closure_contract.ClosureContractError as exc:
             return _finish(2, "input", f"invalid --shipment: {exc}")
 
-    filename = Path(path_arg).name
+    # The on-disk name (``resolve`` reports the filesystem's own casing), never
+    # the caller's spelling, which a case-insensitive filesystem may not share.
+    filename = resolved.name
     match = canonical_pattern.match(filename)
     if match is None:
         return _finish(
@@ -1786,8 +1801,12 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
             f"discover it for {declared_shipment}",
         )
     closure_dir = root / closure_contract.DEFAULT_CLOSURE_DIR
-    discovery = closure_contract.classify_closure_candidates(closure_dir, declared_shipment)
-    if resolved not in {candidate.resolve() for candidate in discovery.canonical_matches}:
+    try:
+        discovery = closure_contract.classify_closure_candidates(closure_dir, declared_shipment)
+        discovered = {candidate.resolve() for candidate in discovery.canonical_matches}
+    except (OSError, RuntimeError) as exc:
+        return _finish(2, "input", f"closure directory '{closure_dir}' is unreadable: {exc}")
+    if resolved not in discovered:
         return _finish(
             1,
             "discoverability",
@@ -1802,9 +1821,19 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
     )
 
 
+def _closure_evidence_wants_help(rest: list[str]) -> bool:
+    """True only when a help token appears in a flag position, never as an option value."""
+    index = 0
+    while index < len(rest):
+        if rest[index] in ("help", "--help", "-h"):
+            return True
+        index += 2 if rest[index] in ("--path", "--shipment", "--workspace", "-w") else 1
+    return False
+
+
 def _gate_closure_evidence_command(rest: list[str]) -> None:
     """Run the read-only write-time closure-evidence validation (167.004-T)."""
-    if any(flag in ("help", "--help", "-h") for flag in rest):
+    if _closure_evidence_wants_help(rest):
         print(GATE_USAGE)
         return
 

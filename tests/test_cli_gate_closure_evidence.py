@@ -147,7 +147,7 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
             with self.subTest(row=label):
                 payload, code = self._gate(path)
                 self.assertEqual(code, 2)
-                self.assertEqual(payload["failed_check"], "workspace")
+                self.assertEqual(payload["failed_check"], "workspace_containment")
                 self.assertIn(str(self.root), payload["message"])
                 self.assertIn("175-S-167-F-post-merge-closure.md", payload["message"])
         with self.subTest(row="symlink/junction escaping root"):
@@ -155,7 +155,7 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
                 self.skipTest(reason)
             payload, code = self._gate(link / "175-S-167-F-post-merge-closure.md")
             self.assertEqual(code, 2)
-            self.assertEqual(payload["failed_check"], "workspace")
+            self.assertEqual(payload["failed_check"], "workspace_containment")
             self.assertIn(str(self.root), payload["message"])
 
     def test_json_failed_check_discriminator(self) -> None:
@@ -166,7 +166,7 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
         )
         foreign = self._canonical(shipment_id="178-S")
         rows = (
-            ("workspace", self.outside / "x.md", (), 2),
+            ("workspace_containment", self.outside / "x.md", (), 2),
             ("input", self.closure_dir / "missing.md", (), 2),
             ("filename", legacy, (), 1),
             ("frontmatter_predicate", rejected, (), 1),
@@ -201,6 +201,55 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
         payload, code = self._gate(path)
         self.assertEqual(code, 1)
         self.assertEqual(payload["failed_check"], "discoverability")
+
+    def test_symlinked_artifact_is_rejected_as_input(self) -> None:
+        # A canonically-named link to another shipment's evidence must not pass:
+        # the filename check, the read, and discoverability must see one object.
+        target = self._canonical(shipment_id="174-S", feature_id="166-F")
+        alias = self.closure_dir / target.name.replace("174-S-166-F", "175-S-167-F")
+        try:
+            os.symlink(target, alias)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"cannot create file symlink: {exc}")
+        payload, code = self._gate(alias)
+        self.assertEqual(code, 2)
+        self.assertEqual(payload["failed_check"], "input")
+        self.assertIn("symbolic link", payload["message"])
+
+    def test_filename_check_uses_the_on_disk_name(self) -> None:
+        canonical = self._canonical()
+        canonical.unlink()
+        lowered = canonical.with_name(canonical.name.lower())
+        lowered.write_text(_READY, encoding="utf-8")
+        if not canonical.exists():
+            self.skipTest("filesystem is case-sensitive; spelling cannot diverge from the on-disk name")
+        # The caller spells the canonical name, but the file on disk is lowercase.
+        payload, code = self._gate(canonical)
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["failed_check"], "filename")
+        self.assertIn(lowered.name, payload["message"])
+
+    def test_help_token_as_option_value_is_not_help(self) -> None:
+        out, _err, code = _run("gate", "closure-evidence", "--path", "help", "--workspace", str(self.root))
+        self.assertNotIn("Subcommands:", out)
+        self.assertEqual(code, 2)
+        out, _err, code = _run("gate", "closure-evidence", "--path", "x.md", "-h")
+        self.assertIn("closure-evidence", out)
+        self.assertIn(code, (None, 0))
+
+    def test_unreadable_closure_directory_is_invalid_input(self) -> None:
+        from unittest import mock
+
+        from autoharness.gates import closure_contract
+
+        artifact = self._canonical()
+        with mock.patch.object(
+            closure_contract, "classify_closure_candidates", side_effect=PermissionError("denied")
+        ):
+            payload, code = self._gate(artifact)
+        self.assertEqual(code, 2)
+        self.assertEqual(payload["failed_check"], "input")
+        self.assertIn("unreadable", payload["message"])
 
 
 _CONDITIONS_OK = (

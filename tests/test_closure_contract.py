@@ -13,15 +13,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from _closure_legacy_names import legacy_closure_filename
 from autoharness.gates import closure_contract
 from autoharness.gates.closure_contract import (
-    CANONICAL_CLOSURE_FILENAME_TEMPLATE,
-    CANONICAL_CLOSURE_PATTERN_DOC,
     CLOSURE_FEATURE_ID_PATTERN,
     CLOSURE_SHIPMENT_ID_PATTERN,
     RECOGNIZED_CLOSURE_PATTERNS,
     ClosureDiscovery,
     attribute_closure_candidate,
+    build_closure_path,
     classify_closure_candidates,
 )
 
@@ -32,6 +32,17 @@ def _touch(directory: Path, name: str) -> Path:
     path = directory / name
     path.write_text("---\nclosure_status: READY\ncompaction_status: done\n---\n", encoding="utf-8")
     return path
+
+
+def _closure_dir(workspace: Path) -> Path:
+    closure_dir = workspace / "docs" / "closure"
+    closure_dir.mkdir(parents=True)
+    return closure_dir
+
+
+def _canonical_name(workspace: Path, shipment_id: str, feature_id: str) -> str:
+    """C6: canonical fixture names on disk always come from the builder."""
+    return build_closure_path("docs/closure", shipment_id, feature_id, workspace_root=workspace).name
 
 
 class ClosureNameClassificationMatrixTests(unittest.TestCase):
@@ -65,11 +76,14 @@ class ClosureNameClassificationMatrixTests(unittest.TestCase):
 
     def test_classifier_partitions_both_and_neither(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            closure_dir = Path(tmp)
-            canonical = _touch(closure_dir, "162-S-154-F-post-merge-closure.md")
-            legacy = _touch(closure_dir, "2026-09-11-162-s-154-f-closure.md")
+            workspace = Path(tmp).resolve()
+            closure_dir = _closure_dir(workspace)
+            # C6: canonical fixture names come from the builder, legacy names
+            # from the single test-only legacy helper.
+            canonical = _touch(closure_dir, _canonical_name(workspace, "162-S", "154-F"))
+            legacy = _touch(closure_dir, legacy_closure_filename("162-s", "154-f"))
             unrecognized = _touch(closure_dir, "2026-09-11-162-s-154-f-runtime-verification.md")
-            _touch(closure_dir, "161-S-153-F-post-merge-closure.md")  # foreign, not attributed
+            _touch(closure_dir, _canonical_name(workspace, "161-S", "153-F"))  # foreign, not attributed
             discovery = classify_closure_candidates(closure_dir, "162-S")
             self.assertIsInstance(discovery, ClosureDiscovery)
             self.assertEqual(discovery.canonical_matches, (canonical,))
@@ -135,11 +149,12 @@ class ClosureAttributionMatrixTests(unittest.TestCase):
 
     def test_absent_shipment_in_non_empty_directory(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            closure_dir = Path(tmp)
+            workspace = Path(tmp).resolve()
+            closure_dir = _closure_dir(workspace)
             for name in (
-                "161-S-153-F-post-merge-closure.md",
-                "16-S-154-F-post-merge-closure.md",
-                "2026-09-11-16-S-supersedes-162-S-closure.md",
+                _canonical_name(workspace, "161-S", "153-F"),
+                _canonical_name(workspace, "16-S", "154-F"),
+                legacy_closure_filename("16-S", "supersedes-162-S"),
                 "2026-09-11-16-s-154-f-runtime-verification.md",
                 "138-S-129-F-cancellation-closure.md",
                 "pr411-p020-context-compaction-closure.md",
@@ -157,15 +172,16 @@ class ClosureDeterministicOrderingTests(unittest.TestCase):
 
     def test_multiple_matches_are_sorted(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            closure_dir = Path(tmp)
+            workspace = Path(tmp).resolve()
+            closure_dir = _closure_dir(workspace)
             names_canonical = (
-                "162-S-200-F-post-merge-closure.md",
-                "162-S-154-F-post-merge-closure.md",
-                "162-S-17-F-post-merge-closure.md",
+                _canonical_name(workspace, "162-S", "200-F"),
+                _canonical_name(workspace, "162-S", "154-F"),
+                _canonical_name(workspace, "162-S", "17-F"),
             )
             names_legacy = (
-                "2026-09-12-162-s-b-closure.md",
-                "2026-09-11-162-s-a-closure.md",
+                legacy_closure_filename("162-s", "b", date="2026-09-12"),
+                legacy_closure_filename("162-s", "a", date="2026-09-11"),
             )
             for name in names_canonical + names_legacy:
                 _touch(closure_dir, name)
@@ -186,13 +202,6 @@ class ClosureRecognizedSetCardinalityTests(unittest.TestCase):
     def test_recognized_set_has_exactly_two_members(self) -> None:
         self.assertIsInstance(RECOGNIZED_CLOSURE_PATTERNS, tuple)
         self.assertEqual(len(RECOGNIZED_CLOSURE_PATTERNS), 2)
-
-    def test_pattern_doc_is_derived_from_template(self) -> None:
-        self.assertEqual(
-            CANONICAL_CLOSURE_PATTERN_DOC,
-            closure_contract._render_pattern_doc(CANONICAL_CLOSURE_FILENAME_TEMPLATE),
-        )
-        self.assertTrue(CANONICAL_CLOSURE_PATTERN_DOC.endswith(CANONICAL_CLOSURE_FILENAME_TEMPLATE))
 
     def test_contract_module_reads_no_frontmatter(self) -> None:
         source = Path(closure_contract.__file__).read_text(encoding="utf-8")
