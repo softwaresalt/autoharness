@@ -1766,7 +1766,8 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
     if root_error is not None:
         return _finish(2, "input", f"workspace root '{workspace}' cannot be resolved: {root_error}")
     lexical = Path(path_arg) if Path(path_arg).is_absolute() else root / path_arg
-    if not _lexically_within(lexical, root):
+    spelled_root = Path(os.path.abspath(workspace))
+    if not (_lexically_within(lexical, root) or _lexically_within(lexical, spelled_root)):
         # Rejected textually, before any filesystem call: resolving a UNC or
         # device path would open it (e.g. an SMB connection) before containment.
         return _finish(
@@ -1856,16 +1857,19 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
         discovery = closure_contract.classify_closure_candidates(closure_dir, declared_shipment)
         # A symlinked closure-dir entry would let a file stored anywhere be
         # "discovered" under a different canonical name; only regular entries count.
-        discovered = {
-            candidate.resolve()
+        discovered_names = {
+            candidate.name
             for candidate in discovery.canonical_matches
             if not candidate.is_symlink()
         }
+        # Directory identity (directories cannot be hard-linked) plus the exact
+        # on-disk entry name, so caller casing in parent components cannot matter.
+        discovered = filename in discovered_names and os.path.samefile(resolved.parent, closure_dir)
     except (RecursionError, NotImplementedError):
         raise
     except (OSError, RuntimeError) as exc:
         return _finish(2, "input", f"closure directory '{closure_dir}' is unreadable: {exc}")
-    if resolved not in discovered:
+    if not discovered:
         return _finish(
             1,
             "discoverability",

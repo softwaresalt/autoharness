@@ -259,6 +259,21 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
             payload, code = self._gate(artifact)
         self.assertEqual(code, 2)
         self.assertEqual(payload["failed_check"], "input")
+        self.assertIn("cannot be inspected", payload["message"])
+
+    def test_workspace_spelled_through_a_link_is_accepted(self) -> None:
+        # The caller's own (unresolved) spelling of the workspace must not be
+        # rejected by the textual pre-check that runs before resolution.
+        artifact = self._canonical()
+        link = self.root.parent / "workspace-link"
+        reason = _make_dir_link(link, self.root)
+        if reason:
+            self.skipTest(reason)
+        spelled = link / artifact.relative_to(self.root)
+        payload, code = _run_json(
+            "gate", "closure-evidence", "--path", str(spelled), "--workspace", str(link)
+        )
+        self.assertEqual((code, payload["failed_check"]), (0, None), payload["message"])
 
     def test_filename_check_uses_the_on_disk_name(self) -> None:
         canonical = self._canonical()

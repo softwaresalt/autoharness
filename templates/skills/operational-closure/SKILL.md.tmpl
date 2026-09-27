@@ -120,9 +120,9 @@ autoharness gate closure-evidence --path {{DOCS_CLOSURE}}/{shipment_id}-{feature
   is declared complete. Only an artifact that passes is predecessor-closure
   evidence. A finalized `BLOCKED` closure (or a `READY_WITH_CONDITIONS` closure
   with an unsatisfied condition) never passes: it may still be committed as a
-  truthful record when `frontmatter_predicate` is the only failure, but the
-  closure is not declared complete and the successor shipment stays blocked,
-  as intended.
+  truthful record when the gate's reported `failed_check` is
+  `frontmatter_predicate`, but the closure is not declared complete and the
+  successor shipment stays blocked, as intended.
 
 ### Step 4: Feed Back into the Harness
 
