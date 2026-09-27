@@ -8,6 +8,7 @@
 .autoharness/metrics/
 .worktrees/
 .proof-scratch/
+docs/scratch/
 .backlogit/*.db
 .backlogit/hooks_queue.jsonl
 .backlogit/*.db-shm
