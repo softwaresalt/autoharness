@@ -50,9 +50,11 @@ adversarial regression batteries. No runtime validator probes apply.
 
 `shipment-reconcile` classified 175-S as `CASCADE` under P-015. Root feature
 167-F had no out-of-manifest descendants. The cascade archived exactly the
-13 manifest items plus the shipment record, with `returned_ids=[]`, no
-unexpected IDs, and every `parent_id` preserved. The shipment record reads
-`archived_status: shipped`.
+13 manifest items plus the shipment record, with no unexpected IDs and every
+`parent_id` preserved (measured from git history). The shipment record reads
+`archived_status: shipped`. `returned_ids` is **unproven**: the original
+run's summary said `returned_ids=[]`, but the raw command output was not
+retained.
 
 Reconciliation reports: `.backlogit/reconcile/175-S-pre-20260927-202155.md`,
 `.backlogit/reconcile/175-S-cascade-close-20260927-202155.md`, and
@@ -60,6 +62,22 @@ Reconciliation reports: `.backlogit/reconcile/175-S-pre-20260927-202155.md`,
 reconstructions from immutable git evidence (pre-close `985e3990`,
 post-close `5cc5371a`), including a classifier re-run against the exported
 pre-close tree, because the original run omitted them.
+
+**Evidence-completeness deviation (P-005 process deviation).** The original
+cascade close did not record three items the skill requires at the time of
+the close: the pre-invocation classifier revalidation, the pre-invocation
+baseline fingerprint, and the raw `backlogit_ship_shipment` result, including
+`returned_ids`. None can be reproduced after the close. The safety
+postconditions those checks protect are measured from committed history:
+
+* exactly the allowed IDs were archived
+* no out-of-manifest backlog item changed between `985e3990` and `5cc5371a`
+* `parent_id` values were preserved
+* the classifier re-run finds no out-of-manifest descendants
+
+The cascade-close report records the gap in its frontmatter and in an
+explicit deviation section. The operator must accept this deviation before
+closure PR #459 merges.
 
 ## Source Artifact Cleanup
 
@@ -98,6 +116,11 @@ These are P-021 C2 deferred-scope captures. Triage is Stage-owned.
   original per-task commits remain in git history.
 * The write-time gate is stricter than the reader: it rejects symlinked
   entries. The reader-side hardening is tracked by C1CAE343.
+* The cascade-close audit trail is incomplete: contemporaneous `returned_ids`,
+  pre-invocation revalidation, and baseline-fingerprint records are missing,
+  and only the postconditions were verified afterward (see Closure Path). The
+  process fix is to capture these at close time; the skill already requires
+  it. Ship made no skill change in this PR.
 
 ## Compaction Status (P-020)
 
