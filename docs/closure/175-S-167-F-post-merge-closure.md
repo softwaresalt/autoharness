@@ -6,7 +6,7 @@ merge_commit: 985e3990f348772a823f0b9860a18de8cebd591b
 reviewed_head: 34d88829ce57947912f0d2aed758c86bd1103fa9
 date: 2026-09-27
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 ---
 
 # 175-S / 167-F Post-Merge Closure -- Closure-Evidence Producer/Consumer Naming Contract
@@ -94,5 +94,20 @@ These are P-021 C2 deferred-scope captures. Triage is Stage-owned.
 
 ## Compaction Status (P-020)
 
-`compaction_status: pending`. This is finalized after `compact-context`
-runs with `target: all`.
+`done`. `compact-context` ran with `target: all` immediately after this
+artifact was created.
+
+* **Assessment**: `docs/memory` (77 files, about 1285 KB) exceeds the
+  generic thresholds in aggregate.
+* **Candidates**: selection stayed bounded to this release unit (Tier-1).
+  This session's fresh memory was consolidated into
+  `docs/memory/compacted/2026-09-27-ship-175-s-167-f-full-lifecycle-compacted.md`.
+  The verbose original moved to `docs/archive/memory/`.
+* **Excluded**:
+  * The Stage memory `docs/memory/2026-09-17-stage-closure-evidence-naming-contract.md`
+    and the seven-entry portfolio memories are referenced by live review and
+    decision artifacts, and by shipments still in the portfolio DAG.
+  * Plan consolidation into a decided-plan was not performed. Creating or
+    modifying plan artifacts is outside Ship's role boundary (P-010), and the
+    plan is referenced by the live multi-shipment portfolio deliberation.
+  * This closure record is fresh, so it is not past `threshold_days`.

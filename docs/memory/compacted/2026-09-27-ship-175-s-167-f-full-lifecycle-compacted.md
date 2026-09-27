@@ -1,14 +1,20 @@
 ---
-title: "Ship 175-S / 167-F dark-mode session: review-fix cycles, PR #458 merge, post-merge closure"
-description: "Session memory for the resumed Ship dark-mode run that finished 175-S. Covers local review cycles 1-3, P-021 captures, PR #458 with its Copilot iterations and merge, and the post-merge closure branch."
+title: "Ship 175-S / 167-F full lifecycle (compacted)"
+description: "Compacted Tier-1 release-unit memory for 175-S / 167-F (P-020). Covers local review cycles 1-3, P-021 captures, PR #458 with its Copilot iterations and merge, CASCADE close, and closure artifacts."
 doc_type: memory
-source: docs/memory/2026-09-27-ship-175-s-167-f-session.md
+source: docs/memory/compacted/2026-09-27-ship-175-s-167-f-full-lifecycle-compacted.md
 date: 2026-09-27
 agent: ship
 session_id: ship-2026-09-27-175-S-dark
+compacted_from:
+  - docs/archive/memory/2026-09-27-ship-175-s-167-f-session.md
 ---
 
-# Ship 175-S / 167-F Session Memory (2026-09-27)
+# Ship 175-S / 167-F Full Lifecycle (Compacted)
+
+Verbose original: `docs/archive/memory/2026-09-27-ship-175-s-167-f-session.md`.
+Closure: `docs/closure/175-S-167-F-post-merge-closure.md`. Learning:
+`docs/compound/2026-09-27-175-s-closure-evidence-gate-hardening-lessons.md`.
 
 ## Outcome
 
