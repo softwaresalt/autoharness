@@ -2098,6 +2098,59 @@ class ClosureHistoricalFailureShapeTests(_ClosureGateHarnessMixin, unittest.Test
                 self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
 
 
+class ClosureConditionalStateAndCaseFoldTests(_ClosureGateHarnessMixin, unittest.TestCase):
+    """167.012-T (U12): recognition admits the file, never the verdict (H1.2/H1.3)."""
+
+    def test_blocked_closure_status_under_recognized_legacy_name_still_blocks(self) -> None:
+        self._legacy('162-s', '154-f', "---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n")
+        self.assertEqual(self.reader.closure_discovery('162-S').outcome, 'recognized')
+        self.assertIs(self.reader.closure_complete('162-S'), False)
+        result = self._gate('162-S')
+        self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+        self.assertEqual(_check(result, 'shipment_readiness').status, 'blocked')
+
+    def test_ready_with_conditions_absent_or_unsatisfied_still_blocks(self) -> None:
+        header = "---\ncompaction_status: done\nclosure_status: READY_WITH_CONDITIONS\n"
+        bodies = (
+            ('absent conditions block', header + "---\n"),
+            (
+                'unsatisfied condition',
+                header
+                + "conditions:\n  - name: soak window\n    satisfied: false\n    evidence: ci/run/1\n---\n",
+            ),
+        )
+        for body_label, body in bodies:
+            for pattern, make in (
+                ('legacy', lambda body=body: self._legacy('162-s', '154-f', body)),
+                ('canonical', lambda body=body: self._canonical('162-S', '154-F', body)),
+            ):
+                with self.subTest(body=body_label, pattern=pattern):
+                    self._clear()
+                    make()
+                    self.assertIs(self.reader.closure_complete('162-S'), False)
+                    result = self._gate('162-S')
+                    self.assertEqual(result.primary_token, 'PREDECESSOR_CLOSURE_INCOMPLETE')
+
+    def test_case_folded_legacy_id_is_tolerated_without_case_blindness(self) -> None:
+        # R2 half: a lowercase legacy ID is recognized through [Ss] + casefold.
+        legacy = self._legacy('162-s', '154-f', self._READY)
+        self.assertEqual(self.reader.closure_discovery('162-S').legacy_matches, (legacy,))
+        self.assertIs(self.reader.closure_complete('162-S'), True)
+        # Case tolerance is not case blindness: a foreign ID in the same case
+        # form is still rejected by attribution.
+        self._clear()
+        self._legacy('16-s', '154-f', self._READY)
+        self.assertEqual(self.reader.closure_discovery('162-S').outcome, 'absent')
+        self.assertIsNone(self.reader.closure_complete('162-S'))
+        # No leak onto R1: a builder-created canonical artifact is compared
+        # exactly, so a differently-cased request is not attributed to it.
+        self._clear()
+        self._canonical('162-S', '154-F', self._READY)
+        self.assertIs(self.reader.closure_complete('162-S'), True)
+        self.assertEqual(self.reader.closure_discovery('162-s').outcome, 'absent')
+        self.assertIsNone(self.reader.closure_complete('162-s'))
+
+
 class DagAuthoritativePredecessorCharacterizationTests(unittest.TestCase, _TopologyWorkspaceMixin):
     def test_c1_explicit_linear_chain_blocks_on_unshipped_predecessor(self) -> None:
         result = evaluate(
