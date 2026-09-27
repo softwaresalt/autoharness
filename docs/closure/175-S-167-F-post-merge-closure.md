@@ -5,8 +5,17 @@ pr: 458
 merge_commit: 985e3990f348772a823f0b9860a18de8cebd591b
 reviewed_head: 34d88829ce57947912f0d2aed758c86bd1103fa9
 date: 2026-09-27
-closure_status: READY
+closure_status: BLOCKED
 compaction_status: done
+conditions:
+  - id: operator-accepts-175s-cascade-evidence-deviation
+    description: >-
+      Operator explicitly accepts that the 175-S cascade close lacks contemporaneous
+      returned_ids, pre-invocation revalidation, and baseline-fingerprint records,
+      and that only the postconditions were verified afterward from git history
+      (.backlogit/reconcile/175-S-cascade-close-20260927-202155.md).
+    satisfied: false
+    evidence: ""
 ---
 
 # 175-S / 167-F Post-Merge Closure -- Closure-Evidence Producer/Consumer Naming Contract
@@ -87,7 +96,11 @@ closure PR #459 merges.
 
 ## Releasability Evidence
 
-* **Status**: READY
+* **Status**: BLOCKED until the operator accepts the cascade evidence
+  deviation (frontmatter condition
+  `operator-accepts-175s-cascade-evidence-deviation`). After acceptance:
+  READY_WITH_CONDITIONS, with the condition satisfied and the acceptance
+  cited as its evidence.
 * **Monitoring**: CI `test` job and the pipeline-topology ambient gate on every
   push; the next shipment's `pre_claim` consumes this artifact as predecessor
   evidence.
