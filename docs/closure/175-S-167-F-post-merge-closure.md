@@ -54,6 +54,13 @@ adversarial regression batteries. No runtime validator probes apply.
 unexpected IDs, and every `parent_id` preserved. The shipment record reads
 `archived_status: shipped`.
 
+Reconciliation reports: `.backlogit/reconcile/175-S-pre-20260927-202155.md`,
+`.backlogit/reconcile/175-S-cascade-close-20260927-202155.md`, and
+`.backlogit/reconcile/175-S-post-20260927-202155.md`. They are post-hoc
+reconstructions from immutable git evidence (pre-close `985e3990`,
+post-close `5cc5371a`), including a classifier re-run against the exported
+pre-close tree, because the original run omitted them.
+
 ## Source Artifact Cleanup
 
 * Source stash entry FD0CCB42 was already archived at Stage harvest; no
