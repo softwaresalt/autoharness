@@ -20,6 +20,7 @@ from _closure_legacy_names import legacy_closure_filename
 from autoharness.cli import main
 from autoharness.gates.closure_contract import (
     CANONICAL_CLOSURE_PATTERN_DOC,
+    CLOSURE_PREDICATE_REQUIREMENT_DOC,
     build_closure_path,
 )
 
@@ -200,6 +201,143 @@ class ClosureEvidenceCliTests(_ClosureWorkspaceMixin, unittest.TestCase):
         payload, code = self._gate(path)
         self.assertEqual(code, 1)
         self.assertEqual(payload["failed_check"], "discoverability")
+
+
+_CONDITIONS_OK = (
+    "conditions:\n"
+    "  - id: c1\n"
+    "    satisfied: true\n"
+    "    evidence: 'PR #1'\n"
+)
+# (label, frontmatter body lines) -- one row per consumer-predicate branch
+# enumerated from topology._closure_artifact_complete/_closure_conditions_satisfied.
+_PARITY_ROWS = (
+    ("accept READY + compaction_status done", "compaction_status: done\nclosure_status: READY\n"),
+    ("accept READY + compaction_status degraded", "compaction_status: degraded\nclosure_status: READY\n"),
+    ("accept READY + compaction_status padded/cased", "compaction_status: ' DONE '\nclosure_status: ' ready '\n"),
+    ("accept READY via legacy compaction alias", "compaction: done\nclosure_status: READY\n"),
+    ("accept READY_WITH_CONDITIONS all satisfied", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\n" + _CONDITIONS_OK),
+    ("reject READY_WITH_CONDITIONS absent conditions", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\n"),
+    ("reject READY_WITH_CONDITIONS empty conditions", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions: []\n"),
+    ("reject READY_WITH_CONDITIONS conditions not a list", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions: {id: c1}\n"),
+    ("reject READY_WITH_CONDITIONS non-mapping entry", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions:\n  - just-a-string\n"),
+    ("reject READY_WITH_CONDITIONS satisfied false", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions:\n  - id: c1\n    satisfied: false\n    evidence: 'x'\n"),
+    ("reject READY_WITH_CONDITIONS satisfied truthy string", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions:\n  - id: c1\n    satisfied: 'true'\n    evidence: 'x'\n"),
+    ("reject READY_WITH_CONDITIONS missing evidence", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions:\n  - id: c1\n    satisfied: true\n"),
+    ("reject READY_WITH_CONDITIONS non-string evidence", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions:\n  - id: c1\n    satisfied: true\n    evidence: 42\n"),
+    ("reject READY_WITH_CONDITIONS blank evidence", "compaction_status: done\nclosure_status: READY_WITH_CONDITIONS\nconditions:\n  - id: c1\n    satisfied: true\n    evidence: '   '\n"),
+    ("reject closure_status BLOCKED", "compaction_status: done\nclosure_status: BLOCKED\n"),
+    ("reject closure_status missing", "compaction_status: done\n"),
+    ("reject closure_status blank", "compaction_status: done\nclosure_status: '  '\n"),
+    ("reject closure_status non-string", "compaction_status: done\nclosure_status: 42\n"),
+    ("reject closure_status out-of-enum", "compaction_status: done\nclosure_status: MAYBE\n"),
+    ("reject compaction_status missing", "closure_status: READY\n"),
+    ("reject compaction_status out-of-enum", "compaction_status: partial\nclosure_status: READY\n"),
+    ("reject compaction_status non-string", "compaction_status: 1\nclosure_status: READY\n"),
+)
+
+# Keys the closure-evidence JSON payload may carry. A field- or reason-level
+# key (e.g. "reason", "field", "cause") would be a second validity definition.
+_PAYLOAD_KEYS = frozenset(
+    {"gate", "path", "workspace", "shipment_id", "canonical_pattern", "passed", "exit_code", "failed_check", "message"}
+)
+
+
+class ClosureEvidenceSemanticBatteryTests(_ClosureWorkspaceMixin, unittest.TestCase):
+    """167.011-T (U11): write-time and read-time validity are one definition."""
+
+    def test_consumer_branch_parity_matrix(self) -> None:
+        from autoharness.gates.topology import (
+            FilesystemTopologyReaders,
+            _closure_artifact_complete,
+            _frontmatter,
+        )
+
+        for label, body in _PARITY_ROWS:
+            with self.subTest(row=label):
+                for existing in self.closure_dir.glob("*.md"):
+                    existing.unlink()
+                path = self._canonical(body=f"---\n{body}---\n")
+                payload, _code = self._gate(path)
+                self.assertIn(payload["failed_check"], (None, "frontmatter_predicate"))
+                write_time = payload["exit_code"] == 0
+                read_time = _closure_artifact_complete(_frontmatter(path))
+                reader_verdict = FilesystemTopologyReaders(self.root).closure_complete("175-S")
+                # The assertion is EQUALITY of the verdicts, never independent correctness.
+                self.assertEqual(write_time, read_time)
+                self.assertEqual(write_time, reader_verdict is True)
+                self.assertEqual(write_time, label.startswith("accept"), "row label/verdict drift")
+
+    def test_generic_predicate_rejection_diagnostic(self) -> None:
+        unsatisfied = self._canonical(
+            shipment_id="175-S",
+            body=(
+                "---\ncompaction_status: done\nclosure_status: READY_WITH_CONDITIONS\n"
+                "conditions:\n  - id: c1\n    satisfied: false\n    evidence: 'x'\n---\n"
+            ),
+        )
+        blocked = self._canonical(
+            shipment_id="176-S", body="---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n"
+        )
+        messages = []
+        for path in (unsatisfied, blocked):
+            payload, code = self._gate(path)
+            self.assertEqual(code, 1)
+            self.assertEqual(payload["failed_check"], "frontmatter_predicate")
+            self.assertEqual(set(payload), _PAYLOAD_KEYS)
+            message = payload["message"]
+            self.assertIn(str(path), message)
+            self.assertIn("topology._closure_artifact_complete", message)
+            self.assertIn(CLOSURE_PREDICATE_REQUIREMENT_DOC, message)
+            messages.append(message.replace(str(path), "<path>"))
+        # Negative form: two different refusal causes yield the IDENTICAL
+        # generic message -- no field-level or reason-level cause leaks.
+        self.assertEqual(messages[0], messages[1])
+        for leaked in ("satisfied: false", "BLOCKED", "because", "reason"):
+            self.assertNotIn(leaked, messages[0])
+
+    def test_cli_owned_diagnostic_fidelity(self) -> None:
+        legacy = self.closure_dir / legacy_closure_filename("175-s", "167-f")
+        legacy.write_text(_READY, encoding="utf-8")
+        foreign = self._canonical(shipment_id="180-S")
+        missing = self.closure_dir / "181-S-167-F-post-merge-closure.md"
+        rows = (
+            ("filename", legacy, (), 1, (legacy.name, CANONICAL_CLOSURE_PATTERN_DOC)),
+            ("discoverability", foreign, ("--shipment", "182-S"), 1, (str(foreign), "180-S", "182-S")),
+            ("input", missing, (), 2, (str(missing),)),
+        )
+        for failed_check, path, extra, exit_code, fragments in rows:
+            with self.subTest(failed_check=failed_check):
+                payload, code = self._gate(path, *extra)
+                self.assertEqual(code, exit_code)
+                self.assertEqual(payload["failed_check"], failed_check)
+                for fragment in fragments:
+                    self.assertIn(fragment, payload["message"])
+
+    def test_predicate_reuse_is_structural(self) -> None:
+        import ast
+
+        import autoharness.cli as cli_module
+
+        tree = ast.parse(Path(cli_module.__file__).read_text(encoding="utf-8"))
+        functions = {
+            node.name: node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef) and "closure_evidence" in node.name
+        }
+        self.assertIn("_evaluate_closure_evidence", functions)
+        evaluate_fn = functions["_evaluate_closure_evidence"]
+        attributes = {node.attr for node in ast.walk(evaluate_fn) if isinstance(node, ast.Attribute)}
+        self.assertIn("_closure_artifact_complete", attributes)
+        forbidden = {
+            "ready", "ready_with_conditions", "blocked", "done", "degraded", "pending",
+            "closure_status", "compaction_status", "compaction", "conditions", "satisfied", "evidence",
+        }
+        for name, function in functions.items():
+            for node in ast.walk(function):
+                if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                    with self.subTest(function=name, constant=node.value):
+                        self.assertNotIn(node.value.strip().lower(), forbidden)
 
 
 if __name__ == "__main__":
