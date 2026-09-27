@@ -20,7 +20,9 @@ Invoke when a feature, fix, or risky change is ready to hand off into merge, dep
 
 ## Output
 
-* Closure artifact at `{{DOCS_CLOSURE}}/{YYYY-MM-DD}-{slug}-closure.md`
+* Closure artifact at `{{DOCS_CLOSURE}}/{shipment_id}-{feature_id}-post-merge-closure.md`
+  * **Required frontmatter keys**: `closure_status` (`READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`) and `compaction_status` (`pending`, `done`, or `degraded`). Both keys are gate-relevant: the pipeline-topology consumer accepts a predecessor closure only when `compaction_status` is `done` or `degraded` AND `closure_status` is `READY`, or `READY_WITH_CONDITIONS` with a non-empty `conditions` list whose every entry is a mapping carrying `satisfied: true` and a non-empty evidence reference.
+  * **Naming note**: the closure date is carried in frontmatter, never in the filename. Legacy date-prefixed names (`{YYYY-MM-DD}-{shipment_id}-{slug}-closure.md`) remain readable for already-committed history but are never written; recognition on read is not permission to write.
 * Structured releasability evidence summarizing whether the change is `READY`, `READY_WITH_CONDITIONS`, or `BLOCKED`
 * A **compaction status** field (`pending` → `done` / `degraded`) recording P-020 post-merge context compaction state
 * Follow-up tasks or compound-learnings triggers when needed
@@ -94,6 +96,21 @@ Return one of:
 The closure artifact is the canonical releasability evidence record. Do not
 collapse validator outcomes back into free-form prose after they have been
 structured.
+
+### Step 3a: Validate the Closure Artifact Before Commit
+
+Before the closure artifact is committed, run the write-time closure-evidence
+gate against it:
+
+```text
+autoharness gate closure-evidence --path {{DOCS_CLOSURE}}/{shipment_id}-{feature_id}-post-merge-closure.md --shipment {shipment_id}
+```
+
+The gate checks the filename against the canonical write pattern, confirms the
+artifact is discoverable for the declared shipment, and applies the consumer's
+own acceptance predicate to the frontmatter. A non-zero exit blocks the commit:
+fix the filename or frontmatter and re-run. Never commit a closure artifact the
+gate rejects, and never rename it to a legacy date-prefixed form.
 
 ### Step 4: Feed Back into the Harness
 
