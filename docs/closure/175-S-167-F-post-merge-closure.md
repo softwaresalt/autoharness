@@ -5,7 +5,7 @@ pr: 458
 merge_commit: 985e3990f348772a823f0b9860a18de8cebd591b
 reviewed_head: 34d88829ce57947912f0d2aed758c86bd1103fa9
 date: 2026-09-27
-closure_status: BLOCKED
+closure_status: READY_WITH_CONDITIONS
 compaction_status: done
 conditions:
   - id: operator-accepts-175s-cascade-evidence-deviation
@@ -14,8 +14,9 @@ conditions:
       returned_ids, pre-invocation revalidation, and baseline-fingerprint records,
       and that only the postconditions were verified afterward from git history
       (.backlogit/reconcile/175-S-cascade-close-20260927-202155.md).
-    satisfied: false
-    evidence: ""
+    satisfied: true
+    evidence: https://github.com/softwaresalt/autoharness/pull/459#issuecomment-5860003692
+    follow_up: 008F3BCF
 ---
 
 # 175-S / 167-F Post-Merge Closure -- Closure-Evidence Producer/Consumer Naming Contract
@@ -85,8 +86,10 @@ postconditions those checks protect are measured from committed history:
 * the classifier re-run finds no out-of-manifest descendants
 
 The cascade-close report records the gap in its frontmatter and in an
-explicit deviation section. The operator must accept this deviation before
-closure PR #459 merges.
+explicit deviation section. The operator accepted this deviation for this
+iteration only
+([PR #459 comment](https://github.com/softwaresalt/autoharness/pull/459#issuecomment-5860003692)).
+The root-cause fix is deferred to stash entry 008F3BCF.
 
 ## Source Artifact Cleanup
 
@@ -96,11 +99,13 @@ closure PR #459 merges.
 
 ## Releasability Evidence
 
-* **Status**: BLOCKED until the operator accepts the cascade evidence
-  deviation (frontmatter condition
-  `operator-accepts-175s-cascade-evidence-deviation`). After acceptance:
-  READY_WITH_CONDITIONS, with the condition satisfied and the acceptance
-  cited as its evidence.
+* **Status**: READY_WITH_CONDITIONS. The operator accepted the cascade
+  evidence deviation for this iteration only
+  ([PR #459 comment](https://github.com/softwaresalt/autoharness/pull/459#issuecomment-5860003692)),
+  which satisfies the frontmatter condition
+  `operator-accepts-175s-cascade-evidence-deviation`. Root-cause fix
+  (automatic, fail-closed capture of close-command evidence) is deferred to
+  high-priority bug stash entry 008F3BCF, for Stage triage.
 * **Monitoring**: CI `test` job and the pipeline-topology ambient gate on every
   push; the next shipment's `pre_claim` consumes this artifact as predecessor
   evidence.
@@ -133,7 +138,9 @@ These are P-021 C2 deferred-scope captures. Triage is Stage-owned.
   pre-invocation revalidation, and baseline-fingerprint records are missing,
   and only the postconditions were verified afterward (see Closure Path). The
   process fix is to capture these at close time; the skill already requires
-  it. Ship made no skill change in this PR.
+  it. Ship made no skill change in this PR. The operator accepted the gap for
+  this iteration; automatic fail-closed evidence capture is tracked by
+  008F3BCF.
 
 ## Compaction Status (P-020)
 
