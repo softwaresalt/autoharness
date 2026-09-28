@@ -177,6 +177,7 @@ counted once.
   field.
 * **This repository's Ship `context_tier` is `default`**, per the operator
   instruction, unless the operator says otherwise.
+  *Superseded by operator ruling 5a (2026-09-27T22:50-07:00): it is `long_context`.*
 
 ## Harvest Notes
 

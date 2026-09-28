@@ -696,6 +696,10 @@ Requires plan hardening: yes
   D-C5 and D-C7 need confirmation, but none blocks safe execution. If the operator
   later picks a non-default dogfood Ship `context_tier`, that is a one-line config
   change covered by the C7 test.
+  *Superseded by the operator rulings of 2026-09-27T22:50-07:00: D-C1 through D-C5
+  and D-C7 are confirmed. The operator picked the dogfood Ship `context_tier`
+  `long_context` (ruling 5a). That one-line config change now lands in C4a, and the
+  C7 test pins it.*
 * **Review-gate capability risk:** the same as Plan A.
 
 ### Hardening Pass 2 (2026-09-27)
@@ -725,7 +729,7 @@ Requires plan hardening: yes
   | H-C1 | C2 named `STAGE_/SHIP_ESCALATION_CONTEXT_TIER` without saying whether they are raw or resolved. The existing `STAGE_/SHIP_/LEGACY_ESCALATION_*` families are raw pass-through (constraint C3), and `LEGACY_ESCALATION_CONTEXT_TIER` was missing. Resolving those would reintroduce the H2 flat+nested ambiguity | Two explicit families: resolved (tier, orchestrator, role, and the collapsed `ESCALATION_CONTEXT_TIER`) and raw (the three `*_ESCALATION_CONTEXT_TIER`). The config write-back uses the raw variables for escalation blocks (C2, C3a) |
   | H-C2 | `_escalation_route_has_any_field` selects the nested-vs-flat source. If it counted `context_tier`, a nested block with only `context_tier` would override the flat route in its entirety (H4), silently drop the escalation family to tier3, and could trigger both-present ambiguity | The predicate and `nonEmptyRouteFields` are unchanged. A separate `_effective_escalation_context_tier_for_role` defines the chain. `_effective_escalation_route_for_role` keeps its 3-tuple, and a test pins it (C2; INV-C4) |
   | H-C3 | The "fresh-install seed" had no location and no deterministic trigger. install-harness is agent-executed, and there is no Python install path, so "a no-config fixture resolves `gpt-6-luna`" could not be tested as written. Changing the `SHIP_FAMILY` row default would break parity with the Python derivation | The seed is applied in Step 1.2, before derivation. The first-install state is snapshotted before Step 3.3 writes the manifest. Trigger: first install and no `model_routing.ship` key; an explicitly present empty block is honored (review AS-F2, AS-F3, AN-F2). The row defaults are unchanged. A structural seed-contract test is added, plus a derivation test over the seeded config (C3b) |
-  | H-C4 | The config write-back materializes the resolved Ship family, so tune's "absent or empty" condition never holds after any install. R9's proposal is effectively inert for existing workspaces | Documented as the intended no-silent-change posture. Every non-empty value is an override. The tuning guide gives the manual adoption path (C8). Stage-recommended, pending operator confirmation |
+  | H-C4 | The config write-back materializes the resolved Ship family, so tune's "absent or empty" condition never holds after any install. R9's proposal is effectively inert for existing workspaces | Documented as the intended no-silent-change posture. Every non-empty value is an override. The tuning guide gives the manual adoption path (C8). Stage-recommended, pending operator confirmation (operator-confirmed 2026-09-27T22:50-07:00) |
   | H-C5 | The enum was defined in three places (schema, C2 check, C5 validator), and `""` would have been legal in rendered frontmatter | A single `CONTEXT_TIER_VALUES` holds the resolved values. The schema adds `""` for unset/inherit. A parity test is added, and `""` in frontmatter is rejected (C2) |
   | H-C6 | DA-4. Rendered-candidate validation was absent | Render tests with B1 in installed mode: C4a under the dogfood, role-less, and seeded configs; C5b under the dogfood and role-less configs |
   | H-C7 | C5 exceeded one concern (contract, 19 templates, 14 mirrors, 14 checksums). The plugin-global exclusion was implicit, and the mirror edit could have re-resolved stale `model_*` values | Split into C5a (contract), C5b (templates and render gate), and C5c (mirrors), after review AN-F7. The exclusion is explicit. C5c adds only the `context_tier` line |
@@ -749,6 +753,9 @@ Requires plan hardening: yes
   * C8 exempts it from tune proposals;
   * the C7 test pins all of the above.
   The Ship `context_tier` for this repository is `default`.
+  *Superseded by operator ruling 5a (2026-09-27T22:50-07:00): the Ship
+  `context_tier` for this repository is `long_context`. C4a sets it, and the C7 test
+  pins it along with the Ship `max_subagent_tier: 3` from ruling 5b.*
 * **Observed, out of scope (no change here):** the installed tier-1 subagents record
   `model_family: gpt-5.6-luna`, but the dogfood `tier1.model_family` is now
   `gpt-6-luna`. That is pre-existing mirror staleness. C5c deliberately does not
