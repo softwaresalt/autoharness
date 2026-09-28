@@ -569,9 +569,12 @@ C1 → C2 → C3a → C3b → C4a → C4b → C5a → C5b → C5c → C6a → C6
 
 Deliberation D-C1 through D-C7. D-C6 implements the binding operator ruling, and the
 rest are Stage-recommended, pending operator confirmation.
-*Superseded by the operator rulings of 2026-09-27T22:50-07:00: D-C1 through D-C7 and
-every Stage-recommended hardening decision in this plan (including H-C4) are now
-operator-confirmed, and D-C6 carries the 5a and 5b overrides. See
+*Superseded by the operator rulings of 2026-09-27T22:50-07:00. D-C1 through D-C7 are
+operator-confirmed in their reviewed-plan form: the deliberation makes the reviewed
+plan authoritative, so the confirmation covers the H-C2, H-C3, H-C4, and H-C5
+refinements of D-C2, D-C4, and D-C1. D-C6 carries the 5a and 5b overrides. The C4b
+and C6b design choices were not named separately. They stand as reviewed plan design
+unless the operator overrides them before Ship claims 200-S. See
 [Operator Rulings](#operator-rulings-2026-09-27t2250-0700--post-review-amendment).*
 
 * The durable pin is mechanical: role-variable binding plus the explicit config route
@@ -729,7 +732,7 @@ Requires plan hardening: yes
   | H-C1 | C2 named `STAGE_/SHIP_ESCALATION_CONTEXT_TIER` without saying whether they are raw or resolved. The existing `STAGE_/SHIP_/LEGACY_ESCALATION_*` families are raw pass-through (constraint C3), and `LEGACY_ESCALATION_CONTEXT_TIER` was missing. Resolving those would reintroduce the H2 flat+nested ambiguity | Two explicit families: resolved (tier, orchestrator, role, and the collapsed `ESCALATION_CONTEXT_TIER`) and raw (the three `*_ESCALATION_CONTEXT_TIER`). The config write-back uses the raw variables for escalation blocks (C2, C3a) |
   | H-C2 | `_escalation_route_has_any_field` selects the nested-vs-flat source. If it counted `context_tier`, a nested block with only `context_tier` would override the flat route in its entirety (H4), silently drop the escalation family to tier3, and could trigger both-present ambiguity | The predicate and `nonEmptyRouteFields` are unchanged. A separate `_effective_escalation_context_tier_for_role` defines the chain. `_effective_escalation_route_for_role` keeps its 3-tuple, and a test pins it (C2; INV-C4) |
   | H-C3 | The "fresh-install seed" had no location and no deterministic trigger. install-harness is agent-executed, and there is no Python install path, so "a no-config fixture resolves `gpt-6-luna`" could not be tested as written. Changing the `SHIP_FAMILY` row default would break parity with the Python derivation | The seed is applied in Step 1.2, before derivation. The first-install state is snapshotted before Step 3.3 writes the manifest. Trigger: first install and no `model_routing.ship` key; an explicitly present empty block is honored (review AS-F2, AS-F3, AN-F2). The row defaults are unchanged. A structural seed-contract test is added, plus a derivation test over the seeded config (C3b) |
-  | H-C4 | The config write-back materializes the resolved Ship family, so tune's "absent or empty" condition never holds after any install. R9's proposal is effectively inert for existing workspaces | Documented as the intended no-silent-change posture. Every non-empty value is an override. The tuning guide gives the manual adoption path (C8). Stage-recommended, pending operator confirmation (operator-confirmed 2026-09-27T22:50-07:00) |
+  | H-C4 | The config write-back materializes the resolved Ship family, so tune's "absent or empty" condition never holds after any install. R9's proposal is effectively inert for existing workspaces | Documented as the intended no-silent-change posture. Every non-empty value is an override. The tuning guide gives the manual adoption path (C8). Stage-recommended, pending operator confirmation (confirmed with D-C4, 2026-09-27T22:50-07:00) |
   | H-C5 | The enum was defined in three places (schema, C2 check, C5 validator), and `""` would have been legal in rendered frontmatter | A single `CONTEXT_TIER_VALUES` holds the resolved values. The schema adds `""` for unset/inherit. A parity test is added, and `""` in frontmatter is rejected (C2) |
   | H-C6 | DA-4. Rendered-candidate validation was absent | Render tests with B1 in installed mode: C4a under the dogfood, role-less, and seeded configs; C5b under the dogfood and role-less configs |
   | H-C7 | C5 exceeded one concern (contract, 19 templates, 14 mirrors, 14 checksums). The plugin-global exclusion was implicit, and the mirror edit could have re-resolved stale `model_*` values | Split into C5a (contract), C5b (templates and render gate), and C5c (mirrors), after review AN-F7. The exclusion is explicit. C5c adds only the `context_tier` line |
@@ -806,8 +809,8 @@ decision: PASS
   * C6 was split into C6a and C6b, where C6b is the escalation handoff
     `context_tier`.
 * Stage-recommended decisions pending operator confirmation are listed in the review
-  record. *Superseded: they are operator-confirmed as of 2026-09-27T22:50-07:00 (see
-  Operator Rulings below).*
+  record. *Superseded: they are operator-confirmed as of 2026-09-27T22:50-07:00,
+  except C4b and C6b, which were not named separately (see Operator Rulings below).*
 * Harvest is blocked by shipment B (plan 2).
 
 ## Operator Rulings (2026-09-27T22:50-07:00) — post-review amendment
@@ -816,10 +819,12 @@ The operator ruled on the staging deliberation's open items. Verbatim:
 
 > "Confirm 1-4. 5. Set Ship's context_tier to long_context in the template. Set Ship's max_subagent_tier to 3 in its template."
 
-Items 1 to 4 confirm every Stage-recommended decision this plan depends on (D-C1 to
-D-C5, D-C7, D-C6, and D-P1 to D-P3). Item 5 overrides two values. This section records
-them. The deliberation holds the full mapping, in its section "Operator rulings
-(2026-09-27T22:50-07:00)".
+Items 1 to 4 confirm D-C1 to D-C5, D-C7, D-C6, and D-P1 to D-P3, in their
+reviewed-plan form. That form includes the H-C2, H-C3, H-C4, and H-C5 refinements.
+The C4b and C6b design choices were not named separately. They stand as reviewed
+plan design unless the operator overrides them before Ship claims 200-S. Item 5
+overrides two values. This section records them. The deliberation holds the full
+mapping, in its section "Operator rulings (2026-09-27T22:50-07:00)".
 
 * **5a — Ship `context_tier` is `long_context`.** The following is a stated assumption
   (the Orchestrator's interpretation, recorded by Stage):

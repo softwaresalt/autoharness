@@ -36,7 +36,8 @@ decision: PASS
   * it adds Hardening Pass 2 (H-B1 to H-B12), invariants INV-B5 and INV-B6, the
     extended INV-B1, and the `ProposedAction` / `ActionRisk` table.
 * Harvest is **permitted** once the operator confirms the Stage-recommended
-  decisions listed below. None of them blocks safe execution.
+  decisions listed below. None of them blocks safe execution. *(D-B1 to D-B6 and the
+  B3 tier value are operator-confirmed as of 2026-09-27T22:50-07:00.)*
 * Harvest, shipment assembly, and commit are out of scope for this invocation.
 
 ## Capability Declaration (P-012)
@@ -162,6 +163,12 @@ the fix, and the plan cites each fix inline by its finding ID.
 
 ## Stage-Recommended Decisions (pending operator confirmation)
 
+> *Superseded (operator rulings 2026-09-27T22:50-07:00): D-B1 to D-B6, including
+> D-B5, and the B3 tier value are operator-confirmed. B7 was not named separately in
+> the ruling. It stands as reviewed plan scope unless the operator overrides it
+> before Ship claims 199-S. See "Post-review amendments (operator rulings
+> 2026-09-27T22:50-07:00)" at the end of this record.*
+
 * D-B1 to D-B4 (from the deliberation).
 * D-B5: agents distributed through `plugin.json` take the `plugin-global` profile.
   They carry `max_subagent_tier` and no route-value keys, and run on the operator's
@@ -206,3 +213,18 @@ widening scope and do not reopen any finding above:
   is never read, one warning is added, and the plugin-agent set is empty
   (fail-safe to `tier-routed`). A symlink-escape regression case is added. Tasks
   193.004-T and 193.004.001-ST carry the same wording.
+
+## Post-review amendments (operator rulings 2026-09-27T22:50-07:00)
+
+These plan edits came after `reviewed_blob` and after this review's PASS. They apply
+the operator's rulings on the staging deliberation. They are not new design and they
+reopen no finding above:
+
+* D-B1 to D-B6 (including D-B5) and the B3 tier value `max_subagent_tier: 2` for both
+  plugin agents are confirmed.
+* B7 was not named separately. It stands as reviewed scope unless the operator
+  overrides it before Ship claims 199-S.
+* The dogfood Ship `max_subagent_tier` divergence is decided by ruling 5b in the
+  context-tier plan (C4a), not in this plan.
+* The plan carries a matching "Operator Rulings (2026-09-27T22:50-07:00)" section,
+  and 193-F carries the same wording.

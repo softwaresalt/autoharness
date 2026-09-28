@@ -8,6 +8,7 @@ created: 2026-09-27
 source_stash: EF96B695
 source_deliberation: docs/decisions/2026-09-27-close-evidence-frontmatter-context-tier-staging-deliberation.md
 requires_plan_hardening: "yes"
+post_review_operator_amendment: "2026-09-27T22:50-07:00 - D-B1..D-B6 (including the D-B5 plugin-global profile) and the B3 tier value max_subagent_tier 2 for auto-tune and auto-mergeinstall operator-confirmed. The Ship max_subagent_tier divergence is decided in the context-tier plan (C4a), not here. No design change; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00)."
 ---
 
 # Agent and skill frontmatter conformity contract
@@ -631,6 +632,11 @@ Linear harvest order: B1, B3, B4, B2a, B2b, B5, B6, B7.
 ## Decisions and Rationale
 
 Deliberation D-B1 through D-B4 (Stage-recommended, pending operator confirmation).
+*Superseded: the operator confirmed D-B1 through D-B6 and the B3 tier value on
+2026-09-27T22:50-07:00. Every inline "Stage-recommended, pending operator
+confirmation" qualifier on those decisions in this plan (B3, D-B5, D-B6, and this
+section) is superseded. See
+[Operator Rulings](#operator-rulings-2026-09-27t2250-0700--post-review-amendment).*
 
 * A single contract lives in code, so the tests, verify, and tune share one
   definition.
@@ -830,6 +836,8 @@ decision: PASS
   * D-B1 to D-B6;
   * the B3 tier value of `max_subagent_tier: 2` for both plugin agents;
   * the B7 clarifying text for P-013.1 and P-013.4.
+  *Superseded (2026-09-27T22:50-07:00): D-B1 to D-B6 and the B3 tier value are
+  operator-confirmed. See Operator Rulings at the end of this plan for B7.*
 * Downstream contract impacts on
   `docs/plans/2026-09-27-context-tier-model-routing-plan.md`. They are recorded
   here; that plan was not edited:
@@ -847,3 +855,27 @@ decision: PASS
   5. C6 and B7 both edit `workflow-policies.md`, in disjoint sections, so they only
      need a rebase. C6's P-013.5 `context_tier` wording should exclude
      plugin-distributed agents, which run on the operator's session model.
+
+## Operator Rulings (2026-09-27T22:50-07:00) — post-review amendment
+
+The operator ruled on the staging deliberation's open items. Verbatim:
+
+> "Confirm 1-4. 5. Set Ship's context_tier to long_context in the template. Set Ship's max_subagent_tier to 3 in its template."
+
+For this plan (193-F / 199-S), the effects are:
+
+* **Ruling 3:** D-B1 to D-B6 are confirmed. That includes the D-B5 `plugin-global`
+  profile and the B3 tier value `max_subagent_tier: 2` for `auto-tune` and
+  `auto-mergeinstall`.
+* **Not named separately:** the B7 clarifying text for P-013.1 and P-013.4. It stands
+  as reviewed plan scope unless the operator overrides it before Ship claims 199-S.
+* **Ruling 5b** decides the deliberation's F-B3 / D-B4 finding (the dogfood Ship
+  `max_subagent_tier: 3` against the template's `2`). The Ship template changes to
+  `3` in the context-tier plan (unit C4a, task `194.005-T`), not in this plan. This
+  plan's scope is unchanged, and its contract already accepts an int from 1 to 3.
+  Stash `F9F40F94` is archived as consumed.
+* **Ruling 1** keeps 199-S blocked on 198-S. That is an ordering edge, and 198-S is
+  now an operator-declared `dag-root`.
+* **Review state:** this amendment applies operator rulings and is not new design. It
+  comes after the review's PASS, it reopens no finding, and it needs no re-review.
+  The review record carries a matching note.

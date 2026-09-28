@@ -9,6 +9,7 @@ source_stash: 008F3BCF
 source_deliberation: docs/decisions/2026-09-27-close-evidence-frontmatter-context-tier-staging-deliberation.md
 provenance: "175-S / 167-F, PR #458 (merge 985e3990), closure PR #459, close commit 5cc5371a, condition operator-accepts-175s-cascade-evidence-deviation"
 requires_plan_hardening: "yes"
+post_review_operator_amendment: "2026-09-27T22:50-07:00 - D-A1..D-A6 (including the review-cycle-1 D-A3 SAFE_CLOSE fail-closed amendment) operator-confirmed; shipment 198-S is an operator-declared dag-root. No design change; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00)."
 ---
 
 # Automatic, fail-closed CASCADE close-evidence capture
@@ -585,6 +586,11 @@ A1 → A1b → A2 → A3a → A3b → A3 → A4 → A5 → A6, and A3 → A7.
 
 See deliberation D-A1 through D-A6 (all Stage-recommended, pending operator
 confirmation).
+*Superseded: the operator confirmed D-A1 through D-A6 on 2026-09-27T22:50-07:00,
+including the D-A3 amendment below. Every inline "Stage-recommended, pending operator
+confirmation" qualifier on D-A1 to D-A6 or on the D-A3 amendment in this plan (R6,
+A4, and this section) is superseded. See
+[Operator Rulings](#operator-rulings-2026-09-27t2250-0700--post-review-amendment).*
 
 * The command lives in autoharness, and the upstream request does not block.
 * The evidence is committed under `docs/closure/evidence/` and kept permanently.
@@ -813,4 +819,32 @@ decision: PASS
 * Stage-recommended decisions pending operator confirmation: the D-A3 amendment
   (SAFE_CLOSE fails closed), acceptance of the benign direct-cascade residual, and
   acceptance of the SL-F04 and SL-F07 residuals.
+  *Partly superseded (2026-09-27T22:50-07:00): the D-A3 amendment is
+  operator-confirmed. See Operator Rulings below for the residual acceptances.*
+
+## Operator Rulings (2026-09-27T22:50-07:00) — post-review amendment
+
+The operator ruled on the staging deliberation's open items. Verbatim:
+
+> "Confirm 1-4. 5. Set Ship's context_tier to long_context in the template. Set Ship's max_subagent_tier to 3 in its template."
+
+For this plan (192-F / 198-S), the effects are:
+
+* **Ruling 2:** D-A1 to D-A6 are confirmed, including the review-cycle-1 D-A3
+  amendment. The `closure-evidence` gate fails closed for SAFE_CLOSE without a valid
+  `--classify-only` verdict record, as well as for CASCADE without a valid evidence
+  record. The D-A3 decline fallback (revert A4's SAFE_CLOSE branch to a warning) is
+  therefore moot.
+* **Ruling 1:** D-P2's `dag-root` recommendation is confirmed. Shipment 198-S carries
+  the `dag-root` label, and the ordering-only placeholder edge 198-S ← 189-S is
+  removed. 199-S still blocks on 198-S.
+* **Not named in the ruling:** the acceptance of the benign direct-cascade residual
+  (AN-F01 / AN-F07) and of the SL-F04 and SL-F07 residuals. These are the review's
+  accepted residuals. Under the original harvest terms, they stand unless the
+  operator overrides them before Ship claims 198-S.
+* Ruling 5 does not touch this plan.
+* **Review state:** this amendment applies operator rulings and is not new design. It
+  comes after the review's PASS, it reopens no finding, and it needs no re-review.
+  The review record carries a matching note, and the deliberation holds the full
+  mapping in its section "Operator rulings (2026-09-27T22:50-07:00)".
 

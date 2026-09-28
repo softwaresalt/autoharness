@@ -51,8 +51,9 @@ decision: PASS
     hardcodes it.
 * **Harvest is permitted** once shipment B (plan 2) is harvested ahead of it,
   through the `blocks` edge, and once the operator confirms the Stage-recommended
-  decisions below. None of them blocks safe execution. *(The operator confirmed them
-  on 2026-09-27T22:50-07:00.)*
+  decisions below. None of them blocks safe execution. *(D-C1 to D-C5 and D-C7 are
+    operator-confirmed as of 2026-09-27T22:50-07:00; see the note under
+    Stage-Recommended Decisions.)*
 * Harvest, shipment assembly, and commit are out of scope for this invocation.
 
 ## Capability Declaration (P-012)
@@ -154,9 +155,12 @@ counted once.
 
 ## Stage-Recommended Decisions (pending operator confirmation)
 
-> *Superseded: every decision in this section is operator-confirmed as of
-> 2026-09-27T22:50-07:00. See "Post-review amendments (operator rulings
-> 2026-09-27T22:50-07:00)" at the end of this record.*
+> *Superseded (operator rulings 2026-09-27T22:50-07:00): D-C1 to D-C5 and D-C7 are
+> operator-confirmed in their reviewed-plan form, which covers H-C2, H-C3, H-C4, and
+> H-C5. The Ship `context_tier` bullet is overridden by ruling 5a. C4b and C6b were
+> not named separately, and they stand as reviewed plan design unless the operator
+> overrides them before Ship claims 200-S. See "Post-review amendments (operator
+> rulings 2026-09-27T22:50-07:00)" at the end of this record.*
 
 * **D-C1 to D-C5 and D-C7**, from the deliberation. D-C6 is binding.
 * **H-C2:** a nested `<role>.escalation` block that declares only `context_tier`
@@ -204,5 +208,7 @@ not reopen any finding above:
   and the `default` values for Stage, the tiers, and the orchestrator, are unchanged.
 * **5b:** the Ship template's `max_subagent_tier` changes from `2` to `3` in C4a,
   matching the installed mirror. This retires stash `F9F40F94`.
-* The Stage-Recommended Decisions listed above are operator-confirmed (rulings 1 to 4).
+* D-C1 to D-C5 and D-C7 are operator-confirmed in their reviewed-plan form (rulings 1
+  to 4), which covers H-C2 to H-C5. C4b and C6b stand as reviewed design unless
+  overridden before Ship claims 200-S.
 * Tasks `194.005-T` and `194.012-T` carry the same wording.
