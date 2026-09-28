@@ -40,6 +40,9 @@ decision: PASS
 * **The binding operator ruling holds** (INV-C1):
   * this repository's Ship route stays `claude-opus-5.5` / `anthropic` / `high`,
     with `context_tier: default`;
+    *superseded by operator ruling 5a (2026-09-27T22:50-07:00): the Ship
+    `context_tier` is `long_context`, and ruling 5b sets the Ship template
+    `max_subagent_tier: 3`. See Post-review amendments at the end of this record;*
   * the pin is mechanical: role-variable binding (C4a), config-authoritative route
     precedence (C4b), the whole-route seed trigger that cannot fire here (C3b), the
     tune exemption (C8), and the C7 regression test;
@@ -48,7 +51,8 @@ decision: PASS
     hardcodes it.
 * **Harvest is permitted** once shipment B (plan 2) is harvested ahead of it,
   through the `blocks` edge, and once the operator confirms the Stage-recommended
-  decisions below. None of them blocks safe execution.
+  decisions below. None of them blocks safe execution. *(The operator confirmed them
+  on 2026-09-27T22:50-07:00.)*
 * Harvest, shipment assembly, and commit are out of scope for this invocation.
 
 ## Capability Declaration (P-012)

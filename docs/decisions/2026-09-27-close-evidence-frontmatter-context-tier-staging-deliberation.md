@@ -206,7 +206,7 @@ marked as a binding operator ruling.
   after the fact, and it is many commands rather than one non-reproducible cascade.
   The `closure-evidence` gate therefore **fails closed** for CASCADE without a valid
   evidence record, and, as amended by plan review cycle 1 (AN-F01, Stage-recommended,
-  pending operator confirmation), **also fails closed** for SAFE_CLOSE without a
+  pending operator confirmation; operator-confirmed 2026-09-27T22:50-07:00), **also fails closed** for SAFE_CLOSE without a
   valid verdict record; the pre-review draft only warned for SAFE_CLOSE. Wrapping
   SAFE_CLOSE's per-command outputs is a follow-up (`AE33E3E3`) and is not staged here.
 * **D-A4 — The gate needs a machine-readable close path.** New closure artifacts
@@ -244,7 +244,7 @@ marked as a binding operator ruling.
       designated reviewer agents only), and `context_tier` (added by C).
     * Forbidden: bare `model`.
   * **Plugin-global agents** (amended by plan review, D-B5, Stage-recommended,
-    pending operator confirmation): `auto-tune` and `auto-mergeinstall`, which the
+    pending operator confirmation; operator-confirmed 2026-09-27T22:50-07:00): `auto-tune` and `auto-mergeinstall`, which the
     self-install `plugin.json` `agents[]` ships verbatim to every plugin user, require
     `name`, `description`, `max_subagent_tier` (2 for both), and `subagent_depth`,
     and **forbid** the route-value keys (`model_family`, `model_provider`,
