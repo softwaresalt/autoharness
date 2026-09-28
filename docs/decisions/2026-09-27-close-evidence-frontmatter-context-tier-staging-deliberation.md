@@ -176,7 +176,9 @@ marked as a binding operator ruling.
   `--jsonrpc` envelope in the meantime.
 * **D-A2 — Retention and location (open question: how long, and where).** The
   evidence is one JSON record per closure at
-  `docs/closure/evidence/{shipment_id}-{feature_id}-cascade-close-evidence.json`.
+  `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json` (renamed
+  from the pre-review `-cascade-close-evidence.json` by plan review, because the
+  record now serves both close paths; the plan is authoritative).
   It is committed with the closure artifact and kept for the same lifetime,
   permanently and version-controlled. That is the 175-S lesson: the record must
   outlive the session. The directory sits under `docs/closure/`, so the 167-F closure
@@ -195,11 +197,14 @@ marked as a binding operator ruling.
   wrapped in this feature, for two reasons: each of its steps can be re-verified
   after the fact, and it is many commands rather than one non-reproducible cascade.
   The `closure-evidence` gate therefore **fails closed** for CASCADE without a valid
-  evidence record, and only **warns** for SAFE_CLOSE without a verdict record. Full
-  SAFE_CLOSE capture is a follow-up and is not staged here.
+  evidence record, and, as amended by plan review cycle 1 (AN-F01, Stage-recommended,
+  pending operator confirmation), **also fails closed** for SAFE_CLOSE without a
+  valid verdict record; the pre-review draft only warned for SAFE_CLOSE. Wrapping
+  SAFE_CLOSE's per-command outputs is a follow-up (`AE33E3E3`) and is not staged here.
 * **D-A4 — The gate needs a machine-readable close path.** New closure artifacts
-  must declare `close_path: cascade | safe_close`, plus `cascade_evidence: <path>`
-  when `close_path` is `cascade`. The write-time `closure-evidence` gate fails closed
+  must declare `close_path: cascade | safe_close`, plus `close_evidence: <path>`
+  for either path (renamed from the pre-review `cascade_evidence`, which covered
+  CASCADE only). The write-time `closure-evidence` gate fails closed
   when:
   * `close_path` is missing on a new artifact;
   * a CASCADE evidence record is missing, malformed, or for a different
@@ -230,6 +235,13 @@ marked as a binding operator ruling.
     * Optional: `id`, `maturity`, `tools`, the anchor / alt review keys (on
       designated reviewer agents only), and `context_tier` (added by C).
     * Forbidden: bare `model`.
+  * **Plugin-global agents** (amended by plan review, D-B5, Stage-recommended,
+    pending operator confirmation): `auto-tune` and `auto-mergeinstall`, which the
+    self-install `plugin.json` `agents[]` ships verbatim to every plugin user, require
+    `name`, `description`, `max_subagent_tier` (2 for both), and `subagent_depth`,
+    and **forbid** the route-value keys (`model_family`, `model_provider`,
+    `reasoning_effort`, `context_tier`) as well as bare `model`. The route-value
+    requirement above applies to tier-routed agents only.
   * **Skills** (`SKILL.md`):
     * Required: `name`, `description`.
     * Optional: `argument-hint`, `input`.
@@ -345,8 +357,11 @@ already qualifies its scratch path correctly.
 
 ## Residual open questions (for the operator)
 
-1. Confirm or override D-P1, D-P2, D-A1 through D-A4, D-B1 through D-B4, D-C1 through
-   D-C5, and D-C7.
+1. Confirm or override D-P1, D-P2, D-A1 through D-A6 (including the review-cycle-1
+   D-A3 amendment: SAFE_CLOSE fails closed), D-B1 through D-B6 (including the
+   plugin-global profile and `max_subagent_tier: 2` for both plugin agents), D-C1
+   through D-C5, and D-C7. Where a decision above and its reviewed plan differ, the
+   plan is authoritative.
 2. The dogfood Ship `context_tier` stays `default` until the operator chooses.
 3. The dogfood Ship `max_subagent_tier: 3` vs template `2` divergence is stashed as a
    low-priority follow-up.

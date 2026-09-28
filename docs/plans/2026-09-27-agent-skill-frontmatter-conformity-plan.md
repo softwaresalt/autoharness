@@ -204,6 +204,12 @@ to B2b.
     `warnings[]` entry and treats the plugin-agent set as empty. This is fail-safe,
     because plugin agents are then held to the stricter `tier-routed` profile
     (PY-F5).
+  * `plugin.json` gets the same pre-read containment as scanned files (PR #460
+    review): before reading it, the check resolves it and requires that it is a
+    regular, non-symlink, non-reparse-point file whose resolved path stays inside
+    the workspace root. A symlinked or escaping `plugin.json` is never read. It
+    gives one `warnings[]` entry and an empty plugin-agent set (the same fail-safe
+    as an invalid file).
   * Artifact class, derived from the manifest (H-B2):
     * *managed-rendered*: an `artifacts[].path` whose `template` resolves via
       `_resolve_source_template` to mode `template` or `copy`, **and** whose
@@ -293,6 +299,10 @@ to B2b.
     global-tool profile fails the check (AN-F9);
   * a `plugin-global` fixture (a `plugin.json` listing the agent) passes with
     `max_subagent_tier` and fails with `model_family`;
+  * a workspace-root `plugin.json` that is a symlink escaping the workspace is never
+    read: the check gives one warning and an empty plugin-agent set, so a listed
+    agent is held to `tier-routed` (`skipif` without symlink support, PY-F3; PR #460
+    review);
   * the three existing `*_model_routing_fields` results are byte-identical before
     and after the new check is registered (INV-B3);
   * the dogfood integration pin: `verify_workspace` on this repository gives

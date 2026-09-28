@@ -143,7 +143,12 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     stale lock is an operator action.
   * **Existing-record check** (the first action under the lock, in every mode):
     an `invoking` record → exit 7; a `post_close` record → exit 2
-    (`evidence already finalized`); a `pre_close` record may be replaced.
+    (`evidence already finalized`); a `pre_close` record may be replaced only
+    by the mutating mode (itself destructive-approved) or by
+    `--classify-only --replace-pre-close`, which is an overwrite and therefore
+    destructive and needs operator approval (Principle VII). Plain
+    `--classify-only` is no-clobber: an existing `pre_close` record → exit 2
+    (`evidence already exists`), nothing written (PR #460 review).
   * **Owner transition (AS-F01):** `write_evidence_atomic(path, record, *,
     owner_run_id)` permits the owning run (the same `run_id`, holding the lock)
     to move its own record `pre_close → invoking → post_close`. It refuses any
@@ -157,7 +162,9 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
 * **Tests (test-first):** a truncation boundary at 64 KiB and at 500 lines; a 2 MiB
   stream with bounded retained memory; a stdout overflow producing `parse_error`;
   a redaction case, plus a secret split across the excerpt boundary; redaction of
-  `failures[]` and `parse_error`; two concurrent acquirers where exactly one
+  `failures[]` and `parse_error`; plain `--classify-only` over an existing
+  `pre_close` record exits 2 and leaves it byte-identical, while
+  `--replace-pre-close` replaces it (PR #460 review); two concurrent acquirers where exactly one
   wins and the other gets exit 7; a symlinked or junctioned lock-directory or
   evidence-directory component is refused before any file is created; the owner transition succeeds for the owning
   `run_id` and fails for a foreign one; an atomic write that leaves no partial file
@@ -370,8 +377,10 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     always report `mutation_possible: no`, because every post-invocation write
     failure uses exit 8.
   * `cli.py` gains the `shipment` group, the `cascade-close` subcommand, and USAGE
-    lines. The USAGE text labels the mutating mode **destructive** and
-    `--classify-only` read-only apart from the evidence record (Principle VII).
+    lines. The USAGE text labels the mutating mode and
+    `--classify-only --replace-pre-close` **destructive**, and plain
+    `--classify-only` no-clobber and read-only apart from creating a new
+    evidence record (Principle VII).
 * **Tests:** a fake `backlogit` (A3a seam) emitting a canned envelope: a pass case;
   a non-empty `returned_ids` case, which exits 5 with the record written; backlogit
   exiting 1 with stderr, where the record keeps redacted stderr and exits 6; a
@@ -480,7 +489,10 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     * the mutating `cascade-close` invocation **is** the destructive command.
       It needs the same operator approval that the direct `backlogit shipment
       ship` call needs today (intercom auto-check or operator clearance;
-      Principle VII). `--classify-only` needs none;
+      Principle VII). Plain `--classify-only` needs none, because it is
+      no-clobber and only creates a new record; `--classify-only
+      --replace-pre-close` overwrites an existing record and needs the same
+      approval;
     * a direct `backlogit_ship_shipment` MCP or `backlogit shipment ship` CLI call
       is a **P-005 deviation** on either path (the A4 gate also refuses its
       closure);
@@ -725,7 +737,9 @@ unit it changed.
     exit is `indeterminate` unless a byte-level re-read proves otherwise.
   * **H-B2 (A1, A2, A3):** no-clobber. A `post_close` record is never replaced
     (exit 2). An `invoking` record halts with exit 7. Only a `pre_close` record
-    may be replaced.
+    may be replaced, and only by the mutating mode or by the approval-gated
+    `--classify-only --replace-pre-close`; plain `--classify-only` refuses to
+    overwrite it (exit 2).
   * **H-B3 (A3):** one exit-code table covering 0/2/3/4/5/6/7 (and 8 after review cycle 1), each with its
     mutation possibility, and a single HALT rule: no retry, no direct
     `backlogit shipment ship`, no SAFE_CLOSE substitution, and no commit of the

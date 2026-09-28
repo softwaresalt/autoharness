@@ -193,3 +193,16 @@ the fix, and the plan cites each fix inline by its finding ID.
 * **HC-5:** notify the downstream context-tier plan of its required adjustments.
   They are listed in the Stage report for this invocation, and in the plan's
   `## Plan Review` section.
+
+## Post-review amendments (PR #460 hosted review)
+
+These edits were made after `reviewed_blob` and after this review's PASS, in
+response to Copilot review comments on PR #460. They tighten the plan without
+widening scope and do not reopen any finding above:
+
+* B2a (AS-F5 containment): the workspace-root `plugin.json` now gets the same
+  pre-read containment as scanned files. It is read only if it resolves inside
+  the workspace as a regular, non-symlink, non-reparse-point file. Otherwise it
+  is never read, one warning is added, and the plugin-agent set is empty
+  (fail-safe to `tier-routed`). A symlink-escape regression case is added. Tasks
+  193.004-T and 193.004.001-ST carry the same wording.

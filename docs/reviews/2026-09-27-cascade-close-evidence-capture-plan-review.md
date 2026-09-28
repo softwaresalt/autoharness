@@ -167,3 +167,16 @@ CASCADE closures), and the owner (Ship). No gap remains.
   A7 S/low.
 * A4, A5, and A6 must be in the same release unit as A1 to A3.
 * Stash at harvest: SBA-F04 (the registry binary pin).
+
+## Post-review amendments (PR #460 hosted review)
+
+These edits were made after `reviewed_blob` and after this review's PASS, in
+response to Copilot review comments on PR #460. They tighten the plan without
+widening scope and do not reopen any finding above:
+
+* A1b / A2 / A3 / A5 (Principle VII): plain `--classify-only` is now
+  no-clobber. An existing `pre_close` record gives exit 2 and nothing is written.
+  Replacing a `pre_close` record needs the mutating mode or the explicit
+  `--classify-only --replace-pre-close`, which is an overwrite and therefore
+  needs destructive-command approval. Tasks 192.002-T, 192.006-T, and 192.008-T
+  carry the same wording, and A1b gains the matching no-clobber test.
