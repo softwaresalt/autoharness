@@ -29,6 +29,8 @@ prior_learnings:
 * Stage session 2026-09-27 (`stage next`, Orchestrator depth 1, autopilot, not dark mode).
   Operator not present. Every open-question decision below is a **Stage recommendation,
   pending operator confirmation**. None is decided silently.
+  *The operator confirmed them on 2026-09-27T22:50-07:00, with overrides 5a and 5b.
+  See [Operator rulings](#operator-rulings-2026-09-27t2250-0700).*
 * Tool gate: `TOOL_OK: backlogit` (MCP), `INDEX_SYNC_OK` (1520 indexed),
   `ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`. Discovery used
   file search over the repository at `deb0564b`.

@@ -569,6 +569,10 @@ C1 → C2 → C3a → C3b → C4a → C4b → C5a → C5b → C5c → C6a → C6
 
 Deliberation D-C1 through D-C7. D-C6 implements the binding operator ruling, and the
 rest are Stage-recommended, pending operator confirmation.
+*Superseded by the operator rulings of 2026-09-27T22:50-07:00: D-C1 through D-C7 and
+every Stage-recommended hardening decision in this plan (including H-C4) are now
+operator-confirmed, and D-C6 carries the 5a and 5b overrides. See
+[Operator Rulings](#operator-rulings-2026-09-27t2250-0700--post-review-amendment).*
 
 * The durable pin is mechanical: role-variable binding plus the explicit config route
   plus a regression test. It never relies on a comment or on a second overrides map.
@@ -795,7 +799,8 @@ decision: PASS
   * C6 was split into C6a and C6b, where C6b is the escalation handoff
     `context_tier`.
 * Stage-recommended decisions pending operator confirmation are listed in the review
-  record.
+  record. *Superseded: they are operator-confirmed as of 2026-09-27T22:50-07:00 (see
+  Operator Rulings below).*
 * Harvest is blocked by shipment B (plan 2).
 
 ## Operator Rulings (2026-09-27T22:50-07:00) — post-review amendment

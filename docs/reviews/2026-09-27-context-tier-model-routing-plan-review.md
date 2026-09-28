@@ -150,6 +150,10 @@ counted once.
 
 ## Stage-Recommended Decisions (pending operator confirmation)
 
+> *Superseded: every decision in this section is operator-confirmed as of
+> 2026-09-27T22:50-07:00. See "Post-review amendments (operator rulings
+> 2026-09-27T22:50-07:00)" at the end of this record.*
+
 * **D-C1 to D-C5 and D-C7**, from the deliberation. D-C6 is binding.
 * **H-C2:** a nested `<role>.escalation` block that declares only `context_tier`
   changes only the escalation `context_tier`. It never selects the nested source,
