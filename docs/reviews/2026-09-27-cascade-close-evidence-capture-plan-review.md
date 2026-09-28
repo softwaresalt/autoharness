@@ -36,7 +36,8 @@ decision: PASS
   `ProposedAction` / `ActionRisk` tables.
 * Harvest is **permitted** once the operator confirms the Stage-recommended
   decisions listed below. None of them blocks safe execution. Harvest, shipment
-  assembly, and commit are out of scope for this invocation.
+  assembly, and commit are out of scope for this invocation. *(D-A1 to D-A6 and the
+  D-A3 amendment are operator-confirmed as of 2026-09-27T22:50-07:00.)*
 
 ## Capability Declaration (P-012)
 
@@ -138,6 +139,12 @@ out-of-scope follow-up. The open P3 items are the CR-F03 and PR-F05 carries.
 
 ## Stage-Recommended Decisions (pending operator confirmation)
 
+> *Partly superseded (operator rulings 2026-09-27T22:50-07:00): items 1 and 4 are
+> operator-confirmed. Items 2 and 3 were not named in the ruling. They stand as this
+> review's accepted residuals unless the operator overrides them before Ship claims
+> 198-S. See "Post-review amendments (operator rulings 2026-09-27T22:50-07:00)" at
+> the end of this record.*
+
 1. **D-A3 amendment (AN-F01, SBA-F02):** SAFE_CLOSE closures require a verdict
    record, and the gate fails closed instead of only warning. Fallback if the
    operator declines: revert the A4 SAFE_CLOSE branch to a warning, and record
@@ -180,3 +187,19 @@ widening scope and do not reopen any finding above:
   `--classify-only --replace-pre-close`, which is an overwrite and therefore
   needs destructive-command approval. Tasks 192.002-T, 192.006-T, and 192.008-T
   carry the same wording, and A1b gains the matching no-clobber test.
+
+## Post-review amendments (operator rulings 2026-09-27T22:50-07:00)
+
+These plan edits came after `reviewed_blob` and after this review's PASS. They apply
+the operator's rulings on the staging deliberation. They are not new design and they
+reopen no finding above:
+
+* D-A1 to D-A6 are confirmed, including the D-A3 amendment (SAFE_CLOSE fails
+  closed). The D-A3 decline fallback is moot.
+* Shipment 198-S is an operator-declared `dag-root`, and its ordering-only 189-S
+  edge is removed.
+* The benign direct-cascade residual and the SL-F04 and SL-F07 residuals were not
+  named in the ruling. They stand as accepted residuals unless the operator
+  overrides them before Ship claims 198-S.
+* The plan carries a matching "Operator Rulings (2026-09-27T22:50-07:00)" section,
+  and 192-F carries the same wording.

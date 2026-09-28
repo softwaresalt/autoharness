@@ -8,6 +8,7 @@ source_stash: 6EC29DD6
 source_deliberation: docs/decisions/2026-09-27-close-evidence-frontmatter-context-tier-staging-deliberation.md
 depends_on_plan: docs/plans/2026-09-27-agent-skill-frontmatter-conformity-plan.md
 binding_operator_ruling: "2026-09-27T13:18:02-07:00 - this repository's Ship route stays claude-opus-5.5 / anthropic"
+post_review_operator_amendment: "2026-09-27T22:50-07:00 - dogfood Ship context_tier is long_context (template keeps {{SHIP_CONTEXT_TIER}}); Ship template max_subagent_tier changes from 2 to 3. Operator rulings, not new design; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00)."
 requires_plan_hardening: "yes"
 ---
 
@@ -228,25 +229,46 @@ things stand in the way today.
 * **Files:** `templates/agents/_ship.agent.md.tmpl`, `templates/agents/_stage.agent.md.tmpl`,
   `.github/agents/_ship.agent.md`, `.github/agents/_stage.agent.md`, the manifest
   checksums of those two installed entries, and `tests/test_role_bound_pipeline_render.py`
-  (new).
+  (new). *Operator amendment 2026-09-27T22:50-07:00:* also the one-line
+  `model_routing.ship.context_tier: "long_context"` in `.autoharness/config.yaml`,
+  with its `artifacts[]` checksum and the top-level `config_hash` refreshed from the
+  raw blob (moved here from C7; see below).
 * **Changes:**
   * The Ship template frontmatter becomes `model_family: "{{SHIP_FAMILY}}"`,
     `model_provider: "{{SHIP_PROVIDER}}"`, `reasoning_effort: "{{SHIP_REASONING_EFFORT}}"`,
     `context_tier: "{{SHIP_CONTEXT_TIER}}"`. Stage becomes the same with `STAGE_*`.
   * Because the role variables fall back per field to tier2 / tier3, a workspace
     without role routes renders exactly as before.
-  * The installed mirrors gain `context_tier: "default"`. Their `model_*` values are
+  * ~~The installed mirrors gain `context_tier: "default"`.~~ *Operator ruling 5a
+    (2026-09-27T22:50-07:00):* the installed Ship mirror gains
+    `context_tier: "long_context"`, and the installed Stage mirror gains
+    `context_tier: "default"`. Their `model_*` values are
     unchanged: Ship stays `claude-opus-5.5` / `anthropic` / `high`, and Stage stays
     `claude-opus-5.5`.
-  * `max_subagent_tier` is **not** changed (stashed follow-up).
+  * *Operator ruling 5a, sequencing consequence:* the dogfood config's explicit
+    `model_routing.ship` gains `context_tier: "long_context"` in this unit, not in
+    C7, so the installed Ship mirror equals the render under this repository's config
+    from C4a onward. No other config key changes here.
+  * ~~`max_subagent_tier` is **not** changed (stashed follow-up).~~ *Operator ruling
+    5b (2026-09-27T22:50-07:00):* the Ship template's literal `max_subagent_tier: 2`
+    (line 7) changes to `max_subagent_tier: 3`. That matches the installed mirror
+    (already `3`), removes the F-B3 / D-B4 divergence, and retires stash `F9F40F94`.
+    It is a generic change: every newly rendered Ship gets `3`, and the release notes
+    say so. Any test or verifier expectation that pins the Ship template
+    `max_subagent_tier` to `2` is updated to `3`. A read-only audit at `36146ba9`
+    found none: the `max_subagent_tier: 2` literals in `tests/test_verify_workspace.py`
+    write synthetic fixture agents and are not template pins. The Stage template's
+    `max_subagent_tier` is unchanged.
 * **Tests:**
   * rendering the Ship template under this repository's config gives
     `model_family: claude-opus-5.5`, `model_provider: anthropic`, and
-    `context_tier: default` (the pin);
+    `context_tier: long_context` (the pin; operator ruling 5a replaced `default`);
   * rendering under a config with no ship route gives the tier2 family and
     `context_tier: default`;
   * rendering under a config holding the fresh-install seed gives `gpt-6-luna` /
     `openai` / `xhigh` / `long_context`;
+  * under all three configs the rendered Ship declares `max_subagent_tier: 3`
+    (operator ruling 5b);
   * **rendered-candidate validation (H-C6; plan-2 unit B2b):** for each of these
     three configs, the Ship and Stage templates are rendered with
     `verify_workspace._render_template` over `_compose_artifact_variables(
@@ -373,7 +395,8 @@ things stand in the way today.
   `.autoharness/harness-manifest.yaml`.
 * **Changes:**
   * each installed mirror gains `context_tier: "default"`, its resolved value under
-    this repository's config (C7);
+    this repository's config (C7). The Ship mirror is not in this set; its
+    `long_context` value is set in C4a (operator ruling 5a);
   * **only** that line is added. The mirrors' `model_*` values are not re-resolved
     in this unit;
   * checksums are taken from the raw staged blob (IM-12);
@@ -472,20 +495,27 @@ things stand in the way today.
   top-level `config_hash` in `.autoharness/harness-manifest.yaml` (both refreshed
   from the raw blob), and `tests/test_dogfood_ship_route_pin.py` (new).
 * **Changes:**
-  * Add `context_tier: "default"` to tier1-3, orchestrator, stage, and ship. The
-    Ship value `default` is the operator ruling's value for this repository. The
+  * Add `context_tier: "default"` to tier1-3, orchestrator, and stage. The reviewed
+    text also added it to ship, with the note "~~The Ship value `default` is the
+    operator ruling's value for this repository~~".
+    *Operator ruling 5a (2026-09-27T22:50-07:00):* the Ship value is
+    `"long_context"`, and C4a has already added it. C7 checks it is present and does
+    not re-add or change it. The
     flat escalation route gets `context_tier: ""`. The dogfood config declares no
     nested `stage.escalation` / `ship.escalation`, and this unit adds none.
   * The explicit `model_routing.ship` (`claude-opus-5.5` / `anthropic` / `high`) is
     **unchanged**. A config comment cites the operator ruling (2026-09-27T13:18:02-07:00),
-    though the pin does not rely on the comment surviving.
+    and the Ship `context_tier` ruling (2026-09-27T22:50-07:00), though the pin does
+    not rely on the comment surviving.
   * The edit is additive only. No existing key or value changes.
 * **Tests:** the new test asserts six things:
   1. the config Ship route is `claude-opus-5.5` / `anthropic` / `high`, with
-     `context_tier: default`;
-  2. the installed `_ship.agent.md` frontmatter matches it on all four keys;
+     `context_tier: long_context` (operator ruling 5a; was `default`);
+  2. the installed `_ship.agent.md` frontmatter matches it on all four keys, and
+     declares `max_subagent_tier: 3`;
   3. the Ship template rendered under this config (through `_compose_artifact_variables`)
-     matches the installed frontmatter's four routing keys;
+     matches the installed frontmatter's four routing keys and its
+     `max_subagent_tier` (operator ruling 5b made both `3`);
   4. on this repository, `verify_workspace` reports `role_route_resolution` with
      `ok: true` (that check emits only `ok` and `errors`, per review AS-F5 / AN-F5),
      `_derive_template_variables` gives `SHIP_FAMILY=claude-opus-5.5` and
@@ -539,6 +569,13 @@ C1 → C2 → C3a → C3b → C4a → C4b → C5a → C5b → C5c → C6a → C6
 
 Deliberation D-C1 through D-C7. D-C6 implements the binding operator ruling, and the
 rest are Stage-recommended, pending operator confirmation.
+*Superseded by the operator rulings of 2026-09-27T22:50-07:00. D-C1 through D-C7 are
+operator-confirmed in their reviewed-plan form: the deliberation makes the reviewed
+plan authoritative, so the confirmation covers the H-C2, H-C3, H-C4, and H-C5
+refinements of D-C2, D-C4, and D-C1. D-C6 carries the 5a and 5b overrides. The C4b
+and C6b design choices were not named separately. They stand as reviewed plan design
+unless the operator overrides them before Ship claims 200-S. See
+[Operator Rulings](#operator-rulings-2026-09-27t2250-0700--post-review-amendment).*
 
 * The durable pin is mechanical: role-variable binding plus the explicit config route
   plus a regression test. It never relies on a comment or on a second overrides map.
@@ -662,6 +699,10 @@ Requires plan hardening: yes
   D-C5 and D-C7 need confirmation, but none blocks safe execution. If the operator
   later picks a non-default dogfood Ship `context_tier`, that is a one-line config
   change covered by the C7 test.
+  *Superseded by the operator rulings of 2026-09-27T22:50-07:00: D-C1 through D-C5
+  and D-C7 are confirmed. The operator picked the dogfood Ship `context_tier`
+  `long_context` (ruling 5a). That one-line config change now lands in C4a, and the
+  C7 test pins it.*
 * **Review-gate capability risk:** the same as Plan A.
 
 ### Hardening Pass 2 (2026-09-27)
@@ -691,7 +732,7 @@ Requires plan hardening: yes
   | H-C1 | C2 named `STAGE_/SHIP_ESCALATION_CONTEXT_TIER` without saying whether they are raw or resolved. The existing `STAGE_/SHIP_/LEGACY_ESCALATION_*` families are raw pass-through (constraint C3), and `LEGACY_ESCALATION_CONTEXT_TIER` was missing. Resolving those would reintroduce the H2 flat+nested ambiguity | Two explicit families: resolved (tier, orchestrator, role, and the collapsed `ESCALATION_CONTEXT_TIER`) and raw (the three `*_ESCALATION_CONTEXT_TIER`). The config write-back uses the raw variables for escalation blocks (C2, C3a) |
   | H-C2 | `_escalation_route_has_any_field` selects the nested-vs-flat source. If it counted `context_tier`, a nested block with only `context_tier` would override the flat route in its entirety (H4), silently drop the escalation family to tier3, and could trigger both-present ambiguity | The predicate and `nonEmptyRouteFields` are unchanged. A separate `_effective_escalation_context_tier_for_role` defines the chain. `_effective_escalation_route_for_role` keeps its 3-tuple, and a test pins it (C2; INV-C4) |
   | H-C3 | The "fresh-install seed" had no location and no deterministic trigger. install-harness is agent-executed, and there is no Python install path, so "a no-config fixture resolves `gpt-6-luna`" could not be tested as written. Changing the `SHIP_FAMILY` row default would break parity with the Python derivation | The seed is applied in Step 1.2, before derivation. The first-install state is snapshotted before Step 3.3 writes the manifest. Trigger: first install and no `model_routing.ship` key; an explicitly present empty block is honored (review AS-F2, AS-F3, AN-F2). The row defaults are unchanged. A structural seed-contract test is added, plus a derivation test over the seeded config (C3b) |
-  | H-C4 | The config write-back materializes the resolved Ship family, so tune's "absent or empty" condition never holds after any install. R9's proposal is effectively inert for existing workspaces | Documented as the intended no-silent-change posture. Every non-empty value is an override. The tuning guide gives the manual adoption path (C8). Stage-recommended, pending operator confirmation |
+  | H-C4 | The config write-back materializes the resolved Ship family, so tune's "absent or empty" condition never holds after any install. R9's proposal is effectively inert for existing workspaces | Documented as the intended no-silent-change posture. Every non-empty value is an override. The tuning guide gives the manual adoption path (C8). Stage-recommended, pending operator confirmation (confirmed with D-C4, 2026-09-27T22:50-07:00) |
   | H-C5 | The enum was defined in three places (schema, C2 check, C5 validator), and `""` would have been legal in rendered frontmatter | A single `CONTEXT_TIER_VALUES` holds the resolved values. The schema adds `""` for unset/inherit. A parity test is added, and `""` in frontmatter is rejected (C2) |
   | H-C6 | DA-4. Rendered-candidate validation was absent | Render tests with B1 in installed mode: C4a under the dogfood, role-less, and seeded configs; C5b under the dogfood and role-less configs |
   | H-C7 | C5 exceeded one concern (contract, 19 templates, 14 mirrors, 14 checksums). The plugin-global exclusion was implicit, and the mirror edit could have re-resolved stale `model_*` values | Split into C5a (contract), C5b (templates and render gate), and C5c (mirrors), after review AN-F7. The exclusion is explicit. C5c adds only the `context_tier` line |
@@ -715,6 +756,9 @@ Requires plan hardening: yes
   * C8 exempts it from tune proposals;
   * the C7 test pins all of the above.
   The Ship `context_tier` for this repository is `default`.
+  *Superseded by operator ruling 5a (2026-09-27T22:50-07:00): the Ship
+  `context_tier` for this repository is `long_context`. C4a sets it, and the C7 test
+  pins it along with the Ship `max_subagent_tier: 3` from ruling 5b.*
 * **Observed, out of scope (no change here):** the installed tier-1 subagents record
   `model_family: gpt-5.6-luna`, but the dogfood `tier1.model_family` is now
   `gpt-6-luna`. That is pre-existing mirror staleness. C5c deliberately does not
@@ -765,5 +809,49 @@ decision: PASS
   * C6 was split into C6a and C6b, where C6b is the escalation handoff
     `context_tier`.
 * Stage-recommended decisions pending operator confirmation are listed in the review
-  record.
+  record. *Superseded: they are operator-confirmed as of 2026-09-27T22:50-07:00,
+  except C4b and C6b, which were not named separately (see Operator Rulings below).*
 * Harvest is blocked by shipment B (plan 2).
+
+## Operator Rulings (2026-09-27T22:50-07:00) — post-review amendment
+
+The operator ruled on the staging deliberation's open items. Verbatim:
+
+> "Confirm 1-4. 5. Set Ship's context_tier to long_context in the template. Set Ship's max_subagent_tier to 3 in its template."
+
+Items 1 to 4 confirm D-C1 to D-C5, D-C7, D-C6, and D-P1 to D-P3, in their
+reviewed-plan form. That form includes the H-C2, H-C3, H-C4, and H-C5 refinements.
+The C4b and C6b design choices were not named separately. They stand as reviewed
+plan design unless the operator overrides them before Ship claims 200-S. Item 5
+overrides two values. This section records them. The deliberation holds the full
+mapping, in its section "Operator rulings (2026-09-27T22:50-07:00)".
+
+* **5a — Ship `context_tier` is `long_context`.** The following is a stated assumption
+  (the Orchestrator's interpretation, recorded by Stage):
+  * the Ship template keeps the variable binding `context_tier: "{{SHIP_CONTEXT_TIER}}"`
+    (placeholder discipline, Core Rule 3). A fresh install renders `long_context`
+    through the unchanged D-C4 / C3b seed;
+  * this repository's `model_routing.ship.context_tier` becomes `"long_context"`, not
+    `"default"`, and the installed `.github/agents/_ship.agent.md` gains
+    `context_tier: "long_context"`;
+  * Stage, tier1-3, and the orchestrator keep `"default"`, and the C7 regression test
+    pins `long_context` for Ship.
+  * Amended units: C4a (Ship mirror value, render expectation, and the one-line Ship
+    config edit moved here from C7) and C7 (test pins; C7 no longer adds the Ship line).
+    C5c now states that the Ship mirror is outside its set.
+* **5b — the Ship template `max_subagent_tier` changes from `2` to `3`.** This is
+  folded into C4a, which already rewrites the Ship template frontmatter. It replaces
+  the reviewed line "`max_subagent_tier` is **not** changed (stashed follow-up)" and
+  retires stash `F9F40F94`. The 193-F frontmatter contract already accepts an int
+  from 1 to 3. The feature's release notes state the change.
+* **Review state.** These edits come after the review record's `reviewed_blob` and
+  after its PASS. They apply operator rulings. They are not new design, and they do
+  not reopen any finding, so no re-review is required. This follows the repository's
+  post-review amendment convention (the PR #460 "Post-review amendments" sections in
+  the sibling plan reviews, and the 2026-09-15 terminal-shipment-closure plan's
+  operator-authorized `dag-root` amendment). The only structural consequence is that
+  the one-line Ship config edit moves from C7 to C4a. That change is sequencing, not
+  scope. The review record carries a matching "Post-review amendments" note.
+* **Backlog.** Tasks `194.005-T` (C4a) and `194.012-T` (C7) were amended in place, and
+  the 200-S manifest is unchanged. The feature description of `194-F` and its DoD
+  release-note line were updated to match.

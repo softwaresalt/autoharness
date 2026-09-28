@@ -40,6 +40,9 @@ decision: PASS
 * **The binding operator ruling holds** (INV-C1):
   * this repository's Ship route stays `claude-opus-5.5` / `anthropic` / `high`,
     with `context_tier: default`;
+    *superseded by operator ruling 5a (2026-09-27T22:50-07:00): the Ship
+    `context_tier` is `long_context`, and ruling 5b sets the Ship template
+    `max_subagent_tier: 3`. See Post-review amendments at the end of this record;*
   * the pin is mechanical: role-variable binding (C4a), config-authoritative route
     precedence (C4b), the whole-route seed trigger that cannot fire here (C3b), the
     tune exemption (C8), and the C7 regression test;
@@ -48,7 +51,9 @@ decision: PASS
     hardcodes it.
 * **Harvest is permitted** once shipment B (plan 2) is harvested ahead of it,
   through the `blocks` edge, and once the operator confirms the Stage-recommended
-  decisions below. None of them blocks safe execution.
+  decisions below. None of them blocks safe execution. *(D-C1 to D-C5 and D-C7 are
+    operator-confirmed as of 2026-09-27T22:50-07:00; see the note under
+    Stage-Recommended Decisions.)*
 * Harvest, shipment assembly, and commit are out of scope for this invocation.
 
 ## Capability Declaration (P-012)
@@ -150,6 +155,13 @@ counted once.
 
 ## Stage-Recommended Decisions (pending operator confirmation)
 
+> *Superseded (operator rulings 2026-09-27T22:50-07:00): D-C1 to D-C5 and D-C7 are
+> operator-confirmed in their reviewed-plan form, which covers H-C2, H-C3, H-C4, and
+> H-C5. The Ship `context_tier` bullet is overridden by ruling 5a. C4b and C6b were
+> not named separately, and they stand as reviewed plan design unless the operator
+> overrides them before Ship claims 200-S. See "Post-review amendments (operator
+> rulings 2026-09-27T22:50-07:00)" at the end of this record.*
+
 * **D-C1 to D-C5 and D-C7**, from the deliberation. D-C6 is binding.
 * **H-C2:** a nested `<role>.escalation` block that declares only `context_tier`
   changes only the escalation `context_tier`. It never selects the nested source,
@@ -173,6 +185,7 @@ counted once.
   field.
 * **This repository's Ship `context_tier` is `default`**, per the operator
   instruction, unless the operator says otherwise.
+  *Superseded by operator ruling 5a (2026-09-27T22:50-07:00): it is `long_context`.*
 
 ## Harvest Notes
 
@@ -180,3 +193,22 @@ counted once.
   Each unit declares its size and complexity.
 * The whole shipment is blocked by shipment B (plan 2).
 * Carry the out-of-scope SB-F1 observation to the operator as a stash candidate.
+
+## Post-review amendments (operator rulings 2026-09-27T22:50-07:00)
+
+These plan edits came after `reviewed_blob` and after this review's PASS. They apply
+the operator's rulings on the staging deliberation. They are not new design and do
+not reopen any finding above:
+
+* **5a:** the dogfood Ship `context_tier` is `long_context`, not `default`. The Ship
+  template keeps `context_tier: "{{SHIP_CONTEXT_TIER}}"`. C4a now sets the installed
+  Ship mirror to `long_context` and adds the one-line `model_routing.ship.context_tier`
+  config edit, which moved here from C7 so that the mirror equals its render. The C7
+  regression test pins `long_context` for Ship. The D-C4 / C3b new-install behavior,
+  and the `default` values for Stage, the tiers, and the orchestrator, are unchanged.
+* **5b:** the Ship template's `max_subagent_tier` changes from `2` to `3` in C4a,
+  matching the installed mirror. This retires stash `F9F40F94`.
+* D-C1 to D-C5 and D-C7 are operator-confirmed in their reviewed-plan form (rulings 1
+  to 4), which covers H-C2 to H-C5. C4b and C6b stand as reviewed design unless
+  overridden before Ship claims 200-S.
+* Tasks `194.005-T` and `194.012-T` carry the same wording.

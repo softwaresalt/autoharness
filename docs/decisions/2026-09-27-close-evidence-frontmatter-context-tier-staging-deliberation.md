@@ -2,8 +2,10 @@
 title: "Stage deliberation: CASCADE close-evidence capture, agent/skill frontmatter conformity, and context_tier routing"
 description: "Triage, grouping, sequencing, and per-entry decisions for stash entries 008F3BCF (automatic fail-closed CASCADE close evidence), EF96B695 (agent/skill frontmatter conformity), and 6EC29DD6 (context_tier on model_routing plus a new generic Ship default, with a binding dogfood Ship pin)."
 doc_type: deliberation
-status: decided-pending-operator-confirmation
+status: decided
 created: 2026-09-27
+decided: 2026-09-27
+operator_rulings: "2026-09-27T22:50-07:00 - items 1-4 confirmed; item 5 overrides (Ship context_tier long_context, Ship template max_subagent_tier 3)"
 source_stash:
   - 008F3BCF
   - EF96B695
@@ -27,6 +29,8 @@ prior_learnings:
 * Stage session 2026-09-27 (`stage next`, Orchestrator depth 1, autopilot, not dark mode).
   Operator not present. Every open-question decision below is a **Stage recommendation,
   pending operator confirmation**. None is decided silently.
+  *The operator confirmed them on 2026-09-27T22:50-07:00, with overrides 5a and 5b.
+  See [Operator rulings](#operator-rulings-2026-09-27t2250-0700).*
 * Tool gate: `TOOL_OK: backlogit` (MCP), `INDEX_SYNC_OK` (1520 indexed),
   `ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`. Discovery used
   file search over the repository at `deb0564b`.
@@ -136,6 +140,10 @@ prior_learnings:
 Each decision is **Stage-recommended, pending operator confirmation** unless it is
 marked as a binding operator ruling.
 
+> **Update (2026-09-27T22:50-07:00):** the operator has confirmed every decision below,
+> with two overrides (5a and 5b). See
+> [Operator rulings](#operator-rulings-2026-09-27t2250-0700).
+
 ### Portfolio
 
 * **D-P1 — Grouping G1.** Three covering features, one shipment each. Rationale:
@@ -198,7 +206,7 @@ marked as a binding operator ruling.
   after the fact, and it is many commands rather than one non-reproducible cascade.
   The `closure-evidence` gate therefore **fails closed** for CASCADE without a valid
   evidence record, and, as amended by plan review cycle 1 (AN-F01, Stage-recommended,
-  pending operator confirmation), **also fails closed** for SAFE_CLOSE without a
+  pending operator confirmation; operator-confirmed 2026-09-27T22:50-07:00), **also fails closed** for SAFE_CLOSE without a
   valid verdict record; the pre-review draft only warned for SAFE_CLOSE. Wrapping
   SAFE_CLOSE's per-command outputs is a follow-up (`AE33E3E3`) and is not staged here.
 * **D-A4 — The gate needs a machine-readable close path.** New closure artifacts
@@ -236,7 +244,7 @@ marked as a binding operator ruling.
       designated reviewer agents only), and `context_tier` (added by C).
     * Forbidden: bare `model`.
   * **Plugin-global agents** (amended by plan review, D-B5, Stage-recommended,
-    pending operator confirmation): `auto-tune` and `auto-mergeinstall`, which the
+    pending operator confirmation; operator-confirmed 2026-09-27T22:50-07:00): `auto-tune` and `auto-mergeinstall`, which the
     self-install `plugin.json` `agents[]` ships verbatim to every plugin user, require
     `name`, `description`, `max_subagent_tier` (2 for both), and `subagent_depth`,
     and **forbid** the route-value keys (`model_family`, `model_provider`,
@@ -275,6 +283,12 @@ marked as a binding operator ruling.
   Ship `max_subagent_tier: 3` vs template `2` divergence is recorded as a finding and
   **not changed** here. That is an operator-tuned behavior value. A low-priority
   follow-up is stashed to decide it.
+  * **Resolved by operator ruling 5b (2026-09-27T22:50-07:00).** The operator chose
+    stash option (b): `templates/agents/_ship.agent.md.tmpl` changes its literal
+    `max_subagent_tier: 2` to `3`, matching the installed mirror. The change is folded
+    into 194-F (C4a, task `194.005-T`), which already rewrites the Ship template
+    frontmatter. This feature (193-F) still does not change it. Stash `F9F40F94` is
+    archived as consumed.
 
 ### 6EC29DD6 — context_tier routing
 
@@ -323,6 +337,11 @@ marked as a binding operator ruling.
      (`claude-opus-5.5` / `anthropic` / `high`) and gains `context_tier: "default"`.
      The explicit route **is** the override record, and D-C4 already exempts it from
      tune proposals.
+     **Amended by operator ruling 5a (2026-09-27T22:50-07:00):** the Ship
+     `context_tier` value is `"long_context"`, not `"default"`. The installed
+     `.github/agents/_ship.agent.md` gains `context_tier: "long_context"`, and the
+     point-3 regression test pins `long_context` for Ship. Stage, the tiers, and the
+     orchestrator keep `"default"`.
   3. A dogfood regression test pins four things: the config Ship route, the installed
      `_ship.agent.md` frontmatter, the render of the Ship template under this
      repository's config, and the absence of any tune or verify drift finding for the
@@ -330,7 +349,9 @@ marked as a binding operator ruling.
   4. `overrides:` is **not** used. It is a template-variable map, and a second source
      of truth would invite conflicts.
   The Ship `context_tier` value here is `default`, because the operator did not
-  decide it (per the clarification).
+  decide it (per the clarification). *Superseded by operator ruling 5a
+  (2026-09-27T22:50-07:00): the operator has now decided it, and the value is
+  `long_context`. See the Operator rulings section.*
 * **D-C7 — Reviewer routes are deferred.** `anchor_review`, `alt_review`, and
   `alt_doc_review` do not gain `context_tier` in this feature. They resolve into
   reviewer dispatch, not into role-agent frontmatter, and the stash scope lists
@@ -357,20 +378,75 @@ already qualifies its scratch path correctly.
 
 ## Residual open questions (for the operator)
 
+> **All four are resolved by the operator rulings of 2026-09-27T22:50-07:00** (see the
+> next section). The original questions are kept below as asked.
+
 1. Confirm or override D-P1, D-P2, D-A1 through D-A6 (including the review-cycle-1
    D-A3 amendment: SAFE_CLOSE fails closed), D-B1 through D-B6 (including the
    plugin-global profile and `max_subagent_tier: 2` for both plugin agents), D-C1
    through D-C5, and D-C7. Where a decision above and its reviewed plan differ, the
    plan is authoritative.
+   **Resolved:** confirmed (rulings 2, 3, 4).
 2. The dogfood Ship `context_tier` stays `default` until the operator chooses.
+   **Resolved:** the operator chose `long_context` (ruling 5a).
 3. The dogfood Ship `max_subagent_tier: 3` vs template `2` divergence is stashed as a
    low-priority follow-up.
+   **Resolved:** the Ship template changes to `max_subagent_tier: 3` (ruling 5b);
+   stash `F9F40F94` is archived as consumed.
 4. **D-P2 dag-root ruling (pending operator confirmation):** apply `dag-root` to
    198-S and drop the ordering-only 198-S ← 189-S edge? At assembly, 198-S was
    recorded as blocked by 189-S as an ordering placeholder only. D-P2 (and F-A4)
    classify A (`008F3BCF`) as having no technical predecessor. Stage recommends:
    apply `dag-root` and drop the edge. Until the operator rules, the placeholder
    edge stays.
+   **Resolved:** confirmed (ruling 1). Stage applied `dag-root` to 198-S and removed
+   the 198-S ← 189-S edge.
+
+## Operator rulings (2026-09-27T22:50-07:00)
+
+The operator ruled on the numbered items the Orchestrator presented. Verbatim:
+
+> "Confirm 1-4. 5. Set Ship's context_tier to long_context in the template. Set Ship's max_subagent_tier to 3 in its template."
+
+| Item | Ruling | Decision IDs | Backlog effect |
+|---|---|---|---|
+| 1 | Confirmed | D-P2 dag-root (Residual open question 4) | 198-S carries `dag-root`; the ordering-only dependency 198-S ← 189-S is removed. 199-S ← 198-S and 200-S ← 199-S are unchanged. |
+| 2 | Confirmed | D-A1 to D-A6, including the review-cycle-1 D-A3 amendment (SAFE_CLOSE also fails closed) | 192-F: decisions operator-confirmed; the D-A3 decline fallback is moot. |
+| 3 | Confirmed | D-B1 to D-B6, including the plugin-global profile (D-B5) and `max_subagent_tier: 2` for `auto-tune` and `auto-mergeinstall` | 193-F: decisions operator-confirmed; scope unchanged. |
+| 4 | Confirmed | D-C1 to D-C5, D-C7, D-C6 (dogfood Ship stays `claude-opus-5.5` / `anthropic`; the Ship and Stage templates bind to the role variables), and D-P1, D-P2, D-P3 | 194-F: decisions operator-confirmed. |
+| 5a | Override | D-C6 point 2 (Ship `context_tier` value); Residual open question 2 | Dogfood Ship `context_tier` is `long_context`. 194-F tasks `194.005-T` (C4a) and `194.012-T` (C7) amended. |
+| 5b | Override | D-B4 / F-B3 divergence finding; Residual open question 3; stash `F9F40F94` | Ship template `max_subagent_tier` changes from `2` to `3`, folded into `194.005-T` (C4a). `F9F40F94` archived as consumed. |
+
+**Stated assumption for 5a (Orchestrator interpretation, recorded by Stage).** "In the
+template" is read with placeholder discipline (Core Rule 3). It does not mean a literal
+value in the template.
+
+* `templates/agents/_ship.agent.md.tmpl` keeps the variable binding
+  `context_tier: "{{SHIP_CONTEXT_TIER}}"`.
+* A fresh install already renders `long_context` for Ship through the D-C4 new-install
+  default (the C3b fresh-install seed). Workspaces with a Ship route but no Ship
+  `context_tier` still fall back per field under D-C2.
+* This repository's `.autoharness/config.yaml` `model_routing.ship.context_tier`
+  becomes `"long_context"`, not `"default"`, and the installed mirror
+  `.github/agents/_ship.agent.md` gains `context_tier: "long_context"`.
+* Stage, tier1-3, and the orchestrator keep `"default"`. The D-C4 new-install defaults
+  are unchanged. The D-C6 dogfood regression test pins `long_context` for Ship.
+
+If the operator meant a literal `long_context` in the `.tmpl`, that would break the
+role-variable binding D-C6 depends on. Stage did not stage it that way.
+
+**5b.** Line 7 of `templates/agents/_ship.agent.md.tmpl` changes from the literal
+`max_subagent_tier: 2` to `max_subagent_tier: 3`. This matches the installed mirror,
+which is already `3`, and removes the F-B3 / D-B4 divergence. The frontmatter
+contract in 193-F already accepts an int from 1 to 3. The change is generic: every
+newly rendered Ship gets `3`, and the 194-F release notes say so.
+
+**Plan amendment.** `docs/plans/2026-09-27-context-tier-model-routing-plan.md` records
+5a and 5b as a post-review operator amendment. These are operator rulings, not new
+design, so the plan's PASS review is not reopened. One sequencing consequence is
+recorded there: the one-line Ship `context_tier: "long_context"` config edit moves
+from C7 into C4a, so the installed Ship mirror matches its render under this
+repository's config from C4a onward.
 
 ## Post-review follow-up stash captures
 
