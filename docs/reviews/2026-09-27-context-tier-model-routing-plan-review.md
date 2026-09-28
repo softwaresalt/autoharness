@@ -180,3 +180,20 @@ counted once.
   Each unit declares its size and complexity.
 * The whole shipment is blocked by shipment B (plan 2).
 * Carry the out-of-scope SB-F1 observation to the operator as a stash candidate.
+
+## Post-review amendments (operator rulings 2026-09-27T22:50-07:00)
+
+These plan edits came after `reviewed_blob` and after this review's PASS. They apply
+the operator's rulings on the staging deliberation. They are not new design and do
+not reopen any finding above:
+
+* **5a:** the dogfood Ship `context_tier` is `long_context`, not `default`. The Ship
+  template keeps `context_tier: "{{SHIP_CONTEXT_TIER}}"`. C4a now sets the installed
+  Ship mirror to `long_context` and adds the one-line `model_routing.ship.context_tier`
+  config edit, which moved here from C7 so that the mirror equals its render. The C7
+  regression test pins `long_context` for Ship. The D-C4 / C3b new-install behavior,
+  and the `default` values for Stage, the tiers, and the orchestrator, are unchanged.
+* **5b:** the Ship template's `max_subagent_tier` changes from `2` to `3` in C4a,
+  matching the installed mirror. This retires stash `F9F40F94`.
+* The Stage-Recommended Decisions listed above are operator-confirmed (rulings 1 to 4).
+* Tasks `194.005-T` and `194.012-T` carry the same wording.
