@@ -216,8 +216,11 @@ operator approval".
 * **Routing.** The Ship route is resolved from config, not from frontmatter
   (P-013.5 H8).
 * **Not committed.** Stage did not commit, revert or stage any of the three
-  files. The untracked `docs/scratch/2026-09-24-workflow-defects-session-pickup.md`
-  (written by the Orchestrator) is not part of this commit.
+  files. The Orchestrator's handoff note
+  `docs/scratch/2026-09-24-workflow-defects-session-pickup.md` was an
+  untracked local file and is not part of this commit. `docs/scratch/` is now
+  git-ignored, so that note is not preserved in the repository and is not an
+  available source for this record.
 
 ## Degraded surfaces
 
