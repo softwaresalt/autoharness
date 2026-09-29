@@ -25,6 +25,11 @@ shipment_id: 201-S
 
 ## Completed this session
 
+> Superseded in part by the 2026-09-29 independent-review update at the end of
+> this file. The current staged scope is `195-F` plus 12 tasks, the dependency
+> order in the plan's "Resulting units and order" table, and `8928EC67` at
+> priority high.
+
 * **Plan-review pass 2** (single-agent declared degradation; six personas run
   inline). Engine and anchor claims were re-verified against the backlogit
   source at `5a4b70dd` and the installed `1.11.0` binary.
@@ -39,32 +44,35 @@ shipment_id: 201-S
     recorded only in prose.
   * Parent links, the dependency chain (U1→U2→U3→U4→U5→{U6,U7}), sizes, and
     references were confirmed.
-* **D7 deferred capture.** Stash `8928EC67` (DEFERRED SCOPE EXPANSION, medium)
-  holds the engine-behavior registry and the verify-workspace drift probe.
+* **D7 deferred capture.** Stash `8928EC67` (DEFERRED SCOPE EXPANSION; captured
+  at medium, raised to high on 2026-09-29) holds the engine-behavior registry and
+  the verify-workspace drift probe.
 * **Stash 8FEE91F4.** It was already archived by the prior session with
   `reason: harvested`, `harvested_artifact_id: 195-F`, and
   `deliberation_id: 038-DL`.
-* **Shipment `201-S`** (queued, high). It holds `195-F` plus 7 tasks, with an
-  explicit `blocks` edge on `190-S`.
-* **Staging PR #466** (`chore/stage-201-s` → base
-  `post-merge/184-f-windows-temp-teardown-repair`). It must merge after #465.
+* **Shipment `201-S`** (queued, high). It held `195-F` plus 7 tasks at this
+  point (12 tasks after the 2026-09-29 amendments), with an explicit `blocks`
+  edge on `190-S`.
+* **Staging PR #466** (`chore/stage-201-s`). Its base was originally
+  `post-merge/184-f-windows-temp-teardown-repair`; #465 has merged and the PR
+  now targets `main`.
 * **Checkpoint `checkpoint-20260929-071356.json`** was resolved. No active Stage
   checkpoint remains for this work.
 
-## Open operator decisions
+## Operator decisions (all resolved 2026-09-29)
 
-* **OQ1.** Block `198-S` on `201-S`, so its A3b evaluator does not freeze the
-  pre-1.11 sets. If `198-S` merges first, U1's sequencing guard halts with
-  `SCOPE_GAP`.
-* The staging PR must merge after #465.
-* Optional: a multi-agent or anchor re-review of the plan before Ship claims the
-  shipment. Both review passes were same-model inline passes.
+* **OQ1 — resolved.** `198-S` waits for `201-S`; the edge `198-S blocks-on
+  201-S` is in place (038-DL D8a).
+* **#465 ordering — resolved.** #465 merged; PR #466 targets `main`.
+* **Independent re-review — done.** A four-reviewer independent plan review ran
+  before Ship (see the update below).
 
 ## Next steps
 
-* Ship claims `201-S` after #465 and the staging PR merge.
-* The live proof is the post-merge closure of `201-S`, which must archive
-  `038-DL` through the new Linked-Deliberation Disposition step.
+* Ship claims `201-S` only when the operator starts it, after PR #466 merges.
+* The live proof is the post-merge closure of `201-S`. The expected `038-DL`
+  outcome is `retained_shared_reference` while active stash entries cite it,
+  otherwise `archived` (plan, Runtime Verification and Closure).
 
 ## Update — independent review amendments (2026-09-29, resumed Stage session)
 
