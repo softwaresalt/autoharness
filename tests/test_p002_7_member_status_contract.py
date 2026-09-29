@@ -189,5 +189,60 @@ class FamilyBCrossReferenceTests(unittest.TestCase):
         check_b_reverse_cross_reference(candidate.load_candidate_surfaces())
 
 
+# ---------------------------------------------------------------------------
+# Family C (169.012-T): template and installed mirror identical in the P-002.7 block
+# ---------------------------------------------------------------------------
+
+MARKER_C = {
+    "policy": "P002_7_C1_MIRROR_POLICY",
+    "agent": "P002_7_C2_MIRROR_AGENT",
+}
+
+
+def check_c_mirror_identity(surfaces: Mapping[str, str], pair: str) -> None:
+    marker = MARKER_C[pair]
+    template_path, mirror_path = candidate.MIRROR_PAIRS[pair]
+    template_block = _single_block(surfaces, template_path, marker)
+    mirror_block = _single_block(surfaces, mirror_path, marker)
+    if template_block != mirror_block:
+        template_words = template_block.split()
+        mirror_words = mirror_block.split()
+        first = next(
+            (i for i, (a, b) in enumerate(zip(template_words, mirror_words)) if a != b),
+            min(len(template_words), len(mirror_words)),
+        )
+        _fail(
+            marker,
+            MISMATCH,
+            "%s P-002.7 block diverges from %s at word %d" % (mirror_path, template_path, first),
+        )
+
+
+class FamilyCMirrorIdentityTests(unittest.TestCase):
+    """Each authoritative template and its installed mirror carry a byte-identical P-002.7 block."""
+
+    def test_C1_mirror_policy__live_surfaces(self) -> None:
+        check_c_mirror_identity(candidate.load_live_surfaces(), "policy")
+
+    def test_C1_mirror_policy__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self, lambda: check_c_mirror_identity(near_miss.mirror_diverged("policy"), "policy"), MARKER_C["policy"]
+        )
+
+    def test_C1_mirror_policy__inert_candidate(self) -> None:
+        check_c_mirror_identity(candidate.load_candidate_surfaces(), "policy")
+
+    def test_C2_mirror_agent__live_surfaces(self) -> None:
+        check_c_mirror_identity(candidate.load_live_surfaces(), "agent")
+
+    def test_C2_mirror_agent__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self, lambda: check_c_mirror_identity(near_miss.mirror_diverged("agent"), "agent"), MARKER_C["agent"]
+        )
+
+    def test_C2_mirror_agent__inert_candidate(self) -> None:
+        check_c_mirror_identity(candidate.load_candidate_surfaces(), "agent")
+
+
 if __name__ == "__main__":
     unittest.main()
