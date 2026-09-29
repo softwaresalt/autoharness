@@ -46,6 +46,10 @@ shipment_id: 201-S
   `deliberation_id: 038-DL`.
 * **Shipment `201-S`** (queued, high). It holds `195-F` plus 7 tasks, with an
   explicit `blocks` edge on `190-S`.
+* **Staging PR #466** (`chore/stage-201-s` → base
+  `post-merge/184-f-windows-temp-teardown-repair`). It must merge after #465.
+* **Checkpoint `checkpoint-20260929-071356.json`** was resolved. No active Stage
+  checkpoint remains for this work.
 
 ## Open operator decisions
 
