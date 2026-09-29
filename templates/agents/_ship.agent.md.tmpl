@@ -282,6 +282,13 @@ build work begins:
    on the Step 3 item 1 executable-task-set derivation's own per-task status handling (C1–C6),
    which is built for exactly that mixed state.
 
+   <!-- P-002.7:BEGIN post-claim member-status cross-reference -->
+   **Post-claim member status (P-002.7)**: the all-`active` manifest this check expects immediately after this
+   session's own claim in item 4 is the canonical post-claim state defined by P-002.7 (Post-Claim Member-Status
+   Contract) in the workflow policy registry, not a residual from prior partial execution; P-002.7 names this
+   intake-reconciliation note in return, so the two must be changed together.
+   <!-- P-002.7:END -->
+
 **Fallback path — direct invocation without a Stage-prepared shipment**:
 
 When `shipment_id` is not provided (Ship invoked directly by the operator):

@@ -328,6 +328,13 @@ is prohibited (P-001 role separation).
     some `active`, some still `queued`) — rely instead on the Step 2 executable-task-set derivation's own per-task
     status handling (C1–C6), which is built for exactly that mixed state.
 
+   <!-- P-002.7:BEGIN post-claim member-status cross-reference -->
+   **Post-claim member status (P-002.7)**: the all-`active` manifest this check expects immediately after this
+   session's own claim in item 4 is the canonical post-claim state defined by P-002.7 (Post-Claim Member-Status
+   Contract) in the workflow policy registry, not a residual from prior partial execution; P-002.7 names this
+   intake-reconciliation note in return, so the two must be changed together.
+   <!-- P-002.7:END -->
+
 ### Step 1: Pre-Flight Checks
 
 1. **P-001 Gate**: Check that no other top-level release units (features or chores) are `Active` in the backlog, and treat any previously merged shipment with incomplete required post-merge release closure (for example, an open post-merge closure PR/branch, a missing tag, or a pending publish step) as still active for P-001 purposes.
