@@ -121,3 +121,9 @@ shipment_id: 201-S
     plan rationale was recorded against the same `8928EC67` item (4). The U1b
     planner input-safety gap (ID pattern, path containment, symlink/reparse
     rejection) was fixed in the plan and `195.008-T`.
+  * Third round (on `cb28134f`): U1b now reads the Markdown body as the
+    description (fixed in the plan and `195.008-T`). Minor-line versus
+    exact-release verification was recorded as `8928EC67` item (5). The
+    resolved Ship checkpoint `063709` was declined: an operator-authored
+    commit (`ca180cd2`) resolved it after #465 merged, not a Stage recovery
+    action.

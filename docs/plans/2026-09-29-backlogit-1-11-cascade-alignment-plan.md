@@ -274,6 +274,13 @@ to `shipment_closure.py`. It is read-only, uses `autoharness.gates.topology._fro
 (the classifier's parser, H5), and never raises. Any read error fails closed to a
 retention outcome.
 
+* **Description source** (PR #466 review). `_frontmatter` returns only the YAML
+  mapping, but a backlogit artifact's description is the Markdown body after the
+  closing frontmatter delimiter. The planner therefore reads the body text after
+  that delimiter from the same record read, and uses it wherever this unit says
+  "description" (member links and live referrers). A record whose body cannot be
+  separated from its frontmatter is a read error.
+
 * **Disposition set** (amends H1).
   * **Links collected.** The union, over **every explicit manifest member
     regardless of `artifact_type`**, of:
@@ -357,6 +364,9 @@ retention outcome.
   * an unresolved ID, which goes to `unresolved_references`;
   * a non-deliberation `artifact_type`, which is excluded;
   * links from `task`, `bug`, and `chore` members;
+  * a deliberation ID that appears only in a member's Markdown body (not in
+    frontmatter), which is found as a description link, and one that appears
+    only in another shipment's body, which counts as a live referrer;
   * negative input-safety cases: a traversal-shaped `source_deliberation_id`
     (for example `../x-DL`), which goes to `unresolved_references`; a
     `stash_path` outside the backlog tree; and a symlink or junction record or
