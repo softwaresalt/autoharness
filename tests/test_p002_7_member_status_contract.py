@@ -1,0 +1,126 @@
+"""P-002.7 canonical post-claim member-status contract — conformance suite.
+
+177-S / 169-F. Created by RED task 169.009-T at this exact path and extended in
+place by 169.010-T, 169.012-T, 169.013-T and 169.014-T. No other module in this
+unit holds an assertion.
+
+Every assertion is a ``check_*`` function that raises ``AssertionError`` whose
+text starts with the assertion's own declared marker. Each assertion is
+observed three ways, one test method per observation, named
+``test_<ID>_<slug>__<observation>``:
+
+* ``live_surfaces``      — the assertion against the four declared surfaces as
+  they exist in the working tree. Before ACTIVATE (169.015-T) this is the
+  ABSENCE RED observation: it fails individually with its own marker.
+* ``near_miss_fixture``  — the DISCRIMINATING RED observation: the assertion is
+  executed against its named near-miss fixture (tests/p002_7_near_miss_fixtures.py)
+  and must FAIL there with its own marker and a MISMATCH (not ABSENT) reason;
+  the test method passes only when that failure is observed.
+* ``inert_candidate``    — the INERT GREEN observation: the assertion executed
+  against the canonical candidate definition (tests/p002_7_candidate_definition.py)
+  applied in memory as test-owned data, and observed passing.
+
+Import safety (binding): this module reads no file and runs no process at import
+time; every surface read happens inside a test body through a helper.
+
+Plan: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md (rev 8).
+"""
+
+from __future__ import annotations
+
+import unittest
+from typing import Callable, Mapping
+
+import p002_7_candidate_definition as candidate
+import p002_7_near_miss_fixtures as near_miss
+
+ABSENT = "ABSENT"
+MISMATCH = "MISMATCH"
+
+
+def _fail(marker: str, reason: str, detail: str) -> None:
+    raise AssertionError("%s: %s: %s" % (marker, reason, detail))
+
+
+def _single_block(surfaces: Mapping[str, str], path: str, marker: str) -> str:
+    block = candidate.extract_single_block(surfaces.get(path, ""))
+    if block is None:
+        _fail(marker, ABSENT, "%s carries no single P-002.7 block" % path)
+    return block
+
+
+def _assert_discriminates(testcase: unittest.TestCase, check: Callable[[], None], marker: str) -> None:
+    """Discriminating RED: ``check`` must fail against its near-miss, for its own marker, on a MISMATCH."""
+
+    try:
+        check()
+    except AssertionError as exc:
+        text = str(exc)
+        # Recorded so the observation harness can report the discriminating failure text itself.
+        testcase.observed_near_miss_failure = text
+        testcase.assertTrue(text.startswith(marker + ":"), "failure carried a foreign marker: %s" % text)
+        testcase.assertIn(MISMATCH, text, "near-miss failed on absence, not on the contract: %s" % text)
+        return
+    testcase.fail("%s: assertion did not fail against its near-miss fixture" % marker)
+
+
+# ---------------------------------------------------------------------------
+# Family A (169.009-T): the three claim-to-admission transition rows
+# ---------------------------------------------------------------------------
+
+MARKER_A = {
+    "T1": "P002_7_A1_ROW_T1",
+    "T2": "P002_7_A2_ROW_T2",
+    "T3": "P002_7_A3_ROW_T3",
+}
+
+
+def check_a_transition_row(surfaces: Mapping[str, str], row_id: str) -> None:
+    marker = MARKER_A[row_id]
+    expected = [row for row in candidate.TRANSITION_ROWS if row[0] == row_id]
+    for path in candidate.POLICY_SURFACES:
+        block = _single_block(surfaces, path, marker)
+        found = [row for row in candidate.parse_transition_rows(block) if row and row[0] == row_id]
+        if found != expected:
+            _fail(marker, MISMATCH, "%s row %s is %r, expected %r" % (path, row_id, found, expected))
+
+
+class FamilyATransitionRowsTests(unittest.TestCase):
+    """Positive presence of each canonical claim-to-admission row, in both policy copies."""
+
+    def test_A1_row_t1__live_surfaces(self) -> None:
+        check_a_transition_row(candidate.load_live_surfaces(), "T1")
+
+    def test_A1_row_t1__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self, lambda: check_a_transition_row(near_miss.row_target_altered("T1"), "T1"), MARKER_A["T1"]
+        )
+
+    def test_A1_row_t1__inert_candidate(self) -> None:
+        check_a_transition_row(candidate.load_candidate_surfaces(), "T1")
+
+    def test_A2_row_t2__live_surfaces(self) -> None:
+        check_a_transition_row(candidate.load_live_surfaces(), "T2")
+
+    def test_A2_row_t2__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self, lambda: check_a_transition_row(near_miss.row_target_altered("T2"), "T2"), MARKER_A["T2"]
+        )
+
+    def test_A2_row_t2__inert_candidate(self) -> None:
+        check_a_transition_row(candidate.load_candidate_surfaces(), "T2")
+
+    def test_A3_row_t3__live_surfaces(self) -> None:
+        check_a_transition_row(candidate.load_live_surfaces(), "T3")
+
+    def test_A3_row_t3__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self, lambda: check_a_transition_row(near_miss.row_target_altered("T3"), "T3"), MARKER_A["T3"]
+        )
+
+    def test_A3_row_t3__inert_candidate(self) -> None:
+        check_a_transition_row(candidate.load_candidate_surfaces(), "T3")
+
+
+if __name__ == "__main__":
+    unittest.main()
