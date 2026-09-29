@@ -122,5 +122,72 @@ class FamilyATransitionRowsTests(unittest.TestCase):
         check_a_transition_row(candidate.load_candidate_surfaces(), "T3")
 
 
+# ---------------------------------------------------------------------------
+# Family B (169.010-T): bidirectional cross-reference, resolving in both copies
+# ---------------------------------------------------------------------------
+
+MARKER_B_FORWARD = "P002_7_B1_XREF_FORWARD"
+MARKER_B_REVERSE = "P002_7_B2_XREF_REVERSE"
+
+
+def check_b_forward_cross_reference(surfaces: Mapping[str, str]) -> None:
+    """The policy clause names the Ship intake-reconciliation note, and that note resolves, in both copies."""
+
+    marker = MARKER_B_FORWARD
+    sentence = candidate.normalize_whitespace(candidate.FORWARD_CROSS_REFERENCE)
+    for copy, (policy_path, agent_path) in candidate.CROSS_REFERENCE_COPIES.items():
+        block = _single_block(surfaces, policy_path, marker)
+        if sentence not in candidate.normalize_whitespace(block):
+            _fail(marker, MISMATCH, "%s copy: %s does not name the Ship intake-reconciliation note" % (copy, policy_path))
+        agent_text = surfaces.get(agent_path, "")
+        note_at = agent_text.find(candidate.SHIP_NOTE_TITLE)
+        agent_block = candidate.extract_single_block(agent_text)
+        if note_at < 0 or agent_block is None or agent_text.find(agent_block) < note_at:
+            _fail(marker, MISMATCH, "%s copy: named Ship note does not resolve in %s" % (copy, agent_path))
+
+
+def check_b_reverse_cross_reference(surfaces: Mapping[str, str]) -> None:
+    """The Ship intake-reconciliation note names the policy clause, and that clause resolves, in both copies."""
+
+    marker = MARKER_B_REVERSE
+    sentence = candidate.normalize_whitespace(candidate.REVERSE_CROSS_REFERENCE)
+    for copy, (policy_path, agent_path) in candidate.CROSS_REFERENCE_COPIES.items():
+        block = _single_block(surfaces, agent_path, marker)
+        if sentence not in candidate.normalize_whitespace(block):
+            _fail(marker, MISMATCH, "%s copy: %s does not name the P-002.7 clause" % (copy, agent_path))
+        if candidate.VOCABULARY_HEADING not in surfaces.get(policy_path, ""):
+            _fail(marker, MISMATCH, "%s copy: named P-002.7 clause does not resolve in %s" % (copy, policy_path))
+
+
+class FamilyBCrossReferenceTests(unittest.TestCase):
+    """The two prose sites name each other bidirectionally; one-directional is a failure."""
+
+    def test_B1_xref_forward__live_surfaces(self) -> None:
+        check_b_forward_cross_reference(candidate.load_live_surfaces())
+
+    def test_B1_xref_forward__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self,
+            lambda: check_b_forward_cross_reference(near_miss.cross_reference_reverse_only()),
+            MARKER_B_FORWARD,
+        )
+
+    def test_B1_xref_forward__inert_candidate(self) -> None:
+        check_b_forward_cross_reference(candidate.load_candidate_surfaces())
+
+    def test_B2_xref_reverse__live_surfaces(self) -> None:
+        check_b_reverse_cross_reference(candidate.load_live_surfaces())
+
+    def test_B2_xref_reverse__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self,
+            lambda: check_b_reverse_cross_reference(near_miss.cross_reference_forward_only()),
+            MARKER_B_REVERSE,
+        )
+
+    def test_B2_xref_reverse__inert_candidate(self) -> None:
+        check_b_reverse_cross_reference(candidate.load_candidate_surfaces())
+
+
 if __name__ == "__main__":
     unittest.main()
