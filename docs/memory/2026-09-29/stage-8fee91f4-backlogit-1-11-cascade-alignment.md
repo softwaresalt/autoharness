@@ -117,3 +117,7 @@ shipment_id: 201-S
     scope (design decision 038-DL D4a). Reconciled into `8928EC67` as
     absorbed item (4) instead of a duplicate entry.
   * Stale PR description (two threads): the PR body was rewritten.
+  * Second round (on `0e785184`): the repeated SAFE_CLOSE concern on the
+    plan rationale was recorded against the same `8928EC67` item (4). The U1b
+    planner input-safety gap (ID pattern, path containment, symlink/reparse
+    rejection) was fixed in the plan and `195.008-T`.

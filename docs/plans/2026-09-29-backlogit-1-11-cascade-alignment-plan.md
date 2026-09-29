@@ -326,6 +326,18 @@ retention outcome.
     fails closed to retain.
   * H3 applies to referrers too. An `archive/` record declaring `done` is live. A
     `queue/` record declaring `archived` is not.
+* **Input safety** (Constitution III; PR #466 review). The planner applies the
+  same ID and path-containment checks as `classify_shipment_close_path`, and
+  reuses its helpers (`_ARTIFACT_ID_PATTERN`, `_read_artifact_record`,
+  `_scan_backlog`, `_is_symlink_or_reparse_point`) instead of new path logic.
+  * Every candidate ID, including a literal `source_deliberation_id`, must match
+    `_ARTIFACT_ID_PATTERN` before it is used to build a path. A non-matching ID
+    goes to `unresolved_references` and is never resolved.
+  * Every record path and the supplied `stash_path` must canonicalize inside the
+    workspace backlog tree, and must not be (or sit under) a symlink or
+    reparse point.
+  * A containment failure is a read error. It fails closed to a retention
+    outcome, never to `archive`, and the planner still never raises.
 * **Tests** (fixture-first; `tests/test_linked_deliberation_disposition_planner.py`):
   * multi-feature manifest;
   * self-reference;
@@ -344,7 +356,11 @@ retention outcome.
     non-archived deliberation;
   * an unresolved ID, which goes to `unresolved_references`;
   * a non-deliberation `artifact_type`, which is excluded;
-  * links from `task`, `bug`, and `chore` members.
+  * links from `task`, `bug`, and `chore` members;
+  * negative input-safety cases: a traversal-shaped `source_deliberation_id`
+    (for example `../x-DL`), which goes to `unresolved_references`; a
+    `stash_path` outside the backlog tree; and a symlink or junction record or
+    `stash_path`. Each fails closed with no `archive` outcome.
 * **Size:** M. **Complexity:** medium. Depends on U1a.
 
 ### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 195.002-T
