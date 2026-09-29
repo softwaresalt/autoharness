@@ -274,6 +274,17 @@ to `shipment_closure.py`. It is read-only, uses `autoharness.gates.topology._fro
 (the classifier's parser, H5), and never raises. Any read error fails closed to a
 retention outcome.
 
+* **Stash path default** (PR #466 review, cycle 4). `stash_path=None` is not "do
+  not scan stashes". It resolves to `<workspace_backlog_dir>/stash.jsonl`, the
+  active stash file at the root of the resolved backlog directory (for this
+  repository, `.backlogit/stash.jsonl`). An explicit `stash_path` overrides the
+  default. The default and an explicit path pass the same containment checks
+  (see Input safety). A missing stash file means no active stash entries. Any
+  other read error on it (unreadable, malformed line, or a containment failure)
+  fails closed to a retention outcome for every deliberation that could still be
+  archived. The U5a call site passes no `stash_path`, so the default is the
+  production path.
+
 * **Description source** (PR #466 review). `_frontmatter` returns only the YAML
   mapping, but a backlogit artifact's description is the Markdown body after the
   closing frontmatter delimiter. The planner therefore reads the body text after
@@ -303,7 +314,13 @@ retention outcome.
   3. `retained_engine_unverified`: the engine verdict is UNVERIFIED (P1-7). This
      applies on every path.
   4. `retained_live_status`: the deliberation's own status is `active`,
-     `in-progress`, or `blocked` (P1-6).
+     `blocked`, or `review` (P1-6; PR #466 review, cycle 4). These are the live
+     statuses in the deliberation status vocabulary of
+     `.backlogit/header-def.yaml` (`queued`, `active`, `blocked`, `review`,
+     `done`, `accepted`, `rejected`, `archived`). Deliberations have no
+     `in-progress` status. A deliberation under `review` is never archived.
+     `queued`, `done`, `accepted`, and `rejected` are not live under this rule;
+     `archived` is handled by rule 2.
   5. `retained_shared_reference: [referrer IDs]`: a live referrer exists (see
      below).
   6. `retained_description_mention`: no explicit member links the deliberation
@@ -320,7 +337,8 @@ retention outcome.
       `custom_fields.items` lists the deliberation, or whose description or
       `custom_fields.source_deliberation_id` names it (the engine's `doctor.go`
       treats shipment descriptions as links);
-    * active stash entries (`stash.jsonl`) whose `deliberation_id` equals the
+    * active stash entries (the resolved `stash_path`, by default
+      `<workspace_backlog_dir>/stash.jsonl`) whose `deliberation_id` equals the
       deliberation, or whose text matches it.
   * **Never counted:**
     * the deliberation itself;
@@ -357,7 +375,17 @@ retention outcome.
   * a `queue/` record with `status: archived`, which is not counted;
   * a torn deliberation, which yields `retained_ambiguous`;
   * an explicit-member deliberation, which is excluded (H10);
-  * `status: active`, which yields `retained_live_status`;
+  * `status: active`, `status: blocked`, and `status: review`, each of which
+    yields `retained_live_status` (the `review` fixture has no other referrer,
+    proving a deliberation under review is never archived);
+  * `status: queued` with no referrer, which yields `archive` (not live);
+  * the default call with no `stash_path` argument: a `source_deliberation_id`
+    deliberation (the `038-DL` shape) cited only by an entry in
+    `<workspace_backlog_dir>/stash.jsonl` yields `retained_shared_reference`
+    naming that stash entry, and the same fixture without the entry yields
+    `archive`;
+  * the default call when `<workspace_backlog_dir>/stash.jsonl` is absent, which
+    counts no stash referrer and does not raise;
   * a description-only link, which yields `retained_description_mention`;
   * engine UNVERIFIED, which yields `retained_engine_unverified` for every
     non-archived deliberation;
@@ -1082,7 +1110,8 @@ Requires plan hardening: yes
       already `archived`) → `already-archived`;
     * `038-DL` (`195-F` `source_deliberation_id`) → `retained_shared_reference`
       while active stash entries that cite it (`8928EC67` and the 2026-09-29
-      follow-up entries) remain active, otherwise `archived`, with
+      follow-up entries) remain active, found through the default `stash_path`
+      (U1b), otherwise `archived`, with
       `archived_status: queued`;
     * any other mention-only deliberation → `retained_description_mention`;
   * `operational-closure` "Source artifact cleanup" copies the `038-DL` outcome
@@ -1371,3 +1400,27 @@ Deferred (captured, not dropped):
 | `1263B218` | Created (P-021 C2 `DEFERRED SCOPE EXPANSION`; task / high) | Re-plan 198-S / 192-F: `engine_semantics` evidence field, `select_close_path` / `assess_cascade_engine_semantics` use, flat sets, disposition outcome, stale `dag-root` label |
 | `8928EC67` | Edited (priority medium → high; hard trigger added) | Engine-behavior registry and verify-workspace probe; absorbs `62C1E11E` and `archive_item` semantics |
 | `62C1E11E` | Unchanged (referenced) | P-002.7 claim-cascade gate; to be deliberated with `8928EC67` |
+
+## PR #466 review amendments (staging PR, 2026-09-29)
+
+Copilot review of the staging PR (#466) raised in-scope plan findings over four
+review-fix cycles. The unit text above is the authoritative resolution; this
+section only indexes it.
+
+* **Cycles 1–3** (P-005 limit of 3 review-fix cycles per plan): the `201-S`
+  manifest dependency order; the U1b input-safety contract (ID pattern, path
+  containment, symlink/reparse rejection); and the U1b description source (the
+  Markdown body). Out-of-scope findings were reconciled into `8928EC67` items
+  (4) and (5).
+* **Cycle 4 — operator-authorized extension.** Operator decision
+  (2026-09-29T16:47 local): "extend cycle limit for #466". It authorizes exactly
+  one additional (fourth) review-fix cycle, limited to the two open in-scope P1
+  Copilot threads on U1b / `195.008-T`. It does not authorize a fifth cycle.
+  * `retained_live_status` now covers the actual deliberation live statuses
+    `active|blocked|review` (from `.backlogit/header-def.yaml`; deliberations
+    have no `in-progress`), with `blocked` and `review` fixtures and a `queued`
+    not-live fixture (U1b rule 4 and Tests).
+  * `stash_path=None` now resolves to `<workspace_backlog_dir>/stash.jsonl`,
+    with default-call tests proving that an active-stash referrer (the `038-DL`
+    shape) is detected and the deliberation retained (U1b Stash path default and
+    Tests; Runtime Verification `038-DL` expectation).

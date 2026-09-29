@@ -127,3 +127,9 @@ shipment_id: 201-S
     resolved Ship checkpoint `063709` was declined: an operator-authored
     commit (`ca180cd2`) resolved it after #465 merged, not a Stage recovery
     action.
+  * Fourth round (operator-authorized cycle 4, 2026-09-29T16:47 local: "extend
+    cycle limit for #466"; exactly one extra cycle, limited to the two open P1
+    threads): `retained_live_status` now uses the real deliberation live
+    statuses `active|blocked|review`, and `stash_path=None` resolves to
+    `<workspace_backlog_dir>/stash.jsonl` with default-call tests (plan U1b,
+    `195.008-T`, `195.002-T`). No fifth cycle is authorized.
