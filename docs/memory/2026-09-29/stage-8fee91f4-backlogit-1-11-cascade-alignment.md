@@ -101,3 +101,19 @@ shipment_id: 201-S
   live-proof expectation for `038-DL` is now `retained_shared_reference`
   while active stash entries cite it, otherwise `archived` (plan, Runtime
   Verification and Closure).
+
+## Update — staging PR #466 local review and Copilot threads (2026-09-29)
+
+* **Local review** (Template Integrity, Scope, Correctness) over
+  `origin/main...HEAD`: 0 P0, 0 P1. Two same-surface fixes: `195-F` now cites
+  stash `1263B218`, and the `201-S` manifest items are in the reviewed
+  dependency order (001, 008, 002, 009, 003, 010, 004, 005, 011, 006, 012,
+  007).
+* **Copilot threads.**
+  * Manifest order: fixed (above).
+  * Checkpoint `progress` at top level: declined. `progress` is a modeled
+    top-level field of the backlogit V1 checkpoint schema.
+  * SAFE_CLOSE on an unverified engine still uses `archive_item`: out of
+    scope (design decision 038-DL D4a). Reconciled into `8928EC67` as
+    absorbed item (4) instead of a duplicate entry.
+  * Stale PR description (two threads): the PR body was rewritten.
