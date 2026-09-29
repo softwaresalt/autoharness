@@ -65,3 +65,31 @@ shipment_id: 201-S
 * Ship claims `201-S` after #465 and the staging PR merge.
 * The live proof is the post-merge closure of `201-S`, which must archive
   `038-DL` through the new Linked-Deliberation Disposition step.
+
+## Update — independent review amendments (2026-09-29, resumed Stage session)
+
+* **Operator decisions.** Order of operations approved; `198-S` waits for
+  `201-S` (edge `198-S blocks-on 201-S` added); an independent plan review
+  ran before Ship; Ship for `201-S` is not started. #465 merged, so PR #466
+  now targets `main`. The OQ1 and #465-ordering items above are resolved.
+* **Independent review.** Four reviewers (Architecture, Correctness, Scope
+  Boundary, Schema-CLI-Docs Coupling), each PASS_WITH_CHANGES, 0 P0, 7 P1.
+  All P1 findings are resolved in the plan; see its section "Independent
+  review amendments (2026-09-29)".
+* **Backlog changes.**
+  * New tasks under `195-F`: `195.008-T` (U1b), `195.009-T` (U2b),
+    `195.010-T` (U3b), `195.011-T` (U5b), `195.012-T` (U6b). All priority
+    high.
+  * Sizes: `195.001-T` M; `195.007-T` S / low; new tasks M/medium, except
+    `195.012-T` S/medium.
+  * Order: 001 → {008, 002 → 009 → 003 → 010 → 004} → 005 → 011 → {006 →
+    012, 007}.
+  * `201-S` now holds `195-F` plus 12 tasks.
+* **Decisions.** `038-DL` and the decision record gained D3a, D4a, D8a, and
+  D9a.
+* **Stash.** `1263B218` was created (198-S / 192-F re-plan, P-021 C2).
+  `8928EC67` was raised to high with a hard trigger; it absorbs `62C1E11E`.
+* **Next step.** Ship claims `201-S` only when the operator starts it. The
+  live-proof expectation for `038-DL` is now `retained_shared_reference`
+  while active stash entries cite it, otherwise `archived` (plan, Runtime
+  Verification and Closure).
