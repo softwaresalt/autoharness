@@ -91,14 +91,24 @@ gate halted fail-closed with a **P-005** event, and nothing was committed.
   alignment work.
 
 Report: `.backlogit/reconcile/190-S-cascade-close-20260929-061541.md`
-(resolution `CLOSED — operator-approved deviation`).
+(resolution `CLOSED — operator-approved deviation`). Post-mode:
+`.backlogit/reconcile/190-S-post-20260929-070500.md` (`PROCEED`). All
+archive files are present, there are no deletions, and a retroactive orphan
+scan at `ef661e90` found no orphans. No separate pre-mode report was produced.
+Its per-item checks are evidenced by the contemporaneous Step 0 snapshot, and
+the disposition is recorded in the post-mode report.
 
 ## Source Artifact Cleanup
 
 * 184-F `custom_fields.source_stash_id`: `none`, because 184-F declares no
   such field. Its traceability names source stash `78548873`, which Stage
   archived at harvest on 2026-09-20, so it was skipped as already archived.
-* Deliberation `034-DL`: archived standalone under the deviation above.
+* 184-F `custom_fields.source_deliberation_id`: `none`, because 184-F
+  declares no such field.
+* Deliberation `034-DL` is linked from the 184-F description, not through
+  `source_deliberation_id`. The shipment-reconcile Step 0(c) validated it as a
+  linked deliberation, and it was archived standalone under the
+  operator-approved deviation above.
 * 184-F and 184.001-T are archived with `archived_status: done`. 190-S is
   archived with `archived_status: shipped`.
 * The related stash entries `8CB606F8` and `AD0F128D` stay active and were
