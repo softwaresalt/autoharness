@@ -13,7 +13,9 @@ compaction_status: done
 
 ## Summary
 
-Shipment 177-S (feature 169-F, tasks 169.007, 169.009 to 169.017-T) merged
+Shipment 177-S (feature 169-F; manifest tasks 169.007-T, 169.009-T,
+169.010-T, 169.011-T, 169.012-T, 169.013-T, 169.014-T, 169.015-T, 169.016-T,
+and 169.017-T) merged
 through PR #462 as merge commit `bd706305`, using `--merge` with two parents
 (`435f46ae`, `6a5ec1df`). The reviewed HEAD was `6a5ec1df`. The shipment makes
 backlogit's post-claim member-status admission rule explicit and testable as
@@ -80,8 +82,12 @@ Report: `.backlogit/reconcile/177-S-cascade-close-20260929-032534.md`.
 
 ## Source Artifact Cleanup
 
-* Source stash entry `3EF5AAF2` was archived at Stage harvest on 2026-09-18,
-  so no retirement action was required.
+* 169-F `custom_fields.source_stash_id`: `none` (169-F declares no such
+  field). The shipment title names source stash entry `3EF5AAF2`, which was
+  archived at Stage harvest on 2026-09-18, so it was skipped as already
+  archived.
+* 169-F `custom_fields.source_deliberation_id`: `none` (169-F declares no
+  such field). The reconcile evidence found no validated linked deliberation.
 * 169-F and all 10 manifest tasks are archived with `archived_status: done`.
 * Ship made no change to plan, review, spike, or decision artifacts, which are
   Stage-owned (P-010).
@@ -94,7 +100,15 @@ Report: `.backlogit/reconcile/177-S-cascade-close-20260929-032534.md`.
   and the pipeline-topology ambient gate run on every push. The next Ship claim
   exercises P-002.7's post-claim all-`active` expectation at intake
   reconciliation.
-* **Rollback**: revert the merge commit with
+* **Healthy signals**: the P-002.7 structural tests pass in CI, and the next
+  claim's intake reconciliation observes every manifest member as `active`.
+* **Failure signals**: a P-002.7 structural test fails, the P-002.7 markers
+  diverge between the mirror and the template, or a post-claim intake
+  reconciliation observes members that are not `active` with no prior
+  execution. That last case is the `62C1E11E` scenario.
+* **Rollback trigger**: any failure signal that the P-002.7 text itself
+  causes, where a forward fix is not practical within the validation window.
+* **Rollback procedure**: revert the merge commit with
   `git revert -m 1 bd70630594aa97307395bf92ee08228e2add67b4`. The change is
   documentation, policy, and tests only.
 * **Owner**: operator (softwaresalt). The Ship agent owns closure mechanics.
