@@ -279,5 +279,66 @@ class FamilyDAttributionTests(unittest.TestCase):
         check_d_attribution(candidate.load_candidate_surfaces())
 
 
+# ---------------------------------------------------------------------------
+# Family E (169.014-T): closure — exactly three rows, exactly four surfaces
+# ---------------------------------------------------------------------------
+
+MARKER_E_ROWS = "P002_7_E1_NO_FOURTH_ROW"
+MARKER_E_SURFACES = "P002_7_E2_FOUR_SURFACES"
+
+
+def check_e_exactly_three_rows(surfaces: Mapping[str, str]) -> None:
+    """Negative rows: the table declares exactly the canonical rows and no fourth."""
+
+    marker = MARKER_E_ROWS
+    expected_ids = [row[0] for row in candidate.TRANSITION_ROWS]
+    for path in candidate.POLICY_SURFACES:
+        block = _single_block(surfaces, path, marker)
+        ids = [row[0] for row in candidate.parse_transition_rows(block) if row]
+        if len(ids) != candidate.TRANSITION_ROW_COUNT or ids != expected_ids:
+            _fail(marker, MISMATCH, "%s declares rows %r, expected exactly %r" % (path, ids, expected_ids))
+
+
+def check_e_exactly_four_surfaces(files: Mapping[str, str]) -> None:
+    """Surface closure: the enumeration RULE's result equals the declared four surfaces, no more, no fewer."""
+
+    marker = MARKER_E_SURFACES
+    resolved = candidate.enumerate_declaring_surfaces(files)
+    if not resolved:
+        _fail(marker, ABSENT, "the surface-enumeration rule resolves no declaring surface in scope")
+    expected = tuple(sorted(candidate.DECLARED_SURFACES))
+    if resolved != expected or len(resolved) != candidate.DECLARED_SURFACE_COUNT:
+        _fail(
+            marker,
+            MISMATCH,
+            "the surface-enumeration rule resolves %d surfaces %r, expected exactly %d %r"
+            % (len(resolved), resolved, candidate.DECLARED_SURFACE_COUNT, expected),
+        )
+
+
+class FamilyEClosureTests(unittest.TestCase):
+    """What the contract must NOT say (a fourth row) and how many places may say it (four)."""
+
+    def test_E1_no_fourth_row__live_surfaces(self) -> None:
+        check_e_exactly_three_rows(candidate.load_live_surfaces())
+
+    def test_E1_no_fourth_row__near_miss_fixture(self) -> None:
+        _assert_discriminates(self, lambda: check_e_exactly_three_rows(near_miss.fourth_row_added()), MARKER_E_ROWS)
+
+    def test_E1_no_fourth_row__inert_candidate(self) -> None:
+        check_e_exactly_three_rows(candidate.load_candidate_surfaces())
+
+    def test_E2_four_surfaces__live_surfaces(self) -> None:
+        check_e_exactly_four_surfaces(candidate.load_live_scope_files())
+
+    def test_E2_four_surfaces__near_miss_fixture(self) -> None:
+        _assert_discriminates(
+            self, lambda: check_e_exactly_four_surfaces(near_miss.fifth_surface_introduced()), MARKER_E_SURFACES
+        )
+
+    def test_E2_four_surfaces__inert_candidate(self) -> None:
+        check_e_exactly_four_surfaces(candidate.load_candidate_scope_files())
+
+
 if __name__ == "__main__":
     unittest.main()
