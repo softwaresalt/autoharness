@@ -320,3 +320,90 @@ captured item.
 | A future 1.11.x patch changes semantics inside the verified line | The post-cascade byte-identity check on linked deliberations plus the unexpected-artifact check halt with P-005. The D7 registry follow-up widens coverage |
 | 198-S freezes the stale definition into code | OQ1 recommendation. 198-S computes by reference to the skill, so landing this unit first realigns it |
 | Template and mirror drift | Every task edits both. The checksum refresh and parity tests are in the same unit |
+
+## Amendments (2026-09-29, independent plan review)
+
+An independent four-reviewer plan review (Architecture Strategist, Correctness
+Reviewer, Scope Boundary Auditor, Schema-CLI-Docs Coupling Reviewer; each
+PASS_WITH_CHANGES, 0 P0, 7 P1) ran before any Ship claim on shipment `201-S`. The
+decisions below amend D3, D4, D8, and D9. Option B stands. Where an amendment and
+the original text disagree, the amendment wins. The plan's section "Independent
+review amendments (2026-09-29)" indexes every finding and its resolution.
+
+* **D3a — Disposition, amended (P1-1, P1-2, P1-6, P1-7).**
+  * **Set.** The disposition set is collected from **every explicit manifest
+    member regardless of `artifact_type`**, through the three
+    **autoharness-defined** link sources (frozen from backlogit 1.10.x
+    `linkedDeliberationIDs`): `custom_fields.source_deliberation_id`, the
+    description, and each frontmatter `references` entry. Self and every ID in
+    `closure_scope(S)` are excluded (H10). Existence is validated before
+    location, and unresolved IDs never halt.
+  * **Planner.** A pure, read-only `compute_linked_deliberation_disposition` in
+    `shipment_closure.py` plans the outcomes, with fixture tests written first.
+  * **Outcomes**, first match wins: `retained_ambiguous`, `already-archived`,
+    `retained_engine_unverified`, `retained_live_status`,
+    `retained_shared_reference`, `retained_description_mention`, `archived`.
+  * **Engine-gated.** When the Step 0(c) engine verdict is UNVERIFIED, nothing is
+    mutated on any path. This prevents the step from recreating the 190-S
+    scenario.
+  * **Auto-archive only `source_deliberation_id` links.** A description or
+    `references` mention is weak provenance and is report-only.
+  * **Live referrers** are work items outside `closure_scope(S)`, other unshipped
+    shipments (manifest, description, or `source_deliberation_id`), and active
+    stash entries. Other deliberations, docs, and archived records never count.
+    A deliberation whose own status is live is retained.
+  * **Mutation safety.** A defined disposition baseline; a hash and guard re-check
+    immediately before each archive; verify-after-each with a semantic
+    frontmatter comparison and a byte-exact body.
+  * **Two layers.** P-015 is split into the close-path gate (INV-7, INV-10, and
+    Postcondition (a), evaluated before disposition) and the separately
+    sanctioned INV-12 post-gate mutation with its own invariance check.
+  * **One archiver.** The generic Ship agent's post-merge Step 7 and the
+    `operational-closure` skill consume the disposition report and never archive
+    a retained deliberation. P-010 gains the matching clarification.
+  * D3's "engine-defined sources" label and its archive-unless-shared rule are
+    superseded by this amendment.
+* **D4a — Engine-semantics gate, amended (P1-3, P1-7, P2 probe surface, P2
+  pseudo-versions, P2 regex).**
+  * **Released builds only.** This reverses D4's acceptance of pre-release and
+    build metadata inside a verified minor line. Go pseudo-versions and `+dirty`
+    builds may carry unreleased engine changes, so they are `UNVERIFIED`.
+  * **Same surface.** The probe runs on the same surface (MCP or CLI) that the
+    close path invokes. `probe_surface`, `version`, and `commit` are recorded,
+    and the pre-invocation re-probe compares all three. A re-probe failure halts
+    (non-mutating) rather than substituting SAFE_CLOSE for a CASCADE verdict.
+  * **Composition.** `select_close_path(classifier, engine)` is the single
+    executable composition point. The classifier stays unchanged.
+  * **Two propositions.** The verified line covers flat `shipment ship`
+    archive-candidate selection **and** non-cascading `archive_item`
+    single-artifact semantics. The policy and skill carry the machine-readable
+    token ``Verified engine-semantics lines: `1.11` ``, tested against the
+    constant.
+  * **SAFE_CLOSE reliance, reworded.** SAFE_CLOSE does not depend on cascade
+    semantics, fails closed, and never invokes the cascade. It still depends on
+    `archive_item` semantics, whose generalization is `8928EC67`. The Risks table
+    wording "SAFE_CLOSE, which is always valid" is superseded.
+* **D8a — Sequencing, amended (operator decision 2, 2026-09-29).**
+  * OQ1 is resolved. The operator decided that `198-S` waits for `201-S`. Stage
+    added the edge `198-S blocks-on 201-S` on that decision.
+  * The three-point `SCOPE_GAP` guard stays as defense in depth: before U1a, at
+    the P-014 PR-ready gate, and immediately before merge.
+  * The `198-S` / `192-F` re-plan is captured as `DEFERRED SCOPE EXPANSION` stash
+    entry `1263B218`. That entry also notes the now-stale `dag-root` label on
+    `198-S`.
+  * `8928EC67` is raised to priority high, with a hard trigger: it must be
+    deliberated before changing the verified engine-semantics lines or adopting
+    backlogit 1.12. It absorbs `62C1E11E` and `archive_item` semantics.
+  * All units land in one `201-S` pull request.
+  * Operator goal coverage is **partial**: the P-015 close path is covered. The
+    claim cascade, `archive_item` generalization, and the workspace registry are
+    deferred to `8928EC67`.
+* **D9a — Parity, amended (P1-4, P1-5).**
+  * Whole-section byte parity is replaced. Policy and skill pairs use
+    rendered-region parity over the edited paragraphs, with an allowlist. The
+    Ship agent pair uses phrase-level semantic parity.
+  * Checksums are refreshed in the same unit that edits a tracked mirror. The
+    `operational-closure` mirror joins the tracked set (U6b).
+  * `INVARIANT_TOKENS` extends to INV-12 only when both skill files contain it
+    (U4). U2a adds a policy-only INV-12 test, so the suite is never red between
+    tasks.

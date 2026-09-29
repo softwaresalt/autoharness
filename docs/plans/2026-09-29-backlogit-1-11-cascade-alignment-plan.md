@@ -3,8 +3,10 @@ title: "Align P-015 / shipment-reconcile with backlogit >=1.11.0 flat cascade se
 description: "Realign the CASCADE postcondition sets to backlogit 1.11.x, which leaves linked deliberations independent. Add a sanctioned, path-independent linked-deliberation disposition step, and gate CASCADE on a fresh backlogit version probe inside a verified engine-semantics line, so the next engine drift is detected before mutation instead of at closure."
 doc_type: plan
 status: reviewed
-review_record: "inline — see section Plan Review"
+review_record: "inline — see sections Plan Review and Independent review amendments (2026-09-29)"
+independent_review: "2026-09-29 independent 4-reviewer plan review (Architecture, Correctness, Scope, Schema-CLI-Docs Coupling): PASS_WITH_CHANGES x4, 0 P0, 7 P1 — all resolved in plan; see section Independent review amendments (2026-09-29)"
 created: 2026-09-29
+amended: 2026-09-29
 source_stash: 8FEE91F4
 source_deliberation: docs/decisions/2026-09-29-backlogit-1-11-cascade-linked-deliberation-alignment-deliberation.md
 deliberation_id: 038-DL
@@ -33,55 +35,82 @@ autoharness still assumes the 1.10.x behavior, where the removed
 
 * `templates/skills/shipment-reconcile/SKILL.md.tmpl` and its mirror
   `.github/skills/shipment-reconcile/SKILL.md`: Step 0(c) Linked-deliberation
-  snapshot extension, pre-invocation re-collection, Cascade Close step 3
-  `allowed_ids` / `required_ids`, the step 6 report, Quality Criteria, and the
-  vocabulary summary.
+  snapshot extension, the Step 0(c) routing bullets, the Cascade Close
+  "transition log" preamble, pre-invocation re-collection, Cascade Close step 3
+  `allowed_ids` / `required_ids`, the step 6 report, the safe-close/Cascade
+  hand-offs to post-mode, Quality Criteria, and the vocabulary summary.
 * P-015 in `templates/policies/workflow-policies.md.tmpl` and its mirror
-  `.github/policies/workflow-policies.md`: D1a table, admission paragraph, INV-1,
-  and INV-6.
-* The Ship agent CASCADE bullet in `templates/agents/_ship.agent.md.tmpl` and its
-  mirror `.github/agents/_ship.agent.md`.
+  `.github/policies/workflow-policies.md`: Statement, Required Check,
+  Postcondition, Violation Action, Relationship to P-007, Evidence-class note,
+  D1a table, admission paragraph, INV-1, INV-6, INV-7, INV-10, and item 7.
+* The Ship agent in `templates/agents/_ship.agent.md.tmpl` and its mirror
+  `.github/agents/_ship.agent.md`: the SAFE_CLOSE and CASCADE close-path
+  bullets, the step 1.e commit gate, and the Role Boundary deliberation row.
+* The generic Ship agent's post-merge Step 7 "Source artifact cleanup"
+  (`templates/agents/_ship.agent.md.tmpl` L889-893) and the `operational-closure`
+  skill's closure-checklist "Source artifact cleanup" bullet (template and mirror,
+  L84). See the corrected problem statement below.
 * The docstring of `src/autoharness/gates/shipment_closure.py` (L9-21).
 * The 155-S-era contract tests in `tests/test_cascade_close_archived_ids_postcondition.py`
-  (`CascadeCloseLinkedDeliberationAllowanceTests`).
+  (`CascadeCloseLinkedDeliberationAllowanceTests`, the item-7 policy tests, and
+  `CascadeCloseTwoSetGateScenarioTests` scenario 2) and
+  `tests/test_flat_manifest_closure_docs.py` (`INVARIANT_TOKENS`).
 
-As a result, every CASCADE close whose explicit feature member links a live
-deliberation halts after mutation (190-S / `034-DL`). SAFE_CLOSE silently strands
-the same deliberation live. Nothing detects an engine-semantics change before the
-destructive call.
+As a result (corrected 2026-09-29, independent review P1-1):
+
+* Every CASCADE close whose explicit feature member links a live deliberation
+  halts after mutation (190-S / `034-DL`, which `184-F` linked by description
+  only).
+* SAFE_CLOSE does not halt. It leaves a deliberation that is linked only by
+  description or `references` text live (stranded).
+* A deliberation linked through `custom_fields.source_deliberation_id` is a
+  different case. The generic Ship agent's post-merge Step 7 already archives it
+  with `backlogit_archive_item`, with **no shared-reference guard**, after
+  reconcile has finished. The dogfood mirror `.github/agents/_ship.agent.md` has
+  no such step (it retires only the source stash entry). The `operational-closure`
+  skill records the outcome either way. An unguarded Step 7 would silently defeat
+  any retention rule this plan adds, so Step 7 is realigned (U6b). `195-F` itself
+  carries `source_deliberation_id: 038-DL`, so its live closure exercises both
+  mechanisms.
+* Nothing detects an engine-semantics change before the destructive call.
 
 ## Requirements Trace
 
 | # | Requirement (decision D*) | Unit(s) |
 |---|---|---|
-| R1 | Engine-semantics gate: pure function plus single-source verified-line constant; unverified → SAFE_CLOSE (D4) | U1 |
-| R2 | Gate docstring realigned to the flat `allowed_ids` / `required_ids` (D2) | U1 |
-| R3 | P-015 D1a, INV-1, and INV-6 realigned; new INV-12 disposition invariant; CASCADE engine-semantics precondition; supersession note; history row (D1, D2, D3, D4) | U2 |
-| R4 | Skill Step 0(c): engine-semantics gate step; linked-deliberation snapshot re-purposed as the disposition snapshot with SHA-256; revalidation keeps re-collection plus re-probe (D2, D4) | U3 |
-| R5 | Skill Cascade Close steps 3, 5, 6, 7, Quality Criteria, and vocabulary: flat sets; a linked deliberation in `archived_ids` is unexpected; post-cascade byte-identity of linked deliberations (D2) | U4 |
-| R6 | Skill: new path-independent Linked-Deliberation Disposition step with shared-reference guard and verify-after-each; post-mode and scenario matrix integration (D3) | U5 |
-| R7 | Ship agent CASCADE bullet realigned, template and mirror (D2, D4) | U6 |
-| R8 | Every edited mirror keeps parity with its template; tracked checksums refreshed in the same unit that edits the mirror (D9) | U2-U6 |
-| R9 | Compound learning, plus supersession of the 2026-08-20 learning (D1, D7) | U7 |
-| R10 | General lesson captured as a separate deferred item, not implemented (D7) | Stage (stash capture), not a unit |
+| R1 | Engine-semantics gate: pure function, single-source verified-line constant, released builds only, same-surface probe; `select_close_path` composition function; unverified → SAFE_CLOSE (D4, D4a) | U1a |
+| R1b | Pure, read-only `compute_linked_deliberation_disposition` planner with fixture tests written first (D3a) | U1b |
+| R2 | Gate docstring realigned to the flat `allowed_ids` / `required_ids` (D2) | U1a |
+| R3 | P-015 D1a, admission (disposition set), INV-1, INV-6, CASCADE engine-semantics precondition, INV-12, supersession note, history row (D1-D4, D3a, D4a) | U2a |
+| R3b | P-015 close-path gate vs. INV-12 split: Statement, Required Check, Postcondition, Violation Action, P-007 relationship, INV-7, INV-10, item 7, Evidence-class note; P-010 clarification (D3a) | U2b |
+| R4 | Skill Step 0(b) all-member snapshot; Step 0(c) engine-semantics gate, `select_close_path`, routing; pre-invocation re-probe (D2, D4a) | U3a |
+| R4b | Skill disposition snapshot, INV-6 scoping, transition-log preamble, re-collection (D2, D3a) | U3b |
+| R5 | Skill Cascade Close steps 3, 5, 6, 7, Quality Criteria, vocabulary: flat sets over every manifest item; linked deliberation in `archived_ids` or modified = engine drift (D2) | U4 |
+| R6 | Skill: Linked-Deliberation Disposition section (D3, D3a) | U5a |
+| R6b | Skill: hand-offs, Behavioral Constraints, safe-close steps 1/8, post-mode, scenario matrix, Quality Criteria, closing negative grep over all contract files (D3a) | U5b |
+| R7 | Ship agent close-path bullets, step 1.e gate, Role Boundary (D2, D4a, D3a) | U6 |
+| R7b | Ship Step 7 and `operational-closure` consume the disposition report; never archive a retained deliberation (D3a) | U6b |
+| R8 | Rendered-region parity between each template and its mirror; tracked checksums refreshed in the same unit that edits the mirror (D9, D9a) | U2a-U6b |
+| R9 | Compound learning, supersession notes, re-verification runbook for a new backlogit minor line (D1, D7) | U7 |
+| R10 | Deferred items captured as stash entries, not implemented (D7, D8a) | Stage (stash), not a unit |
 
 ## Implementation Units
 
 Harness-surface labels:
 
-* U1 is code-bearing and carries `harness-surface:harness-architect`. The P-004
-  per-task harness applies: tests first (red, then green).
-* U2-U7 are contract prose plus their pinning tests. They carry
+* U1a and U1b are code-bearing and carry `harness-surface:harness-architect`.
+  The P-004 per-task harness applies: tests first (red, then green).
+* U2a-U7 are contract prose plus their pinning tests. They carry
   `harness-surface:none` and use a **test-first contract posture**: update or add
   the pinning assertions first (red against the old text), then edit the template
   and mirror (green), then refresh the checksum.
 
-**Parity-bundle convention (applies to U2-U6).** The 2-hour granularity rule
+**Parity-bundle convention (applies to U2a-U6b).** The 2-hour granularity rule
 suggests fewer than 3 files per unit. Each prose unit instead edits a *parity
 bundle* of up to four files:
 
 * the template;
-* its byte-parity dogfood mirror;
+* its dogfood mirror;
 * the one-line `.autoharness/harness-manifest.yaml` checksum and note for that
   mirror;
 * the contract-test file that pins the text.
@@ -91,51 +120,234 @@ checksum. This is the established repository convention (see the manifest notes
 for 166.004-T through 166.007-T). The *intellectual* scope of each unit is still a
 single contract region.
 
-### U1 — Engine-semantics gate function and gate docstring (code)
+**Parity method (amended 2026-09-29, independent review P1-4).** The template and
+mirror legitimately differ (`{{FEATURE_SHIPMENTS}}`, `{{BACKLOG_DIRECTORY}}`,
+`{{DATE}}`, and the mirror's concrete `7F9CB5E9` references in INV-4 / INV-11,
+which `test_contract_files_define_flat_scope_and_split_delivery_limit` pins).
+Whole-section byte parity is therefore not a valid test. Instead:
 
-* **Changes** in `src/autoharness/gates/shipment_closure.py`, all additive:
-  * Add `VERIFIED_CASCADE_ENGINE_MINOR_LINES: Final[frozenset[tuple[int, int]]] = frozenset({(1, 11)})`.
-    It is the single source of truth for the backlogit minor lines whose
-    `shipment ship` semantics this contract has verified.
-  * Add `class EngineSemanticsVerdict(str, Enum)` with values `VERIFIED` and
+* **Policy and skill pairs: rendered-region parity.** Render the template with
+  `tests/_assertion_render.py::render_source` (which wraps
+  `autoharness.verify_workspace._render_template` +
+  `_derive_template_variables`, the pattern used in
+  `tests/test_template_variable_derivation_contract.py`). Compare **only the
+  paragraphs the unit edited**, located by stable anchors, against the mirror.
+  An explicit per-test allowlist names every tolerated divergence.
+* **Ship agent pair: phrase-level semantic parity.** The mirror is structurally
+  divergent: lettered sub-steps a-d at L700-734, the CASCADE bullet at L716-730,
+  and no post-merge Step 7. Tests assert that the same required phrases are
+  present, and the same withdrawn phrases are absent, in both files. Never byte
+  parity.
+* **Machine-readable verified-line token.** The policy and the skill each state
+  exactly ``Verified engine-semantics lines: `1.11` ``. Tests parse the token and
+  assert that it equals `VERIFIED_CASCADE_ENGINE_MINOR_LINES`. The Ship agent
+  references the gate by name and never restates the line (H8).
+
+**Single PR.** All units land in one 201-S pull request. Intermediate commits may
+forward-reference a heading that a later unit creates (for example, U3a names the
+"Linked-Deliberation Disposition" step that U5a adds). No closure, and no
+dogfood run of the edited contract, happens on an intermediate commit.
+
+### U1a — Engine-semantics gate, close-path composition, gate docstring (code) — 195.001-T
+
+Amended 2026-09-29 (independent review P1-3, P2 probe surface, P2 pseudo-versions,
+P2 regex, P2 runtime caller, P3 pre-step grep).
+
+* **Pre-step (read-only).** Run
+  `git grep -n -E "validated_linked_deliberations|linkedDeliberationIDs|linked deliberation|source_deliberation_id"`
+  and record each hit as in scope (owning unit) or out of scope (reason) in the
+  task completion note. Baseline at amendment time:
+  * the policy, shipment-reconcile, Ship agent, and `operational-closure` pairs;
+  * `shipment_closure.py`;
+  * `verify_workspace.py`, whose `ship_source_artifact_cleanup` /
+    `closure_source_artifact_cleanup` `must_contain` checks are out of scope, but
+    U6b must keep those tokens present;
+  * the tests `test_cascade_close_archived_ids_postcondition.py`,
+    `test_flat_manifest_closure_docs.py`, `test_verify_workspace.py`,
+    `test_assertion_render_harness.py`, `test_rendered_assertion_sweep.py`, and
+    `test_shipment_mixed_role_detection_compound_doc.py`.
+* **Changes** in `src/autoharness/gates/shipment_closure.py`, all additive. The
+  new names stay module-local and are not exported from `autoharness.gates`
+  (P3-2). A separate `engine_semantics.py` module is not created here; any move
+  belongs to the deferred registry `8928EC67` (D7).
+  * `VERIFIED_CASCADE_ENGINE_MINOR_LINES: Final[frozenset[tuple[int, int]]] = frozenset({(1, 11)})`.
+    This is the single source of truth for the backlogit minor lines whose P-015
+    closure engine semantics this contract has verified. It covers **both**
+    engine propositions:
+    1. flat `shipment ship` archive-candidate selection leaves linked
+       deliberations and unlisted descendants independent;
+    2. non-cascading `archive_item` changes exactly the named artifact. At
+       `v1.11.0`, `internal/core/archive.go` `ArchiveItem` (L103) rewrites only the
+       `status`, `archived_status`, and `archived_from` frontmatter keys
+       (L234-255), plus the gitignored item event log and index.
+
+    The name is kept for traceability to `038-DL` and `8928EC67`. The docstring
+    states the two-proposition scope.
+  * `class EngineSemanticsVerdict(str, Enum)` with the values `VERIFIED` and
     `UNVERIFIED`.
-  * Add a frozen dataclass `EngineSemanticsDecision` with fields `verdict`,
-    `reason: str`, `probed_version: str | None`, and
-    `minor_line: tuple[int, int] | None`.
-  * Add `assess_cascade_engine_semantics(probed_version: object) -> EngineSemanticsDecision`.
-    It accepts only a `str` that fully matches
-    `^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`.
-    It does no `.strip()` and no coercion. The result is `VERIFIED` only when
-    `(major, minor)` is in the constant. Everything else is `UNVERIFIED`, with a
-    reason starting with `ENGINE_SEMANTICS_UNVERIFIED:` that names the cause:
-    `non-string`, `unparseable`, or `minor line X.Y not verified`.
-  * The function never raises on bad input.
-  * The signature and behavior of `classify_shipment_close_path` are
-    **unchanged**. `198-S` depends on it.
-  * Rewrite the module docstring L9-21:
+  * A frozen dataclass `EngineSemanticsDecision` with fields `verdict`,
+    `reason: str`, `probed_version: str | None`,
+    `minor_line: tuple[int, int] | None`, `probe_surface: str | None`, and
+    `probed_commit: str | None`.
+  * `assess_cascade_engine_semantics(probed_version: object, *, probe_surface: object, invocation_surface: object, probed_commit: object = None) -> EngineSemanticsDecision`:
+    * **Type.** Only an exact `str` is accepted (`type(x) is str`). A `str`
+      subclass, `bytes`, `float`, or `None` is `non-string`.
+    * **Parse.** Use
+      `re.fullmatch(r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?", s, flags=re.ASCII)`.
+      This is `fullmatch`, never `match` with `$` (which accepts a trailing `\n`),
+      with an ASCII-only `[0-9]` digit class. No `.strip()` and no coercion.
+      Anything else is `unparseable`.
+    * **Released builds only (amends D4, see D4a).** Any pre-release or
+      build-metadata component is `UNVERIFIED` with the reason
+      `unreleased build`. This includes Go pseudo-versions
+      (`-0.<14 digits>-<12 hex>`), `+dirty`, and `-rc1`.
+    * **Same surface.** `probe_surface` and `invocation_surface` must each be
+      exactly `"mcp"` or `"cli"`, and they must be equal. Otherwise the result is
+      `UNVERIFIED` with `unknown probe surface` or `probe surface mismatch`. The
+      MCP server and the CLI binary can be different builds.
+    * `(major, minor)` in the constant is `VERIFIED`. Otherwise it is
+      `UNVERIFIED` with `minor line X.Y not verified`.
+    * Every `UNVERIFIED` reason starts with `ENGINE_SEMANTICS_UNVERIFIED:`. The
+      function never raises. `probed_commit` is recorded verbatim when it is an
+      exact `str`, otherwise `None`. It is not interpreted here. The skill's
+      re-probe compares it raw.
+  * `select_close_path(classifier: ClosePathDecision, engine: EngineSemanticsDecision) -> tuple[ClosePath, str]`.
+    This is **the single executable composition point** (P1-3).
+    * It returns `CASCADE` iff
+      `classifier.close_path is ClosePath.CASCADE and engine.verdict is EngineSemanticsVerdict.VERIFIED`.
+    * Otherwise it returns `SAFE_CLOSE`, with the classifier's reason when the
+      classifier said SAFE_CLOSE, or the engine's reason when the classifier said
+      CASCADE and the engine is UNVERIFIED.
+    * Wrong-typed inputs return `SAFE_CLOSE` with
+      `CLOSE_PATH_SELECTION_INVALID_INPUT`. It never raises.
+    * The skill cites this function and also states its 2×2 truth table for
+      workspaces without the Python implementation.
+  * `classify_shipment_close_path` keeps its signature and behavior
+    **unchanged**.
+  * Rewrite the module docstring (L9-21):
     * `allowed_ids(S) = closure_scope(S)`;
-    * `required_ids(S) = {S} ∪ qualifying feature members ∪ {x ∈ items(S): not truly archived pre-close}`;
-    * one paragraph stating that validated linked deliberations are outside both
-      sets under backlogit 1.11.x and are handled by the skill's disposition step;
-    * a pointer to `assess_cascade_engine_semantics`.
-* **Tests** (new) in `tests/test_cascade_engine_semantics_gate.py`:
-  1. `1.11.0`, `v1.11.0`, and `1.11.1-0.20261001000000-abcdef+dirty` are
-     `VERIFIED`, with `minor_line == (1, 11)`.
-  2. These are `UNVERIFIED` and name the minor line:
-     * `1.10.1-0.20260823032255-b07729386a31+dirty`
-     * `1.10.0`
-     * `1.12.0`
-     * `1.12.0-rc1`
-     * `2.11.0`
-  3. These are `UNVERIFIED` as `non-string` or `unparseable`: `None`, `""`,
-     `" 1.11.0"`, `"1.11"`, `"dev"`, `"(devel)"`, `1.11` (a float), and `b"1.11.0"`.
-  4. The docstring contains the flat `allowed_ids(S)` definition and no longer
-     contains `∪ validated_linked_deliberations(S)`. The constant is exposed and
-     equals `frozenset({(1, 11)})`.
-* **Posture:** test-first (red, then green).
-* **Size:** S. **Complexity:** low.
+    * `required_ids(S) = {S} ∪ qualifying feature members ∪ {x ∈ items(S): x not truly archived pre-close}`,
+      over every manifest item regardless of `artifact_type`;
+    * validated linked deliberations are outside both sets under 1.11.x and are
+      handled by the INV-12 disposition step;
+    * pointers to `assess_cascade_engine_semantics`, `select_close_path`, and
+      `compute_linked_deliberation_disposition` (U1b).
+* **Runtime callers (P2).** The self-hosting skill's Step 0(c) (U3a) and the
+  disposition step (U5a) cite these functions. Ship evaluates them during dogfood
+  closure. They are also the named caller surface for 198-S's A2/A3 evaluator,
+  which the 198-S re-plan must adopt (see the P1-3 follow-up stash entry).
+* **Tests** (new) in `tests/test_cascade_engine_semantics_gate.py`, written first:
+  1. `VERIFIED` with the surfaces `mcp`/`mcp` and `cli`/`cli`: `1.11.0`,
+     `v1.11.0`, and `1.11.7`, with `minor_line == (1, 11)`.
+  2. `UNVERIFIED` with `unreleased build`:
+     * `1.11.1-0.20261001000000-abcdef123456`
+     * `1.11.0+dirty`
+     * `1.11.1-0.20261001000000-abcdef123456+dirty`
+     * `1.11.1-rc1`
+  3. `UNVERIFIED`: `1.10.0`, `1.10.1`, `1.12.0`, `2.11.0` (these name the minor
+     line), and `1.12.0-rc1` (prefix asserted).
+  4. `UNVERIFIED` as `non-string` or `unparseable`:
+     * `None`, `""`, `" 1.11.0"`, `"1.11.0 "`, `"1.11.0\n"`, `"1.11"`, `"dev"`,
+       `"(devel)"`;
+     * full-width and Arabic-Indic digit forms;
+     * `1.11` (a float) and `b"1.11.0"`;
+     * a `str` subclass instance whose value is `"1.11.0"`.
+  5. Surface: `mcp`/`cli`, `None`, and `"MCP"` are `UNVERIFIED`.
+  6. `select_close_path`: the full 2×2 truth table plus the invalid-input row.
+  7. Prose/regex parity: every example version string that the U2a/U3a text
+     quotes is asserted against the function.
+  8. The docstring contains the flat definition and not
+     `∪ validated_linked_deliberations(S)`. The constant equals
+     `frozenset({(1, 11)})`.
+* **Exit:** the new tests are green, `tests/test_shipment_closure_classification.py`
+  is unchanged and green, and the full suite is green.
+* **Size:** M (was S; select_close_path and hardened parsing added).
+  **Complexity:** low.
 
-### U2 — P-015 policy realignment (template and mirror)
+### U1b — Pure read-only linked-deliberation disposition planner (code) — 195.008-T (new)
+
+Added 2026-09-29 (independent review P2 "pure read-only planner", P1-6, P1-7, P2
+self/cycle, P2 torn, P2 every-member-type).
+
+Add `compute_linked_deliberation_disposition(manifest_items, shipment_id, workspace_backlog_dir, *, engine: EngineSemanticsDecision, stash_path=None) -> LinkedDeliberationDispositionPlan`
+to `shipment_closure.py`. It is read-only, uses `autoharness.gates.topology._frontmatter`
+(the classifier's parser, H5), and never raises. Any read error fails closed to a
+retention outcome.
+
+* **Disposition set** (amends H1).
+  * **Links collected.** The union, over **every explicit manifest member
+    regardless of `artifact_type`**, of:
+    * the literal `custom_fields.source_deliberation_id`;
+    * matches of the matcher `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` in the
+      description and in each entry of the frontmatter `references` list.
+  * **Excluded:**
+    * the member's own ID (self-reference);
+    * every ID in `closure_scope(S)` (H10).
+  * **Validation.** Existence is validated **before** location. The ID must
+    resolve to at least one record whose `artifact_type` is `deliberation`. An
+    unresolved ID is recorded under `unresolved_references` and is never a halt.
+  * **Recorded per deliberation:** link kinds (`source_deliberation_id`,
+    `description`, `references`), linking member IDs, every record path, the
+    declared status, and the SHA-256 of each record path.
+* **Planned outcome per deliberation.** Apply the first rule that matches:
+  1. `retained_ambiguous`: the ID resolves to more than one record (torn or
+     duplicated).
+  2. `already-archived`: the declared `status` is exactly `"archived"` (H3).
+  3. `retained_engine_unverified`: the engine verdict is UNVERIFIED (P1-7). This
+     applies on every path.
+  4. `retained_live_status`: the deliberation's own status is `active`,
+     `in-progress`, or `blocked` (P1-6).
+  5. `retained_shared_reference: [referrer IDs]`: a live referrer exists (see
+     below).
+  6. `retained_description_mention`: no explicit member links the deliberation
+     through `source_deliberation_id`. It is linked only through description or
+     `references` text. The outcome is report-only (P1-6, reviewer-recommended
+     option).
+  7. `archive`: otherwise.
+* **Live referrers** (bounded, read-only; P1-6).
+  * **Counted:**
+    * work items (`feature`, `task`, `subtask`, `bug`, `chore`) outside
+      `closure_scope(S)` that are not truly archived and link the deliberation
+      through any of the three link sources;
+    * shipments other than `S` that are not truly archived, whose
+      `custom_fields.items` lists the deliberation, or whose description or
+      `custom_fields.source_deliberation_id` names it (the engine's `doctor.go`
+      treats shipment descriptions as links);
+    * active stash entries (`stash.jsonl`) whose `deliberation_id` equals the
+      deliberation, or whose text matches it.
+  * **Never counted:**
+    * the deliberation itself;
+    * any other deliberation, so A↔B cycles and historical cross-mentions never
+      count;
+    * docs and plan files;
+    * truly archived items and shipments;
+    * archived stash entries (`archive/stash.jsonl`).
+  * A referrer ID that resolves to more than one record counts as live, which
+    fails closed to retain.
+  * H3 applies to referrers too. An `archive/` record declaring `done` is live. A
+    `queue/` record declaring `archived` is not.
+* **Tests** (fixture-first; `tests/test_linked_deliberation_disposition_planner.py`):
+  * multi-feature manifest;
+  * self-reference;
+  * an A↔B deliberation cycle;
+  * a stash-only referrer (field form and text form);
+  * a referrer that is another shipment's member, and one that is named in
+    another shipment's description;
+  * an archived referrer, which is not counted;
+  * an `archive/` record with `status: done`, which is counted;
+  * a `queue/` record with `status: archived`, which is not counted;
+  * a torn deliberation, which yields `retained_ambiguous`;
+  * an explicit-member deliberation, which is excluded (H10);
+  * `status: active`, which yields `retained_live_status`;
+  * a description-only link, which yields `retained_description_mention`;
+  * engine UNVERIFIED, which yields `retained_engine_unverified` for every
+    non-archived deliberation;
+  * an unresolved ID, which goes to `unresolved_references`;
+  * a non-deliberation `artifact_type`, which is excluded;
+  * links from `task`, `bug`, and `chore` members.
+* **Size:** M. **Complexity:** medium. Depends on U1a.
+
+### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 195.002-T
 
 Files:
 
@@ -145,201 +357,470 @@ Files:
   workflow-policies entry)
 * `tests/test_flat_manifest_closure_docs.py`
 
-Changes:
+Changes (amended 2026-09-29, independent review P1-5, P1-6, P1-7, P2 every-member-type,
+P3 source relabel):
 
 * **D1a.** `allowed_ids(S)` becomes `closure_scope(S)`. `required_ids(S)` becomes
-  `{S} ∪ {qualifying feature members} ∪ {x ∈ items(S) : x not truly archived pre-close}`.
+  `{S} ∪ {qualifying feature members} ∪ {x ∈ items(S) : x not truly archived pre-close}`
+  over every manifest item regardless of `artifact_type`.
 * **Admission paragraph.** Redefine `validated_linked_deliberations(S)` as the
-  **disposition set**: the validated linked deliberations of every explicit
-  feature member of `items(S)`. The same three engine-defined sources, the matcher
-  `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b`, and the existence plus
-  `artifact_type: deliberation` validation all apply. The set enters neither
-  `allowed_ids(S)` nor `required_ids(S)`. It **excludes every ID in
-  `closure_scope(S)`** (hardening H10): a deliberation that is itself an explicit
-  manifest member is governed by the ordinary member rules of `allowed_ids(S)` /
-  `required_ids(S)`, not by INV-12, the byte-identity check, or the drift halt.
-* **INV-1.** Linked deliberations are accounted for only by INV-12, never in
-  `allowed_ids(S)`.
-* **INV-6.** The "may be live/required and `CASCADE` archiving it is expected"
-  clause becomes: "the engine leaves it independent under the verified engine
-  line; its disposition is INV-12".
-* **New CASCADE precondition** in the Precondition list. CASCADE requires
-  `assess_cascade_engine_semantics` (or an equivalent check) to return `VERIFIED`
-  for a **fresh** probe of the installed backlogit version. The verified line is
-  stated literally as `1.11` and must equal the constant. Otherwise, select
-  `SAFE_CLOSE` with the reason `ENGINE_SEMANTICS_UNVERIFIED`.
-* **New INV-12 (Linked-deliberation disposition).** This paragraph must be the
-  authoritative restatement of hardening decisions H3 and H5 (see Plan
-  Hardening). After either close path's postconditions pass:
-  * each member of the disposition set that was not truly archived pre-close is
-    either retained (shared reference) or archived individually and verified;
-  * disposition never widens `closure_scope(S)`;
-  * failure halts with P-005 and does not advance to post-mode.
+  **disposition set**, exactly as U1b defines it:
+  * every explicit member regardless of type;
+  * self and `closure_scope(S)` excluded (H10);
+  * existence validated before location;
+  * unresolved IDs never halt.
+
+  The link sources are relabelled "the three autoharness-defined link sources
+  (frozen from backlogit 1.10.x `linkedDeliberationIDs`; the 1.11.x engine no
+  longer uses them for archival)". "References" is defined precisely: each entry
+  of the artifact's frontmatter `references` list, scanned as text with the
+  matcher. The set enters neither `allowed_ids(S)` nor `required_ids(S)`.
+* **INV-1.** Linked deliberations are accounted for only by INV-12.
+* **INV-6.** The engine leaves a linked deliberation independent under the
+  verified engine line. Its disposition is INV-12.
+* **New CASCADE precondition.**
+  * `select_close_path` must return CASCADE. The self-hosting implementation calls
+    `assess_cascade_engine_semantics`. Other workspaces use an equivalent check:
+    a **fresh** probe of the installed backlogit version on **the same surface
+    (MCP or CLI) that the close path will invoke**, released builds only.
+  * The skill records `probe_surface`, `version`, and `commit`.
+  * The policy carries the token ``Verified engine-semantics lines: `1.11` ``.
+  * Otherwise select SAFE_CLOSE with `ENGINE_SEMANTICS_UNVERIFIED`.
+* **SAFE_CLOSE reliance, reworded (P1-7).** SAFE_CLOSE does not depend on cascade
+  semantics, fails closed, and never invokes the cascade. It depends on
+  `archive_item` semantics. That is the second verified proposition, and its
+  general registry is `8928EC67`. The plan never states that SAFE_CLOSE is
+  "always valid".
+* **New INV-12 (Linked-deliberation disposition)** is the authoritative text.
+  After the **selected** close path's gate passes, the Linked-Deliberation
+  Disposition step assigns each disposition-set member exactly one outcome from:
+  * `archived`
+  * `already-archived`
+  * `retained_engine_unverified`
+  * `retained_ambiguous`
+  * `retained_live_status`
+  * `retained_shared_reference`
+  * `retained_description_mention`
+
+  Mutation is a single-artifact, non-cascading archive, and it happens only when
+  all of these hold:
+  * the engine verdict is VERIFIED;
+  * the deliberation is linked from an explicit member's `source_deliberation_id`;
+  * the deliberation's own status is not live;
+  * it resolves to exactly one record;
+  * it has no live referrer.
+
+  Rules around each archive:
+  * a hash re-check and a guard re-check come immediately before the archive;
+  * verify-after-each comes immediately after it.
+
+  The step as a whole:
+  * never widens `closure_scope(S)`;
+  * is independent of the close path;
+  * reports retained outcomes, which never halt.
+
+  If a verification fails, the step halts with P-005 and never advances to
+  post-mode.
 * **Supersession note (2026-09-29).** The 155-S linked-deliberation allowance was
   correct for backlogit 1.10.x and is superseded for 1.11.x. Cite `5a4b70dd`, the
   v1.11.0 engine test, and 190-S.
-* **History row** `1.28.0 | {{DATE}} | Corrected P-015 | …` in the template. The
-  mirror uses the concrete date.
+* **History row** `1.28.0 | {{DATE}} | Corrected P-015 | …`. The mirror uses the
+  concrete date.
 
 Tests, written first:
 
-* `INVARIANT_TOKENS` covers `INV-1`..`INV-12`.
-* A new test asserts in both policy texts:
-  * the flat `allowed_ids(S)` row;
-  * the absence of `closure_scope(S) ∪ validated_linked_deliberations(S)`;
-  * the presence of `ENGINE_SEMANTICS_UNVERIFIED` and INV-12;
-  * that the stated verified line equals `VERIFIED_CASCADE_ENGINE_MINOR_LINES`
-    (imported from U1).
-* A parity test asserts that the mirror equals the rendered template text for the
-  P-015 section. Reuse the existing parity helper if one exists; otherwise compare
-  the sections with `{{DATE}}` normalized.
+* A **policy-only** INV-12 assertion: a new test iterating only the two policy
+  files (P1-5). `INVARIANT_TOKENS` stays `INV-1`..`INV-11` until U4, because the
+  shared test iterates the skill pair too.
+* The flat `allowed_ids(S)` row.
+* The absence of `closure_scope(S) ∪ validated_linked_deliberations(S)`.
+* `ENGINE_SEMANTICS_UNVERIFIED` and `select_close_path`.
+* The verified-line token, parsed, equals the constant.
+* The H10 exclusion sentence and the seven-outcome vocabulary.
+* The absence of "always valid" for SAFE_CLOSE.
+* Rendered-region parity for the edited paragraphs, with an allowlist.
 
-Size M. Complexity medium. Depends on U1.
+Size M. Complexity medium. Depends on U1a.
 
-### U3 — shipment-reconcile Step 0(c): engine-semantics gate and disposition snapshot
+### U2b — P-015 close-path gate vs. INV-12 split, P-010 clarification (policy) — 195.009-T (new)
+
+Added 2026-09-29 (independent review P1-2, P2 P-010, P3 1.10-era scoping). Same
+bundle as U2a, plus `tests/test_cascade_close_archived_ids_postcondition.py` for the
+policy assertions.
+
+Changes. The design splits the old closure postconditions into two layers:
+
+* the **close-path gate**, evaluated before disposition (INV-10);
+* the separately sanctioned **INV-12 post-gate mutation**, with its own
+  invariance check.
+
+The paragraph edits:
+
+* **Statement.** Add one sentence. After the selected close path completes, the
+  separately sanctioned INV-12 step may archive validated linked deliberations
+  individually. This is not closure scope.
+* **Required Check.**
+  * Delete the clause "a required transition of a
+    `validated_linked_deliberations(S)` member … is an expected, in-scope cascade
+    mutation".
+  * On the CASCADE path the check covers every observed artifact outside
+    `allowed_ids(S)` **and** every disposition-set record path. A disposition-set
+    member that changes during the cascade is engine drift.
+* **Postcondition.** Split into two parts:
+  * (a) the close-path gate postcondition, which is the current text with the
+    flat sets and is evaluated before disposition;
+  * (b) the INV-12 postcondition: only deliberations with the outcome `archived`
+    may change after the gate, and each one is verified.
+* **Violation Action.** Add `HALT — linked-deliberation disposition failed {id}`
+  under the same D6 sequence. There is no automatic rollback of the completed
+  closure.
+* **Relationship to P-007.** The post-mode deleted-file guard treats verified
+  `archived` disposition moves as expected.
+* **INV-7.** Add temporal scope. Baseline invariance is evaluated at the
+  close-path gate. INV-12 then applies its own check against the disposition
+  baseline.
+* **INV-10.** Label it "close-path gate postconditions (evaluated before INV-12
+  disposition)". Add: INV-12's `archived` deliberations are the only artifacts
+  outside `allowed_ids(S)` that may change after the gate, and only through INV-12.
+* **Item 7.**
+  * The "correctly absent" sentence covers non-feature manifest members only.
+    Remove "or a qualifying feature member's validated linked deliberation" and
+    "unlike a manifest task item or a qualifying feature's linked deliberation".
+  * Correct the `collectArchiveCandidateIDs` description: under 1.11.x there is
+    no linked-deliberation append.
+* **Evidence-class note.** Two engine propositions hold under the verified line:
+  * (1) inert archived descendants, proven by the existing path-scoped
+    comparison;
+  * (2) 1.11.x leaves linked deliberations independent, proven by the engine
+    source at `v1.11.0` L716-751,
+    `TestUArchiveCandidateFlat_UnlistedLinkedDeliberationIsUntouched`, and the
+    190-S observation.
+
+  `archive_item` single-artifact semantics is a verified-line **assumption** that
+  `8928EC67` generalizes.
+* **1.10-era scoping (P3).** The engine-rationale rows and INV-11's "under
+  backlogit 1.10.1" stay as the observed line, with the note "not re-verified for
+  1.11; re-verification is owned by `8928EC67`".
+* **P-010 clarification (P2).**
+  * Under **Ship MAY**, add: "archive a validated linked deliberation only
+    through the P-015 INV-12 Linked-Deliberation Disposition step (and the
+    post-merge source-artifact retirement that consumes its report). This is a
+    closure lifecycle transition, not creation or modification of deliberation
+    content."
+  * Qualify **Ship MUST NOT** "Create or modify deliberation … artifacts" with
+    "(P-015 INV-12 archival transitions excepted)".
+
+Tests, written first. These are policy assertions in
+`CascadeCloseTwoSetGatePolicyTests`. The item-7 tests move out of
+`CascadeCloseLinkedDeliberationAllowanceTests`, which U3b replaces.
+
+* Invert `test_item_7_omission_sentence_scoped_to_task_and_linked_deliberation` →
+  `test_item_7_omission_sentence_scoped_to_non_feature_members`.
+* The Required Check no longer contains "expected, in-scope cascade mutation".
+* The two-part Postcondition is present.
+* The INV-10 label is present.
+* The Evidence-class note names two propositions.
+* The P-010 clarification is present.
+* Rendered-region parity.
+
+Size M. Complexity medium. Depends on U2a.
+
+### U3a — Skill Step 0(b)/(c): all-member snapshot, engine-semantics gate, close-path selection, re-probe — 195.003-T
 
 Files: the skill template, the skill mirror, the manifest checksum and note for
 the skill mirror, and `tests/test_cascade_close_archived_ids_postcondition.py`.
 
-Changes:
+Changes (amended 2026-09-29, independent review P1-2, P1-3, P2 probe surface, P2
+every-member-type, P3 registry, P3 re-probe):
 
-* **New Step 0(c) sub-step "Engine-semantics gate"**, placed before the
-  classifier result is acted on:
-  * Probe `{{OP_GET_VERSION_MCP}}`-equivalent `backlogit_get_version` with
-    `no_update_check: true`. The CLI form is
-    `backlogit version --no-update-check --format json`. Read the `version` field.
-  * Apply the verified-line rule.
-  * CASCADE is selectable only when both the classifier returns `CASCADE` **and**
-    the gate returns `VERIFIED`. Otherwise select SAFE_CLOSE, record the reason
-    `ENGINE_SEMANTICS_UNVERIFIED: …`, and record the probed version.
+* **Step 0(b).** Snapshot `parent_id` and declared `status` for **every explicit
+  manifest member regardless of `artifact_type`**, not only task items. The flat
+  `required_ids` needs this.
+* **New Step 0(c) sub-step "Engine-semantics gate"**, before the classifier
+  result is acted on:
+  * **Probe on the same surface the close path will use.** Use MCP
+    `backlogit_get_version` with `no_update_check: true`, or the CLI
+    `backlogit version --no-update-check --format json`.
+  * **Literal wording.** Use literal tool/CLI wording. Do not add an
+    `{{OP_…}}` placeholder: the registry's `get_version` entry has no
+    `params`/`cli_command` (P3 disposition: literal bypass, no registry change).
+  * Record `probe_surface`, `version`, and `commit`.
+  * Apply `assess_cascade_engine_semantics` (self-hosting), or the equivalent
+    rules: released `X.Y.Z` only, minor line in the token, surface match.
   * A probe failure is `UNVERIFIED`.
-  * If the template has no registry placeholder for `get_version`, use literal
-    tool/CLI wording. **Do not add a new placeholder** without registry support,
-    because a new placeholder would need renderer and registry changes.
-* **Replace the "Linked-deliberation snapshot extension (155-S)" text** with a
-  "Linked-deliberation disposition snapshot":
-  * It runs for **every explicit feature member**, on both paths.
-  * It uses the same three sources, the same matcher, and the same validation.
-  * It keeps the torn/missing halts (`RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS` /
-    `RECONCILE_FAIL_SNAPSHOT_MISSING`).
-  * It records ID, single resolved location, declared status, and **SHA-256**.
-  * It states explicitly that the engine does not archive these under the
-    verified line, and cites `5a4b70dd` and v1.11.0.
-* **Update the INV-6 scoping sentence at L444-449** to match.
-* **Pre-invocation revalidation (L822-843).** Keep the linked-deliberation
-  re-collection and compare the SHA-256 as well. Add a fresh engine-version
-  re-probe: a different version string, or a change of verdict, halts with
-  `HALT — cascade pre-invocation revalidation drift detected` and P-005.
+* **Close-path selection.** Use `select_close_path(classifier_decision, engine_decision)`,
+  or its stated 2×2 table.
+  * **SAFE_CLOSE selected** now explicitly includes `ENGINE_SEMANTICS_UNVERIFIED`.
+  * **CASCADE selected** ends with "then continue to the Linked-Deliberation
+    Disposition step", replacing "then proceed to post-mode" (L555-559, P1-2).
+* **Pre-invocation revalidation.**
+  * Run a fresh re-probe on the same surface.
+  * Compare the raw `version`, `commit`, and `probe_surface`, and the verdict.
+  * Any difference, **or a re-probe failure**, yields
+    `HALT — cascade pre-invocation revalidation drift detected` and P-005.
+  * A re-probe failure halts rather than falling back to SAFE_CLOSE (P3
+    disposition). Falling back after a CASCADE verdict would be the prohibited
+    CASCADE→SAFE_CLOSE substitution. The halt is non-mutating and
+    operator-recoverable.
+
+Tests, written first. Add a new class `CascadeCloseEngineSemanticsGateTests`
+asserting:
+
+* `Engine-semantics gate`, `ENGINE_SEMANTICS_UNVERIFIED`, `no_update_check`,
+  `probe_surface`, and `select_close_path`;
+* the verified-line token equals the constant;
+* the re-probe compares version, commit, and surface;
+* a re-probe failure halts;
+* Step 0(b) says "every explicit manifest member";
+* the CASCADE routing names the disposition step;
+* rendered-region parity.
+
+`CascadeCloseLinkedDeliberationAllowanceTests` stays untouched here; U3b replaces
+it.
+
+Size M. Complexity medium. Depends on U2b.
+
+### U3b — Skill disposition snapshot, INV-6 scoping, transition-log preamble, re-collection — 195.010-T (new)
+
+Split from U3 on 2026-09-29 (independent review P2 sizing, P2 torn, P1-2). Same
+bundle as U3a.
+
+* **Replace "Linked-deliberation snapshot extension (155-S)"** with
+  "Linked-deliberation disposition snapshot". It is computed on every run, on both
+  paths, using U1b's set definition. It records, per deliberation:
+  * link kinds and linking members;
+  * every record path;
+  * the declared status;
+  * the SHA-256 per record path.
+
+  Handling rules:
+  * Existence is validated before location.
+  * A torn or duplicate deliberation becomes `retained_ambiguous`, with no halt.
+    Every record path is still fingerprinted for U4's byte-identity check.
+  * An unresolved ID goes to `unresolved_references`, with no halt.
+  * `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS` / `RECONCILE_FAIL_SNAPSHOT_MISSING` apply
+    to manifest members only.
+  * The text states that the engine does not archive these under the verified
+    line (`5a4b70dd` / v1.11.0). `linkedDeliberationIDs` may appear only inside an
+    explicit superseded-provenance sentence.
+* **INV-6 scoping sentence (L444-449).** The engine leaves linked deliberations
+  independent. Their disposition is INV-12.
+* **Transition-log preamble (L737-760, P1-2).**
+  * Drop "or a qualifying feature member's validated linked deliberation" from
+    the correctly-absent sentence.
+  * Change "a task item or linked deliberation can" to "a non-feature manifest
+    member can".
+* **Pre-invocation re-collection (L822-843).** Keep it. It compares link kinds,
+  record paths, declared statuses, and SHA-256.
 
 Tests, written first. Replace `CascadeCloseLinkedDeliberationAllowanceTests`
-with `CascadeCloseLinkedDeliberationFlatSemanticsTests`, keeping the valid
-assertions:
+(minus the item-7 tests that U2b moved) with
+`CascadeCloseLinkedDeliberationFlatSemanticsTests`, asserting:
 
-* torn/missing halts;
-* exact sources;
-* existence and `artifact_type`;
-* no blanket allowance.
+* the exact link sources;
+* existence validated before location;
+* a torn deliberation yields `retained_ambiguous`, not a halt;
+* `unresolved_references`;
+* SHA-256;
+* no blanket allowance;
+* `linkedDeliberationIDs` appears only in a superseded sentence;
+* the H10 exclusion;
+* the scoped transition-log sentence;
+* rendered-region parity.
 
-The following assertions are dropped or inverted:
+**Retain unchanged**:
 
-* the text no longer contains `linkedDeliberationIDs`, except inside an explicit
-  superseded-provenance sentence;
-* it contains `Engine-semantics gate`, `ENGINE_SEMANTICS_UNVERIFIED`, and
-  `no_update_check`;
-* the snapshot records SHA-256;
-* the verified line stated in the skill equals the U1 constant.
+* `test_allowed_ids_bullet_includes_linked_deliberations`;
+* `test_required_ids_bullet_extended_for_linked_deliberations`;
+* the Quality Criteria "never a blanket allowance" assertion.
 
-Also add a byte-parity assertion between the template and the mirror for the
-edited region. Size M. Complexity medium. Depends on U1 and U2.
+U4 inverts all three.
 
-### U4 — shipment-reconcile Cascade Close: flat postcondition sets and linked-deliberation byte-identity
+Size M. Complexity medium. Depends on U3a.
 
-Files: the same bundle as U3.
+### U4 — Skill Cascade Close: flat postcondition sets and linked-deliberation byte-identity — 195.004-T
 
-Changes:
+Files: the same bundle as U3a.
+
+Changes (amended 2026-09-29, independent review P1-5, P2 every-member-type, P2
+test ownership):
 
 * **Step 3.**
-  * `allowed_ids` becomes manifest task items, qualifying feature members, and the
-    shipment record.
-  * `required_ids` becomes the shipment record and qualifying features
-    (unconditionally), plus non-archived manifest task items.
+  * `allowed_ids` becomes `closure_scope(S)`: **every manifest item regardless of
+    `artifact_type`**, plus the shipment record.
+  * `required_ids` is the shipment record and the qualifying features
+    (unconditionally), plus every other manifest item that was not truly
+    archived in the Step 0(b) all-member snapshot.
   * Remove the linked-deliberation clauses and the `027-DL` tolerance example.
-  * Keep the task-only tolerance and the feature/shipment non-tolerance
+    Keep the non-feature tolerance and the feature/shipment non-tolerance
     paragraphs.
-  * Add: "a validated linked deliberation in `archived_ids` fails the
-    unexpected-artifact check — engine drift".
-* **Step 5.** Extend it to the disposition snapshot: every snapshotted linked
-  deliberation must be byte-identical (location plus SHA-256) after the cascade.
-  Otherwise halt with
+  * Add: "a disposition-set deliberation in `archived_ids` fails the
+    unexpected-artifact check — engine drift". The H10 carve-out applies: an
+    explicit-member deliberation is an ordinary `allowed_ids` member.
+* **Step 5.** Every disposition-snapshot record path must be byte-identical
+  (location plus SHA-256) after the cascade. Otherwise halt with
   `HALT — cascade modified linked deliberation {id} — engine semantics drift` and
   P-005.
-* **Steps 6 and 7.** The report and the gate cover the engine-semantics decision,
-  the disposition snapshot, and the byte-identity outcome. The gate's `CLOSED`
-  hands off to the Linked-Deliberation Disposition step (U5) and not directly to
-  post-mode.
-* **Quality Criteria (L1204)** and the **P-015 Vocabulary summary (L1165-1177)**
-  are rewritten to match. Add `INV-12` to the summary.
+* **Steps 6 and 7.** The report and the gate cover the engine-semantics decision
+  (with `probe_surface`, `version`, and `commit`), the disposition snapshot, and
+  the byte-identity outcome. `CLOSED` hands off to the Linked-Deliberation
+  Disposition step.
+* **Quality Criteria (L1204)** and **Vocabulary summary (L1163-1177)** are
+  rewritten to match, and they add `INV-12`.
+* **`INVARIANT_TOKENS` becomes `range(1, 13)`** in
+  `tests/test_flat_manifest_closure_docs.py`, now that both skill files contain
+  INV-12 (P1-5).
 
 Tests, written first:
 
-* the `allowed_ids` / `required_ids` bullets are flat;
-* the drift halt string is present;
-* `027-DL` is absent from the tolerance paragraph;
-* the vocabulary summary lists INV-12;
-* template/mirror parity.
+* Invert the two step-3 tests retained by U3b, and the QC blanket-allowance
+  assertion.
+* Rewrite `CascadeCloseTwoSetGateScenarioTests.test_scenario_2_omitted_truly_pre_archived_tasks_gate_passes`:
+  drop the linked-deliberation/`027-DL` example and scope it to non-feature
+  manifest members.
+* Assert the drift halt string and the H10 carve-out.
+* Assert INV-12 in the summary.
+* Rendered-region parity.
 
-Size M. Complexity medium. Depends on U3.
+Size M. Complexity medium. Depends on U3b.
 
-### U5 — shipment-reconcile Linked-Deliberation Disposition step (new, path-independent)
+### U5a — Skill Linked-Deliberation Disposition section — 195.005-T
 
-Files: the same bundle as U3.
+Files: the same bundle as U3a, plus the new
+`tests/test_shipment_reconcile_linked_deliberation_disposition.py`.
 
-Changes: a new `### Linked-Deliberation Disposition` subsection. Safe-close step
-10 `PROCEED` and Cascade step 7 `CLOSED` both route into it before post-mode. The
-step is as follows:
+Changes (amended 2026-09-29, independent review P1-6, P1-7, P2 baseline, P2 planner,
+P3 TOCTOU, P3 forever-live, P2 advisories). Add a new
+`### Linked-Deliberation Disposition (P-015 INV-12)` subsection:
 
-1. **Input.** The Step 0(c) disposition snapshot. Members already truly `archived`
-   pre-close are recorded as `already-archived`, with no mutation.
-2. **Shared-reference guard.** Scan the queue root and the archive root for
-   artifacts that are *not* truly archived, lie outside `closure_scope(S)`, and
-   link the deliberation through any of the three sources. On a match, record
-   `retained_shared_reference: [ids]` and make no mutation.
-3. **Archive.** Otherwise, archive the deliberation on its own with
-   `{{OP_ARCHIVE_ITEM_MCP}}`. This is non-cascading, with one call per ID in
-   ascending ID order. Before each call, re-verify that the record still matches
-   its snapshot hash. A mismatch halts with no mutation.
+0. **Inputs.**
+   * the selected close path and its reason;
+   * the Step 0(c) engine-semantics decision;
+   * the disposition snapshot;
+   * the path-specific baseline.
+1. **Plan.** `compute_linked_deliberation_disposition` (U1b) produces the planned
+   outcome per deliberation. Other workspaces apply the same stated rules and
+   precedence. The guard references "the Step 0(c) matcher" by name and never
+   restates the regex, so the matcher literal count in the skill stays 2 (P2).
+   When the engine is UNVERIFIED, every non-archived deliberation is
+   `retained_engine_unverified` and nothing is mutated, on any path (P1-7).
+2. **Disposition baseline (P2).**
+   * **Components.**
+     * (i) The path-specific set: the safe-close observation-set fingerprints,
+       or the CASCADE out-of-manifest descendant fingerprints.
+     * (ii) The disposition snapshot.
+     * (iii) A pre-disposition
+       `git status --porcelain -- "{{BACKLOG_DIRECTORY}}/"` capture.
+     * The `closure_scope(S)` IDs already archived by this run are subtracted.
+   * **Allowed `ArchiveItem` side effects** (verified at `v1.11.0`
+     `internal/core/archive.go`):
+     * the target's own queue→archive move;
+     * the frontmatter keys `status`, `archived_status`, and `archived_from`;
+     * the gitignored item event log (`{{BACKLOG_DIRECTORY}}/logs/`) and index
+       (`{{BACKLOG_DIRECTORY}}/*.db*`);
+     * lock and hook-queue files.
+   * `ArchiveItem` does not write `stash.jsonl` or `archive/stash.jsonl`. Any
+     change there, or to any other path, violates the baseline.
+3. **Archive.** Work through each planned `archive` in ascending ID order.
+   * Immediately before each call, re-run the hash check **and** the
+     shared-reference guard for that ID (P3 TOCTOU).
+   * A hash mismatch halts with no mutation. A new referrer becomes
+     `retained_shared_reference` with no mutation.
+   * Archive through `{{OP_ARCHIVE_ITEM_MCP}}` (CLI `backlogit archive {id}`). No
+     cascade flag. Use the probed surface.
 4. **Verify-after-each.** All of the following must hold:
-   * the queue copy is absent and the archive copy is present, with exactly one
-     record;
+   * the queue copy is absent, and the archive copy is present exactly once;
    * `status: archived`;
    * `archived_status` equals the snapshotted declared status;
-   * body and `custom_fields` are unchanged except for the engine's archive
-     frontmatter keys;
-   * every artifact outside `closure_scope(S)` other than this deliberation is
-     still baseline-invariant.
+   * frontmatter compared **semantically** (parsed YAML, because `ArchiveItem`
+     re-serializes) is equal except for the three engine keys;
+   * the body is **byte-exact**;
+   * disposition-baseline invariance holds.
 
-   Any failure halts with `HALT — linked-deliberation disposition failed {id}` and
-   P-005. There is no retry and no rollback of the completed closure, and the run
-   does not advance to post-mode.
-5. **Report.** Record `linked_deliberation_disposition: [{id, outcome: archived|retained_shared_reference|already-archived, pre_sha256, post_sha256, archived_status}]`.
-6. **Post-mode.** The step 2 per-item check also covers the `archived` outcomes.
-   The deleted-file guard treats their queue→archive moves as expected.
+   Any failure yields `HALT — linked-deliberation disposition failed {id}`, P-005,
+   and the D6 sequence. There is no retry and no rollback of the completed
+   closure. The run does not advance to post-mode, and a torn disposition is
+   never committed (H4).
+5. **Report.** Record:
+   * `linked_deliberation_disposition: [{id, link_kinds, linking_members, outcome, referrers, pre_sha256, post_sha256, archived_status}]`;
+   * `unresolved_references`;
+   * the durable advisories `ENGINE_SEMANTICS_UNVERIFIED` /
+     `ENGINE_LINE_UNVERIFIED_ADVISORY`, carried into the closure summary (P2);
+   * a `stranded_linked_deliberation` advisory listing every `retained_*`
+     outcome, so a deliberation that stays live for a long time is visible to
+     the operator (P3).
+6. **Gate.** When every deliberation has exactly one outcome and every
+   `archived` outcome is verified, the result is
+   `recommendation: DISPOSITION_COMPLETE`. Continue to post-mode.
 
 Also:
 
-* Add two scenario-matrix rows: shared-reference retained, and engine-drift halt.
-* Add a Quality Criteria bullet.
-* State that this step is the sanctioned successor to the 190-S operator-approved
-  deviation.
+* the H7 action-risk statement;
+* the statement that this step is the sanctioned successor to the 190-S
+  operator-approved deviation.
 
-Tests, written first: the section exists; the safe-close and cascade hand-offs
-point to it; the halt string, the report field, the three outcomes, and
-`retained_shared_reference` are present; there is no `cascade` flag on the
-archive call; template/mirror parity.
+Tests, written first, assert:
 
-Size M. Complexity medium. Depends on U4.
+* the section exists;
+* the seven outcomes;
+* the halt string and the report field;
+* the baseline definition, including `git status --porcelain`;
+* semantic frontmatter comparison with a byte-exact body;
+* the allowed side-effect paths, with the stash files excluded;
+* engine UNVERIFIED means no mutation;
+* the guard re-runs before each archive;
+* no cascade flag;
+* `compute_linked_deliberation_disposition` is cited;
+* the matcher literal count is 2;
+* rendered-region parity.
 
-### U6 — Ship agent CASCADE bullet (template and mirror)
+Size M. Complexity medium. Depends on U4 and U1b.
+
+### U5b — Skill hand-offs, post-mode, safe-close wording, scenario matrix, closing negative grep — 195.011-T (new)
+
+Split from U5 on 2026-09-29 (independent review P1-2, P1-7, P2 sizing). Same bundle
+as U5a.
+
+* **Hand-offs.**
+  * Safe-close step 10 `recommendation: CLOSED` continues to the
+    Linked-Deliberation Disposition step. The actual token is `CLOSED`, not
+    `PROCEED`.
+  * Check that the Step 0(c) CASCADE routing (U3a) and Cascade step 7 (U4) are
+    consistent.
+* **Behavioral Constraints "Manifest-scoped mutation only" (L229)** and **safe-close
+  step 1 "only artifacts"**: these are the only artifacts that safe-close steps
+  1–10 may move or archive. The INV-12 disposition step is separately sanctioned.
+* **Safe-close step 8 and the INV-11 summary (P1-7).** Change to "while Step 0(c)'s
+  **selected** close path is not `CASCADE`".
+* **Post-mode.**
+  * Step 2's per-item check covers disposition `archived` outcomes.
+  * Step 3's deleted-file guard treats their moves as expected.
+  * Retained outcomes never change the step 5 gate.
+* **Scenario-matrix rows:**
+  * (a) classifier CASCADE + `ENGINE_SEMANTICS_UNVERIFIED` → SAFE_CLOSE →
+    disposition `retained_engine_unverified`;
+  * (b) shared reference retained;
+  * (c) engine drift (a linked deliberation archived or modified by the cascade)
+    → halt;
+  * (d) description-only mention → `retained_description_mention`;
+  * (e) torn deliberation → `retained_ambiguous`.
+* **Quality Criteria** bullets.
+* **Closing negative grep (P1-2).** Add
+  `test_no_stale_linked_deliberation_cascade_wording` over the policy, skill,
+  Ship agent, and `operational-closure` pairs. It asserts these are absent:
+  * "expected, in-scope cascade mutation";
+  * "may be live/required";
+  * "`CASCADE` archiving it is expected";
+  * "appends, for every explicit qualifying feature member";
+  * a "correctly absent" sentence naming a linked deliberation;
+  * "always valid" applied to SAFE_CLOSE;
+  * any "Proceed to post-mode" directly after a close-path `CLOSED`.
+
+Tests, written first: the items above, plus rendered-region parity.
+
+Size M. Complexity medium. Depends on U5a.
+
+### U6 — Ship agent close-path bullets, step 1.e gate, Role Boundary — 195.006-T
 
 Files:
 
@@ -347,103 +828,207 @@ Files:
 * `.github/agents/_ship.agent.md`
 * `.autoharness/harness-manifest.yaml` (the checksum and note of the Ship agent
   entry)
-* `tests/test_ship_safe_close_pointer.py`, or the Ship pointer test that pins
-  L826-830
+* `tests/test_ship_safe_close_pointer.py` / `tests/test_flat_manifest_closure_docs.py`
+  (`SHIP_AGENT_CONTRACT_FILES`)
+
+Changes (amended 2026-09-29, independent review P1-2, P1-4, P2 P-010):
+
+* **CASCADE bullet** (template L825-837, mirror L716-730):
+  * Replace the "never `validated_linked_deliberations(S)`, which the engine
+    reaches … may be live/required for `CASCADE` to archive" clause with flat
+    wording.
+  * Add "CASCADE also requires the skill's engine-semantics gate to return
+    `VERIFIED` (via `select_close_path`)".
+* **SAFE_CLOSE bullet** (template L816-824, mirror L706-715). Add "then the
+  skill's Linked-Deliberation Disposition step".
+* **Step 1.e commit gate** (template L867-871; the mirror's equivalent commit
+  gate). Commit only after the close path returned `CLOSED`, the disposition step
+  returned `DISPOSITION_COMPLETE` (never after a disposition `HALT`), and
+  post-mode returned `PROCEED`.
+* **Role Boundary Planning row** (template L43, mirror L52). Add "(P-015 INV-12
+  archival transitions of validated linked deliberations excepted)".
+* The mirror keeps its workspace-specific structure. The edits are phrase-level.
+
+Tests, written first: phrase-level semantic parity. The required phrases are
+present, and the withdrawn phrase is absent, in both files.
+
+Size S. Complexity low. Depends on U5b.
+
+### U6b — Ship post-merge Step 7 and operational-closure consume the disposition report — 195.012-T (new)
+
+Added 2026-09-29 (independent review P1-1).
+
+Files:
+
+* `templates/agents/_ship.agent.md.tmpl` (Step 7, L889-893)
+* `templates/skills/operational-closure/SKILL.md.tmpl` and
+  `.github/skills/operational-closure/SKILL.md` (Step 2 checklist, L84)
+* `.autoharness/harness-manifest.yaml` (the checksum and note of the
+  `operational-closure` mirror, and of the Ship agent mirror if it is touched)
+* one pinning test file
 
 Changes:
 
-* Replace "never `validated_linked_deliberations(S)`, which the engine reaches … and
-  may be live/required for `CASCADE` to archive" with flat wording.
-* Add: "CASCADE also requires the skill's engine-semantics gate to return
-  `VERIFIED`".
-* Add: "both paths end with the skill's Linked-Deliberation Disposition step".
+* **Ship Step 7 (template).**
+  * The `source_deliberation_id` bullet no longer calls `backlogit_archive_item`
+    independently. It reads the shipment's `linked_deliberation_disposition`
+    report.
+    * If the outcome is `archived` or `already-archived`, record it and skip.
+    * If the outcome is any `retained_*`, **never archive**. Record the outcome
+      verbatim.
+  * A deliberation that is absent from the report falls into one of two cases.
+    Either the report predates this contract, or the link was out of the
+    disposition set. In both cases, record `skipped_not_in_disposition_report`
+    and never archive.
+  * The `backlogit_archive_item` and `source_deliberation_id` tokens stay present,
+    as `verify_workspace.py`'s `ship_source_artifact_cleanup` check requires.
+* **Dogfood Ship mirror.** It has no Step 7 deliberation retirement. There is
+  nothing to realign beyond U6's Role Boundary edit. A test asserts that the
+  mirror still does not archive deliberations outside INV-12.
+* **`operational-closure` Step 2 "Source artifact cleanup" outcomes list.**
+  * Existing outcomes: archived; skipped because already archived; skipped
+    because not found; `none`.
+  * Add every `retained_*` outcome, plus `skipped_not_in_disposition_report`.
+  * The `source_deliberation_id` outcome is copied from the disposition report,
+    never re-derived. The `Source artifact cleanup`, `source_stash_id`, and
+    `source_deliberation_id` tokens stay present (the
+    `closure_source_artifact_cleanup` check).
 
-Tests, written first: the new phrases are present and the old phrase is absent,
-in both the template and the mirror.
+Tests, written first:
 
-Size S. Complexity low. Depends on U5.
+* Step 7 names `linked_deliberation_disposition` and "never archive" for
+  `retained_*`.
+* `operational-closure` lists `retained_shared_reference`.
+* The verify-workspace tokens are still present.
+* Rendered-region parity for `operational-closure`; phrase-level parity for the
+  Ship agent.
 
-### U7 — Docs: compound learning and supersession
+Size S. Complexity medium. Depends on U6.
+
+### U7 — Docs: compound learning, supersession notes, re-verification runbook — 195.007-T
 
 Files:
 
 * `docs/compound/2026-09-29-backlogit-1-11-flat-cascade-leaves-linked-deliberations.md`
   (new)
-* `docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`
-  (append a supersession note only)
+* Supersession notes appended only, with every test-pinned sentence kept
+  byte-identical, to:
+  * `docs/compound/2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`
+  * `docs/compound/2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md`
+  * `docs/compound/2026-08-18-p015-cascade-classifier-override-deviation.md`
+  * `docs/spikes/2026-08-18-cascade-close-pre-archived-member-behavior.md`
+* Check `docs/compound/2026-09-17-174-s-cascade-close-and-14-round-review-lessons.md`.
+  Append a note only if it asserts linked-deliberation cascade archival.
 
-Changes:
+Changes (amended 2026-09-29, independent review P2 U7, P2 runbook):
 
-* The learning uses frontmatter `problem_type: tool_version_behavior_drift`.
-* It lists the four drift occurrences.
-* It records the rule: every engine-behavior assumption carries a verified
-  version line, and CASCADE fails closed to SAFE_CLOSE outside that line.
-* It points to the deferred registry stash entry (D7).
+* The learning's frontmatter uses `problem_type: tool_version_behavior_drift`,
+  and `source:` is the file's own path.
+* The learning lists the four drift occurrences.
+* The rule: every engine-behavior assumption carries a verified version line, and
+  CASCADE and disposition mutation fail closed outside that line.
+* **Re-verification runbook for a new backlogit minor line.**
+  * **Engine functions to re-read at the new tag:**
+    * `collectArchiveCandidateIDs` and `archiveItems` in
+      `internal/core/shipment_lifecycle.go`;
+    * `ArchiveItem` in `internal/core/archive.go`, including its frontmatter-key
+      set.
+  * **Engine tests to confirm:** `TestUArchiveCandidateFlat_*`.
+  * **Surfaces to bump together:**
+    * the constant;
+    * the policy and skill tokens;
+    * this learning.
+  * The runbook requires the `8928EC67` deliberation first.
+* The learning points to `8928EC67` and `62C1E11E`.
 
-No code. Size XS. Complexity trivial. Depends on U5.
+Exit:
+
+* `markdownlint` is clean.
+* There are no broken relative links.
+* `tests/test_docs_compound_frontmatter_contract.py` and
+  `tests/test_docs_frontmatter_decodes.py` are green.
+
+Size S (was XS). Complexity low. Depends on U5b.
 
 ## Dependency Graph
 
 ```text
-U1 ──► U2 ──► U3 ──► U4 ──► U5 ──► U6
-                                 └──► U7
+U1a(001) ──► U1b(008) ─────────────────────────────┐
+   └──► U2a(002) ──► U2b(009) ──► U3a(003) ──► U3b(010) ──► U4(004) ──► U5a(005) ──► U5b(011) ──► U6(006) ──► U6b(012)
+                                                                                  └──► U7(007)
 ```
 
-The graph has no cycles. U3-U5 edit the same template and mirror in sequence, so
-serial order avoids conflicting edits. U6 and U7 are independent of each other.
+The graph has no cycles. U5a depends on both U4 and U1b. U2a-U6b edit the same
+policy, skill, and Ship files in sequence, so serial order avoids conflicting
+edits. All units land in one PR (see Single PR above).
 
-**Sequencing guard vs. 198-S (fail-closed).** Before U1 starts, Ship checks
-whether `192-F` / `198-S` (the cascade-close evidence command) has merged to the
-default branch.
+**Sequencing vs. 198-S (amended 2026-09-29; operator decision 2, 2026-09-29T12:54).**
+The DAG now carries `198-S blocks-on 201-S` (`backlogit dep add 198-S 201-S --type blocks`),
+and `198-S` is no longer in the `dag-readiness` ready set. The fail-closed guard
+stays as defense in depth. Ship runs it at three points: before U1a, before the
+P-014 PR-ready gate, and immediately before merge. It is a concrete check with
+three conditions:
 
-* **198-S has merged.** Its A3b postcondition evaluator and fixtures encode the
-  pre-1.11 `allowed_ids` / `required_ids`, and no unit in this plan updates that
-  code. Ship halts with `SCOPE_GAP — 198-S evaluator requires realignment` and
-  returns the shipment to Stage for a re-plan, which adds a unit for the
-  evaluator. Ship must not realign the evaluator ad hoc inside U2-U5 (P-021).
-* **198-S has not merged.** This plan proceeds as written. The operator decides
-  whether 198-S is blocked on this shipment (OQ1, recommended).
+1. `backlogit dep list 198-S` still lists `198-S → 201-S (blocks)`.
+2. `198-S` is still `queued`.
+3. `git --no-pager log --oneline origin/main --grep 192-F --grep 198-S --since 2026-09-29`
+   shows no 192-F/198-S implementation merge.
+
+If any condition fails, halt with `SCOPE_GAP — 198-S evaluator requires realignment`
+and return to Stage (P-021). Never realign the 198-S evaluator ad hoc. The 198-S
+re-plan is captured as a P-021 C2 stash entry (see the Independent review
+amendments).
 
 ## Decisions and Rationale
 
-* **The gate is a separate function; the classifier is unchanged.** 198-S's A2/A3
-  and the existing 750-line classifier tests stay stable. Composition happens at
-  Step 0(c), where the skill already composes the classifier with the snapshot.
-* **The gate verifies at minor-line granularity, not a semver range.** A range
-  upper bound admits `1.12.0-rc1` (semver pre-release precedence). The engine
-  change that caused this defect landed in a minor release.
-* **Fail closed to SAFE_CLOSE, not HALT.** SAFE_CLOSE never depends on cascade
-  semantics, so an unverified engine costs only the cascade convenience.
-* **Disposition is path-independent.** SAFE_CLOSE stranded linked deliberations
-  under both engine lines. The operator's goal ("don't recreate this scenario")
-  covers both paths.
-* **Shared-reference guard.** Under 1.11.x semantics, a deliberation's lifetime is
-  the lifetime of its referrers. Retention is the non-mutating fail-safe outcome.
-* **Parity bundles.** See the convention above. Checksums are refreshed in the
-  same unit that edits the mirror, so the suite is never red between tasks.
+* **The gate is a separate function, the classifier is unchanged, and composition
+  is executable.** 198-S's A2/A3 and the existing classifier tests stay stable.
+  `select_close_path` (U1a) is the single composition point, and the skill cites
+  it (P1-3).
+* **The gate verifies at minor-line granularity, released builds only, on the
+  invoking surface.** A semver range admits `1.12.0-rc1`. Pseudo-versions and
+  `+dirty` builds may carry unreleased engine changes. The MCP server and the CLI
+  may be different builds (D4a).
+* **Fail closed to SAFE_CLOSE, not HALT.** SAFE_CLOSE does not depend on cascade
+  semantics and never invokes the cascade. It still depends on `archive_item`
+  semantics. That dependency is covered by the same verified line, and its
+  generalization is `8928EC67` (P1-7).
+* **Disposition is path-independent but engine-gated.** It runs after either
+  path, and it mutates only under a VERIFIED engine line (P1-7).
+* **Auto-archive only `source_deliberation_id` links; retain on any live
+  reference.** A description or `references` mention is weak provenance (195-F
+  mentions `034-DL` incidentally), so it is report-only. Referrers include work
+  items, other unshipped shipments, and active stash entries. Retention is the
+  non-mutating fail-safe (P1-6).
+* **Step 7 consumes the disposition report.** One archiver, one guard (P1-1).
+* **Parity bundles with rendered-region parity** (P1-4). Checksums are refreshed
+  in the same unit that edits the mirror, so the suite is never red between
+  tasks.
 
 ## Risks and Caveats
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Queued `198-S` implements the stale sets in code | High if 198-S lands first | Operator decision OQ1: block 198-S on this shipment. 198-S computes the sets by reference to the skill |
+| Queued `198-S` implements the stale sets in code | Low (was high) | DAG edge `198-S blocks-on 201-S` (operator decision 2); a three-point sequencing guard; the re-plan stash entry |
 | Merge overlap with `169-S` / `171-S` on skill Step 0 | Medium | Text-only rebase by whichever lands second. Each unit's parity tests catch mismatches |
-| Version probe output shape changes | Low | The MCP `version` field and CLI `--format json` are both structured. Anything unparseable is `UNVERIFIED` |
+| Version probe output shape changes | Low | The MCP `version` field and the CLI `--format json` are both structured. Anything unparseable is `UNVERIFIED` |
 | A 1.11.x patch reintroduces linked archival | Low | U4's byte-identity halt and the unexpected-artifact halt |
-| The skill grows further (already about 1,270 lines) | Certain | Net change stays small because U3/U4 *replace* the 155-S text. Compaction is out of scope |
-| The dogfood closure of this very shipment exercises the new step | Intended | The feature description links `038-DL`. See Runtime Verification |
+| Retained deliberations stay live indefinitely | Medium | A `stranded_linked_deliberation` advisory in every closure summary. The operator or Stage decides |
+| An explicit non-task, non-feature member (for example a deliberation) that is not terminal at close trips the missing-required halt | Low | Fail-closed, and correct. Option E (deliberations as members) was rejected in 038-DL |
+| The skill grows further (already about 1,270 lines) | Certain | U3b/U4 *replace* the 155-S text. Compaction is out of scope |
+| The dogfood closure of this very shipment exercises the new step | Intended | See Runtime Verification |
 
 ## Plan Hardening Signals
 
 * **Public API, schema, or contract change: PRESENT.** P-015 policy, the
-  shipment-reconcile skill, the Ship agent contract, and a new public function in
-  `autoharness.gates.shipment_closure`.
+  shipment-reconcile and `operational-closure` skills, the Ship agent contract, and
+  new public functions in `autoharness.gates.shipment_closure`.
 * **Security, auth, permission, or compliance: ABSENT.** No trust boundary
   changes. The version probe is a local read.
-* **Migration, destructive action, or irreversible step: PRESENT.** The new
+* **Migration, destructive action, or irreversible step: PRESENT.** The
   disposition step archives backlog artifacts during closure.
 * **External integration or dependency: PRESENT.** Behavior is keyed to the
-  installed backlogit engine version.
+  installed backlogit engine version and surface.
 * **High runtime, rollout, or rollback risk: PRESENT (moderate).** Every future
   shipment closure runs through the edited contract.
 
@@ -451,27 +1036,38 @@ Requires plan hardening: yes
 
 ## Runtime Verification and Closure
 
-* **U1** changes a library surface only, with no CLI. Proof: its unit tests plus
-  the full existing suite (`tests/test_shipment_closure_classification.py`
+* **U1a/U1b** change a library surface only, with no CLI. Proof: their unit tests
+  plus the full existing suite (`tests/test_shipment_closure_classification.py`
   unchanged and green).
-* **U2-U6** change the agent-facing contract. Proof: the pinning tests, parity
-  assertions, the refreshed checksums, and `autoharness verify-workspace` clean on
-  the dogfood workspace.
-* **Operational closure (live proof).** This shipment's own post-merge closure is
-  the first live run of the realigned contract on backlogit 1.11.0. The covering
-  feature's description links `038-DL`. The expected run is:
-  * the engine-semantics gate reports `VERIFIED (1, 11)`;
-  * the classifier returns CASCADE, assuming a flat manifest;
-  * the cascade leaves `038-DL` byte-identical;
-  * the disposition step archives `038-DL` with `archived_status` equal to its
-    pre-close status.
+* **U2a-U6b** change the agent-facing contract. Proof: the pinning tests, the
+  rendered-region and phrase-level parity assertions, the refreshed checksums, and
+  `autoharness verify-workspace` clean on the dogfood workspace.
+* **Operational closure (live proof; exhaustive expectations, amended
+  2026-09-29).** This shipment's own post-merge closure is the first live run of
+  the realigned contract. On backlogit 1.11.0 (released build), the expected run
+  is:
+  * the engine-semantics gate reports `VERIFIED (1, 11)`, with `probe_surface`
+    equal to the invocation surface;
+  * the classifier returns CASCADE for the flat manifest, and `select_close_path`
+    returns CASCADE;
+  * the cascade leaves every disposition-set record byte-identical;
+  * the disposition outcomes are:
+    * `034-DL`, `019-DL`, and `027-DL` (mentioned in member descriptions; each
+      already `archived`) → `already-archived`;
+    * `038-DL` (`195-F` `source_deliberation_id`) → `retained_shared_reference`
+      while active stash entries that cite it (`8928EC67` and the 2026-09-29
+      follow-up entries) remain active, otherwise `archived`, with
+      `archived_status: queued`;
+    * any other mention-only deliberation → `retained_description_mention`;
+  * `operational-closure` "Source artifact cleanup" copies the `038-DL` outcome
+    from the report. The dogfood Ship mirror has no second archiver.
 
-  Any other outcome is a halt for operator review. It is never an ad hoc
-  deviation.
-* **Rollback trigger.** A disposition halt or drift halt on any closure. Recovery:
-  revert the merged PR and use SAFE_CLOSE plus a manual archive under an explicit
-  operator deviation, as in 190-S. **Owner:** Ship, for closure. Stage, for
-  contract follow-ups.
+  Any correctly reported outcome from the list above is a pass. Any halt goes to
+  operator review, never to an ad hoc deviation.
+* **Rollback trigger.** A disposition halt or a drift halt on any closure.
+  Recovery: revert the merged PR, then use SAFE_CLOSE plus a manual archive under
+  an explicit operator deviation, as in 190-S. **Owner:** Ship, for closure.
+  Stage, for contract follow-ups.
 
 ## Plan Hardening
 
@@ -609,3 +1205,143 @@ Findings:
 
 **Gate (pass 2): PASS.** No P0/P1. P2-4 resolved before the gate. Harvest stands,
 with the task updates above.
+
+## Independent review amendments (2026-09-29)
+
+An independent, multi-reviewer plan review ran on 2026-09-29, after harvest and
+before any Ship claim (operator decision: independent plan review before Ship).
+Each reviewer ran in a separate context, and none authored the plan. This section
+records the verdicts, how each finding was resolved in this plan, and what the
+plan still does not cover. The unit text above is the authoritative resolution;
+this section only indexes it.
+
+### Reviewer verdicts
+
+| Reviewer | Verdict | P0 | P1 raised (consolidated IDs) |
+|---|---|---|---|
+| Architecture Strategist | PASS_WITH_CHANGES | 0 | P1-2, P1-3, P1-4 |
+| Correctness Reviewer | PASS_WITH_CHANGES | 0 | P1-6 |
+| Scope Boundary Auditor | PASS_WITH_CHANGES | 0 | P1-7 |
+| Schema-CLI-Docs Coupling Reviewer | PASS_WITH_CHANGES | 0 | P1-1, P1-2, P1-4, P1-5 |
+
+Consolidated result: 0 P0, 7 P1, 17 P2, 11 P3. All seven P1 findings are resolved
+in this plan. No finding required a change to the chosen option (038-DL Option B).
+
+### P1 findings and resolutions
+
+| ID | Finding (short) | Resolution | Re-check (plan section) |
+|---|---|---|---|
+| P1-1 | Ship post-merge Step 7 and `operational-closure` "Source artifact cleanup" already archive `source_deliberation_id` deliberations with no shared-reference guard, which would defeat INV-12 retention | New unit U6b (195.012-T): Step 7 and `operational-closure` consume the `linked_deliberation_disposition` report and never archive a `retained_*` deliberation. The problem statement is corrected | Problem Frame (corrected bullets); U6b; Runtime Verification (`038-DL` expectation) |
+| P1-2 | Stale P-015, skill, and Ship regions contradict the new drift halt (Required Check, Postcondition, INV-7, INV-10, item 7, transition-log preamble, Step 0(c) routing, `CLOSED` hand-off, step 1.e) | U2b (195.009-T) splits the close-path gate from the INV-12 post-gate mutation. U3a routes CASCADE to disposition. U3b fixes the transition-log preamble. U5b fixes the hand-offs and adds the closing negative grep. U6 adds the SAFE_CLOSE bullet and the step 1.e disposition gate | U2b; U3a (Close-path selection); U3b; U5b (Hand-offs, Closing negative grep); U6 |
+| P1-3 | No executable composition point for classifier plus engine gate; queued 198-S A1 validator conflicts | `select_close_path` in U1a is the single composition point, and the skill cites it. 198-S now blocks on 201-S, and its re-plan is stash entry `1263B218` | U1a (`select_close_path`, Runtime callers); Dependency Graph (Sequencing vs. 198-S) |
+| P1-4 | Byte-parity tests between template and mirror are unimplementable (placeholders, `7F9CB5E9`, structural Ship divergence) | Rendered-region parity for the policy and skill pairs; phrase-level parity for the Ship pair; machine-readable token ``Verified engine-semantics lines: `1.11` `` parsed against the constant | Implementation Units (Parity method); U2a and U3a tests |
+| P1-5 | Extending `INVARIANT_TOKENS` to INV-12 in U2 turns the suite red, because the shared test also iterates the skill pair | U2a adds a policy-only INV-12 test. `INVARIANT_TOKENS` becomes `range(1, 13)` in U4, after both skill files gain INV-12 | U2a (Tests); U4 (`INVARIANT_TOKENS`) |
+| P1-6 | The shared-reference guard misses live referrers (active stash entries, other unshipped shipments, shipment descriptions) and over-matches incidental mentions | U1b counts work items, other shipments, and active stash entries; retains on a live deliberation status; auto-archives only `source_deliberation_id` links; description-only mentions become `retained_description_mention` (report-only) | U1b (Live referrers, Planned outcome); U2a (INV-12) |
+| P1-7 | Disposition can recreate the 190-S scenario on an unverified engine; "SAFE_CLOSE always valid" is wrong | Disposition reads the Step 0(c) engine verdict; UNVERIFIED means `retained_engine_unverified` and no mutation on any path. The wording is corrected, and safe-close step 8 / INV-11 refer to the *selected* path. The scenario row is added | U1b (outcome 3); U2a (SAFE_CLOSE reliance, reworded); U5a step 1; U5b (Safe-close step 8, Scenario-matrix row a); Decisions and Rationale |
+
+### P2 dispositions
+
+All 17 P2 findings are applied in the plan.
+
+| P2 finding | Disposition | Where |
+|---|---|---|
+| Probe on the same surface as the invocation; record the commit | Applied | U1a (Same surface); U3a (probe, re-probe compares commit) |
+| Pseudo-versions and `+dirty` builds | Applied: released builds only | U1a (Released builds only; tests 2) |
+| Regex hardening (`fullmatch`, ASCII digits, trailing newline, subclass) | Applied | U1a (Type, Parse; tests 4) |
+| Undefined disposition baseline | Applied | U5a step 2 |
+| Self-reference, A↔B cycles, historical mentions | Applied | U1b (Excluded, Never counted; tests) |
+| Torn or ambiguous out-of-scope deliberation | Applied: `retained_ambiguous`, existence before location | U1b; U3b |
+| Sets over every manifest item regardless of `artifact_type` | Applied | U1a docstring; U2a D1a; U3a Step 0(b); U4 step 3 |
+| H1 disposition set over every explicit member type | Applied (amends H1); `stranded_linked_deliberation` kept as an advisory, not as a scope-out | U1b; U5a step 5 |
+| Pure read-only planner with fixture tests first | Applied: new unit U1b (195.008-T) | U1b |
+| Test ownership (item-7 tests, scenario 2, matcher count) | Applied | U2b; U4; U5a |
+| 198-S sequencing guard at PR-ready and pre-merge | Applied, plus DAG edge `198-S blocks-on 201-S` | Dependency Graph |
+| P-010 versus INV-12 archiving | Applied | U2b (P-010 clarification); U6 (Role Boundary) |
+| U7 supersession set, frontmatter `source:`, exit tests | Applied | U7 |
+| Re-verification runbook; durable unverified advisories | Applied | U7; U5a step 5 |
+| Operator-goal coverage and `8928EC67` hard trigger | Applied | Operator goal coverage (below); stash `8928EC67` |
+| Sizing: U3 and U5 exceed the 2-hour rule | Applied: split into U3a/U3b and U5a/U5b | U3a, U3b, U5a, U5b |
+| U1 function has no runtime caller | Applied: callers named; prose/regex parity test | U1a (Runtime callers; tests 7) |
+
+### P3 dispositions
+
+| P3 finding | Disposition |
+|---|---|
+| Re-probe failure should fall back to SAFE_CLOSE | Declined with rationale: after a CASCADE verdict, falling back is the prohibited CASCADE→SAFE_CLOSE substitution. The halt is non-mutating and operator-recoverable (U3a) |
+| Relabel the three link sources as autoharness-defined; define "references" | Applied (U2a admission paragraph) |
+| Exhaustive live-proof expectations | Applied (Runtime Verification and Closure) |
+| Guard TOCTOU | Applied: guard and hash re-check before each archive (U5a step 3) |
+| One PR, no closure on intermediate commits | Applied (Implementation Units, Single PR) |
+| Retained deliberations may stay live forever | Applied: `stranded_linked_deliberation` advisory (U5a step 5; Risks) |
+| Separate `engine_semantics.py` module | Deferred to `8928EC67` (D7); U1a keeps the names module-local |
+| Registry `get_version` lacks params / `cli_command` | Applied as literal bypass, no registry change (U3a) |
+| Scope 1.10-era rationale rows and INV-11 claims | Applied (U2b, 1.10-era scoping) |
+| U1 pre-step repository grep | Applied (U1a Pre-step) |
+| 195-F description says H1-H9 | Applied: 195-F description updated (H1-H10, amendments, corrected problem statement, unit list) |
+
+### Superseded statements
+
+* The Plan Hardening result sentence "No unit needed splitting, because H1-H8 fit
+  inside the existing units' scope" is superseded. U1, U2, U3, and U5 were split,
+  and U6b was added.
+* H1 ("explicit feature members of `items(S)`") is amended by U1b to every
+  explicit member regardless of `artifact_type`.
+* In 038-DL, D3, D4, D8, and D9 are amended by D3a, D4a, D8a, and D9a (see the
+  decision record).
+
+### Resulting units and order
+
+| Order | Unit | Task | Size | Complexity | Depends on |
+|---|---|---|---|---|---|
+| 1 | U1a | 195.001-T | M | low | — |
+| 2 | U1b | 195.008-T | M | medium | 195.001-T |
+| 3 | U2a | 195.002-T | M | medium | 195.001-T |
+| 4 | U2b | 195.009-T | M | medium | 195.002-T |
+| 5 | U3a | 195.003-T | M | medium | 195.009-T |
+| 6 | U3b | 195.010-T | M | medium | 195.003-T |
+| 7 | U4 | 195.004-T | M | medium | 195.010-T |
+| 8 | U5a | 195.005-T | M | medium | 195.004-T, 195.008-T |
+| 9 | U5b | 195.011-T | M | medium | 195.005-T |
+| 10 | U6 | 195.006-T | S | low | 195.011-T |
+| 11 | U6b | 195.012-T | S | medium | 195.006-T |
+| 12 | U7 | 195.007-T | S | low | 195.011-T |
+
+All twelve tasks and `195-F` are members of shipment `201-S`. The backlog
+dependency edges match the Dependency Graph above, with no cycles.
+
+### Operator goal coverage: partial
+
+Operator goal (verbatim): "make sure autoharness is aligned in workflow with how
+backlogit operates such that we don't recreate this scenario."
+
+Covered by 201-S:
+
+* the P-015 CASCADE and SAFE_CLOSE close paths realigned to backlogit 1.11.x flat
+  semantics;
+* pre-mutation detection of an engine-semantics change for P-015 CASCADE and for
+  INV-12 disposition mutation (fail closed to SAFE_CLOSE and
+  `retained_engine_unverified`);
+* the sanctioned, guarded linked-deliberation disposition that replaces the 190-S
+  operator deviation;
+* Ship post-merge Step 7 and `operational-closure` aligned to the same guard;
+* a re-verification runbook for the next backlogit minor line.
+
+Deferred (captured, not dropped):
+
+* the P-002.7 shipment-claim cascade version gate (`62C1E11E`, absorbed by
+  `8928EC67`);
+* the generalization of `archive_item` single-artifact semantics and every other
+  engine-behavior assumption into a registry with a verify-workspace probe
+  (`8928EC67`; priority high; hard trigger: it must be deliberated before
+  changing the verified engine-semantics lines or adopting backlogit 1.12);
+* the re-plan of `198-S` / `192-F` onto this contract (`1263B218`);
+* relaxing INV-6's descendant gate under 1.11.x (038-DL OQ3; not captured, since
+  it stays fail-closed).
+
+### Stash entries
+
+| Stash ID | Action | Purpose |
+|---|---|---|
+| `1263B218` | Created (P-021 C2 `DEFERRED SCOPE EXPANSION`; task / high) | Re-plan 198-S / 192-F: `engine_semantics` evidence field, `select_close_path` / `assess_cascade_engine_semantics` use, flat sets, disposition outcome, stale `dag-root` label |
+| `8928EC67` | Edited (priority medium → high; hard trigger added) | Engine-behavior registry and verify-workspace probe; absorbs `62C1E11E` and `archive_item` semantics |
+| `62C1E11E` | Unchanged (referenced) | P-002.7 claim-cascade gate; to be deliberated with `8928EC67` |
