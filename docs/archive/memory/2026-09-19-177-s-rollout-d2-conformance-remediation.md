@@ -2,7 +2,7 @@
 title: "Stage session memory — 177-S rollout reordered for D2 conformance (attempt-04 M1)"
 description: "Session record for the operator-authorized exceptional bounded remediation that closed attempt-04 finding M1 against the 177-S governing plan, reordering the rollout from PREPARE-RED-ACTIVATE-VERIFY-DOCS to PREPARE-RED-VERIFY-ACTIVATE-CONFIRM-DOCS, adding 169.017-T as a pre-activation readiness gate with its own verdict artifact, and repurposing 169.016-T as a distinct post-activation confirmation with an explicit rollback path."
 doc_type: memory
-source: docs/memory/2026-09-19/177-s-rollout-d2-conformance-remediation.md
+source: docs/archive/memory/2026-09-19-177-s-rollout-d2-conformance-remediation.md
 date: 2026-09-19
 agent: stage
 branch: chore/stage-176-s-workflow-defects
