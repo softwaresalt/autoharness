@@ -28,6 +28,7 @@ Plan: docs/plans/2026-09-18-post-claim-member-status-contract-plan.md (rev 8).
 
 from __future__ import annotations
 
+import re
 import unittest
 from typing import Callable, Mapping
 
@@ -242,6 +243,40 @@ class FamilyCMirrorIdentityTests(unittest.TestCase):
 
     def test_C2_mirror_agent__inert_candidate(self) -> None:
         check_c_mirror_identity(candidate.load_candidate_surfaces(), "agent")
+
+
+# ---------------------------------------------------------------------------
+# Family D (169.013-T): observed-version attribution paragraph present
+# ---------------------------------------------------------------------------
+
+MARKER_D = "P002_7_D1_ATTRIBUTION"
+_VERSION_RE = re.compile(r"backlogit \d+\.\d+\.\d+")
+
+
+def check_d_attribution(surfaces: Mapping[str, str]) -> None:
+    """The clause records the backlogit version it was observed against (recorded, not executed)."""
+
+    marker = MARKER_D
+    for path in candidate.POLICY_SURFACES:
+        block = _single_block(surfaces, path, marker)
+        paragraphs = [line for line in block.split("\n") if line.startswith(candidate.ATTRIBUTION_LABEL)]
+        if len(paragraphs) != 1:
+            _fail(marker, MISMATCH, "%s carries %d observed-version attribution paragraphs" % (path, len(paragraphs)))
+        if not _VERSION_RE.search(paragraphs[0]):
+            _fail(marker, MISMATCH, "%s attribution paragraph names no backlogit version" % path)
+
+
+class FamilyDAttributionTests(unittest.TestCase):
+    """The externally-observed clause carries its observed-version attribution in both policy copies."""
+
+    def test_D1_attribution__live_surfaces(self) -> None:
+        check_d_attribution(candidate.load_live_surfaces())
+
+    def test_D1_attribution__near_miss_fixture(self) -> None:
+        _assert_discriminates(self, lambda: check_d_attribution(near_miss.attribution_removed()), MARKER_D)
+
+    def test_D1_attribution__inert_candidate(self) -> None:
+        check_d_attribution(candidate.load_candidate_surfaces())
 
 
 if __name__ == "__main__":
