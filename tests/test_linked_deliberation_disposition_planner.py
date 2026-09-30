@@ -13,6 +13,7 @@ import hashlib
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 
@@ -70,7 +71,7 @@ class _Backlog:
             + "\n<!-- END:description -->\n"
         )
         path = self.backlog_dir / folder / (filename or f"{artifact_id}.md")
-        path.write_text(text, encoding="utf-8")
+        path.write_text(text, encoding="utf-8", newline="\n")
         return path
 
     def shipment(
@@ -86,9 +87,13 @@ class _Backlog:
 
 class _PlannerTestCase(unittest.TestCase):
     def setUp(self) -> None:
+        self.backlog = self._fresh_backlog()
+
+    def _fresh_backlog(self) -> _Backlog:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.backlog = _Backlog(Path(tmp.name))
+        return self.backlog
 
     def _feature_with_task(self, feature_id: str, task_id: str, **task_fields) -> list[str]:
         self.backlog.write(feature_id, "feature", status="active")
@@ -339,7 +344,7 @@ class OutcomePrecedenceCoreTests(_PlannerTestCase):
     def test_p11_live_statuses_are_retained_even_without_referrer(self) -> None:
         for status in ("active", "blocked", "review"):
             with self.subTest(status=status):
-                self.setUp()
+                self._fresh_backlog()
                 items = self._linked_items("063-DL")
                 self.backlog.write("063-DL", "deliberation", status=status)
 
@@ -352,7 +357,7 @@ class OutcomePrecedenceCoreTests(_PlannerTestCase):
     def test_non_live_statuses_plan_archive(self) -> None:
         for status in ("queued", "done", "accepted", "rejected"):
             with self.subTest(status=status):
-                self.setUp()
+                self._fresh_backlog()
                 items = self._linked_items("064-DL")
                 self.backlog.write("064-DL", "deliberation", status=status)
 
@@ -363,7 +368,7 @@ class OutcomePrecedenceCoreTests(_PlannerTestCase):
     def test_h3_declared_archived_is_already_archived_regardless_of_location(self) -> None:
         for folder in ("queue", "archive"):
             with self.subTest(folder=folder):
-                self.setUp()
+                self._fresh_backlog()
                 items = self._linked_items("065-DL")
                 self.backlog.write("065-DL", "deliberation", status="archived", folder=folder)
 
@@ -507,6 +512,130 @@ class LiveReferrerScanTests(_PlannerTestCase):
 
         self.assertEqual(record.outcome, "archive")
         self.assertEqual(record.referrer_ids, ())
+
+
+class FailClosedReadPathTests(_PlannerTestCase):
+    """The fail-closed read path that backs the never-raises contract.
+
+    Any read failure retains every disposition-set deliberation as
+    ``retained_read_error`` (never ``archive``) and is listed in
+    ``read_failures``. Per-deliberation attribution, containment and the stash
+    read errors are refined in slice 2 (197-F).
+    """
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": deliberation_id}
+        )
+        self.backlog.shipment(items)
+        return items
+
+    def _write_raw(self, folder: str, name: str, data: bytes) -> None:
+        (self.backlog.backlog_dir / folder / name).write_bytes(data)
+
+    def _assert_read_error(self, plan, deliberation_id: str, reason_code: str, path: str) -> None:
+        record = self._only(plan, deliberation_id)
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+        self.assertEqual(record.reason_code, reason_code)
+        self.assertEqual(record.path, path)
+        self.assertIn((path, reason_code), [(f.path, f.reason_code) for f in plan.read_failures])
+
+    def test_invalid_yaml_record_retains_with_malformed_frontmatter(self) -> None:
+        items = self._linked_items("085-DL")
+        self.backlog.write("085-DL", "deliberation")
+        self._write_raw("queue", "990-T.md", b"---\nid: [unclosed\n---\nbody\n")
+
+        self._assert_read_error(
+            self.backlog.plan(items), "085-DL", "malformed_frontmatter", ".backlogit/queue/990-T.md"
+        )
+
+    def test_non_utf8_record_retains_with_unreadable_file(self) -> None:
+        items = self._linked_items("086-DL")
+        self.backlog.write("086-DL", "deliberation")
+        self._write_raw("queue", "991-T.md", b"---\nid: 991-T\ntitle: \xff\xfe\n---\n")
+
+        self._assert_read_error(
+            self.backlog.plan(items), "086-DL", "unreadable_file", ".backlogit/queue/991-T.md"
+        )
+
+    def test_missing_closing_delimiter_retains_with_body_unseparable(self) -> None:
+        items = self._linked_items("087-DL")
+        self.backlog.write("087-DL", "deliberation")
+        self._write_raw("queue", "992-T.md", b"---\nid: 992-T\nartifact_type: task\n")
+
+        self._assert_read_error(
+            self.backlog.plan(items), "087-DL", "body_unseparable", ".backlogit/queue/992-T.md"
+        )
+
+    def test_missing_archive_folder_is_a_read_failure_not_an_empty_scan(self) -> None:
+        items = self._linked_items("088-DL")
+        self.backlog.write("088-DL", "deliberation")
+        (self.backlog.backlog_dir / "archive").rmdir()
+
+        self._assert_read_error(
+            self.backlog.plan(items), "088-DL", "unreadable_file", ".backlogit/archive"
+        )
+
+    def test_queue_failure_does_not_hide_archive_records(self) -> None:
+        items = self._linked_items("089-DL")
+        self.backlog.write("089-DL", "deliberation", status="done", folder="archive")
+        self._write_raw("queue", "993-T.md", b"---\nid: [unclosed\n---\n")
+
+        plan = self.backlog.plan(items)
+
+        self.assertEqual(plan.unresolved_references, ())
+        self._assert_read_error(plan, "089-DL", "malformed_frontmatter", ".backlogit/queue/993-T.md")
+
+    def test_unreadable_deliberation_record_stays_visible(self) -> None:
+        items = self._linked_items("094-DL")
+        self._write_raw("queue", "094-DL.md", b"---\nid: [unclosed\n---\n")
+
+        plan = self.backlog.plan(items)
+
+        self.assertEqual(plan.dispositions, ())
+        self.assertEqual(
+            [(f.path, f.reason_code) for f in plan.read_failures],
+            [(".backlogit/queue/094-DL.md", "malformed_frontmatter")],
+        )
+
+    def test_crlf_record_parses_and_hashes_raw_bytes(self) -> None:
+        items = self._linked_items("095-DL")
+        raw = b"---\r\nid: 095-DL\r\nartifact_type: deliberation\r\nstatus: queued\r\n---\r\nbody\r\n"
+        self._write_raw("queue", "095-DL.md", raw)
+
+        record = self._only(self.backlog.plan(items), "095-DL")
+
+        self.assertEqual(record.outcome, "archive")
+        self.assertEqual(record.records[0].sha256, hashlib.sha256(raw).hexdigest())
+
+    def test_each_record_is_read_exactly_once(self) -> None:
+        items = self._linked_items("096-DL")
+        self.backlog.write("096-DL", "deliberation")
+        original = Path.read_bytes
+        reads: list[str] = []
+
+        def counting_read_bytes(path: Path) -> bytes:
+            reads.append(path.name)
+            return original(path)
+
+        def forbidden_read_text(path: Path, *args, **kwargs) -> str:
+            raise AssertionError(f"record re-read from disk: {path}")
+
+        with mock.patch.object(Path, "read_bytes", counting_read_bytes), mock.patch.object(
+            Path, "read_text", forbidden_read_text
+        ):
+            record = self._only(self.backlog.plan(items), "096-DL")
+
+        self.assertEqual(record.outcome, "archive")
+        self.assertEqual(sorted(reads), sorted(set(reads)))
+        self.assertIn("096-DL.md", reads)
+
+    def test_single_string_manifest_is_a_planning_error(self) -> None:
+        plan = compute_linked_deliberation_disposition(
+            "900-F", SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED
+        )
+        self.assertEqual(plan.dispositions, ())
+        self.assertIn("TypeError", plan.planning_error or "")
 
 
 if __name__ == "__main__":

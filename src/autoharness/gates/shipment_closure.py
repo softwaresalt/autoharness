@@ -712,10 +712,6 @@ def _assess_cascade_engine_semantics(
     if parsed is None:
         return _unverified(f"unparseable probed version {version[:64]!r}", **recorded)
 
-    surface_problem = _validate_probe_surface(probe_surface, invocation_surface)
-    if surface_problem is not None:
-        return _unverified(surface_problem, **recorded)
-
     minor_line = (parsed.major, parsed.minor)
     if parsed.unreleased:
         return _unverified(
@@ -723,6 +719,9 @@ def _assess_cascade_engine_semantics(
             minor_line=minor_line,
             **recorded,
         )
+    surface_problem = _validate_probe_surface(probe_surface, invocation_surface)
+    if surface_problem is not None:
+        return _unverified(surface_problem, minor_line=minor_line, **recorded)
     if minor_line not in VERIFIED_CASCADE_ENGINE_MINOR_LINES:
         return _unverified(
             f"minor line {parsed.major}.{parsed.minor} not verified",
@@ -839,6 +838,7 @@ _DELIBERATION_LINK_PATTERN: Final = re.compile(r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-
 # Mirrors the frontmatter delimiter pattern of topology._frontmatter so the body
 # starts exactly where that parser's frontmatter block ends.
 _FRONTMATTER_BLOCK_PATTERN: Final = re.compile(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", re.DOTALL)
+_FRONTMATTER_OPENING_PATTERN: Final = re.compile(r"^---\s*\n")
 # Deliberation statuses that are live under INV-12 (the deliberation vocabulary
 # in .backlogit/header-def.yaml is queued|active|blocked|review|done|accepted|
 # rejected|archived; deliberations have no in-progress status).
@@ -886,18 +886,29 @@ class UnresolvedDeliberationReference:
 
 
 @dataclass(frozen=True)
+class DispositionReadFailure:
+    """A record or folder the planner could not read (``reason_code`` + ``path``)."""
+
+    path: str
+    reason_code: str
+
+
+@dataclass(frozen=True)
 class LinkedDeliberationDispositionPlan:
     """The read-only result of :func:`compute_linked_deliberation_disposition`.
 
+    ``read_failures`` lists every read failure of the scan, so a failure stays
+    visible even when it prevents a deliberation from being discovered at all.
     ``planning_error`` is set only when the planner hit an unexpected internal
-    failure; the plan then carries no archive outcome, so every linked
-    deliberation is retained.
+    failure or unusable input; the plan then carries no archive outcome, so
+    every linked deliberation is retained.
     """
 
     shipment_id: str | None
     engine: object
     dispositions: tuple[LinkedDeliberationDisposition, ...]
     unresolved_references: tuple[UnresolvedDeliberationReference, ...]
+    read_failures: tuple[DispositionReadFailure, ...] = ()
     planning_error: str | None = None
 
 
@@ -984,13 +995,21 @@ def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure
         text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
     except (OSError, UnicodeDecodeError):
         return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
+    body = _read_record_body(text)
+    if body is None:
+        # An opening delimiter with no closing one: the Markdown description
+        # body cannot be separated. No opening delimiter at all is missing
+        # frontmatter (reported by the parser below).
+        if _FRONTMATTER_OPENING_PATTERN.match(text):
+            return _ReadFailure(rel_path, READ_ERROR_BODY_UNSEPARABLE)
     try:
         frontmatter = _frontmatter(_PreReadRecordText(path, text))  # type: ignore[arg-type]
     except BacklogUnavailableError:
         return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
-    body = _read_record_body(text)
     if body is None:
-        return _ReadFailure(rel_path, READ_ERROR_BODY_UNSEPARABLE)
+        # Only reachable if topology._frontmatter's delimiter rule ever diverges
+        # from _FRONTMATTER_BLOCK_PATTERN: fail closed rather than guess a body.
+        return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
     artifact_id = _normalize_id(frontmatter.get("id"))
     if artifact_id is None or not _ARTIFACT_ID_PATTERN.match(artifact_id):
         # A record whose declared identity cannot be trusted could be a live
@@ -1008,29 +1027,28 @@ def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure
 
 
 def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
-    """Read every queue-root and archive-root record once (bounded, read-only, H5)."""
+    """Read every queue-root and archive-root record once (read-only, H5).
+
+    A folder that is missing, unlistable, or reached through a symlinked or
+    junctioned directory component is itself a read failure (fail closed, like
+    the classifier's ``_scan_backlog``); each folder is judged on its own, so a
+    failure in one never hides the other.
+    """
 
     workspace_root = backlog_dir.parent
     by_id: dict[str, list[_RecordRead]] = {}
     failures: list[_ReadFailure] = []
     for folder in ("queue", "archive"):
         base = backlog_dir / folder
-        for component in (backlog_dir, base):
-            if _is_symlink_or_reparse_point(component):
-                failures.append(
-                    _ReadFailure(
-                        _workspace_relative(component, workspace_root),
-                        READ_ERROR_SYMLINK_OR_REPARSE_POINT,
-                    )
-                )
-        if failures or not base.is_dir():
+        base_rel = _workspace_relative(base, workspace_root)
+        if _directory_component_is_untrusted(backlog_dir, base):
+            failures.append(_ReadFailure(base_rel, READ_ERROR_SYMLINK_OR_REPARSE_POINT))
             continue
         try:
-            candidates = sorted(base.glob("*.md"))
+            candidates = sorted(entry for entry in base.iterdir() if entry.suffix == ".md")
         except OSError:
-            failures.append(
-                _ReadFailure(_workspace_relative(base, workspace_root), READ_ERROR_UNREADABLE_FILE)
-            )
+            # Missing, not a directory, or not listable: never an empty scan.
+            failures.append(_ReadFailure(base_rel, READ_ERROR_UNREADABLE_FILE))
             continue
         for candidate in candidates:
             result = _read_record(candidate, workspace_root)
@@ -1305,15 +1323,20 @@ def compute_linked_deliberation_disposition(
     engine that is not VERIFIED (or not an :class:`EngineSemanticsDecision`)
     retains every non-archived deliberation.
 
-    Scope note (195-F slice 1): stash referrers and the ``stash_path`` default
-    (``<workspace_backlog_dir>/stash.jsonl``), containment checks, and the
-    fine-grained read-error rules land in slice 2 (197-F). Until then this
-    planner has no runtime caller and must not drive any mutation.
+    Scope note (195-F slice 1): the fail-closed read path is in place (every
+    read failure retains every disposition-set deliberation and is listed in
+    ``read_failures``). Stash referrers and the ``stash_path`` default
+    (``<workspace_backlog_dir>/stash.jsonl``), path containment
+    (``path_escape``), per-deliberation read-error attribution, and the H3
+    multi-record referrer rule land in slice 2 (197-F). Until then this planner
+    has no runtime caller and must not drive any mutation.
     """
 
     del stash_path  # Resolved and scanned from slice 2 (197.002-T).
     normalized_shipment_id: str | None = None
     try:
+        if isinstance(manifest_items, (str, bytes)):
+            raise TypeError("manifest_items must be a sequence of ids, not a single string")
         normalized_shipment_id = _normalize_id(shipment_id)
         backlog_dir = Path(workspace_backlog_dir)
         manifest_ids = tuple(
@@ -1347,6 +1370,10 @@ def compute_linked_deliberation_disposition(
             unresolved_references=tuple(
                 UnresolvedDeliberationReference(id=ref_id, reason_code=reason_code)
                 for ref_id, reason_code in sorted(unresolved.items())
+            ),
+            read_failures=tuple(
+                DispositionReadFailure(path=failure.rel_path, reason_code=failure.reason_code)
+                for failure in index.failures
             ),
         )
     except Exception as exc:  # noqa: BLE001 - the planner must fail closed, never raise

@@ -8,6 +8,7 @@ Covers plan unit U1a (``docs/plans/2026-09-29-backlogit-1-11-cascade-alignment-p
 
 from __future__ import annotations
 
+import dataclasses
 import unittest
 
 from autoharness.gates import shipment_closure
@@ -86,8 +87,13 @@ class EngineSemanticsVerdictCoreTests(unittest.TestCase):
 
     def test_decision_is_frozen(self) -> None:
         decision = _assess("1.11.0")
-        with self.assertRaises(Exception):
+        with self.assertRaises(dataclasses.FrozenInstanceError):
             decision.verdict = EngineSemanticsVerdict.UNVERIFIED  # type: ignore[misc]
+
+    def test_unreleased_build_is_reported_before_surface_checks(self) -> None:
+        decision = _assess("1.11.0+dirty", "mcp", "cli")
+        self.assertIn("unreleased build", decision.reason)
+        self.assertEqual(decision.minor_line, (1, 11))
 
     def test_new_names_are_not_exported_from_gates_package(self) -> None:
         import autoharness.gates as gates_pkg
