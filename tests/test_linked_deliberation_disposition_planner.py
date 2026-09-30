@@ -17,6 +17,7 @@ from unittest import mock
 
 import yaml
 
+from autoharness.gates import shipment_closure
 from autoharness.gates.shipment_closure import (
     EngineSemanticsDecision,
     LinkedDeliberationDispositionPlan,
@@ -197,13 +198,32 @@ class DispositionPlannerSkeletonTests(_PlannerTestCase):
         self.assertEqual(before, after)
 
     def test_planner_never_raises_on_garbage_input(self) -> None:
-        for manifest in (None, 42, [None, 7, "900-F"]):
+        # A linked deliberation that a well-formed call would plan to archive,
+        # so the assertions below can actually fail.
+        self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": "050-DL"}
+        )
+        self.backlog.write("050-DL", "deliberation")
+        for manifest in (None, 42):
             with self.subTest(manifest=manifest):
                 plan = compute_linked_deliberation_disposition(
-                    manifest, None, self.backlog.backlog_dir, engine=None  # type: ignore[arg-type]
+                    manifest, SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED  # type: ignore[arg-type]
                 )
                 self.assertIsInstance(plan, LinkedDeliberationDispositionPlan)
-                self.assertFalse(any(d.outcome == "archive" for d in plan.dispositions))
+                self.assertIsNotNone(plan.planning_error)
+                self.assertEqual(plan.dispositions, ())
+        for engine in (None, "VERIFIED"):
+            with self.subTest(engine=engine):
+                plan = compute_linked_deliberation_disposition(
+                    ["900-F", "900.001-T"], SHIPMENT_ID, self.backlog.backlog_dir, engine=engine  # type: ignore[arg-type]
+                )
+                self.assertIsInstance(plan, LinkedDeliberationDispositionPlan)
+                self.assertFalse(any(d.outcome == "archive" for d in plan.dispositions), plan)
+        plan = compute_linked_deliberation_disposition(
+            [None, 7, "900-F", "900.001-T"], SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED  # type: ignore[list-item]
+        )
+        self.assertIsNone(plan.planning_error)
+        self.assertEqual(self._only(plan, "050-DL").outcome, "archive")
 
 
 class DispositionLinkSourceTests(_PlannerTestCase):
@@ -597,6 +617,59 @@ class FailClosedReadPathTests(_PlannerTestCase):
             [(f.path, f.reason_code) for f in plan.read_failures],
             [(".backlogit/queue/094-DL.md", "malformed_frontmatter")],
         )
+
+    def test_unconstructable_yaml_value_retains_with_malformed_frontmatter(self) -> None:
+        # Valid YAML syntax whose value cannot be constructed (PyYAML raises
+        # ValueError for an impossible date) must be a listed read failure,
+        # not a whole-plan planning_error that loses the path.
+        items = self._linked_items("090-DL")
+        self.backlog.write("090-DL", "deliberation")
+        self._write_raw(
+            "queue", "994-T.md", b"---\nid: 994-T\nartifact_type: task\ncreated: 2026-13-45\n---\n"
+        )
+
+        plan = self.backlog.plan(items)
+
+        self.assertIsNone(plan.planning_error)
+        self._assert_read_error(plan, "090-DL", "malformed_frontmatter", ".backlogit/queue/994-T.md")
+
+    def test_non_regular_md_entry_retains_with_unreadable_file(self) -> None:
+        items = self._linked_items("091-DL")
+        self.backlog.write("091-DL", "deliberation")
+        (self.backlog.backlog_dir / "queue" / "995-T.md").mkdir()
+
+        self._assert_read_error(
+            self.backlog.plan(items), "091-DL", "unreadable_file", ".backlogit/queue/995-T.md"
+        )
+
+    def test_unstatable_record_retains_with_unreadable_file(self) -> None:
+        # A record that cannot be stat'ed (vanished mid-scan, access denied)
+        # must never silently drop out of the live-referrer scan.
+        items = self._linked_items("092-DL")
+        self.backlog.write("092-DL", "deliberation")
+        self.backlog.write("996.001-T", "task", body="Needs 092-DL.")
+        real_lstat = shipment_closure.os.lstat
+
+        def failing_lstat(path, *args, **kwargs):
+            if Path(path).name == "996.001-T.md":
+                raise PermissionError("denied")
+            return real_lstat(path, *args, **kwargs)
+
+        with mock.patch.object(shipment_closure.os, "lstat", failing_lstat):
+            plan = self.backlog.plan(items)
+
+        self._assert_read_error(plan, "092-DL", "unreadable_file", ".backlogit/queue/996.001-T.md")
+
+    def test_md_suffix_match_is_case_insensitive(self) -> None:
+        # A live referrer stored with an upper-case suffix is still scanned.
+        items = self._linked_items("093-DL")
+        self.backlog.write("093-DL", "deliberation")
+        self.backlog.write("997.001-T", "task", filename="997.001-T.MD", body="Needs 093-DL.")
+
+        record = self._only(self.backlog.plan(items), "093-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        self.assertEqual(record.referrer_ids, ("997.001-T",))
 
     def test_crlf_record_parses_and_hashes_raw_bytes(self) -> None:
         items = self._linked_items("095-DL")

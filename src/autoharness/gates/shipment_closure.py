@@ -981,14 +981,21 @@ def _read_record_body(text: str) -> str | None:
     return None if match is None else text[match.end():]
 
 
-def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure | None:
-    """Read one record once; ``None`` means the file is not a backlog record."""
+def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure:
+    """Read one ``*.md`` backlog entry once (frontmatter, body and hash)."""
 
     rel_path = _workspace_relative(path, workspace_root)
     if _is_symlink_or_reparse_point(path):
         return _ReadFailure(rel_path, READ_ERROR_SYMLINK_OR_REPARSE_POINT)
-    if not path.is_file():
-        return None
+    # Stat once, directly: an entry that cannot be stat'ed (vanished mid-scan,
+    # access denied) or is not a regular file must stay visible as a read
+    # failure, never drop silently out of the live-referrer scan (fail closed).
+    try:
+        entry_mode = os.lstat(path).st_mode
+    except OSError:
+        return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
+    if not stat.S_ISREG(entry_mode):
+        return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
     try:
         raw = path.read_bytes()
         # Universal-newline translation, exactly as Path.read_text would do.
@@ -1004,7 +1011,10 @@ def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure
             return _ReadFailure(rel_path, READ_ERROR_BODY_UNSEPARABLE)
     try:
         frontmatter = _frontmatter(_PreReadRecordText(path, text))  # type: ignore[arg-type]
-    except BacklogUnavailableError:
+    except (BacklogUnavailableError, ValueError, TypeError, RecursionError):
+        # yaml.YAMLError arrives as BacklogUnavailableError; syntactically valid
+        # YAML whose values cannot be constructed (e.g. an impossible date
+        # raises ValueError) or that nests too deeply is equally malformed.
         return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
     if body is None:
         # Only reachable if topology._frontmatter's delimiter rule ever diverges
@@ -1045,7 +1055,11 @@ def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
             failures.append(_ReadFailure(base_rel, READ_ERROR_SYMLINK_OR_REPARSE_POINT))
             continue
         try:
-            candidates = sorted(entry for entry in base.iterdir() if entry.suffix == ".md")
+            # Case-insensitive, so the planner never scans fewer records than
+            # the classifier's glob("*.md") sees on a case-insensitive filesystem.
+            candidates = sorted(
+                entry for entry in base.iterdir() if entry.suffix.lower() == ".md"
+            )
         except OSError:
             # Missing, not a directory, or not listable: never an empty scan.
             failures.append(_ReadFailure(base_rel, READ_ERROR_UNREADABLE_FILE))
@@ -1054,7 +1068,7 @@ def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
             result = _read_record(candidate, workspace_root)
             if isinstance(result, _ReadFailure):
                 failures.append(result)
-            elif result is not None:
+            else:
                 by_id.setdefault(result.artifact_id, []).append(result)
     for records in by_id.values():
         records.sort(key=lambda record: record.rel_path)
