@@ -1,0 +1,242 @@
+---
+title: "Stage session — stash 8FEE91F4: backlogit 1.11 flat-cascade alignment (201-S)"
+description: "Resumed Stage session that completed plan-review pass 2, harvest verification, shipment 201-S assembly, and the staging PR for aligning P-015 / shipment-reconcile with backlogit >=1.11.0."
+doc_type: memory
+agent: stage
+date: 2026-09-29
+source_stash_id: 8FEE91F4
+deliberation_id: 038-DL
+feature_id: 195-F
+shipment_id: 201-S
+---
+
+# Stage session — stash 8FEE91F4 (201-S)
+
+## Context
+
+* Operator intent (verbatim): "I also want to make sure that autoharness is
+  aligned in workflow with how backlogit operates such that we don't recreate
+  this scenario".
+* A prior Stage session was interrupted after triage, deliberation (`038-DL`),
+  plan, plan-review pass 1, and harvest (`195-F`, `195.001-T`–`195.007-T`).
+  Its checkpoint `checkpoint-20260929-071356.json` still said `phase: planning`.
+* The branch is stacked on `post-merge/184-f-windows-temp-teardown-repair`
+  (`d5b1361c`, closure PR #465), because stash `8FEE91F4` exists only there.
+
+## Completed this session
+
+> Superseded in part by the 2026-09-29 independent-review update at the end of
+> this file. The current staged scope is `195-F` plus 12 tasks, the dependency
+> order in the plan's "Resulting units and order" table, and `8928EC67` at
+> priority high.
+
+* **Plan-review pass 2** (single-agent declared degradation; six personas run
+  inline). Engine and anchor claims were re-verified against the backlogit
+  source at `5a4b70dd` and the installed `1.11.0` binary.
+  * P2-4 is resolved as hardening H10: the disposition set excludes
+    `closure_scope(S)`, because the 1.11.0 engine still archives a deliberation
+    that is an explicit, terminal manifest member.
+  * P3-4 is advisory.
+  * Verdict: **PASS**.
+* **Harvest verification.**
+  * H10 was added as an acceptance criterion to `195.002-T`–`195.005-T`.
+  * The structured `complexity` field was set on all seven tasks. It had been
+    recorded only in prose.
+  * Parent links, the dependency chain (U1→U2→U3→U4→U5→{U6,U7}), sizes, and
+    references were confirmed.
+* **D7 deferred capture.** Stash `8928EC67` (DEFERRED SCOPE EXPANSION; captured
+  at medium, raised to high on 2026-09-29) holds the engine-behavior registry and
+  the verify-workspace drift probe.
+* **Stash 8FEE91F4.** It was already archived by the prior session with
+  `reason: harvested`, `harvested_artifact_id: 195-F`, and
+  `deliberation_id: 038-DL`.
+* **Shipment `201-S`** (queued, high). It held `195-F` plus 7 tasks at this
+  point (12 tasks after the 2026-09-29 amendments), with an explicit `blocks`
+  edge on `190-S`.
+* **Staging PR #466** (`chore/stage-201-s`). Its base was originally
+  `post-merge/184-f-windows-temp-teardown-repair`; #465 has merged and the PR
+  now targets `main`.
+* **Checkpoint `checkpoint-20260929-071356.json`** was resolved. No active Stage
+  checkpoint remains for this work.
+
+## Operator decisions (all resolved 2026-09-29)
+
+* **OQ1 — resolved.** `198-S` waits for `201-S`; the edge `198-S blocks-on
+  201-S` is in place (038-DL D8a).
+* **#465 ordering — resolved.** #465 merged; PR #466 targets `main`.
+* **Independent re-review — done.** A four-reviewer independent plan review ran
+  before Ship (see the update below).
+
+## Next steps
+
+* *Superseded by the cycle 8 update below:* Ship starts with `202-S` (slice 1
+  of the re-split), not `201-S`; `201-S` is the terminal slice.
+* The live proof is the post-merge closure of `201-S`. The expected `038-DL`
+  outcome is `retained_shared_reference` while active stash entries cite it,
+  otherwise `archived` (plan, Runtime Verification and Closure).
+
+## Update — independent review amendments (2026-09-29, resumed Stage session)
+
+* **Operator decisions.** Order of operations approved; `198-S` waits for
+  `201-S` (edge `198-S blocks-on 201-S` added); an independent plan review
+  ran before Ship; Ship for `201-S` is not started. #465 merged, so PR #466
+  now targets `main`. The OQ1 and #465-ordering items above are resolved.
+* **Independent review.** Four reviewers (Architecture, Correctness, Scope
+  Boundary, Schema-CLI-Docs Coupling), each PASS_WITH_CHANGES, 0 P0, 7 P1.
+  All P1 findings are resolved in the plan; see its section "Independent
+  review amendments (2026-09-29)".
+* **Backlog changes.**
+  * New tasks under `195-F`: `195.008-T` (U1b), `195.009-T` (U2b),
+    `195.010-T` (U3b), `195.011-T` (U5b), `195.012-T` (U6b). All priority
+    high.
+  * Sizes: `195.001-T` M; `195.007-T` S / low; new tasks M/medium, except
+    `195.012-T` S/medium.
+  * Order: 001 → {008, 002 → 009 → 003 → 010 → 004} → 005 → 011 → {006 →
+    012, 007}.
+  * `201-S` now holds `195-F` plus 12 tasks.
+* **Decisions.** `038-DL` and the decision record gained D3a, D4a, D8a, and
+  D9a.
+* **Stash.** `1263B218` was created (198-S / 192-F re-plan, P-021 C2).
+  `8928EC67` was raised to high with a hard trigger; it absorbs `62C1E11E`.
+* **Next step** (*superseded by the cycle 8 update below*). Ship claims
+  `201-S` only when the operator starts it, and only after gate shipment
+  `202-S` ships (cycle 7 update below). The
+  live-proof expectation for `038-DL` is now `retained_shared_reference`
+  while active stash entries cite it, otherwise `archived` (plan, Runtime
+  Verification and Closure).
+
+## Update — staging PR #466 local review and Copilot threads (2026-09-29)
+
+* **Local review** (Template Integrity, Scope, Correctness) over
+  `origin/main...HEAD`: 0 P0, 0 P1. Two same-surface fixes: `195-F` now cites
+  stash `1263B218`, and the `201-S` manifest items are in the reviewed
+  dependency order (001, 008, 002, 009, 003, 010, 004, 005, 011, 006, 012,
+  007).
+* **Copilot threads.**
+  * Manifest order: fixed (above).
+  * Checkpoint `progress` at top level: declined. `progress` is a modeled
+    top-level field of the backlogit V1 checkpoint schema.
+  * SAFE_CLOSE on an unverified engine still uses `archive_item`: out of
+    scope (design decision 038-DL D4a). Reconciled into `8928EC67` as
+    absorbed item (4) instead of a duplicate entry.
+  * Stale PR description (two threads): the PR body was rewritten.
+  * Second round (on `0e785184`): the repeated SAFE_CLOSE concern on the
+    plan rationale was recorded against the same `8928EC67` item (4). The U1b
+    planner input-safety gap (ID pattern, path containment, symlink/reparse
+    rejection) was fixed in the plan and `195.008-T`.
+  * Third round (on `cb28134f`): U1b now reads the Markdown body as the
+    description (fixed in the plan and `195.008-T`). Minor-line versus
+    exact-release verification was recorded as `8928EC67` item (5). The
+    resolved Ship checkpoint `063709` was declined: an operator-authored
+    commit (`ca180cd2`) resolved it after #465 merged, not a Stage recovery
+    action.
+  * Fourth round (operator-authorized cycle 4, 2026-09-29T16:47 local: "extend
+    cycle limit for #466"; exactly one extra cycle, limited to the two open P1
+    threads): `retained_live_status` now uses the real deliberation live
+    statuses `active|blocked|review`, and `stash_path=None` resolves to
+    `<workspace_backlog_dir>/stash.jsonl` with default-call tests (plan U1b,
+    `195.008-T`, `195.002-T`).
+  * Fifth round (operator-authorized cycle 5, `fc35a1ce`):
+    `retained_read_error` was added to the `LinkedDeliberationOutcome` enum
+    with a per-outcome `reason_code`.
+  * Sixth round (operator-authorized cycle 6, 2026-09-29, limited to thread
+    `PRRT_kwDORzpWpM6nWmsW`): this stale final entry was corrected. The
+    task-granularity finding on `201-S` (thread `PRRT_kwDORzpWpM6nWmsD`) is
+    accepted residual risk. The re-split is deferred as stash `5CA04218`,
+    which must be resolved before Ship claims `201-S`. The `195-F` body and
+    comments on `195-F` and `201-S` record this hard trigger.
+  * Seventh round (operator-authorized cycle 7, 2026-09-29, option "a",
+    limited to threads `PRRT_kwDORzpWpM6nXCrq` and `PRRT_kwDORzpWpM6nXCr8`):
+    the prose trigger is now machine-enforced. Stash `5CA04218` was harvested
+    into `196.001-T` (size M / medium) under `196-F`, carried by gate shipment
+    `202-S` (blocks on shipped `190-S`). `201-S` now blocks on `202-S` and
+    `190-S`, so it is not claim-eligible until `202-S` ships after the
+    follow-up re-split staging PR merges. The plan review index now covers
+    cycles 6 and 7 and states that the 12-task decomposition is not ready for
+    Ship until `202-S` ships.
+* **Next step** (*superseded by the cycle 8 update below: the gate items were
+  deleted before merge and the re-split was done in PR #466*). Stage runs the
+  `196.001-T` re-split (deliberation, plan update, plan-review, re-harvest) in
+  a follow-up staging PR. Ship then closes `202-S`, and only after that may
+  Ship claim `201-S`.
+
+## Update — cycle 8: 201-S re-split in-PR into six chained shipments (2026-09-29/30)
+
+* **Operator decisions.** Option 1 for thread `PRRT_kwDORzpWpM6nXl13` (the
+  cycle-7 gate shipment `202-S` was immediately claimable while its only task
+  was a Stage-owned planning task): re-split `201-S` inside PR #466. The
+  partition was approved on 2026-09-29 as "A + amendment": binding A
+  (`201-S` keeps `195-F` and becomes the terminal slice), the multi-PR
+  closure rules T1–T5, the design's split decisions, and an override of the
+  20-task session limit with batching kept. `038-DL`'s historical text stays
+  unchanged.
+* **Old gate removed.** The cycle-7 claim-gate items (feature `196-F`, task
+  `196.001-T`, shipment `202-S`) and the `201-S → 202-S` edge were deleted
+  before merge. backlogit later reused those IDs: `196-F` is now the slice-1
+  feature, `196.001-T` is task U1a-1 (adopted from `195.001-T`), and `202-S`
+  is the slice-1 shipment. Earlier entries in this file that name those IDs
+  mean the deleted gate items.
+* **Result.** 58 tasks (12 narrowed, 46 new; all size `S`), six features,
+  six shipments, applied in four backlog batches (`e6c9e9eb`, `b53113c5`,
+  `f043f55a`, `ad7fe558`) plus this documentation batch:
+  `190-S ◀── 202-S (196-F, 196.001–008-T) ◀── 203-S (197-F, 197.001–008-T)
+  ◀── 204-S (198-F, 198.001–009-T) ◀── 205-S (199-F, 199.001–011-T)
+  ◀── 206-S (200-F, 200.001–012-T) ◀── 201-S (195-F; 195.006-T, 195.013-T,
+  195.012-T, 195.014-T..195.017-T, 195.007-T, 195.018-T, 195.019-T)
+  ◀── 198-S`. `196-F`..`200-F` have no parent, link to `195-F` with
+  `related_to`, and carry no deliberation linkage (T2). `195-F` keeps
+  `source_deliberation_id: 038-DL`. The retired IDs `195.001-T`..`195.005-T`
+  and `195.008-T`..`195.011-T` no longer exist. The authoritative label-to-ID
+  map is the plan's "Resulting units and order" table.
+* **Transition-window closures.** `203-S` closes through SAFE_CLOSE with
+  `ENGINE_SEMANTICS_UNVERIFIED` (T3); `204-S` and `205-S` touch no
+  deliberation (T4); `206-S` is the first INV-12 closure, and `201-S` carries
+  the `038-DL` live proof (T5). The SCOPE_GAP guard runs at every shipment's
+  claim, PR-ready gate, and pre-merge.
+* **Stash `5CA04218`.** Already archived (reason `harvested`,
+  `harvested_artifact_id: 196.001-T`, which names the deleted gate task). Its
+  actual delivery is this re-split in PR #466. The `backlogit stash correct`
+  provenance record could not be written: backlogit requires the canonical
+  delivery artifact to carry `source_stash_id: 5CA04218`, and no re-split
+  artifact carries it. The correction is recorded here and in the plan's
+  cycle-8 index entry; the operator decides whether to add the field.
+* **Next step.** After PR #466 merges, Ship claims `202-S` when the operator
+  starts it (the only ready shipment of the chain). Each later shipment
+  becomes claimable only after its predecessor ships; `201-S` is blocked on
+  `206-S`, and `198-S` stays blocked on `201-S` pending its re-plan
+  (`1263B218`).
+
+## Update — cycle 9: INV-12 into 203-S, U5 parity into 206-S (2026-09-30)
+
+* **Operator decision.** 2026-09-30, "cycle 9 as recommended": a ninth
+  review-fix cycle for PR #466, limited to eight Copilot threads.
+* **INV-12 moved into `203-S`** (thread `PRRT_kwDORzpWpM6nl0f8`). `198.001-T`
+  was adopted under `197-F` and is now `197.009-T` in `203-S`. Its INV-12
+  policy assertions (A-a, A-f, A-g) moved from `198.002-T` to the new
+  `197.010-T` (`203-S`). `198.002-T` keeps only relax R9 and now blocks on
+  `197.010-T`. `198.007-T` and the `197.007-T`/`197.008-T` bodies point to
+  the new IDs. `INVARIANT_TOKENS` stays `INV-1`..`INV-11` until `199.010-T`.
+* **U5a/U5b parity moved into `206-S`** (thread `PRRT_kwDORzpWpM6nl0hD`).
+  The new `200.013-T` (`206-S`, blocks on `200.012-T`) holds H-m and I-13.
+  `195.017-T` keeps only the closing negative grep (I-12) and blocks on
+  `200.013-T`.
+* **D8a supersession note** (thread `PRRT_kwDORzpWpM6nc9xL`): added under
+  D8a in the decision doc and points to plan rules T1–T5.
+* **Transition rules.** T3: `203-S` also closes with no deliberation
+  mutation, because INV-12 is on main from `203-S` on but the disposition
+  step is not. T5: `206-S` is the first closure that runs the disposition
+  step.
+* **Result.** 60 tasks: `202-S` 8, `203-S` 10 (`197.001-T`..`197.010-T`),
+  `204-S` 8 (`198.002-T`..`198.009-T`), `205-S` 11, `206-S` 13
+  (`200.001-T`..`200.013-T`), `201-S` 10. No dependency points to a later
+  shipment and no feature spans two shipments. `202-S` is still the only
+  ready shipment of the chain. The retired ID `198.001-T` no longer exists.
+  The 195-F slice index, the feature and shipment bodies, and the plan
+  (task table, shipment table, cycle-9 index entry) are updated.
+* **Stash `5CA04218`** (thread `PRRT_kwDORzpWpM6ndtZm`): unchanged. `stash
+  correct` needs a target that carries `source_stash_id`, and no CLI or MCP
+  operation sets it. The gap is filed in the local backlogit feature-request
+  draft (section 5). The plan's cycle-8 and cycle-9 entries remain the
+  authoritative correction.
+* **Next step.** Unchanged: after PR #466 merges, Ship claims `202-S` when
+  the operator starts it.
