@@ -788,3 +788,572 @@ def select_close_path(
             ClosePath.SAFE_CLOSE,
             f"{_CLOSE_PATH_SELECTION_INVALID_INPUT}: close-path selection failed",
         )
+
+
+# ---------------------------------------------------------------------------
+# Linked-deliberation disposition planner (plan unit U1b, INV-12)
+# ---------------------------------------------------------------------------
+
+
+class LinkedDeliberationOutcome(str, Enum):
+    """The CLOSED set of outcomes INV-12 assigns to a disposition-set deliberation.
+
+    Exactly eight values; adding one is a contract change. The planner's
+    planned ``"archive"`` (:data:`PLANNED_ARCHIVE`) is the pre-mutation form of
+    :attr:`ARCHIVED`, which only the disposition step assigns, after
+    verify-after-each.
+    """
+
+    ARCHIVED = "archived"
+    ALREADY_ARCHIVED = "already-archived"
+    RETAINED_READ_ERROR = "retained_read_error"
+    RETAINED_AMBIGUOUS = "retained_ambiguous"
+    RETAINED_ENGINE_UNVERIFIED = "retained_engine_unverified"
+    RETAINED_LIVE_STATUS = "retained_live_status"
+    RETAINED_SHARED_REFERENCE = "retained_shared_reference"
+    RETAINED_DESCRIPTION_MENTION = "retained_description_mention"
+
+
+PLANNED_ARCHIVE: Final = "archive"
+
+# Link kinds recorded per deliberation, in reporting order.
+_LINK_KIND_SOURCE: Final = "source_deliberation_id"
+_LINK_KIND_DESCRIPTION: Final = "description"
+_LINK_KIND_REFERENCES: Final = "references"
+_LINK_KIND_ORDER: Final = (_LINK_KIND_SOURCE, _LINK_KIND_DESCRIPTION, _LINK_KIND_REFERENCES)
+
+# Read-error reason codes (extensible vocabulary: report consumers accept any
+# reason_code, including unknown ones, and copy it verbatim).
+READ_ERROR_PATH_ESCAPE: Final = "path_escape"
+READ_ERROR_SYMLINK_OR_REPARSE_POINT: Final = "symlink_or_reparse_point"
+READ_ERROR_UNREADABLE_FILE: Final = "unreadable_file"
+READ_ERROR_MALFORMED_FRONTMATTER: Final = "malformed_frontmatter"
+READ_ERROR_BODY_UNSEPARABLE: Final = "body_unseparable"
+READ_ERROR_MALFORMED_STASH_ENTRY: Final = "malformed_stash_entry"
+
+# unresolved_references reason codes (neither is a read error).
+UNRESOLVED_INVALID_ID: Final = "invalid_id"
+UNRESOLVED_NOT_FOUND: Final = "not_found"
+
+_DELIBERATION_LINK_PATTERN: Final = re.compile(r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b")
+# Mirrors the frontmatter delimiter pattern of topology._frontmatter so the body
+# starts exactly where that parser's frontmatter block ends.
+_FRONTMATTER_BLOCK_PATTERN: Final = re.compile(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", re.DOTALL)
+# Deliberation statuses that are live under INV-12 (the deliberation vocabulary
+# in .backlogit/header-def.yaml is queued|active|blocked|review|done|accepted|
+# rejected|archived; deliberations have no in-progress status).
+_LIVE_DELIBERATION_STATUSES: Final = frozenset({"active", "blocked", "review"})
+_WORK_ITEM_TYPES: Final = frozenset({"feature", "task", "subtask", "bug", "chore"})
+
+
+@dataclass(frozen=True)
+class DeliberationRecordSnapshot:
+    """One on-disk record of a disposition-set deliberation."""
+
+    path: str
+    declared_status: object | None
+    sha256: str
+
+
+@dataclass(frozen=True)
+class LinkedDeliberationDisposition:
+    """The planned outcome for one disposition-set deliberation.
+
+    ``outcome`` is a :class:`LinkedDeliberationOutcome` or the planned
+    ``"archive"``. ``reason_code`` is never empty and equals the outcome value
+    for every outcome except ``retained_read_error``, which carries a read-error
+    reason code plus ``path`` (workspace-relative with ``/`` separators, or as
+    supplied when it resolves outside the workspace).
+    """
+
+    deliberation_id: str
+    outcome: LinkedDeliberationOutcome | Literal["archive"]
+    reason_code: str
+    link_kinds: tuple[str, ...]
+    linking_member_ids: tuple[str, ...]
+    records: tuple[DeliberationRecordSnapshot, ...]
+    declared_status: object | None
+    referrer_ids: tuple[str, ...] = ()
+    path: str | None = None
+
+
+@dataclass(frozen=True)
+class UnresolvedDeliberationReference:
+    """A linked id that is not a disposition-set member (never a halt)."""
+
+    id: str
+    reason_code: str
+
+
+@dataclass(frozen=True)
+class LinkedDeliberationDispositionPlan:
+    """The read-only result of :func:`compute_linked_deliberation_disposition`.
+
+    ``planning_error`` is set only when the planner hit an unexpected internal
+    failure; the plan then carries no archive outcome, so every linked
+    deliberation is retained.
+    """
+
+    shipment_id: str | None
+    engine: object
+    dispositions: tuple[LinkedDeliberationDisposition, ...]
+    unresolved_references: tuple[UnresolvedDeliberationReference, ...]
+    planning_error: str | None = None
+
+
+@dataclass(frozen=True)
+class _RecordRead:
+    """One backlog record, read exactly once (frontmatter, body and hash)."""
+
+    rel_path: str
+    artifact_id: str
+    artifact_type: str
+    status: object | None
+    frontmatter: dict
+    body: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class _ReadFailure:
+    rel_path: str
+    reason_code: str
+
+
+@dataclass(frozen=True)
+class _RecordIndex:
+    by_id: dict[str, list[_RecordRead]]
+    failures: tuple[_ReadFailure, ...]
+
+
+class _PreReadRecordText:
+    """Path stand-in that hands ``topology._frontmatter`` already-read text.
+
+    ``_frontmatter`` (the classifier's parser, H5) takes a path and calls
+    ``path.read_text(encoding="utf-8")``. Passing this stand-in lets the
+    frontmatter mapping, the Markdown body and the SHA-256 derive from ONE read
+    of the record, with no window between reads. ``__fspath__`` keeps it usable
+    as the real path should the parser ever open the file itself.
+    """
+
+    __slots__ = ("_path", "_text")
+
+    def __init__(self, path: Path, text: str) -> None:
+        self._path = path
+        self._text = text
+
+    def read_text(self, encoding: str | None = None, errors: str | None = None) -> str:
+        return self._text
+
+    def __fspath__(self) -> str:
+        return os.fspath(self._path)
+
+    def __str__(self) -> str:
+        return str(self._path)
+
+
+def _workspace_relative(path: Path, workspace_root: Path) -> str:
+    try:
+        return path.relative_to(workspace_root).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _read_record_body(text: str) -> str | None:
+    """Return the Markdown description body after the closing frontmatter delimiter.
+
+    ``text`` is the same (newline-normalized) text the frontmatter was parsed
+    from. Returns ``None`` when the body cannot be separated.
+    """
+
+    match = _FRONTMATTER_BLOCK_PATTERN.match(text)
+    return None if match is None else text[match.end():]
+
+
+def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure | None:
+    """Read one record once; ``None`` means the file is not a backlog record."""
+
+    rel_path = _workspace_relative(path, workspace_root)
+    if _is_symlink_or_reparse_point(path):
+        return _ReadFailure(rel_path, READ_ERROR_SYMLINK_OR_REPARSE_POINT)
+    if not path.is_file():
+        return None
+    try:
+        raw = path.read_bytes()
+        # Universal-newline translation, exactly as Path.read_text would do.
+        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    except (OSError, UnicodeDecodeError):
+        return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
+    try:
+        frontmatter = _frontmatter(_PreReadRecordText(path, text))  # type: ignore[arg-type]
+    except BacklogUnavailableError:
+        return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
+    body = _read_record_body(text)
+    if body is None:
+        return _ReadFailure(rel_path, READ_ERROR_BODY_UNSEPARABLE)
+    artifact_id = _normalize_id(frontmatter.get("id"))
+    if artifact_id is None or not _ARTIFACT_ID_PATTERN.match(artifact_id):
+        # A record whose declared identity cannot be trusted could be a live
+        # referrer we cannot name: fail closed (never plan an archive past it).
+        return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
+    return _RecordRead(
+        rel_path=rel_path,
+        artifact_id=artifact_id,
+        artifact_type=str(frontmatter.get("artifact_type") or "").strip().lower(),
+        status=frontmatter.get("status"),
+        frontmatter=frontmatter,
+        body=body,
+        sha256=hashlib.sha256(raw).hexdigest(),
+    )
+
+
+def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
+    """Read every queue-root and archive-root record once (bounded, read-only, H5)."""
+
+    workspace_root = backlog_dir.parent
+    by_id: dict[str, list[_RecordRead]] = {}
+    failures: list[_ReadFailure] = []
+    for folder in ("queue", "archive"):
+        base = backlog_dir / folder
+        for component in (backlog_dir, base):
+            if _is_symlink_or_reparse_point(component):
+                failures.append(
+                    _ReadFailure(
+                        _workspace_relative(component, workspace_root),
+                        READ_ERROR_SYMLINK_OR_REPARSE_POINT,
+                    )
+                )
+        if failures or not base.is_dir():
+            continue
+        try:
+            candidates = sorted(base.glob("*.md"))
+        except OSError:
+            failures.append(
+                _ReadFailure(_workspace_relative(base, workspace_root), READ_ERROR_UNREADABLE_FILE)
+            )
+            continue
+        for candidate in candidates:
+            result = _read_record(candidate, workspace_root)
+            if isinstance(result, _ReadFailure):
+                failures.append(result)
+            elif result is not None:
+                by_id.setdefault(result.artifact_id, []).append(result)
+    for records in by_id.values():
+        records.sort(key=lambda record: record.rel_path)
+    return _RecordIndex(
+        by_id=by_id,
+        failures=tuple(sorted(set(failures), key=lambda failure: failure.rel_path)),
+    )
+
+
+def _scan_link_ids(text: object) -> set[str]:
+    """Return every deliberation-id-shaped token in ``text`` (non-str -> none)."""
+
+    if type(text) is not str:
+        return set()
+    return set(_DELIBERATION_LINK_PATTERN.findall(text))
+
+
+def _custom_fields(record: _RecordRead) -> dict:
+    custom_fields = record.frontmatter.get("custom_fields")
+    return custom_fields if isinstance(custom_fields, dict) else {}
+
+
+def _record_links(record: _RecordRead) -> dict[str, set[str]]:
+    """Map each linked id to the link kinds through which ``record`` links it."""
+
+    links: dict[str, set[str]] = {}
+    source_id = _normalize_id(_custom_fields(record).get("source_deliberation_id"))
+    if source_id is not None:
+        links.setdefault(source_id, set()).add(_LINK_KIND_SOURCE)
+    for linked_id in _scan_link_ids(record.body):
+        links.setdefault(linked_id, set()).add(_LINK_KIND_DESCRIPTION)
+    references = record.frontmatter.get("references")
+    if isinstance(references, list):
+        for entry in references:
+            for linked_id in _scan_link_ids(entry):
+                links.setdefault(linked_id, set()).add(_LINK_KIND_REFERENCES)
+    return links
+
+
+def _closure_scope_ids(manifest_ids: Sequence[str], shipment_id: str | None) -> frozenset[str]:
+    """``closure_scope(S) = items(S) ∪ {S}``."""
+
+    scope = set(manifest_ids)
+    if shipment_id is not None:
+        scope.add(shipment_id)
+    return frozenset(scope)
+
+
+@dataclass
+class _DispositionCandidate:
+    deliberation_id: str
+    records: list[_RecordRead]
+    link_kinds: set[str] = field(default_factory=set)
+    linking_member_ids: set[str] = field(default_factory=set)
+
+
+def _resolve_deliberation_records(
+    index: _RecordIndex, deliberation_id: str
+) -> list[_RecordRead] | None:
+    """Return every record carrying ``deliberation_id`` when it is a deliberation.
+
+    Existence is validated before location: the id must resolve to at least one
+    record whose ``artifact_type`` is ``deliberation``; otherwise ``None``. All
+    records carrying the id are returned so a torn id stays visible.
+    """
+
+    records = index.by_id.get(deliberation_id, [])
+    if not any(record.artifact_type == "deliberation" for record in records):
+        return None
+    return list(records)
+
+
+def _collect_disposition_set(
+    index: _RecordIndex,
+    manifest_ids: Sequence[str],
+    closure_scope: frozenset[str],
+) -> tuple[dict[str, _DispositionCandidate], dict[str, str]]:
+    """Collect the disposition set and the unresolved references.
+
+    The union, over EVERY explicit manifest member regardless of
+    ``artifact_type``, of the literal ``custom_fields.source_deliberation_id``
+    and the description-body and ``references`` matches, excluding the
+    member's own id (self-reference) and every id in ``closure_scope(S)`` (H10:
+    an explicit-member deliberation is governed by the flat allowed/required
+    sets, never by the disposition step). Ids that do not resolve to a
+    deliberation record are reported as unresolved (never a halt). A member
+    that cannot be found contributes no links; the fail-safe direction is
+    retention, because an undiscovered deliberation is never archived.
+    """
+
+    candidates: dict[str, _DispositionCandidate] = {}
+    unresolved: dict[str, str] = {}
+    for member_id in manifest_ids:
+        for member_record in index.by_id.get(member_id, []):
+            for linked_id, kinds in _record_links(member_record).items():
+                if linked_id == member_id or linked_id in closure_scope:
+                    continue
+                if not _ARTIFACT_ID_PATTERN.match(linked_id):
+                    unresolved.setdefault(linked_id, UNRESOLVED_INVALID_ID)
+                    continue
+                candidate = candidates.get(linked_id)
+                if candidate is None:
+                    records = _resolve_deliberation_records(index, linked_id)
+                    if records is None:
+                        unresolved.setdefault(linked_id, UNRESOLVED_NOT_FOUND)
+                        continue
+                    candidate = _DispositionCandidate(linked_id, records)
+                    candidates[linked_id] = candidate
+                candidate.link_kinds.update(kinds)
+                candidate.linking_member_ids.add(member_id)
+    return candidates, unresolved
+
+
+def _is_truly_archived(record: _RecordRead) -> bool:
+    """H3: decided from the declared status (exact parsed scalar), never location."""
+
+    return _is_engine_inert(record.status)
+
+
+def _shipment_referrers(
+    index: _RecordIndex, deliberation_id: str, shipment_id: str | None
+) -> set[str]:
+    """Shipments other than ``S``, not truly archived, that name the deliberation."""
+
+    referrers: set[str] = set()
+    for artifact_id, records in index.by_id.items():
+        if artifact_id == shipment_id:
+            continue
+        for record in records:
+            if record.artifact_type != "shipment" or _is_truly_archived(record):
+                continue
+            custom_fields = _custom_fields(record)
+            items = custom_fields.get("items")
+            listed = isinstance(items, list) and any(
+                _normalize_id(item) == deliberation_id for item in items
+            )
+            named = (
+                deliberation_id in _scan_link_ids(record.body)
+                or _normalize_id(custom_fields.get("source_deliberation_id")) == deliberation_id
+            )
+            if listed or named:
+                referrers.add(artifact_id)
+    return referrers
+
+
+def _scan_live_referrers(
+    index: _RecordIndex,
+    deliberation_id: str,
+    closure_scope: frozenset[str],
+    shipment_id: str | None,
+) -> tuple[str, ...]:
+    """Return the sorted live referrers of ``deliberation_id`` (bounded, read-only).
+
+    Counted: work items outside ``closure_scope(S)`` that are not truly
+    archived and link the deliberation through any link source, and other
+    shipments (see :func:`_shipment_referrers`). Never counted: the
+    deliberation itself, any other deliberation (so A<->B cycles never count),
+    docs and plan files (never scanned), and truly archived records.
+    """
+
+    referrers = _shipment_referrers(index, deliberation_id, shipment_id)
+    for artifact_id, records in index.by_id.items():
+        if artifact_id == deliberation_id or artifact_id in closure_scope:
+            continue
+        for record in records:
+            if record.artifact_type not in _WORK_ITEM_TYPES or _is_truly_archived(record):
+                continue
+            if deliberation_id in _record_links(record):
+                referrers.add(artifact_id)
+    return tuple(sorted(referrers))
+
+
+def _make_outcome_record(
+    candidate: _DispositionCandidate,
+    outcome: LinkedDeliberationOutcome | Literal["archive"],
+    *,
+    reason_code: str | None = None,
+    path: str | None = None,
+    referrer_ids: tuple[str, ...] = (),
+) -> LinkedDeliberationDisposition:
+    """Build a disposition record; ``reason_code`` defaults to the outcome value."""
+
+    records = tuple(
+        DeliberationRecordSnapshot(
+            path=record.rel_path, declared_status=record.status, sha256=record.sha256
+        )
+        for record in candidate.records
+    )
+    return LinkedDeliberationDisposition(
+        deliberation_id=candidate.deliberation_id,
+        outcome=outcome,
+        reason_code=reason_code or str(getattr(outcome, "value", outcome)),
+        link_kinds=tuple(kind for kind in _LINK_KIND_ORDER if kind in candidate.link_kinds),
+        linking_member_ids=tuple(sorted(candidate.linking_member_ids)),
+        records=records,
+        declared_status=candidate.records[0].status if len(candidate.records) == 1 else None,
+        referrer_ids=referrer_ids,
+        path=path,
+    )
+
+
+def _classify_outcome(
+    candidate: _DispositionCandidate,
+    *,
+    index: _RecordIndex,
+    engine_verified: bool,
+    closure_scope: frozenset[str],
+    shipment_id: str | None,
+) -> LinkedDeliberationDisposition:
+    """Apply the INV-12 outcome precedence (first match wins).
+
+    retained_read_error -> retained_ambiguous -> already-archived ->
+    retained_engine_unverified -> retained_live_status ->
+    retained_shared_reference -> retained_description_mention -> archive.
+    """
+
+    if index.failures:
+        # A read failure on any record the scan reads (the deliberation's own
+        # records or any live-referrer input) fails closed to retain.
+        failure = index.failures[0]
+        return _make_outcome_record(
+            candidate,
+            LinkedDeliberationOutcome.RETAINED_READ_ERROR,
+            reason_code=failure.reason_code,
+            path=failure.rel_path,
+        )
+    if len(candidate.records) > 1:
+        return _make_outcome_record(candidate, LinkedDeliberationOutcome.RETAINED_AMBIGUOUS)
+    status = candidate.records[0].status
+    if _is_engine_inert(status):
+        return _make_outcome_record(candidate, LinkedDeliberationOutcome.ALREADY_ARCHIVED)
+    if not engine_verified:
+        return _make_outcome_record(
+            candidate, LinkedDeliberationOutcome.RETAINED_ENGINE_UNVERIFIED
+        )
+    if isinstance(status, str) and status in _LIVE_DELIBERATION_STATUSES:
+        return _make_outcome_record(candidate, LinkedDeliberationOutcome.RETAINED_LIVE_STATUS)
+    referrers = _scan_live_referrers(index, candidate.deliberation_id, closure_scope, shipment_id)
+    if referrers:
+        return _make_outcome_record(
+            candidate,
+            LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE,
+            referrer_ids=referrers,
+        )
+    if _LINK_KIND_SOURCE not in candidate.link_kinds:
+        return _make_outcome_record(
+            candidate, LinkedDeliberationOutcome.RETAINED_DESCRIPTION_MENTION
+        )
+    return _make_outcome_record(candidate, PLANNED_ARCHIVE)
+
+
+def compute_linked_deliberation_disposition(
+    manifest_items: Sequence[str],
+    shipment_id: str,
+    workspace_backlog_dir: Path | str,
+    *,
+    engine: EngineSemanticsDecision,
+    stash_path: Path | str | None = None,
+) -> LinkedDeliberationDispositionPlan:
+    """Plan the INV-12 disposition of the shipment's linked deliberations.
+
+    Pure and read-only: it reads queue-root and archive-root records once with
+    the classifier's parser (``autoharness.gates.topology._frontmatter``, H5),
+    never mutates the backlog, never calls ``backlogit``, and never raises.
+    Each disposition-set deliberation gets exactly one planned outcome; an
+    engine that is not VERIFIED (or not an :class:`EngineSemanticsDecision`)
+    retains every non-archived deliberation.
+
+    Scope note (195-F slice 1): stash referrers and the ``stash_path`` default
+    (``<workspace_backlog_dir>/stash.jsonl``), containment checks, and the
+    fine-grained read-error rules land in slice 2 (197-F). Until then this
+    planner has no runtime caller and must not drive any mutation.
+    """
+
+    del stash_path  # Resolved and scanned from slice 2 (197.002-T).
+    normalized_shipment_id: str | None = None
+    try:
+        normalized_shipment_id = _normalize_id(shipment_id)
+        backlog_dir = Path(workspace_backlog_dir)
+        manifest_ids = tuple(
+            dict.fromkeys(
+                item_id
+                for item_id in (_normalize_id(item) for item in manifest_items)
+                if item_id is not None and _ARTIFACT_ID_PATTERN.match(item_id)
+            )
+        )
+        closure_scope = _closure_scope_ids(manifest_ids, normalized_shipment_id)
+        engine_verified = (
+            type(engine) is EngineSemanticsDecision
+            and engine.verdict is EngineSemanticsVerdict.VERIFIED
+        )
+        index = _index_backlog_records(backlog_dir)
+        candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
+        dispositions = tuple(
+            _classify_outcome(
+                candidates[deliberation_id],
+                index=index,
+                engine_verified=engine_verified,
+                closure_scope=closure_scope,
+                shipment_id=normalized_shipment_id,
+            )
+            for deliberation_id in sorted(candidates)
+        )
+        return LinkedDeliberationDispositionPlan(
+            shipment_id=normalized_shipment_id,
+            engine=engine,
+            dispositions=dispositions,
+            unresolved_references=tuple(
+                UnresolvedDeliberationReference(id=ref_id, reason_code=reason_code)
+                for ref_id, reason_code in sorted(unresolved.items())
+            ),
+        )
+    except Exception as exc:  # noqa: BLE001 - the planner must fail closed, never raise
+        return LinkedDeliberationDispositionPlan(
+            shipment_id=normalized_shipment_id,
+            engine=engine,
+            dispositions=(),
+            unresolved_references=(),
+            planning_error=f"linked-deliberation planning failed: {type(exc).__name__}",
+        )
