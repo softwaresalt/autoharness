@@ -271,8 +271,8 @@ self/cycle, P2 torn, P2 every-member-type).
 
 Add `compute_linked_deliberation_disposition(manifest_items, shipment_id, workspace_backlog_dir, *, engine: EngineSemanticsDecision, stash_path=None) -> LinkedDeliberationDispositionPlan`
 to `shipment_closure.py`. It is read-only, uses `autoharness.gates.topology._frontmatter`
-(the classifier's parser, H5), and never raises. Any read error fails closed to a
-retention outcome.
+(the classifier's parser, H5), and never raises. Any read error fails closed to the
+`retained_read_error` outcome (see **Outcome enum and reason codes**).
 
 * **Stash path default** (PR #466 review, cycle 4). `stash_path=None` is not "do
   not scan stashes". It resolves to `<workspace_backlog_dir>/stash.jsonl`, the
@@ -281,16 +281,18 @@ retention outcome.
   default. The default and an explicit path pass the same containment checks
   (see Input safety). A missing stash file means no active stash entries. Any
   other read error on it (unreadable, malformed line, or a containment failure)
-  fails closed to a retention outcome for every deliberation that could still be
-  archived. The U5a call site passes no `stash_path`, so the default is the
-  production path.
+  fails closed to `retained_read_error` (with a read-error `reason_code` and the
+  stash path as `path`) for every disposition-set deliberation, as the first
+  rule of the outcome precedence. The U5a call site passes no `stash_path`, so
+  the default is the production path.
 
 * **Description source** (PR #466 review). `_frontmatter` returns only the YAML
   mapping, but a backlogit artifact's description is the Markdown body after the
   closing frontmatter delimiter. The planner therefore reads the body text after
   that delimiter from the same record read, and uses it wherever this unit says
   "description" (member links and live referrers). A record whose body cannot be
-  separated from its frontmatter is a read error.
+  separated from its frontmatter is a read error: `retained_read_error` with
+  `reason_code` `body_unseparable`.
 
 * **Disposition set** (amends H1).
   * **Links collected.** The union, over **every explicit manifest member
@@ -308,26 +310,67 @@ retention outcome.
     `description`, `references`), linking member IDs, every record path, the
     declared status, and the SHA-256 of each record path.
 * **Planned outcome per deliberation.** Apply the first rule that matches:
-  1. `retained_ambiguous`: the ID resolves to more than one record (torn or
+  1. `retained_read_error` (PR #466 review, cycle 5): a read or containment
+     failure on the deliberation's own record or records, or on an input of the
+     live-referrer scan (the resolved stash file, or any record the scan reads).
+     The record carries a read-error `reason_code` and the offending `path` (see
+     **Outcome enum and reason codes** below). This rule is evaluated first, so a
+     record that cannot be read never reaches later classification.
+  2. `retained_ambiguous`: the ID resolves to more than one record (torn or
      duplicated).
-  2. `already-archived`: the declared `status` is exactly `"archived"` (H3).
-  3. `retained_engine_unverified`: the engine verdict is UNVERIFIED (P1-7). This
+  3. `already-archived`: the declared `status` is exactly `"archived"` (H3).
+  4. `retained_engine_unverified`: the engine verdict is UNVERIFIED (P1-7). This
      applies on every path.
-  4. `retained_live_status`: the deliberation's own status is `active`,
+  5. `retained_live_status`: the deliberation's own status is `active`,
      `blocked`, or `review` (P1-6; PR #466 review, cycle 4). These are the live
      statuses in the deliberation status vocabulary of
      `.backlogit/header-def.yaml` (`queued`, `active`, `blocked`, `review`,
      `done`, `accepted`, `rejected`, `archived`). Deliberations have no
      `in-progress` status. A deliberation under `review` is never archived.
      `queued`, `done`, `accepted`, and `rejected` are not live under this rule;
-     `archived` is handled by rule 2.
-  5. `retained_shared_reference: [referrer IDs]`: a live referrer exists (see
+     `archived` is handled by rule 3.
+  6. `retained_shared_reference: [referrer IDs]`: a live referrer exists (see
      below).
-  6. `retained_description_mention`: no explicit member links the deliberation
+  7. `retained_description_mention`: no explicit member links the deliberation
      through `source_deliberation_id`. It is linked only through description or
      `references` text. The outcome is report-only (P1-6, reviewer-recommended
      option).
-  7. `archive`: otherwise.
+  8. `archive`: otherwise.
+* **Outcome enum and reason codes** (PR #466 review, cycle 5; operator design,
+  2026-09-29).
+  * INV-12 is the invariant: the rule that gives each disposition-set member
+    exactly one outcome and permits mutation only when its conditions hold.
+    `LinkedDeliberationOutcome` is the **closed enum** of the values INV-12
+    assigns. It has exactly eight members: `archived`, `already-archived`,
+    `retained_read_error`, `retained_ambiguous`, `retained_engine_unverified`,
+    `retained_live_status`, `retained_shared_reference`, and
+    `retained_description_mention`. The planner's planned `archive` is the
+    pre-mutation form of `archived`, which U5a assigns only after
+    verify-after-each.
+  * Every outcome record carries a non-empty `reason_code`. For every outcome
+    except `retained_read_error`, it defaults to the outcome value.
+  * A `retained_read_error` record also carries `path`: the offending path,
+    workspace-relative with `/` separators. A path that resolves outside the
+    workspace is recorded as supplied.
+  * The initial read-error reason codes are:
+    * `path_escape`: a record path or the `stash_path` does not canonicalize
+      inside the workspace backlog tree;
+    * `symlink_or_reparse_point`: the path is, or sits under, a symlink,
+      junction, or reparse point;
+    * `unreadable_file`: an OS error on open or read, or content that is not
+      decodable as UTF-8;
+    * `malformed_frontmatter`: the frontmatter is missing, is not valid YAML, or
+      is not a mapping;
+    * `body_unseparable`: there is no closing frontmatter delimiter, so the
+      Markdown description body cannot be separated;
+    * `malformed_stash_entry`: a `stash.jsonl` line is not a JSON object.
+  * `unresolved_references` entries are `{id, reason_code}`, with `invalid_id`
+    (the ID fails `_ARTIFACT_ID_PATTERN`) or `not_found` (no deliberation record).
+    Neither is a read error.
+  * The enum is closed: adding a value is a contract change. The reason-code
+    vocabulary is extensible. Report consumers (the U5a report, U6b's Ship
+    Step 7, and `operational-closure`) accept any `reason_code`, including an
+    unknown one, and copy it verbatim. They never re-derive it.
 * **Live referrers** (bounded, read-only; P1-6).
   * **Counted:**
     * work items (`feature`, `task`, `subtask`, `bug`, `chore`) outside
@@ -357,12 +400,15 @@ retention outcome.
   `_scan_backlog`, `_is_symlink_or_reparse_point`) instead of new path logic.
   * Every candidate ID, including a literal `source_deliberation_id`, must match
     `_ARTIFACT_ID_PATTERN` before it is used to build a path. A non-matching ID
-    goes to `unresolved_references` and is never resolved.
+    goes to `unresolved_references` with `reason_code` `invalid_id` and is never
+    resolved, so it never becomes a disposition-set member or a
+    `retained_read_error`.
   * Every record path and the supplied `stash_path` must canonicalize inside the
     workspace backlog tree, and must not be (or sit under) a symlink or
     reparse point.
-  * A containment failure is a read error. It fails closed to a retention
-    outcome, never to `archive`, and the planner still never raises.
+  * A containment failure is a read error. It yields `retained_read_error` with
+    `reason_code` `path_escape` or `symlink_or_reparse_point`, never `archive`,
+    and the planner still never raises.
 * **Tests** (fixture-first; `tests/test_linked_deliberation_disposition_planner.py`):
   * multi-feature manifest;
   * self-reference;
@@ -389,16 +435,42 @@ retention outcome.
   * a description-only link, which yields `retained_description_mention`;
   * engine UNVERIFIED, which yields `retained_engine_unverified` for every
     non-archived deliberation;
-  * an unresolved ID, which goes to `unresolved_references`;
+  * an unresolved ID, which goes to `unresolved_references` with `reason_code`
+    `not_found`;
   * a non-deliberation `artifact_type`, which is excluded;
   * links from `task`, `bug`, and `chore` members;
   * a deliberation ID that appears only in a member's Markdown body (not in
     frontmatter), which is found as a description link, and one that appears
     only in another shipment's body, which counts as a live referrer;
-  * negative input-safety cases: a traversal-shaped `source_deliberation_id`
-    (for example `../x-DL`), which goes to `unresolved_references`; a
-    `stash_path` outside the backlog tree; and a symlink or junction record or
-    `stash_path`. Each fails closed with no `archive` outcome.
+  * negative input-safety and read-failure cases. Each asserts the **exact**
+    outcome, `reason_code`, and `path`, never merely "no archive":
+    * a traversal-shaped `source_deliberation_id` (for example `../x-DL`) goes to
+      `unresolved_references` with `reason_code` `invalid_id`, and has no
+      disposition record;
+    * a `stash_path` outside the backlog tree yields `retained_read_error`,
+      `path_escape`, and the supplied stash path, for every disposition-set
+      deliberation;
+    * a symlink or junction deliberation record yields `retained_read_error`,
+      `symlink_or_reparse_point`, and that record's path;
+    * a symlink or junction `stash_path` yields `retained_read_error`,
+      `symlink_or_reparse_point`, and the stash path;
+    * a deliberation record that is not decodable as UTF-8 yields
+      `retained_read_error`, `unreadable_file`, and the record path;
+    * a deliberation record with invalid-YAML frontmatter yields
+      `retained_read_error`, `malformed_frontmatter`, and the record path;
+    * a deliberation record with no closing frontmatter delimiter yields
+      `retained_read_error`, `body_unseparable`, and the record path;
+    * a default `<workspace_backlog_dir>/stash.jsonl` containing a non-JSON line
+      yields `retained_read_error`, `malformed_stash_entry`, and the
+      workspace-relative stash path;
+    * another shipment's record, read by the live-referrer scan, with
+      invalid-YAML frontmatter yields `retained_read_error`,
+      `malformed_frontmatter`, and that record's path;
+  * precedence: a torn deliberation with one unreadable record yields
+    `retained_read_error`, not `retained_ambiguous`; an unreadable deliberation
+    under engine UNVERIFIED yields `retained_read_error`;
+  * every other outcome fixture also asserts that `reason_code` equals the
+    outcome value, and `LinkedDeliberationOutcome` has exactly the eight members.
 * **Size:** M. **Complexity:** medium. Depends on U1a.
 
 ### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 195.002-T
@@ -446,15 +518,26 @@ P3 source relabel):
   general registry is `8928EC67`. The plan never states that SAFE_CLOSE is
   "always valid".
 * **New INV-12 (Linked-deliberation disposition)** is the authoritative text.
-  After the **selected** close path's gate passes, the Linked-Deliberation
-  Disposition step assigns each disposition-set member exactly one outcome from:
+  INV-12 is the invariant, meaning the rule. `LinkedDeliberationOutcome` is the
+  closed enum of the values the rule assigns (PR #466 review, cycle 5). After the
+  **selected** close path's gate passes, the Linked-Deliberation Disposition step
+  assigns each disposition-set member exactly one `LinkedDeliberationOutcome`:
   * `archived`
   * `already-archived`
+  * `retained_read_error`
   * `retained_engine_unverified`
   * `retained_ambiguous`
   * `retained_live_status`
   * `retained_shared_reference`
   * `retained_description_mention`
+
+  Each outcome carries a `reason_code`, which defaults to the outcome value.
+  `retained_read_error` also carries the workspace-relative `path` and a
+  read-error reason code from U1b's extensible vocabulary (`path_escape`,
+  `symlink_or_reparse_point`, `unreadable_file`, `malformed_frontmatter`,
+  `body_unseparable`, `malformed_stash_entry`). A read or containment failure
+  yields `retained_read_error` before any later classification. The enum is
+  closed; consumers accept unknown reason codes.
 
   Mutation is a single-artifact, non-cascading archive, and it happens only when
   all of these hold:
@@ -490,7 +573,8 @@ Tests, written first:
 * The absence of `closure_scope(S) ∪ validated_linked_deliberations(S)`.
 * `ENGINE_SEMANTICS_UNVERIFIED` and `select_close_path`.
 * The verified-line token, parsed, equals the constant.
-* The H10 exclusion sentence and the seven-outcome vocabulary.
+* The H10 exclusion sentence, the eight-outcome `LinkedDeliberationOutcome`
+  vocabulary (including `retained_read_error`), and the `reason_code` sentence.
 * The absence of "always valid" for SAFE_CLOSE.
 * Rendered-region parity for the edited paragraphs, with an allowlist.
 
@@ -796,8 +880,11 @@ P3 TOCTOU, P3 forever-live, P2 advisories). Add a new
    closure. The run does not advance to post-mode, and a torn disposition is
    never committed (H4).
 5. **Report.** Record:
-   * `linked_deliberation_disposition: [{id, link_kinds, linking_members, outcome, referrers, pre_sha256, post_sha256, archived_status}]`;
-   * `unresolved_references`;
+   * `linked_deliberation_disposition: [{id, link_kinds, linking_members, outcome, reason_code, path, referrers, pre_sha256, post_sha256, archived_status}]`,
+     where `outcome` is a `LinkedDeliberationOutcome` value, `reason_code` is
+     always present and copied verbatim from the planner, and `path` is present
+     for `retained_read_error`;
+   * `unresolved_references` (`{id, reason_code}`);
    * the durable advisories `ENGINE_SEMANTICS_UNVERIFIED` /
      `ENGINE_LINE_UNVERIFIED_ADVISORY`, carried into the closure summary (P2);
    * a `stranded_linked_deliberation` advisory listing every `retained_*`
@@ -816,7 +903,8 @@ Also:
 Tests, written first, assert:
 
 * the section exists;
-* the seven outcomes;
+* the eight `LinkedDeliberationOutcome` values, including `retained_read_error`,
+  and the `reason_code` and `path` report fields;
 * the halt string and the report field;
 * the baseline definition, including `git status --porcelain`;
 * semantic frontmatter comparison with a byte-exact body;
@@ -857,7 +945,10 @@ as U5a.
   * (c) engine drift (a linked deliberation archived or modified by the cascade)
     → halt;
   * (d) description-only mention → `retained_description_mention`;
-  * (e) torn deliberation → `retained_ambiguous`.
+  * (e) torn deliberation → `retained_ambiguous`;
+  * (f) an unreadable, malformed, or containment-failing deliberation record or
+    stash input → `retained_read_error` with its `reason_code` and `path`
+    (never archived, never a halt).
 * **Quality Criteria** bullets.
 * **Closing negative grep (P1-2).** Add
   `test_no_stale_linked_deliberation_cascade_wording` over the policy, skill,
@@ -928,8 +1019,10 @@ Changes:
     independently. It reads the shipment's `linked_deliberation_disposition`
     report.
     * If the outcome is `archived` or `already-archived`, record it and skip.
-    * If the outcome is any `retained_*`, **never archive**. Record the outcome
-      verbatim.
+    * If the outcome is any `retained_*`, including `retained_read_error`,
+      **never archive**. Record the outcome verbatim with its `reason_code`
+      (and `path`, when present). An unknown `reason_code` is accepted and
+      recorded verbatim.
   * A deliberation that is absent from the report falls into one of two cases.
     Either the report predates this contract, or the link was out of the
     disposition set. In both cases, record `skipped_not_in_disposition_report`
@@ -942,17 +1035,20 @@ Changes:
 * **`operational-closure` Step 2 "Source artifact cleanup" outcomes list.**
   * Existing outcomes: archived; skipped because already archived; skipped
     because not found; `none`.
-  * Add every `retained_*` outcome, plus `skipped_not_in_disposition_report`.
-  * The `source_deliberation_id` outcome is copied from the disposition report,
-    never re-derived. The `Source artifact cleanup`, `source_stash_id`, and
+  * Add every `retained_*` outcome (including `retained_read_error`), plus
+    `skipped_not_in_disposition_report`.
+  * The `source_deliberation_id` outcome and its `reason_code` (and `path`, when
+    present) are copied from the disposition report, never re-derived. The
+    `Source artifact cleanup`, `source_stash_id`, and
     `source_deliberation_id` tokens stay present (the
     `closure_source_artifact_cleanup` check).
 
 Tests, written first:
 
-* Step 7 names `linked_deliberation_disposition` and "never archive" for
-  `retained_*`.
-* `operational-closure` lists `retained_shared_reference`.
+* Step 7 names `linked_deliberation_disposition`, "never archive" for
+  `retained_*`, and records the `reason_code`.
+* `operational-closure` lists `retained_shared_reference` and
+  `retained_read_error`.
 * The verify-workspace tokens are still present.
 * Rendered-region parity for `operational-closure`; phrase-level parity for the
   Ship agent.
@@ -1292,7 +1388,7 @@ in this plan. No finding required a change to the chosen option (038-DL Option B
 | P1-4 | Byte-parity tests between template and mirror are unimplementable (placeholders, `7F9CB5E9`, structural Ship divergence) | Rendered-region parity for the policy and skill pairs; phrase-level parity for the Ship pair; machine-readable token ``Verified engine-semantics lines: `1.11` `` parsed against the constant | Implementation Units (Parity method); U2a and U3a tests |
 | P1-5 | Extending `INVARIANT_TOKENS` to INV-12 in U2 turns the suite red, because the shared test also iterates the skill pair | U2a adds a policy-only INV-12 test. `INVARIANT_TOKENS` becomes `range(1, 13)` in U4, after both skill files gain INV-12 | U2a (Tests); U4 (`INVARIANT_TOKENS`) |
 | P1-6 | The shared-reference guard misses live referrers (active stash entries, other unshipped shipments, shipment descriptions) and over-matches incidental mentions | U1b counts work items, other shipments, and active stash entries; retains on a live deliberation status; auto-archives only `source_deliberation_id` links; description-only mentions become `retained_description_mention` (report-only) | U1b (Live referrers, Planned outcome); U2a (INV-12) |
-| P1-7 | Disposition can recreate the 190-S scenario on an unverified engine; "SAFE_CLOSE always valid" is wrong | Disposition reads the Step 0(c) engine verdict; UNVERIFIED means `retained_engine_unverified` and no mutation on any path. The wording is corrected, and safe-close step 8 / INV-11 refer to the *selected* path. The scenario row is added | U1b (outcome 3); U2a (SAFE_CLOSE reliance, reworded); U5a step 1; U5b (Safe-close step 8, Scenario-matrix row a); Decisions and Rationale |
+| P1-7 | Disposition can recreate the 190-S scenario on an unverified engine; "SAFE_CLOSE always valid" is wrong | Disposition reads the Step 0(c) engine verdict; UNVERIFIED means `retained_engine_unverified` and no mutation on any path. The wording is corrected, and safe-close step 8 / INV-11 refer to the *selected* path. The scenario row is added | U1b (outcome 4); U2a (SAFE_CLOSE reliance, reworded); U5a step 1; U5b (Safe-close step 8, Scenario-matrix row a); Decisions and Rationale |
 
 ### P2 dispositions
 
@@ -1403,7 +1499,7 @@ Deferred (captured, not dropped):
 
 ## PR #466 review amendments (staging PR, 2026-09-29)
 
-Copilot review of the staging PR (#466) raised in-scope plan findings over four
+Copilot review of the staging PR (#466) raised in-scope plan findings over five
 review-fix cycles. The unit text above is the authoritative resolution; this
 section only indexes it.
 
@@ -1419,8 +1515,19 @@ section only indexes it.
   * `retained_live_status` now covers the actual deliberation live statuses
     `active|blocked|review` (from `.backlogit/header-def.yaml`; deliberations
     have no `in-progress`), with `blocked` and `review` fixtures and a `queued`
-    not-live fixture (U1b rule 4 and Tests).
+    not-live fixture (U1b rule 5 and Tests).
   * `stash_path=None` now resolves to `<workspace_backlog_dir>/stash.jsonl`,
     with default-call tests proving that an active-stash referrer (the `038-DL`
     shape) is detected and the deliberation retained (U1b Stash path default and
     Tests; Runtime Verification `038-DL` expectation).
+* **Cycle 5 — operator-authorized extension.** Operator decision (2026-09-29):
+  "authorize the fifth review cycle" for PR #466, limited to the single open
+  Copilot thread on the U1b / `195.008-T` fail-closed return contract.
+  * The new eighth outcome `retained_read_error` is first in the U1b precedence.
+    INV-12 stays the name of the invariant (the rule). The outcome set is the
+    closed enum `LinkedDeliberationOutcome`. Every outcome carries a
+    `reason_code`. `retained_read_error` adds a `path` and an extensible
+    read-error vocabulary. The tests assert the exact outcome, `reason_code`,
+    and `path` for each read-failure class (U1b Outcome enum and reason codes,
+    Input safety, and Tests; U2a INV-12; U5a Report; U5b scenario row (f); U6b;
+    038-DL D3a).

@@ -340,9 +340,20 @@ review amendments (2026-09-29)" indexes every finding and its resolution.
     location, and unresolved IDs never halt.
   * **Planner.** A pure, read-only `compute_linked_deliberation_disposition` in
     `shipment_closure.py` plans the outcomes, with fixture tests written first.
-  * **Outcomes**, first match wins: `retained_ambiguous`, `already-archived`,
-    `retained_engine_unverified`, `retained_live_status`,
+  * **Outcomes**, first match wins: `retained_read_error`, `retained_ambiguous`,
+    `already-archived`, `retained_engine_unverified`, `retained_live_status`,
     `retained_shared_reference`, `retained_description_mention`, `archived`.
+    INV-12 is the invariant (the rule that assigns each disposition-set member
+    exactly one outcome); `LinkedDeliberationOutcome` is the closed enum of these
+    eight values (PR #466 review, cycle 5).
+  * **Reason codes.** Every outcome carries a `reason_code`, which defaults to the
+    outcome value. `retained_read_error` comes first, so a record that cannot be
+    read never reaches later classification. It also records the
+    workspace-relative `path` and a read-error reason code: `path_escape`,
+    `symlink_or_reparse_point`, `unreadable_file`, `malformed_frontmatter`,
+    `body_unseparable`, or `malformed_stash_entry`. The enum is closed; the
+    reason-code vocabulary is extensible, and report consumers accept unknown
+    codes.
   * **Engine-gated.** When the Step 0(c) engine verdict is UNVERIFIED, nothing is
     mutated on any path. This prevents the step from recreating the 190-S
     scenario.
