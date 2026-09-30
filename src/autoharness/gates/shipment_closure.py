@@ -6,14 +6,31 @@ The authoritative contract uses four set names:
 
 * ``manifest_scope(S)`` — exactly ``items(S)``.
 * ``closure_scope(S)`` — exactly ``items(S) ∪ {S}``.
-* ``allowed_ids(S)`` — ``closure_scope(S) ∪ validated_linked_deliberations(S)``.
-* ``required_ids(S)`` — ``{S} ∪ {qualifying feature members of S}`` (both
-  unconditionally required regardless of their own pre-close declared
-  status) ``∪ {x ∈ allowed_ids(S) : x is not already truly archived in the
-  pre-close snapshot}`` (every other ``allowed_ids(S)`` member — a manifest
-  task item, or a qualifying feature member's validated linked
-  deliberation — is required only when it was not already truly archived
-  pre-close).
+* ``allowed_ids(S)`` — ``closure_scope(S)`` (flat: backlogit 1.11.x
+  ``shipment ship`` archive-candidate selection is the flat manifest plus the
+  shipment record).
+* ``required_ids(S)`` — ``{S} ∪ {qualifying feature members of S} ∪
+  {x ∈ items(S) : x not truly archived pre-close}``. ``S`` and the qualifying
+  feature members are required unconditionally, regardless of their own
+  pre-close declared status; every other manifest item, over every
+  ``artifact_type``, is required only when it was not already truly archived
+  in the pre-close snapshot.
+
+Linked deliberations are outside both sets under the verified 1.11.x engine
+line: the engine leaves a linked deliberation independent unless its own ID is
+an explicit manifest member (then it is an ordinary member of both sets). Their
+fate is decided by the INV-12 linked-deliberation disposition step, planned
+read-only by :func:`compute_linked_deliberation_disposition`.
+
+Engine-semantics composition: :func:`assess_cascade_engine_semantics` decides
+whether the probed backlogit build is on a verified minor line
+(``VERIFIED_CASCADE_ENGINE_MINOR_LINES``), and :func:`select_close_path` is the
+single executable composition point that combines that verdict with
+:func:`classify_shipment_close_path` (``CASCADE`` only when both agree). The
+runtime callers are the self-hosting shipment-reconcile Step 0(c) close-path
+selection (plan unit U3a), the Linked-Deliberation Disposition step (plan unit
+U5a), and the caller surface the 198-S evaluator re-plan adopts (Stage
+follow-up). Until those land, these names have no runtime caller.
 
 The descendant walk in this module is a BLAST-RADIUS containment check on the
 cascade instrument, not a definition of closure scope. An out-of-manifest
@@ -68,13 +85,15 @@ fail-closed YAML-frontmatter parsing convention.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import stat
 from dataclasses import dataclass, field
 from enum import Enum
 from glob import escape as _glob_escape
 from pathlib import Path
-from typing import Sequence
+from typing import Final, Literal, Sequence
 
 from autoharness.gates.topology import (
     _ARTIFACT_ID_PATTERN,
@@ -516,3 +535,256 @@ def classify_shipment_close_path(
         qualifying_feature_ids=tuple(qualifying_feature_ids),
         out_of_manifest_descendant_ids=tuple(sorted(out_of_manifest_descendant_ids)),
     )
+
+
+# ---------------------------------------------------------------------------
+# Engine-semantics gate (plan unit U1a)
+# ---------------------------------------------------------------------------
+
+# The single source of truth for the backlogit minor lines whose P-015 closure
+# engine semantics this contract has verified. It covers BOTH engine
+# propositions:
+#
+# 1. flat ``shipment ship`` archive-candidate selection leaves linked
+#    deliberations and unlisted (out-of-manifest) descendants independent;
+# 2. non-cascading ``archive_item`` changes exactly the named artifact. At
+#    backlogit v1.11.0, ``internal/core/archive.go`` ``ArchiveItem`` (L103)
+#    rewrites only the ``status``, ``archived_status`` and ``archived_from``
+#    frontmatter keys (L234-255), plus the gitignored item event log and index.
+#
+# Adding a line is a contract change: re-verify both propositions against that
+# engine line first. Module-local; intentionally not exported from
+# ``autoharness.gates``.
+VERIFIED_CASCADE_ENGINE_MINOR_LINES: Final[frozenset[tuple[int, int]]] = frozenset({(1, 11)})
+
+_ENGINE_SEMANTICS_UNVERIFIED_PREFIX: Final = "ENGINE_SEMANTICS_UNVERIFIED:"
+_PROBE_SURFACES: Final[frozenset[str]] = frozenset({"mcp", "cli"})
+_RELEASE_VERSION_PATTERN: Final = (
+    r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?"
+)
+
+
+class EngineSemanticsVerdict(str, Enum):
+    """Whether the probed backlogit build is on a verified engine minor line."""
+
+    VERIFIED = "VERIFIED"
+    UNVERIFIED = "UNVERIFIED"
+
+
+@dataclass(frozen=True)
+class EngineSemanticsDecision:
+    """The result of :func:`assess_cascade_engine_semantics`.
+
+    ``probed_version``, ``probe_surface`` and ``probed_commit`` are recorded
+    verbatim when the supplied value is an exact ``str`` and are ``None``
+    otherwise. ``probed_commit`` is never interpreted here; the skill's
+    pre-invocation re-probe compares it raw.
+    """
+
+    verdict: EngineSemanticsVerdict
+    reason: str
+    probed_version: str | None
+    minor_line: tuple[int, int] | None
+    probe_surface: str | None
+    probed_commit: str | None
+
+
+@dataclass(frozen=True)
+class _ParsedReleaseVersion:
+    major: int
+    minor: int
+    patch: int
+    unreleased: bool
+
+
+def _parse_release_version(value: str) -> _ParsedReleaseVersion | None:
+    """Parse an exact-``str`` backlogit version, or return ``None``.
+
+    Uses ``re.fullmatch`` (never ``match`` with ``$``, which accepts a trailing
+    newline) with an ASCII-only digit class. There is no ``.strip()`` and no
+    coercion. Any pre-release or build-metadata component (a Go
+    pseudo-version, ``+dirty``, ``-rc1``) marks the build ``unreleased``.
+    """
+
+    match = re.fullmatch(_RELEASE_VERSION_PATTERN, value, flags=re.ASCII)
+    if match is None:
+        return None
+    try:
+        major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    except ValueError:
+        # int() refuses digit strings beyond the interpreter's conversion
+        # limit; such a value is not a plausible release version.
+        return None
+    unreleased = match.group(4) is not None or match.group(5) is not None
+    return _ParsedReleaseVersion(major=major, minor=minor, patch=patch, unreleased=unreleased)
+
+
+def _exact_str_or_none(value: object) -> str | None:
+    return value if type(value) is str else None
+
+
+def _validate_probe_surface(probe_surface: object, invocation_surface: object) -> str | None:
+    """Return an ``UNVERIFIED`` reason suffix, or ``None`` when the surfaces agree.
+
+    Each surface must be exactly ``"mcp"`` or ``"cli"`` and the two must be
+    equal: the MCP server and the CLI binary can be different builds, so a
+    version probed on one surface says nothing about the other.
+    """
+
+    surfaces = (probe_surface, invocation_surface)
+    if not all(type(surface) is str and surface in _PROBE_SURFACES for surface in surfaces):
+        return (
+            "unknown probe surface (probe_surface and invocation_surface must each be "
+            "exactly 'mcp' or 'cli')"
+        )
+    if probe_surface != invocation_surface:
+        return (
+            f"probe surface mismatch (probed on {probe_surface!r}, invoked on "
+            f"{invocation_surface!r})"
+        )
+    return None
+
+
+def _unverified(
+    detail: str,
+    *,
+    probed_version: str | None,
+    probe_surface: str | None,
+    probed_commit: str | None,
+    minor_line: tuple[int, int] | None = None,
+) -> EngineSemanticsDecision:
+    return EngineSemanticsDecision(
+        verdict=EngineSemanticsVerdict.UNVERIFIED,
+        reason=f"{_ENGINE_SEMANTICS_UNVERIFIED_PREFIX} {detail}",
+        probed_version=probed_version,
+        minor_line=minor_line,
+        probe_surface=probe_surface,
+        probed_commit=probed_commit,
+    )
+
+
+def assess_cascade_engine_semantics(
+    probed_version: object,
+    *,
+    probe_surface: object,
+    invocation_surface: object,
+    probed_commit: object = None,
+) -> EngineSemanticsDecision:
+    """Decide whether the probed backlogit build has verified P-015 engine semantics.
+
+    ``VERIFIED`` only for a released build (no pre-release or build metadata)
+    whose ``(major, minor)`` is in ``VERIFIED_CASCADE_ENGINE_MINOR_LINES``,
+    probed and invoked on the same surface. Every ``UNVERIFIED`` reason starts
+    with ``ENGINE_SEMANTICS_UNVERIFIED:``. Never raises.
+    """
+
+    try:
+        return _assess_cascade_engine_semantics(
+            probed_version, probe_surface, invocation_surface, probed_commit
+        )
+    except Exception:  # noqa: BLE001 - the gate must fail closed, never raise
+        return _unverified(
+            "engine-semantics assessment failed on unexpected input",
+            probed_version=None,
+            probe_surface=None,
+            probed_commit=None,
+        )
+
+
+def _assess_cascade_engine_semantics(
+    probed_version: object,
+    probe_surface: object,
+    invocation_surface: object,
+    probed_commit: object,
+) -> EngineSemanticsDecision:
+    version = _exact_str_or_none(probed_version)
+    recorded = {
+        "probed_version": version,
+        "probe_surface": _exact_str_or_none(probe_surface),
+        "probed_commit": _exact_str_or_none(probed_commit),
+    }
+    if version is None:
+        return _unverified(
+            f"non-string probed version (got {type(probed_version).__name__})", **recorded
+        )
+    parsed = _parse_release_version(version)
+    if parsed is None:
+        return _unverified(f"unparseable probed version {version[:64]!r}", **recorded)
+
+    surface_problem = _validate_probe_surface(probe_surface, invocation_surface)
+    if surface_problem is not None:
+        return _unverified(surface_problem, **recorded)
+
+    minor_line = (parsed.major, parsed.minor)
+    if parsed.unreleased:
+        return _unverified(
+            f"unreleased build {version!r} (pre-release or build metadata present)",
+            minor_line=minor_line,
+            **recorded,
+        )
+    if minor_line not in VERIFIED_CASCADE_ENGINE_MINOR_LINES:
+        return _unverified(
+            f"minor line {parsed.major}.{parsed.minor} not verified",
+            minor_line=minor_line,
+            **recorded,
+        )
+    return EngineSemanticsDecision(
+        verdict=EngineSemanticsVerdict.VERIFIED,
+        reason=(
+            f"backlogit {version} ({recorded['probe_surface']}) is on verified engine "
+            f"minor line {parsed.major}.{parsed.minor}"
+        ),
+        minor_line=minor_line,
+        **recorded,
+    )
+
+
+_CLOSE_PATH_SELECTION_INVALID_INPUT: Final = "CLOSE_PATH_SELECTION_INVALID_INPUT"
+
+
+def select_close_path(
+    classifier: ClosePathDecision, engine: EngineSemanticsDecision
+) -> tuple[ClosePath, str]:
+    """Compose the classifier and engine verdicts into the close path to run.
+
+    This is the single executable composition point for P-015 close-path
+    selection. Truth table:
+
+    ===================  ============  ==========================================
+    classifier           engine        result
+    ===================  ============  ==========================================
+    ``CASCADE``          VERIFIED      ``CASCADE``
+    ``CASCADE``          UNVERIFIED    ``SAFE_CLOSE`` with the engine's reason
+    ``SAFE_CLOSE``       VERIFIED      ``SAFE_CLOSE`` with the classifier's reason
+    ``SAFE_CLOSE``       UNVERIFIED    ``SAFE_CLOSE`` with the classifier's reason
+    ===================  ============  ==========================================
+
+    Any wrong-typed input returns ``SAFE_CLOSE`` with a reason starting
+    ``CLOSE_PATH_SELECTION_INVALID_INPUT``. Never raises.
+    """
+
+    try:
+        if (
+            type(classifier) is not ClosePathDecision
+            or type(engine) is not EngineSemanticsDecision
+            or type(classifier.close_path) is not ClosePath
+            or type(classifier.reason) is not str
+            or type(engine.verdict) is not EngineSemanticsVerdict
+            or type(engine.reason) is not str
+        ):
+            return (
+                ClosePath.SAFE_CLOSE,
+                f"{_CLOSE_PATH_SELECTION_INVALID_INPUT}: expected a ClosePathDecision "
+                "and an EngineSemanticsDecision",
+            )
+        if classifier.close_path is not ClosePath.CASCADE:
+            return ClosePath.SAFE_CLOSE, classifier.reason
+        if engine.verdict is not EngineSemanticsVerdict.VERIFIED:
+            return ClosePath.SAFE_CLOSE, engine.reason
+        return ClosePath.CASCADE, f"{classifier.reason}; {engine.reason}"
+    except Exception:  # noqa: BLE001 - selection must fail closed, never raise
+        return (
+            ClosePath.SAFE_CLOSE,
+            f"{_CLOSE_PATH_SELECTION_INVALID_INPUT}: close-path selection failed",
+        )
