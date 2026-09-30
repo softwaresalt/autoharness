@@ -69,8 +69,8 @@ shipment_id: 201-S
 
 ## Next steps
 
-* Ship claims `201-S` only when the operator starts it, after PR #466 merges
-  and gate shipment `202-S` ships (see the cycle 7 update below).
+* *Superseded by the cycle 8 update below:* Ship starts with `202-S` (slice 1
+  of the re-split), not `201-S`; `201-S` is the terminal slice.
 * The live proof is the post-merge closure of `201-S`. The expected `038-DL`
   outcome is `retained_shared_reference` while active stash entries cite it,
   otherwise `archived` (plan, Runtime Verification and Closure).
@@ -98,8 +98,9 @@ shipment_id: 201-S
   D9a.
 * **Stash.** `1263B218` was created (198-S / 192-F re-plan, P-021 C2).
   `8928EC67` was raised to high with a hard trigger; it absorbs `62C1E11E`.
-* **Next step.** Ship claims `201-S` only when the operator starts it, and
-  only after gate shipment `202-S` ships (cycle 7 update below). The
+* **Next step** (*superseded by the cycle 8 update below*). Ship claims
+  `201-S` only when the operator starts it, and only after gate shipment
+  `202-S` ships (cycle 7 update below). The
   live-proof expectation for `038-DL` is now `retained_shared_reference`
   while active stash entries cite it, otherwise `archived` (plan, Runtime
   Verification and Closure).
@@ -153,6 +154,54 @@ shipment_id: 201-S
     follow-up re-split staging PR merges. The plan review index now covers
     cycles 6 and 7 and states that the 12-task decomposition is not ready for
     Ship until `202-S` ships.
-* **Next step.** Stage runs the `196.001-T` re-split (deliberation, plan
-  update, plan-review, re-harvest) in a follow-up staging PR. Ship then closes
-  `202-S`, and only after that may Ship claim `201-S`.
+* **Next step** (*superseded by the cycle 8 update below: the gate items were
+  deleted before merge and the re-split was done in PR #466*). Stage runs the
+  `196.001-T` re-split (deliberation, plan update, plan-review, re-harvest) in
+  a follow-up staging PR. Ship then closes `202-S`, and only after that may
+  Ship claim `201-S`.
+
+## Update — cycle 8: 201-S re-split in-PR into six chained shipments (2026-09-29/30)
+
+* **Operator decisions.** Option 1 for thread `PRRT_kwDORzpWpM6nXl13` (the
+  cycle-7 gate shipment `202-S` was immediately claimable while its only task
+  was a Stage-owned planning task): re-split `201-S` inside PR #466. The
+  partition was approved on 2026-09-29 as "A + amendment": binding A
+  (`201-S` keeps `195-F` and becomes the terminal slice), the multi-PR
+  closure rules T1–T5, the design's split decisions, and an override of the
+  20-task session limit with batching kept. `038-DL`'s historical text stays
+  unchanged.
+* **Old gate removed.** The cycle-7 claim-gate items (feature `196-F`, task
+  `196.001-T`, shipment `202-S`) and the `201-S → 202-S` edge were deleted
+  before merge. backlogit later reused those IDs: `196-F` is now the slice-1
+  feature, `196.001-T` is task U1a-1 (adopted from `195.001-T`), and `202-S`
+  is the slice-1 shipment. Earlier entries in this file that name those IDs
+  mean the deleted gate items.
+* **Result.** 58 tasks (12 narrowed, 46 new; all size `S`), six features,
+  six shipments, applied in four backlog batches (`e6c9e9eb`, `b53113c5`,
+  `f043f55a`, `ad7fe558`) plus this documentation batch:
+  `190-S ◀── 202-S (196-F, 196.001–008-T) ◀── 203-S (197-F, 197.001–008-T)
+  ◀── 204-S (198-F, 198.001–009-T) ◀── 205-S (199-F, 199.001–011-T)
+  ◀── 206-S (200-F, 200.001–012-T) ◀── 201-S (195-F; 195.006-T, 195.013-T,
+  195.012-T, 195.014-T..195.017-T, 195.007-T, 195.018-T, 195.019-T)
+  ◀── 198-S`. `196-F`..`200-F` have no parent, link to `195-F` with
+  `related_to`, and carry no deliberation linkage (T2). `195-F` keeps
+  `source_deliberation_id: 038-DL`. The retired IDs `195.001-T`..`195.005-T`
+  and `195.008-T`..`195.011-T` no longer exist. The authoritative label-to-ID
+  map is the plan's "Resulting units and order" table.
+* **Transition-window closures.** `203-S` closes through SAFE_CLOSE with
+  `ENGINE_SEMANTICS_UNVERIFIED` (T3); `204-S` and `205-S` touch no
+  deliberation (T4); `206-S` is the first INV-12 closure, and `201-S` carries
+  the `038-DL` live proof (T5). The SCOPE_GAP guard runs at every shipment's
+  claim, PR-ready gate, and pre-merge.
+* **Stash `5CA04218`.** Already archived (reason `harvested`,
+  `harvested_artifact_id: 196.001-T`, which names the deleted gate task). Its
+  actual delivery is this re-split in PR #466. The `backlogit stash correct`
+  provenance record could not be written: backlogit requires the canonical
+  delivery artifact to carry `source_stash_id: 5CA04218`, and no re-split
+  artifact carries it. The correction is recorded here and in the plan's
+  cycle-8 index entry; the operator decides whether to add the field.
+* **Next step.** After PR #466 merges, Ship claims `202-S` when the operator
+  starts it (the only ready shipment of the chain). Each later shipment
+  becomes claimable only after its predecessor ships; `201-S` is blocked on
+  `206-S`, and `198-S` stays blocked on `201-S` pending its re-plan
+  (`1263B218`).

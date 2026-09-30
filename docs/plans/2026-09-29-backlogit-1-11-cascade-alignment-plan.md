@@ -143,12 +143,44 @@ Whole-section byte parity is therefore not a valid test. Instead:
   assert that it equals `VERIFIED_CASCADE_ENGINE_MINOR_LINES`. The Ship agent
   references the gate by name and never restates the line (H8).
 
-**Single PR.** All units land in one 201-S pull request. Intermediate commits may
-forward-reference a heading that a later unit creates (for example, U3a names the
-"Linked-Deliberation Disposition" step that U5a adds). No closure, and no
-dogfood run of the edited contract, happens on an intermediate commit.
+**Multi-shipment delivery (amended 2026-09-29, PR #466 cycle 8; supersedes the
+original "Single PR" rule).** The 2-hour re-split turned the twelve unit tasks
+into 58 tasks, delivered as six chained shipments (see Resulting units and order
+and Shipment partition below). Intermediate commits may still forward-reference a
+heading that a later task creates (for example, U3a names the
+"Linked-Deliberation Disposition" step that U5a adds). Because each shipment now
+closes on main before the next one is claimed, the operator-approved amendment
+("A + amendment", 2026-09-29) adds these multi-PR closure rules:
 
-### U1a — Engine-semantics gate, close-path composition, gate docstring (code) — 195.001-T
+* **T1 — one PR per shipment.** Each shipment is one Ship PR. The DAG chain
+  `202-S ◀── 203-S ◀── 204-S ◀── 205-S ◀── 206-S ◀── 201-S` forces each merge
+  and closure to finish before the next claim.
+* **T2 — deliberation-clean slices.** Features `196-F`..`200-F`, shipments
+  `202-S`..`206-S`, and their tasks carry no deliberation linkage: no
+  `source_deliberation_id`, no deliberation-ID token in the title, description,
+  labels, or custom fields, and no link whose target is a deliberation. Task
+  bodies cite the decision document path instead. This keeps the pre-195
+  linked-deliberation expansion empty, so the old and the flat
+  `allowed_ids` / `required_ids` coincide for the early slices.
+* **T3 — `203-S` closure (slice 2).** The P-015 flat sets and the engine-semantics
+  precondition are on main, but the skill has no Step 0(c) gate yet. The
+  precondition cannot be recorded, so Ship closes `203-S` through SAFE_CLOSE with
+  `ENGINE_SEMANTICS_UNVERIFIED` (the policy's own fail-closed branch).
+* **T4 — `204-S` and `205-S` closures (slices 3 and 4).** The U3a routing
+  forward-references the disposition step, which lands only in `206-S`. Ship
+  performs no deliberation mutation and records
+  `linked_deliberation_disposition: step-not-yet-on-main (transition window); all retained`.
+  These closures must not touch any deliberation.
+* **T5 — first INV-12 closures.** `206-S` (slice 5) is the first closure with
+  INV-12 on main. `201-S` (slice 6, terminal) is the first closure with the full
+  realigned contract and carries the `038-DL` live proof (see Runtime
+  Verification and Closure).
+
+The three-point SCOPE_GAP sequencing guard (see Dependency Graph) runs at every
+shipment's claim, P-014 PR-ready gate, and pre-merge, not once. No dogfood run of
+the edited contract happens on an intermediate commit inside a shipment's PR.
+
+### U1a — Engine-semantics gate, close-path composition, gate docstring (code) — 196.001-T..196.003-T (202-S)
 
 Amended 2026-09-29 (independent review P1-3, P2 probe surface, P2 pseudo-versions,
 P2 regex, P2 runtime caller, P3 pre-step grep).
@@ -264,7 +296,7 @@ P2 regex, P2 runtime caller, P3 pre-step grep).
 * **Size:** M (was S; select_close_path and hardened parsing added).
   **Complexity:** low.
 
-### U1b — Pure read-only linked-deliberation disposition planner (code) — 195.008-T (new)
+### U1b — Pure read-only linked-deliberation disposition planner (code) — 196.004-T..196.008-T (202-S), 197.001-T..197.006-T (203-S)
 
 Added 2026-09-29 (independent review P2 "pure read-only planner", P1-6, P1-7, P2
 self/cycle, P2 torn, P2 every-member-type).
@@ -473,7 +505,7 @@ to `shipment_closure.py`. It is read-only, uses `autoharness.gates.topology._fro
     outcome value, and `LinkedDeliberationOutcome` has exactly the eight members.
 * **Size:** M. **Complexity:** medium. Depends on U1a.
 
-### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 195.002-T
+### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 197.007-T, 197.008-T (203-S), 198.001-T, 198.002-T (204-S)
 
 Files:
 
@@ -580,7 +612,7 @@ Tests, written first:
 
 Size M. Complexity medium. Depends on U1a.
 
-### U2b — P-015 close-path gate vs. INV-12 split, P-010 clarification (policy) — 195.009-T (new)
+### U2b — P-015 close-path gate vs. INV-12 split, P-010 clarification (policy) — 198.003-T..198.006-T; policy parity 198.007-T (204-S)
 
 Added 2026-09-29 (independent review P1-2, P2 P-010, P3 1.10-era scoping). Same
 bundle as U2a, plus `tests/test_cascade_close_archived_ids_postcondition.py` for the
@@ -663,7 +695,7 @@ Tests, written first. These are policy assertions in
 
 Size M. Complexity medium. Depends on U2a.
 
-### U3a — Skill Step 0(b)/(c): all-member snapshot, engine-semantics gate, close-path selection, re-probe — 195.003-T
+### U3a — Skill Step 0(b)/(c): all-member snapshot, engine-semantics gate, close-path selection, re-probe — 198.008-T, 198.009-T (204-S), 199.001-T; engine-line consistency 199.002-T (205-S)
 
 Files: the skill template, the skill mirror, the manifest checksum and note for
 the skill mirror, and `tests/test_cascade_close_archived_ids_postcondition.py`.
@@ -718,7 +750,7 @@ it.
 
 Size M. Complexity medium. Depends on U2b.
 
-### U3b — Skill disposition snapshot, INV-6 scoping, transition-log preamble, re-collection — 195.010-T (new)
+### U3b — Skill disposition snapshot, INV-6 scoping, transition-log preamble, re-collection — 199.003-T..199.006-T (205-S)
 
 Split from U3 on 2026-09-29 (independent review P2 sizing, P2 torn, P1-2). Same
 bundle as U3a.
@@ -776,7 +808,7 @@ U4 inverts all three.
 
 Size M. Complexity medium. Depends on U3a.
 
-### U4 — Skill Cascade Close: flat postcondition sets and linked-deliberation byte-identity — 195.004-T
+### U4 — Skill Cascade Close: flat postcondition sets and linked-deliberation byte-identity — 199.007-T..199.010-T; skill parity I 199.011-T (205-S)
 
 Files: the same bundle as U3a.
 
@@ -822,7 +854,7 @@ Tests, written first:
 
 Size M. Complexity medium. Depends on U3b.
 
-### U5a — Skill Linked-Deliberation Disposition section — 195.005-T
+### U5a — Skill Linked-Deliberation Disposition section — 200.001-T..200.006-T (206-S)
 
 Files: the same bundle as U3a, plus the new
 `tests/test_shipment_reconcile_linked_deliberation_disposition.py`.
@@ -918,7 +950,7 @@ Tests, written first, assert:
 
 Size M. Complexity medium. Depends on U4 and U1b.
 
-### U5b — Skill hand-offs, post-mode, safe-close wording, scenario matrix, closing negative grep — 195.011-T (new)
+### U5b — Skill hand-offs, post-mode, safe-close wording, scenario matrix, closing negative grep — 200.007-T..200.012-T (206-S); skill parity II + closing grep 195.017-T (201-S)
 
 Split from U5 on 2026-09-29 (independent review P1-2, P1-7, P2 sizing). Same bundle
 as U5a.
@@ -965,7 +997,7 @@ Tests, written first: the items above, plus rendered-region parity.
 
 Size M. Complexity medium. Depends on U5a.
 
-### U6 — Ship agent close-path bullets, step 1.e gate, Role Boundary — 195.006-T
+### U6 — Ship agent close-path bullets, step 1.e gate, Role Boundary — 195.006-T, 195.013-T (201-S)
 
 Files:
 
@@ -999,7 +1031,7 @@ present, and the withdrawn phrase is absent, in both files.
 
 Size S. Complexity low. Depends on U5b.
 
-### U6b — Ship post-merge Step 7 and operational-closure consume the disposition report — 195.012-T (new)
+### U6b — Ship post-merge Step 7 and operational-closure consume the disposition report — 195.012-T, 195.014-T..195.016-T (201-S)
 
 Added 2026-09-29 (independent review P1-1).
 
@@ -1055,7 +1087,7 @@ Tests, written first:
 
 Size S. Complexity medium. Depends on U6.
 
-### U7 — Docs: compound learning, supersession notes, re-verification runbook — 195.007-T
+### U7 — Docs: compound learning, supersession notes, re-verification runbook — 195.007-T, 195.018-T, 195.019-T (201-S)
 
 Files:
 
@@ -1110,14 +1142,33 @@ U1a(001) ──► U1b(008) ─────────────────�
 
 The graph has no cycles. U5a depends on both U4 and U1b. U2a-U6b edit the same
 policy, skill, and Ship files in sequence, so serial order avoids conflicting
-edits. All units land in one PR (see Single PR above).
+edits. The unit-level graph above is the logical order; the task-level edges
+(58 tasks) are in Resulting units and order, and the units are delivered as six
+chained shipments, one PR each (see Multi-shipment delivery above):
 
-**Sequencing vs. 198-S (amended 2026-09-29; operator decision 2, 2026-09-29T12:54).**
-The DAG now carries `198-S blocks-on 201-S` (`backlogit dep add 198-S 201-S --type blocks`),
-and `198-S` is no longer in the `dag-readiness` ready set. The fail-closed guard
-stays as defense in depth. Ship runs it at three points: before U1a, before the
-P-014 PR-ready gate, and immediately before merge. It is a concrete check with
-three conditions:
+```text
+190-S (shipped)
+  ◀── 202-S  [slice 1, 196-F]   8 tasks
+        ◀── 203-S  [slice 2, 197-F]   8 tasks
+              ◀── 204-S  [slice 3, 198-F]   9 tasks
+                    ◀── 205-S  [slice 4, 199-F]  11 tasks
+                          ◀── 206-S  [slice 5, 200-F]  12 tasks
+                                ◀── 201-S  [slice 6, 195-F, terminal]  10 tasks (also keeps the satisfied 190-S edge)
+                                      ◀── 198-S (unchanged edge)
+```
+
+`X ◀── Y` means Y blocks on X. The chain is the transitive reduction; no
+redundant direct edges are needed.
+
+**Sequencing vs. 198-S (amended 2026-09-29; operator decision 2, 2026-09-29T12:54;
+guard frequency amended in PR #466 cycle 8).**
+The DAG carries `198-S blocks-on 201-S` (`backlogit dep add 198-S 201-S --type blocks`),
+and `198-S` is not in the `dag-readiness` ready set. `201-S` is the terminal
+shipment of the chain, so condition 1 below is unchanged by the re-split. The
+fail-closed guard stays as defense in depth. Ship runs it at three points of
+**every** shipment of the chain (`202-S`..`206-S`, `201-S`): at claim (before the
+first task), before the P-014 PR-ready gate, and immediately before merge. It is a
+concrete check with three conditions:
 
 1. `backlogit dep list 198-S` still lists `198-S → 201-S (blocks)`.
 2. `198-S` is still `queued`.
@@ -1192,23 +1243,38 @@ Requires plan hardening: yes
 * **U2a-U6b** change the agent-facing contract. Proof: the pinning tests, the
   rendered-region and phrase-level parity assertions, the refreshed checksums, and
   `autoharness verify-workspace` clean on the dogfood workspace.
-* **Operational closure (live proof; exhaustive expectations, amended
-  2026-09-29).** This shipment's own post-merge closure is the first live run of
-  the realigned contract. On backlogit 1.11.0 (released build), the expected run
-  is:
+* **Transition-window closures (PR #466 cycle 8; rules T1–T5 in Multi-shipment
+  delivery).** `202-S` closes under the pre-195 contract, which is safe because
+  its slice is inert code with no runtime caller and, under T2, carries no
+  deliberation linkage. `203-S` closes through SAFE_CLOSE with
+  `ENGINE_SEMANTICS_UNVERIFIED` (T3). `204-S` and `205-S` close with no
+  deliberation mutation and record the transition-window `all retained`
+  disposition (T4). `206-S` is the first closure with INV-12; under T2 its
+  disposition set is empty (T5).
+* **Operational closure of `201-S` (live proof; exhaustive expectations, amended
+  2026-09-29; moved to the terminal shipment in PR #466 cycle 8).** The
+  post-merge closure of `201-S` (slice 6, terminal) is the first live run of the
+  full realigned contract. Its members are `195-F` and the ten slice-6 tasks
+  (`195.006-T`, `195.013-T`, `195.012-T`, `195.014-T`..`195.017-T`, `195.007-T`,
+  `195.018-T`, `195.019-T`), whose bodies carry no deliberation IDs, so the
+  disposition set comes from `195-F` alone. On backlogit 1.11.0 (released
+  build), the expected run is:
   * the engine-semantics gate reports `VERIFIED (1, 11)`, with `probe_surface`
     equal to the invocation surface;
   * the classifier returns CASCADE for the flat manifest, and `select_close_path`
     returns CASCADE;
   * the cascade leaves every disposition-set record byte-identical;
   * the disposition outcomes are:
-    * `034-DL`, `019-DL`, and `027-DL` (mentioned in member descriptions; each
-      already `archived`) → `already-archived`;
+    * `034-DL` (mentioned in the `195-F` description; already `archived`) →
+      `already-archived`;
     * `038-DL` (`195-F` `source_deliberation_id`) → `retained_shared_reference`
       while active stash entries that cite it (`8928EC67` and the 2026-09-29
       follow-up entries) remain active, found through the default `stash_path`
       (U1b), otherwise `archived`, with
       `archived_status: queued`;
+    * `019-DL` and `027-DL` are no longer mentioned in any `201-S` member's
+      description after the re-split, so they are expected outside the
+      disposition set; `already-archived` for either is also a pass;
     * any other mention-only deliberation → `retained_description_mention`;
   * `operational-closure` "Source artifact cleanup" copies the `038-DL` outcome
     from the report. The dogfood Ship mirror has no second archiver.
@@ -1216,9 +1282,10 @@ Requires plan hardening: yes
   Any correctly reported outcome from the list above is a pass. Any halt goes to
   operator review, never to an ad hoc deviation.
 * **Rollback trigger.** A disposition halt or a drift halt on any closure.
-  Recovery: revert the merged PR, then use SAFE_CLOSE plus a manual archive under
-  an explicit operator deviation, as in 190-S. **Owner:** Ship, for closure.
-  Stage, for contract follow-ups.
+  Recovery: revert the offending shipment's merged PR, then use SAFE_CLOSE plus a
+  manual archive under an explicit operator deviation, as in 190-S. Later
+  shipments of the chain are blocked on it, so none of them has merged at that
+  point. **Owner:** Ship, for closure. Stage, for contract follow-ups.
 
 ## Plan Hardening
 
@@ -1422,7 +1489,7 @@ All 17 P2 findings are applied in the plan.
 | Relabel the three link sources as autoharness-defined; define "references" | Applied (U2a admission paragraph) |
 | Exhaustive live-proof expectations | Applied (Runtime Verification and Closure) |
 | Guard TOCTOU | Applied: guard and hash re-check before each archive (U5a step 3) |
-| One PR, no closure on intermediate commits | Applied (Implementation Units, Single PR) |
+| One PR, no closure on intermediate commits | Applied (Implementation Units, Single PR); superseded in PR #466 cycle 8 by Multi-shipment delivery (T1–T5) |
 | Retained deliberations may stay live forever | Applied: `stranded_linked_deliberation` advisory (U5a step 5; Risks) |
 | Separate `engine_semantics.py` module | Deferred to `8928EC67` (D7); U1a keeps the names module-local |
 | Registry `get_version` lacks params / `cli_command` | Applied as literal bypass, no registry change (U3a) |
@@ -1439,33 +1506,117 @@ All 17 P2 findings are applied in the plan.
   explicit member regardless of `artifact_type`.
 * In 038-DL, D3, D4, D8, and D9 are amended by D3a, D4a, D8a, and D9a (see the
   decision record).
+* PR #466 cycle 8 (operator decision "A + amendment", 2026-09-29): the "Single
+  PR" rule is superseded by Multi-shipment delivery (T1–T5). The per-unit
+  "Size … Complexity … Depends on …" lines at the end of each unit and the
+  original twelve-row task table are superseded by the 58-task table below. The
+  unit headings name the real task IDs. `038-DL`'s historical text is left
+  unchanged by operator decision; this plan's task table is the authoritative
+  ID map for any retired `195.00x-T` ID that 038-DL still names.
 
 ### Resulting units and order
 
-| Order | Unit | Task | Size | Complexity | Depends on |
-|---|---|---|---|---|---|
-| 1 | U1a | 195.001-T | M | low | — |
-| 2 | U1b | 195.008-T | M | medium | 195.001-T |
-| 3 | U2a | 195.002-T | M | medium | 195.001-T |
-| 4 | U2b | 195.009-T | M | medium | 195.002-T |
-| 5 | U3a | 195.003-T | M | medium | 195.009-T |
-| 6 | U3b | 195.010-T | M | medium | 195.003-T |
-| 7 | U4 | 195.004-T | M | medium | 195.010-T |
-| 8 | U5a | 195.005-T | M | medium | 195.004-T, 195.008-T |
-| 9 | U5b | 195.011-T | M | medium | 195.005-T |
-| 10 | U6 | 195.006-T | S | low | 195.011-T |
-| 11 | U6b | 195.012-T | S | medium | 195.006-T |
-| 12 | U7 | 195.007-T | S | low | 195.011-T |
+Amended in PR #466 cycle 8: the 2-hour re-split (operator decision 2026-09-29,
+binding A). Every task is size `S` (`size_source: agent`,
+`size_ruleset_version: ah-stage-sizing-v1`). "Origin" names the original task a
+narrowed task was adopted from (`backlogit adopt` regenerates the ID and records
+`custom_fields.origin_feature: 195-F`) or narrowed in place; "new" tasks were
+created directly under their slice feature. `195.013-T`..`195.019-T` are real
+slice-6 IDs, not design labels. A **triple** edits only the template, its
+mirror, and the manifest checksum; its assertions follow in the next tasks.
 
-All twelve tasks and `195-F` are members of shipment `201-S`. The backlog
-dependency edges match the Dependency Graph above, with no cycles.
+| Order | Task | Unit | Origin | Shipment | Complexity | Depends on |
+|---|---|---|---|---|---|---|
+| 1 | 196.001-T | U1a-1 | adopted, was 195.001-T | 202-S | low | — |
+| 2 | 196.002-T | U1a-2 | new | 202-S | low | 196.001-T |
+| 3 | 196.003-T | U1a-3 | new | 202-S | low | 196.002-T |
+| 4 | 196.004-T | U1b-1 | adopted, was 195.008-T | 202-S | medium | 196.003-T |
+| 5 | 196.005-T | U1b-2 | new | 202-S | medium | 196.004-T |
+| 6 | 196.006-T | U1b-3 | new | 202-S | medium | 196.005-T |
+| 7 | 196.007-T | U1b-4 | new | 202-S | medium | 196.006-T |
+| 8 | 196.008-T | U1b-5 | new | 202-S | medium | 196.007-T |
+| 9 | 197.001-T | U1b-6 | new | 203-S | medium | 196.008-T |
+| 10 | 197.002-T | U1b-7 | new | 203-S | medium | 197.001-T |
+| 11 | 197.003-T | U1b-8 | new | 203-S | medium | 197.002-T |
+| 12 | 197.004-T | U1b-9 | new | 203-S | medium | 197.003-T |
+| 13 | 197.005-T | U1b-10 | new | 203-S | medium | 197.004-T |
+| 14 | 197.006-T | U1b-11 | new | 203-S | medium | 197.005-T |
+| 15 | 197.007-T | U2a-1 (triple) | adopted, was 195.002-T | 203-S | low | 196.003-T |
+| 16 | 197.008-T | U2a-2 | new | 203-S | low | 197.007-T |
+| 17 | 198.001-T | U2a-3 (triple) | new | 204-S | medium | 197.006-T, 197.008-T |
+| 18 | 198.002-T | U2a-4 (+ relax for U2b) | new | 204-S | low | 198.001-T |
+| 19 | 198.003-T | U2b-1 (triple) | adopted, was 195.009-T | 204-S | low | 198.002-T |
+| 20 | 198.004-T | U2b-2 | new | 204-S | low | 198.003-T |
+| 21 | 198.005-T | U2b-3 (triple) | new | 204-S | low | 198.004-T |
+| 22 | 198.006-T | U2b-4 | new | 204-S | low | 198.005-T |
+| 23 | 198.007-T | U2-PAR (policy parity) | new | 204-S | low | 198.006-T |
+| 24 | 198.008-T | U3a-1 (triple) | adopted, was 195.003-T | 204-S | low | 198.005-T, 196.003-T |
+| 25 | 198.009-T | U3a-2 | new | 204-S | low | 198.008-T, 198.006-T |
+| 26 | 199.001-T | U3a-3 (+ relax for U3b) | new | 205-S | low | 198.009-T |
+| 27 | 199.002-T | ENG-L (engine-line consistency) | new | 205-S | low | 198.008-T, 197.007-T, 196.003-T |
+| 28 | 199.003-T | U3b-1 (triple) | adopted, was 195.010-T | 205-S | low | 199.001-T |
+| 29 | 199.004-T | U3b-2 | new | 205-S | low | 199.003-T |
+| 30 | 199.005-T | U3b-3 | new | 205-S | low | 199.004-T |
+| 31 | 199.006-T | U3b-4 (+ relax for U4) | new | 205-S | low | 199.005-T |
+| 32 | 199.007-T | U4-1 (triple) | adopted, was 195.004-T | 205-S | low | 199.006-T |
+| 33 | 199.008-T | U4-2 | new | 205-S | low | 199.007-T |
+| 34 | 199.009-T | U4-3 (triple) | new | 205-S | low | 199.008-T |
+| 35 | 199.010-T | U4-4 | new | 205-S | low | 199.009-T, 198.007-T |
+| 36 | 199.011-T | SK-PAR1 (skill parity I) | new | 205-S | low | 199.010-T |
+| 37 | 200.001-T | U5a-1 (triple) | adopted, was 195.005-T | 206-S | medium | 199.009-T, 197.006-T |
+| 38 | 200.002-T | U5a-2 | new | 206-S | low | 200.001-T |
+| 39 | 200.003-T | U5a-3 | new | 206-S | low | 200.002-T |
+| 40 | 200.004-T | U5a-4 (triple) | new | 206-S | medium | 200.003-T |
+| 41 | 200.005-T | U5a-5 | new | 206-S | low | 200.004-T |
+| 42 | 200.006-T | U5a-6 | new | 206-S | low | 200.005-T |
+| 43 | 200.007-T | U5b-1 (triple) | adopted, was 195.011-T | 206-S | low | 200.006-T |
+| 44 | 200.008-T | U5b-2 | new | 206-S | low | 200.007-T, 200.006-T |
+| 45 | 200.009-T | U5b-3 (triple) | new | 206-S | low | 200.008-T |
+| 46 | 200.010-T | U5b-4 | new | 206-S | low | 200.009-T |
+| 47 | 200.011-T | U5b-5 | new | 206-S | low | 200.010-T |
+| 48 | 200.012-T | U5b-6 | new | 206-S | low | 200.011-T |
+| 49 | 195.006-T | U6-1 (triple) | narrowed in place | 201-S | low | 200.009-T |
+| 50 | 195.013-T | U6-2 | new | 201-S | low | 195.006-T |
+| 51 | 195.012-T | U6b-1 | narrowed in place | 201-S | low | 195.006-T |
+| 52 | 195.014-T | U6b-2 | new | 201-S | low | 195.013-T, 195.012-T |
+| 53 | 195.015-T | U6b-3 (triple) | new | 201-S | low | 195.012-T, 200.009-T |
+| 54 | 195.016-T | U6b-4 | new | 201-S | low | 195.015-T |
+| 55 | 195.017-T | SK-PAR2 (skill parity II + closing negative grep) | new | 201-S | low | 200.012-T, 195.014-T, 195.016-T, 198.007-T, 199.011-T |
+| 56 | 195.007-T | U7-1 | narrowed in place | 201-S | low | 200.009-T |
+| 57 | 195.018-T | U7-2 | new | 201-S | low | 195.007-T |
+| 58 | 195.019-T | U7-3 | new | 201-S | low | 195.018-T |
+
+The retired IDs `195.001-T`..`195.005-T` and `195.008-T`..`195.011-T` no longer
+exist; no backlog frontmatter dependency or link targets them.
+
+### Shipment partition
+
+Every manifest lists its covering feature first, then its tasks in the dependency
+order above. No feature spans two shipments, and every cross-shipment task edge
+points to an earlier shipment of the chain.
+
+| Slice | Shipment | Feature | Tasks | # | Blocks on | Closure rule |
+|---|---|---|---|---|---|---|
+| 1 | 202-S | 196-F — engine-semantics gate, close-path composition, disposition-planner core | 196.001-T..196.008-T | 8 | 190-S (shipped) | pre-195 contract; inert slice (T1, T2) |
+| 2 | 203-S | 197-F — planner fail-closed hardening, P-015 flat sets and engine-gate precondition | 197.001-T..197.008-T | 8 | 202-S | SAFE_CLOSE with `ENGINE_SEMANTICS_UNVERIFIED` (T3) |
+| 3 | 204-S | 198-F — P-015 INV-12, close-path gate vs. INV-12 split, skill engine-semantics gate | 198.001-T..198.009-T | 9 | 203-S | no deliberation mutation, all retained (T4) |
+| 4 | 205-S | 199-F — skill disposition snapshot, Cascade Close flat sets | 199.001-T..199.011-T | 11 | 204-S | no deliberation mutation, all retained (T4) |
+| 5 | 206-S | 200-F — Linked-Deliberation Disposition step, hand-offs, post-mode, scenario matrix | 200.001-T..200.012-T | 12 | 205-S | first closure with INV-12 (T5) |
+| 6 (terminal) | 201-S | 195-F (umbrella) — Ship and operational-closure consumers, closing grep and parity, compound learnings | 195.006-T, 195.013-T, 195.012-T, 195.014-T..195.017-T, 195.007-T, 195.018-T, 195.019-T | 10 | 206-S (and the satisfied 190-S edge) | full contract; `038-DL` live proof (T5) |
+
+In total: six shipments, six features, 58 tasks. `196-F`..`200-F` have no
+`parent_id`; each links to the umbrella `195-F` with `related_to`, which keeps
+them out of `195-F`'s INV-6 descendant walk. They carry no deliberation linkage
+(T2). `195-F` keeps `source_deliberation_id: 038-DL` for the live proof.
+`198-S` still blocks on `201-S`. Only `202-S` of the chain is in the
+`dag-readiness` ready set.
 
 ### Operator goal coverage: partial
 
 Operator goal (verbatim): "make sure autoharness is aligned in workflow with how
 backlogit operates such that we don't recreate this scenario."
 
-Covered by 201-S:
+Covered by the six-shipment chain (`202-S`..`206-S`, `201-S`):
 
 * the P-015 CASCADE and SAFE_CLOSE close paths realigned to backlogit 1.11.x flat
   semantics;
@@ -1499,13 +1650,14 @@ Deferred (captured, not dropped):
 
 ## PR #466 review amendments (staging PR, 2026-09-29)
 
-Copilot review of the staging PR (#466) raised in-scope plan findings over seven
+Copilot review of the staging PR (#466) raised in-scope plan findings over eight
 review-fix cycles. The unit text above is the authoritative resolution; this
 section only indexes it.
 
-**Ship readiness.** The current 12-task decomposition of `201-S`
-(`195.001-T`..`195.012-T`) is NOT ready for Ship until gate shipment `202-S`
-ships (cycle 7 below).
+**Ship readiness.** `201-S` has been re-split into six chained shipments of 58
+tasks (cycle 8 below; Resulting units and order; Shipment partition). No
+Stage-owned planning task remains in any shipment. Ship starts with `202-S`, the
+only ready shipment of the chain; `201-S` is blocked on `206-S`.
 
 * **Cycles 1–3** (P-005 limit of 3 review-fix cycles per plan): the `201-S`
   manifest dependency order; the U1b input-safety contract (ID pattern, path
@@ -1554,3 +1706,38 @@ ships (cycle 7 below).
     merges, `202-S` is closed through the normal Ship closure path (safe-close
     per shipment-reconcile / P-015 classifier), which un-gates `201-S`.
   * This index now records cycles 6 and 7.
+  * *Superseded by cycle 8:* the claim-gate items (feature `196-F`, task
+    `196.001-T`, shipment `202-S` as described here) were deleted before merge,
+    and the re-split was done in this PR instead of a follow-up staging PR.
+* **Cycle 8 — operator-authorized extension.** Operator decision (2026-09-29,
+  option 1: re-split in-PR; partition approved as "A + amendment"), limited to
+  thread `PRRT_kwDORzpWpM6nXl13` (gate shipment `202-S` was immediately
+  claimable while its only task was a Stage-owned planning task waiting on a
+  follow-up staging PR).
+  * The old gate is removed: the cycle-7 claim-gate items were deleted before
+    merge, together with the `201-S → 202-S` edge. backlogit later **reused**
+    their IDs for new slice-1 items: `196-F` is now the slice-1 feature,
+    `196.001-T` is task U1a-1 (adopted from `195.001-T`), and `202-S` is the
+    slice-1 shipment. Any reference to those IDs before cycle 8 means the
+    deleted gate items. No Stage-owned planning task remains in any shipment;
+    every task of the chain is Ship-executable.
+  * `201-S` was re-split under the 2-hour rule into 58 tasks (12 narrowed, 46
+    new) and partitioned into six chained shipments (binding A: `201-S` keeps
+    `195-F` and becomes the terminal slice): `190-S ◀── 202-S (196-F) ◀── 203-S (197-F) ◀── 204-S (198-F) ◀── 205-S (199-F) ◀── 206-S (200-F) ◀── 201-S (195-F) ◀── 198-S`.
+    See Resulting units and order and Shipment partition.
+  * The amendment adds the multi-PR closure rules T1–T5 (Multi-shipment
+    delivery), moves the live proof to `201-S`'s terminal closure (Runtime
+    Verification and Closure), and runs the SCOPE_GAP guard at every
+    shipment's claim, PR-ready gate, and pre-merge.
+  * The operator also approved the design's split decisions and overrode the
+    20-task session limit (the apply stayed batched: four backlog batches plus
+    this documentation batch). `038-DL`'s historical text is unchanged by
+    operator decision.
+  * Stash `5CA04218` (the cycle-6 deferral) was already archived as harvested
+    into the deleted gate task `196.001-T`. Its delivery is this re-split:
+    features `196-F`..`200-F` plus the narrowed `195-F` slice, shipments
+    `202-S`..`206-S` and `201-S`, in PR #466. This paragraph is the
+    provenance correction: `backlogit stash correct` requires the canonical
+    delivery artifact to carry `source_stash_id: 5CA04218`, and no re-split
+    artifact does, so no correction record was written.
+  * This index now records cycles 1–8.
