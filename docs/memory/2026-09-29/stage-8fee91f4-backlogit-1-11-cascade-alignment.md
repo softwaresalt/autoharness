@@ -132,4 +132,13 @@ shipment_id: 201-S
     threads): `retained_live_status` now uses the real deliberation live
     statuses `active|blocked|review`, and `stash_path=None` resolves to
     `<workspace_backlog_dir>/stash.jsonl` with default-call tests (plan U1b,
-    `195.008-T`, `195.002-T`). No fifth cycle is authorized.
+    `195.008-T`, `195.002-T`).
+  * Fifth round (operator-authorized cycle 5, `fc35a1ce`):
+    `retained_read_error` was added to the `LinkedDeliberationOutcome` enum
+    with a per-outcome `reason_code`.
+  * Sixth round (operator-authorized cycle 6, 2026-09-29, limited to thread
+    `PRRT_kwDORzpWpM6nWmsW`): this stale final entry was corrected. The
+    task-granularity finding on `201-S` (thread `PRRT_kwDORzpWpM6nWmsD`) is
+    accepted residual risk. The re-split is deferred as stash `5CA04218`,
+    which must be resolved before Ship claims `201-S`. The `195-F` body and
+    comments on `195-F` and `201-S` record this hard trigger.
