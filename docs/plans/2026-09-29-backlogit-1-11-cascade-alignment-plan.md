@@ -146,7 +146,10 @@ Whole-section byte parity is therefore not a valid test. Instead:
 **Multi-shipment delivery (amended 2026-09-29, PR #466 cycle 8; supersedes the
 original "Single PR" rule).** The 2-hour re-split turned the twelve unit tasks
 into 58 tasks, delivered as six chained shipments (see Resulting units and order
-and Shipment partition below). Intermediate commits may still forward-reference a
+and Shipment partition below). PR #466 cycle 9 added two tasks (60 in total):
+the INV-12 triple moved into `203-S` with its policy-only assertions, and the
+U5a/U5b rendered-region parity moved into `206-S`, so that each shipment defines
+and verifies what it merges. Intermediate commits may still forward-reference a
 heading that a later task creates (for example, U3a names the
 "Linked-Deliberation Disposition" step that U5a adds). Because each shipment now
 closes on main before the next one is claimed, the operator-approved amendment
@@ -165,14 +168,21 @@ closes on main before the next one is claimed, the operator-approved amendment
 * **T3 — `203-S` closure (slice 2).** The P-015 flat sets and the engine-semantics
   precondition are on main, but the skill has no Step 0(c) gate yet. The
   precondition cannot be recorded, so Ship closes `203-S` through SAFE_CLOSE with
-  `ENGINE_SEMANTICS_UNVERIFIED` (the policy's own fail-closed branch).
+  `ENGINE_SEMANTICS_UNVERIFIED` (the policy's own fail-closed branch). Amended in
+  PR #466 cycle 9: `203-S` also merges INV-12 (`197.009-T`), because its INV-1
+  and INV-6 text delegates to INV-12. The disposition step is not on main yet, so
+  Ship performs no deliberation mutation and records the T4 transition-window
+  `all retained` disposition. With the engine unverified, INV-12 itself assigns
+  `retained_engine_unverified`, and under T2 the disposition set is empty.
 * **T4 — `204-S` and `205-S` closures (slices 3 and 4).** The U3a routing
   forward-references the disposition step, which lands only in `206-S`. Ship
   performs no deliberation mutation and records
   `linked_deliberation_disposition: step-not-yet-on-main (transition window); all retained`.
   These closures must not touch any deliberation.
-* **T5 — first INV-12 closures.** `206-S` (slice 5) is the first closure with
-  INV-12 on main. `201-S` (slice 6, terminal) is the first closure with the full
+* **T5 — first INV-12 disposition closures.** `206-S` (slice 5) is the first
+  closure that runs the INV-12 Linked-Deliberation Disposition step (the INV-12
+  policy text is on main since `203-S`, cycle 9). `201-S` (slice 6, terminal) is
+  the first closure with the full
   realigned contract and carries the `038-DL` live proof (see Runtime
   Verification and Closure).
 
@@ -505,7 +515,7 @@ to `shipment_closure.py`. It is read-only, uses `autoharness.gates.topology._fro
     outcome value, and `LinkedDeliberationOutcome` has exactly the eight members.
 * **Size:** M. **Complexity:** medium. Depends on U1a.
 
-### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 197.007-T, 197.008-T (203-S), 198.001-T, 198.002-T (204-S)
+### U2a — P-015 sets, disposition set, engine precondition, INV-12 (policy) — 197.007-T..197.010-T (203-S); relax R9 198.002-T (204-S)
 
 Files:
 
@@ -854,7 +864,7 @@ Tests, written first:
 
 Size M. Complexity medium. Depends on U3b.
 
-### U5a — Skill Linked-Deliberation Disposition section — 200.001-T..200.006-T (206-S)
+### U5a — Skill Linked-Deliberation Disposition section — 200.001-T..200.006-T; U5a/U5b parity 200.013-T (206-S)
 
 Files: the same bundle as U3a, plus the new
 `tests/test_shipment_reconcile_linked_deliberation_disposition.py`.
@@ -950,7 +960,7 @@ Tests, written first, assert:
 
 Size M. Complexity medium. Depends on U4 and U1b.
 
-### U5b — Skill hand-offs, post-mode, safe-close wording, scenario matrix, closing negative grep — 200.007-T..200.012-T (206-S); skill parity II + closing grep 195.017-T (201-S)
+### U5b — Skill hand-offs, post-mode, safe-close wording, scenario matrix, closing negative grep — 200.007-T..200.013-T (206-S); closing negative grep 195.017-T (201-S)
 
 Split from U5 on 2026-09-29 (independent review P1-2, P1-7, P2 sizing). Same bundle
 as U5a.
@@ -1143,16 +1153,16 @@ U1a(001) ──► U1b(008) ─────────────────�
 The graph has no cycles. U5a depends on both U4 and U1b. U2a-U6b edit the same
 policy, skill, and Ship files in sequence, so serial order avoids conflicting
 edits. The unit-level graph above is the logical order; the task-level edges
-(58 tasks) are in Resulting units and order, and the units are delivered as six
+(60 tasks) are in Resulting units and order, and the units are delivered as six
 chained shipments, one PR each (see Multi-shipment delivery above):
 
 ```text
 190-S (shipped)
   ◀── 202-S  [slice 1, 196-F]   8 tasks
-        ◀── 203-S  [slice 2, 197-F]   8 tasks
-              ◀── 204-S  [slice 3, 198-F]   9 tasks
+        ◀── 203-S  [slice 2, 197-F]  10 tasks
+              ◀── 204-S  [slice 3, 198-F]   8 tasks
                     ◀── 205-S  [slice 4, 199-F]  11 tasks
-                          ◀── 206-S  [slice 5, 200-F]  12 tasks
+                          ◀── 206-S  [slice 5, 200-F]  13 tasks
                                 ◀── 201-S  [slice 6, 195-F, terminal]  10 tasks (also keeps the satisfied 190-S edge)
                                       ◀── 198-S (unchanged edge)
 ```
@@ -1247,10 +1257,11 @@ Requires plan hardening: yes
   delivery).** `202-S` closes under the pre-195 contract, which is safe because
   its slice is inert code with no runtime caller and, under T2, carries no
   deliberation linkage. `203-S` closes through SAFE_CLOSE with
-  `ENGINE_SEMANTICS_UNVERIFIED` (T3). `204-S` and `205-S` close with no
+  `ENGINE_SEMANTICS_UNVERIFIED` and no deliberation mutation (T3; INV-12 is on
+  main from `203-S`, cycle 9). `204-S` and `205-S` close with no
   deliberation mutation and record the transition-window `all retained`
-  disposition (T4). `206-S` is the first closure with INV-12; under T2 its
-  disposition set is empty (T5).
+  disposition (T4). `206-S` is the first closure that runs the INV-12
+  disposition step; under T2 its disposition set is empty (T5).
 * **Operational closure of `201-S` (live proof; exhaustive expectations, amended
   2026-09-29; moved to the terminal shipment in PR #466 cycle 8).** The
   post-merge closure of `201-S` (slice 6, terminal) is the first live run of the
@@ -1509,7 +1520,8 @@ All 17 P2 findings are applied in the plan.
 * PR #466 cycle 8 (operator decision "A + amendment", 2026-09-29): the "Single
   PR" rule is superseded by Multi-shipment delivery (T1–T5). The per-unit
   "Size … Complexity … Depends on …" lines at the end of each unit and the
-  original twelve-row task table are superseded by the 58-task table below. The
+  original twelve-row task table are superseded by the 58-task table below
+  (60 tasks after PR #466 cycle 9). The
   unit headings name the real task IDs. `038-DL`'s historical text is left
   unchanged by operator decision; this plan's task table is the authoritative
   ID map for any retired `195.00x-T` ID that 038-DL still names.
@@ -1517,7 +1529,10 @@ All 17 P2 findings are applied in the plan.
 ### Resulting units and order
 
 Amended in PR #466 cycle 8: the 2-hour re-split (operator decision 2026-09-29,
-binding A). Every task is size `S` (`size_source: agent`,
+binding A). Amended again in PR #466 cycle 9: `198.001-T` moved to
+`203-S` as `197.009-T` with its assertions split out as `197.010-T` (`198.002-T`
+keeps relax R9), and the U5a/U5b parity moved from `195.017-T` to the new
+`200.013-T` in `206-S` (60 tasks). Every task is size `S` (`size_source: agent`,
 `size_ruleset_version: ah-stage-sizing-v1`). "Origin" names the original task a
 narrowed task was adopted from (`backlogit adopt` regenerates the ID and records
 `custom_fields.origin_feature: 195-F`) or narrowed in place; "new" tasks were
@@ -1543,51 +1558,53 @@ mirror, and the manifest checksum; its assertions follow in the next tasks.
 | 14 | 197.006-T | U1b-11 | new | 203-S | medium | 197.005-T |
 | 15 | 197.007-T | U2a-1 (triple) | adopted, was 195.002-T | 203-S | low | 196.003-T |
 | 16 | 197.008-T | U2a-2 | new | 203-S | low | 197.007-T |
-| 17 | 198.001-T | U2a-3 (triple) | new | 204-S | medium | 197.006-T, 197.008-T |
-| 18 | 198.002-T | U2a-4 (+ relax for U2b) | new | 204-S | low | 198.001-T |
-| 19 | 198.003-T | U2b-1 (triple) | adopted, was 195.009-T | 204-S | low | 198.002-T |
-| 20 | 198.004-T | U2b-2 | new | 204-S | low | 198.003-T |
-| 21 | 198.005-T | U2b-3 (triple) | new | 204-S | low | 198.004-T |
-| 22 | 198.006-T | U2b-4 | new | 204-S | low | 198.005-T |
-| 23 | 198.007-T | U2-PAR (policy parity) | new | 204-S | low | 198.006-T |
-| 24 | 198.008-T | U3a-1 (triple) | adopted, was 195.003-T | 204-S | low | 198.005-T, 196.003-T |
-| 25 | 198.009-T | U3a-2 | new | 204-S | low | 198.008-T, 198.006-T |
-| 26 | 199.001-T | U3a-3 (+ relax for U3b) | new | 205-S | low | 198.009-T |
-| 27 | 199.002-T | ENG-L (engine-line consistency) | new | 205-S | low | 198.008-T, 197.007-T, 196.003-T |
-| 28 | 199.003-T | U3b-1 (triple) | adopted, was 195.010-T | 205-S | low | 199.001-T |
-| 29 | 199.004-T | U3b-2 | new | 205-S | low | 199.003-T |
-| 30 | 199.005-T | U3b-3 | new | 205-S | low | 199.004-T |
-| 31 | 199.006-T | U3b-4 (+ relax for U4) | new | 205-S | low | 199.005-T |
-| 32 | 199.007-T | U4-1 (triple) | adopted, was 195.004-T | 205-S | low | 199.006-T |
-| 33 | 199.008-T | U4-2 | new | 205-S | low | 199.007-T |
-| 34 | 199.009-T | U4-3 (triple) | new | 205-S | low | 199.008-T |
-| 35 | 199.010-T | U4-4 | new | 205-S | low | 199.009-T, 198.007-T |
-| 36 | 199.011-T | SK-PAR1 (skill parity I) | new | 205-S | low | 199.010-T |
-| 37 | 200.001-T | U5a-1 (triple) | adopted, was 195.005-T | 206-S | medium | 199.009-T, 197.006-T |
-| 38 | 200.002-T | U5a-2 | new | 206-S | low | 200.001-T |
-| 39 | 200.003-T | U5a-3 | new | 206-S | low | 200.002-T |
-| 40 | 200.004-T | U5a-4 (triple) | new | 206-S | medium | 200.003-T |
-| 41 | 200.005-T | U5a-5 | new | 206-S | low | 200.004-T |
-| 42 | 200.006-T | U5a-6 | new | 206-S | low | 200.005-T |
-| 43 | 200.007-T | U5b-1 (triple) | adopted, was 195.011-T | 206-S | low | 200.006-T |
-| 44 | 200.008-T | U5b-2 | new | 206-S | low | 200.007-T, 200.006-T |
-| 45 | 200.009-T | U5b-3 (triple) | new | 206-S | low | 200.008-T |
-| 46 | 200.010-T | U5b-4 | new | 206-S | low | 200.009-T |
-| 47 | 200.011-T | U5b-5 | new | 206-S | low | 200.010-T |
-| 48 | 200.012-T | U5b-6 | new | 206-S | low | 200.011-T |
-| 49 | 195.006-T | U6-1 (triple) | narrowed in place | 201-S | low | 200.009-T |
-| 50 | 195.013-T | U6-2 | new | 201-S | low | 195.006-T |
-| 51 | 195.012-T | U6b-1 | narrowed in place | 201-S | low | 195.006-T |
-| 52 | 195.014-T | U6b-2 | new | 201-S | low | 195.013-T, 195.012-T |
-| 53 | 195.015-T | U6b-3 (triple) | new | 201-S | low | 195.012-T, 200.009-T |
-| 54 | 195.016-T | U6b-4 | new | 201-S | low | 195.015-T |
-| 55 | 195.017-T | SK-PAR2 (skill parity II + closing negative grep) | new | 201-S | low | 200.012-T, 195.014-T, 195.016-T, 198.007-T, 199.011-T |
-| 56 | 195.007-T | U7-1 | narrowed in place | 201-S | low | 200.009-T |
-| 57 | 195.018-T | U7-2 | new | 201-S | low | 195.007-T |
-| 58 | 195.019-T | U7-3 | new | 201-S | low | 195.018-T |
+| 17 | 197.009-T | U2a-3 (triple) | adopted in cycle 9, was 198.001-T | 203-S | medium | 197.006-T, 197.008-T |
+| 18 | 197.010-T | U2a-4a (INV-12 policy assertions) | new (cycle 9) | 203-S | low | 197.009-T |
+| 19 | 198.002-T | U2a-4b (relax R9 for U2b) | new; narrowed in cycle 9 | 204-S | low | 197.010-T |
+| 20 | 198.003-T | U2b-1 (triple) | adopted, was 195.009-T | 204-S | low | 198.002-T |
+| 21 | 198.004-T | U2b-2 | new | 204-S | low | 198.003-T |
+| 22 | 198.005-T | U2b-3 (triple) | new | 204-S | low | 198.004-T |
+| 23 | 198.006-T | U2b-4 | new | 204-S | low | 198.005-T |
+| 24 | 198.007-T | U2-PAR (policy parity) | new | 204-S | low | 198.006-T |
+| 25 | 198.008-T | U3a-1 (triple) | adopted, was 195.003-T | 204-S | low | 198.005-T, 196.003-T |
+| 26 | 198.009-T | U3a-2 | new | 204-S | low | 198.008-T, 198.006-T |
+| 27 | 199.001-T | U3a-3 (+ relax for U3b) | new | 205-S | low | 198.009-T |
+| 28 | 199.002-T | ENG-L (engine-line consistency) | new | 205-S | low | 198.008-T, 197.007-T, 196.003-T |
+| 29 | 199.003-T | U3b-1 (triple) | adopted, was 195.010-T | 205-S | low | 199.001-T |
+| 30 | 199.004-T | U3b-2 | new | 205-S | low | 199.003-T |
+| 31 | 199.005-T | U3b-3 | new | 205-S | low | 199.004-T |
+| 32 | 199.006-T | U3b-4 (+ relax for U4) | new | 205-S | low | 199.005-T |
+| 33 | 199.007-T | U4-1 (triple) | adopted, was 195.004-T | 205-S | low | 199.006-T |
+| 34 | 199.008-T | U4-2 | new | 205-S | low | 199.007-T |
+| 35 | 199.009-T | U4-3 (triple) | new | 205-S | low | 199.008-T |
+| 36 | 199.010-T | U4-4 | new | 205-S | low | 199.009-T, 198.007-T |
+| 37 | 199.011-T | SK-PAR1 (skill parity I) | new | 205-S | low | 199.010-T |
+| 38 | 200.001-T | U5a-1 (triple) | adopted, was 195.005-T | 206-S | medium | 199.009-T, 197.006-T |
+| 39 | 200.002-T | U5a-2 | new | 206-S | low | 200.001-T |
+| 40 | 200.003-T | U5a-3 | new | 206-S | low | 200.002-T |
+| 41 | 200.004-T | U5a-4 (triple) | new | 206-S | medium | 200.003-T |
+| 42 | 200.005-T | U5a-5 | new | 206-S | low | 200.004-T |
+| 43 | 200.006-T | U5a-6 | new | 206-S | low | 200.005-T |
+| 44 | 200.007-T | U5b-1 (triple) | adopted, was 195.011-T | 206-S | low | 200.006-T |
+| 45 | 200.008-T | U5b-2 | new | 206-S | low | 200.007-T, 200.006-T |
+| 46 | 200.009-T | U5b-3 (triple) | new | 206-S | low | 200.008-T |
+| 47 | 200.010-T | U5b-4 | new | 206-S | low | 200.009-T |
+| 48 | 200.011-T | U5b-5 | new | 206-S | low | 200.010-T |
+| 49 | 200.012-T | U5b-6 | new | 206-S | low | 200.011-T |
+| 50 | 200.013-T | SK-PAR2 (skill parity II, U5a/U5b) | new (cycle 9) | 206-S | low | 200.012-T |
+| 51 | 195.006-T | U6-1 (triple) | narrowed in place | 201-S | low | 200.009-T |
+| 52 | 195.013-T | U6-2 | new | 201-S | low | 195.006-T |
+| 53 | 195.012-T | U6b-1 | narrowed in place | 201-S | low | 195.006-T |
+| 54 | 195.014-T | U6b-2 | new | 201-S | low | 195.013-T, 195.012-T |
+| 55 | 195.015-T | U6b-3 (triple) | new | 201-S | low | 195.012-T, 200.009-T |
+| 56 | 195.016-T | U6b-4 | new | 201-S | low | 195.015-T |
+| 57 | 195.017-T | SK-GREP (closing negative grep) | new; narrowed in cycle 9 | 201-S | low | 200.013-T, 195.014-T, 195.016-T, 198.007-T, 199.011-T |
+| 58 | 195.007-T | U7-1 | narrowed in place | 201-S | low | 200.009-T |
+| 59 | 195.018-T | U7-2 | new | 201-S | low | 195.007-T |
+| 60 | 195.019-T | U7-3 | new | 201-S | low | 195.018-T |
 
-The retired IDs `195.001-T`..`195.005-T` and `195.008-T`..`195.011-T` no longer
-exist; no backlog frontmatter dependency or link targets them.
+The retired IDs `195.001-T`..`195.005-T`, `195.008-T`..`195.011-T`, and (cycle 9)
+`198.001-T` no longer exist; no backlog frontmatter dependency or link targets them.
 
 ### Shipment partition
 
@@ -1598,13 +1615,13 @@ points to an earlier shipment of the chain.
 | Slice | Shipment | Feature | Tasks | # | Blocks on | Closure rule |
 |---|---|---|---|---|---|---|
 | 1 | 202-S | 196-F — engine-semantics gate, close-path composition, disposition-planner core | 196.001-T..196.008-T | 8 | 190-S (shipped) | pre-195 contract; inert slice (T1, T2) |
-| 2 | 203-S | 197-F — planner fail-closed hardening, P-015 flat sets and engine-gate precondition | 197.001-T..197.008-T | 8 | 202-S | SAFE_CLOSE with `ENGINE_SEMANTICS_UNVERIFIED` (T3) |
-| 3 | 204-S | 198-F — P-015 INV-12, close-path gate vs. INV-12 split, skill engine-semantics gate | 198.001-T..198.009-T | 9 | 203-S | no deliberation mutation, all retained (T4) |
+| 2 | 203-S | 197-F — planner fail-closed hardening, P-015 flat sets, engine-gate precondition and INV-12 | 197.001-T..197.010-T | 10 | 202-S | SAFE_CLOSE with `ENGINE_SEMANTICS_UNVERIFIED`, no deliberation mutation (T3) |
+| 3 | 204-S | 198-F — P-015 close-path gate vs. INV-12 split, skill engine-semantics gate | 198.002-T..198.009-T | 8 | 203-S | no deliberation mutation, all retained (T4) |
 | 4 | 205-S | 199-F — skill disposition snapshot, Cascade Close flat sets | 199.001-T..199.011-T | 11 | 204-S | no deliberation mutation, all retained (T4) |
-| 5 | 206-S | 200-F — Linked-Deliberation Disposition step, hand-offs, post-mode, scenario matrix | 200.001-T..200.012-T | 12 | 205-S | first closure with INV-12 (T5) |
-| 6 (terminal) | 201-S | 195-F (umbrella) — Ship and operational-closure consumers, closing grep and parity, compound learnings | 195.006-T, 195.013-T, 195.012-T, 195.014-T..195.017-T, 195.007-T, 195.018-T, 195.019-T | 10 | 206-S (and the satisfied 190-S edge) | full contract; `038-DL` live proof (T5) |
+| 5 | 206-S | 200-F — Linked-Deliberation Disposition step, hand-offs, post-mode, scenario matrix, U5a/U5b parity | 200.001-T..200.013-T | 13 | 205-S | first closure running the INV-12 disposition step (T5) |
+| 6 (terminal) | 201-S | 195-F (umbrella) — Ship and operational-closure consumers, closing negative grep, compound learnings | 195.006-T, 195.013-T, 195.012-T, 195.014-T..195.017-T, 195.007-T, 195.018-T, 195.019-T | 10 | 206-S (and the satisfied 190-S edge) | full contract; `038-DL` live proof (T5) |
 
-In total: six shipments, six features, 58 tasks. `196-F`..`200-F` have no
+In total: six shipments, six features, 60 tasks (58 before PR #466 cycle 9). `196-F`..`200-F` have no
 `parent_id`; each links to the umbrella `195-F` with `related_to`, which keeps
 them out of `195-F`'s INV-6 descendant walk. They carry no deliberation linkage
 (T2). `195-F` keeps `source_deliberation_id: 038-DL` for the live proof.
@@ -1650,12 +1667,12 @@ Deferred (captured, not dropped):
 
 ## PR #466 review amendments (staging PR, 2026-09-29)
 
-Copilot review of the staging PR (#466) raised in-scope plan findings over eight
+Copilot review of the staging PR (#466) raised in-scope plan findings over nine
 review-fix cycles. The unit text above is the authoritative resolution; this
 section only indexes it.
 
-**Ship readiness.** `201-S` has been re-split into six chained shipments of 58
-tasks (cycle 8 below; Resulting units and order; Shipment partition). No
+**Ship readiness.** `201-S` has been re-split into six chained shipments of 60
+tasks (cycles 8 and 9 below; Resulting units and order; Shipment partition). No
 Stage-owned planning task remains in any shipment. Ship starts with `202-S`, the
 only ready shipment of the chain; `201-S` is blocked on `206-S`.
 
@@ -1741,3 +1758,35 @@ only ready shipment of the chain; `201-S` is blocked on `206-S`.
     delivery artifact to carry `source_stash_id: 5CA04218`, and no re-split
     artifact does, so no correction record was written.
   * This index now records cycles 1–8.
+* **Cycle 9 — operator-authorized extension.** Operator decision (2026-09-30,
+  "cycle 9 as recommended"), limited to eight threads: three fixes, and
+  replies to five threads that earlier commits had already addressed.
+  * `PRRT_kwDORzpWpM6nl0f8`: `203-S` made INV-1 and INV-6 delegate to INV-12,
+    but INV-12 was defined in `204-S`. The INV-12 triple `198.001-T` was adopted
+    under `197-F` as `197.009-T` and moved to `203-S`. Its policy-only
+    assertions (A-a, A-f, A-g) moved verbatim from `198.002-T` to the new
+    `197.010-T` in `203-S`. `198.002-T` keeps only relax R9, next to the U2b
+    triple it serves, and now blocks on `197.010-T`. `INVARIANT_TOKENS` stays
+    `INV-1`..`INV-11` until `199.010-T`, because the shared test also iterates
+    the skill pair. T3 now records that `203-S` closes with no deliberation
+    mutation, and T5 names `206-S` as the first closure that runs the
+    disposition step.
+  * `PRRT_kwDORzpWpM6nl0hD`: the U5a/U5b rendered-region parity (H-m, I-13)
+    moved verbatim from `195.017-T` (`201-S`) to the new `200.013-T` in `206-S`,
+    which merges those regions. `195.017-T` keeps only the closing negative grep
+    (I-12) and now blocks on `200.013-T`.
+  * `PRRT_kwDORzpWpM6nc9xL`: `038-DL` D8a ("all units land in one `201-S` pull
+    request") now carries a dated supersession note that points to T1–T5. D8a's
+    text is otherwise unchanged.
+  * Result: `203-S` has 10 tasks, `204-S` 8, and `206-S` 13, for 60 tasks in
+    total. No dependency points to a later shipment, no feature spans two
+    shipments, and `202-S` is still the only ready shipment of the chain.
+  * Stash `5CA04218` provenance (`PRRT_kwDORzpWpM6ndtZm`): the archived stash
+    record still names the reused ID `196.001-T`. backlogit 1.11 `stash
+    correct` requires the target artifact to carry `source_stash_id`, and no
+    CLI or MCP operation sets that field. Inventing provenance was rejected. The
+    authoritative correction stays the cycle-8 paragraph above: `5CA04218` was
+    delivered by `196-F`..`200-F` and `201-S` in PR #466, and the current
+    `196.001-T` is an unrelated, reused ID. The tooling gap is filed as a
+    backlogit feature request.
+  * This index now records cycles 1–9.

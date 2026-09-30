@@ -205,3 +205,38 @@ shipment_id: 201-S
   becomes claimable only after its predecessor ships; `201-S` is blocked on
   `206-S`, and `198-S` stays blocked on `201-S` pending its re-plan
   (`1263B218`).
+
+## Update — cycle 9: INV-12 into 203-S, U5 parity into 206-S (2026-09-30)
+
+* **Operator decision.** 2026-09-30, "cycle 9 as recommended": a ninth
+  review-fix cycle for PR #466, limited to eight Copilot threads.
+* **INV-12 moved into `203-S`** (thread `PRRT_kwDORzpWpM6nl0f8`). `198.001-T`
+  was adopted under `197-F` and is now `197.009-T` in `203-S`. Its INV-12
+  policy assertions (A-a, A-f, A-g) moved from `198.002-T` to the new
+  `197.010-T` (`203-S`). `198.002-T` keeps only relax R9 and now blocks on
+  `197.010-T`. `198.007-T` and the `197.007-T`/`197.008-T` bodies point to
+  the new IDs. `INVARIANT_TOKENS` stays `INV-1`..`INV-11` until `199.010-T`.
+* **U5a/U5b parity moved into `206-S`** (thread `PRRT_kwDORzpWpM6nl0hD`).
+  The new `200.013-T` (`206-S`, blocks on `200.012-T`) holds H-m and I-13.
+  `195.017-T` keeps only the closing negative grep (I-12) and blocks on
+  `200.013-T`.
+* **D8a supersession note** (thread `PRRT_kwDORzpWpM6nc9xL`): added under
+  D8a in the decision doc and points to plan rules T1–T5.
+* **Transition rules.** T3: `203-S` also closes with no deliberation
+  mutation, because INV-12 is on main from `203-S` on but the disposition
+  step is not. T5: `206-S` is the first closure that runs the disposition
+  step.
+* **Result.** 60 tasks: `202-S` 8, `203-S` 10 (`197.001-T`..`197.010-T`),
+  `204-S` 8 (`198.002-T`..`198.009-T`), `205-S` 11, `206-S` 13
+  (`200.001-T`..`200.013-T`), `201-S` 10. No dependency points to a later
+  shipment and no feature spans two shipments. `202-S` is still the only
+  ready shipment of the chain. The retired ID `198.001-T` no longer exists.
+  The 195-F slice index, the feature and shipment bodies, and the plan
+  (task table, shipment table, cycle-9 index entry) are updated.
+* **Stash `5CA04218`** (thread `PRRT_kwDORzpWpM6ndtZm`): unchanged. `stash
+  correct` needs a target that carries `source_stash_id`, and no CLI or MCP
+  operation sets it. The gap is filed in the local backlogit feature-request
+  draft (section 5). The plan's cycle-8 and cycle-9 entries remain the
+  authoritative correction.
+* **Next step.** Unchanged: after PR #466 merges, Ship claims `202-S` when
+  the operator starts it.

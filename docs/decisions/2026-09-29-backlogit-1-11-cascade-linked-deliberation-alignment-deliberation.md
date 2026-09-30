@@ -409,6 +409,8 @@ review amendments (2026-09-29)" indexes every finding and its resolution.
   * Operator goal coverage is **partial**: the P-015 close path is covered. The
     claim cascade, `archive_item` generalization, and the workspace registry are
     deferred to `8928EC67`.
+  * *Supersession note:* Superseded 2026-09-29 by the operator-approved
+    six-shipment partition (A + amendment); see plan rules T1–T5.
 * **D9a — Parity, amended (P1-4, P1-5).**
   * Whole-section byte parity is replaced. Policy and skill pairs use
     rendered-region parity over the edited paragraphs, with an allowlist. The
