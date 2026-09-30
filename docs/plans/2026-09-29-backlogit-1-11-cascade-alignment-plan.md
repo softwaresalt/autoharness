@@ -1499,9 +1499,13 @@ Deferred (captured, not dropped):
 
 ## PR #466 review amendments (staging PR, 2026-09-29)
 
-Copilot review of the staging PR (#466) raised in-scope plan findings over five
+Copilot review of the staging PR (#466) raised in-scope plan findings over seven
 review-fix cycles. The unit text above is the authoritative resolution; this
 section only indexes it.
+
+**Ship readiness.** The current 12-task decomposition of `201-S`
+(`195.001-T`..`195.012-T`) is NOT ready for Ship until gate shipment `202-S`
+ships (cycle 7 below).
 
 * **Cycles 1–3** (P-005 limit of 3 review-fix cycles per plan): the `201-S`
   manifest dependency order; the U1b input-safety contract (ID pattern, path
@@ -1531,3 +1535,22 @@ section only indexes it.
     and `path` for each read-failure class (U1b Outcome enum and reason codes,
     Input safety, and Tests; U2a INV-12; U5a Report; U5b scenario row (f); U6b;
     038-DL D3a).
+* **Cycle 6 — operator-authorized extension.** Operator decision (2026-09-29),
+  limited to the stale session-memory thread and the task-granularity thread.
+  * The stale final entry of the session memory was corrected (memory fix).
+  * The task-granularity finding on `201-S` (thread `PRRT_kwDORzpWpM6nWmsD`:
+    tasks exceed the 2-hour rule) was accepted as residual risk and deferred as
+    stash `5CA04218` (P-021 C2 `DEFERRED SCOPE EXPANSION`), with a prose-only
+    hard trigger in the `195-F` body.
+* **Cycle 7 — operator-authorized extension.** Operator decision (2026-09-29,
+  option "a"), limited to threads `PRRT_kwDORzpWpM6nXCrq` (prose-only trigger
+  is not claim-enforced) and `PRRT_kwDORzpWpM6nXCr8` (this index was stale).
+  * The prose trigger is now machine-enforced. Stash `5CA04218` was harvested
+    into task `196.001-T` under feature `196-F`, carried by gate shipment
+    `202-S` (`202-S` blocks on shipped `190-S`, so it is sequenced and
+    immediately eligible). `201-S` now blocks on `202-S` in addition to `190-S`;
+    `198-S` still blocks on `201-S`.
+  * The re-split itself is Stage work in a follow-up staging PR. After that PR
+    merges, `202-S` is closed through the normal Ship closure path (safe-close
+    per shipment-reconcile / P-015 classifier), which un-gates `201-S`.
+  * This index now records cycles 6 and 7.

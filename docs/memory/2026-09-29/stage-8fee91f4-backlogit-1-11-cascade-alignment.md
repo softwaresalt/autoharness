@@ -69,7 +69,8 @@ shipment_id: 201-S
 
 ## Next steps
 
-* Ship claims `201-S` only when the operator starts it, after PR #466 merges.
+* Ship claims `201-S` only when the operator starts it, after PR #466 merges
+  and gate shipment `202-S` ships (see the cycle 7 update below).
 * The live proof is the post-merge closure of `201-S`. The expected `038-DL`
   outcome is `retained_shared_reference` while active stash entries cite it,
   otherwise `archived` (plan, Runtime Verification and Closure).
@@ -97,7 +98,8 @@ shipment_id: 201-S
   D9a.
 * **Stash.** `1263B218` was created (198-S / 192-F re-plan, P-021 C2).
   `8928EC67` was raised to high with a hard trigger; it absorbs `62C1E11E`.
-* **Next step.** Ship claims `201-S` only when the operator starts it. The
+* **Next step.** Ship claims `201-S` only when the operator starts it, and
+  only after gate shipment `202-S` ships (cycle 7 update below). The
   live-proof expectation for `038-DL` is now `retained_shared_reference`
   while active stash entries cite it, otherwise `archived` (plan, Runtime
   Verification and Closure).
@@ -142,3 +144,15 @@ shipment_id: 201-S
     accepted residual risk. The re-split is deferred as stash `5CA04218`,
     which must be resolved before Ship claims `201-S`. The `195-F` body and
     comments on `195-F` and `201-S` record this hard trigger.
+  * Seventh round (operator-authorized cycle 7, 2026-09-29, option "a",
+    limited to threads `PRRT_kwDORzpWpM6nXCrq` and `PRRT_kwDORzpWpM6nXCr8`):
+    the prose trigger is now machine-enforced. Stash `5CA04218` was harvested
+    into `196.001-T` (size M / medium) under `196-F`, carried by gate shipment
+    `202-S` (blocks on shipped `190-S`). `201-S` now blocks on `202-S` and
+    `190-S`, so it is not claim-eligible until `202-S` ships after the
+    follow-up re-split staging PR merges. The plan review index now covers
+    cycles 6 and 7 and states that the 12-task decomposition is not ready for
+    Ship until `202-S` ships.
+* **Next step.** Stage runs the `196.001-T` re-split (deliberation, plan
+  update, plan-review, re-harvest) in a follow-up staging PR. Ship then closes
+  `202-S`, and only after that may Ship claim `201-S`.
