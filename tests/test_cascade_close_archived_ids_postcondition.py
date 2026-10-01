@@ -449,6 +449,60 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
             content,
         )
 
+    # 198.004-T (U2b-2): close-path gate vs INV-12 split assertions.
+    def test_b_b_required_check_drops_expected_cascade_mutation_clause(self) -> None:
+        content = _policy_content()
+        section = content[content.index("## P-015") : content.index("## P-016")]
+        match = re.search(r"^\*\*Required Check[^\n]+", section, re.MULTILINE)
+        self.assertIsNotNone(match)
+        required_check = match.group(0)
+        self.assertNotIn("expected, in-scope cascade mutation", section)
+        self.assertIn(
+            "every disposition-set (`validated_linked_deliberations(S)`) record path",
+            required_check,
+        )
+        self.assertIn(
+            "a disposition-set member that changes during the cascade is engine drift",
+            required_check,
+        )
+
+    def test_b_c_postcondition_is_two_part(self) -> None:
+        content = _policy_content()
+        section = content[content.index("## P-015") : content.index("## P-016")]
+        match = re.search(r"^\*\*Postcondition\*\* \(two parts\)[^\n]+", section, re.MULTILINE)
+        self.assertIsNotNone(match)
+        postcondition = match.group(0)
+        part_a = (
+            "(a) **Close-path gate postcondition** (INV-10; flat sets; "
+            "evaluated before INV-12 disposition)"
+        )
+        part_b = (
+            "(b) **INV-12 postcondition** (after the gate): only "
+            "disposition-set deliberations whose INV-12 outcome is `archived` "
+            "may change relative to the disposition baseline"
+        )
+        self.assertIn(part_a, postcondition)
+        self.assertIn(part_b, postcondition)
+        self.assertLess(postcondition.index(part_a), postcondition.index(part_b))
+
+    def test_b_d_inv_10_label_present(self) -> None:
+        content = _policy_content()
+        match = re.search(r"^\* \*\*INV-10 [^\n]+", content, re.MULTILINE)
+        self.assertIsNotNone(match)
+        bullet = match.group(0)
+        self.assertTrue(
+            bullet.startswith(
+                "* **INV-10 (Close-path gate postconditions (evaluated before "
+                "INV-12 disposition)).**"
+            )
+        )
+        self.assertIn(
+            "INV-12's `archived` deliberations are the only artifacts outside "
+            "`allowed_ids(S)` that may change after the gate, and only through INV-12",
+            bullet,
+        )
+        self.assertNotIn("**INV-10 (Postconditions).**", content)
+
 
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
     """PR #407 review (threads PRRT_kwDORzpWpM6bo8m2 /
