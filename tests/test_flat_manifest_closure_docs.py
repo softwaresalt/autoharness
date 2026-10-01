@@ -196,5 +196,45 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
                     self.assertIn("SUPERSEDED PROVENANCE ONLY", text)
 
 
+# P-015 policy-only assertions (195-F slice 2, 197-F). These iterate ONLY the
+# two policy files: the shipment-reconcile skill pair in CONTRACT_FILES is
+# realigned by a later slice, so INVARIANT_TOKENS above stays INV-1..INV-11.
+POLICY_FILES = tuple(path for path in CONTRACT_FILES if "workflow-policies" in str(path))
+
+
+class FlatSetPolicyContractTests(unittest.TestCase):
+    """197.008-T scenarios A-b, A-c, A-d."""
+
+    def _read_policy_texts(self) -> list[tuple[str, str]]:
+        repo_root = Path.cwd().resolve(strict=True)
+        self.assertEqual(len(POLICY_FILES), 2)
+        return [
+            (str(path).replace("\\", "/"), (repo_root / path).read_text(encoding="utf-8"))
+            for path in POLICY_FILES
+        ]
+
+    def test_a_b_allowed_ids_row_is_flat_closure_scope(self) -> None:
+        for label, text in self._read_policy_texts():
+            with self.subTest(path=label):
+                self.assertIn("| **`allowed_ids(S)`** | `closure_scope(S)` |", text)
+                self.assertIn("x ∈ items(S) : x is not already truly archived", text)
+                self.assertIn("over every manifest item regardless of its `artifact_type`", text)
+
+    def test_a_c_linked_deliberation_union_is_absent(self) -> None:
+        for label, text in self._read_policy_texts():
+            with self.subTest(path=label):
+                self.assertNotIn("closure_scope(S) ∪ validated_linked_deliberations(S)", text)
+
+    def test_a_d_cascade_requires_verified_engine_semantics(self) -> None:
+        for label, text in self._read_policy_texts():
+            with self.subTest(path=label):
+                self.assertIn("select_close_path", text)
+                self.assertIn("ENGINE_SEMANTICS_UNVERIFIED", text)
+                self.assertIn("assess_cascade_engine_semantics", text)
+                self.assertIn("Verified engine-semantics lines: `1.11`", text)
+                self.assertIn("depends on `archive_item` semantics", text)
+                self.assertNotRegex(text, re.compile(r"(?i)SAFE_CLOSE[^\n]{0,80}always valid"))
+
+
 if __name__ == "__main__":
     unittest.main()
