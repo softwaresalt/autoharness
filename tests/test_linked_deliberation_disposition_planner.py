@@ -361,6 +361,27 @@ class OutcomePrecedenceCoreTests(_PlannerTestCase):
         )
         self.assertIsNone(record.declared_status)
 
+    def test_torn_manifest_member_is_a_planning_error_not_an_archive(self) -> None:
+        # Archived copy keeps the stale link; queue copy no longer carries it.
+        self.backlog.write("900-F", "feature", status="active")
+        self.backlog.write("900.001-T", "task", status="active", parent_id="900-F")
+        self.backlog.write(
+            "900.001-T",
+            "task",
+            status="done",
+            folder="archive",
+            parent_id="900-F",
+            custom_fields={"source_deliberation_id": "050-DL"},
+        )
+        self.backlog.write("050-DL", "deliberation", status="queued")
+        items = ["900-F", "900.001-T"]
+        self.backlog.shipment(items)
+
+        plan = self.backlog.plan(items)
+
+        self.assertEqual(plan.dispositions, ())
+        self.assertIn("900.001-T", plan.planning_error or "")
+
     def test_p11_live_statuses_are_retained_even_without_referrer(self) -> None:
         for status in ("active", "blocked", "review"):
             with self.subTest(status=status):

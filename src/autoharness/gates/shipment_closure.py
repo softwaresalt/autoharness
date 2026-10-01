@@ -1366,6 +1366,27 @@ def compute_linked_deliberation_disposition(
             and engine.verdict is EngineSemanticsVerdict.VERIFIED
         )
         index = _index_backlog_records(backlog_dir)
+        read_failures = tuple(
+            DispositionReadFailure(path=failure.rel_path, reason_code=failure.reason_code)
+            for failure in index.failures
+        )
+        # A torn/duplicate manifest member cannot be traversed safely (a stale
+        # copy could contribute links the live copy dropped): fail closed.
+        torn_members = sorted(
+            member_id for member_id in manifest_ids if len(index.by_id.get(member_id, ())) > 1
+        )
+        if torn_members:
+            return LinkedDeliberationDispositionPlan(
+                shipment_id=normalized_shipment_id,
+                engine=engine,
+                dispositions=(),
+                unresolved_references=(),
+                read_failures=read_failures,
+                planning_error=(
+                    "linked-deliberation planning failed: manifest members resolve to "
+                    f"multiple records (torn/duplicate identity): {', '.join(torn_members)}"
+                ),
+            )
         candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
         dispositions = tuple(
             _classify_outcome(
@@ -1385,10 +1406,7 @@ def compute_linked_deliberation_disposition(
                 UnresolvedDeliberationReference(id=ref_id, reason_code=reason_code)
                 for ref_id, reason_code in sorted(unresolved.items())
             ),
-            read_failures=tuple(
-                DispositionReadFailure(path=failure.rel_path, reason_code=failure.reason_code)
-                for failure in index.failures
-            ),
+            read_failures=read_failures,
         )
     except Exception as exc:  # noqa: BLE001 - the planner must fail closed, never raise
         return LinkedDeliberationDispositionPlan(
