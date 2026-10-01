@@ -6,14 +6,31 @@ The authoritative contract uses four set names:
 
 * ``manifest_scope(S)`` — exactly ``items(S)``.
 * ``closure_scope(S)`` — exactly ``items(S) ∪ {S}``.
-* ``allowed_ids(S)`` — ``closure_scope(S) ∪ validated_linked_deliberations(S)``.
-* ``required_ids(S)`` — ``{S} ∪ {qualifying feature members of S}`` (both
-  unconditionally required regardless of their own pre-close declared
-  status) ``∪ {x ∈ allowed_ids(S) : x is not already truly archived in the
-  pre-close snapshot}`` (every other ``allowed_ids(S)`` member — a manifest
-  task item, or a qualifying feature member's validated linked
-  deliberation — is required only when it was not already truly archived
-  pre-close).
+* ``allowed_ids(S)`` — ``closure_scope(S)`` (flat: backlogit 1.11.x
+  ``shipment ship`` archive-candidate selection is the flat manifest plus the
+  shipment record).
+* ``required_ids(S)`` — ``{S} ∪ {qualifying feature members of S} ∪
+  {x ∈ items(S) : x not truly archived pre-close}``. ``S`` and the qualifying
+  feature members are required unconditionally, regardless of their own
+  pre-close declared status; every other manifest item, over every
+  ``artifact_type``, is required only when it was not already truly archived
+  in the pre-close snapshot.
+
+Linked deliberations are outside both sets under the verified 1.11.x engine
+line: the engine leaves a linked deliberation independent unless its own ID is
+an explicit manifest member (then it is an ordinary member of both sets). Their
+fate is decided by the INV-12 linked-deliberation disposition step, planned
+read-only by :func:`compute_linked_deliberation_disposition`.
+
+Engine-semantics composition: :func:`assess_cascade_engine_semantics` decides
+whether the probed backlogit build is on a verified minor line
+(``VERIFIED_CASCADE_ENGINE_MINOR_LINES``), and :func:`select_close_path` is the
+single executable composition point that combines that verdict with
+:func:`classify_shipment_close_path` (``CASCADE`` only when both agree). The
+runtime callers are the self-hosting shipment-reconcile Step 0(c) close-path
+selection (plan unit U3a), the Linked-Deliberation Disposition step (plan unit
+U5a), and the caller surface the 198-S evaluator re-plan adopts (Stage
+follow-up). Until those land, these names have no runtime caller.
 
 The descendant walk in this module is a BLAST-RADIUS containment check on the
 cascade instrument, not a definition of closure scope. An out-of-manifest
@@ -68,13 +85,15 @@ fail-closed YAML-frontmatter parsing convention.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import stat
 from dataclasses import dataclass, field
 from enum import Enum
 from glob import escape as _glob_escape
 from pathlib import Path
-from typing import Sequence
+from typing import Final, Literal, Sequence
 
 from autoharness.gates.topology import (
     _ARTIFACT_ID_PATTERN,
@@ -516,3 +535,885 @@ def classify_shipment_close_path(
         qualifying_feature_ids=tuple(qualifying_feature_ids),
         out_of_manifest_descendant_ids=tuple(sorted(out_of_manifest_descendant_ids)),
     )
+
+
+# ---------------------------------------------------------------------------
+# Engine-semantics gate (plan unit U1a)
+# ---------------------------------------------------------------------------
+
+# The single source of truth for the backlogit minor lines whose P-015 closure
+# engine semantics this contract has verified. It covers BOTH engine
+# propositions:
+#
+# 1. flat ``shipment ship`` archive-candidate selection leaves linked
+#    deliberations and unlisted (out-of-manifest) descendants independent;
+# 2. non-cascading ``archive_item`` changes exactly the named artifact. At
+#    backlogit v1.11.0, ``internal/core/archive.go`` ``ArchiveItem`` (L103)
+#    rewrites only the ``status``, ``archived_status`` and ``archived_from``
+#    frontmatter keys (L234-255), plus the gitignored item event log and index.
+#
+# Adding a line is a contract change: re-verify both propositions against that
+# engine line first. Module-local; intentionally not exported from
+# ``autoharness.gates``.
+VERIFIED_CASCADE_ENGINE_MINOR_LINES: Final[frozenset[tuple[int, int]]] = frozenset({(1, 11)})
+
+_ENGINE_SEMANTICS_UNVERIFIED_PREFIX: Final = "ENGINE_SEMANTICS_UNVERIFIED:"
+_PROBE_SURFACES: Final[frozenset[str]] = frozenset({"mcp", "cli"})
+_RELEASE_VERSION_PATTERN: Final = (
+    r"v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?"
+)
+
+
+class EngineSemanticsVerdict(str, Enum):
+    """Whether the probed backlogit build is on a verified engine minor line."""
+
+    VERIFIED = "VERIFIED"
+    UNVERIFIED = "UNVERIFIED"
+
+
+@dataclass(frozen=True)
+class EngineSemanticsDecision:
+    """The result of :func:`assess_cascade_engine_semantics`.
+
+    ``probed_version``, ``probe_surface`` and ``probed_commit`` are recorded
+    verbatim when the supplied value is an exact ``str`` and are ``None``
+    otherwise. ``probed_commit`` is never interpreted here; the skill's
+    pre-invocation re-probe compares it raw.
+    """
+
+    verdict: EngineSemanticsVerdict
+    reason: str
+    probed_version: str | None
+    minor_line: tuple[int, int] | None
+    probe_surface: str | None
+    probed_commit: str | None
+
+
+@dataclass(frozen=True)
+class _ParsedReleaseVersion:
+    major: int
+    minor: int
+    patch: int
+    unreleased: bool
+
+
+def _parse_release_version(value: str) -> _ParsedReleaseVersion | None:
+    """Parse an exact-``str`` backlogit version, or return ``None``.
+
+    Uses ``re.fullmatch`` (never ``match`` with ``$``, which accepts a trailing
+    newline) with an ASCII-only digit class. There is no ``.strip()`` and no
+    coercion. Any pre-release or build-metadata component (a Go
+    pseudo-version, ``+dirty``, ``-rc1``) marks the build ``unreleased``.
+    """
+
+    match = re.fullmatch(_RELEASE_VERSION_PATTERN, value, flags=re.ASCII)
+    if match is None:
+        return None
+    try:
+        major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    except ValueError:
+        # int() refuses digit strings beyond the interpreter's conversion
+        # limit; such a value is not a plausible release version.
+        return None
+    unreleased = match.group(4) is not None or match.group(5) is not None
+    return _ParsedReleaseVersion(major=major, minor=minor, patch=patch, unreleased=unreleased)
+
+
+def _exact_str_or_none(value: object) -> str | None:
+    return value if type(value) is str else None
+
+
+def _validate_probe_surface(probe_surface: object, invocation_surface: object) -> str | None:
+    """Return an ``UNVERIFIED`` reason suffix, or ``None`` when the surfaces agree.
+
+    Each surface must be exactly ``"mcp"`` or ``"cli"`` and the two must be
+    equal: the MCP server and the CLI binary can be different builds, so a
+    version probed on one surface says nothing about the other.
+    """
+
+    surfaces = (probe_surface, invocation_surface)
+    if not all(type(surface) is str and surface in _PROBE_SURFACES for surface in surfaces):
+        return (
+            "unknown probe surface (probe_surface and invocation_surface must each be "
+            "exactly 'mcp' or 'cli')"
+        )
+    if probe_surface != invocation_surface:
+        return (
+            f"probe surface mismatch (probed on {probe_surface!r}, invoked on "
+            f"{invocation_surface!r})"
+        )
+    return None
+
+
+def _unverified(
+    detail: str,
+    *,
+    probed_version: str | None,
+    probe_surface: str | None,
+    probed_commit: str | None,
+    minor_line: tuple[int, int] | None = None,
+) -> EngineSemanticsDecision:
+    return EngineSemanticsDecision(
+        verdict=EngineSemanticsVerdict.UNVERIFIED,
+        reason=f"{_ENGINE_SEMANTICS_UNVERIFIED_PREFIX} {detail}",
+        probed_version=probed_version,
+        minor_line=minor_line,
+        probe_surface=probe_surface,
+        probed_commit=probed_commit,
+    )
+
+
+def assess_cascade_engine_semantics(
+    probed_version: object,
+    *,
+    probe_surface: object,
+    invocation_surface: object,
+    probed_commit: object = None,
+) -> EngineSemanticsDecision:
+    """Decide whether the probed backlogit build has verified P-015 engine semantics.
+
+    ``VERIFIED`` only for a released build (no pre-release or build metadata)
+    whose ``(major, minor)`` is in ``VERIFIED_CASCADE_ENGINE_MINOR_LINES``,
+    probed and invoked on the same surface. Every ``UNVERIFIED`` reason starts
+    with ``ENGINE_SEMANTICS_UNVERIFIED:``. Never raises.
+    """
+
+    try:
+        return _assess_cascade_engine_semantics(
+            probed_version, probe_surface, invocation_surface, probed_commit
+        )
+    except Exception:  # noqa: BLE001 - the gate must fail closed, never raise
+        return _unverified(
+            "engine-semantics assessment failed on unexpected input",
+            probed_version=None,
+            probe_surface=None,
+            probed_commit=None,
+        )
+
+
+def _assess_cascade_engine_semantics(
+    probed_version: object,
+    probe_surface: object,
+    invocation_surface: object,
+    probed_commit: object,
+) -> EngineSemanticsDecision:
+    version = _exact_str_or_none(probed_version)
+    recorded = {
+        "probed_version": version,
+        "probe_surface": _exact_str_or_none(probe_surface),
+        "probed_commit": _exact_str_or_none(probed_commit),
+    }
+    if version is None:
+        return _unverified(
+            f"non-string probed version (got {type(probed_version).__name__})", **recorded
+        )
+    parsed = _parse_release_version(version)
+    if parsed is None:
+        return _unverified(f"unparseable probed version {version[:64]!r}", **recorded)
+
+    minor_line = (parsed.major, parsed.minor)
+    if parsed.unreleased:
+        return _unverified(
+            f"unreleased build {version!r} (pre-release or build metadata present)",
+            minor_line=minor_line,
+            **recorded,
+        )
+    surface_problem = _validate_probe_surface(probe_surface, invocation_surface)
+    if surface_problem is not None:
+        return _unverified(surface_problem, minor_line=minor_line, **recorded)
+    if minor_line not in VERIFIED_CASCADE_ENGINE_MINOR_LINES:
+        return _unverified(
+            f"minor line {parsed.major}.{parsed.minor} not verified",
+            minor_line=minor_line,
+            **recorded,
+        )
+    return EngineSemanticsDecision(
+        verdict=EngineSemanticsVerdict.VERIFIED,
+        reason=(
+            f"backlogit {version} ({recorded['probe_surface']}) is on verified engine "
+            f"minor line {parsed.major}.{parsed.minor}"
+        ),
+        minor_line=minor_line,
+        **recorded,
+    )
+
+
+_CLOSE_PATH_SELECTION_INVALID_INPUT: Final = "CLOSE_PATH_SELECTION_INVALID_INPUT"
+
+
+def select_close_path(
+    classifier: ClosePathDecision, engine: EngineSemanticsDecision
+) -> tuple[ClosePath, str]:
+    """Compose the classifier and engine verdicts into the close path to run.
+
+    This is the single executable composition point for P-015 close-path
+    selection. Truth table:
+
+    ===================  ============  ==========================================
+    classifier           engine        result
+    ===================  ============  ==========================================
+    ``CASCADE``          VERIFIED      ``CASCADE``
+    ``CASCADE``          UNVERIFIED    ``SAFE_CLOSE`` with the engine's reason
+    ``SAFE_CLOSE``       VERIFIED      ``SAFE_CLOSE`` with the classifier's reason
+    ``SAFE_CLOSE``       UNVERIFIED    ``SAFE_CLOSE`` with the classifier's reason
+    ===================  ============  ==========================================
+
+    Any wrong-typed input returns ``SAFE_CLOSE`` with a reason starting
+    ``CLOSE_PATH_SELECTION_INVALID_INPUT``. Never raises.
+    """
+
+    try:
+        if (
+            type(classifier) is not ClosePathDecision
+            or type(engine) is not EngineSemanticsDecision
+            or type(classifier.close_path) is not ClosePath
+            or type(classifier.reason) is not str
+            or type(engine.verdict) is not EngineSemanticsVerdict
+            or type(engine.reason) is not str
+        ):
+            return (
+                ClosePath.SAFE_CLOSE,
+                f"{_CLOSE_PATH_SELECTION_INVALID_INPUT}: expected a ClosePathDecision "
+                "and an EngineSemanticsDecision",
+            )
+        if classifier.close_path is not ClosePath.CASCADE:
+            return ClosePath.SAFE_CLOSE, classifier.reason
+        if engine.verdict is not EngineSemanticsVerdict.VERIFIED:
+            return ClosePath.SAFE_CLOSE, engine.reason
+        return ClosePath.CASCADE, f"{classifier.reason}; {engine.reason}"
+    except Exception:  # noqa: BLE001 - selection must fail closed, never raise
+        return (
+            ClosePath.SAFE_CLOSE,
+            f"{_CLOSE_PATH_SELECTION_INVALID_INPUT}: close-path selection failed",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Linked-deliberation disposition planner (plan unit U1b, INV-12)
+# ---------------------------------------------------------------------------
+
+
+class LinkedDeliberationOutcome(str, Enum):
+    """The CLOSED set of outcomes INV-12 assigns to a disposition-set deliberation.
+
+    Exactly eight values; adding one is a contract change. The planner's
+    planned ``"archive"`` (:data:`PLANNED_ARCHIVE`) is the pre-mutation form of
+    :attr:`ARCHIVED`, which only the disposition step assigns, after
+    verify-after-each.
+    """
+
+    ARCHIVED = "archived"
+    ALREADY_ARCHIVED = "already-archived"
+    RETAINED_READ_ERROR = "retained_read_error"
+    RETAINED_AMBIGUOUS = "retained_ambiguous"
+    RETAINED_ENGINE_UNVERIFIED = "retained_engine_unverified"
+    RETAINED_LIVE_STATUS = "retained_live_status"
+    RETAINED_SHARED_REFERENCE = "retained_shared_reference"
+    RETAINED_DESCRIPTION_MENTION = "retained_description_mention"
+
+
+PLANNED_ARCHIVE: Final = "archive"
+
+# Link kinds recorded per deliberation, in reporting order.
+_LINK_KIND_SOURCE: Final = "source_deliberation_id"
+_LINK_KIND_DESCRIPTION: Final = "description"
+_LINK_KIND_REFERENCES: Final = "references"
+_LINK_KIND_ORDER: Final = (_LINK_KIND_SOURCE, _LINK_KIND_DESCRIPTION, _LINK_KIND_REFERENCES)
+
+# Read-error reason codes (extensible vocabulary: report consumers accept any
+# reason_code, including unknown ones, and copy it verbatim).
+READ_ERROR_PATH_ESCAPE: Final = "path_escape"
+READ_ERROR_SYMLINK_OR_REPARSE_POINT: Final = "symlink_or_reparse_point"
+READ_ERROR_UNREADABLE_FILE: Final = "unreadable_file"
+READ_ERROR_MALFORMED_FRONTMATTER: Final = "malformed_frontmatter"
+READ_ERROR_BODY_UNSEPARABLE: Final = "body_unseparable"
+READ_ERROR_MALFORMED_STASH_ENTRY: Final = "malformed_stash_entry"
+
+# unresolved_references reason codes (neither is a read error).
+UNRESOLVED_INVALID_ID: Final = "invalid_id"
+UNRESOLVED_NOT_FOUND: Final = "not_found"
+
+_DELIBERATION_LINK_PATTERN: Final = re.compile(r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b")
+# Mirrors the frontmatter delimiter pattern of topology._frontmatter so the body
+# starts exactly where that parser's frontmatter block ends.
+_FRONTMATTER_BLOCK_PATTERN: Final = re.compile(r"^---\s*\n(.*?)\n---\s*(?:\n|$)", re.DOTALL)
+_FRONTMATTER_OPENING_PATTERN: Final = re.compile(r"^---\s*\n")
+# Deliberation statuses that are live under INV-12 (the deliberation vocabulary
+# in .backlogit/header-def.yaml is queued|active|blocked|review|done|accepted|
+# rejected|archived; deliberations have no in-progress status).
+_LIVE_DELIBERATION_STATUSES: Final = frozenset({"active", "blocked", "review"})
+_WORK_ITEM_TYPES: Final = frozenset({"feature", "task", "subtask", "bug", "chore"})
+
+
+@dataclass(frozen=True)
+class DeliberationRecordSnapshot:
+    """One on-disk record of a disposition-set deliberation."""
+
+    path: str
+    declared_status: object | None
+    sha256: str
+
+
+@dataclass(frozen=True)
+class LinkedDeliberationDisposition:
+    """The planned outcome for one disposition-set deliberation.
+
+    ``outcome`` is a :class:`LinkedDeliberationOutcome` or the planned
+    ``"archive"``. ``reason_code`` is never empty and equals the outcome value
+    for every outcome except ``retained_read_error``, which carries a read-error
+    reason code plus ``path`` (workspace-relative with ``/`` separators, or as
+    supplied when it resolves outside the workspace).
+    """
+
+    deliberation_id: str
+    outcome: LinkedDeliberationOutcome | Literal["archive"]
+    reason_code: str
+    link_kinds: tuple[str, ...]
+    linking_member_ids: tuple[str, ...]
+    records: tuple[DeliberationRecordSnapshot, ...]
+    declared_status: object | None
+    referrer_ids: tuple[str, ...] = ()
+    path: str | None = None
+
+
+@dataclass(frozen=True)
+class UnresolvedDeliberationReference:
+    """A linked id that is not a disposition-set member (never a halt)."""
+
+    id: str
+    reason_code: str
+
+
+@dataclass(frozen=True)
+class DispositionReadFailure:
+    """A record or folder the planner could not read (``reason_code`` + ``path``)."""
+
+    path: str
+    reason_code: str
+
+
+@dataclass(frozen=True)
+class LinkedDeliberationDispositionPlan:
+    """The read-only result of :func:`compute_linked_deliberation_disposition`.
+
+    ``read_failures`` lists every read failure of the scan, so a failure stays
+    visible even when it prevents a deliberation from being discovered at all.
+    ``planning_error`` is set only when the planner hit an unexpected internal
+    failure or unusable input; the plan then carries no archive outcome, so
+    every linked deliberation is retained.
+    """
+
+    shipment_id: str | None
+    engine: object
+    dispositions: tuple[LinkedDeliberationDisposition, ...]
+    unresolved_references: tuple[UnresolvedDeliberationReference, ...]
+    read_failures: tuple[DispositionReadFailure, ...] = ()
+    planning_error: str | None = None
+
+
+@dataclass(frozen=True)
+class _RecordRead:
+    """One backlog record, read exactly once (frontmatter, body and hash)."""
+
+    rel_path: str
+    artifact_id: str
+    artifact_type: str
+    status: object | None
+    frontmatter: dict
+    body: str
+    sha256: str
+
+
+@dataclass(frozen=True)
+class _ReadFailure:
+    rel_path: str
+    reason_code: str
+
+
+@dataclass(frozen=True)
+class _RecordIndex:
+    by_id: dict[str, list[_RecordRead]]
+    failures: tuple[_ReadFailure, ...]
+
+
+class _PreReadRecordText:
+    """Path stand-in that hands ``topology._frontmatter`` already-read text.
+
+    ``_frontmatter`` (the classifier's parser, H5) takes a path and calls
+    ``path.read_text(encoding="utf-8")``. Passing this stand-in lets the
+    frontmatter mapping, the Markdown body and the SHA-256 derive from ONE read
+    of the record, with no window between reads. ``__fspath__`` keeps it usable
+    as the real path should the parser ever open the file itself.
+    """
+
+    __slots__ = ("_path", "_text")
+
+    def __init__(self, path: Path, text: str) -> None:
+        self._path = path
+        self._text = text
+
+    def read_text(self, encoding: str | None = None, errors: str | None = None) -> str:
+        return self._text
+
+    def __fspath__(self) -> str:
+        return os.fspath(self._path)
+
+    def __str__(self) -> str:
+        return str(self._path)
+
+
+def _workspace_relative(path: Path, workspace_root: Path) -> str:
+    try:
+        return path.relative_to(workspace_root).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _read_record_body(text: str) -> str | None:
+    """Return the Markdown description body after the closing frontmatter delimiter.
+
+    ``text`` is the same (newline-normalized) text the frontmatter was parsed
+    from. Returns ``None`` when the body cannot be separated.
+    """
+
+    match = _FRONTMATTER_BLOCK_PATTERN.match(text)
+    return None if match is None else text[match.end():]
+
+
+def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure:
+    """Read one ``*.md`` backlog entry once (frontmatter, body and hash)."""
+
+    rel_path = _workspace_relative(path, workspace_root)
+    if _is_symlink_or_reparse_point(path):
+        return _ReadFailure(rel_path, READ_ERROR_SYMLINK_OR_REPARSE_POINT)
+    # Stat once, directly: an entry that cannot be stat'ed (vanished mid-scan,
+    # access denied) or is not a regular file must stay visible as a read
+    # failure, never drop silently out of the live-referrer scan (fail closed).
+    try:
+        entry_mode = os.lstat(path).st_mode
+    except OSError:
+        return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
+    if not stat.S_ISREG(entry_mode):
+        return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
+    try:
+        raw = path.read_bytes()
+        # Universal-newline translation, exactly as Path.read_text would do.
+        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+    except (OSError, UnicodeDecodeError):
+        return _ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE)
+    body = _read_record_body(text)
+    if body is None:
+        # An opening delimiter with no closing one: the Markdown description
+        # body cannot be separated. No opening delimiter at all is missing
+        # frontmatter (reported by the parser below).
+        if _FRONTMATTER_OPENING_PATTERN.match(text):
+            return _ReadFailure(rel_path, READ_ERROR_BODY_UNSEPARABLE)
+    try:
+        frontmatter = _frontmatter(_PreReadRecordText(path, text))  # type: ignore[arg-type]
+    except (BacklogUnavailableError, ValueError, TypeError, RecursionError):
+        # yaml.YAMLError arrives as BacklogUnavailableError; syntactically valid
+        # YAML whose values cannot be constructed (e.g. an impossible date
+        # raises ValueError) or that nests too deeply is equally malformed.
+        return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
+    if body is None:
+        # Only reachable if topology._frontmatter's delimiter rule ever diverges
+        # from _FRONTMATTER_BLOCK_PATTERN: fail closed rather than guess a body.
+        return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
+    artifact_id = _normalize_id(frontmatter.get("id"))
+    if artifact_id is None or not _ARTIFACT_ID_PATTERN.match(artifact_id):
+        # A record whose declared identity cannot be trusted could be a live
+        # referrer we cannot name: fail closed (never plan an archive past it).
+        return _ReadFailure(rel_path, READ_ERROR_MALFORMED_FRONTMATTER)
+    return _RecordRead(
+        rel_path=rel_path,
+        artifact_id=artifact_id,
+        artifact_type=str(frontmatter.get("artifact_type") or "").strip().lower(),
+        status=frontmatter.get("status"),
+        frontmatter=frontmatter,
+        body=body,
+        sha256=hashlib.sha256(raw).hexdigest(),
+    )
+
+
+def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
+    """Read every queue-root and archive-root record once (read-only, H5).
+
+    A folder that is missing, unlistable, or reached through a symlinked or
+    junctioned directory component is itself a read failure (fail closed, like
+    the classifier's ``_scan_backlog``); each folder is judged on its own, so a
+    failure in one never hides the other.
+    """
+
+    workspace_root = backlog_dir.parent
+    by_id: dict[str, list[_RecordRead]] = {}
+    failures: list[_ReadFailure] = []
+    for folder in ("queue", "archive"):
+        base = backlog_dir / folder
+        base_rel = _workspace_relative(base, workspace_root)
+        if _directory_component_is_untrusted(backlog_dir, base):
+            failures.append(_ReadFailure(base_rel, READ_ERROR_SYMLINK_OR_REPARSE_POINT))
+            continue
+        try:
+            # Case-insensitive, so the planner never scans fewer records than
+            # the classifier's glob("*.md") sees on a case-insensitive filesystem.
+            candidates = sorted(
+                entry for entry in base.iterdir() if entry.suffix.lower() == ".md"
+            )
+        except OSError:
+            # Missing, not a directory, or not listable: never an empty scan.
+            failures.append(_ReadFailure(base_rel, READ_ERROR_UNREADABLE_FILE))
+            continue
+        for candidate in candidates:
+            result = _read_record(candidate, workspace_root)
+            if isinstance(result, _ReadFailure):
+                failures.append(result)
+            else:
+                by_id.setdefault(result.artifact_id, []).append(result)
+    for records in by_id.values():
+        records.sort(key=lambda record: record.rel_path)
+    return _RecordIndex(
+        by_id=by_id,
+        failures=tuple(sorted(set(failures), key=lambda failure: failure.rel_path)),
+    )
+
+
+def _scan_link_ids(text: object) -> set[str]:
+    """Return every deliberation-id-shaped token in ``text`` (non-str -> none)."""
+
+    if type(text) is not str:
+        return set()
+    return set(_DELIBERATION_LINK_PATTERN.findall(text))
+
+
+def _custom_fields(record: _RecordRead) -> dict:
+    custom_fields = record.frontmatter.get("custom_fields")
+    return custom_fields if isinstance(custom_fields, dict) else {}
+
+
+def _record_links(record: _RecordRead) -> dict[str, set[str]]:
+    """Map each linked id to the link kinds through which ``record`` links it."""
+
+    links: dict[str, set[str]] = {}
+    source_id = _normalize_id(_custom_fields(record).get("source_deliberation_id"))
+    if source_id is not None:
+        links.setdefault(source_id, set()).add(_LINK_KIND_SOURCE)
+    for linked_id in _scan_link_ids(record.body):
+        links.setdefault(linked_id, set()).add(_LINK_KIND_DESCRIPTION)
+    references = record.frontmatter.get("references")
+    if isinstance(references, list):
+        for entry in references:
+            for linked_id in _scan_link_ids(entry):
+                links.setdefault(linked_id, set()).add(_LINK_KIND_REFERENCES)
+    return links
+
+
+def _closure_scope_ids(manifest_ids: Sequence[str], shipment_id: str | None) -> frozenset[str]:
+    """``closure_scope(S) = items(S) ∪ {S}``."""
+
+    scope = set(manifest_ids)
+    if shipment_id is not None:
+        scope.add(shipment_id)
+    return frozenset(scope)
+
+
+@dataclass
+class _DispositionCandidate:
+    deliberation_id: str
+    records: list[_RecordRead]
+    link_kinds: set[str] = field(default_factory=set)
+    linking_member_ids: set[str] = field(default_factory=set)
+
+
+def _resolve_deliberation_records(
+    index: _RecordIndex, deliberation_id: str
+) -> list[_RecordRead] | None:
+    """Return every record carrying ``deliberation_id`` when it is a deliberation.
+
+    Existence is validated before location: the id must resolve to at least one
+    record whose ``artifact_type`` is ``deliberation``; otherwise ``None``. All
+    records carrying the id are returned so a torn id stays visible.
+    """
+
+    records = index.by_id.get(deliberation_id, [])
+    if not any(record.artifact_type == "deliberation" for record in records):
+        return None
+    return list(records)
+
+
+def _collect_disposition_set(
+    index: _RecordIndex,
+    manifest_ids: Sequence[str],
+    closure_scope: frozenset[str],
+) -> tuple[dict[str, _DispositionCandidate], dict[str, str]]:
+    """Collect the disposition set and the unresolved references.
+
+    The union, over EVERY explicit manifest member regardless of
+    ``artifact_type``, of the literal ``custom_fields.source_deliberation_id``
+    and the description-body and ``references`` matches, excluding the
+    member's own id (self-reference) and every id in ``closure_scope(S)`` (H10:
+    an explicit-member deliberation is governed by the flat allowed/required
+    sets, never by the disposition step). Ids that do not resolve to a
+    deliberation record are reported as unresolved (never a halt). A member
+    that cannot be found contributes no links; the fail-safe direction is
+    retention, because an undiscovered deliberation is never archived.
+    """
+
+    candidates: dict[str, _DispositionCandidate] = {}
+    unresolved: dict[str, str] = {}
+    for member_id in manifest_ids:
+        for member_record in index.by_id.get(member_id, []):
+            for linked_id, kinds in _record_links(member_record).items():
+                if linked_id == member_id or linked_id in closure_scope:
+                    continue
+                if not _ARTIFACT_ID_PATTERN.match(linked_id):
+                    unresolved.setdefault(linked_id, UNRESOLVED_INVALID_ID)
+                    continue
+                candidate = candidates.get(linked_id)
+                if candidate is None:
+                    records = _resolve_deliberation_records(index, linked_id)
+                    if records is None:
+                        unresolved.setdefault(linked_id, UNRESOLVED_NOT_FOUND)
+                        continue
+                    candidate = _DispositionCandidate(linked_id, records)
+                    candidates[linked_id] = candidate
+                candidate.link_kinds.update(kinds)
+                candidate.linking_member_ids.add(member_id)
+    return candidates, unresolved
+
+
+def _is_truly_archived(record: _RecordRead) -> bool:
+    """H3: decided from the declared status (exact parsed scalar), never location."""
+
+    return _is_engine_inert(record.status)
+
+
+def _shipment_referrers(
+    index: _RecordIndex, deliberation_id: str, shipment_id: str | None
+) -> set[str]:
+    """Shipments other than ``S``, not truly archived, that name the deliberation."""
+
+    referrers: set[str] = set()
+    for artifact_id, records in index.by_id.items():
+        if artifact_id == shipment_id:
+            continue
+        for record in records:
+            if record.artifact_type != "shipment" or _is_truly_archived(record):
+                continue
+            custom_fields = _custom_fields(record)
+            items = custom_fields.get("items")
+            listed = isinstance(items, list) and any(
+                _normalize_id(item) == deliberation_id for item in items
+            )
+            named = (
+                deliberation_id in _scan_link_ids(record.body)
+                or _normalize_id(custom_fields.get("source_deliberation_id")) == deliberation_id
+            )
+            if listed or named:
+                referrers.add(artifact_id)
+    return referrers
+
+
+def _scan_live_referrers(
+    index: _RecordIndex,
+    deliberation_id: str,
+    closure_scope: frozenset[str],
+    shipment_id: str | None,
+) -> tuple[str, ...]:
+    """Return the sorted live referrers of ``deliberation_id`` (bounded, read-only).
+
+    Counted: work items outside ``closure_scope(S)`` that are not truly
+    archived and link the deliberation through any link source, and other
+    shipments (see :func:`_shipment_referrers`). Never counted: the
+    deliberation itself, any other deliberation (so A<->B cycles never count),
+    docs and plan files (never scanned), and truly archived records.
+    """
+
+    referrers = _shipment_referrers(index, deliberation_id, shipment_id)
+    for artifact_id, records in index.by_id.items():
+        if artifact_id == deliberation_id or artifact_id in closure_scope:
+            continue
+        for record in records:
+            if record.artifact_type not in _WORK_ITEM_TYPES or _is_truly_archived(record):
+                continue
+            if deliberation_id in _record_links(record):
+                referrers.add(artifact_id)
+    return tuple(sorted(referrers))
+
+
+def _make_outcome_record(
+    candidate: _DispositionCandidate,
+    outcome: LinkedDeliberationOutcome | Literal["archive"],
+    *,
+    reason_code: str | None = None,
+    path: str | None = None,
+    referrer_ids: tuple[str, ...] = (),
+) -> LinkedDeliberationDisposition:
+    """Build a disposition record; ``reason_code`` defaults to the outcome value."""
+
+    records = tuple(
+        DeliberationRecordSnapshot(
+            path=record.rel_path, declared_status=record.status, sha256=record.sha256
+        )
+        for record in candidate.records
+    )
+    return LinkedDeliberationDisposition(
+        deliberation_id=candidate.deliberation_id,
+        outcome=outcome,
+        reason_code=reason_code or str(getattr(outcome, "value", outcome)),
+        link_kinds=tuple(kind for kind in _LINK_KIND_ORDER if kind in candidate.link_kinds),
+        linking_member_ids=tuple(sorted(candidate.linking_member_ids)),
+        records=records,
+        declared_status=candidate.records[0].status if len(candidate.records) == 1 else None,
+        referrer_ids=referrer_ids,
+        path=path,
+    )
+
+
+def _classify_outcome(
+    candidate: _DispositionCandidate,
+    *,
+    index: _RecordIndex,
+    engine_verified: bool,
+    closure_scope: frozenset[str],
+    shipment_id: str | None,
+) -> LinkedDeliberationDisposition:
+    """Apply the INV-12 outcome precedence (first match wins).
+
+    retained_read_error -> retained_ambiguous -> already-archived ->
+    retained_engine_unverified -> retained_live_status ->
+    retained_shared_reference -> retained_description_mention -> archive.
+    """
+
+    if index.failures:
+        # A read failure on any record the scan reads (the deliberation's own
+        # records or any live-referrer input) fails closed to retain.
+        failure = index.failures[0]
+        return _make_outcome_record(
+            candidate,
+            LinkedDeliberationOutcome.RETAINED_READ_ERROR,
+            reason_code=failure.reason_code,
+            path=failure.rel_path,
+        )
+    if len(candidate.records) > 1:
+        return _make_outcome_record(candidate, LinkedDeliberationOutcome.RETAINED_AMBIGUOUS)
+    status = candidate.records[0].status
+    if _is_engine_inert(status):
+        return _make_outcome_record(candidate, LinkedDeliberationOutcome.ALREADY_ARCHIVED)
+    if not engine_verified:
+        return _make_outcome_record(
+            candidate, LinkedDeliberationOutcome.RETAINED_ENGINE_UNVERIFIED
+        )
+    if isinstance(status, str) and status in _LIVE_DELIBERATION_STATUSES:
+        return _make_outcome_record(candidate, LinkedDeliberationOutcome.RETAINED_LIVE_STATUS)
+    referrers = _scan_live_referrers(index, candidate.deliberation_id, closure_scope, shipment_id)
+    if referrers:
+        return _make_outcome_record(
+            candidate,
+            LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE,
+            referrer_ids=referrers,
+        )
+    if _LINK_KIND_SOURCE not in candidate.link_kinds:
+        return _make_outcome_record(
+            candidate, LinkedDeliberationOutcome.RETAINED_DESCRIPTION_MENTION
+        )
+    return _make_outcome_record(candidate, PLANNED_ARCHIVE)
+
+
+def compute_linked_deliberation_disposition(
+    manifest_items: Sequence[str],
+    shipment_id: str,
+    workspace_backlog_dir: Path | str,
+    *,
+    engine: EngineSemanticsDecision,
+    stash_path: Path | str | None = None,
+) -> LinkedDeliberationDispositionPlan:
+    """Plan the INV-12 disposition of the shipment's linked deliberations.
+
+    Pure and read-only: it reads queue-root and archive-root records once with
+    the classifier's parser (``autoharness.gates.topology._frontmatter``, H5),
+    never mutates the backlog, never calls ``backlogit``, and never raises.
+    Each disposition-set deliberation gets exactly one planned outcome; an
+    engine that is not VERIFIED (or not an :class:`EngineSemanticsDecision`)
+    retains every non-archived deliberation.
+
+    Scope note (195-F slice 1): the fail-closed read path is in place (every
+    read failure retains every disposition-set deliberation and is listed in
+    ``read_failures``). Stash referrers and the ``stash_path`` default
+    (``<workspace_backlog_dir>/stash.jsonl``), path containment
+    (``path_escape``), per-deliberation read-error attribution, and the H3
+    multi-record referrer rule land in slice 2 (197-F). Until then this planner
+    has no runtime caller and must not drive any mutation.
+    """
+
+    del stash_path  # Resolved and scanned from slice 2 (197.002-T).
+    normalized_shipment_id: str | None = None
+    try:
+        if isinstance(manifest_items, (str, bytes)):
+            raise TypeError("manifest_items must be a sequence of ids, not a single string")
+        normalized_shipment_id = _normalize_id(shipment_id)
+        backlog_dir = Path(workspace_backlog_dir)
+        normalized_items = [_normalize_id(item) for item in manifest_items]
+        if any(
+            item_id is None or not _ARTIFACT_ID_PATTERN.match(item_id)
+            for item_id in normalized_items
+        ):
+            # Like topology's manifest validation: never plan a partial scope.
+            raise ValueError("manifest_items contains an invalid or unsafe member id")
+        manifest_ids = tuple(dict.fromkeys(normalized_items))
+        closure_scope = _closure_scope_ids(manifest_ids, normalized_shipment_id)
+        engine_verified = (
+            type(engine) is EngineSemanticsDecision
+            and engine.verdict is EngineSemanticsVerdict.VERIFIED
+        )
+        index = _index_backlog_records(backlog_dir)
+        read_failures = tuple(
+            DispositionReadFailure(path=failure.rel_path, reason_code=failure.reason_code)
+            for failure in index.failures
+        )
+        # A torn/duplicate manifest member cannot be traversed safely (a stale
+        # copy could contribute links the live copy dropped): fail closed.
+        torn_members = sorted(
+            member_id for member_id in manifest_ids if len(index.by_id.get(member_id, ())) > 1
+        )
+        if torn_members:
+            return LinkedDeliberationDispositionPlan(
+                shipment_id=normalized_shipment_id,
+                engine=engine,
+                dispositions=(),
+                unresolved_references=(),
+                read_failures=read_failures,
+                planning_error=(
+                    "linked-deliberation planning failed: manifest members resolve to "
+                    f"multiple records (torn/duplicate identity): {', '.join(torn_members)}"
+                ),
+            )
+        candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
+        dispositions = tuple(
+            _classify_outcome(
+                candidates[deliberation_id],
+                index=index,
+                engine_verified=engine_verified,
+                closure_scope=closure_scope,
+                shipment_id=normalized_shipment_id,
+            )
+            for deliberation_id in sorted(candidates)
+        )
+        return LinkedDeliberationDispositionPlan(
+            shipment_id=normalized_shipment_id,
+            engine=engine,
+            dispositions=dispositions,
+            unresolved_references=tuple(
+                UnresolvedDeliberationReference(id=ref_id, reason_code=reason_code)
+                for ref_id, reason_code in sorted(unresolved.items())
+            ),
+            read_failures=read_failures,
+        )
+    except Exception as exc:  # noqa: BLE001 - the planner must fail closed, never raise
+        return LinkedDeliberationDispositionPlan(
+            shipment_id=normalized_shipment_id,
+            engine=engine,
+            dispositions=(),
+            unresolved_references=(),
+            planning_error=f"linked-deliberation planning failed: {type(exc).__name__}",
+        )
