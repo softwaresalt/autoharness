@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -787,6 +788,136 @@ class StashReferrerTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "114-DL")
 
         self.assertEqual(record.referrer_ids, ("990.001-T", "AAAA0005"))
+
+
+def _make_file_symlink(link: Path, target: Path) -> str | None:
+    """Create a file symlink; return a skip reason when unsupported."""
+
+    try:
+        os.symlink(target, link)
+        return None
+    except (OSError, NotImplementedError) as exc:
+        return f"cannot create file symlink: {exc}"
+
+
+def _make_dir_link(link: Path, target: Path) -> str | None:
+    """Create a directory symlink (or Windows junction); return a skip reason on failure."""
+
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return None
+    except (OSError, NotImplementedError) as exc:
+        symlink_error = exc
+    if os.name == "nt":
+        try:
+            import _winapi
+
+            _winapi.CreateJunction(str(target), str(link))
+            return None
+        except (OSError, ImportError, AttributeError) as exc:  # pragma: no cover - platform
+            return f"cannot create symlink ({symlink_error}) or junction ({exc})"
+    return f"cannot create directory symlink: {symlink_error}"
+
+
+class InputSafetyTests(_PlannerTestCase):
+    """197.003-T scenarios P22-P24: id validation and stash-path containment."""
+
+    def _two_linked_deliberations(self) -> list[str]:
+        items = self._feature_with_task(
+            "900-F",
+            "900.001-T",
+            custom_fields={"source_deliberation_id": "120-DL"},
+            body="See also 121-DL.",
+        )
+        self.backlog.shipment(items)
+        self.backlog.write("120-DL", "deliberation")
+        self.backlog.write("121-DL", "deliberation", status="archived")
+        return items
+
+    def _assert_every_disposition_read_error(self, plan, reason_code: str, path: str) -> None:
+        self.assertIsNone(plan.planning_error)
+        self.assertEqual([d.deliberation_id for d in plan.dispositions], ["120-DL", "121-DL"])
+        for record in plan.dispositions:
+            with self.subTest(deliberation=record.deliberation_id):
+                self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+                self.assertEqual(record.reason_code, reason_code)
+                self.assertEqual(record.path, path)
+        self.assertIn((path, reason_code), [(f.path, f.reason_code) for f in plan.read_failures])
+
+    def test_p22_traversal_shaped_source_deliberation_id_is_invalid_id(self) -> None:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": "../x-DL"}
+        )
+        self.backlog.shipment(items)
+        # A record the traversal would reach if a path were ever built from it.
+        outside = self.backlog.workspace / "x-DL.md"
+        outside.write_text("---\nid: x-DL\nartifact_type: deliberation\n---\n", encoding="utf-8")
+
+        plan = self.backlog.plan(items)
+
+        self.assertEqual(plan.dispositions, ())
+        self.assertEqual(plan.read_failures, ())
+        self.assertEqual(
+            [(ref.id, ref.reason_code) for ref in plan.unresolved_references],
+            [("../x-DL", "invalid_id")],
+        )
+
+    def test_p23_stash_path_outside_the_backlog_tree_is_path_escape(self) -> None:
+        items = self._two_linked_deliberations()
+        # Inside the workspace but outside the backlog tree: workspace-relative.
+        sibling = self.backlog.stash(
+            {"id": "AAAA0010", "text": "none"}, path=self.backlog.workspace / "elsewhere" / "stash.jsonl"
+        )
+        self._assert_every_disposition_read_error(
+            self.backlog.plan(items, stash_path=sibling), "path_escape", "elsewhere/stash.jsonl"
+        )
+        # Lexical traversal out of the backlog tree is caught before any read.
+        traversal = self.backlog.backlog_dir / ".." / "elsewhere" / "stash.jsonl"
+        self._assert_every_disposition_read_error(
+            self.backlog.plan(items, stash_path=traversal), "path_escape", "elsewhere/stash.jsonl"
+        )
+        # Outside the workspace entirely: recorded as supplied.
+        with tempfile.TemporaryDirectory() as other:
+            supplied = Path(other) / "stash.jsonl"
+            self.backlog.stash({"id": "AAAA0011", "text": "none"}, path=supplied)
+            self._assert_every_disposition_read_error(
+                self.backlog.plan(items, stash_path=supplied), "path_escape", str(supplied)
+            )
+            # A missing out-of-tree path is still a containment failure.
+            missing = Path(other) / "absent.jsonl"
+            self._assert_every_disposition_read_error(
+                self.backlog.plan(items, stash_path=missing), "path_escape", str(missing)
+            )
+
+    def test_p24_symlinked_stash_path_is_symlink_or_reparse_point(self) -> None:
+        items = self._two_linked_deliberations()
+        real = self.backlog.stash(
+            {"id": "AAAA0012", "text": "none"}, path=self.backlog.backlog_dir / "real.jsonl"
+        )
+        link = self.backlog.backlog_dir / "stash.jsonl"
+        reason = _make_file_symlink(link, real)
+        if reason:
+            self.skipTest(reason)
+
+        # The default stash path is itself a symlink.
+        self._assert_every_disposition_read_error(
+            self.backlog.plan(items), "symlink_or_reparse_point", ".backlogit/stash.jsonl"
+        )
+
+    def test_p24_stash_path_under_a_linked_directory_is_symlink_or_reparse_point(self) -> None:
+        items = self._two_linked_deliberations()
+        real_dir = self.backlog.backlog_dir / "realdir"
+        self.backlog.stash({"id": "AAAA0013", "text": "none"}, path=real_dir / "stash.jsonl")
+        linked_dir = self.backlog.backlog_dir / "linkdir"
+        reason = _make_dir_link(linked_dir, real_dir)
+        if reason:
+            self.skipTest(reason)
+
+        self._assert_every_disposition_read_error(
+            self.backlog.plan(items, stash_path=linked_dir / "stash.jsonl"),
+            "symlink_or_reparse_point",
+            ".backlogit/linkdir/stash.jsonl",
+        )
 
 
 class FailClosedReadPathTests(_PlannerTestCase):

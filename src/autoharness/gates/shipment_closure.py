@@ -989,6 +989,57 @@ def _workspace_relative(path: Path, workspace_root: Path) -> str:
         return str(path)
 
 
+def _is_within(child: Path, parent: Path) -> bool:
+    """True when ``child`` is ``parent`` or lies under it (same-drive, case-normalized)."""
+
+    child_text, parent_text = os.path.normcase(str(child)), os.path.normcase(str(parent))
+    try:
+        return os.path.commonpath([child_text, parent_text]) == parent_text
+    except ValueError:  # different drives, or mixed absolute/relative
+        return False
+
+
+def _display_path(path: Path, workspace_root: Path) -> str:
+    """Workspace-relative ``/`` path when ``path`` lies in the workspace, else as supplied."""
+
+    absolute = Path(os.path.abspath(path))
+    root = Path(os.path.abspath(workspace_root))
+    if _is_within(absolute, root):
+        return absolute.relative_to(root).as_posix()
+    return str(path)
+
+
+def _check_path_containment(path: Path, backlog_dir: Path) -> str | None:
+    """Return the read-error reason code when ``path`` is unsafe to read, else ``None``.
+
+    Constitution III input safety, shared by the stash path and every record
+    path: ``path`` must lie inside the workspace backlog tree lexically (after
+    ``..`` normalization, before anything is read) and canonically (after
+    symlink resolution), and neither the backlog root nor any component from
+    it down to ``path`` may be a symlink, junction or reparse point (checked
+    with the classifier's :func:`_is_symlink_or_reparse_point`). The lexical
+    check runs first, so a traversal is ``path_escape`` without touching the
+    filesystem; a link inside the tree is ``symlink_or_reparse_point`` even
+    when its target escapes. Never raises.
+    """
+
+    try:
+        root = Path(os.path.abspath(backlog_dir))
+        target = Path(os.path.abspath(path))
+        if not _is_within(target, root):
+            return READ_ERROR_PATH_ESCAPE
+        components = [root]
+        for part in target.relative_to(root).parts:
+            components.append(components[-1] / part)
+        if _directory_component_is_untrusted(*components):
+            return READ_ERROR_SYMLINK_OR_REPARSE_POINT
+        if not _is_within(Path(os.path.realpath(target)), Path(os.path.realpath(root))):
+            return READ_ERROR_PATH_ESCAPE
+    except (OSError, ValueError, RuntimeError):
+        return READ_ERROR_UNREADABLE_FILE
+    return None
+
+
 def _read_record_body(text: str) -> str | None:
     """Return the Markdown description body after the closing frontmatter delimiter.
 
@@ -1112,14 +1163,19 @@ def _resolve_stash_path(backlog_dir: Path, stash_path: Path | str | None) -> Pat
 def _scan_stash_referrers(stash_file: Path, backlog_dir: Path) -> _StashScan:
     """Read the active stash entries once (read-only).
 
-    A missing stash file means no active stash entries (never a raise).
-    Blank lines are skipped. Each entry is reduced to its referrer id (the
-    entry ``id``, or ``<stash path>:<line>`` when it has none), its
-    ``deliberation_id`` field and its ``text``.
+    The stash path (default or explicit) first passes
+    :func:`_check_path_containment`; a failure is a read failure for the whole
+    scan, reported with the stash path. A missing stash file means no active
+    stash entries. Blank lines are skipped. Each entry is reduced to its
+    referrer id (the entry ``id``, or ``<stash path>:<line>`` when it has
+    none), its ``deliberation_id`` field and its ``text``.
     """
 
     workspace_root = backlog_dir.parent
-    rel_path = _workspace_relative(stash_file, workspace_root)
+    rel_path = _display_path(stash_file, workspace_root)
+    containment = _check_path_containment(stash_file, backlog_dir)
+    if containment is not None:
+        return _StashScan(failure=_ReadFailure(rel_path, containment))
     try:
         os.lstat(stash_file)
     except FileNotFoundError:
@@ -1374,10 +1430,11 @@ def _classify_outcome(
     retained_shared_reference -> retained_description_mention -> archive.
     """
 
-    if index.failures:
-        # A read failure on any record the scan reads (the deliberation's own
-        # records or any live-referrer input) fails closed to retain.
-        failure = index.failures[0]
+    failure = stash.failure or (index.failures[0] if index.failures else None)
+    if failure is not None:
+        # A read or containment failure on any input the scan reads (the
+        # resolved stash file, the deliberation's own records or any
+        # live-referrer input) fails closed to retain.
         return _make_outcome_record(
             candidate,
             LinkedDeliberationOutcome.RETAINED_READ_ERROR,
@@ -1457,9 +1514,10 @@ def compute_linked_deliberation_disposition(
             and engine.verdict is EngineSemanticsVerdict.VERIFIED
         )
         index = _index_backlog_records(backlog_dir)
+        stash = _scan_stash_referrers(_resolve_stash_path(backlog_dir, stash_path), backlog_dir)
         read_failures = tuple(
             DispositionReadFailure(path=failure.rel_path, reason_code=failure.reason_code)
-            for failure in index.failures
+            for failure in (*index.failures, *((stash.failure,) if stash.failure else ()))
         )
         # A torn/duplicate manifest member cannot be traversed safely (a stale
         # copy could contribute links the live copy dropped): fail closed.
@@ -1479,7 +1537,6 @@ def compute_linked_deliberation_disposition(
                 ),
             )
         candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
-        stash = _scan_stash_referrers(_resolve_stash_path(backlog_dir, stash_path), backlog_dir)
         dispositions = tuple(
             _classify_outcome(
                 candidates[deliberation_id],
