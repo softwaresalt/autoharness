@@ -29,9 +29,12 @@ from pathlib import Path
 
 try:
     from _assertion_render import render_source
-    from test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
 except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
     from tests._assertion_render import render_source
+
+try:
+    from test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
     from tests.test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -497,12 +500,11 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
         match = re.search(r"^\* \*\*INV-10 [^\n]+", content, re.MULTILINE)
         self.assertIsNotNone(match)
         bullet = match.group(0)
-        self.assertTrue(
-            bullet.startswith(
-                "* **INV-10 (Close-path gate postconditions (evaluated before "
-                "INV-12 disposition)).**"
-            )
+        expected_prefix = (
+            "* **INV-10 (Close-path gate postconditions (evaluated before "
+            "INV-12 disposition)).**"
         )
+        self.assertEqual(bullet[: len(expected_prefix)], expected_prefix)
         self.assertIn(
             "INV-12's `archived` deliberations are the only artifacts outside "
             "`allowed_ids(S)` that may change after the gate, and only through INV-12",
@@ -604,6 +606,8 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
                 region, observed = expected[0], actual[0]
                 for line_anchor, region_anchor in region_anchors:
                     if anchor == line_anchor:
+                        self.assertIn(region_anchor, region)
+                        self.assertIn(region_anchor, observed)
                         region = region[region.index(region_anchor) :]
                         observed = observed[observed.index(region_anchor) :]
                 for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:

@@ -11,6 +11,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
     from tests._assertion_render import render_source
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 CONTRACT_FILES = (
     Path(".github") / "policies" / "workflow-policies.md",
@@ -348,7 +349,7 @@ class PolicyU2aRenderedRegionParityTests(unittest.TestCase):
 
     def test_a_i_u2a_paragraphs_rendered_region_parity(self) -> None:
         rendered = render_source(".github/policies/workflow-policies.md")
-        mirror = (Path(".github") / "policies" / "workflow-policies.md").read_text(
+        mirror = (_REPO_ROOT / ".github" / "policies" / "workflow-policies.md").read_text(
             encoding="utf-8"
         )
         for anchor in U2A_PARITY_ANCHORS:

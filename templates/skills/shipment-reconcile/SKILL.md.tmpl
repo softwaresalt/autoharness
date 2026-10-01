@@ -489,13 +489,16 @@ completion.
       and never authorizes the cascade path.
 
       **When this classification identifies qualifying feature members**
-      (i.e. selects `CASCADE`): extend the same pre-close declared-status
+      (i.e. the classifier verdict is `CASCADE`): the all-member Step 0(b)
+      snapshot already holds each qualifying feature member's declared
+      status; confirm and extend the same pre-close declared-status
       snapshot from (b) — still **before** the cascade invocation, never
       after — with each qualifying feature member's own declared `status`
       field, read the identical way (frontmatter's own `status` field only,
-      never inferred from `queue/`/`archive/` location). The resulting
-      combined map (manifest task statuses captured in (b), plus qualifying
-      feature statuses added here) is the single pre-close declared-status
+      never inferred from `queue/`/`archive/` location); because (b) already
+      recorded those values, this designates the existing entries and never
+      re-reads them. The resulting map (every member status captured in
+      (b), with the qualifying feature entries designated here) is the single pre-close declared-status
       snapshot the Cascade Close Sub-Procedure's step 3 two-set gate reads
       from; "qualifying feature members" for that gate means exactly the set
       this classification determines here — never a separate
@@ -562,7 +565,7 @@ completion.
       apply `assess_cascade_engine_semantics` (this self-hosting repository's
       own implementation lives at `src/autoharness/gates/shipment_closure.py`);
       other workspaces apply the equivalent rules: the probed version is a
-      released `X.Y.Z` build (no pre-release or build metadata); its `X.Y`
+      released `X.Y.Z` or `vX.Y.Z` build (no pre-release or build metadata); its `X.Y`
       minor line is listed in P-015's token "Verified engine-semantics lines:
       `1.11`"; and the probe surface equals the surface the close path will
       invoke. Anything else, including a probe failure, timeout, or
