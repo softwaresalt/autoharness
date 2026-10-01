@@ -1556,13 +1556,13 @@ def compute_linked_deliberation_disposition(
     engine that is not VERIFIED (or not an :class:`EngineSemanticsDecision`)
     retains every non-archived deliberation.
 
-    Scope note (195-F slice 1): the fail-closed read path is in place (every
-    read failure retains every disposition-set deliberation and is listed in
-    ``read_failures``). Stash referrers and the ``stash_path`` default
+    Scope note (195-F slice 2, 197-F): slice 2 closes plan unit U1b. The
+    fail-closed read path, stash referrers and the ``stash_path`` default
     (``<workspace_backlog_dir>/stash.jsonl``), path containment
-    (``path_escape``), per-deliberation read-error attribution, and the H3
-    multi-record referrer rule land in slice 2 (197-F). Until then this planner
-    has no runtime caller and must not drive any mutation.
+    (``path_escape``), per-deliberation read-error attribution, the H3
+    multi-record referrer rule and the final INV-12 outcome precedence are in
+    place. This planner still has no runtime caller and must not drive any
+    mutation until a later slice wires it into the close path.
     """
 
     normalized_shipment_id: str | None = None

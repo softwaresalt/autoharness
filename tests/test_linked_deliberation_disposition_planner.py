@@ -1,8 +1,9 @@
 """Tests for the read-only linked-deliberation disposition planner.
 
-Covers the first half of plan unit U1b
+Covers plan unit U1b
 (``docs/plans/2026-09-29-backlogit-1-11-cascade-alignment-plan.md``), tasks
-196.004-T..196.008-T: ``compute_linked_deliberation_disposition`` in
+196.004-T..196.008-T (slice 1) and 197.001-T..197.006-T (slice 2, which closes
+U1b): ``compute_linked_deliberation_disposition`` in
 ``src/autoharness/gates/shipment_closure.py``. Every non-read-error outcome
 fixture checks ``reason_code`` through :func:`assert_reason_code_defaults`.
 """
@@ -272,6 +273,7 @@ class DispositionLinkSourceTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "053-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_DESCRIPTION_MENTION)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.link_kinds, ("references",))
 
     def test_p5_non_deliberation_artifact_type_is_excluded(self) -> None:
@@ -427,6 +429,7 @@ class OutcomePrecedenceCoreTests(_PlannerTestCase):
                 record = self._only(self.backlog.plan(items), "064-DL")
 
                 self.assertEqual(record.outcome, "archive")
+                assert_reason_code_defaults(self, record)
 
     def test_h3_declared_archived_is_already_archived_regardless_of_location(self) -> None:
         for folder in ("queue", "archive"):
@@ -447,6 +450,7 @@ class OutcomePrecedenceCoreTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "066-DL")
 
         self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
 
     def test_p12_engine_unverified_retains_every_non_archived_deliberation(self) -> None:
         items = self._feature_with_task(
@@ -496,6 +500,7 @@ class LiveReferrerScanTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "070-DL")
 
         self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ())
 
     def test_p14_other_shipment_items_referrer_is_counted(self) -> None:
@@ -517,6 +522,7 @@ class LiveReferrerScanTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "073-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("951-S",))
 
     def test_other_shipment_source_deliberation_id_referrer_is_counted(self) -> None:
@@ -530,6 +536,8 @@ class LiveReferrerScanTests(_PlannerTestCase):
 
         record = self._only(self.backlog.plan(items), "074-DL")
 
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("952-S",))
 
     def test_out_of_scope_work_item_referrers_are_counted(self) -> None:
@@ -542,6 +550,7 @@ class LiveReferrerScanTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "075-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("980.001-T", "981-B", "982-C"))
 
     def test_shared_reference_precedes_description_mention(self) -> None:
@@ -553,6 +562,7 @@ class LiveReferrerScanTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "076-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
 
     def test_never_counted_referrers(self) -> None:
         items = self._linked_items("077-DL")
@@ -675,6 +685,7 @@ class TrulyArchivedReferrerTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "104-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("989.001-T",))
 
 
@@ -763,6 +774,7 @@ class StashReferrerTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "112-DL")
 
         self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ())
 
     def test_explicit_stash_path_overrides_the_default(self) -> None:
@@ -777,6 +789,7 @@ class StashReferrerTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items, stash_path=explicit), "113-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("AAAA0004",))
 
     def test_stash_referrer_combines_with_backlog_referrers(self) -> None:
@@ -787,6 +800,8 @@ class StashReferrerTests(_PlannerTestCase):
 
         record = self._only(self.backlog.plan(items), "114-DL")
 
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("990.001-T", "AAAA0005"))
 
 
@@ -1059,6 +1074,7 @@ class FailClosedReadPathTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "093-DL")
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ("997.001-T",))
 
     def test_crlf_record_parses_and_hashes_raw_bytes(self) -> None:
@@ -1069,6 +1085,7 @@ class FailClosedReadPathTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "095-DL")
 
         self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.records[0].sha256, hashlib.sha256(raw).hexdigest())
 
     def test_each_record_is_read_exactly_once(self) -> None:
@@ -1090,6 +1107,7 @@ class FailClosedReadPathTests(_PlannerTestCase):
             record = self._only(self.backlog.plan(items), "096-DL")
 
         self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
         self.assertEqual(sorted(reads), sorted(set(reads)))
         self.assertIn("096-DL.md", reads)
 
@@ -1284,6 +1302,68 @@ class BodyStashAndReferrerInputReadErrorTests(_PlannerTestCase):
         self._assert_every_read_error(
             self.backlog.plan(items), "malformed_frontmatter", ".backlogit/queue/958-S.md"
         )
+
+
+class FinalPrecedenceAndBodyLinkTests(_PlannerTestCase):
+    """197.006-T scenarios P31-P33: final precedence edge cases and body-only links."""
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": deliberation_id}
+        )
+        self.backlog.shipment(items)
+        return items
+
+    def test_p31_torn_deliberation_with_one_unreadable_record_is_read_error(self) -> None:
+        items = self._linked_items("150-DL")
+        self.backlog.write("150-DL", "deliberation", status="queued")
+        (self.backlog.backlog_dir / "archive" / "150-DL.md").write_bytes(
+            b"---\nid: 150-DL\nartifact_type: deliberation\ntitle: \xff\n---\n"
+        )
+
+        record = self._only(self.backlog.plan(items), "150-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+        self.assertIsNot(record.outcome, LinkedDeliberationOutcome.RETAINED_AMBIGUOUS)
+        self.assertEqual(record.reason_code, "unreadable_file")
+        self.assertEqual(record.path, ".backlogit/archive/150-DL.md")
+
+    def test_p32_unreadable_deliberation_under_unverified_engine_is_read_error(self) -> None:
+        items = self._linked_items("151-DL")
+        (self.backlog.backlog_dir / "queue" / "151-DL.md").write_bytes(
+            b"---\nid: [unclosed\n---\n"
+        )
+        # The record is attributable to 151-DL by its filename only.
+        record = self._only(self.backlog.plan(items, engine=UNVERIFIED), "151-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+        self.assertEqual(record.reason_code, "malformed_frontmatter")
+        self.assertEqual(record.path, ".backlogit/queue/151-DL.md")
+
+    def test_p33_member_body_only_id_is_a_description_link(self) -> None:
+        items = self._feature_with_task("900-F", "900.001-T", body="Context lives in 152-DL.")
+        self.backlog.write("152-DL", "deliberation")
+        self.backlog.shipment(items)
+
+        record = self._only(self.backlog.plan(items), "152-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_DESCRIPTION_MENTION)
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.link_kinds, ("description",))
+        self.assertEqual(record.linking_member_ids, ("900.001-T",))
+        self.assertEqual(record.referrer_ids, ())
+
+    def test_p33_other_shipment_body_only_id_is_a_live_referrer(self) -> None:
+        items = self._linked_items("153-DL")
+        self.backlog.write("153-DL", "deliberation")
+        self.backlog.shipment([], shipment_id="959-S", status="queued", body="Follows 153-DL.")
+
+        record = self._only(self.backlog.plan(items), "153-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.link_kinds, ("source_deliberation_id",))
+        self.assertEqual(record.referrer_ids, ("959-S",))
 
 
 if __name__ == "__main__":
