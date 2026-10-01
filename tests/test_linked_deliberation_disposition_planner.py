@@ -1202,5 +1202,89 @@ class DeliberationRecordReadErrorTests(_PlannerTestCase):
         self.assertEqual(record.path, ".backlogit/queue/130-DL.md")
 
 
+class BodyStashAndReferrerInputReadErrorTests(_PlannerTestCase):
+    """197.005-T scenarios P28-P30: body, stash-line and referrer-input read errors."""
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F",
+            "900.001-T",
+            custom_fields={"source_deliberation_id": deliberation_id},
+            body="Background: 139-DL.",
+        )
+        self.backlog.shipment(items)
+        self.backlog.write("139-DL", "deliberation", status="archived")
+        return items
+
+    def _assert_every_read_error(self, plan, reason_code: str, path: str) -> None:
+        self.assertIsNone(plan.planning_error)
+        self.assertGreaterEqual(len(plan.dispositions), 2)
+        for record in plan.dispositions:
+            with self.subTest(deliberation=record.deliberation_id):
+                self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+                self.assertEqual(record.reason_code, reason_code)
+                self.assertEqual(record.path, path)
+        self.assertIn((path, reason_code), [(f.path, f.reason_code) for f in plan.read_failures])
+
+    def test_p28_deliberation_without_closing_delimiter_is_body_unseparable(self) -> None:
+        items = self._linked_items("140-DL")
+        (self.backlog.backlog_dir / "queue" / "140-DL.md").write_bytes(
+            b"---\nid: 140-DL\nartifact_type: deliberation\nstatus: queued\n"
+        )
+
+        record = self._only(self.backlog.plan(items), "140-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+        self.assertEqual(record.reason_code, "body_unseparable")
+        self.assertEqual(record.path, ".backlogit/queue/140-DL.md")
+
+    def test_p29_default_stash_with_non_json_line_is_malformed_stash_entry(self) -> None:
+        for label, bad_line in (
+            ("not json", "this is not json"),
+            ("json array", "[1, 2]"),
+            ("json string", '"141-DL"'),
+            ("truncated object", '{"id": "AAAA0020", "text": "141-DL"'),
+        ):
+            with self.subTest(line=label):
+                self._fresh_backlog()
+                items = self._linked_items("141-DL")
+                self.backlog.write("141-DL", "deliberation")
+                self.backlog.stash({"id": "AAAA0021", "text": "fine"}, bad_line)
+
+                # Default call: no stash_path argument.
+                plan = compute_linked_deliberation_disposition(
+                    items, SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED
+                )
+
+                self._assert_every_read_error(plan, "malformed_stash_entry", ".backlogit/stash.jsonl")
+
+    def test_unreadable_stash_file_is_unreadable_file(self) -> None:
+        for label in ("non-utf8", "directory"):
+            with self.subTest(stash=label):
+                self._fresh_backlog()
+                items = self._linked_items("142-DL")
+                self.backlog.write("142-DL", "deliberation")
+                stash = self.backlog.backlog_dir / "stash.jsonl"
+                if label == "directory":
+                    stash.mkdir()
+                else:
+                    stash.write_bytes(b'{"id": "AAAA0022", "text": "\xff"}\n')
+
+                self._assert_every_read_error(
+                    self.backlog.plan(items), "unreadable_file", ".backlogit/stash.jsonl"
+                )
+
+    def test_p30_other_shipment_record_with_invalid_yaml_is_malformed_frontmatter(self) -> None:
+        items = self._linked_items("143-DL")
+        self.backlog.write("143-DL", "deliberation")
+        (self.backlog.backlog_dir / "queue" / "958-S.md").write_bytes(
+            b"---\nid: 958-S\nartifact_type: shipment\ncustom_fields: {items: [143-DL\n---\n"
+        )
+
+        self._assert_every_read_error(
+            self.backlog.plan(items), "malformed_frontmatter", ".backlogit/queue/958-S.md"
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

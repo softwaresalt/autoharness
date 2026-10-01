@@ -1184,6 +1184,12 @@ def _scan_stash_referrers(stash_file: Path, backlog_dir: Path) -> _StashScan:
     stash entries. Blank lines are skipped. Each entry is reduced to its
     referrer id (the entry ``id``, or ``<stash path>:<line>`` when it has
     none), its ``deliberation_id`` field and its ``text``.
+
+    Fail closed, never raises: a stash path that is not a regular file, cannot
+    be stat'ed or read, or is not valid UTF-8 is a read failure with reason
+    code ``unreadable_file`` at the stash path. A non-blank line that fails
+    JSON parsing or does not decode to a JSON object is a read failure with
+    reason code ``malformed_stash_entry`` at the workspace-relative stash path.
     """
 
     workspace_root = backlog_dir.parent
@@ -1192,15 +1198,29 @@ def _scan_stash_referrers(stash_file: Path, backlog_dir: Path) -> _StashScan:
     if containment is not None:
         return _StashScan(failure=_ReadFailure(rel_path, containment))
     try:
-        os.lstat(stash_file)
+        stash_mode = os.lstat(stash_file).st_mode
     except FileNotFoundError:
         return _StashScan()
-    raw = stash_file.read_bytes()
+    except OSError:
+        return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
+    if not stat.S_ISREG(stash_mode):
+        return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
+    try:
+        text = stash_file.read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
     entries: list[_StashEntry] = []
-    for line_number, line in enumerate(raw.decode("utf-8").splitlines(), start=1):
+    for line_number, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
-        entry = json.loads(line)
+        try:
+            entry = json.loads(line)
+        except (ValueError, RecursionError):
+            entry = None
+        if not isinstance(entry, dict):
+            return _StashScan(
+                failure=_ReadFailure(rel_path, READ_ERROR_MALFORMED_STASH_ENTRY)
+            )
         entries.append(
             _StashEntry(
                 referrer_id=_normalize_id(entry.get("id")) or f"{rel_path}:{line_number}",
