@@ -134,6 +134,13 @@ Reports:
 No P-005 event was raised. No operator deviation was needed beyond the
 recorded interim rule A.
 
+## Closure Index Resync
+
+`CLOSURE_INDEX_SYNC_OK`. `backlogit sync` (the CLI fallback for
+`backlogit_sync_index`) ran after every backlog mutation in this closure. That
+covers the cascade close and the `26D90B0F` comment append. The sync exited 0
+with `Indexed 1655 artifacts`, before the closure commits were made.
+
 ## Source Artifact Cleanup
 
 * No manifest item declares `custom_fields.source_stash_id` or
