@@ -790,6 +790,53 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
         self.assertIn("Corrects, and does not delete or edit, the 1.19.0 row above", row)
 
 
+class CascadeCloseEngineSemanticsGateTests(unittest.TestCase):
+    """198.009-T (U3a-2): first assertions for the 198.008-T skill triple --
+    Step 0(b) all-member snapshot, the Step 0(c) Engine-semantics gate and
+    the `select_close_path` routing."""
+
+    def test_c_a_engine_semantics_gate_tokens_present(self) -> None:
+        content = _skill_content()
+        for token in (
+            "Engine-semantics gate",
+            "ENGINE_SEMANTICS_UNVERIFIED",
+            "no_update_check",
+            "probe_surface",
+            "select_close_path",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, content)
+        flat = _flatten(content)
+        gate = flat[flat.index("**Engine-semantics gate") : flat.index("**Close-path selection.**")]
+        # Literal tool/CLI wording, never an {{OP_...}} placeholder.
+        self.assertIn("`backlogit_get_version` with `no_update_check: true`", gate)
+        self.assertIn("`backlogit version --no-update-check --format json`", gate)
+        self.assertIn("Verified engine-semantics lines: `1.11`", gate)
+        self.assertNotIn("{{OP_", gate)
+
+    def test_c_e_step_0b_snapshots_every_explicit_manifest_member(self) -> None:
+        flat = _flatten(_skill_content())
+        self.assertIn(
+            "Snapshot pre-close `parent_id` and declared `status` for every "
+            "explicit manifest member regardless of `artifact_type`",
+            flat,
+        )
+        self.assertNotIn("declared `status` for every task item", flat)
+
+    def test_c_f_cascade_routing_names_linked_deliberation_disposition_step(self) -> None:
+        flat = _flatten(_skill_content())
+        self.assertIn(
+            "in place of steps 1–10, then continue to the "
+            "Linked-Deliberation Disposition step.",
+            flat,
+        )
+        self.assertNotIn("then proceed to post-mode", flat)
+        self.assertIn(
+            "unresolved precondition, and including `ENGINE_SEMANTICS_UNVERIFIED`)",
+            flat,
+        )
+
+
 class CascadeCloseTwoSetGateScenarioTests(unittest.TestCase):
     """Encodes the eight mandatory scenarios (147.003-T) as assertions that
     the corresponding textual branch of the two-set gate contract exists and
