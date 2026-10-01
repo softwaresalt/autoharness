@@ -1106,6 +1106,21 @@ def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure
     )
 
 
+def _read_record_safely(path: Path, backlog_dir: Path) -> _RecordRead | _ReadFailure:
+    """Containment-check one record path, then read it once (never raises).
+
+    Every record path passes the same :func:`_check_path_containment` checks
+    as the stash path before any byte is read; a failure is a
+    ``path_escape`` or ``symlink_or_reparse_point`` read failure for that path.
+    """
+
+    workspace_root = backlog_dir.parent
+    containment = _check_path_containment(path, backlog_dir)
+    if containment is not None:
+        return _ReadFailure(_workspace_relative(path, workspace_root), containment)
+    return _read_record(path, workspace_root)
+
+
 def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
     """Read every queue-root and archive-root record once (read-only, H5).
 
@@ -1135,7 +1150,7 @@ def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
             failures.append(_ReadFailure(base_rel, READ_ERROR_UNREADABLE_FILE))
             continue
         for candidate in candidates:
-            result = _read_record(candidate, workspace_root)
+            result = _read_record_safely(candidate, backlog_dir)
             if isinstance(result, _ReadFailure):
                 failures.append(result)
             else:
@@ -1249,6 +1264,7 @@ class _DispositionCandidate:
     records: list[_RecordRead]
     link_kinds: set[str] = field(default_factory=set)
     linking_member_ids: set[str] = field(default_factory=set)
+    own_failures: tuple[_ReadFailure, ...] = ()
 
 
 def _resolve_deliberation_records(
@@ -1267,10 +1283,31 @@ def _resolve_deliberation_records(
     return list(records)
 
 
+def _own_record_failures(
+    index: _RecordIndex, deliberation_id: str, backlog_dir: Path
+) -> tuple[_ReadFailure, ...]:
+    """Read failures at the id's own record paths (``queue/`` or ``archive/<id>.md``).
+
+    Called only after ``deliberation_id`` matched ``_ARTIFACT_ID_PATTERN``, so
+    the expected paths are built from a validated id. The comparison is
+    case-insensitive, like the index's ``.md`` suffix match.
+    """
+
+    workspace_root = backlog_dir.parent
+    own_paths = {
+        _workspace_relative(backlog_dir / folder / f"{deliberation_id}.md", workspace_root).casefold()
+        for folder in ("queue", "archive")
+    }
+    return tuple(
+        failure for failure in index.failures if failure.rel_path.casefold() in own_paths
+    )
+
+
 def _collect_disposition_set(
     index: _RecordIndex,
     manifest_ids: Sequence[str],
     closure_scope: frozenset[str],
+    backlog_dir: Path,
 ) -> tuple[dict[str, _DispositionCandidate], dict[str, str]]:
     """Collect the disposition set and the unresolved references.
 
@@ -1279,10 +1316,14 @@ def _collect_disposition_set(
     and the description-body and ``references`` matches, excluding the
     member's own id (self-reference) and every id in ``closure_scope(S)`` (H10:
     an explicit-member deliberation is governed by the flat allowed/required
-    sets, never by the disposition step). Ids that do not resolve to a
-    deliberation record are reported as unresolved (never a halt). A member
-    that cannot be found contributes no links; the fail-safe direction is
-    retention, because an undiscovered deliberation is never archived.
+    sets, never by the disposition step). Every candidate id must match
+    ``_ARTIFACT_ID_PATTERN`` before any path is built from it (otherwise
+    ``invalid_id``). Ids that do not resolve to a deliberation record are
+    reported as unresolved (never a halt), unless a record at the id's own
+    path could not be read: that id is a member, retained with its own read
+    error (it may be a deliberation we cannot see). A member that cannot be
+    found contributes no links; the fail-safe direction is retention, because
+    an undiscovered deliberation is never archived.
     """
 
     candidates: dict[str, _DispositionCandidate] = {}
@@ -1297,11 +1338,16 @@ def _collect_disposition_set(
                     continue
                 candidate = candidates.get(linked_id)
                 if candidate is None:
+                    own_failures = _own_record_failures(index, linked_id, backlog_dir)
                     records = _resolve_deliberation_records(index, linked_id)
-                    if records is None:
+                    if records is None and not own_failures:
                         unresolved.setdefault(linked_id, UNRESOLVED_NOT_FOUND)
                         continue
-                    candidate = _DispositionCandidate(linked_id, records)
+                    candidate = _DispositionCandidate(
+                        linked_id,
+                        records if records is not None else list(index.by_id.get(linked_id, [])),
+                        own_failures=own_failures,
+                    )
                     candidates[linked_id] = candidate
                 candidate.link_kinds.update(kinds)
                 candidate.linking_member_ids.add(member_id)
@@ -1430,11 +1476,16 @@ def _classify_outcome(
     retained_shared_reference -> retained_description_mention -> archive.
     """
 
-    failure = stash.failure or (index.failures[0] if index.failures else None)
+    failure = (
+        candidate.own_failures[0]
+        if candidate.own_failures
+        else stash.failure or (index.failures[0] if index.failures else None)
+    )
     if failure is not None:
-        # A read or containment failure on any input the scan reads (the
-        # resolved stash file, the deliberation's own records or any
-        # live-referrer input) fails closed to retain.
+        # Rule 1, evaluated first: a read or containment failure on the
+        # deliberation's own record(s) (attributed to that record's path), then
+        # on any live-referrer input (the resolved stash file, or any record
+        # the scan reads) fails closed to retain.
         return _make_outcome_record(
             candidate,
             LinkedDeliberationOutcome.RETAINED_READ_ERROR,
@@ -1536,7 +1587,9 @@ def compute_linked_deliberation_disposition(
                     f"multiple records (torn/duplicate identity): {', '.join(torn_members)}"
                 ),
             )
-        candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
+        candidates, unresolved = _collect_disposition_set(
+            index, manifest_ids, closure_scope, backlog_dir
+        )
         dispositions = tuple(
             _classify_outcome(
                 candidates[deliberation_id],

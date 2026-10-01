@@ -993,12 +993,16 @@ class FailClosedReadPathTests(_PlannerTestCase):
         self._assert_read_error(plan, "089-DL", "malformed_frontmatter", ".backlogit/queue/993-T.md")
 
     def test_unreadable_deliberation_record_stays_visible(self) -> None:
+        # 197.004-T: an unreadable record at the linked id's own path is a
+        # disposition-set member retained with its own read error, and the
+        # failure stays listed in read_failures.
         items = self._linked_items("094-DL")
         self._write_raw("queue", "094-DL.md", b"---\nid: [unclosed\n---\n")
 
         plan = self.backlog.plan(items)
 
-        self.assertEqual(plan.dispositions, ())
+        self.assertEqual(plan.unresolved_references, ())
+        self._assert_read_error(plan, "094-DL", "malformed_frontmatter", ".backlogit/queue/094-DL.md")
         self.assertEqual(
             [(f.path, f.reason_code) for f in plan.read_failures],
             [(".backlogit/queue/094-DL.md", "malformed_frontmatter")],
@@ -1095,6 +1099,107 @@ class FailClosedReadPathTests(_PlannerTestCase):
         )
         self.assertEqual(plan.dispositions, ())
         self.assertIn("TypeError", plan.planning_error or "")
+
+
+class DeliberationRecordReadErrorTests(_PlannerTestCase):
+    """197.004-T scenarios P25-P27: the deliberation's own record read errors.
+
+    A read or containment failure on the deliberation's own record is
+    attributed to that record's path and evaluated first in the precedence.
+    """
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": deliberation_id}
+        )
+        self.backlog.shipment(items)
+        return items
+
+    def _write_raw(self, folder: str, name: str, data: bytes) -> None:
+        (self.backlog.backlog_dir / folder / name).write_bytes(data)
+
+    def _assert_own_read_error(self, plan, deliberation_id: str, reason_code: str, path: str) -> None:
+        self.assertIsNone(plan.planning_error)
+        self.assertNotIn(deliberation_id, [ref.id for ref in plan.unresolved_references])
+        record = self._only(plan, deliberation_id)
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+        self.assertEqual(record.reason_code, reason_code)
+        self.assertEqual(record.path, path)
+        self.assertEqual(record.link_kinds, ("source_deliberation_id",))
+        self.assertEqual(record.linking_member_ids, ("900.001-T",))
+        self.assertIn((path, reason_code), [(f.path, f.reason_code) for f in plan.read_failures])
+
+    def test_p25_symlinked_deliberation_record_is_symlink_or_reparse_point(self) -> None:
+        items = self._linked_items("125-DL")
+        elsewhere = self.backlog.workspace / "elsewhere"
+        elsewhere.mkdir()
+        target = elsewhere / "125-DL.md"
+        target.write_text(
+            "---\nid: 125-DL\nartifact_type: deliberation\nstatus: queued\n---\n",
+            encoding="utf-8",
+        )
+        reason = _make_file_symlink(self.backlog.backlog_dir / "queue" / "125-DL.md", target)
+        if reason:
+            self.skipTest(reason)
+
+        self._assert_own_read_error(
+            self.backlog.plan(items),
+            "125-DL",
+            "symlink_or_reparse_point",
+            ".backlogit/queue/125-DL.md",
+        )
+
+    def test_p26_non_utf8_deliberation_record_is_unreadable_file(self) -> None:
+        items = self._linked_items("126-DL")
+        self._write_raw(
+            "queue", "126-DL.md", b"---\nid: 126-DL\nartifact_type: deliberation\ntitle: \xff\n---\n"
+        )
+
+        self._assert_own_read_error(
+            self.backlog.plan(items), "126-DL", "unreadable_file", ".backlogit/queue/126-DL.md"
+        )
+
+    def test_p27_invalid_yaml_deliberation_record_is_malformed_frontmatter(self) -> None:
+        items = self._linked_items("127-DL")
+        self._write_raw("archive", "127-DL.md", b"---\nid: [unclosed\n---\n")
+
+        self._assert_own_read_error(
+            self.backlog.plan(items), "127-DL", "malformed_frontmatter", ".backlogit/archive/127-DL.md"
+        )
+
+    def test_own_record_failure_is_reported_before_any_other_read_failure(self) -> None:
+        items = self._linked_items("128-DL")
+        self._write_raw(
+            "queue", "128-DL.md", b"---\nid: 128-DL\nartifact_type: deliberation\ntitle: \xff\n---\n"
+        )
+        # An unrelated record failure that sorts first, and an escaping stash path.
+        self._write_raw("archive", "000-T.md", b"---\nid: [unclosed\n---\n")
+        outside = self.backlog.stash({"id": "x"}, path=self.backlog.workspace / "outside.jsonl")
+
+        plan = self.backlog.plan(items, stash_path=outside)
+
+        self._assert_own_read_error(plan, "128-DL", "unreadable_file", ".backlogit/queue/128-DL.md")
+        self.assertEqual(
+            [(f.path, f.reason_code) for f in plan.read_failures],
+            [
+                (".backlogit/archive/000-T.md", "malformed_frontmatter"),
+                (".backlogit/queue/128-DL.md", "unreadable_file"),
+                ("outside.jsonl", "path_escape"),
+            ],
+        )
+
+    def test_unreadable_record_of_a_non_linked_id_is_not_a_disposition_member(self) -> None:
+        items = self._linked_items("129-DL")
+        self.backlog.write("129-DL", "deliberation")
+        self._write_raw("queue", "130-DL.md", b"---\nid: [unclosed\n---\n")
+
+        plan = self.backlog.plan(items)
+
+        self.assertEqual([d.deliberation_id for d in plan.dispositions], ["129-DL"])
+        record = self._only(plan, "129-DL")
+        # Still retained: the unreadable record is a live-referrer scan input.
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_READ_ERROR)
+        self.assertEqual(record.path, ".backlogit/queue/130-DL.md")
 
 
 if __name__ == "__main__":
