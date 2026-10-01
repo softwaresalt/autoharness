@@ -236,5 +236,72 @@ class FlatSetPolicyContractTests(unittest.TestCase):
                 self.assertNotRegex(text, re.compile(r"(?i)SAFE_CLOSE[^\n]{0,80}always valid"))
 
 
+LINKED_DELIBERATION_OUTCOMES = (
+    "archived",
+    "already-archived",
+    "retained_read_error",
+    "retained_engine_unverified",
+    "retained_ambiguous",
+    "retained_live_status",
+    "retained_shared_reference",
+    "retained_description_mention",
+)
+
+
+class Inv12PolicyContractTests(unittest.TestCase):
+    """197.010-T scenarios A-a, A-f, A-g (policy files only)."""
+
+    _read_policy_texts = FlatSetPolicyContractTests._read_policy_texts
+
+    def _inv12_bullet(self, text: str) -> str:
+        match = re.search(
+            r"^\* \*\*INV-12 \(Linked-deliberation disposition\)\.\*\*[^\n]+", text, re.MULTILINE
+        )
+        self.assertIsNotNone(match)
+        return match.group(0)
+
+    def test_a_a_policy_files_define_inv_12(self) -> None:
+        for label, text in self._read_policy_texts():
+            with self.subTest(path=label):
+                self.assertIn("INV-12", text)
+                bullet = self._inv12_bullet(text)
+                self.assertIn("`LinkedDeliberationOutcome` is the closed enum", bullet)
+                self.assertIn("single-artifact, non-cascading archive", bullet)
+                self.assertIn("never widens `closure_scope(S)`", bullet)
+                self.assertIn("SUPERSESSION NOTE (2026-09-29)", text)
+                self.assertIn("`5a4b70dd`", text)
+                self.assertIn("TestUArchiveCandidateFlat_UnlistedLinkedDeliberationIsUntouched", text)
+                self.assertRegex(text, r"\| 1\.28\.0 +\| [^|]+\| Corrected P-015")
+
+    def test_a_f_disposition_set_excludes_closure_scope_h10(self) -> None:
+        for label, text in self._read_policy_texts():
+            with self.subTest(path=label):
+                self.assertIn(
+                    "The disposition set excludes self-references and every ID in "
+                    "`closure_scope(S)` (H10)",
+                    text,
+                )
+
+    def test_a_g_outcome_vocabulary_and_reason_code_sentence(self) -> None:
+        for label, text in self._read_policy_texts():
+            with self.subTest(path=label):
+                bullet = self._inv12_bullet(text)
+                for outcome in LINKED_DELIBERATION_OUTCOMES:
+                    self.assertIn(f"`{outcome}`", bullet)
+                self.assertIn(
+                    "Each outcome carries a `reason_code`, which defaults to the outcome value",
+                    bullet,
+                )
+                for reason_code in (
+                    "path_escape",
+                    "symlink_or_reparse_point",
+                    "unreadable_file",
+                    "malformed_frontmatter",
+                    "body_unseparable",
+                    "malformed_stash_entry",
+                ):
+                    self.assertIn(f"`{reason_code}`", bullet)
+
+
 if __name__ == "__main__":
     unittest.main()
