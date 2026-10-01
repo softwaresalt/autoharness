@@ -1182,10 +1182,15 @@ def _collect_disposition_set(
     return candidates, unresolved
 
 
-def _is_truly_archived(record: _RecordRead) -> bool:
-    """H3: decided from the declared status (exact parsed scalar), never location."""
+def _is_truly_archived(records: Sequence[_RecordRead]) -> bool:
+    """H3: decided from the declared status (exact parsed scalar), never location.
 
-    return _is_engine_inert(record.status)
+    ``records`` are every record carrying one id. An id with more than one
+    record has no trustworthy declared status, so it is never truly archived:
+    a torn or duplicated referrer counts as live (fail closed to retain).
+    """
+
+    return len(records) == 1 and _is_engine_inert(records[0].status)
 
 
 def _shipment_referrers(
@@ -1195,10 +1200,10 @@ def _shipment_referrers(
 
     referrers: set[str] = set()
     for artifact_id, records in index.by_id.items():
-        if artifact_id == shipment_id:
+        if artifact_id == shipment_id or _is_truly_archived(records):
             continue
         for record in records:
-            if record.artifact_type != "shipment" or _is_truly_archived(record):
+            if record.artifact_type != "shipment":
                 continue
             custom_fields = _custom_fields(record)
             items = custom_fields.get("items")
@@ -1226,15 +1231,22 @@ def _scan_live_referrers(
     archived and link the deliberation through any link source, and other
     shipments (see :func:`_shipment_referrers`). Never counted: the
     deliberation itself, any other deliberation (so A<->B cycles never count),
-    docs and plan files (never scanned), and truly archived records.
+    docs and plan files (never scanned), and truly archived records (H3: an
+    ``archive/`` record declaring ``done`` is live, a ``queue/`` record
+    declaring ``archived`` is not, and an id with more than one record is
+    never truly archived, so any of its copies that links counts).
     """
 
     referrers = _shipment_referrers(index, deliberation_id, shipment_id)
     for artifact_id, records in index.by_id.items():
-        if artifact_id == deliberation_id or artifact_id in closure_scope:
+        if (
+            artifact_id == deliberation_id
+            or artifact_id in closure_scope
+            or _is_truly_archived(records)
+        ):
             continue
         for record in records:
-            if record.artifact_type not in _WORK_ITEM_TYPES or _is_truly_archived(record):
+            if record.artifact_type not in _WORK_ITEM_TYPES:
                 continue
             if deliberation_id in _record_links(record):
                 referrers.add(artifact_id)

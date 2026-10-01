@@ -563,7 +563,108 @@ class LiveReferrerScanTests(_PlannerTestCase):
         record = self._only(self.backlog.plan(items), "077-DL")
 
         self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
         self.assertEqual(record.referrer_ids, ())
+
+
+class TrulyArchivedReferrerTests(_PlannerTestCase):
+    """197.001-T scenarios P16-P18 plus the multi-record referrer rule (H3)."""
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": deliberation_id}
+        )
+        self.backlog.shipment(items)
+        return items
+
+    def test_p16_truly_archived_referrer_is_not_counted(self) -> None:
+        items = self._linked_items("100-DL")
+        self.backlog.write("100-DL", "deliberation")
+        self.backlog.write(
+            "985.001-T",
+            "task",
+            status="archived",
+            folder="archive",
+            custom_fields={"source_deliberation_id": "100-DL"},
+        )
+        self.backlog.shipment(["100-DL"], shipment_id="954-S", status="archived", folder="archive")
+
+        record = self._only(self.backlog.plan(items), "100-DL")
+
+        self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.referrer_ids, ())
+
+    def test_p17_archive_folder_record_declaring_done_is_counted(self) -> None:
+        items = self._linked_items("101-DL")
+        self.backlog.write("101-DL", "deliberation")
+        self.backlog.write(
+            "986.001-T",
+            "task",
+            status="done",
+            folder="archive",
+            custom_fields={"source_deliberation_id": "101-DL"},
+        )
+        self.backlog.shipment(["101-DL"], shipment_id="955-S", status="shipped", folder="archive")
+
+        record = self._only(self.backlog.plan(items), "101-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.referrer_ids, ("955-S", "986.001-T"))
+
+    def test_p18_queue_folder_record_declaring_archived_is_not_counted(self) -> None:
+        items = self._linked_items("102-DL")
+        self.backlog.write("102-DL", "deliberation")
+        self.backlog.write(
+            "987.001-T",
+            "task",
+            status="archived",
+            folder="queue",
+            custom_fields={"source_deliberation_id": "102-DL"},
+        )
+        self.backlog.shipment(["102-DL"], shipment_id="956-S", status="archived", folder="queue")
+
+        record = self._only(self.backlog.plan(items), "102-DL")
+
+        self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.referrer_ids, ())
+
+    def test_multi_record_referrer_counts_as_live_even_when_every_copy_declares_archived(
+        self,
+    ) -> None:
+        # A torn referrer has no trustworthy declared status: fail closed.
+        items = self._linked_items("103-DL")
+        self.backlog.write("103-DL", "deliberation")
+        for folder in ("queue", "archive"):
+            self.backlog.write(
+                "988.001-T",
+                "task",
+                status="archived",
+                folder=folder,
+                custom_fields={"source_deliberation_id": "103-DL"},
+            )
+            self.backlog.shipment(
+                ["103-DL"], shipment_id="957-S", status="archived", folder=folder
+            )
+
+        record = self._only(self.backlog.plan(items), "103-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.referrer_ids, ("957-S", "988.001-T"))
+
+    def test_multi_record_referrer_with_one_archived_copy_still_counts(self) -> None:
+        items = self._linked_items("104-DL")
+        self.backlog.write("104-DL", "deliberation")
+        self.backlog.write("989.001-T", "task", status="archived", folder="archive", body="104-DL")
+        self.backlog.write("989.001-T", "task", status="queued", folder="queue")
+
+        record = self._only(self.backlog.plan(items), "104-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        self.assertEqual(record.referrer_ids, ("989.001-T",))
 
 
 class FailClosedReadPathTests(_PlannerTestCase):
