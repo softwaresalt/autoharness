@@ -6,6 +6,11 @@ from pathlib import Path
 import re
 import unittest
 
+try:
+    from _assertion_render import render_source
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests._assertion_render import render_source
+
 
 CONTRACT_FILES = (
     Path(".github") / "policies" / "workflow-policies.md",
@@ -301,6 +306,61 @@ class Inv12PolicyContractTests(unittest.TestCase):
                     "malformed_stash_entry",
                 ):
                     self.assertIn(f"`{reason_code}`", bullet)
+
+
+# 198.007-T rendered-region parity (A-i). Every tolerated template/mirror
+# divergence in the compared regions is named here. `{{FEATURE_SHIPMENTS}}`,
+# `{{BACKLOG_DIRECTORY}}` and `{{DATE}}` are tolerated by rendering the
+# template with `render_source`; the workspace-local stash IDs are tolerated
+# by mapping the template's generic wording onto the mirror's concrete ID
+# (`8928EC67` is the engine-behavior registry the U2a SAFE_CLOSE reliance
+# paragraph already names in the mirror). Longest pattern first.
+POLICY_PARITY_ALLOWLIST = (
+    (
+        "a durable active stash entry local to this workspace's own backlog "
+        "(the backlogit engine-behavior compatibility registry)",
+        "general registry `8928EC67`",
+    ),
+    (
+        "a durable active stash entry local to this workspace's own backlog",
+        "durable active stash entry `7F9CB5E9`",
+    ),
+)
+
+# Stable line anchors of the P-015 paragraphs edited by U2a (197.007-T and
+# 197.009-T, which was 198.001-T).
+U2A_PARITY_ANCHORS = (
+    "**SUPERSESSION NOTE (2026-09-29).**",
+    "| **`allowed_ids(S)`**",
+    "| **`required_ids(S)`**",
+    "`validated_linked_deliberations(S)` is the **disposition set**",
+    "**Engine-semantics precondition (CASCADE).**",
+    "**SAFE_CLOSE reliance.**",
+    "* **INV-1 (",
+    "* **INV-6 (",
+    "* **INV-12 (",
+)
+
+
+class PolicyU2aRenderedRegionParityTests(unittest.TestCase):
+    """198.007-T scenario A-i: the U2a paragraphs of the rendered policy
+    template match the installed mirror, modulo the named allowlist."""
+
+    def test_a_i_u2a_paragraphs_rendered_region_parity(self) -> None:
+        rendered = render_source(".github/policies/workflow-policies.md")
+        mirror = (Path(".github") / "policies" / "workflow-policies.md").read_text(
+            encoding="utf-8"
+        )
+        for anchor in U2A_PARITY_ANCHORS:
+            with self.subTest(anchor=anchor):
+                expected = [line for line in rendered.splitlines() if line.startswith(anchor)]
+                actual = [line for line in mirror.splitlines() if line.startswith(anchor)]
+                self.assertEqual(len(expected), 1)
+                self.assertEqual(len(actual), 1)
+                region = expected[0]
+                for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+                    region = region.replace(template_text, mirror_text)
+                self.assertEqual(actual[0], region)
 
 
 if __name__ == "__main__":

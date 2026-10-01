@@ -27,6 +27,13 @@ import re
 import unittest
 from pathlib import Path
 
+try:
+    from _assertion_render import render_source
+    from test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests._assertion_render import render_source
+    from tests.test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl"
 _POLICY_TEMPLATE = _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
@@ -561,6 +568,47 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
             "deliberation content",
             may,
         )
+
+    # 198.007-T (B-g): rendered-region parity for the U2b-edited paragraphs
+    # (198.003-T, 198.005-T), modulo POLICY_PARITY_ALLOWLIST. The
+    # Evidence-class note is compared from its 198.005-T region anchor only:
+    # its opening sentences carry pre-existing, deliberate mirror-concrete
+    # evidence commits that are outside this unit's edit.
+    def test_b_g_u2b_paragraphs_rendered_region_parity(self) -> None:
+        rendered = render_source(".github/policies/workflow-policies.md")
+        mirror = (_ROOT / ".github" / "policies" / "workflow-policies.md").read_text(
+            encoding="utf-8"
+        )
+        line_anchors = (
+            "**Statement**: Shipment closure is a flat-manifest operation.",
+            "**Required Check (verify-after-each invariant)**",
+            "**Postcondition** (two parts)",
+            "**Violation Action (approval-gated rollback)**",
+            "**Relationship to P-007**: P-015",
+            "* **INV-7 (",
+            "* **INV-10 (",
+            "* **INV-11 (",
+            "7. **Pre-archived manifest members",
+            "- Create or modify deliberation, spike, plan, or review artifacts",
+            "- Archive a validated linked deliberation",
+        )
+        region_anchors = (
+            ("**Evidence-class note.**", "Under the verified engine-semantics line"),
+        )
+        for anchor in line_anchors + tuple(line for line, _ in region_anchors):
+            with self.subTest(anchor=anchor):
+                expected = [line for line in rendered.splitlines() if line.startswith(anchor)]
+                actual = [line for line in mirror.splitlines() if line.startswith(anchor)]
+                self.assertEqual(len(expected), 1)
+                self.assertEqual(len(actual), 1)
+                region, observed = expected[0], actual[0]
+                for line_anchor, region_anchor in region_anchors:
+                    if anchor == line_anchor:
+                        region = region[region.index(region_anchor) :]
+                        observed = observed[observed.index(region_anchor) :]
+                for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+                    region = region.replace(template_text, mirror_text)
+                self.assertEqual(observed, region)
 
 
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
