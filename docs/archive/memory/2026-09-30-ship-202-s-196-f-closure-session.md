@@ -43,5 +43,6 @@
 
 * P-021 deferred entries `D6CCDE2C`, `3C09D9D0`, `6F2C4BFD`, `013363F5`,
   `492FB413` remain active.
-* Next: 203-S (195-F slice 2 of 6, 197-F), `queued`, blocked-on 202-S (now
-  shipped). Not touched in this session.
+* Next: 203-S (195-F slice 2 of 6, 197-F), `queued`. Its only predecessor,
+  202-S, has shipped, so 203-S is eligible to claim. Not touched in this
+  session.

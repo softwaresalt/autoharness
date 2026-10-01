@@ -31,7 +31,7 @@ with two new test modules:
   enum with a fixed precedence and a fail-closed read path.
 
 Nothing calls either one at runtime yet, so the slice is inert on `main`.
-Slice 6 (206-S) wires the planner to mutation.
+Slice 5 (206-S) wires the planner to mutation.
 
 ## Gates
 
@@ -126,7 +126,8 @@ active and Stage owns triage:
   `read_bytes` in `_read_record`.
 
 All five are inert until U5a/206-S. Next shipment: `203-S` (slice 2 of 6,
-197-F). It is `queued` and blocked on 202-S, which has now shipped.
+197-F). It is `queued`, and its only predecessor, 202-S, has now shipped, so
+203-S is eligible to claim.
 
 ## Residual Risks
 

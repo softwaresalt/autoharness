@@ -25,7 +25,7 @@ The verbose original is listed in `compacted_from`. Closure record:
 * 2527 tests OK (54 skipped). CI was green and P-018 was `SATISFIED`.
 * U1a added `assess_cascade_engine_semantics` and `select_close_path`. U1b
   added the read-only INV-12 planner `compute_linked_deliberation_disposition`.
-* Neither has a runtime caller until slice 6 (206-S), so the slice is inert on
+* Neither has a runtime caller until slice 5 (206-S), so the slice is inert on
   `main`.
 
 ## Close
@@ -54,5 +54,5 @@ The verbose original is listed in `compacted_from`. Closure record:
 
 * P-021 deferred entries `D6CCDE2C`, `3C09D9D0`, `6F2C4BFD`, `013363F5`, and
   `492FB413` are still active. Stage owns them.
-* The next shipment is `203-S` (slice 2, 197-F). It is queued and its blocker,
-  202-S, has shipped.
+* The next shipment is `203-S` (slice 2, 197-F). It is queued, and its only
+  predecessor, 202-S, has shipped, so 203-S is eligible to claim.
