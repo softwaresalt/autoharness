@@ -86,6 +86,7 @@ fail-closed YAML-frontmatter parsing convention.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import stat
@@ -97,6 +98,7 @@ from typing import Final, Literal, Sequence
 
 from autoharness.gates.topology import (
     _ARTIFACT_ID_PATTERN,
+    _SHIPMENT_ID_PATTERN,
     BacklogUnavailableError,
     _frontmatter,
 )
@@ -937,6 +939,24 @@ class _RecordIndex:
     failures: tuple[_ReadFailure, ...]
 
 
+@dataclass(frozen=True)
+class _StashEntry:
+    """One active stash entry, reduced to the fields the referrer scan reads."""
+
+    referrer_id: str
+    deliberation_id: str | None
+    text: object
+
+
+@dataclass(frozen=True)
+class _StashScan:
+    entries: tuple[_StashEntry, ...] = ()
+    failure: _ReadFailure | None = None
+
+
+_STASH_FILENAME: Final = "stash.jsonl"
+
+
 class _PreReadRecordText:
     """Path stand-in that hands ``topology._frontmatter`` already-read text.
 
@@ -968,6 +988,57 @@ def _workspace_relative(path: Path, workspace_root: Path) -> str:
         return path.relative_to(workspace_root).as_posix()
     except ValueError:
         return str(path)
+
+
+def _is_within(child: Path, parent: Path) -> bool:
+    """True when ``child`` is ``parent`` or lies under it (same-drive, case-normalized)."""
+
+    child_text, parent_text = os.path.normcase(str(child)), os.path.normcase(str(parent))
+    try:
+        return os.path.commonpath([child_text, parent_text]) == parent_text
+    except ValueError:  # different drives, or mixed absolute/relative
+        return False
+
+
+def _display_path(path: Path, workspace_root: Path) -> str:
+    """Workspace-relative ``/`` path when ``path`` lies in the workspace, else as supplied."""
+
+    absolute = Path(os.path.abspath(path))
+    root = Path(os.path.abspath(workspace_root))
+    if _is_within(absolute, root):
+        return absolute.relative_to(root).as_posix()
+    return str(path)
+
+
+def _check_path_containment(path: Path, backlog_dir: Path) -> str | None:
+    """Return the read-error reason code when ``path`` is unsafe to read, else ``None``.
+
+    Constitution III input safety, shared by the stash path and every record
+    path: ``path`` must lie inside the workspace backlog tree lexically (after
+    ``..`` normalization, before anything is read) and canonically (after
+    symlink resolution), and neither the backlog root nor any component from
+    it down to ``path`` may be a symlink, junction or reparse point (checked
+    with the classifier's :func:`_is_symlink_or_reparse_point`). The lexical
+    check runs first, so a traversal is ``path_escape`` without touching the
+    filesystem; a link inside the tree is ``symlink_or_reparse_point`` even
+    when its target escapes. Never raises.
+    """
+
+    try:
+        root = Path(os.path.abspath(backlog_dir))
+        target = Path(os.path.abspath(path))
+        if not _is_within(target, root):
+            return READ_ERROR_PATH_ESCAPE
+        components = [root]
+        for part in target.relative_to(root).parts:
+            components.append(components[-1] / part)
+        if _directory_component_is_untrusted(*components):
+            return READ_ERROR_SYMLINK_OR_REPARSE_POINT
+        if not _is_within(Path(os.path.realpath(target)), Path(os.path.realpath(root))):
+            return READ_ERROR_PATH_ESCAPE
+    except (OSError, ValueError, RuntimeError):
+        return READ_ERROR_UNREADABLE_FILE
+    return None
 
 
 def _read_record_body(text: str) -> str | None:
@@ -1036,6 +1107,21 @@ def _read_record(path: Path, workspace_root: Path) -> _RecordRead | _ReadFailure
     )
 
 
+def _read_record_safely(path: Path, backlog_dir: Path) -> _RecordRead | _ReadFailure:
+    """Containment-check one record path, then read it once (never raises).
+
+    Every record path passes the same :func:`_check_path_containment` checks
+    as the stash path before any byte is read; a failure is a
+    ``path_escape`` or ``symlink_or_reparse_point`` read failure for that path.
+    """
+
+    workspace_root = backlog_dir.parent
+    containment = _check_path_containment(path, backlog_dir)
+    if containment is not None:
+        return _ReadFailure(_workspace_relative(path, workspace_root), containment)
+    return _read_record(path, workspace_root)
+
+
 def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
     """Read every queue-root and archive-root record once (read-only, H5).
 
@@ -1065,7 +1151,7 @@ def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
             failures.append(_ReadFailure(base_rel, READ_ERROR_UNREADABLE_FILE))
             continue
         for candidate in candidates:
-            result = _read_record(candidate, workspace_root)
+            result = _read_record_safely(candidate, backlog_dir)
             if isinstance(result, _ReadFailure):
                 failures.append(result)
             else:
@@ -1075,6 +1161,85 @@ def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
     return _RecordIndex(
         by_id=by_id,
         failures=tuple(sorted(set(failures), key=lambda failure: failure.rel_path)),
+    )
+
+
+def _resolve_stash_path(backlog_dir: Path, stash_path: Path | str | None) -> Path:
+    """Resolve the active stash file the live-referrer scan reads.
+
+    ``None`` is the production default, ``<workspace_backlog_dir>/stash.jsonl``
+    (the active stash at the resolved backlog root); it never means "do not
+    scan stashes". An explicit ``stash_path`` overrides the default. The
+    archived stash (``archive/stash.jsonl``) is never read.
+    """
+
+    return backlog_dir / _STASH_FILENAME if stash_path is None else Path(stash_path)
+
+
+def _scan_stash_referrers(stash_file: Path, backlog_dir: Path) -> _StashScan:
+    """Read the active stash entries once (read-only).
+
+    The stash path (default or explicit) first passes
+    :func:`_check_path_containment`; a failure is a read failure for the whole
+    scan, reported with the stash path. A missing stash file means no active
+    stash entries. Blank lines are skipped. Each entry is reduced to its
+    referrer id (the entry ``id``, or ``<stash path>:<line>`` when it has
+    none), its ``deliberation_id`` field and its ``text``.
+
+    Fail closed, never raises: a stash path that is not a regular file, cannot
+    be stat'ed or read, or is not valid UTF-8 is a read failure with reason
+    code ``unreadable_file`` at the stash path. A non-blank line that fails
+    JSON parsing or does not decode to a JSON object is a read failure with
+    reason code ``malformed_stash_entry`` at the workspace-relative stash path.
+    """
+
+    workspace_root = backlog_dir.parent
+    rel_path = _display_path(stash_file, workspace_root)
+    containment = _check_path_containment(stash_file, backlog_dir)
+    if containment is not None:
+        return _StashScan(failure=_ReadFailure(rel_path, containment))
+    try:
+        stash_mode = os.lstat(stash_file).st_mode
+    except FileNotFoundError:
+        return _StashScan()
+    except OSError:
+        return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
+    if not stat.S_ISREG(stash_mode):
+        return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
+    try:
+        text = stash_file.read_bytes().decode("utf-8-sig")
+    except (OSError, UnicodeDecodeError):
+        return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
+    entries: list[_StashEntry] = []
+    # JSON Lines records are separated by "\n" only: str.splitlines() would also
+    # split on U+2028/U+0085 and friends, which are legal inside a JSON string.
+    for line_number, raw_line in enumerate(text.split("\n"), start=1):
+        line = raw_line.removesuffix("\r")
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except (ValueError, RecursionError):
+            entry = None
+        if not isinstance(entry, dict):
+            return _StashScan(
+                failure=_ReadFailure(rel_path, READ_ERROR_MALFORMED_STASH_ENTRY)
+            )
+        entries.append(
+            _StashEntry(
+                referrer_id=_normalize_id(entry.get("id")) or f"{rel_path}:{line_number}",
+                deliberation_id=_normalize_id(entry.get("deliberation_id")),
+                text=entry.get("text"),
+            )
+        )
+    return _StashScan(entries=tuple(entries))
+
+
+def _stash_entry_links(entry: _StashEntry, deliberation_id: str) -> bool:
+    """True when an active stash entry names ``deliberation_id`` (field or text)."""
+
+    return entry.deliberation_id == deliberation_id or deliberation_id in _scan_link_ids(
+        entry.text
     )
 
 
@@ -1123,6 +1288,7 @@ class _DispositionCandidate:
     records: list[_RecordRead]
     link_kinds: set[str] = field(default_factory=set)
     linking_member_ids: set[str] = field(default_factory=set)
+    own_failures: tuple[_ReadFailure, ...] = ()
 
 
 def _resolve_deliberation_records(
@@ -1141,10 +1307,31 @@ def _resolve_deliberation_records(
     return list(records)
 
 
+def _own_record_failures(
+    index: _RecordIndex, deliberation_id: str, backlog_dir: Path
+) -> tuple[_ReadFailure, ...]:
+    """Read failures at the id's own record paths (``queue/`` or ``archive/<id>.md``).
+
+    Called only after ``deliberation_id`` matched ``_ARTIFACT_ID_PATTERN``, so
+    the expected paths are built from a validated id. The comparison is
+    case-insensitive, like the index's ``.md`` suffix match.
+    """
+
+    workspace_root = backlog_dir.parent
+    own_paths = {
+        _workspace_relative(backlog_dir / folder / f"{deliberation_id}.md", workspace_root).casefold()
+        for folder in ("queue", "archive")
+    }
+    return tuple(
+        failure for failure in index.failures if failure.rel_path.casefold() in own_paths
+    )
+
+
 def _collect_disposition_set(
     index: _RecordIndex,
     manifest_ids: Sequence[str],
     closure_scope: frozenset[str],
+    backlog_dir: Path,
 ) -> tuple[dict[str, _DispositionCandidate], dict[str, str]]:
     """Collect the disposition set and the unresolved references.
 
@@ -1153,10 +1340,14 @@ def _collect_disposition_set(
     and the description-body and ``references`` matches, excluding the
     member's own id (self-reference) and every id in ``closure_scope(S)`` (H10:
     an explicit-member deliberation is governed by the flat allowed/required
-    sets, never by the disposition step). Ids that do not resolve to a
-    deliberation record are reported as unresolved (never a halt). A member
-    that cannot be found contributes no links; the fail-safe direction is
-    retention, because an undiscovered deliberation is never archived.
+    sets, never by the disposition step). Every candidate id must match
+    ``_ARTIFACT_ID_PATTERN`` before any path is built from it (otherwise
+    ``invalid_id``). Ids that do not resolve to a deliberation record are
+    reported as unresolved (never a halt), unless a record at the id's own
+    path could not be read: that id is a member, retained with its own read
+    error (it may be a deliberation we cannot see). A member that cannot be
+    found contributes no links; the fail-safe direction is retention, because
+    an undiscovered deliberation is never archived.
     """
 
     candidates: dict[str, _DispositionCandidate] = {}
@@ -1171,21 +1362,31 @@ def _collect_disposition_set(
                     continue
                 candidate = candidates.get(linked_id)
                 if candidate is None:
+                    own_failures = _own_record_failures(index, linked_id, backlog_dir)
                     records = _resolve_deliberation_records(index, linked_id)
-                    if records is None:
+                    if records is None and not own_failures:
                         unresolved.setdefault(linked_id, UNRESOLVED_NOT_FOUND)
                         continue
-                    candidate = _DispositionCandidate(linked_id, records)
+                    candidate = _DispositionCandidate(
+                        linked_id,
+                        records if records is not None else list(index.by_id.get(linked_id, [])),
+                        own_failures=own_failures,
+                    )
                     candidates[linked_id] = candidate
                 candidate.link_kinds.update(kinds)
                 candidate.linking_member_ids.add(member_id)
     return candidates, unresolved
 
 
-def _is_truly_archived(record: _RecordRead) -> bool:
-    """H3: decided from the declared status (exact parsed scalar), never location."""
+def _is_truly_archived(records: Sequence[_RecordRead]) -> bool:
+    """H3: decided from the declared status (exact parsed scalar), never location.
 
-    return _is_engine_inert(record.status)
+    ``records`` are every record carrying one id. An id with more than one
+    record has no trustworthy declared status, so it is never truly archived:
+    a torn or duplicated referrer counts as live (fail closed to retain).
+    """
+
+    return len(records) == 1 and _is_engine_inert(records[0].status)
 
 
 def _shipment_referrers(
@@ -1195,10 +1396,10 @@ def _shipment_referrers(
 
     referrers: set[str] = set()
     for artifact_id, records in index.by_id.items():
-        if artifact_id == shipment_id:
+        if artifact_id == shipment_id or _is_truly_archived(records):
             continue
         for record in records:
-            if record.artifact_type != "shipment" or _is_truly_archived(record):
+            if record.artifact_type != "shipment":
                 continue
             custom_fields = _custom_fields(record)
             items = custom_fields.get("items")
@@ -1216,6 +1417,7 @@ def _shipment_referrers(
 
 def _scan_live_referrers(
     index: _RecordIndex,
+    stash: _StashScan,
     deliberation_id: str,
     closure_scope: frozenset[str],
     shipment_id: str | None,
@@ -1223,18 +1425,30 @@ def _scan_live_referrers(
     """Return the sorted live referrers of ``deliberation_id`` (bounded, read-only).
 
     Counted: work items outside ``closure_scope(S)`` that are not truly
-    archived and link the deliberation through any link source, and other
-    shipments (see :func:`_shipment_referrers`). Never counted: the
-    deliberation itself, any other deliberation (so A<->B cycles never count),
-    docs and plan files (never scanned), and truly archived records.
+    archived and link the deliberation through any link source, other
+    shipments (see :func:`_shipment_referrers`), and active stash entries
+    whose ``deliberation_id`` equals it or whose ``text`` matches it. Never
+    counted: the deliberation itself, any other deliberation (so A<->B cycles
+    never count), docs and plan files (never scanned), archived stash entries
+    (never read), and truly archived records (H3: an
+    ``archive/`` record declaring ``done`` is live, a ``queue/`` record
+    declaring ``archived`` is not, and an id with more than one record is
+    never truly archived, so any of its copies that links counts).
     """
 
     referrers = _shipment_referrers(index, deliberation_id, shipment_id)
+    referrers.update(
+        entry.referrer_id for entry in stash.entries if _stash_entry_links(entry, deliberation_id)
+    )
     for artifact_id, records in index.by_id.items():
-        if artifact_id == deliberation_id or artifact_id in closure_scope:
+        if (
+            artifact_id == deliberation_id
+            or artifact_id in closure_scope
+            or _is_truly_archived(records)
+        ):
             continue
         for record in records:
-            if record.artifact_type not in _WORK_ITEM_TYPES or _is_truly_archived(record):
+            if record.artifact_type not in _WORK_ITEM_TYPES:
                 continue
             if deliberation_id in _record_links(record):
                 referrers.add(artifact_id)
@@ -1274,6 +1488,7 @@ def _classify_outcome(
     candidate: _DispositionCandidate,
     *,
     index: _RecordIndex,
+    stash: _StashScan,
     engine_verified: bool,
     closure_scope: frozenset[str],
     shipment_id: str | None,
@@ -1285,10 +1500,16 @@ def _classify_outcome(
     retained_shared_reference -> retained_description_mention -> archive.
     """
 
-    if index.failures:
-        # A read failure on any record the scan reads (the deliberation's own
-        # records or any live-referrer input) fails closed to retain.
-        failure = index.failures[0]
+    failure = (
+        candidate.own_failures[0]
+        if candidate.own_failures
+        else stash.failure or (index.failures[0] if index.failures else None)
+    )
+    if failure is not None:
+        # Rule 1, evaluated first: a read or containment failure on the
+        # deliberation's own record(s) (attributed to that record's path), then
+        # on any live-referrer input (the resolved stash file, or any record
+        # the scan reads) fails closed to retain.
         return _make_outcome_record(
             candidate,
             LinkedDeliberationOutcome.RETAINED_READ_ERROR,
@@ -1306,7 +1527,9 @@ def _classify_outcome(
         )
     if isinstance(status, str) and status in _LIVE_DELIBERATION_STATUSES:
         return _make_outcome_record(candidate, LinkedDeliberationOutcome.RETAINED_LIVE_STATUS)
-    referrers = _scan_live_referrers(index, candidate.deliberation_id, closure_scope, shipment_id)
+    referrers = _scan_live_referrers(
+        index, stash, candidate.deliberation_id, closure_scope, shipment_id
+    )
     if referrers:
         return _make_outcome_record(
             candidate,
@@ -1337,21 +1560,28 @@ def compute_linked_deliberation_disposition(
     engine that is not VERIFIED (or not an :class:`EngineSemanticsDecision`)
     retains every non-archived deliberation.
 
-    Scope note (195-F slice 1): the fail-closed read path is in place (every
-    read failure retains every disposition-set deliberation and is listed in
-    ``read_failures``). Stash referrers and the ``stash_path`` default
+    Scope note (195-F slice 2, 197-F): slice 2 closes plan unit U1b. The
+    fail-closed read path, stash referrers and the ``stash_path`` default
     (``<workspace_backlog_dir>/stash.jsonl``), path containment
-    (``path_escape``), per-deliberation read-error attribution, and the H3
-    multi-record referrer rule land in slice 2 (197-F). Until then this planner
-    has no runtime caller and must not drive any mutation.
+    (``path_escape``), per-deliberation read-error attribution, the H3
+    multi-record referrer rule and the final INV-12 outcome precedence are in
+    place. This planner still has no runtime caller and must not drive any
+    mutation until a later slice wires it into the close path.
     """
 
-    del stash_path  # Resolved and scanned from slice 2 (197.002-T).
     normalized_shipment_id: str | None = None
     try:
         if isinstance(manifest_items, (str, bytes)):
             raise TypeError("manifest_items must be a sequence of ids, not a single string")
         normalized_shipment_id = _normalize_id(shipment_id)
+        if normalized_shipment_id is None or not _SHIPMENT_ID_PATTERN.match(
+            normalized_shipment_id
+        ):
+            # Without a valid S, closure_scope(S) would silently lose S and S's
+            # own record could count as a live referrer; a wrong-kind id (a
+            # feature or task) would instead hide that live work item from the
+            # referrer scan. Never plan either.
+            raise ValueError("shipment_id is not a valid shipment id (<n>-S)")
         backlog_dir = Path(workspace_backlog_dir)
         normalized_items = [_normalize_id(item) for item in manifest_items]
         if any(
@@ -1367,9 +1597,10 @@ def compute_linked_deliberation_disposition(
             and engine.verdict is EngineSemanticsVerdict.VERIFIED
         )
         index = _index_backlog_records(backlog_dir)
+        stash = _scan_stash_referrers(_resolve_stash_path(backlog_dir, stash_path), backlog_dir)
         read_failures = tuple(
             DispositionReadFailure(path=failure.rel_path, reason_code=failure.reason_code)
-            for failure in index.failures
+            for failure in (*index.failures, *((stash.failure,) if stash.failure else ()))
         )
         # A torn/duplicate manifest member cannot be traversed safely (a stale
         # copy could contribute links the live copy dropped): fail closed.
@@ -1388,11 +1619,14 @@ def compute_linked_deliberation_disposition(
                     f"multiple records (torn/duplicate identity): {', '.join(torn_members)}"
                 ),
             )
-        candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
+        candidates, unresolved = _collect_disposition_set(
+            index, manifest_ids, closure_scope, backlog_dir
+        )
         dispositions = tuple(
             _classify_outcome(
                 candidates[deliberation_id],
                 index=index,
+                stash=stash,
                 engine_verified=engine_verified,
                 closure_scope=closure_scope,
                 shipment_id=normalized_shipment_id,
