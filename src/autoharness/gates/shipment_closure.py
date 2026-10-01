@@ -1206,11 +1206,14 @@ def _scan_stash_referrers(stash_file: Path, backlog_dir: Path) -> _StashScan:
     if not stat.S_ISREG(stash_mode):
         return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
     try:
-        text = stash_file.read_bytes().decode("utf-8")
+        text = stash_file.read_bytes().decode("utf-8-sig")
     except (OSError, UnicodeDecodeError):
         return _StashScan(failure=_ReadFailure(rel_path, READ_ERROR_UNREADABLE_FILE))
     entries: list[_StashEntry] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
+    # JSON Lines records are separated by "\n" only: str.splitlines() would also
+    # split on U+2028/U+0085 and friends, which are legal inside a JSON string.
+    for line_number, raw_line in enumerate(text.split("\n"), start=1):
+        line = raw_line.removesuffix("\r")
         if not line.strip():
             continue
         try:
@@ -1570,6 +1573,12 @@ def compute_linked_deliberation_disposition(
         if isinstance(manifest_items, (str, bytes)):
             raise TypeError("manifest_items must be a sequence of ids, not a single string")
         normalized_shipment_id = _normalize_id(shipment_id)
+        if normalized_shipment_id is None or not _ARTIFACT_ID_PATTERN.match(
+            normalized_shipment_id
+        ):
+            # Without a valid S, closure_scope(S) would silently lose S and S's
+            # own record could count as a live referrer: never plan that.
+            raise ValueError("shipment_id is an invalid or unsafe artifact id")
         backlog_dir = Path(workspace_backlog_dir)
         normalized_items = [_normalize_id(item) for item in manifest_items]
         if any(

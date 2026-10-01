@@ -230,7 +230,12 @@ class DispositionPlannerSkeletonTests(_PlannerTestCase):
                     ["900-F", "900.001-T"], SHIPMENT_ID, self.backlog.backlog_dir, engine=engine  # type: ignore[arg-type]
                 )
                 self.assertIsInstance(plan, LinkedDeliberationDispositionPlan)
+                self.assertIsNone(plan.planning_error)
                 self.assertFalse(any(d.outcome == "archive" for d in plan.dispositions), plan)
+                self.assertIs(
+                    self._only(plan, "050-DL").outcome,
+                    LinkedDeliberationOutcome.RETAINED_ENGINE_UNVERIFIED,
+                )
         plan = compute_linked_deliberation_disposition(
             [None, 7, "900-F", "900.001-T"], SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED  # type: ignore[list-item]
         )
@@ -1364,6 +1369,44 @@ class FinalPrecedenceAndBodyLinkTests(_PlannerTestCase):
         assert_reason_code_defaults(self, record)
         self.assertEqual(record.link_kinds, ("source_deliberation_id",))
         self.assertEqual(record.referrer_ids, ("959-S",))
+
+
+class PlannerInputEdgeCaseTests(_PlannerTestCase):
+    """Local-review hardening: shipment id validation and JSON Lines splitting."""
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": deliberation_id}
+        )
+        self.backlog.shipment(items)
+        self.backlog.write(deliberation_id, "deliberation")
+        return items
+
+    def test_invalid_shipment_id_is_a_planning_error(self) -> None:
+        items = self._linked_items("160-DL")
+        for shipment_id in (None, "", "   ", "../900-S", 900):
+            with self.subTest(shipment_id=shipment_id):
+                plan = compute_linked_deliberation_disposition(
+                    items, shipment_id, self.backlog.backlog_dir, engine=VERIFIED  # type: ignore[arg-type]
+                )
+                self.assertIn("ValueError", plan.planning_error or "")
+                self.assertEqual(plan.dispositions, ())
+
+    def test_stash_lines_split_on_newline_only_and_bom_is_accepted(self) -> None:
+        items = self._linked_items("161-DL")
+        stash = self.backlog.backlog_dir / "stash.jsonl"
+        entry = json.dumps(
+            {"id": "AAAA0030", "text": "a\u2028b\u0085c cites 161-DL"}, ensure_ascii=False
+        )
+        stash.write_bytes(b"\xef\xbb\xbf" + entry.encode("utf-8") + b"\r\n")
+
+        plan = self.backlog.plan(items)
+
+        record = self._only(plan, "161-DL")
+        self.assertEqual(plan.read_failures, ())
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        assert_reason_code_defaults(self, record)
+        self.assertEqual(record.referrer_ids, ("AAAA0030",))
 
 
 if __name__ == "__main__":
