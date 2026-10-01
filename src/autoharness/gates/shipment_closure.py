@@ -86,6 +86,7 @@ fail-closed YAML-frontmatter parsing convention.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import stat
@@ -937,6 +938,24 @@ class _RecordIndex:
     failures: tuple[_ReadFailure, ...]
 
 
+@dataclass(frozen=True)
+class _StashEntry:
+    """One active stash entry, reduced to the fields the referrer scan reads."""
+
+    referrer_id: str
+    deliberation_id: str | None
+    text: object
+
+
+@dataclass(frozen=True)
+class _StashScan:
+    entries: tuple[_StashEntry, ...] = ()
+    failure: _ReadFailure | None = None
+
+
+_STASH_FILENAME: Final = "stash.jsonl"
+
+
 class _PreReadRecordText:
     """Path stand-in that hands ``topology._frontmatter`` already-read text.
 
@@ -1075,6 +1094,57 @@ def _index_backlog_records(backlog_dir: Path) -> _RecordIndex:
     return _RecordIndex(
         by_id=by_id,
         failures=tuple(sorted(set(failures), key=lambda failure: failure.rel_path)),
+    )
+
+
+def _resolve_stash_path(backlog_dir: Path, stash_path: Path | str | None) -> Path:
+    """Resolve the active stash file the live-referrer scan reads.
+
+    ``None`` is the production default, ``<workspace_backlog_dir>/stash.jsonl``
+    (the active stash at the resolved backlog root); it never means "do not
+    scan stashes". An explicit ``stash_path`` overrides the default. The
+    archived stash (``archive/stash.jsonl``) is never read.
+    """
+
+    return backlog_dir / _STASH_FILENAME if stash_path is None else Path(stash_path)
+
+
+def _scan_stash_referrers(stash_file: Path, backlog_dir: Path) -> _StashScan:
+    """Read the active stash entries once (read-only).
+
+    A missing stash file means no active stash entries (never a raise).
+    Blank lines are skipped. Each entry is reduced to its referrer id (the
+    entry ``id``, or ``<stash path>:<line>`` when it has none), its
+    ``deliberation_id`` field and its ``text``.
+    """
+
+    workspace_root = backlog_dir.parent
+    rel_path = _workspace_relative(stash_file, workspace_root)
+    try:
+        os.lstat(stash_file)
+    except FileNotFoundError:
+        return _StashScan()
+    raw = stash_file.read_bytes()
+    entries: list[_StashEntry] = []
+    for line_number, line in enumerate(raw.decode("utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        entry = json.loads(line)
+        entries.append(
+            _StashEntry(
+                referrer_id=_normalize_id(entry.get("id")) or f"{rel_path}:{line_number}",
+                deliberation_id=_normalize_id(entry.get("deliberation_id")),
+                text=entry.get("text"),
+            )
+        )
+    return _StashScan(entries=tuple(entries))
+
+
+def _stash_entry_links(entry: _StashEntry, deliberation_id: str) -> bool:
+    """True when an active stash entry names ``deliberation_id`` (field or text)."""
+
+    return entry.deliberation_id == deliberation_id or deliberation_id in _scan_link_ids(
+        entry.text
     )
 
 
@@ -1221,6 +1291,7 @@ def _shipment_referrers(
 
 def _scan_live_referrers(
     index: _RecordIndex,
+    stash: _StashScan,
     deliberation_id: str,
     closure_scope: frozenset[str],
     shipment_id: str | None,
@@ -1228,16 +1299,21 @@ def _scan_live_referrers(
     """Return the sorted live referrers of ``deliberation_id`` (bounded, read-only).
 
     Counted: work items outside ``closure_scope(S)`` that are not truly
-    archived and link the deliberation through any link source, and other
-    shipments (see :func:`_shipment_referrers`). Never counted: the
-    deliberation itself, any other deliberation (so A<->B cycles never count),
-    docs and plan files (never scanned), and truly archived records (H3: an
+    archived and link the deliberation through any link source, other
+    shipments (see :func:`_shipment_referrers`), and active stash entries
+    whose ``deliberation_id`` equals it or whose ``text`` matches it. Never
+    counted: the deliberation itself, any other deliberation (so A<->B cycles
+    never count), docs and plan files (never scanned), archived stash entries
+    (never read), and truly archived records (H3: an
     ``archive/`` record declaring ``done`` is live, a ``queue/`` record
     declaring ``archived`` is not, and an id with more than one record is
     never truly archived, so any of its copies that links counts).
     """
 
     referrers = _shipment_referrers(index, deliberation_id, shipment_id)
+    referrers.update(
+        entry.referrer_id for entry in stash.entries if _stash_entry_links(entry, deliberation_id)
+    )
     for artifact_id, records in index.by_id.items():
         if (
             artifact_id == deliberation_id
@@ -1286,6 +1362,7 @@ def _classify_outcome(
     candidate: _DispositionCandidate,
     *,
     index: _RecordIndex,
+    stash: _StashScan,
     engine_verified: bool,
     closure_scope: frozenset[str],
     shipment_id: str | None,
@@ -1318,7 +1395,9 @@ def _classify_outcome(
         )
     if isinstance(status, str) and status in _LIVE_DELIBERATION_STATUSES:
         return _make_outcome_record(candidate, LinkedDeliberationOutcome.RETAINED_LIVE_STATUS)
-    referrers = _scan_live_referrers(index, candidate.deliberation_id, closure_scope, shipment_id)
+    referrers = _scan_live_referrers(
+        index, stash, candidate.deliberation_id, closure_scope, shipment_id
+    )
     if referrers:
         return _make_outcome_record(
             candidate,
@@ -1358,7 +1437,6 @@ def compute_linked_deliberation_disposition(
     has no runtime caller and must not drive any mutation.
     """
 
-    del stash_path  # Resolved and scanned from slice 2 (197.002-T).
     normalized_shipment_id: str | None = None
     try:
         if isinstance(manifest_items, (str, bytes)):
@@ -1401,10 +1479,12 @@ def compute_linked_deliberation_disposition(
                 ),
             )
         candidates, unresolved = _collect_disposition_set(index, manifest_ids, closure_scope)
+        stash = _scan_stash_referrers(_resolve_stash_path(backlog_dir, stash_path), backlog_dir)
         dispositions = tuple(
             _classify_outcome(
                 candidates[deliberation_id],
                 index=index,
+                stash=stash,
                 engine_verified=engine_verified,
                 closure_scope=closure_scope,
                 shipment_id=normalized_shipment_id,

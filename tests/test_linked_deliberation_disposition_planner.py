@@ -10,6 +10,7 @@ fixture checks ``reason_code`` through :func:`assert_reason_code_defaults`.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -80,10 +81,19 @@ class _Backlog:
     ) -> None:
         self.write(shipment_id, "shipment", status=status, custom_fields={"items": items}, **kwargs)
 
-    def plan(self, items: list[str], engine: EngineSemanticsDecision = VERIFIED):
+    def plan(self, items: list[str], engine: EngineSemanticsDecision = VERIFIED, **kwargs):
         return compute_linked_deliberation_disposition(
-            items, SHIPMENT_ID, self.backlog_dir, engine=engine
+            items, SHIPMENT_ID, self.backlog_dir, engine=engine, **kwargs
         )
+
+    def stash(self, *entries: dict | str, path: Path | None = None) -> Path:
+        """Write ``stash.jsonl`` lines (a dict is JSON-encoded, a str is written raw)."""
+
+        target = path or (self.backlog_dir / "stash.jsonl")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        lines = [entry if isinstance(entry, str) else json.dumps(entry) for entry in entries]
+        target.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8", newline="\n")
+        return target
 
 
 class _PlannerTestCase(unittest.TestCase):
@@ -665,6 +675,118 @@ class TrulyArchivedReferrerTests(_PlannerTestCase):
 
         self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
         self.assertEqual(record.referrer_ids, ("989.001-T",))
+
+
+class StashReferrerTests(_PlannerTestCase):
+    """197.002-T scenarios P19-P21: active stash entries are live referrers."""
+
+    def _linked_items(self, deliberation_id: str) -> list[str]:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": deliberation_id}
+        )
+        self.backlog.shipment(items)
+        return items
+
+    def test_p19_stash_only_referrer_by_field_and_by_text(self) -> None:
+        for form, entry in (
+            ("field", {"id": "AAAA0001", "deliberation_id": "110-DL", "text": "unrelated"}),
+            ("text", {"id": "AAAA0001", "text": "Follow-up from 110-DL, still open."}),
+        ):
+            with self.subTest(form=form):
+                self._fresh_backlog()
+                items = self._linked_items("110-DL")
+                self.backlog.write("110-DL", "deliberation")
+                self.backlog.stash({"id": "AAAA0000", "text": "no link"}, entry)
+
+                record = self._only(self.backlog.plan(items), "110-DL")
+
+                self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+                assert_reason_code_defaults(self, record)
+                self.assertEqual(record.referrer_ids, ("AAAA0001",))
+
+    def test_p20_default_call_counts_the_active_stash_entry(self) -> None:
+        # The umbrella feature's own live-proof shape: a deliberation linked by
+        # source_deliberation_id and cited only by one active stash entry.
+        for with_entry in (True, False):
+            with self.subTest(with_entry=with_entry):
+                self._fresh_backlog()
+                items = self._linked_items("038-DL")
+                self.backlog.write("038-DL", "deliberation", status="accepted")
+                if with_entry:
+                    self.backlog.stash(
+                        {
+                            "id": "8FEE91F4",
+                            "kind": "chore",
+                            "deliberation_id": "038-DL",
+                            "text": "Align P-015 with backlogit 1.11 (038-DL).",
+                        }
+                    )
+
+                # Default call: no stash_path argument.
+                plan = compute_linked_deliberation_disposition(
+                    items, SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED
+                )
+
+                record = self._only(plan, "038-DL")
+                assert_reason_code_defaults(self, record)
+                if with_entry:
+                    self.assertIs(
+                        record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE
+                    )
+                    self.assertEqual(record.referrer_ids, ("8FEE91F4",))
+                else:
+                    self.assertEqual(record.outcome, "archive")
+                    self.assertEqual(record.referrer_ids, ())
+
+    def test_p21_absent_default_stash_file_counts_nothing_and_never_raises(self) -> None:
+        items = self._linked_items("111-DL")
+        self.backlog.write("111-DL", "deliberation")
+        self.assertFalse((self.backlog.backlog_dir / "stash.jsonl").exists())
+
+        plan = self.backlog.plan(items)
+
+        self.assertIsNone(plan.planning_error)
+        self.assertEqual(plan.read_failures, ())
+        record = self._only(plan, "111-DL")
+        self.assertEqual(record.outcome, "archive")
+        assert_reason_code_defaults(self, record)
+
+    def test_archived_stash_entries_are_never_counted(self) -> None:
+        items = self._linked_items("112-DL")
+        self.backlog.write("112-DL", "deliberation")
+        self.backlog.stash(
+            {"id": "AAAA0002", "deliberation_id": "112-DL", "text": "112-DL"},
+            path=self.backlog.backlog_dir / "archive" / "stash.jsonl",
+        )
+
+        record = self._only(self.backlog.plan(items), "112-DL")
+
+        self.assertEqual(record.outcome, "archive")
+        self.assertEqual(record.referrer_ids, ())
+
+    def test_explicit_stash_path_overrides_the_default(self) -> None:
+        items = self._linked_items("113-DL")
+        self.backlog.write("113-DL", "deliberation")
+        self.backlog.stash({"id": "AAAA0003", "text": "default stash cites 113-DL"})
+        explicit = self.backlog.stash(
+            {"id": "AAAA0004", "deliberation_id": "113-DL"},
+            path=self.backlog.backlog_dir / "alt" / "stash.jsonl",
+        )
+
+        record = self._only(self.backlog.plan(items, stash_path=explicit), "113-DL")
+
+        self.assertIs(record.outcome, LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE)
+        self.assertEqual(record.referrer_ids, ("AAAA0004",))
+
+    def test_stash_referrer_combines_with_backlog_referrers(self) -> None:
+        items = self._linked_items("114-DL")
+        self.backlog.write("114-DL", "deliberation")
+        self.backlog.write("990.001-T", "task", body="Needs 114-DL.")
+        self.backlog.stash("", {"id": "AAAA0005", "text": "Re 114-DL"}, "   ")
+
+        record = self._only(self.backlog.plan(items), "114-DL")
+
+        self.assertEqual(record.referrer_ids, ("990.001-T", "AAAA0005"))
 
 
 class FailClosedReadPathTests(_PlannerTestCase):
