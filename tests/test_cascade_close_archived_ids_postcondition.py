@@ -399,6 +399,56 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
         self.assertLess(idx_1_19, idx_1_20)
         self.assertLess(idx_1_20, idx_1_21)
 
+    # Relax R9 (198.002-T): item-7 policy assertions moved here from
+    # CascadeCloseLinkedDeliberationAllowanceTests (which U3b replaces).
+    def test_policy_required_ids_summary_states_shipment_unconditional(self) -> None:
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "The shipment record is a `required_ids` member unconditionally, "
+            "regardless of its own pre-close declared status",
+            content,
+        )
+        self.assertIn(
+            "this policy summary and the skill's binding rule are the same "
+            "contract and MUST NOT diverge",
+            content,
+        )
+
+    def test_policy_required_ids_summary_states_qualifying_feature_unconditional(
+        self,
+    ) -> None:
+        # PR #407 review (threads PRRT_kwDORzpWpM6bzlFl / PRRT_kwDORzpWpM6bzlGL):
+        # the policy-level summary must state the same unconditional rule for
+        # a qualifying feature member that it already states for the shipment
+        # record, and must stay in lockstep with the skill.
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "The same unconditional-required_ids rule applies to every "
+            "qualifying feature member",
+            content,
+        )
+        self.assertIn("ShipShipment", content)
+        self.assertIn(
+            "no pre-close status ever exempts a qualifying feature member "
+            "from this requirement either",
+            content,
+        )
+
+    def test_item_7_never_restates_blanket_manifest_member_omission_claim(
+        self,
+    ) -> None:
+        # Negative assertion: the unqualified "A member whose declared
+        # `status` is already truly `archived` ... correctly absent" phrase
+        # must never reappear -- it contradicted the unconditional
+        # qualifying-feature required_ids rule stated later in the same
+        # item.
+        content = _flatten(_policy_content())
+        self.assertNotIn(
+            "A member whose declared `status` is already truly `archived` "
+            "before the invocation",
+            content,
+        )
+
 
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
     """PR #407 review (threads PRRT_kwDORzpWpM6bo8m2 /
@@ -539,72 +589,6 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
         quality_idx = content.index("## Quality Criteria")
         quality_section = content[quality_idx:]
         self.assertIn("linked deliberation", quality_section)
-
-    def test_policy_required_ids_summary_states_shipment_unconditional(self) -> None:
-        content = _flatten(_policy_content())
-        self.assertIn(
-            "The shipment record is a `required_ids` member unconditionally, "
-            "regardless of its own pre-close declared status",
-            content,
-        )
-        self.assertIn(
-            "this policy summary and the skill's binding rule are the same "
-            "contract and MUST NOT diverge",
-            content,
-        )
-
-    def test_policy_required_ids_summary_states_qualifying_feature_unconditional(
-        self,
-    ) -> None:
-        # PR #407 review (threads PRRT_kwDORzpWpM6bzlFl / PRRT_kwDORzpWpM6bzlGL):
-        # the policy-level summary must state the same unconditional rule for
-        # a qualifying feature member that it already states for the shipment
-        # record, and must stay in lockstep with the skill.
-        content = _flatten(_policy_content())
-        self.assertIn(
-            "The same unconditional-required_ids rule applies to every "
-            "qualifying feature member",
-            content,
-        )
-        self.assertIn("ShipShipment", content)
-        self.assertIn(
-            "no pre-close status ever exempts a qualifying feature member "
-            "from this requirement either",
-            content,
-        )
-
-    def test_item_7_omission_sentence_scoped_to_task_and_linked_deliberation(
-        self,
-    ) -> None:
-        # PR #407 review (thread PRRT_kwDORzpWpM6bzlGL / follow-up
-        # PRRT_kwDORzpWpM6b0kjI): item 7's own "correctly absent" sentence
-        # must be scoped the same way the skill's is -- otherwise item 7 is
-        # internally contradictory with its own later unconditional
-        # qualifying-feature rule on the same line.
-        content = _flatten(_policy_content())
-        self.assertIn(
-            "A manifest task item, or a qualifying feature member's "
-            "validated linked deliberation, whose declared `status` is "
-            "already truly `archived` before the invocation has no "
-            "transition to report and is **correctly absent** from "
-            "`archived_ids`",
-            content,
-        )
-
-    def test_item_7_never_restates_blanket_manifest_member_omission_claim(
-        self,
-    ) -> None:
-        # Negative assertion: the unqualified "A member whose declared
-        # `status` is already truly `archived` ... correctly absent" phrase
-        # must never reappear -- it contradicted the unconditional
-        # qualifying-feature required_ids rule stated later in the same
-        # item.
-        content = _flatten(_policy_content())
-        self.assertNotIn(
-            "A member whose declared `status` is already truly `archived` "
-            "before the invocation",
-            content,
-        )
 
     def test_changelog_1_23_0_row_present_and_additive(self) -> None:
         content = _policy_content()
