@@ -98,6 +98,7 @@ from typing import Final, Literal, Sequence
 
 from autoharness.gates.topology import (
     _ARTIFACT_ID_PATTERN,
+    _SHIPMENT_ID_PATTERN,
     BacklogUnavailableError,
     _frontmatter,
 )
@@ -1573,12 +1574,14 @@ def compute_linked_deliberation_disposition(
         if isinstance(manifest_items, (str, bytes)):
             raise TypeError("manifest_items must be a sequence of ids, not a single string")
         normalized_shipment_id = _normalize_id(shipment_id)
-        if normalized_shipment_id is None or not _ARTIFACT_ID_PATTERN.match(
+        if normalized_shipment_id is None or not _SHIPMENT_ID_PATTERN.match(
             normalized_shipment_id
         ):
             # Without a valid S, closure_scope(S) would silently lose S and S's
-            # own record could count as a live referrer: never plan that.
-            raise ValueError("shipment_id is an invalid or unsafe artifact id")
+            # own record could count as a live referrer; a wrong-kind id (a
+            # feature or task) would instead hide that live work item from the
+            # referrer scan. Never plan either.
+            raise ValueError("shipment_id is not a valid shipment id (<n>-S)")
         backlog_dir = Path(workspace_backlog_dir)
         normalized_items = [_normalize_id(item) for item in manifest_items]
         if any(

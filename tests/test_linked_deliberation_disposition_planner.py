@@ -1384,7 +1384,7 @@ class PlannerInputEdgeCaseTests(_PlannerTestCase):
 
     def test_invalid_shipment_id_is_a_planning_error(self) -> None:
         items = self._linked_items("160-DL")
-        for shipment_id in (None, "", "   ", "../900-S", 900):
+        for shipment_id in (None, "", "   ", "../900-S", 900, "900-F", "900.001-T", "050-DL"):
             with self.subTest(shipment_id=shipment_id):
                 plan = compute_linked_deliberation_disposition(
                     items, shipment_id, self.backlog.backlog_dir, engine=VERIFIED  # type: ignore[arg-type]
