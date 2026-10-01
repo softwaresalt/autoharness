@@ -503,6 +503,65 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
         )
         self.assertNotIn("**INV-10 (Postconditions).**", content)
 
+    # 198.006-T (U2b-4): item-7, evidence-class and P-010 assertions.
+    def test_item_7_omission_sentence_scoped_to_non_feature_members(self) -> None:
+        # Inverted replacement of the item-7 test retired by relax R9
+        # (198.002-T): under the flat 1.11.x sets the "correctly absent"
+        # sentence covers non-feature manifest members only.
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "A non-feature manifest member (any explicit manifest member that "
+            "is not a qualifying feature member) whose declared `status` is "
+            "already truly `archived` before the invocation has no transition "
+            "to report and is **correctly absent** from `archived_ids`",
+            content,
+        )
+        self.assertIn("the way a non-feature manifest member can be.", content)
+        match = re.search(
+            r"^7\. \*\*Pre-archived manifest members[^\n]+", _policy_content(), re.MULTILINE
+        )
+        self.assertIsNotNone(match)
+        item_7 = match.group(0)
+        self.assertNotIn("qualifying feature member's validated linked deliberation", item_7)
+        self.assertNotIn("a qualifying feature's linked deliberation", item_7)
+        self.assertIn("appends no linked deliberations", item_7)
+
+    def test_b_e_evidence_class_note_states_two_propositions(self) -> None:
+        content = _policy_content()
+        match = re.search(r"^\*\*Evidence-class note\.\*\*[^\n]+", content, re.MULTILINE)
+        self.assertIsNotNone(match)
+        note = match.group(0)
+        self.assertIn("two engine propositions", note)
+        first = note.index("(1) **inert archived descendants**")
+        second = note.index("(2) **backlogit 1.11.x leaves linked deliberations independent**")
+        self.assertLess(first, second)
+        self.assertIn("`v1.11.0` (L716-751)", note)
+        self.assertIn("TestUArchiveCandidateFlat_UnlistedLinkedDeliberationIsUntouched", note)
+        self.assertIn("190-S", note)
+        self.assertIn(
+            "`archive_item` single-artifact semantics is a verified-line **assumption**",
+            note,
+        )
+
+    def test_b_f_p010_inv_12_archival_clarification(self) -> None:
+        content = _policy_content()
+        section = content[content.index("## P-010") : content.index("## P-011")]
+        must_not = section[section.index("**Ship MUST NOT**") : section.index("**Ship MAY**")]
+        may = section[section.index("**Ship MAY**") :]
+        self.assertIn(
+            "- Create or modify deliberation, spike, plan, or review artifacts "
+            "(P-015 INV-12 archival transitions excepted)",
+            must_not,
+        )
+        self.assertIn(
+            "- Archive a validated linked deliberation only through the P-015 "
+            "INV-12 Linked-Deliberation Disposition step (and the post-merge "
+            "source-artifact retirement that consumes its report); this is a "
+            "closure lifecycle transition, not creation or modification of "
+            "deliberation content",
+            may,
+        )
+
 
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
     """PR #407 review (threads PRRT_kwDORzpWpM6bo8m2 /
