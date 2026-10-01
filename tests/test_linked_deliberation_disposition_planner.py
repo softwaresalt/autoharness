@@ -222,8 +222,19 @@ class DispositionPlannerSkeletonTests(_PlannerTestCase):
         plan = compute_linked_deliberation_disposition(
             [None, 7, "900-F", "900.001-T"], SHIPMENT_ID, self.backlog.backlog_dir, engine=VERIFIED  # type: ignore[list-item]
         )
-        self.assertIsNone(plan.planning_error)
-        self.assertEqual(self._only(plan, "050-DL").outcome, "archive")
+        self.assertIn("ValueError", plan.planning_error or "")
+        self.assertEqual(plan.dispositions, ())
+
+    def test_any_malformed_manifest_member_rejects_the_whole_manifest(self) -> None:
+        items = self._feature_with_task(
+            "900-F", "900.001-T", custom_fields={"source_deliberation_id": "050-DL"}
+        )
+        self.backlog.write("050-DL", "deliberation")
+        for bad in (None, 7, "", "   ", "../../outside", "not an id"):
+            with self.subTest(bad=bad):
+                plan = self.backlog.plan([*items, bad])  # type: ignore[list-item]
+                self.assertIsNotNone(plan.planning_error)
+                self.assertEqual(plan.dispositions, ())
 
 
 class DispositionLinkSourceTests(_PlannerTestCase):

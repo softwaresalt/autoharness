@@ -1353,13 +1353,14 @@ def compute_linked_deliberation_disposition(
             raise TypeError("manifest_items must be a sequence of ids, not a single string")
         normalized_shipment_id = _normalize_id(shipment_id)
         backlog_dir = Path(workspace_backlog_dir)
-        manifest_ids = tuple(
-            dict.fromkeys(
-                item_id
-                for item_id in (_normalize_id(item) for item in manifest_items)
-                if item_id is not None and _ARTIFACT_ID_PATTERN.match(item_id)
-            )
-        )
+        normalized_items = [_normalize_id(item) for item in manifest_items]
+        if any(
+            item_id is None or not _ARTIFACT_ID_PATTERN.match(item_id)
+            for item_id in normalized_items
+        ):
+            # Like topology's manifest validation: never plan a partial scope.
+            raise ValueError("manifest_items contains an invalid or unsafe member id")
+        manifest_ids = tuple(dict.fromkeys(normalized_items))
         closure_scope = _closure_scope_ids(manifest_ids, normalized_shipment_id)
         engine_verified = (
             type(engine) is EngineSemanticsDecision
