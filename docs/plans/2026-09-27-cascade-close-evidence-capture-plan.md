@@ -976,12 +976,20 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
 
 ## Dependency Graph
 
-A1 → A1b → A2 → A3a → A3b → A3 → A4 → A5 → A6, and A3 → A7.
+A1 → A1b → A3a → A2a → A2 → A3b → A3 → A4 → A5 → A6, and A3 → A7
+(re-plan 2026-10-02; previously A1 → A1b → A2 → A3a → A3b).
 
 * A1b, A2, A3b, and A4 consume A1's contract and validator.
-* A3a depends only on A1b's `StreamCapture`. A3b depends only on A1 and on A2's
-  snapshot type.
-* A3 composes A1b, A2, A3a, and A3b.
+* A3a depends only on A1b's `StreamCapture`. It now precedes A2, because the
+  CLI engine probe needs its runner.
+* A2a (new) depends on A3a's `run_bounded` and `ResolvedBinary` seam and on
+  A1b's `redact`.
+* A2 depends on A2a: the engine decision feeds both `select_close_path` and the
+  disposition planner.
+* A3b depends only on A1 and on A2's snapshot type.
+* A3 composes A1b, A2a (the step 5 engine re-probe), A2, A3a, and A3b.
+* Task edges at re-harvest: `192.003-T` (A2) depends on `192.004-T` (A3a) and
+  on the new A2a task. The A2a task depends on `192.004-T`.
 * A4 follows A3 so the gate and the command land against one settled record shape.
 * A5 and A6 both touch `.autoharness/harness-manifest.yaml`, so they stay serial.
 * A4, A5, and A6 must ship in the same release unit (one PR). The stricter gate
@@ -1005,6 +1013,10 @@ A4, and this section) is superseded. See
   warning. Without it, a self-declared `safe_close` would bypass R5 (AN-F01).
 * A machine-readable `close_path` key is added.
 * The contract stays in code, not in `schemas/`.
+* Re-plan (2026-10-02): the 201-S flat-cascade contract (038-DL D2, D3a, D4a)
+  is adopted in every affected unit. See
+  `docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md` and the
+  Re-plan amendment section at the top of this plan.
 
 The command does not depend on 179-F / 185-S, which is unclaimable by construction.
 It implements minimal local fixed-argv, bounded-read, and atomic-write helpers. When
@@ -1065,7 +1077,10 @@ Requires plan hardening: yes
   returns PASS for an artifact that cites it. Then delete the record and confirm
   the gate FAILs with `failed_check: close_evidence`. Re-run `cascade-close` on
   the same pair and confirm exit 2 (`evidence already finalized`) with no second
-  backlogit spawn.
+  backlogit spawn. Re-plan: also confirm the record carries
+  `engine_semantics.verdict: VERIFIED` with `probe_surface` and
+  `invocation_surface` both `cli`, a `close_path_selection` of `cascade`, and a
+  `linked_deliberation_disposition` whose `planning_error` is `null`.
 * Blocked path: if the real binary is unavailable or its version differs from the
   characterized one, the runtime proof is recorded as `BLOCKED` with the reason
   (P-012), never as PASS on the fake-binary tests alone.
@@ -1201,6 +1216,59 @@ unit it changed.
   on the anchor route (`gpt-6-sol`), and the always-on personas are applied inline
   by Stage (`dispatch_mode: same-model-declared-degradation` for inline passes,
   declared in the review record).
+
+### Hardening Pass 3 (2026-10-02, re-plan onto the 201-S contract)
+
+This pass extends the protected invariants for the stash `1263B218` re-plan.
+It introduces no new design. Each invariant restates a decision of
+`docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md` (038-DL
+D2, D3a, D4a) as a testable plan invariant.
+
+* **Additional sources consulted:**
+  * `docs/decisions/2026-09-29-backlogit-1-11-cascade-linked-deliberation-alignment-deliberation.md`
+    (038-DL);
+  * `docs/plans/2026-09-29-backlogit-1-11-cascade-alignment-plan.md` (201-S);
+  * `src/autoharness/gates/shipment_closure.py` on `main` (`654b143d`):
+    `assess_cascade_engine_semantics`, `select_close_path`,
+    `compute_linked_deliberation_disposition`, and the private
+    `_closure_scope_ids`.
+* **Added protected invariants:**
+  * INV-P8: `allowed_ids` and `required_ids` are flat (038-DL D2).
+    `allowed_ids = closure_scope(S) = items(S) ∪ {S}`, and the A3b parity test
+    pins it to `_closure_scope_ids` (M1). `required_ids = {S} ∪ qualifying feature members ∪ {x ∈ items(S): not truly archived pre-close}`.
+    Neither set ever holds a disposition-set deliberation. No record,
+    fixture, or test reintroduces a `validated_linked_deliberations` term.
+    A disposition-set deliberation that is archived or modified by the
+    cascade is `linked_deliberation_drift` (exit 5), never a set member.
+  * INV-P9: no cascade without a `VERIFIED` engine on the same surface (038-DL
+    D4a). `shipment ship` is spawned only when `select_close_path` selects
+    CASCADE over an `EngineSemanticsDecision` that A2a probed on the CLI
+    surface, through the same resolved absolute binary the command invokes.
+    Every UNVERIFIED decision, including a probe failure, fails closed to
+    SAFE_CLOSE (exit 3, nothing invoked). A pre-invocation re-probe difference
+    or failure halts with exit 4 and never substitutes SAFE_CLOSE (INV-P4).
+    The command never archives a deliberation. The skill's Linked-Deliberation
+    Disposition step is the only archiver (038-DL D3a).
+* **Hardening items:**
+  * **H-C1 (A2a, A1):** the validator re-runs the merged
+    `assess_cascade_engine_semantics` and `select_close_path` over the recorded
+    raw inputs, so a hand-edited verdict or selection is rejected, and a later
+    widening of the verified minor lines needs no record-shape change.
+  * **H-C2 (A2, A4):** the observation set is path-keyed, so a torn
+    deliberation (`retained_ambiguous`) is checked per record path. The A4
+    planned-`archive` exemption is keyed only on the recorded planned outcome
+    and never re-plans.
+  * **H-C3 (decomposition):** A2a is a separate S / low unit, so A2 stays
+    inside the 2-hour rule.
+* **Additional ProposedAction / ActionRisk:**
+
+  | ProposedAction | ActionRisk | Approval |
+  |---|---|---|
+  | Run the read-only `backlogit version` probe twice per mutating run | low | None. It is read-only and passes `--no-update-check` |
+  | Exempt planned-`archive` deliberations from the A4 SAFE_CLOSE re-check | medium | No new authority: INV-12 verify-after-each owns the mutation (038-DL D3a). Plan re-review per P-021 C6 |
+
+* **Review state:** the 2026-09-27 plan-review PASS below predates this pass.
+  The re-plan must be re-reviewed before 198-S is claimed (P-021 C6).
 
 ## Plan Review
 
