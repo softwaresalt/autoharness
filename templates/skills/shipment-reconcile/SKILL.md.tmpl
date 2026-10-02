@@ -1145,8 +1145,11 @@ archive, one ID at a time.
    * the target deliberation's own queue→archive move;
    * the target's frontmatter keys `status`, `archived_status`, and
      `archived_from`;
-   * the gitignored item event log (`{{BACKLOG_DIRECTORY}}/logs/`) and index
-     (`{{BACKLOG_DIRECTORY}}/*.db*`);
+   * the gitignored item event log (`{{BACKLOG_DIRECTORY}}/logs/`) and backlogit's
+     own index, which is exactly `{{BACKLOG_DIRECTORY}}/backlogit.db` and its SQLite
+     sidecars `{{BACKLOG_DIRECTORY}}/backlogit.db-wal`, `{{BACKLOG_DIRECTORY}}/backlogit.db-shm`,
+     and `{{BACKLOG_DIRECTORY}}/backlogit.db-journal` at the backlog storage root
+     (no other `.db` file, at the root or below it, is part of the index);
    * lock and hook-queue files.
 
    `ArchiveItem` also calls `ArchiveLinkedStashEntries`
@@ -1162,7 +1165,8 @@ archive, one ID at a time.
    disposition baseline.
 
    The exempt paths, excluded from the (iii) fingerprint, are only the
-   gitignored item event log, the index, lock and hook-queue files, and this
+   gitignored item event log, the four index paths enumerated above, lock and
+   hook-queue files, and this
    run's own closure report path under `{{BACKLOG_DIRECTORY}}/reconcile/` (written by
    step 5). Every other `{{BACKLOG_DIRECTORY}}/reconcile/` path stays in the baseline.
 

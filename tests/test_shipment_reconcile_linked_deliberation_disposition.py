@@ -218,7 +218,26 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                     baseline,
                 )
                 self.assertRegex(baseline, r"gitignored item event log \(`[^`]+/logs/`\)")
-                self.assertRegex(baseline, r"index \(`[^`]+/\*\.db\*`\)")
+                # Only backlogit's own index and its SQLite sidecars are exempt,
+                # enumerated explicitly; a broad `*.db*` glob would hide
+                # collateral changes to any other root-level database file.
+                self.assertNotIn("*.db*", baseline)
+                self.assertNotIn("*.db*", raw)
+                self.assertRegex(
+                    baseline,
+                    r"backlogit's\s+own index, which is exactly `[^`]+/backlogit\.db` and its "
+                    r"SQLite\s+sidecars `[^`]+/backlogit\.db-wal`, `[^`]+/backlogit\.db-shm`,"
+                    r"\s+and `[^`]+/backlogit\.db-journal` at the backlog storage root",
+                )
+                self.assertIn(
+                    "no other `.db` file, at the root or below it, is part of the index",
+                    " ".join(baseline.split()),
+                )
+                self.assertIn(
+                    "the four index paths enumerated above, lock and hook-queue files",
+                    " ".join(baseline.split()),
+                )
+                self.assertNotIn("the index, lock and hook-queue files", " ".join(baseline.split()))
                 self.assertIn("lock and hook-queue files", baseline)
                 # v1.11.0 ArchiveItem calls ArchiveLinkedStashEntries, which can
                 # rewrite stash files. Those writes are never allowed side effects;
