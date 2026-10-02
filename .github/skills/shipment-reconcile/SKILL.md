@@ -443,14 +443,11 @@ completion.
       `parent_id`, exactly the set `classify_shipment_close_path` returns as
       `out_of_manifest_descendant_ids` — that lies outside `closure_scope(S)`
       is engine-inert. This gate is scoped precisely to that `parent_id`
-      descendant set and never to `validated_linked_deliberations(S)`: a
-      validated linked deliberation is reached through the engine's
-      linked-deliberation expansion described below (a feature's
-      `source_deliberation_id`, an embedded description reference, or a
-      referenced deliberation), never through `parent_id` descent, so it may
-      be live/required and `CASCADE` archiving it is expected and permitted
-      per `required_ids(S)` — this gate never forces `SAFE_CLOSE` on that
-      account. Engine inertness requires
+      descendant set and never to `validated_linked_deliberations(S)`: under
+      the verified flat engine-semantics line, backlogit leaves linked
+      deliberations independent. Their disposition is governed by **INV-12**
+      after the close-path gate, not by this INV-6 engine-inertness gate.
+      Engine inertness requires
       the record's own parsed frontmatter value to satisfy
       `isinstance(status, str) and status == "archived"`. This is an exact
       parsed-scalar match: no .lower(), no .strip(), no casefold, no alias
@@ -505,55 +502,38 @@ completion.
       re-derivation, and independent of *how* the engine happens to
       transition any given member.
 
-      **Linked-deliberation snapshot extension (155-S, PR #407 review).**
-      Backlogit's own cascade engine (`internal/core/shipment_lifecycle.go`
-      `collectArchiveCandidateIDs`) appends, for every explicit qualifying
-      feature member, that feature's `linkedDeliberationIDs` — collected
-      from the feature's `custom_fields.source_deliberation_id` (taken as a
-      complete literal ID string, never regex-scanned), plus any
-      deliberation ID embedded in the feature's description, and any
-      deliberation the feature references — the latter two, and only the
-      latter two, scanned with the engine's own
-      `internal/core.deliberationIDPattern` matcher (given exactly below) —
-      never a broader "any embedded deliberation ID" reading, which can
-      match a substring the engine's own matcher would not — de-duplicated,
-      and restricted to
-      IDs that resolve to an **existing** artifact whose own `artifact_type`
-      is `deliberation` — before `archiveItems` runs. A qualifying feature
-      with such a live linked deliberation therefore archives it during the
-      same cascade invocation. To keep the two-set gate strict without a
-      blanket allowance for arbitrary IDs, extend Step 0(c)'s classification
-      here, still **before** the cascade invocation: for each qualifying
-      feature member, independently collect its linked deliberation IDs
-      using exactly those same three engine-defined sources — the literal
-      `custom_fields.source_deliberation_id` string taken as-is, and the
-      description/references text scanned with the identical
-      `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` matcher, never a wording-level
-      approximation of it — and the
-      identical existence / `artifact_type: deliberation` validation — never
-      any other ID, and never an ID that fails either check. For each
-      validated linked deliberation ID, resolve its record location the
-      identical way Step 0(b) resolves a manifest task item: if found in
-      **both** `.backlogit/queue/` and
-      `.backlogit/archive/` (an ambiguous/torn state) or in
-      **neither** (missing), halt immediately with
-      `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS` or
-      `RECONCILE_FAIL_SNAPSHOT_MISSING` respectively — never guess which
-      copy or location is authoritative, and never compute `required_ids`
-      from an arbitrary copy before the destructive cascade invocation.
-      Once resolved to its single authoritative location, read its own
-      declared `status` field (frontmatter only, never location-inferred)
-      into the same combined
-      pre-close declared-status snapshot as the qualifying feature statuses
-      above. The further-extended combined map (manifest task statuses from
-      (b), qualifying feature statuses, and now qualifying-feature
-      linked-deliberation statuses, all added here in (c)) is what the
-      Cascade Close Sub-Procedure's step 3 two-set gate reads from; "linked
-      deliberation of a qualifying feature member" for that gate means
-      exactly the set this sub-step determines here — never a separate
-      re-derivation, and independent of whether the engine transitions,
-      skips (already truly archived), or otherwise handles any given one of
-      them.
+      **Linked-deliberation disposition snapshot.** Compute this snapshot on
+      **every** reconcile run and on **both** close paths, before either path
+      mutates backlog state. The snapshot uses the planner's
+      `validated_linked_deliberations(S)` set definition: inspect every
+      explicit manifest member regardless of `artifact_type`; collect link
+      candidates from `custom_fields.source_deliberation_id` as a complete
+      literal value and from description/references text scanned with the
+      identical `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` matcher; then
+      exclude the shipment record itself and every ID in `closure_scope(S)`
+      (H10 — an explicit-member deliberation is an ordinary manifest member,
+      not a disposition-set member). For each retained deliberation ID,
+      record link kinds, linking manifest members, every record path, the
+      record's declared `status` field (frontmatter only, never
+      location-inferred), and the SHA-256 of each record path's bytes.
+
+      Validate existence before location: first determine whether the ID
+      resolves to any deliberation record at all; only then classify where
+      each record path resides. An unresolved ID records
+      `unresolved_references` and does **not** halt. A torn or duplicate
+      deliberation — multiple record paths across `.backlogit/queue/`,
+      `.backlogit/archive/`, or within either root — records
+      `retained_ambiguous` and does **not** halt; every discovered record
+      path is still fingerprinted so step 5 can enforce byte-identity
+      against the captured SHA-256 values. `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS`
+      and `RECONCILE_FAIL_SNAPSHOT_MISSING` apply to manifest members only,
+      never to disposition-set deliberations.
+
+      Superseded provenance only: the prior 1.10-era contract followed
+      Backlogit's removed `linkedDeliberationIDs` helper. Under the verified
+      engine-semantics line (`5a4b70dd` / `v1.11.0`), the engine does not
+      archive these disposition-set deliberations; their outcome is handled
+      by INV-12 after the close-path gate.
 
       **Engine-semantics gate (P-015 engine-semantics precondition).** Before
       the classifier result is acted on, probe the installed backlogit engine
@@ -775,15 +755,14 @@ artifacts it **actually transitioned** to archived during that invocation
 (backlogit engine source, `internal/core/shipment_lifecycle.go`
 `archiveItems()`: an item whose declared `status` is already `archived` is
 skipped and never appended to the slice that becomes `archived_ids`). A
-manifest task item, or a qualifying feature member's validated linked
-deliberation, that was already truly `status: archived` before the call
-therefore has no transition to report and is **correctly absent** from
-`archived_ids` — this is expected engine behavior, not an anomaly and not a
+non-feature manifest member that was already truly `status: archived`
+before the call therefore has no transition to report and is
+**correctly absent** from `archived_ids` — this is expected engine behavior, not an anomaly and not a
 cascade failure. **This never extends to the shipment record or to a
 qualifying feature member itself** (155-S, PR #407 review, thread
 PRRT_kwDORzpWpM6b0kit): step 3 below makes both unconditionally required
 regardless of their own pre-close declared status, so neither can ever be
-"correctly absent" the way a task item or linked deliberation can — see
+"correctly absent" the way a non-feature manifest member can — see
 step 3 for the full statement of that rule. The live fail-closed guard
 over this result is the two-set `allowed_ids` / `required_ids` gate
 specified in step 3 below, evaluated **against the Step 0(b)/(c) pre-close
@@ -855,23 +834,21 @@ after a `CASCADE` verdict) — refusing to proceed at all is not a
 substitution.
 
 **This classifier re-run does not, by itself, cover the Linked-deliberation
-snapshot extension above**: `classify_shipment_close_path` intentionally
+disposition snapshot above**: `classify_shipment_close_path` intentionally
 never inspects `validated_linked_deliberations(S)` (see the INV-6 gate's
 own scoping above), so a linked deliberation gained or changed by a
 qualifying feature after Step 0(c) — a new `custom_fields.source_deliberation_id`,
-a newly added description reference matching the engine's
-`deliberationIDPattern`, or a location/status change to an already-validated
-one — would leave all three classifier-compared values identical while
-still letting the engine reach and archive a not-yet-authorized artifact.
-Immediately alongside the classifier re-run above, independently
-re-collect each qualifying feature member's linked deliberation IDs using
-the identical three engine-defined sources and the identical
-existence/`artifact_type: deliberation` validation the Linked-deliberation
-snapshot extension already specifies, and re-resolve each validated ID's
-location and declared `status` the same way. Require this freshly
-re-collected set — IDs, locations, and declared statuses together — to be
-**identical** to Step 0(c)'s captured linked-deliberation snapshot. Any
-drift halts with the same
+a newly added description/reference match, an added/removed record path, a
+declared-status change, or a content-hash change to an already snapshotted
+record — would leave all three classifier-compared values identical while
+still changing the INV-12 disposition evidence. Immediately alongside the
+classifier re-run above, independently re-collect each qualifying feature
+member's disposition-set deliberations using the identical link-source and
+exclusion rules from the Step 0(c) disposition snapshot above. Require this
+freshly re-collected snapshot — deliberation IDs, link kinds, linking
+members, every record path, declared statuses, and SHA-256 values together —
+to be **identical** to Step 0(c)'s captured disposition snapshot. Any drift
+halts with the same
 `HALT — cascade pre-invocation revalidation drift detected` message and
 **P-005** violation as the classifier-output drift above; do NOT invoke
 either close path. Only when both the classifier re-run and this
