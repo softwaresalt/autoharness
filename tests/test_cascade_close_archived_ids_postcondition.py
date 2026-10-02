@@ -867,6 +867,7 @@ class SkillRenderedRegionParityTests(unittest.TestCase):
             (
                 "      **Linked-deliberation disposition snapshot.**",
                 "      Validate existence before location",
+                "      Apply the planner's containment checks",
                 "      Superseded provenance only:",
                 "**`archived_ids` is a transition log",
                 "**This classifier re-run does not, by itself",
