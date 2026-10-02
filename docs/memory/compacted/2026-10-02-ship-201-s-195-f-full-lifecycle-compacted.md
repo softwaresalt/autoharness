@@ -37,6 +37,13 @@ The verbose original is listed in `compacted_from`. Closure record:
   mutation.
 * Step 7: `8FEE91F4` was already archived, so it was skipped. The `038-DL`
   outcome was copied from the report.
+* The `backlogit shipment ship` run took about 9.8 minutes, past the
+  5-minute "other commands" stall-detection timeout. It was not terminated.
+  It exited 0 on a single invocation with no retry, and every postcondition
+  was verified, so the close stands. The closure record logs it as a
+  deviation, and `9869AA32` defers the timeout-class question to Stage.
+* `backlogit sync` was re-run after the final stash capture (`9869AA32`):
+  `Indexed 1677 artifacts`, `CLOSURE_INDEX_SYNC_OK`.
 
 ## Decisions and Learnings
 
@@ -51,5 +58,6 @@ The verbose original is listed in `compacted_from`. Closure record:
 
 ## Follow-Ups
 
-`33004C12` (new), `BCD87392`, `40DCBEBC`, `D79EA53A`, `73800955`,
+`33004C12` (new), `9869AA32` (new, PR #480 review: stall-detection timeout
+class for long cascade closes), `BCD87392`, `40DCBEBC`, `D79EA53A`, `73800955`,
 `3B43CE5A`, and `8928EC67`.
