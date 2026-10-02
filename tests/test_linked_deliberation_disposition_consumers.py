@@ -150,6 +150,26 @@ class ShipStep7ConsumesDispositionReportTests(unittest.TestCase):
             section,
         )
 
+    def test_k1_missing_from_report_reason_code_is_absent_never_fabricated(self) -> None:
+        section = _ship_template_step7()
+        self.assertIn(
+            "This outcome has no disposition-report entry, so its `reason_code` is "
+            "recorded as absent — never invent a synthetic code — unless the ID is "
+            "listed in the close report's `unresolved_references`.",
+            section,
+        )
+        self.assertIn(
+            "so it is never listed in `unresolved_references`, its `reason_code` is "
+            "always recorded as absent",
+            section,
+        )
+        self.assertIn(
+            "a `skipped_not_in_disposition_report` outcome has no report entry, so its "
+            "`reason_code` is recorded as absent unless the close report's "
+            "`unresolved_references` lists the ID",
+            section,
+        )
+
 
 def _cleanup_bullet(text: str, label: str) -> str:
     """The single Step 2 ``Source artifact cleanup`` bullet line of ``text``."""
@@ -202,6 +222,14 @@ class OperationalClosureRetainedOutcomesTests(unittest.TestCase):
                 )
                 self.assertIn("never re-derived", bullet)
                 self.assertIn("an unknown `reason_code` is recorded verbatim", bullet)
+                self.assertIn(
+                    "a `skipped_not_in_disposition_report` outcome has no report entry, "
+                    "so its `reason_code` is recorded as absent — never invented — unless "
+                    "the close report's `unresolved_references` lists the ID, in which "
+                    "case that entry's `reason_code` is copied verbatim (an explicit "
+                    "manifest member is never listed there, H10)",
+                    bullet,
+                )
                 self.assertIn(
                     "neither Ship nor the disposition step archives a `retained_*` or "
                     "`skipped_not_in_disposition_report` deliberation",
