@@ -662,14 +662,18 @@ class PostModeAndQualityCriteriaAssertions(unittest.TestCase):
             "outcomes never change the step 5 gate",
             "The Deterministic Safe-Close Scenario Matrix covers linked-deliberation "
             "rows (a)–(f): engine unverified, shared reference, engine drift, "
-            "description-only mention, torn deliberation, and read error; only row (c) "
-            "halts",
+            "description-only mention, torn deliberation, and read error; row (c) "
+            "halts, row (f) retains snapshot/plan-time read errors without halting but "
+            "halts on a late containment or invariance failure, and every retained "
+            "outcome is reported without halting",
         )
         for label, raw in _variants():
             criteria = _quality_criteria(raw)
             for bullet in bullets:
                 with self.subTest(surface=label, bullet=bullet[:40]):
                     self.assertIn(bullet, criteria)
+            with self.subTest(surface=label, bullet="no only-row-(c) claim"):
+                self.assertNotIn("only row (c) halts", raw)
 
 
 def _allowlisted(rendered: str) -> str:

@@ -1578,7 +1578,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * "Manifest-scoped mutation only" and safe-close step 1 bound only safe-close steps 1–10; the INV-12 Linked-Deliberation Disposition step is separately sanctioned and archives a validated linked deliberation only through a single-artifact, non-cascading archive, one ID at a time
 * Safe-close step 8 and the INV-11 summary key the `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt on Step 0(c)'s **selected** close path, so a classifier `CASCADE` with `ENGINE_SEMANTICS_UNVERIFIED`, which selects `SAFE_CLOSE`, is handled as a `SAFE_CLOSE` shipment there
 * Post-mode step 2 archive-checks every disposition `archived` outcome, the step 3 deleted-file guard treats their moves as expected, and retained outcomes never change the step 5 gate
-* The Deterministic Safe-Close Scenario Matrix covers linked-deliberation rows (a)–(f): engine unverified, shared reference, engine drift, description-only mention, torn deliberation, and read error; only row (c) halts, and every retained outcome is reported without halting
+* The Deterministic Safe-Close Scenario Matrix covers linked-deliberation rows (a)–(f): engine unverified, shared reference, engine drift, description-only mention, torn deliberation, and read error; row (c) halts, row (f) retains snapshot/plan-time read errors without halting but halts on a late containment or invariance failure, and every retained outcome is reported without halting
 * All five item classifications are represented in the schema
 * Pre-mode adds a shipment-record-status classification (`record-consistent` /
   `record-queued-with-active-work` / `record-blocked-with-active-work` /
