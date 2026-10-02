@@ -687,6 +687,68 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
                 self.assertEqual(observed, region)
 
 
+class SkillRenderedRegionParityTests(unittest.TestCase):
+    """199.011-T scenarios C-g/F-j/G-h: rendered-region parity for the
+    U3a, U3b, and U4 shipment-reconcile regions, modulo the same concrete
+    dogfood allowlist used by policy rendered-region parity.
+    """
+
+    def _assert_skill_rendered_line_parity(self, anchors: tuple[str, ...]) -> None:
+        rendered = render_source(".github/skills/shipment-reconcile/SKILL.md")
+        mirror = _SKILL_MIRROR.read_text(encoding="utf-8")
+        for anchor in anchors:
+            with self.subTest(anchor=anchor):
+                expected = [line for line in rendered.splitlines() if line.startswith(anchor)]
+                actual = [line for line in mirror.splitlines() if line.startswith(anchor)]
+                self.assertEqual(len(expected), 1)
+                self.assertEqual(len(actual), 1)
+                region = expected[0]
+                for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+                    region = region.replace(template_text, mirror_text)
+                self.assertEqual(actual[0], region)
+
+    def test_c_g_u3a_rendered_region_parity(self) -> None:
+        self._assert_skill_rendered_line_parity(
+            (
+                "      **Declared `status` is read",
+                "      This is the **INV-6 engine-inertness containment gate**",
+                "      `CASCADE` is permitted only when every artifact in the `parent_id`",
+                "      **Engine-semantics gate (P-015 engine-semantics precondition).**",
+                "      | Classifier verdict | Engine-semantics verdict | Selected path |",
+            )
+        )
+
+    def test_f_j_u3b_rendered_region_parity(self) -> None:
+        self._assert_skill_rendered_line_parity(
+            (
+                "      **Linked-deliberation disposition snapshot.**",
+                "      Validate existence before location",
+                "      Superseded provenance only:",
+                "**`archived_ids` is a transition log",
+                "**This classifier re-run does not, by itself",
+                "**Engine-semantics re-probe",
+            )
+        )
+
+    def test_g_h_u4_rendered_region_parity(self) -> None:
+        self._assert_skill_rendered_line_parity(
+            (
+                "3. **Verify `archived_ids`",
+                "   * **Compute `allowed_ids`**",
+                "   * **Compute `required_ids`**",
+                "5. **Verify out-of-manifest descendant baseline invariance",
+                "6. **Produce cascade-close report**",
+                "7. **Gate decision**: `returned_ids`",
+                "* This list mirrors the policy's own `INV-1`..`INV-12`",
+                "* `INV-1` (Flat closure scope):",
+                "* `INV-6` (Engine-inertness containment gate):",
+                "* `INV-10` (Close-path gate postconditions",
+                "* `INV-11` (External runtime prerequisite):",
+                "* `INV-12` (Linked-deliberation disposition):",
+            )
+        )
+
+
 class CascadeCloseLinkedDeliberationFlatSemanticsTests(unittest.TestCase):
     """199.004-T/199.005-T/199.006-T: pins the U3b flat-engine
     disposition-snapshot contract in both the template and installed mirror.
