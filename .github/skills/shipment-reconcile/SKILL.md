@@ -765,7 +765,7 @@ regardless of their own pre-close declared status, so neither can ever be
 "correctly absent" the way a non-feature manifest member can — see
 step 3 for the full statement of that rule. The live fail-closed guard
 over this result is the two-set `allowed_ids` / `required_ids` gate
-specified in step 3 below, evaluated **against the Step 0(b)/(c) pre-close
+specified in step 3 below, evaluated **against the Step 0(b) all-member pre-close
 declared-status snapshot** — never against location, and never against a
 post-close re-read.
 
@@ -900,26 +900,25 @@ the fact.
 3. **Verify `archived_ids` against the two-set `allowed_ids` / `required_ids`
    gate** (replaces exact full-set equality — see the SUPERSESSION NOTE
    above and the P-015 policy's own supersession note for why):
-   * **Compute `allowed_ids`** = the manifest's task items + every
-     qualifying feature member identified by Step 0(c)'s own classification
-     (defined by reference to that determination — never a separate
-     re-derivation — and independent of *how* the engine happens to
-     transition any given member) + every validated linked deliberation ID
-     of each qualifying feature member captured by Step 0(c)'s
-     linked-deliberation snapshot extension above (same reference-only
-     rule: never a separate re-derivation, and never any ID beyond what
-     that engine-defined, existence-and-`artifact_type`-validated
-     collection produced) + the shipment record itself.
+   * **Compute `allowed_ids`** = `closure_scope(S)`: every explicit manifest
+     item ID from `items(S)`, regardless of `artifact_type`, plus the
+     shipment record itself. This is the flat set. A disposition-set
+     deliberation is **not** added merely because it is linked from a
+     manifest member; linked deliberations are handled only by INV-12.
+     H10 carve-out: if a deliberation ID is itself an explicit manifest
+     member, it is an ordinary `closure_scope(S)` / `allowed_ids` member,
+     and its presence in `archived_ids` MUST NOT trip the
+     unexpected-artifact check merely because its `artifact_type` is
+     `deliberation`.
    * **Compute `required_ids`** = the shipment record and every qualifying
      feature member (**both unconditionally** — never omitted, and never
-     conditioned on either artifact's own pre-close declared status) +
-     every other `allowed_ids` member (a manifest task item, or a
-     qualifying feature member's validated linked deliberation) that was
-     **not** truly `status: archived` in the pre-close declared-status
-     snapshot (Step 0(b) for manifest task items, extended by Step 0(c) for
-     qualifying feature members and their validated linked deliberations —
-     all captured **before** this step 1 invocation, never a freshly-read or
-     assumed post-close value).
+     conditioned on either artifact's own pre-close declared status) + every
+     other manifest item that was **not** truly `status: archived` in the
+     Step 0(b) all-member pre-close declared-status snapshot. Because Step
+     0(b) snapshots every explicit manifest member regardless of
+     `artifact_type`, no Step 0(c) linked-deliberation extension participates
+     in this set. A disposition-set deliberation that is not an explicit
+     manifest member is never a `required_ids` member.
    * **Two separately-labelled, independently-failing conditions.** Neither
      may be evaluated as a precondition of the other, and the two MUST NOT
      be merged into a single combined test (conflating two questions into
@@ -928,32 +927,30 @@ the fact.
      - **Unexpected-artifact check**: if `archived_ids - allowed_ids` is
        non-empty, halt with
        `HALT — cascade archived unexpected artifact {id}` and emit a
-       **P-005** violation.
+       **P-005** violation. A disposition-set deliberation that is not an
+       explicit manifest member and appears in `archived_ids` fails this
+       check: that is engine drift under the verified flat line.
      - **Missing-required-artifact check**: if `required_ids - archived_ids`
        is non-empty, halt with
        `HALT — cascade did not archive required artifact {id}` and emit a
        **P-005** violation.
-   * An `allowed_ids` **non-shipment** member (a manifest task item, or a
-     qualifying feature member's validated linked deliberation — never the
-     qualifying feature member itself, which is unconditionally required;
-     see below) that was already truly `status: archived` in the pre-close
-     snapshot MAY be included in or omitted from `archived_ids` by
+   * An `allowed_ids` **non-shipment, non-feature** member (any explicit
+     manifest item that is neither the shipment record nor a qualifying
+     feature member, including an explicit-member deliberation under H10)
+     that was already truly `status: archived` in the Step 0(b) all-member
+     pre-close snapshot MAY be included in or omitted from `archived_ids` by
      the engine — neither outcome fails either check (it is outside
      `required_ids` by construction, and if present in `archived_ids` it is
-     still inside `allowed_ids`). This is exactly the 147-F → archived
-     027-DL case: 027-DL is a linked deliberation already truly
-     `status: archived` pre-close, so its absence from `archived_ids` is
-     tolerated by construction, and its presence, if the engine reports it,
-     is equally tolerated. **This tolerance never extends to the shipment
-     record itself**, which is unconditionally a `required_ids` member per
-     the computation above regardless of its own
-     pre-close declared status: if the shipment record were ever reported
-     pre-close as already truly `status: archived` — an anomalous state for
-     an artifact this same closure step is actively transitioning to
-     `shipped` — its absence from `archived_ids` still fails the
-     missing-required-artifact check exactly as any other missing
-     `required_ids` member would; no engine behavior toward the shipment
-     record ever gets a pass under this tolerance.
+     still inside `allowed_ids`). **This tolerance never extends to the
+     shipment record itself**, which is unconditionally a `required_ids`
+     member per the computation above regardless of its own pre-close
+     declared status: if the shipment record were ever reported pre-close as
+     already truly `status: archived` — an anomalous state for an artifact
+     this same closure step is actively transitioning to `shipped` — its
+     absence from `archived_ids` still fails the missing-required-artifact
+     check exactly as any other missing `required_ids` member would; no
+     engine behavior toward the shipment record ever gets a pass under this
+     tolerance.
 
      **Nor does it extend to a qualifying feature member itself (155-S, PR
      #407 review, thread PRRT_kwDORzpWpM6bzlFl).** Backlogit's own
@@ -966,21 +963,20 @@ the fact.
      status already equals the requested one, and the requested status here
      is `done`, never `archived`, so an already-archived qualifying feature
      is unconditionally relocated to `done` first, with no terminal-status
-     bypass of the kind `completeReleaseScope` grants a manifest task item
-     already truly `status: archived` (that task-only skip is exactly what
-     makes the tolerance above valid for tasks, and it has no counterpart in
-     the feature-forcing loop). By the time `collectArchiveCandidateIDs`
-     loads the feature, its declared status is therefore always `done`,
-     never still `archived` — that function's own
+     bypass of the kind `completeReleaseScope` grants a non-feature manifest
+     item already truly `status: archived` (that non-feature skip is exactly
+     what makes the tolerance above valid for those members, and it has no
+     counterpart in the feature-forcing loop). By the time
+     `collectArchiveCandidateIDs` loads the feature, its declared status is
+     therefore always `done`, never still `archived` — that function's own
      `feature.Status != models.StatusArchived` check is always true for it
      — so the feature is always appended to the candidate list
      `archiveItems` archives. A qualifying feature member can therefore
      never be "correctly absent" from `archived_ids` the way a truly
-     pre-archived manifest task item or linked deliberation can — its
-     absence is always an anomaly, never expected engine behavior. A
-     qualifying feature member is therefore an unconditional `required_ids`
-     member exactly like the shipment record, and is never eligible for
-     this tolerance.
+     pre-archived non-feature manifest member can — its absence is always an
+     anomaly, never expected engine behavior. A qualifying feature member is
+     therefore an unconditional `required_ids` member exactly like the
+     shipment record, and is never eligible for this tolerance.
 4. **Verify no `parent_id` was cleared**: re-read every archived task's
    frontmatter and confirm `parent_id` is unchanged from the pre-close
    snapshot captured in Step 0(b) — never a freshly-read or assumed value,
@@ -1229,7 +1225,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `mode: safe-close` runs **in place of** the cascade `backlogit_ship_shipment` call and archives only the manifest item IDs (one artifact at a time) plus the shipment record itself — **except** when Step 0's P-015 flat-manifest classification selects `CASCADE`, in which case the Cascade Close Sub-Procedure runs instead and safe-close steps 1–10 are skipped entirely
 * Close-path selection is made **only** from the machine-checkable classification result (Step 0), never inferred from prose or manifest shape alone; any classifier error, ambiguity, or unresolved precondition falls back to safe-close
 * Step 0(c)'s engine-inertness containment walk traverses the qualifying feature's **full descendant tree, at every depth** (via a full `parent_id` graph, not a single-level scan of direct children only) — a manifest such as `[feature, task]` where that task has an out-of-manifest subtask must fall back to safe-close, never wrongly qualify for `CASCADE` (155-S, PR #407 review, thread PRRT_kwDORzpWpM6b2MJv)
-* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = manifest tasks + qualifying feature members + each qualifying feature member's validated linked deliberation IDs (Step 0(c), same engine-defined `source_deliberation_id` (taken as a complete literal string, never regex-scanned) / description / references sources — the latter two scanned with the exact `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b` matcher Backlogit's own `internal/core.deliberationIDPattern` uses, never a broader "any embedded deliberation ID" reading — and existence-and-`artifact_type: deliberation` validation Backlogit's own `collectArchiveCandidateIDs` uses — never a blanket allowance for arbitrary IDs) + the shipment record; `required_ids` = the shipment record and every qualifying feature member, both unconditionally, plus every other allowed member (a manifest task item, or a qualifying feature member's validated linked deliberation) NOT truly `status: archived` in the Step 0(b)/(c) pre-close declared-status snapshot; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}`, `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived **non-shipment, non-feature** allowed member (i.e. a manifest task item, or a qualifying feature's linked deliberation, e.g. 147-F's already-archived 027-DL) has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch, but this tolerance never extends to the shipment record itself, which remains unconditionally required regardless of its own pre-close declared status, nor does it extend to a qualifying feature member itself, which is likewise unconditionally required regardless of its own pre-close declared status — since Backlogit's own `ShipShipment` forces every explicit qualifying feature member through `status: done` before archive-candidate collection ever runs, so it is never still `archived` by that point either), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
+* The Cascade Close Sub-Procedure independently verifies `returned_ids` is empty, `archived_ids` against the flat two-set `allowed_ids` / `required_ids` gate (step 3: `allowed_ids` = every explicit manifest item regardless of `artifact_type` + the shipment record; `required_ids` = the shipment record and every qualifying feature member, both unconditionally, plus every other manifest item NOT truly `status: archived` in the Step 0(b) all-member pre-close declared-status snapshot; linked deliberations are handled only by INV-12 and enter `allowed_ids` / `required_ids` only when they are explicit manifest members under H10; `archived_ids - allowed_ids` non-empty halts with `HALT — cascade archived unexpected artifact {id}` — including a disposition-set deliberation that is not an explicit manifest member, because that is engine drift under the verified flat line; `required_ids - archived_ids` non-empty halts with `HALT — cascade did not archive required artifact {id}`, evaluated as two independent, never-merged conditions — a truly pre-archived **non-shipment, non-feature** manifest member (including an explicit-member deliberation under H10) has no transition to report and is correctly, expectedly absent from `archived_ids`, never a mismatch, but this tolerance never extends to the shipment record itself, which remains unconditionally required regardless of its own pre-close declared status, nor does it extend to a qualifying feature member itself, which is likewise unconditionally required regardless of its own pre-close declared status — since Backlogit's own `ShipShipment` forces every explicit qualifying feature member through `status: done` before archive-candidate collection ever runs, so it is never still `archived` by that point either), and no `parent_id` was cleared — a mismatch on any of these halts fail-closed with a P-005 violation even though the cascade path was itself permitted
 * Safe-close computes an observation set (parent feature + unshipped siblings outside `closure_scope(S)`) from expected IDs and records each member's baseline location/hash before archiving anything
 * Safe-close verifies the observation set remains baseline-invariant after every single-item archival and after the shipment-record close sequence
 * Safe-close moves the shipment record to live `shipped`, verifies it, explicitly archives only that record, and verifies `archived_status: shipped` before closure completes
