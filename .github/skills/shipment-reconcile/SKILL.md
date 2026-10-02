@@ -383,15 +383,17 @@ completion.
       below — because the classification in (c) and the cascade
       pre/post-comparison in the Cascade Close Sub-Procedure both require it,
       and the cascade path skips steps 1–10 entirely.
-   b. **Snapshot pre-close `parent_id` and declared `status` for every task
-      item** in the manifest by reading each task's current frontmatter from
+   b. **Snapshot pre-close `parent_id` and declared `status` for
+      every explicit manifest member regardless of `artifact_type`** (task,
+      feature, or any other explicit member; the flat `required_ids(S)` ranges
+      over every manifest item) by reading each member's current frontmatter from
       whichever of `.backlogit/queue/` or
       `.backlogit/archive/` currently contains it — a manifest
-      task item may already be
+      member may already be
       pre-archived when this snapshot runs (see the
       Cascade Close Sub-Procedure's pre-archived-member preamble below), and
       its snapshot must still be captured from wherever it actually resides.
-      If a task item's record is found in **both** locations (an
+      If a member's record is found in **both** locations (an
       ambiguous/torn state) or in **neither** (missing), halt immediately
       with `RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS` or
       `RECONCILE_FAIL_SNAPSHOT_MISSING` respectively — never guess which
@@ -487,13 +489,16 @@ completion.
       and never authorizes the cascade path.
 
       **When this classification identifies qualifying feature members**
-      (i.e. selects `CASCADE`): extend the same pre-close declared-status
+      (i.e. the classifier verdict is `CASCADE`): the all-member Step 0(b)
+      snapshot already holds each qualifying feature member's declared
+      status; confirm and extend the same pre-close declared-status
       snapshot from (b) — still **before** the cascade invocation, never
       after — with each qualifying feature member's own declared `status`
       field, read the identical way (frontmatter's own `status` field only,
-      never inferred from `queue/`/`archive/` location). The resulting
-      combined map (manifest task statuses captured in (b), plus qualifying
-      feature statuses added here) is the single pre-close declared-status
+      never inferred from `queue/`/`archive/` location); because (b) already
+      recorded those values, this designates the existing entries and never
+      re-reads them. The resulting map (every member status captured in
+      (b), with the qualifying feature entries designated here) is the single pre-close declared-status
       snapshot the Cascade Close Sub-Procedure's step 3 two-set gate reads
       from; "qualifying feature members" for that gate means exactly the set
       this classification determines here — never a separate
@@ -549,12 +554,42 @@ completion.
       re-derivation, and independent of whether the engine transitions,
       skips (already truly archived), or otherwise handles any given one of
       them.
+
+      **Engine-semantics gate (P-015 engine-semantics precondition).** Before
+      the classifier result is acted on, probe the installed backlogit engine
+      on the SAME surface the close path will use: over MCP, call
+      `backlogit_get_version` with `no_update_check: true`; over the CLI, run
+      `backlogit version --no-update-check --format json`. Record
+      `probe_surface` (`mcp` or `cli`), `version`, and `commit` exactly as the
+      probe returned them. Workspaces with a Python implementation installed
+      apply `assess_cascade_engine_semantics` (this self-hosting repository's
+      own implementation lives at `src/autoharness/gates/shipment_closure.py`);
+      other workspaces apply the equivalent rules: the probed version is a
+      released `X.Y.Z` or `vX.Y.Z` build (no pre-release or build metadata); its `X.Y`
+      minor line is listed in P-015's token "Verified engine-semantics lines:
+      `1.11`"; and the probe surface equals the surface the close path will
+      invoke. Anything else, including a probe failure, timeout, or
+      unparseable result, is `UNVERIFIED` with reason
+      `ENGINE_SEMANTICS_UNVERIFIED`.
+
+      **Close-path selection.** Select the close path with
+      `select_close_path(classifier_decision, engine_decision)` (same
+      self-hosting module) or its stated 2x2 table:
+
+      | Classifier verdict | Engine-semantics verdict | Selected path |
+      |---|---|---|
+      | `CASCADE` | `VERIFIED` | `CASCADE` |
+      | `CASCADE` | `UNVERIFIED` | `SAFE_CLOSE`, reason `ENGINE_SEMANTICS_UNVERIFIED` |
+      | `SAFE_CLOSE` | `VERIFIED` | `SAFE_CLOSE`, the classifier's reason |
+      | `SAFE_CLOSE` | `UNVERIFIED` | `SAFE_CLOSE`, the classifier's reason |
+
    * **CASCADE selected** → skip directly to the **Cascade Close
      Sub-Procedure** below (reusing the manifest and snapshot from (a)/(b)/(c)
-     above — do not reload) in place of steps 1–10, then proceed to
-     post-mode.
+     above — do not reload) in place of steps 1–10, then continue to the
+     Linked-Deliberation Disposition step.
    * **SAFE_CLOSE selected** (default, including any classifier error,
-     ambiguity, or unresolved precondition) → continue to step 1 below
+     ambiguity, or unresolved precondition, and including
+     `ENGINE_SEMANTICS_UNVERIFIED`) → continue to step 1 below
      (step 1's own manifest load is idempotent with (a) above — reuse the
      already-loaded manifest rather than issuing a second call).
 
@@ -843,6 +878,22 @@ either close path. Only when both the classifier re-run and this
 linked-deliberation re-collection match Step 0(c)'s snapshot exactly does
 the Baseline-fingerprint capture below proceed, using the now-reconfirmed
 descendant set.
+
+**Engine-semantics re-probe (pre-invocation revalidation).** Alongside the
+classifier re-run and the linked-deliberation re-collection above, re-run
+the Step 0(c) Engine-semantics gate probe **fresh** on the SAME surface
+(`backlogit_get_version` with `no_update_check: true` over MCP, or
+`backlogit version --no-update-check --format json` over the CLI) and
+compare the RAW `version`, `commit`, and `probe_surface` values and the
+resulting engine-semantics verdict against the values Step 0(c) recorded,
+by exact string equality, never a normalized or minor-line-only
+comparison. Any difference, or a re-probe failure of any kind, halts with
+`HALT — cascade pre-invocation revalidation drift detected` and emits a
+**P-005** violation; do NOT invoke either close path. Never fall back to
+`SAFE_CLOSE` here: after a `CASCADE` selection that would be the
+prohibited `CASCADE` → `SAFE_CLOSE` substitution. The Baseline-fingerprint
+capture below proceeds only when this re-probe also matches Step 0(c)
+exactly.
 
 **Baseline-fingerprint capture (INV-7, before invocation).** Immediately
 before step 1's invocation — using the SAME observation set of

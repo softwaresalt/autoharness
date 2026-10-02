@@ -27,6 +27,16 @@ import re
 import unittest
 from pathlib import Path
 
+try:
+    from _assertion_render import render_source
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests._assertion_render import render_source
+
+try:
+    from test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests.test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl"
 _POLICY_TEMPLATE = _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
@@ -399,6 +409,211 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
         self.assertLess(idx_1_19, idx_1_20)
         self.assertLess(idx_1_20, idx_1_21)
 
+    # Relax R9 (198.002-T): item-7 policy assertions moved here from
+    # CascadeCloseLinkedDeliberationAllowanceTests (which U3b replaces).
+    def test_policy_required_ids_summary_states_shipment_unconditional(self) -> None:
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "The shipment record is a `required_ids` member unconditionally, "
+            "regardless of its own pre-close declared status",
+            content,
+        )
+        self.assertIn(
+            "this policy summary and the skill's binding rule are the same "
+            "contract and MUST NOT diverge",
+            content,
+        )
+
+    def test_policy_required_ids_summary_states_qualifying_feature_unconditional(
+        self,
+    ) -> None:
+        # PR #407 review (threads PRRT_kwDORzpWpM6bzlFl / PRRT_kwDORzpWpM6bzlGL):
+        # the policy-level summary must state the same unconditional rule for
+        # a qualifying feature member that it already states for the shipment
+        # record, and must stay in lockstep with the skill.
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "The same unconditional-required_ids rule applies to every "
+            "qualifying feature member",
+            content,
+        )
+        self.assertIn("ShipShipment", content)
+        self.assertIn(
+            "no pre-close status ever exempts a qualifying feature member "
+            "from this requirement either",
+            content,
+        )
+
+    def test_item_7_never_restates_blanket_manifest_member_omission_claim(
+        self,
+    ) -> None:
+        # Negative assertion: the unqualified "A member whose declared
+        # `status` is already truly `archived` ... correctly absent" phrase
+        # must never reappear -- it contradicted the unconditional
+        # qualifying-feature required_ids rule stated later in the same
+        # item.
+        content = _flatten(_policy_content())
+        self.assertNotIn(
+            "A member whose declared `status` is already truly `archived` "
+            "before the invocation",
+            content,
+        )
+
+    # 198.004-T (U2b-2): close-path gate vs INV-12 split assertions.
+    def test_b_b_required_check_drops_expected_cascade_mutation_clause(self) -> None:
+        content = _policy_content()
+        section = content[content.index("## P-015") : content.index("## P-016")]
+        match = re.search(r"^\*\*Required Check[^\n]+", section, re.MULTILINE)
+        self.assertIsNotNone(match)
+        required_check = match.group(0)
+        self.assertNotIn("expected, in-scope cascade mutation", section)
+        self.assertIn(
+            "every disposition-set (`validated_linked_deliberations(S)`) record path",
+            required_check,
+        )
+        self.assertIn(
+            "a disposition-set member that changes during the cascade is engine drift",
+            required_check,
+        )
+
+    def test_b_c_postcondition_is_two_part(self) -> None:
+        content = _policy_content()
+        section = content[content.index("## P-015") : content.index("## P-016")]
+        match = re.search(r"^\*\*Postcondition\*\* \(two parts\)[^\n]+", section, re.MULTILINE)
+        self.assertIsNotNone(match)
+        postcondition = match.group(0)
+        part_a = (
+            "(a) **Close-path gate postcondition** (INV-10; flat sets; "
+            "evaluated before INV-12 disposition)"
+        )
+        part_b = (
+            "(b) **INV-12 postcondition** (after the gate): only "
+            "disposition-set deliberations whose INV-12 outcome is `archived` "
+            "may change relative to the disposition baseline"
+        )
+        self.assertIn(part_a, postcondition)
+        self.assertIn(part_b, postcondition)
+        self.assertLess(postcondition.index(part_a), postcondition.index(part_b))
+
+    def test_b_d_inv_10_label_present(self) -> None:
+        content = _policy_content()
+        match = re.search(r"^\* \*\*INV-10 [^\n]+", content, re.MULTILINE)
+        self.assertIsNotNone(match)
+        bullet = match.group(0)
+        expected_prefix = (
+            "* **INV-10 (Close-path gate postconditions (evaluated before "
+            "INV-12 disposition)).**"
+        )
+        self.assertEqual(bullet[: len(expected_prefix)], expected_prefix)
+        self.assertIn(
+            "INV-12's `archived` deliberations are the only artifacts outside "
+            "`allowed_ids(S)` that may change after the gate, and only through INV-12",
+            bullet,
+        )
+        self.assertNotIn("**INV-10 (Postconditions).**", content)
+
+    # 198.006-T (U2b-4): item-7, evidence-class and P-010 assertions.
+    def test_item_7_omission_sentence_scoped_to_non_feature_members(self) -> None:
+        # Inverted replacement of the item-7 test retired by relax R9
+        # (198.002-T): under the flat 1.11.x sets the "correctly absent"
+        # sentence covers non-feature manifest members only.
+        content = _flatten(_policy_content())
+        self.assertIn(
+            "A non-feature manifest member (any explicit manifest member that "
+            "is not a qualifying feature member) whose declared `status` is "
+            "already truly `archived` before the invocation has no transition "
+            "to report and is **correctly absent** from `archived_ids`",
+            content,
+        )
+        self.assertIn("the way a non-feature manifest member can be.", content)
+        match = re.search(
+            r"^7\. \*\*Pre-archived manifest members[^\n]+", _policy_content(), re.MULTILINE
+        )
+        self.assertIsNotNone(match)
+        item_7 = match.group(0)
+        self.assertNotIn("qualifying feature member's validated linked deliberation", item_7)
+        self.assertNotIn("a qualifying feature's linked deliberation", item_7)
+        self.assertIn("appends no linked deliberations", item_7)
+
+    def test_b_e_evidence_class_note_states_two_propositions(self) -> None:
+        content = _policy_content()
+        match = re.search(r"^\*\*Evidence-class note\.\*\*[^\n]+", content, re.MULTILINE)
+        self.assertIsNotNone(match)
+        note = match.group(0)
+        self.assertIn("two engine propositions", note)
+        first = note.index("(1) **inert archived descendants**")
+        second = note.index("(2) **backlogit 1.11.x leaves linked deliberations independent**")
+        self.assertLess(first, second)
+        self.assertIn("`v1.11.0` (L716-751)", note)
+        self.assertIn("TestUArchiveCandidateFlat_UnlistedLinkedDeliberationIsUntouched", note)
+        self.assertIn("190-S", note)
+        self.assertIn(
+            "`archive_item` single-artifact semantics is a verified-line **assumption**",
+            note,
+        )
+
+    def test_b_f_p010_inv_12_archival_clarification(self) -> None:
+        content = _policy_content()
+        section = content[content.index("## P-010") : content.index("## P-011")]
+        must_not = section[section.index("**Ship MUST NOT**") : section.index("**Ship MAY**")]
+        may = section[section.index("**Ship MAY**") :]
+        self.assertIn(
+            "- Create or modify deliberation, spike, plan, or review artifacts "
+            "(P-015 INV-12 archival transitions excepted)",
+            must_not,
+        )
+        self.assertIn(
+            "- Archive a validated linked deliberation only through the P-015 "
+            "INV-12 Linked-Deliberation Disposition step (and the post-merge "
+            "source-artifact retirement that consumes its report); this is a "
+            "closure lifecycle transition, not creation or modification of "
+            "deliberation content",
+            may,
+        )
+
+    # 198.007-T (B-g): rendered-region parity for the U2b-edited paragraphs
+    # (198.003-T, 198.005-T), modulo POLICY_PARITY_ALLOWLIST. The
+    # Evidence-class note is compared from its 198.005-T region anchor only:
+    # its opening sentences carry pre-existing, deliberate mirror-concrete
+    # evidence commits that are outside this unit's edit.
+    def test_b_g_u2b_paragraphs_rendered_region_parity(self) -> None:
+        rendered = render_source(".github/policies/workflow-policies.md")
+        mirror = (_ROOT / ".github" / "policies" / "workflow-policies.md").read_text(
+            encoding="utf-8"
+        )
+        line_anchors = (
+            "**Statement**: Shipment closure is a flat-manifest operation.",
+            "**Required Check (verify-after-each invariant)**",
+            "**Postcondition** (two parts)",
+            "**Violation Action (approval-gated rollback)**",
+            "**Relationship to P-007**: P-015",
+            "* **INV-7 (",
+            "* **INV-10 (",
+            "* **INV-11 (",
+            "7. **Pre-archived manifest members",
+            "- Create or modify deliberation, spike, plan, or review artifacts",
+            "- Archive a validated linked deliberation",
+        )
+        region_anchors = (
+            ("**Evidence-class note.**", "Under the verified engine-semantics line"),
+        )
+        for anchor in line_anchors + tuple(line for line, _ in region_anchors):
+            with self.subTest(anchor=anchor):
+                expected = [line for line in rendered.splitlines() if line.startswith(anchor)]
+                actual = [line for line in mirror.splitlines() if line.startswith(anchor)]
+                self.assertEqual(len(expected), 1)
+                self.assertEqual(len(actual), 1)
+                region, observed = expected[0], actual[0]
+                for line_anchor, region_anchor in region_anchors:
+                    if anchor == line_anchor:
+                        self.assertIn(region_anchor, region)
+                        self.assertIn(region_anchor, observed)
+                        region = region[region.index(region_anchor) :]
+                        observed = observed[observed.index(region_anchor) :]
+                for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+                    region = region.replace(template_text, mirror_text)
+                self.assertEqual(observed, region)
+
 
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
     """PR #407 review (threads PRRT_kwDORzpWpM6bo8m2 /
@@ -540,72 +755,6 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
         quality_section = content[quality_idx:]
         self.assertIn("linked deliberation", quality_section)
 
-    def test_policy_required_ids_summary_states_shipment_unconditional(self) -> None:
-        content = _flatten(_policy_content())
-        self.assertIn(
-            "The shipment record is a `required_ids` member unconditionally, "
-            "regardless of its own pre-close declared status",
-            content,
-        )
-        self.assertIn(
-            "this policy summary and the skill's binding rule are the same "
-            "contract and MUST NOT diverge",
-            content,
-        )
-
-    def test_policy_required_ids_summary_states_qualifying_feature_unconditional(
-        self,
-    ) -> None:
-        # PR #407 review (threads PRRT_kwDORzpWpM6bzlFl / PRRT_kwDORzpWpM6bzlGL):
-        # the policy-level summary must state the same unconditional rule for
-        # a qualifying feature member that it already states for the shipment
-        # record, and must stay in lockstep with the skill.
-        content = _flatten(_policy_content())
-        self.assertIn(
-            "The same unconditional-required_ids rule applies to every "
-            "qualifying feature member",
-            content,
-        )
-        self.assertIn("ShipShipment", content)
-        self.assertIn(
-            "no pre-close status ever exempts a qualifying feature member "
-            "from this requirement either",
-            content,
-        )
-
-    def test_item_7_omission_sentence_scoped_to_task_and_linked_deliberation(
-        self,
-    ) -> None:
-        # PR #407 review (thread PRRT_kwDORzpWpM6bzlGL / follow-up
-        # PRRT_kwDORzpWpM6b0kjI): item 7's own "correctly absent" sentence
-        # must be scoped the same way the skill's is -- otherwise item 7 is
-        # internally contradictory with its own later unconditional
-        # qualifying-feature rule on the same line.
-        content = _flatten(_policy_content())
-        self.assertIn(
-            "A manifest task item, or a qualifying feature member's "
-            "validated linked deliberation, whose declared `status` is "
-            "already truly `archived` before the invocation has no "
-            "transition to report and is **correctly absent** from "
-            "`archived_ids`",
-            content,
-        )
-
-    def test_item_7_never_restates_blanket_manifest_member_omission_claim(
-        self,
-    ) -> None:
-        # Negative assertion: the unqualified "A member whose declared
-        # `status` is already truly `archived` ... correctly absent" phrase
-        # must never reappear -- it contradicted the unconditional
-        # qualifying-feature required_ids rule stated later in the same
-        # item.
-        content = _flatten(_policy_content())
-        self.assertNotIn(
-            "A member whose declared `status` is already truly `archived` "
-            "before the invocation",
-            content,
-        )
-
     def test_changelog_1_23_0_row_present_and_additive(self) -> None:
         content = _policy_content()
         idx_1_22 = content.index("| 1.22.0")
@@ -643,6 +792,53 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
         self.assertIsNotNone(row_match)
         row = row_match.group(0)
         self.assertIn("Corrects, and does not delete or edit, the 1.19.0 row above", row)
+
+
+class CascadeCloseEngineSemanticsGateTests(unittest.TestCase):
+    """198.009-T (U3a-2): first assertions for the 198.008-T skill triple --
+    Step 0(b) all-member snapshot, the Step 0(c) Engine-semantics gate and
+    the `select_close_path` routing."""
+
+    def test_c_a_engine_semantics_gate_tokens_present(self) -> None:
+        content = _skill_content()
+        for token in (
+            "Engine-semantics gate",
+            "ENGINE_SEMANTICS_UNVERIFIED",
+            "no_update_check",
+            "probe_surface",
+            "select_close_path",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, content)
+        flat = _flatten(content)
+        gate = flat[flat.index("**Engine-semantics gate") : flat.index("**Close-path selection.**")]
+        # Literal tool/CLI wording, never an {{OP_...}} placeholder.
+        self.assertIn("`backlogit_get_version` with `no_update_check: true`", gate)
+        self.assertIn("`backlogit version --no-update-check --format json`", gate)
+        self.assertIn("Verified engine-semantics lines: `1.11`", gate)
+        self.assertNotIn("{{OP_", gate)
+
+    def test_c_e_step_0b_snapshots_every_explicit_manifest_member(self) -> None:
+        flat = _flatten(_skill_content())
+        self.assertIn(
+            "Snapshot pre-close `parent_id` and declared `status` for every "
+            "explicit manifest member regardless of `artifact_type`",
+            flat,
+        )
+        self.assertNotIn("declared `status` for every task item", flat)
+
+    def test_c_f_cascade_routing_names_linked_deliberation_disposition_step(self) -> None:
+        flat = _flatten(_skill_content())
+        self.assertIn(
+            "in place of steps 1–10, then continue to the "
+            "Linked-Deliberation Disposition step.",
+            flat,
+        )
+        self.assertNotIn("then proceed to post-mode", flat)
+        self.assertIn(
+            "unresolved precondition, and including `ENGINE_SEMANTICS_UNVERIFIED`)",
+            flat,
+        )
 
 
 class CascadeCloseTwoSetGateScenarioTests(unittest.TestCase):

@@ -27,10 +27,10 @@ whether the probed backlogit build is on a verified minor line
 (``VERIFIED_CASCADE_ENGINE_MINOR_LINES``), and :func:`select_close_path` is the
 single executable composition point that combines that verdict with
 :func:`classify_shipment_close_path` (``CASCADE`` only when both agree). The
-runtime callers are the self-hosting shipment-reconcile Step 0(c) close-path
-selection (plan unit U3a), the Linked-Deliberation Disposition step (plan unit
-U5a), and the caller surface the 198-S evaluator re-plan adopts (Stage
-follow-up). Until those land, these names have no runtime caller.
+self-hosting shipment-reconcile Step 0(c) close-path selection (plan unit U3a,
+204-S) now names both functions as its decision procedure. The remaining
+planned callers are the Linked-Deliberation Disposition step (plan unit U5a)
+and the caller surface the 198-S evaluator re-plan adopts (Stage follow-up).
 
 The descendant walk in this module is a BLAST-RADIUS containment check on the
 cascade instrument, not a definition of closure scope. An out-of-manifest
