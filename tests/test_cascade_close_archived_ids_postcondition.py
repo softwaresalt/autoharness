@@ -129,6 +129,32 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn("Every disposition-snapshot record path MUST remain byte-identical", content)
         self.assertIn("linked-deliberation disposition byte-identity outcome", content)
 
+    def test_linked_deliberation_drift_check_re_collects_identity_sets_after_cascade(
+        self,
+    ) -> None:
+        # PR #475 Copilot review: revisiting only pre-invocation paths cannot see a
+        # record created during the cascade, so Step 5 must re-collect the snapshot
+        # and compare complete identity sets before per-path hashes.
+        for label, raw in _skill_variants():
+            with self.subTest(variant=label):
+                content = _flatten(raw)
+                self.assertIn(
+                    "re-collect the linked-deliberation disposition snapshot after the cascade",
+                    content,
+                )
+                self.assertIn(
+                    "a previously unresolved reference that now resolves to a record",
+                    content,
+                )
+                self.assertIn(
+                    "Only then compare each record path's current location plus SHA-256",
+                    content,
+                )
+                self.assertIn(
+                    "any other identity-set difference from the post-cascade re-collection",
+                    content,
+                )
+
     def test_two_conditions_are_independently_labelled_and_not_merged(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("Unexpected-artifact check", content)
