@@ -247,6 +247,17 @@ set-term rules), so each satisfies the 2-hour rule.
       A2a sanitizes the probe inputs instead, so the recorded values are the
       exact inputs and outputs of the merged functions, and re-assessment
       reproduces them.
+  * **Path fields (re-plan cycle-1 R12).** Every record path field
+    (`observation_set[].path`, `linked_deliberation_disposition.dispositions[].path`,
+    `dispositions[].records[].path`, and `read_failures[].path`) must be a
+    relative POSIX path under the backlog root: its first segment is
+    `.backlog` or `.backlogit` (one root for every path in a record), and it
+    has no `..` segment, no leading `/` or `\`, no drive prefix, and no UNC
+    prefix. The check is textual and runs before anything else reads the
+    path. `path: null` is accepted only on a `retained_read_error`
+    disposition and a `read_failures[]` entry, where the planner reported a
+    path outside the backlog root and A2 kept only the `reason_code`. Any
+    other value rejects the record.
   * **Redaction function (re-plan cycle-1 R6).** `redact(text) -> tuple[str,
     bool]` is defined here, not in `shipment_close/`, because the validator
     needs it and the gate never imports the command package. A1b's
@@ -306,7 +317,7 @@ set-term rules), so each satisfies the 2-hour rule.
   * `tool{binary_path, binary_sha256, version_excerpt}` (path and hash from
     A3a; `version_excerpt` from the single A2a probe spawn, re-plan cycle-1
     R7);
-  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}],   read_failures[{path, reason_code}], planning_error}, observation_set[{id, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
+  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}],   read_failures[{path, reason_code}], planning_error}, observation_set[{id, path, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
     Every `declared_status` uses the canonical encoding above (re-plan
     cycle-1 R8).
     `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
@@ -333,7 +344,10 @@ set-term rules), so each satisfies the 2-hour rule.
   1. **Shape and pair table:** a well-formed record for each close path is
      accepted; a missing `post_close` for `cascade`, a mismatched shipment or
      feature ID, an unknown `schema_version`, and a `SAFE_CLOSE` record offered
-     for `cascade` (and the reverse) are rejected.
+     for `cascade` (and the reverse) are rejected; a path field that is
+     absolute, contains `..`, carries a drive or UNC prefix, or lies outside
+     the backlog root is rejected, and `path: null` on a
+     `retained_read_error` disposition is accepted (re-plan cycle-1 R12).
   2. **Cascade internal-consistency table (AS-F11):** `postcondition_verdict:
      fail`, a non-zero `exit_code`, a non-empty `linked_deliberation_drift`,
      and `disposition_byte_identical: false` under a `pass` verdict are each
@@ -590,12 +604,9 @@ set-term rules), so each satisfies the 2-hour rule.
     cycle-1 R6):
     * `version` is passed unchanged only when it is a `str` of at most 64
       characters that fully matches the merged release-version pattern
-      (`re.fullmatch` with `re.ASCII`, the pattern
-      `shipment_closure._RELEASE_VERSION_PATTERN` uses) **and**
-      `redact(version) == version`. Otherwise `None` is passed. The probe
-      keeps a module-local copy of the pattern, because production code does
-      not import a private helper; a test-only parity assertion pins the copy
-      to `_RELEASE_VERSION_PATTERN`, as M1 does for the flat sets.
+      (`re.fullmatch(shipment_closure._RELEASE_VERSION_PATTERN, version,
+      flags=re.ASCII)`, reused rather than restated) **and**
+      `redact(version) == version`. Otherwise `None` is passed.
     * `commit` is passed unchanged only when it is a `str` that fully matches
       `^[0-9a-f]{7,64}$`. Otherwise `None` is passed.
     * A `None` commit does not by itself make the engine `UNVERIFIED`. The
@@ -643,9 +654,7 @@ set-term rules), so each satisfies the 2-hour rule.
      `UNVERIFIED` with the reason prefix; a 65-character `version`, a
      `version` of `"1.11.0 token=abc"`, and one with a trailing newline each
      yield `probed_version: null`, and the recorded `reason` equals
-     `redact(reason)`; the module-local release pattern equals
-     `shipment_closure._RELEASE_VERSION_PATTERN` (test-only import; re-plan
-     cycle-1 R6).
+     `redact(reason)` (re-plan cycle-1 R6).
   3. **Probe-failure table:** a fake that exits 1, one that sleeps past the
      timeout, and one that emits non-JSON all yield `probed_version: null`
      and `UNVERIFIED`, and nothing raises.
@@ -667,12 +676,21 @@ set-term rules), so each satisfies the 2-hour rule.
   `tests/test_shipment_close_observation.py` (new).
 * **Changes:**
   * `compute_observation_set(manifest_items, shipment_id, backlog_dir, *, excluded_ids) -> tuple[ObservationEntry, ...]`
-    is read-only and returns one entry per record path, with its location
-    (queue or archive), SHA-256, and declared status. The set is the union of:
+    is read-only and returns one entry per record path, with its
+    workspace-relative `path`, location (queue or archive), SHA-256, and
+    declared status, each encoded with A1 `observation_entry_to_record`
+    (re-plan cycle-1 R8). The set is the union of:
     * the shipment-reconcile `mode: safe-close` observation set: the parent
       feature of each manifest task, plus every unshipped sibling task;
     * every out-of-manifest descendant of each manifest feature member (the
       classifier's traversal helper).
+  * **Closure-scope exclusion (re-plan cycle-1 R11).** Every ID in
+    `closure_scope(S)` (`items(S) ∪ {S}`, computed locally exactly as A3b
+    computes `allowed_ids`) is excluded, matching the skill's safe-close
+    step 2 ("every unshipped sibling task outside `closure_scope(S)`"). For
+    example, the covering feature of the manifest tasks is excluded when it
+    is itself a manifest member (a whole-feature manifest), because
+    safe-close archives it.
   * `excluded_ids` is supplied by A2: every ID in the disposition snapshot.
     The set never contains a disposition-set deliberation (re-plan cycle-1
     R2; see H-C2).
@@ -683,7 +701,10 @@ set-term rules), so each satisfies the 2-hour rule.
   1. a task-only, partial-feature manifest yields the parent feature and the
      unshipped siblings, including a sibling already archived at baseline;
   2. an out-of-manifest descendant of a manifest feature member is included;
-  3. an ID in `excluded_ids` is absent even when it is a descendant;
+  3. **Exclusion table:** an ID in `excluded_ids` is absent even when it is
+     a descendant; in a whole-feature manifest, the covering feature (a
+     manifest member, so inside `closure_scope(S)`) is absent while its
+     archived out-of-manifest descendants are present (re-plan cycle-1 R11);
   4. a torn observation-set member raises, and nothing is returned.
 * **Depends on:** A1c. **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
@@ -733,8 +754,11 @@ set-term rules), so each satisfies the 2-hour rule.
       member, regardless of `artifact_type`, and applies the H10 exclusions
       (self-reference and every ID in `closure_scope(S)`). Its output is
       serialized with A1 `disposition_plan_to_record` into
-      `pre_close.linked_deliberation_disposition`,
-      with the planned outcomes. This is a read-only call. The command never
+      `pre_close.linked_deliberation_disposition`, with the planned outcomes.
+      A planner path that is not a workspace-relative path under the backlog
+      root (for example the out-of-workspace path the planner reports for a
+      `path_escape` read error) is stored as `path: null` with its
+      `reason_code` only, never as an absolute path (re-plan cycle-1 R12). This is a read-only call. The command never
       archives a deliberation. A non-null `planning_error` exits 2 and writes
       no record. Every `retained_*` outcome, unresolved reference, and read
       failure is recorded and never halts;
@@ -858,7 +882,14 @@ set-term rules), so each satisfies the 2-hour rule.
   4. **Parity test** (M1, INV-P8): for a table of manifest fixtures,
      including an empty manifest and a manifest containing a deliberation,
      `allowed_ids` equals `shipment_closure._closure_scope_ids(manifest_ids, S)`.
-     This test is the only importer of the private helper.
+     The same test pins the local "truly archived" check used for
+     `required_ids` against `shipment_closure._is_engine_inert` (re-plan
+     cycle-1 R9): for declared statuses `"archived"`, `"Archived"`,
+     `" archived "`, `True`, `None`, and a missing `status` key, the local
+     check over the A1-encoded and decoded status equals `_is_engine_inert`
+     over the raw parsed value (`None` for the missing key), so only the
+     first is archived. This test is the only importer of the two private
+     helpers.
 
   Fixtures build dispositions from `LinkedDeliberationOutcome` values, and
   none hard-codes a linked deliberation in either set.
@@ -888,7 +919,13 @@ set-term rules), so each satisfies the 2-hour rule.
       `disposition_byte_identical` is `false`;
     * `snapshot_drift`: the re-collected snapshot differs from the pre-close
       snapshot in deliberation IDs, link kinds, linking members, declared
-      status, record paths, SHA-256, or unresolved references.
+      status, record paths, SHA-256, unresolved references, planned
+      `outcome` per deliberation, or `read_failures` (each `{path,
+      reason_code}`). For a `retained_read_error` disposition, its `path` and
+      `reason_code` are compared too (re-plan cycle-1 R10);
+    * `planning_error`: the post-close re-collection returned a non-null
+      `planning_error`. That is drift, never a skipped comparison, so it
+      makes `postcondition_verdict: fail` (exit 5) (re-plan cycle-1 R10).
 
     The re-collected plan is encoded with A1 `disposition_plan_to_record`,
     and every comparison is between that encoding and the recorded one,
@@ -903,8 +940,12 @@ set-term rules), so each satisfies the 2-hour rule.
      reported as `linked_deliberation_drift` (`archived`).
   3. **`modified` drift:** a modified deliberation record yields `modified`
      drift and `disposition_byte_identical: false`.
-  4. **`snapshot_drift` table:** a re-collected snapshot with a new link kind
-     yields `snapshot_drift`.
+  4. **`snapshot_drift` and `planning_error` table:** a re-collected
+     snapshot with a new link kind, a changed planned `outcome`, a
+     `retained_read_error` whose `path` or `reason_code` changed, or a
+     changed `read_failures` entry yields `snapshot_drift`; a re-collection
+     with a non-null `planning_error` yields `planning_error` drift; each
+     row makes `postcondition_verdict: fail` (re-plan cycle-1 R10).
 * **Depends on:** A3b (`192.005-T`). **Harness surface:**
   `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
@@ -1156,8 +1197,26 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     relative to the baseline fails. Any difference fails as
     `failed_check: close_evidence`. This is the same baseline invariance that
     safe-close itself asserts, re-checked at write time. An empty observation
-    set (only when no manifest task has a parent) passes with a `warnings[]`
-    entry saying the check was vacuous.
+    set (when no manifest task has a parent outside `closure_scope(S)` and no
+    manifest feature has an out-of-manifest descendant) passes with a
+    `warnings[]` entry saying the check was vacuous.
+  * **Path containment (re-plan cycle-1 R12).** Every observation-set path
+    is read through the same containment discipline as `close_evidence`
+    (A4 steps 1 and 3), before any byte is read: the A1 textual check (the
+    validator has already run), then the first segment must equal the
+    detected backlog root, then
+    `shipment_closure._check_path_containment(workspace_root / path,
+    backlog_dir)` (verified on `main`: lexical containment, no symlink,
+    junction, or reparse point on any component from the backlog root down,
+    and canonical containment; it returns a read-error reason code or
+    `None`). A non-`None` result fails as `failed_check: close_evidence`
+    with that reason code, and nothing is read. The file is then opened and
+    read exactly as A4 step 3 reads the evidence record (`O_NOFOLLOW` where
+    available, regular file, `fstat` equal to the pre-open `lstat`, bounded
+    size). Reusing the planner's own containment helper, rather than
+    restating it, keeps one containment rule for every backlog path the
+    plan reads; the A4b tests pin the behavior, so a change to the private
+    helper surfaces there.
   * **No disposition-set deliberation re-check (re-plan cycle-1 R2).** The
     observation set never holds a disposition-set deliberation (A2b, A1c), so
     the gate has no planned-`archive` exemption, never reads a disposition
@@ -1180,10 +1239,18 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     upstream enforcement is requested in A7. Accepting this benign residual is a
     Stage-recommended decision, pending operator confirmation.
 * **Tests (test-first, two scenarios):**
-  1. **Partial-feature table** (a task-only, partial-feature fixture): an
+  1. **Observation-set table:** on a task-only, partial-feature fixture, an
      observation-set parent feature or sibling now archived or modified →
      FAIL; a sibling that was already archived at baseline and is unchanged
      → PASS; an empty observation set → PASS with the vacuous-check warning.
+     On a whole-feature manifest whose classifier verdict is CASCADE and
+     whose engine is UNVERIFIED (so the record selects `safe_close`), the
+     closure artifact passes A4 and A4b after safe-close archives the
+     manifest feature and its tasks, because the feature is inside
+     `closure_scope(S)` and never in the observation set (re-plan cycle-1
+     R11). An observation-set entry whose path has a junctioned or
+     symlinked component, or whose first segment is not the detected backlog
+     root, → FAIL with no read (re-plan cycle-1 R12).
   2. **Disposition independence (re-plan cycle-1 R2 regression pin):** after
      safe-close, the disposition step archives a planned-`archive`
      deliberation → PASS, because no disposition-set deliberation is in the
@@ -1451,6 +1518,14 @@ that follow-up is recorded here.
   the temp directory is cleaned up with bounded retry (compound 034-DL pattern).
 * **Merge overlap** with 192-S / 197-S on `_ship.agent.md*`. They touch different
   sections, and Ship rebases.
+* **Two private `shipment_closure` names are reused in production** (re-plan
+  cycle-1 R6, R12): A2a's sanitizer matches `_RELEASE_VERSION_PATTERN`, and
+  A4b's observation-set read calls `_check_path_containment`. Both are
+  reused, not restated, so the probe and the gate apply the merged rule
+  exactly. A rename on `main` breaks the import loudly, and the A2a and A4b
+  tests pin the behavior. M1 still governs the flat sets, which are
+  re-derived locally and parity-pinned (A3b), and `_closure_scope_ids` and
+  `_is_engine_inert` stay test-only imports.
 
 ## Plan Hardening Signals
 
@@ -1643,11 +1718,14 @@ D2, D3a, D4a) as a testable plan invariant.
   * `src/autoharness/gates/shipment_closure.py` on `main` (`654b143d`):
     `assess_cascade_engine_semantics`, `select_close_path`,
     `compute_linked_deliberation_disposition`, and the private
-    `_closure_scope_ids`.
+    `_closure_scope_ids`, `_is_engine_inert`, `_check_path_containment`, and
+    `_RELEASE_VERSION_PATTERN` (re-plan cycle-1 R6, R9, R12).
 * **Added protected invariants:**
   * INV-P8: `allowed_ids` and `required_ids` are flat (038-DL D2).
     `allowed_ids = closure_scope(S) = items(S) ∪ {S}`, and the A3b parity test
-    pins it to `_closure_scope_ids` (M1). `required_ids = {S} ∪ qualifying feature members ∪ {x ∈ items(S): not truly archived pre-close}`.
+    pins it to `_closure_scope_ids` (M1). `required_ids = {S} ∪ qualifying feature members ∪ {x ∈ items(S): not truly archived pre-close}`,
+    and the same parity test pins the "truly archived" check to
+    `_is_engine_inert` (exact `str` `"archived"` only; re-plan cycle-1 R9).
     Neither set ever holds a disposition-set deliberation. No record,
     fixture, or test reintroduces a `validated_linked_deliberations` term.
     A disposition-set deliberation that is archived or modified by the
