@@ -260,10 +260,11 @@ set-term rules), so each satisfies the 2-hour rule.
     * `invocation_surface` must be `"cli"`, because the command invokes only
       through the CLI.
     * **Sanitized inputs, unredacted outputs (re-plan cycle-1 R6).** The
-      validator asserts `redact(x) == x` for `engine_semantics.probed_version`,
+      validator asserts `redact(x)[0] == x` for `engine_semantics.probed_version`,
       `engine_semantics.probed_commit`, `engine_semantics.reason`, and
-      `close_path_selection.reason` (each when non-null). Any difference
-      rejects the record. These four fields are never redacted on output:
+      `close_path_selection.reason` (each when non-null). It compares the
+      text element of the `(text, redaction_applied)` tuple, never the tuple
+      itself (Copilot PR #481 T1). Any difference rejects the record. These four fields are never redacted on output:
       A2a sanitizes the probe inputs instead, so the recorded values are the
       exact inputs and outputs of the merged functions, and re-assessment
       reproduces them.
@@ -283,7 +284,11 @@ set-term rules), so each satisfies the 2-hour rule.
     bool]` is defined here, not in `shipment_close/`, because the validator
     needs it and the gate never imports the command package. A1b's
     `StreamCapture` and every A1b free-text redaction call this one function.
-    Its pattern set is the one listed under A1b.
+    Its pattern set is the one listed under A1b. Because it returns a tuple,
+    every "is this value redaction-neutral?" check in this plan is written
+    `redact(x)[0] == x` (or `redact(x)[0] != x` for the negation). A bare
+    `redact(x) == x` compares a tuple with a string and is always false
+    (Copilot PR #481 T1, T2, T5).
   * **Record serialization helpers (re-plan cycle-1 R8).** This module owns
     pure `*_to_record` / `*_from_record` pairs, and A2a, A2, A2b, A3, A3b, and
     A3c use them both to write the record and to compare a fresh value
@@ -399,7 +404,7 @@ set-term rules), so each satisfies the 2-hour rule.
      `selected_close_path` or reason that disagrees with `select_close_path`
      is rejected; an `invocation_surface` other than `cli` is rejected; a
      `probed_commit` or `close_path_selection.reason` containing `token=...`
-     (so `redact(x) != x`) is rejected (re-plan cycle-1 R6).
+     (so `redact(x)[0] != x`) is rejected (re-plan cycle-1 R6).
   4. **Serialization:** two writes of the same record are byte-stable; a
      manifest member with YAML `status: 2026-01-01` encodes as
      `{"type": "date", "value": "2026-01-01"}`, round-trips through
@@ -534,7 +539,7 @@ set-term rules), so each satisfies the 2-hour rule.
     `probed_version`, or `probed_commit` (re-plan cycle-1 R6): those are
     stored verbatim, because the validator re-assesses them, and they are
     safe by construction because A2a sanitizes the probe inputs and the A1
-    validator asserts `redact(x) == x` for all four.
+    validator asserts `redact(x)[0] == x` for all four.
   * **Per-pair lock (SL-F01):** `acquire_pair_lock(workspace, S, F, run_id)`
     creates `.autoharness/gates/cascade-close/{S}-{F}.lock` (a gitignored
     runtime directory) with `O_CREAT | O_EXCL` (plus `O_NOFOLLOW` where
@@ -696,7 +701,8 @@ set-term rules), so each satisfies the 2-hour rule.
       flags=re.ASCII)`, reused rather than restated, and imported lazily
       inside `probe_engine_semantics` under the private-name rule, re-plan
       cycle-2 C2-4) **and**
-      `redact(version) == version`. Otherwise `None` is passed.
+      `redact(version)[0] == version` (the text element of the tuple;
+      Copilot PR #481 T5). Otherwise `None` is passed.
     * `commit` is passed unchanged only when it is a `str` that fully matches
       `^[0-9a-f]{7,64}$`. Otherwise `None` is passed.
     * A `None` commit does not by itself make the engine `UNVERIFIED`. The
@@ -745,7 +751,7 @@ set-term rules), so each satisfies the 2-hour rule.
      `UNVERIFIED` with the reason prefix; a 65-character `version`, a
      `version` of `"1.11.0 token=abc"`, and one with a trailing newline each
      yield `probed_version: null`, and the recorded `reason` equals
-     `redact(reason)` (re-plan cycle-1 R6).
+     `redact(reason)[0]` (re-plan cycle-1 R6; Copilot PR #481 T5).
   3. **Probe-failure table:** a fake that exits 1, one that sleeps past the
      timeout, one that emits non-JSON, one that exits 0 with empty stdout,
      and an injected `run_bounded` that raises an unexpected exception all
@@ -874,7 +880,8 @@ set-term rules), so each satisfies the 2-hour rule.
     * it calls `select_close_path(classifier, engine)` and records
       `close_path_selection{selected_close_path, reason}` (re-plan R2). Every
       later branch keys on the **selected** path, never on the classifier
-      verdict alone. If `redact(reason) != reason` (the classifier reason
+      verdict alone. If `redact(reason)[0] != reason` (Copilot PR #481 T2;
+      the classifier reason
       quotes backlog-declared statuses), it exits 2 and writes no record,
       because the A1 validator would reject it (re-plan cycle-1 R6);
     * when the selected path is CASCADE, `feature_id` must be in the
