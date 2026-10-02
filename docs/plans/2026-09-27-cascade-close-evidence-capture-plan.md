@@ -66,9 +66,9 @@ backlog):
 
 | Unit | Task | Change |
 |---|---|---|
-| A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Size S / low |
+| A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Owns `redact` and the `*_to_record` / `*_from_record` helpers (cycle-1 R6, R8). Size M / low |
 | A1c | *new* | **New task (cycle-1 R4).** Disposition and set-term rules (R5, D2). S / low |
-| A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Redaction also covers `engine_semantics.reason` and the probe excerpt. M / medium |
+| A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Uses the A1 `redact`; `engine_semantics.reason` and `close_path_selection.reason` are not redacted (cycle-1 R6). M / medium |
 | A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty temporary directory (cycle-1 R3). S / medium |
 | A2a | *new* | **New task.** CLI engine-semantics probe (`shipment_close/engine_probe.py`). S / low |
 | A2b | *new* | **New task (cycle-1 R4).** Safe-close observation set (`shipment_close/observation.py`), with no disposition-set deliberation (cycle-1 R2). S / medium |
@@ -190,7 +190,7 @@ scenarios. A scenario is one table-driven test whose rows are cases.
 
 | Unit | Files | Test scenarios | Size / complexity |
 |---|---|---|---|
-| A1 | 2 | 4 | S / low |
+| A1 | 2 | 4 | M / low |
 | A1c | 2 | 4 | S / low |
 | A1b | 2, plus the empty `shipment_close/__init__.py` package marker | 4 | M / medium |
 | A3a | 2 | 3 | S / medium |
@@ -239,6 +239,42 @@ set-term rules), so each satisfies the 2-hour rule.
       the result.
     * `invocation_surface` must be `"cli"`, because the command invokes only
       through the CLI.
+    * **Sanitized inputs, unredacted outputs (re-plan cycle-1 R6).** The
+      validator asserts `redact(x) == x` for `engine_semantics.probed_version`,
+      `engine_semantics.probed_commit`, `engine_semantics.reason`, and
+      `close_path_selection.reason` (each when non-null). Any difference
+      rejects the record. These four fields are never redacted on output:
+      A2a sanitizes the probe inputs instead, so the recorded values are the
+      exact inputs and outputs of the merged functions, and re-assessment
+      reproduces them.
+  * **Redaction function (re-plan cycle-1 R6).** `redact(text) -> tuple[str,
+    bool]` is defined here, not in `shipment_close/`, because the validator
+    needs it and the gate never imports the command package. A1b's
+    `StreamCapture` and every A1b free-text redaction call this one function.
+    Its pattern set is the one listed under A1b.
+  * **Record serialization helpers (re-plan cycle-1 R8).** This module owns
+    pure `*_to_record` / `*_from_record` pairs, and A2a, A2, A2b, A3, A3b, and
+    A3c use them both to write the record and to compare a fresh value
+    against it. No other module encodes a record field. The pairs are
+    `declared_status_*`, `engine_semantics_*` (an `EngineSemanticsDecision`
+    plus `invocation_surface`), `close_path_selection_*`,
+    `disposition_plan_*` (a `LinkedDeliberationDispositionPlan`), and
+    `observation_entry_*`. A comparison always compares the `*_to_record`
+    encodings of both sides, never a parsed YAML value against JSON.
+    * One canonical encoding for `declared_status` (and every other parsed
+      frontmatter scalar the record keeps): an exact `str` is stored as the
+      JSON string. Every other value is stored as a tagged object
+      `{"type": <tag>, "value": <canonical text or null>}`, with the tags
+      `missing` (no `status` key; `value: null`), `null`, `bool`, `int`,
+      `float`, `date`, `datetime` (ISO 8601 text), `list`, and `mapping`
+      (canonical JSON text of the recursively encoded items, `sort_keys=True`),
+      and `other` (the type name only). A YAML `status: 2026-01-01` is
+      therefore `{"type": "date", "value": "2026-01-01"}`, never the string
+      `"2026-01-01"`, so it cannot compare equal to a quoted date string.
+    * `*_from_record` decodes a record value (an `other` tag decodes to an
+      opaque marker that keeps only the type name) and rejects an unknown tag
+      or a malformed tagged object with `CascadeEvidenceError`. Round trips
+      are stable: `x_to_record(x_from_record(r)) == r` for every valid `r`.
   * `cascade` requires `phase: post_close`,
     `close_path_selection.selected_close_path: cascade`,
     `classifier_verdict: CASCADE`, `engine_semantics.verdict: VERIFIED`, and
@@ -267,10 +303,15 @@ set-term rules), so each satisfies the 2-hour rule.
 * **Record shape:**
   * `schema_version`, `shipment_id`, `feature_id`, `merge_commit_sha`, `run_id`
     (uuid4 hex, fixed by the owning run), and `phase: pre_close | invoking | post_close`;
-  * `tool{binary_path, binary_sha256, version_excerpt}` (A3a);
-  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface, probe_excerpt}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}],   read_failures[{path, reason_code}], planning_error}, observation_set[{id, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
+  * `tool{binary_path, binary_sha256, version_excerpt}` (path and hash from
+    A3a; `version_excerpt` from the single A2a probe spawn, re-plan cycle-1
+    R7);
+  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}],   read_failures[{path, reason_code}], planning_error}, observation_set[{id, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
+    Every `declared_status` uses the canonical encoding above (re-plan
+    cycle-1 R8).
     `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
-    `invocation_surface` input and a bounded, redacted `probe_excerpt` (A2a).
+    `invocation_surface` input. There is no probe excerpt in
+    `engine_semantics` (re-plan cycle-1 R7).
     `linked_deliberation_disposition` mirrors
     `LinkedDeliberationDispositionPlan` field for field, with the planned
       outcomes. It is also the **disposition snapshot** that A3c compares
@@ -304,15 +345,22 @@ set-term rules), so each satisfies the 2-hour rule.
      `cascade` record whose engine is UNVERIFIED is rejected; a hand-edited
      `engine_semantics.verdict: VERIFIED` over `1.10.0` is rejected; a
      `selected_close_path` or reason that disagrees with `select_close_path`
-     is rejected; an `invocation_surface` other than `cli` is rejected.
-  4. **Serialization:** two writes of the same record are byte-stable.
+     is rejected; an `invocation_surface` other than `cli` is rejected; a
+     `probed_commit` or `close_path_selection.reason` containing `token=...`
+     (so `redact(x) != x`) is rejected (re-plan cycle-1 R6).
+  4. **Serialization:** two writes of the same record are byte-stable; a
+     manifest member with YAML `status: 2026-01-01` encodes as
+     `{"type": "date", "value": "2026-01-01"}`, round-trips through
+     `declared_status_from_record`, and does not compare equal to the string
+     `"2026-01-01"` (re-plan cycle-1 R8).
 
   Every fixture builds `engine_semantics` by calling
   `assess_cascade_engine_semantics`. No fixture hard-codes a
   `validated_linked_deliberations` set.
 * **Depends on:** none. **Harness surface:** `harness-surface:harness-architect`.
-* **Posture:** test-first. **Size:** S (re-plan cycle-1 R4: was M before the
-  split). **Complexity:** low.
+* **Posture:** test-first. **Size:** M (re-plan cycle-1 R4 split it to S;
+  R6 and R8 added `redact` and the serialization helpers). **Complexity:**
+  low.
 
 ### A1c — Evidence record contract: disposition and set-term rules (read-only)
 
@@ -375,16 +423,19 @@ set-term rules), so each satisfies the 2-hour rule.
     (`capture_truncated: true`). A stdout overflow makes the result unparseable
     (`parse_error: stdout exceeded capture cap`), never silently truncated JSON
     (AS-F03).
-  * **Redaction:** `redact(text)` covers bearer or basic `Authorization` values;
+  * **Redaction:** `redact(text)` (defined in A1 `cascade_evidence.py`, re-plan
+    cycle-1 R6) covers bearer or basic `Authorization` values;
     `key=value` credential pairs whose key is `token`, `password`, or `secret`;
     GitHub `gh[pousr]_` and `github_pat_` tokens; and `sk-` style keys. It returns
     the text and a `redaction_applied` flag. It runs over the retained tail window
     **before** the excerpt is sliced (H-B4), and over **every** persisted
-    free-text field: argv, version excerpt, `parse_error`, both excerpts, and
-    `failures[]` (SL-F04). Re-plan: it also covers `engine_semantics.reason` and
-    `engine_semantics.probe_excerpt` (A2a). Raw `probed_version` and
-    `probed_commit` are stored verbatim, because the validator re-assesses them,
-    and A2a bounds them to 64 characters each.
+    free-text field: argv, `tool.version_excerpt`, `parse_error`, both
+    excerpts, and `failures[]` (SL-F04). It never runs over
+    `engine_semantics.reason`, `close_path_selection.reason`,
+    `probed_version`, or `probed_commit` (re-plan cycle-1 R6): those are
+    stored verbatim, because the validator re-assesses them, and they are
+    safe by construction because A2a sanitizes the probe inputs and the A1
+    validator asserts `redact(x) == x` for all four.
   * **Per-pair lock (SL-F01):** `acquire_pair_lock(workspace, S, F, run_id)`
     creates `.autoharness/gates/cascade-close/{S}-{F}.lock` (a gitignored
     runtime directory) with `O_CREAT | O_EXCL` (plus `O_NOFOLLOW` where
@@ -475,8 +526,10 @@ set-term rules), so each satisfies the 2-hour rule.
     removed in `finally`, never the workspace root (re-plan cycle-1 R3). A
     trusted-looking name such as `python` therefore cannot pick up a planted
     `version` file from the workspace.
-  * It records the absolute path, the file's SHA-256, and a bounded, redacted
-    `--version` excerpt as `tool{...}`. The spawn always uses that absolute path,
+  * It records the absolute path and the file's SHA-256 as `tool{binary_path,
+    binary_sha256}`. A3a never spawns `--version` itself (re-plan cycle-1 R7):
+    `tool.version_excerpt` is taken from the output of the single A2a probe
+    spawn. The spawn always uses that absolute path,
     never the bare name, and A3 re-hashes the file immediately before spawning
     (SL-F03, in-scope part). The trust model equals today's: the current skill
     already runs the first `backlogit` on PATH. Pinning a trusted absolute path
@@ -533,9 +586,23 @@ set-term rules), so each satisfies the 2-hour rule.
     never uses a different binary from the one A3 later invokes. A3 step 6
     re-hashes that binary right before the spawn.
   * It parses **stdout only** as one JSON object and reads the raw `version`
-    and `commit` strings. Each is kept verbatim, with no normalization, when it
-    is a string of at most 64 characters. Anything else (a missing key, a
-    non-string, or an over-length value) is passed as `None` (A1b bounds).
+    and `commit` values. It sanitizes the inputs, never the outputs (re-plan
+    cycle-1 R6):
+    * `version` is passed unchanged only when it is a `str` of at most 64
+      characters that fully matches the merged release-version pattern
+      (`re.fullmatch` with `re.ASCII`, the pattern
+      `shipment_closure._RELEASE_VERSION_PATTERN` uses) **and**
+      `redact(version) == version`. Otherwise `None` is passed. The probe
+      keeps a module-local copy of the pattern, because production code does
+      not import a private helper; a test-only parity assertion pins the copy
+      to `_RELEASE_VERSION_PATTERN`, as M1 does for the flat sets.
+    * `commit` is passed unchanged only when it is a `str` that fully matches
+      `^[0-9a-f]{7,64}$`. Otherwise `None` is passed.
+    * A `None` commit does not by itself make the engine `UNVERIFIED`. The
+      merged function records `probed_commit` and never decides on it. Since
+      two `None` commits compare equal, the A3 re-probe comparison does not
+      rely on the commit to prove build identity: it relies on the
+      `tool.binary_sha256` re-hash (A3 steps 3 and 6).
   * It calls
     `shipment_closure.assess_cascade_engine_semantics(version, probe_surface="cli", invocation_surface="cli", probed_commit=commit)`.
     A non-zero exit, a timeout, a stdout overflow, or unparseable JSON passes
@@ -543,15 +610,16 @@ set-term rules), so each satisfies the 2-hour rule.
     and the verified minor lines are enforced by the merged function. The probe
     never restates them.
   * `EngineProbe` is a frozen dataclass: the `EngineSemanticsDecision`,
-    `invocation_surface: "cli"`, and `probe_excerpt`. `probe_excerpt` is the
-    first 64 characters of stdout (of stderr when stdout is empty), with LF
-    line endings. A1b `redact` runs over the retained window before the slice
-    (H-B4). The excerpt is audit context only. The validator never re-assesses
-    it.
-  * Serialization into `pre_close.engine_semantics` (A1 shape): `verdict`,
+    `invocation_surface: "cli"`, and `version_excerpt`. `version_excerpt` is
+    the A1b `StreamCapture` excerpt of this probe's stdout (bounded, and
+    redacted before the slice, H-B4). It becomes `tool.version_excerpt`, so
+    the probe is the only version spawn (re-plan cycle-1 R7). It is audit
+    context only, and the validator never re-assesses it.
+  * Serialization into `pre_close.engine_semantics` (A1 shape) goes through
+    A1 `engine_semantics_to_record` (re-plan cycle-1 R8): `verdict`,
     `reason`, `probed_version`, `minor_line` (`[major, minor]` or `null`),
-    `probed_commit`, `probe_surface`, `invocation_surface`, and
-    `probe_excerpt`. A1b redaction also covers `reason`.
+    `probed_commit`, `probe_surface`, and `invocation_surface`. None of these
+    is redacted (re-plan cycle-1 R6).
   * The function never raises. An unexpected exception becomes an
     `UNVERIFIED` decision built by the same merged function with
     `probed_version=None`.
@@ -559,19 +627,25 @@ set-term rules), so each satisfies the 2-hour rule.
   * A released `1.11.x` probe on `cli`/`cli` yields `VERIFIED`. Every other
     outcome yields `UNVERIFIED`, with the `ENGINE_SEMANTICS_UNVERIFIED:` reason
     prefix, and no exception and no exit code of its own.
-  * The recorded raw `probed_version` and `probed_commit`, re-assessed by the
-    A1 validator, reproduce the recorded `verdict`, `reason`, and `minor_line`.
+  * The recorded sanitized `probed_version` and `probed_commit`, re-assessed
+    by the A1 validator, reproduce the recorded `verdict`, `reason`, and
+    `minor_line`.
   * The spawned argv is exactly the fixed probe argv on `resolved.argv_prefix`.
 * **Tests (test-first, four table-driven scenarios, using the A3a
   `ResolvedBinary` test seam):**
   1. **Verified probe:** a fake emitting
      `{"version": "1.11.0", "commit": "131577c"}` yields `VERIFIED`,
      `minor_line` `[1, 11]`, the raw commit, and the exact argv; a planted
-     `token=...` in stdout is redacted, and `probe_excerpt` is at most 64
-     characters.
+     `token=...` in stdout is redacted in `version_excerpt`; a `commit` of
+     `"xyz"` or `"token=abc"` is passed as `null` and the verdict stays
+     `VERIFIED` (re-plan cycle-1 R6).
   2. **Unverified-version table:** `1.10.1` and `1.11.1-rc1` yield
-     `UNVERIFIED` with the reason prefix; a 65-character `version` yields
-     `probed_version: null`.
+     `UNVERIFIED` with the reason prefix; a 65-character `version`, a
+     `version` of `"1.11.0 token=abc"`, and one with a trailing newline each
+     yield `probed_version: null`, and the recorded `reason` equals
+     `redact(reason)`; the module-local release pattern equals
+     `shipment_closure._RELEASE_VERSION_PATTERN` (test-only import; re-plan
+     cycle-1 R6).
   3. **Probe-failure table:** a fake that exits 1, one that sleeps past the
      timeout, and one that emits non-JSON all yield `probed_version: null`
      and `UNVERIFIED`, and nothing raises.
@@ -637,24 +711,29 @@ set-term rules), so each satisfies the 2-hour rule.
       (AN-F01);
     * it runs `classify_shipment_close_path` **fresh**;
     * it runs the A2a probe on `resolved` and records `engine_semantics`
-      (re-plan R1);
+      (re-plan R1). It assembles `tool{}` from the A3a `ResolvedBinary` path
+      and hash and the A2a `version_excerpt` (re-plan cycle-1 R7);
     * it calls `select_close_path(classifier, engine)` and records
       `close_path_selection{selected_close_path, reason}` (re-plan R2). Every
       later branch keys on the **selected** path, never on the classifier
-      verdict alone;
+      verdict alone. If `redact(reason) != reason` (the classifier reason
+      quotes backlog-declared statuses), it exits 2 and writes no record,
+      because the A1 validator would reject it (re-plan cycle-1 R6);
     * when the selected path is CASCADE, `feature_id` must be in the
       classifier's `qualifying_feature_ids`. When it is SAFE_CLOSE (including
       classifier CASCADE with an UNVERIFIED engine), `feature_id` must be a
       manifest member or the `parent_id` of one. Otherwise it exits 2 (AS-F08);
     * it captures location, SHA-256, declared status, and `parent_id` for the
-      shipment record and for every manifest member (AS-F05);
+      shipment record and for every manifest member (AS-F05). Every field is
+      encoded with the A1 `*_to_record` helpers (re-plan cycle-1 R8);
     * it records the **disposition snapshot** (re-plan R5):
       `compute_linked_deliberation_disposition(manifest_ids, shipment_id, backlog_dir, engine=<the A2a decision>)`,
       with no `stash_path`, exactly as the skill's Linked-Deliberation
       Disposition step calls it. The planner covers every explicit manifest
       member, regardless of `artifact_type`, and applies the H10 exclusions
       (self-reference and every ID in `closure_scope(S)`). Its output is
-      serialized verbatim into `pre_close.linked_deliberation_disposition`,
+      serialized with A1 `disposition_plan_to_record` into
+      `pre_close.linked_deliberation_disposition`,
       with the planned outcomes. This is a read-only call. The command never
       archives a deliberation. A non-null `planning_error` exits 2 and writes
       no record. Every `retained_*` outcome, unresolved reference, and read
@@ -731,7 +810,9 @@ set-term rules), so each satisfies the 2-hour rule.
     * `allowed_ids = items(S) ∪ {S}`, which is `closure_scope(S)`;
     * `required_ids = {S} ∪ qualifying_feature_ids ∪ {x ∈ items(S): the pre-close declared status of x is not exactly archived}`.
       `qualifying_feature_ids` is the classifier's set from Step 0(c), never a
-      re-derivation.
+      re-derivation. The declared status is decoded from the record with A1
+      `declared_status_from_record` (re-plan cycle-1 R8), and only an exact
+      `str` equal to `"archived"` counts as archived.
 
     No linked-deliberation term appears in either set. There is no
     `validated_linked_deliberations` term (re-plan, removed). A deliberation
@@ -809,6 +890,9 @@ set-term rules), so each satisfies the 2-hour rule.
       snapshot in deliberation IDs, link kinds, linking members, declared
       status, record paths, SHA-256, or unresolved references.
 
+    The re-collected plan is encoded with A1 `disposition_plan_to_record`,
+    and every comparison is between that encoding and the recorded one,
+    never between a parsed YAML value and JSON (re-plan cycle-1 R8).
     Any drift entry makes `postcondition_verdict: fail` (exit 5 in A3).
     `retained_*` outcomes are never drift by themselves.
 * **Tests (test-first, four scenarios):**
@@ -855,7 +939,9 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
          `probe_surface`, `invocation_surface`, and the re-hashed
          `tool.binary_sha256`); the close-path selection; and the disposition
          snapshot. **Any** difference, including a fresh selection of
-         SAFE_CLOSE, exits 4 and leaves the record byte-identical. The command
+         SAFE_CLOSE, exits 4 and leaves the record byte-identical. Every
+         compared field is compared as its A1 `*_to_record` encoding (re-plan
+         cycle-1 R8). The command
          never writes a `safe_close` record over a `cascade`-selected one and
          never substitutes SAFE_CLOSE (INV-P4). An exact match continues to
          step 4.
@@ -877,7 +963,10 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
        record by exact string equality, never by minor line only. Any
        difference, or a re-probe failure of any kind, exits 4. It never
        substitutes SAFE_CLOSE, because after a CASCADE selection that would be
-       the prohibited substitution (INV-P4).
+       the prohibited substitution (INV-P4). A `None` `probed_commit` on both
+       sides compares equal and proves nothing about build identity, so the
+       comparison relies on the step 6 `tool.binary_sha256` re-hash for that
+       (re-plan cycle-1 R6).
     6. Re-hash the resolved binary. A mismatch with `tool.binary_sha256` exits 4
        without invoking anything, leaving only the replaceable `pre_close`
        record (AN-F08).
@@ -894,7 +983,10 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     10. Write the owner-bound `post_close` record. This happens **even when the
         invocation or the parse fails**, so the evidence of a failure is preserved.
         If this write fails, exit 8.
-  * The command spawns only the A2a probe and `shipment ship`. It never
+  * The command spawns exactly two kinds of process: the A2a probe (at
+    step 3 and its step 5 re-probe) and `shipment ship`. There is no
+    separate `--version` spawn, because `tool.version_excerpt` comes from the
+    A2a probe (re-plan cycle-1 R7). It never
     archives, moves, or edits a deliberation or any other artifact. The skill's
     Linked-Deliberation Disposition step is the only archiver (038-DL D3a,
     one archiver).
@@ -920,8 +1012,10 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
 * **Tests (test-first, four table-driven scenarios).** A fake `backlogit` (A3a
   seam) emits a canned envelope, answers the `version` probe from a per-call
   script, and writes a sentinel file when `shipment ship` runs:
-  1. **Pass and argv log:** a pass case; the argv log holds only the probe
-     argv and the fixed ship argv (including `--cwd`), and no archive call.
+  1. **Pass and argv log:** a pass case; the argv log holds exactly the two
+     A2a probe argvs (step 3 and the step 5 re-probe) and one fixed ship
+     argv (including `--cwd`), with no `--version` argv and no archive call
+     (re-plan cycle-1 R7).
   2. **Pre-spawn fail-closed table:** a classifier CASCADE with a fake
      `1.10.1` probe exits 3, the `shipment ship` sentinel is never written,
      and the record selects `safe_close`; the fake's `commit` changes between
@@ -1226,8 +1320,9 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
       implement it itself.
   * It states explicitly that autoharness does not depend on it.
   * Re-plan: the command reference documents the record fields
-    `pre_close.engine_semantics` (including `invocation_surface` and the
-    bounded `probe_excerpt`), `pre_close.close_path_selection`,
+    `pre_close.engine_semantics` (including `invocation_surface`, with no
+    probe excerpt; the probe's stdout excerpt is `tool.version_excerpt`),
+    `pre_close.close_path_selection`,
     `pre_close.linked_deliberation_disposition`, and
     `post_close.linked_deliberation_drift`; the flat `allowed_ids` /
     `required_ids` definitions; the `--json` fields `engine_verdict` and
