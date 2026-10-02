@@ -188,15 +188,24 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                     gate,
                 )
                 self.assertIn(
-                    "A failure of that final check halts with `HALT — linked-deliberation "
-                    "disposition failed {id}`, where `{id}` is the shipment ID",
+                    "A failure of that final invariance check halts with `HALT — "
+                    "linked-deliberation disposition failed {id}`, where `{id}` is the "
+                    "shipment ID",
                     gate,
                 )
                 self.assertIn(
-                    "follow the D6 sequence of safe-close step 6, scoped to this run's "
-                    "disposition archives",
+                    "follow the D6 sequence of safe-close step 6, scoped to the diverging "
+                    "paths plus this run's disposition archives (when the run archived "
+                    "nothing, the scope is the diverging paths alone)",
                     gate,
                 )
+                # The proceed instruction belongs to the success bullet, before the
+                # failure bullet, so it never reads as proceeding after the halt.
+                self.assertLess(
+                    gate.index("Proceed to post-mode."),
+                    gate.index("A failure of that final"),
+                )
+                self.assertIn("Do not proceed to post-mode.", gate)
 
     def test_h_g_allowed_side_effect_paths_exclude_stash_files(self) -> None:
         for label, raw in _variants():
@@ -792,9 +801,22 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                     "`retained_read_error`, `retained_ambiguous`, or `already-archived`, "
                     "the planner's outcome and `reason_code` (and, for "
                     "`retained_read_error`, its `path`) MUST equal the snapshot's "
-                    "settled outcome data, so a fresh plan never upgrades "
-                    "snapshot-settled evidence to a planned `archive`.",
+                    "settled outcome data, and the planner's `unresolved_references` set "
+                    "(exact `{id, reason_code}` pairs) MUST equal the snapshot's, so a "
+                    "fresh plan never upgrades snapshot-settled evidence to a planned "
+                    "`archive` or drops snapshot evidence.",
                     plan,
+                )
+                # planning_error returns no unresolved references, so the snapshot's
+                # set is preserved in both the plan step and the report.
+                self.assertIn(
+                    "Also preserve the snapshot's `unresolved_references` set, because "
+                    "the planner returns none on `planning_error`.",
+                    plan,
+                )
+                self.assertIn(
+                    "and report the snapshot's `unresolved_references` set",
+                    _step(_section(raw), 5),
                 )
                 self.assertIn(
                     "Any difference halts with `HALT — linked-deliberation disposition "
@@ -868,7 +890,8 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                     "`already-archived`); for every remaining snapshot deliberation, "
                     "report outcome `retained_ambiguous` with `reason_code: "
                     "planning_error`, and exclude `already-archived` deliberations from "
-                    "the `stranded_linked_deliberation` advisory.",
+                    "the `stranded_linked_deliberation` advisory, and report the "
+                    "snapshot's `unresolved_references` set.",
                     report,
                 )
                 gate = _step(_section(raw), 6)

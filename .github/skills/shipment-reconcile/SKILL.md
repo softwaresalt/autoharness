@@ -1077,9 +1077,10 @@ archive, one ID at a time.
    every deliberation the snapshot already settled as `retained_read_error`,
    `retained_ambiguous`, or `already-archived`, the planner's outcome and
    `reason_code` (and, for `retained_read_error`, its `path`) MUST equal the
-   snapshot's settled outcome data,
+   snapshot's settled outcome data, and the planner's `unresolved_references`
+   set (exact `{id, reason_code}` pairs) MUST equal the snapshot's,
    so a fresh plan never upgrades snapshot-settled evidence to a planned
-   `archive`. Any difference halts with `HALT — linked-deliberation disposition failed {id}`;
+   `archive` or drops snapshot evidence. Any difference halts with `HALT — linked-deliberation disposition failed {id}`;
    emit **P-005** once; no mutation. `{id}` is the first differing
    deliberation ID, or the shipment ID for a set-level added/removed-ID
    difference. Other workspaces apply the same stated rules and
@@ -1104,7 +1105,9 @@ archive, one ID at a time.
    `retained_ambiguous`, and `already-archived`); for every remaining snapshot
    deliberation, report outcome `retained_ambiguous` with `reason_code:
    planning_error`, and exclude `already-archived` deliberations from the
-   `stranded_linked_deliberation` advisory.
+   `stranded_linked_deliberation` advisory. Also preserve the snapshot's
+   `unresolved_references` set, because the planner returns none on
+   `planning_error`.
 
    **Engine UNVERIFIED means no mutation.** When the Step 0(c)
    engine-semantics verdict is `UNVERIFIED`, every disposition-set
@@ -1246,7 +1249,8 @@ archive, one ID at a time.
      `retained_ambiguous`, and `already-archived`); for every remaining snapshot
      deliberation, report outcome `retained_ambiguous` with `reason_code:
      planning_error`, and exclude `already-archived` deliberations from the
-     `stranded_linked_deliberation` advisory. An empty disposition set records
+     `stranded_linked_deliberation` advisory, and report the snapshot's
+     `unresolved_references` set. An empty disposition set records
      `linked_deliberation_disposition: []`;
    * `unresolved_references` (`{id, reason_code}`), plus every planner read
      failure (`{path, reason_code}`);
@@ -1265,17 +1269,19 @@ archive, one ID at a time.
      invariance check, run after the step 5 report write, passes (nothing
      changed relative to the step 2 disposition baseline except the allowed
      side effects of the verified disposition archives and this run's own
-     closure report path) → `recommendation: DISPOSITION_COMPLETE`. A failure
-     of that final check halts with `HALT — linked-deliberation disposition
-     failed {id}`, where `{id}` is the shipment ID; follow the D6 sequence
-     of safe-close step 6, scoped to this run's disposition archives, and
-     emit **P-005** once.
+     closure report path) → `recommendation: DISPOSITION_COMPLETE`.
      Proceed to post-mode. Retained outcomes are reported, never halt, and
      never block this gate. `linked_deliberation_disposition: []` is valid
      only when the Step 0(c) disposition snapshot is empty; a `planning_error`
      over a non-empty snapshot preserves snapshot-settled outcomes and reports
      only the remaining deliberations as `retained_ambiguous` with
      `reason_code: planning_error`.
+   * A failure of that final invariance check halts with `HALT —
+     linked-deliberation disposition failed {id}`, where `{id}` is the
+     shipment ID; follow the D6 sequence of safe-close step 6, scoped to the
+     diverging paths plus this run's disposition archives (when the run
+     archived nothing, the scope is the diverging paths alone), and emit
+     **P-005** once. Do not proceed to post-mode.
    * Any halt above → `recommendation: HALT — linked-deliberation disposition failed {id}`.
      Do not proceed to post-mode or to any commit step. On a disposition HALT,
      keep the shipment lock held through the D6 sequence (approval → REVALIDATE
