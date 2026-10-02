@@ -9,7 +9,9 @@ Covers plan unit U1a (``docs/plans/2026-09-29-backlogit-1-11-cascade-alignment-p
 from __future__ import annotations
 
 import dataclasses
+import re
 import unittest
+from pathlib import Path
 
 from autoharness.gates import shipment_closure
 from autoharness.gates.shipment_closure import (
@@ -24,11 +26,54 @@ from autoharness.gates.shipment_closure import (
 
 _PREFIX = "ENGINE_SEMANTICS_UNVERIFIED:"
 
+_ROOT = Path(__file__).resolve().parents[1]
+_POLICY_TEXTS = (
+    _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl",
+    _ROOT / ".github" / "policies" / "workflow-policies.md",
+)
+_SKILL_TEXTS = (
+    _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl",
+    _ROOT / ".github" / "skills" / "shipment-reconcile" / "SKILL.md",
+)
+_ENGINE_LINE_TOKEN_RE = re.compile(r"Verified engine-semantics lines:\s*`([^`]+)`")
+_RELEASE_EXAMPLE_RE = re.compile(r"`(v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)`")
+
 
 def _assess(version: object, surface: object = "cli", invocation: object = "cli", **kwargs):
     return assess_cascade_engine_semantics(
         version, probe_surface=surface, invocation_surface=invocation, **kwargs
     )
+
+
+def _content(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _minor_lines_from_token(text: str) -> frozenset[tuple[int, int]]:
+    match = _ENGINE_LINE_TOKEN_RE.search(text)
+    if match is None:
+        raise AssertionError("Verified engine-semantics lines token missing")
+    lines: set[tuple[int, int]] = set()
+    for raw_line in match.group(1).split(","):
+        line = raw_line.strip()
+        parts = line.split(".")
+        if len(parts) != 2 or not all(part.isascii() and part.isdigit() for part in parts):
+            raise AssertionError(f"invalid engine-semantics line token: {line!r}")
+        lines.add((int(parts[0]), int(parts[1])))
+    return frozenset(lines)
+
+
+def _policy_engine_region(text: str) -> str:
+    token = text.index("Verified engine-semantics lines:")
+    start = text.rindex("**Evidence-class note.**", 0, token)
+    end = text.index("**SAFE_CLOSE reliance.**", token)
+    return text[start:end]
+
+
+def _skill_engine_region(text: str) -> str:
+    start = text.index("**Engine-semantics gate (P-015 engine-semantics precondition).**")
+    end = text.index("**Close-path selection.**", start)
+    return text[start:end]
 
 
 class _StrSubclass(str):
@@ -181,6 +226,51 @@ class EngineSemanticsInputStrictnessTests(unittest.TestCase):
         )
         self.assertIs(decision.verdict, EngineSemanticsVerdict.UNVERIFIED)
         self.assertTrue(decision.reason.startswith(_PREFIX))
+
+
+class EngineSemanticsProseConsistencyTests(unittest.TestCase):
+    """199.002-T scenarios L1-L3: policy/skill prose matches the code gate."""
+
+    def test_l1_policy_verified_engine_semantics_token_matches_constant(self) -> None:
+        for path in _POLICY_TEXTS:
+            with self.subTest(path=str(path.relative_to(_ROOT))):
+                self.assertEqual(
+                    _minor_lines_from_token(_content(path)),
+                    VERIFIED_CASCADE_ENGINE_MINOR_LINES,
+                )
+
+    def test_l2_skill_verified_engine_semantics_token_matches_constant(self) -> None:
+        for path in _SKILL_TEXTS:
+            with self.subTest(path=str(path.relative_to(_ROOT))):
+                self.assertEqual(
+                    _minor_lines_from_token(_content(path)),
+                    VERIFIED_CASCADE_ENGINE_MINOR_LINES,
+                )
+
+    def test_l3_quoted_prose_version_examples_have_stated_verdicts(self) -> None:
+        examples: list[tuple[Path, str, EngineSemanticsVerdict]] = []
+        for path in _POLICY_TEXTS:
+            region = _policy_engine_region(_content(path))
+            self.assertIn("Under the verified engine-semantics line", region)
+            for version in _RELEASE_EXAMPLE_RE.findall(region):
+                examples.append((path, version, EngineSemanticsVerdict.VERIFIED))
+        for path in _SKILL_TEXTS:
+            region = _skill_engine_region(_content(path))
+            self.assertIn("Anything else", region)
+            self.assertIn("is `UNVERIFIED`", region)
+            for version in _RELEASE_EXAMPLE_RE.findall(region):
+                expected = (
+                    EngineSemanticsVerdict.VERIFIED
+                    if tuple(map(int, version.removeprefix("v").split(".")[:2]))
+                    in VERIFIED_CASCADE_ENGINE_MINOR_LINES
+                    else EngineSemanticsVerdict.UNVERIFIED
+                )
+                examples.append((path, version, expected))
+        self.assertTrue(examples, "expected at least one quoted concrete release-version example")
+        for path, version, expected in examples:
+            with self.subTest(path=str(path.relative_to(_ROOT)), version=version):
+                decision = _assess(version, "cli", "cli", probed_commit="5a4b70dd")
+                self.assertIs(decision.verdict, expected)
 
 
 class SelectClosePathTests(unittest.TestCase):

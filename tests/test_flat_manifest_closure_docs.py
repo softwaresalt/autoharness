@@ -41,7 +41,7 @@ D1A_TERMS = (
     "validated_linked_deliberations",
 )
 
-INVARIANT_TOKENS = tuple(f"INV-{index}" for index in range(1, 12))
+INVARIANT_TOKENS = tuple(f"INV-{index}" for index in range(1, 13))
 
 
 class FlatManifestClosureDocContractTests(unittest.TestCase):
@@ -203,8 +203,8 @@ class FlatManifestClosureDocContractTests(unittest.TestCase):
 
 
 # P-015 policy-only assertions (195-F slice 2, 197-F). These iterate ONLY the
-# two policy files: the shipment-reconcile skill pair in CONTRACT_FILES is
-# realigned by a later slice, so INVARIANT_TOKENS above stays INV-1..INV-11.
+# two policy files; the shared CONTRACT_FILES invariant token sweep above now
+# covers policy and shipment-reconcile skill files through INV-12.
 POLICY_FILES = tuple(path for path in CONTRACT_FILES if "workflow-policies" in str(path))
 
 

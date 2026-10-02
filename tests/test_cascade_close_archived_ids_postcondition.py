@@ -39,6 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
 
 _ROOT = Path(__file__).resolve().parents[1]
 _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl"
+_SKILL_MIRROR = _ROOT / ".github" / "skills" / "shipment-reconcile" / "SKILL.md"
 _POLICY_TEMPLATE = _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
 _SPIKE_DOC = _ROOT / "docs" / "spikes" / "2026-08-18-cascade-close-pre-archived-member-behavior.md"
 _COMPOUND_DOC = _ROOT / "docs" / "compound" / "2026-08-18-p015-cascade-classifier-override-deviation.md"
@@ -66,6 +67,14 @@ _CHANGELOG_1_19_0 = (
 
 def _skill_content() -> str:
     return _SKILL_TEMPLATE.read_text(encoding="utf-8")
+
+
+def _skill_mirror_content() -> str:
+    return _SKILL_MIRROR.read_text(encoding="utf-8")
+
+
+def _skill_variants() -> tuple[tuple[str, str], ...]:
+    return (("template", _skill_content()), ("mirror", _skill_mirror_content()))
 
 
 def _policy_content() -> str:
@@ -111,6 +120,87 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn(_HALT_MISSING, content)
         self.assertNotEqual(_HALT_UNEXPECTED, _HALT_MISSING)
 
+    def test_linked_deliberation_byte_identity_drift_halt_present(self) -> None:
+        content = _skill_content()
+        self.assertIn(
+            "HALT — cascade modified linked deliberation {id} — engine semantics drift",
+            content,
+        )
+        self.assertIn("Every disposition-snapshot record path MUST remain byte-identical", content)
+        self.assertIn("linked-deliberation disposition byte-identity outcome", content)
+
+    def test_linked_deliberation_drift_check_re_collects_identity_sets_after_cascade(
+        self,
+    ) -> None:
+        # PR #475 Copilot review: revisiting only pre-invocation paths cannot see a
+        # record created during the cascade, so Step 5 must re-collect the snapshot
+        # and compare complete identity sets before per-path hashes.
+        for label, raw in _skill_variants():
+            with self.subTest(variant=label):
+                content = _flatten(raw)
+                self.assertIn(
+                    "re-collect the linked-deliberation disposition snapshot after the cascade",
+                    content,
+                )
+                self.assertIn(
+                    "a previously unresolved reference that now resolves to a record",
+                    content,
+                )
+                self.assertIn(
+                    "Only then compare each record path's current location plus SHA-256",
+                    content,
+                )
+                self.assertIn(
+                    "any other snapshot-field difference from the post-cascade re-collection",
+                    content,
+                )
+                # PR #475 Copilot review round 2: link metadata is compared too.
+                self.assertIn(
+                    "its link kinds, its linking manifest members, its declared status, "
+                    "and the complete set of record paths MUST be identical",
+                    content,
+                )
+
+    def test_disposition_snapshot_applies_containment_before_hashing(self) -> None:
+        # PR #475 Copilot review round 3: never follow a symlink/junction or an
+        # escaping path to hash its target; mirror the planner's read-error outcome.
+        for label, raw in _skill_variants():
+            with self.subTest(variant=label):
+                content = _flatten(raw)
+                self.assertIn(
+                    "Apply the planner's containment checks before any byte read of a record path",
+                    content,
+                )
+                self.assertIn("is never opened or hashed", content)
+                self.assertIn("`path_escape` or `symlink_or_reparse_point`", content)
+                self.assertIn(
+                    "never by following it to hash a target",
+                    content,
+                )
+
+    def test_disposition_snapshot_records_malformed_records_as_read_errors(self) -> None:
+        # PR #475 Copilot review round 4: a deliberation record whose frontmatter
+        # is malformed or whose body cannot be separated mirrors the planner's
+        # _read_record outcome (retained_read_error, never omitted, never a halt).
+        for label, raw in _skill_variants():
+            with self.subTest(variant=label):
+                content = _flatten(raw)
+                self.assertIn(
+                    "A record path whose frontmatter opens with a `---` delimiter but "
+                    "never closes it records `retained_read_error` with `reason_code` "
+                    "`body_unseparable`",
+                    content,
+                )
+                self.assertIn(
+                    "records `retained_read_error` with `reason_code` "
+                    "`malformed_frontmatter`",
+                    content,
+                )
+                self.assertIn(
+                    "is never omitted from the disposition set and does **not** halt",
+                    content,
+                )
+
     def test_two_conditions_are_independently_labelled_and_not_merged(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("Unexpected-artifact check", content)
@@ -145,41 +235,51 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
             content,
         )
         self.assertIn(
-            "every other `allowed_ids` member (a manifest task item, or a "
-            "qualifying feature member's validated linked deliberation) "
-            "that was **not** truly `status: archived`",
+            "every other manifest item that was **not** truly `status: archived` "
+            "in the Step 0(b) all-member pre-close declared-status snapshot",
+            content,
+        )
+        self.assertIn(
+            "A disposition-set deliberation that is not an explicit manifest "
+            "member is never a `required_ids` member",
             content,
         )
 
-    def test_allowed_ids_defined_via_step_0c_qualifying_feature_determination(self) -> None:
+    def test_allowed_ids_row_is_flat_closure_scope_without_linked_deliberation_union(self) -> None:
         content = _flatten(_skill_content())
+        self.assertIn("**Compute `allowed_ids`** = `closure_scope(S)`", content)
         self.assertIn(
-            "every qualifying feature member identified by Step 0(c)'s own "
-            "classification",
+            "every explicit manifest item ID from `items(S)`, regardless of "
+            "`artifact_type`, plus the shipment record itself",
             content,
         )
-        self.assertIn("independent of *how* the engine happens to transition", content)
+        self.assertIn("linked deliberations are handled only by INV-12", content)
+        self.assertIn("H10 carve-out", content)
+        self.assertIn(
+            "MUST NOT trip the unexpected-artifact check merely because its "
+            "`artifact_type` is `deliberation`",
+            content,
+        )
+        self.assertNotIn("every validated linked deliberation ID", content)
 
-    def test_qualifying_feature_statuses_captured_after_0c_before_invocation(self) -> None:
+    def test_required_ids_no_longer_extended_for_linked_deliberations(self) -> None:
         content = _flatten(_skill_content())
-        # Step 0(c) extension: captured immediately after qualifying features
-        # are identified, and explicitly before the cascade invocation.
         self.assertIn(
-            "When this classification identifies qualifying feature members",
+            "Because Step 0(b) snapshots every explicit manifest member "
+            "regardless of `artifact_type`, no Step 0(c) "
+            "linked-deliberation extension participates in this set",
             content,
         )
         self.assertIn(
-            "extend the same pre-close declared-status snapshot from (b) — "
-            "still **before** the cascade invocation, never after",
+            "A disposition-set deliberation that is not an explicit manifest "
+            "member is never a `required_ids` member",
             content,
         )
-        # Step 3's required_ids computation also states all three snapshot
-        # parts (manifest tasks from (b), qualifying features and their
-        # linked deliberations extended in (c) -- 155-S/PR #407) are
-        # captured before the step 1 invocation.
-        self.assertIn("extended by Step 0(c) for qualifying feature members", content)
-        self.assertIn("all captured", content)
-        self.assertIn("**before** this step 1 invocation", content)
+        self.assertNotIn(
+            "extended by Step 0(c) for qualifying feature members and their "
+            "validated linked deliberations",
+            content,
+        )
 
     def test_location_alone_is_not_declared_status(self) -> None:
         content = _flatten(_skill_content())
@@ -228,6 +328,21 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn("empty (no required artifact left unarchived)", content)
         self.assertNotIn("archived_ids` matches exactly", content)
 
+    def test_gate_decision_records_t4_transition_hand_off(self) -> None:
+        expected = (
+            "linked_deliberation_disposition: step-not-yet-on-main "
+            "(transition window); all retained"
+        )
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                region = content[
+                    content.index("6. **Produce cascade-close report**") :
+                    content.index("## P-015 Vocabulary", content.index("7. **Gate decision**"))
+                ]
+                self.assertIn("Hand off to the Linked-Deliberation Disposition step", region)
+                self.assertIn(expected, region)
+
     def test_no_live_guidance_anywhere_still_asserts_exact_match(self) -> None:
         """Copilot review (PR #407): a live '## Quality Criteria' bullet
         previously survived the step-3/preamble rewrite and kept asserting
@@ -244,11 +359,16 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
             "`archived_ids`",
             content,
         )
-        # The Quality Criteria bullet must reference the two-set gate.
+        # The Quality Criteria bullet must reference the flat two-set gate,
+        # not the retired linked-deliberation allowance.
         quality_idx = content.index("## Quality Criteria")
         quality_section = content[quality_idx:]
+        self.assertIn("flat two-set", quality_section)
         self.assertIn("allowed_ids", quality_section)
         self.assertIn("required_ids", quality_section)
+        self.assertIn("linked deliberations are handled only by INV-12", quality_section)
+        self.assertNotIn("validated linked deliberation IDs", quality_section)
+        self.assertNotIn("never a blanket allowance for arbitrary IDs", quality_section)
 
     def test_report_records_allowed_required_and_both_differences(self) -> None:
         content = _flatten(_skill_content())
@@ -278,20 +398,19 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
 
     def test_tolerance_list_excludes_bare_qualifying_feature_member(self) -> None:
         # PR #407 review (thread PRRT_kwDORzpWpM6bzlFl): a bare qualifying
-        # feature member must no longer be offered as an eligible-for-
-        # tolerance option in the parenthetical list -- only a manifest
-        # task item or a qualifying feature member's *validated linked
-        # deliberation* may be already truly archived pre-close.
+        # Under the flat 1.11.x sets, the pre-archived tolerance is scoped
+        # to explicit non-shipment, non-feature manifest members. A linked
+        # deliberation participates here only if it is an explicit manifest
+        # member under H10, never merely because it is in the disposition set.
         content = _flatten(_skill_content())
         self.assertIn(
-            "(a manifest task item, or a qualifying feature member's "
-            "validated linked deliberation — never the qualifying feature "
-            "member itself",
+            "An `allowed_ids` **non-shipment, non-feature** member",
             content,
         )
+        self.assertIn("including an explicit-member deliberation under H10", content)
         self.assertNotIn(
-            "(a manifest task item, a qualifying feature member, or a "
-            "qualifying feature member's validated linked deliberation)",
+            "qualifying feature member's validated linked deliberation — "
+            "never the qualifying feature member itself",
             content,
         )
 
@@ -459,6 +578,46 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
             content,
         )
 
+
+    def test_changelog_1_23_0_row_present_and_additive(self) -> None:
+        content = _policy_content()
+        idx_1_22 = content.index("| 1.22.0")
+        idx_1_23 = content.index("| 1.23.0")
+        self.assertLess(idx_1_22, idx_1_23)
+        row_match = re.search(r"^\| 1\.23\.0 .*\|$", content, re.MULTILINE)
+        self.assertIsNotNone(row_match)
+        row = row_match.group(0)
+        self.assertIn("required_ids", row)
+        self.assertIn("qualifying feature", row)
+        # 1.22.0 row preserved, not rewritten.
+        row_1_22_match = re.search(r"^\| 1\.22\.0 .*\|$", content, re.MULTILINE)
+        self.assertIsNotNone(row_1_22_match)
+        self.assertIn(
+            "the shipment record is a `required_ids` member unconditionally",
+            row_1_22_match.group(0),
+        )
+
+    def test_changelog_1_22_0_row_present_and_does_not_rewrite_1_21_0(self) -> None:
+        content = _policy_content()
+        idx_1_21 = content.index("| 1.21.0")
+        idx_1_22 = content.index("| 1.22.0")
+        self.assertLess(idx_1_21, idx_1_22)
+        row_match = re.search(r"^\| 1\.22\.0 .*\|$", content, re.MULTILINE)
+        self.assertIsNotNone(row_match)
+        row = row_match.group(0)
+        self.assertIn("linked deliberation", row)
+        self.assertIn("required_ids", row)
+
+    def test_1_21_0_row_still_preserved_byte_identical(self) -> None:
+        # The 1.22.0 row must be additive: it must not rewrite the 1.21.0
+        # correction row it follows.
+        content = _policy_content()
+        row_match = re.search(r"^\| 1\.21\.0 .*\|$", content, re.MULTILINE)
+        self.assertIsNotNone(row_match)
+        row = row_match.group(0)
+        self.assertIn("Corrects, and does not delete or edit, the 1.19.0 row above", row)
+
+
     # 198.004-T (U2b-2): close-path gate vs INV-12 split assertions.
     def test_b_b_required_check_drops_expected_cascade_mutation_clause(self) -> None:
         content = _policy_content()
@@ -615,183 +774,252 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
                 self.assertEqual(observed, region)
 
 
-class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
-    """PR #407 review (threads PRRT_kwDORzpWpM6bo8m2 /
-    PRRT_kwDORzpWpM6bpEZc): a qualifying feature member's live linked
-    deliberation is archived by Backlogit's own
-    `collectArchiveCandidateIDs`/`linkedDeliberationIDs` before
-    `archiveItems` builds `archived_ids`, so the two-set gate must
-    allow-list it (via Step 0(c)'s engine-defined,
-    existence-and-`artifact_type`-validated collection) rather than
-    deterministically tripping the unexpected-artifact check after the
-    cascade has already mutated the backlog. Companion fix: the P-015
-    policy's `required_ids` summary must state the shipment's unconditional
-    requirement identically to the skill.
+class SkillRenderedRegionParityTests(unittest.TestCase):
+    """199.011-T scenarios C-g/F-j/G-h: rendered-region parity for the
+    U3a, U3b, and U4 shipment-reconcile regions, modulo the same concrete
+    dogfood allowlist used by policy rendered-region parity.
     """
 
-    def test_step_0c_extends_snapshot_with_linked_deliberations(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn("Linked-deliberation snapshot extension", content)
-        self.assertIn("collectArchiveCandidateIDs", content)
-        self.assertIn("linkedDeliberationIDs", content)
+    @staticmethod
+    def _allowlisted(region: str) -> str:
+        for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+            region = region.replace(template_text, mirror_text)
+        return region
 
-    def test_linked_deliberation_torn_state_halts_fail_closed(self) -> None:
-        # PR #407 follow-up review round: the linked-deliberation snapshot
-        # must carry forward Step 0(b)'s torn-state (both queue/ and
-        # archive/) / missing-record halt discipline, never guessing which
-        # copy is authoritative before the destructive cascade invocation.
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "resolve its record location the identical way Step 0(b) "
-            "resolves a manifest task item",
-            content,
-        )
-        self.assertIn("RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS", content)
-        self.assertIn("RECONCILE_FAIL_SNAPSHOT_MISSING", content)
-        self.assertIn(
-            "never compute `required_ids` from an arbitrary copy before "
-            "the destructive cascade invocation",
-            content,
-        )
+    @staticmethod
+    def _unique_anchor_index(lines: list[str], anchor: str) -> int:
+        matches = [idx for idx, line in enumerate(lines) if line.startswith(anchor)]
+        if len(matches) != 1:
+            raise AssertionError(f"anchor {anchor!r} matched {len(matches)} lines")
+        return matches[0]
 
-    def test_linked_deliberation_sources_match_engine_exactly(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn("custom_fields.source_deliberation_id", content)
-        self.assertIn(
-            "any deliberation ID embedded in the feature's description",
-            content,
-        )
-        self.assertIn("any deliberation the feature references", content)
+    @staticmethod
+    def _list_marker(line: str) -> tuple[int, str] | None:
+        match = re.match(r"^(\s*)(?:([*+-])|(?:\d+\.))\s+", line)
+        if not match:
+            return None
+        return (len(match.group(1)), match.group(0).strip().split()[0])
 
-    def test_linked_deliberation_requires_existence_and_artifact_type(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "restricted to IDs that resolve to an **existing** artifact "
-            "whose own `artifact_type` is `deliberation`",
-            content,
-        )
+    @classmethod
+    def _bounded_region(cls, lines: list[str], start: int) -> str:
+        marker = cls._list_marker(lines[start])
+        end = start + 1
+        while end < len(lines) and lines[end].strip():
+            if marker is not None:
+                next_marker = cls._list_marker(lines[end])
+                if next_marker is not None and next_marker[0] <= marker[0]:
+                    break
+            end += 1
+        return "\n".join(lines[start:end])
 
-    def test_no_blanket_allowance_for_arbitrary_ids(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "never any other ID, and never an ID that fails either check",
-            content,
-        )
-        self.assertIn(
-            "without a blanket allowance for arbitrary IDs",
-            content,
-        )
-        # Quality Criteria echo must carry the same never-blanket-allowance
-        # framing, not just the sub-procedure prose.
-        quality_idx = content.index("## Quality Criteria")
-        quality_section = content[quality_idx:]
-        self.assertIn("never a blanket allowance for arbitrary IDs", quality_section)
-
-    def test_allowed_ids_bullet_includes_linked_deliberations(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "every validated linked deliberation ID of each qualifying "
-            "feature member captured by Step 0(c)'s linked-deliberation "
-            "snapshot extension above",
-            content,
-        )
-
-    def test_required_ids_bullet_extended_for_linked_deliberations(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "extended by Step 0(c) for qualifying feature members and "
-            "their validated linked deliberations",
-            content,
-        )
-
-    def test_non_shipment_tolerance_covers_linked_deliberation_and_illustrates_147f(
+    def _assert_skill_rendered_region_parity(
         self,
+        anchors: tuple[str, ...],
+        *,
+        rendered: str | None = None,
+        mirror: str | None = None,
     ) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "a qualifying feature member's validated linked deliberation",
-            content,
+        rendered = rendered if rendered is not None else render_source(
+            ".github/skills/shipment-reconcile/SKILL.md"
         )
-        self.assertIn("147-F", content)
-        self.assertIn("027-DL", content)
-
-    def test_report_step_records_linked_deliberation_ids(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "qualifying feature IDs, and their validated linked "
-            "deliberation IDs",
-            content,
+        mirror = mirror if mirror is not None else _SKILL_MIRROR.read_text(
+            encoding="utf-8"
         )
+        rendered_lines = rendered.splitlines()
+        mirror_lines = mirror.splitlines()
+        for anchor in anchors:
+            with self.subTest(anchor=anchor):
+                expected_start = self._unique_anchor_index(rendered_lines, anchor)
+                actual_start = self._unique_anchor_index(mirror_lines, anchor)
+                expected_region = self._allowlisted(
+                    self._bounded_region(rendered_lines, expected_start)
+                )
+                actual_region = self._bounded_region(mirror_lines, actual_start)
+                self.assertEqual(actual_region, expected_region)
 
-    def test_linked_deliberation_matcher_specified_exactly(self) -> None:
-        # PR #407 review (thread PRRT_kwDORzpWpM6byLno): the description/
-        # references sources must cite Backlogit's own exact regex matcher
-        # (`internal/core.deliberationIDPattern`, verified against the
-        # installed backlogit.exe binary) rather than a broader "any
-        # embedded deliberation ID" reading. An agent applying the broader
-        # wording could add an ID the engine will never archive, poisoning
-        # `required_ids` and causing a false halt after the destructive
-        # cascade has already run. `custom_fields.source_deliberation_id`
-        # must likewise be specified as a complete literal string, never
-        # regex-scanned, to keep both candidate-set derivations identical.
-        content = _flatten(_skill_content())
-        matcher = r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b"
-        self.assertEqual(
-            content.count(matcher),
-            2,
-            "the exact engine matcher must be specified at both cited "
-            "locations (the narrative Step 0(c) extension and the Quality "
-            "Criteria allowed_ids bullet), not merely described in prose",
+    def test_region_parity_detects_continuation_line_drift(self) -> None:
+        rendered = "before\nanchor line\ncontinuation from template\n\nafter\n"
+        mirror = "before\nanchor line\ncontinuation from mirror\n\nafter\n"
+        rendered_lines = rendered.splitlines()
+        mirror_lines = mirror.splitlines()
+        anchor = "anchor line"
+        expected_region = self._bounded_region(
+            rendered_lines, self._unique_anchor_index(rendered_lines, anchor)
         )
-        self.assertIn("deliberationIDPattern", content)
-        self.assertIn(
-            "taken as a complete literal ID string, never regex-scanned",
-            content,
+        actual_region = self._bounded_region(
+            mirror_lines, self._unique_anchor_index(mirror_lines, anchor)
         )
+        self.assertNotEqual(actual_region, expected_region)
 
-    def test_quality_criteria_bullet_mentions_linked_deliberations(self) -> None:
-        content = _flatten(_skill_content())
-        quality_idx = content.index("## Quality Criteria")
-        quality_section = content[quality_idx:]
-        self.assertIn("linked deliberation", quality_section)
-
-    def test_changelog_1_23_0_row_present_and_additive(self) -> None:
-        content = _policy_content()
-        idx_1_22 = content.index("| 1.22.0")
-        idx_1_23 = content.index("| 1.23.0")
-        self.assertLess(idx_1_22, idx_1_23)
-        row_match = re.search(r"^\| 1\.23\.0 .*\|$", content, re.MULTILINE)
-        self.assertIsNotNone(row_match)
-        row = row_match.group(0)
-        self.assertIn("required_ids", row)
-        self.assertIn("qualifying feature", row)
-        # 1.22.0 row preserved, not rewritten.
-        row_1_22_match = re.search(r"^\| 1\.22\.0 .*\|$", content, re.MULTILINE)
-        self.assertIsNotNone(row_1_22_match)
-        self.assertIn(
-            "the shipment record is a `required_ids` member unconditionally",
-            row_1_22_match.group(0),
+    def test_c_g_u3a_rendered_region_parity(self) -> None:
+        self._assert_skill_rendered_region_parity(
+            (
+                "      **Declared `status` is read",
+                "      This is the **INV-6 engine-inertness containment gate**",
+                "      `CASCADE` is permitted only when every artifact in the `parent_id`",
+                "      **Engine-semantics gate (P-015 engine-semantics precondition).**",
+                "      | Classifier verdict | Engine-semantics verdict | Selected path |",
+            )
         )
 
-    def test_changelog_1_22_0_row_present_and_does_not_rewrite_1_21_0(self) -> None:
-        content = _policy_content()
-        idx_1_21 = content.index("| 1.21.0")
-        idx_1_22 = content.index("| 1.22.0")
-        self.assertLess(idx_1_21, idx_1_22)
-        row_match = re.search(r"^\| 1\.22\.0 .*\|$", content, re.MULTILINE)
-        self.assertIsNotNone(row_match)
-        row = row_match.group(0)
-        self.assertIn("linked deliberation", row)
-        self.assertIn("required_ids", row)
+    def test_f_j_u3b_rendered_region_parity(self) -> None:
+        self._assert_skill_rendered_region_parity(
+            (
+                "      **Linked-deliberation disposition snapshot.**",
+                "      Validate existence before location",
+                "      Apply the planner's containment checks",
+                "      Superseded provenance only:",
+                "**`archived_ids` is a transition log",
+                "**This classifier re-run does not, by itself",
+                "**Engine-semantics re-probe",
+            )
+        )
 
-    def test_1_21_0_row_still_preserved_byte_identical(self) -> None:
-        # The 1.22.0 row must be additive: it must not rewrite the 1.21.0
-        # correction row it follows.
-        content = _policy_content()
-        row_match = re.search(r"^\| 1\.21\.0 .*\|$", content, re.MULTILINE)
-        self.assertIsNotNone(row_match)
-        row = row_match.group(0)
-        self.assertIn("Corrects, and does not delete or edit, the 1.19.0 row above", row)
+    def test_g_h_u4_rendered_region_parity(self) -> None:
+        self._assert_skill_rendered_region_parity(
+            (
+                "3. **Verify `archived_ids`",
+                "   * **Compute `allowed_ids`**",
+                "   * **Compute `required_ids`**",
+                "5. **Verify out-of-manifest descendant baseline invariance",
+                "6. **Produce cascade-close report**",
+                "7. **Gate decision**: `returned_ids`",
+                "* This list mirrors the policy's own `INV-1`..`INV-12`",
+                "* `INV-1` (Flat closure scope):",
+                "* `INV-6` (Engine-inertness containment gate):",
+                "* `INV-10` (Close-path gate postconditions",
+                "* `INV-11` (External runtime prerequisite):",
+                "* `INV-12` (Linked-deliberation disposition):",
+            )
+        )
+
+
+class CascadeCloseLinkedDeliberationFlatSemanticsTests(unittest.TestCase):
+    """199.004-T/199.005-T/199.006-T: pins the U3b flat-engine
+    disposition-snapshot contract in both the template and installed mirror.
+    """
+
+    def test_f_a_disposition_snapshot_states_exact_link_sources(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("every explicit manifest member regardless of `artifact_type`", section)
+                self.assertIn("`custom_fields.source_deliberation_id` as a complete literal value", section)
+                self.assertIn("description/references text scanned with the identical", section)
+                self.assertIn(r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b", section)
+
+    def test_f_b_disposition_snapshot_validates_existence_before_location(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("Validate existence before location", section)
+                self.assertIn("first determine whether the ID resolves to any deliberation record", section)
+                self.assertIn("only then classify where each record path resides", section)
+
+    def test_f_h_disposition_snapshot_excludes_self_and_closure_scope(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("exclude the shipment record itself and every ID in `closure_scope(S)`", section)
+                self.assertIn("H10", section)
+                self.assertIn("an explicit-member deliberation is an ordinary manifest member", section)
+
+    def test_f_c_torn_deliberation_is_retained_ambiguous_not_a_halt(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("A torn or duplicate deliberation", section)
+                self.assertIn("`retained_ambiguous` and does **not** halt", section)
+                self.assertIn("every discovered record path is still fingerprinted", section)
+                self.assertIn("`RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS`", section)
+                self.assertIn("apply to manifest members only", section)
+
+    def test_f_d_unresolved_references_are_recorded_without_halting(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("An unresolved ID records `unresolved_references`", section)
+                self.assertIn("does **not** halt", section)
+                self.assertIn("`RECONCILE_FAIL_SNAPSHOT_MISSING`", section)
+                self.assertIn("never to disposition-set deliberations", section)
+
+    def test_f_e_snapshot_records_sha_256_per_record_path(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("every record path", section)
+                self.assertIn("SHA-256 of each record path's bytes", section)
+                self.assertIn("captured SHA-256 values", section)
+
+    def test_f_f_disposition_snapshot_is_not_a_blanket_allowance(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("uses the planner's `validated_linked_deliberations(S)` set definition", section)
+                self.assertIn("collect link candidates from", section)
+                self.assertIn("exclude the shipment record itself and every ID in `closure_scope(S)`", section)
+                self.assertNotIn("any embedded deliberation ID", section)
+                self.assertNotIn("blanket allowance for arbitrary IDs", section)
+
+    def test_f_g_linked_deliberation_ids_appears_only_as_superseded_provenance(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                self.assertEqual(raw.count("`linkedDeliberationIDs`"), 1)
+                idx = raw.index("`linkedDeliberationIDs`")
+                context = _flatten(raw[max(0, idx - 200) : idx + 300])
+                self.assertIn("Superseded provenance only", context)
+                self.assertIn("removed `linkedDeliberationIDs` helper", context)
+                self.assertIn("the engine does not archive these disposition-set deliberations", context)
+
+    def test_f_i_pre_invocation_recollection_covers_full_step_0c_set(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**This classifier re-run does not, by itself") :
+                    content.index("**Engine-semantics re-probe", content.index("**This classifier re-run"))
+                ]
+                self.assertIn("same full disposition set as the Step 0(c)", section)
+                self.assertIn("every explicit manifest member regardless of `artifact_type`", section)
+                self.assertIn("`custom_fields.source_deliberation_id`", section)
+                self.assertIn("description/references text", section)
+                self.assertIn("identical matcher", section)
+                self.assertIn("exclusion of the shipment record itself", section)
+                self.assertIn("every ID in `closure_scope(S)`", section)
+                self.assertIn("link kinds", section)
+                self.assertIn("every record path", section)
+                self.assertIn("declared statuses", section)
+                self.assertIn("SHA-256 values", section)
+                self.assertNotIn("each qualifying feature member's", section)
+                self.assertNotIn("by a qualifying feature after Step 0(c)", section)
 
 
 class CascadeCloseEngineSemanticsGateTests(unittest.TestCase):
@@ -817,6 +1045,31 @@ class CascadeCloseEngineSemanticsGateTests(unittest.TestCase):
         self.assertIn("`backlogit version --no-update-check --format json`", gate)
         self.assertIn("Verified engine-semantics lines: `1.11`", gate)
         self.assertNotIn("{{OP_", gate)
+
+    def test_c_c_pre_invocation_re_probe_compares_raw_engine_semantics(self) -> None:
+        flat = _flatten(_skill_content())
+        re_probe = flat[
+            flat.index("**Engine-semantics re-probe (pre-invocation revalidation).**") :
+            flat.index("**Baseline-fingerprint capture", flat.index("**Engine-semantics re-probe"))
+        ]
+        self.assertIn("re-run the Step 0(c) Engine-semantics gate probe **fresh**", re_probe)
+        self.assertIn("on the SAME surface", re_probe)
+        self.assertIn("compare the RAW `version`, `commit`, and `probe_surface` values", re_probe)
+        self.assertIn("resulting engine-semantics verdict", re_probe)
+        self.assertIn("by exact string equality", re_probe)
+        self.assertIn("never a normalized or minor-line-only comparison", re_probe)
+
+    def test_c_d_re_probe_failure_halts_drift_without_safe_close(self) -> None:
+        flat = _flatten(_skill_content())
+        re_probe = flat[
+            flat.index("**Engine-semantics re-probe (pre-invocation revalidation).**") :
+            flat.index("**Baseline-fingerprint capture", flat.index("**Engine-semantics re-probe"))
+        ]
+        self.assertIn("Any difference, or a re-probe failure of any kind", re_probe)
+        self.assertIn("HALT — cascade pre-invocation revalidation drift detected", re_probe)
+        self.assertIn("do NOT invoke either close path", re_probe)
+        self.assertIn("Never fall back to `SAFE_CLOSE` here", re_probe)
+        self.assertIn("prohibited `CASCADE` → `SAFE_CLOSE` substitution", re_probe)
 
     def test_c_e_step_0b_snapshots_every_explicit_manifest_member(self) -> None:
         flat = _flatten(_skill_content())
@@ -863,22 +1116,23 @@ class CascadeCloseTwoSetGateScenarioTests(unittest.TestCase):
 
     def test_scenario_2_omitted_truly_pre_archived_tasks_gate_passes(self) -> None:
         content = _flatten(_skill_content())
-        # A truly pre-archived member is excluded from required_ids, so its
-        # absence from archived_ids does not trigger the missing-required
-        # halt. This is exactly what the withdrawn full-set-equality claim
-        # got wrong. Scoped to manifest task items and a qualifying
-        # feature's validated linked deliberation only (PR #407 review,
-        # thread PRRT_kwDORzpWpM6b0kit) -- never the qualifying feature
-        # member itself, which step 3 makes unconditionally required.
+        # A truly pre-archived non-feature manifest member is excluded from
+        # required_ids, so its absence from archived_ids does not trigger the
+        # missing-required halt. This is exactly what the withdrawn full-set-
+        # equality claim got wrong, without any deliberation-ID tolerance
+        # example.
+        transition_idx = content.index("`archived_ids` is a transition log")
+        transition = content[transition_idx : content.index("**No-substitution rule**")]
+        self.assertIn("A non-feature manifest member", transition)
+        self.assertIn("has no transition to report", transition)
+        self.assertIn("this is expected engine behavior", transition)
         self.assertIn(
-            "A manifest task item, or a qualifying feature member's "
-            "validated linked deliberation, that was already truly "
-            "`status: archived` before the call therefore has no "
-            "transition to report and is **correctly absent** from "
-            "`archived_ids`",
-            content,
+            "correctly absent\" the way a non-feature manifest member can",
+            transition,
         )
-        self.assertIn("this is expected engine behavior", content)
+        self.assertNotIn("validated linked deliberation", transition)
+        self.assertNotIn("027-DL", transition)
+
 
     def test_scenario_2_preamble_never_restates_blanket_manifest_member_claim(
         self,
