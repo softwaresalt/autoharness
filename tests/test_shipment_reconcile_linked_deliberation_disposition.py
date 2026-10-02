@@ -220,15 +220,17 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                 self.assertRegex(baseline, r"gitignored item event log \(`[^`]+/logs/`\)")
                 self.assertRegex(baseline, r"index \(`[^`]+/\*\.db\*`\)")
                 self.assertIn("lock and hook-queue files", baseline)
+                # v1.11.0 ArchiveItem calls ArchiveLinkedStashEntries, which can
+                # rewrite stash files. Those writes are never allowed side effects;
+                # the step 3 engine stash-link guard makes the call a no-op instead.
+                self.assertNotIn("does **not** write", baseline)
+                self.assertIn("`ArchiveItem` also calls `ArchiveLinkedStashEntries`", baseline)
+                self.assertIn("That write is never an allowed side effect", baseline)
+                self.assertIn("the step 3 engine stash-link guard", baseline)
                 self.assertRegex(
                     baseline,
-                    r"`ArchiveItem` does \*\*not\*\* write `[^`]+/stash\.jsonl` or "
-                    r"`[^`]+/archive/stash\.jsonl`",
-                )
-                self.assertIn(
-                    "any change there, or to any other path, violates the "
-                    "disposition baseline",
-                    baseline,
+                    r"Any change to `[^`]+/stash\.jsonl` or `[^`]+/archive/stash\.jsonl`, "
+                    r"or to any other path, violates the disposition baseline",
                 )
 
     def test_h_l_matcher_referenced_by_name_not_restated(self) -> None:
@@ -355,8 +357,9 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                 self.assertIn(
                     "its `archived_from` provenance is present and well-formed, naming the "
                     "deliberation's disposition-snapshot queue record path by exact string "
-                    "match, workspace-relative with `/` separators (missing or ill-formed "
-                    "provenance fails verification)",
+                    "match, workspace-relative with `/` separators (step 3 archives only "
+                    "queue-resident targets, so that path always exists; missing or "
+                    "ill-formed provenance fails verification)",
                     verify,
                 )
                 self.assertIn(
@@ -930,6 +933,84 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 self.assertIn("with the engine VERIFIED", row_d)
                 self.assertIn("no higher-precedence rule matched", row_d)
                 self.assertIn("description/references", row_d)
+
+
+class ReviewFixCycleFourAssertions(unittest.TestCase):
+    """PR #477 review-fix cycle 4: engine stash-link guard, archive-resident
+    retention, and containment for the all-path disposition fingerprint.
+    """
+
+    def test_engine_stash_link_guard_retains_before_archive(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn("**Engine stash-link guard.**", archive)
+                self.assertIn("declare a `custom_fields.source_stash_id` key", archive)
+                self.assertIn(
+                    "record outcome `retained_shared_reference` with `reason_code: "
+                    "engine_stash_link`",
+                    archive,
+                )
+                self.assertIn("`GetStashLinksForItem`", archive)
+                self.assertIn(
+                    "`ArchiveLinkedStashEntries` call inside `ArchiveItem` a no-op",
+                    archive,
+                )
+                # The guard runs before the archive call in the same step.
+                self.assertLess(
+                    archive.index("**Engine stash-link guard.**"),
+                    archive.index("Otherwise archive that single artifact"),
+                )
+                report = _step(_section(raw), 5)
+                self.assertIn("`reason_code: engine_stash_link`", report)
+
+    def test_archive_resident_target_is_retained_before_archive(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn("**Archive-resident target.**", archive)
+                self.assertIn(
+                    "record outcome `retained_ambiguous` with `reason_code: "
+                    "archive_resident_unarchived`",
+                    archive,
+                )
+                self.assertIn("canonical queue restore path", archive)
+                self.assertLess(
+                    archive.index("**Archive-resident target.**"),
+                    archive.index("Otherwise archive that single artifact"),
+                )
+                verify = _step(_section(raw), 4)
+                self.assertIn("step 3 archives only queue-resident targets", verify)
+                report = _step(_section(raw), 5)
+                self.assertIn("`reason_code: archive_resident_unarchived`", report)
+
+    def test_all_path_fingerprint_applies_containment_before_reads(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                baseline = _step(_section(raw), 2)
+                self.assertIn(
+                    "enumerate those paths without following any symlink, junction, or "
+                    "other reparse point",
+                    baseline,
+                )
+                self.assertIn(
+                    "before reading any path's bytes, at this capture and at every later "
+                    "invariance comparison in steps 4 and 6, apply the Step 0(c) "
+                    "containment checks to it",
+                    baseline,
+                )
+                self.assertIn(
+                    "A containment failure while capturing this baseline is never read or "
+                    "hashed; it halts with `HALT — linked-deliberation disposition failed "
+                    "{id}`, where `{id}` is the shipment ID; emit **P-005** once; no "
+                    "mutation.",
+                    baseline,
+                )
+                self.assertIn(
+                    "A containment failure during a later comparison is never read or "
+                    "hashed and fails that step's verification",
+                    baseline,
+                )
 
 
 class HelperHardeningAssertions(unittest.TestCase):

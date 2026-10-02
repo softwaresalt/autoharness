@@ -1127,7 +1127,12 @@ archive, one ID at a time.
      path under `{{BACKLOG_DIRECTORY}}/` other than the exempt paths named below,
      because porcelain status codes alone are not byte identity (a path
      that is already modified or untracked keeps the same entry when its
-     bytes change again);
+     bytes change again); enumerate those paths without following any
+     symlink, junction, or other reparse point, and before reading any
+     path's bytes, at this capture and at every later invariance comparison
+     in steps 4 and 6, apply the Step 0(c) containment checks to it (lexical
+     and canonical containment in the backlog root, and no symlink,
+     junction, or other reparse point);
    * minus the `closure_scope(S)` IDs this run already archived (their
      queue→archive moves are the completed closure, not drift). This
      subtraction applies to the (iii) porcelain capture only: the (iii)
@@ -1144,14 +1149,26 @@ archive, one ID at a time.
      (`{{BACKLOG_DIRECTORY}}/*.db*`);
    * lock and hook-queue files.
 
-   `ArchiveItem` does **not** write `{{BACKLOG_DIRECTORY}}/stash.jsonl` or
-   `{{BACKLOG_DIRECTORY}}/archive/stash.jsonl`; any change there, or to any
-   other path, violates the disposition baseline.
+   `ArchiveItem` also calls `ArchiveLinkedStashEntries`
+   (`internal/core/stash.go`), which archives every active stash entry that
+   the engine's stash-link index links to the target, rewriting
+   `{{BACKLOG_DIRECTORY}}/stash.jsonl` and appending to
+   `{{BACKLOG_DIRECTORY}}/archive/stash.jsonl`. That write is never an allowed side
+   effect: the step 3 engine stash-link guard retains every target that can
+   carry such a link, so the call is a no-op for every archived target. Any
+   change to `{{BACKLOG_DIRECTORY}}/stash.jsonl` or `{{BACKLOG_DIRECTORY}}/archive/stash.jsonl`,
+   or to any other path, violates the disposition baseline.
 
    The exempt paths, excluded from the (iii) fingerprint, are only the
    gitignored item event log, the index, lock and hook-queue files, and this
    run's own closure report path under `{{BACKLOG_DIRECTORY}}/reconcile/` (written by
    step 5). Every other `{{BACKLOG_DIRECTORY}}/reconcile/` path stays in the baseline.
+
+   A containment failure while capturing this baseline is never read or
+   hashed; it halts with `HALT — linked-deliberation disposition failed {id}`,
+   where `{id}` is the shipment ID; emit **P-005** once; no mutation. A
+   containment failure during a later comparison is never read or hashed and
+   fails that step's verification (step 4 or step 6).
 
 3. **Archive each planned `archive`, one at a time, in ascending ID order.**
    * Immediately before each call, re-run the SHA-256 check after first
@@ -1177,6 +1194,27 @@ archive, one ID at a time.
    * A hash mismatch halts with `HALT — linked-deliberation disposition failed {id}`;
      emit a **P-005** violation once through D6, scoped to the disposition
      archive of {id}; the completed close-path closure is never rolled back.
+   * **Archive-resident target.** A target whose disposition-snapshot record
+     path lies under `{{BACKLOG_DIRECTORY}}/archive/` rather than
+     `{{BACKLOG_DIRECTORY}}/queue/` is never archived: record outcome
+     `retained_ambiguous` with `reason_code: archive_resident_unarchived` for
+     that ID, with no mutation, and the loop continues. For such a record,
+     `ArchiveItem` stamps `archived_from` with the engine's canonical queue
+     restore path, which is not a disposition-snapshot record path, so step 4
+     could never verify it.
+   * **Engine stash-link guard.** A target whose retained record bytes
+     declare a `custom_fields.source_stash_id` key, with any value, is never
+     archived: record outcome `retained_shared_reference` with `reason_code:
+     engine_stash_link` and the declared value as its referrer for that ID,
+     with no mutation, and the loop continues. In `v1.11.0`,
+     `ArchiveLinkedStashEntries` reads the engine's stash-link index through
+     `GetStashLinksForItem`; harvest, index rehydration, and verified
+     provenance corrections write every row of that index, and each row names
+     an item whose `custom_fields.source_stash_id` equals the linked stash ID.
+     The guard ignores whether that stash entry still looks active, because
+     the index can lag the stash file. It therefore makes the
+     `ArchiveLinkedStashEntries` call inside `ArchiveItem` a no-op for every
+     archived target.
    * A new live referrer records `retained_shared_reference: [referrer IDs]`
      for that ID with no mutation, and the loop continues.
    * Otherwise archive that single artifact via `{{OP_ARCHIVE_ITEM_MCP}}`
@@ -1195,8 +1233,9 @@ archive, one ID at a time.
      disposition snapshot;
    * its `archived_from` provenance is present and well-formed, naming the
      deliberation's disposition-snapshot queue record path by exact string
-     match, workspace-relative with `/` separators (missing or ill-formed
-     provenance fails verification);
+     match, workspace-relative with `/` separators (step 3 archives only
+     queue-resident targets, so that path always exists; missing or
+     ill-formed provenance fails verification);
    * its frontmatter, compared **semantically** (parsed YAML, because
      `ArchiveItem` re-serializes it), equals the frontmatter of the record
      bytes retained at the step 3 re-check, except for the three engine keys
@@ -1233,13 +1272,17 @@ archive, one ID at a time.
      default, replacing the planner's pre-mutation `archive`), a planned
      `archive` that the step 3 re-check settles as
      `retained_shared_reference` carries `reason_code:
-     retained_shared_reference`, an outcome preserved from the Step 0(c)
+     retained_shared_reference`, one that the step 3 engine stash-link guard
+     settles carries `reason_code: engine_stash_link`, one that step 3
+     settles as an archive-resident target carries `reason_code:
+     archive_resident_unarchived`, an outcome preserved from the Step 0(c)
      disposition snapshot keeps that snapshot's own `reason_code` (for
      example a read error's `path_escape`), and an outcome synthesized for a
      `planning_error` (only the remaining snapshot deliberations) carries
      `reason_code: planning_error`, `path` is present
      for `retained_read_error`, `referrers` lists the live referrer IDs of a
-     `retained_shared_reference`, and `post_sha256` and `archived_status` are
+     `retained_shared_reference` (for `engine_stash_link`, the declared
+     `source_stash_id` value), and `post_sha256` and `archived_status` are
      present for an `archived` outcome. Report keys map to planner/code fields
      as follows: `id` → `deliberation_id`, `linking_members` →
      `linking_member_ids`, `referrers` → `referrer_ids`, and `pre_sha256`
