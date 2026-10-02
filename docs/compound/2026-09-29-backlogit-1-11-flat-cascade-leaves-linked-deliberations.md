@@ -1,5 +1,5 @@
 ---
-title: "backlogit 1.11.0 flat cascade leaves linked deliberations live — the fourth closure-time engine-behavior drift, and a re-verification runbook"
+title: "backlogit 1.11.0 flat cascade leaves linked deliberations live — the fourth engine-behavior drift found during a live shipment operation, and a re-verification runbook"
 description: "On backlogit 1.11.0 `backlogit shipment ship` archives only the shipment, terminal explicit release-scope members, and explicit feature members; a feature's linked deliberations stay independent. The 1.10-era autoharness contract still required them in `archived_ids`, so the 190-S CASCADE close halted. The contract was realigned to the flat engine semantics, CASCADE and linked-deliberation disposition mutation now fail closed outside a verified engine-semantics line, and this learning carries the runbook for re-verifying a new backlogit minor line."
 problem_type: tool_version_behavior_drift
 category: backlogit
@@ -61,7 +61,7 @@ pins it. At `v1.10.0` the `linkedDeliberationIDs` helper appended linked
 deliberations to the candidates, so the old autoharness contract was correct
 for 1.10.x and wrong for 1.11.x.
 
-## Four closure-time drift occurrences
+## Four engine-behavior drift occurrences
 
 This was the fourth time autoharness discovered a backlogit engine-behavior
 change during a live shipment operation rather than before mutation (three

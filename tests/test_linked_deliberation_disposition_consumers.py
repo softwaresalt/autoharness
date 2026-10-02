@@ -93,6 +93,24 @@ class ShipStep7ConsumesDispositionReportTests(unittest.TestCase):
         )
         self.assertIn("explicit manifest member is outside the disposition set (H10)", section)
 
+    def test_k1_outcome_sub_bullets_are_siblings(self) -> None:
+        raw = _SHIP_TEMPLATE.read_text(encoding="utf-8")
+        start = raw.index(_STEP7_START)
+        lines = raw[start : raw.index(_STEP7_END, start)].splitlines()
+        heads = (
+            "* outcome `archived`",
+            "* any `retained_*` outcome",
+            "* any other outcome value",
+            "* the deliberation is absent from the report",
+        )
+        indents = set()
+        for head in heads:
+            matches = [line for line in lines if line.lstrip().startswith(head)]
+            with self.subTest(head=head):
+                self.assertEqual(len(matches), 1)
+                indents.add(len(matches[0]) - len(matches[0].lstrip()))
+        self.assertEqual(len(indents), 1, "outcome sub-bullets must share one indent")
+
     def test_k1_delib_count_counts_disposition_archives_not_ship_archives(self) -> None:
         section = _ship_template_step7()
         self.assertIn(
@@ -184,8 +202,11 @@ class OperationalClosureRetainedOutcomesTests(unittest.TestCase):
                 )
                 self.assertIn("never re-derived", bullet)
                 self.assertIn("an unknown `reason_code` is recorded verbatim", bullet)
-                self.assertIn("a `retained_*` deliberation is never archived", bullet)
-                self.assertIn("nor is a `skipped_not_in_disposition_report` one", bullet)
+                self.assertIn(
+                    "neither Ship nor the disposition step archives a `retained_*` or "
+                    "`skipped_not_in_disposition_report` deliberation",
+                    bullet,
+                )
 
     def test_k2_deliberation_outcomes_use_the_report_literals(self) -> None:
         for label, raw in _op_closure_variants():
