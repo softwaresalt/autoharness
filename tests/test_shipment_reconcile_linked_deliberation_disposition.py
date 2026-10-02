@@ -973,7 +973,8 @@ class ReviewFixCycleFourAssertions(unittest.TestCase):
                 )
                 self.assertIn("`GetStashLinksForItem`", archive)
                 self.assertIn(
-                    "`ArchiveLinkedStashEntries` call inside `ArchiveItem` a no-op",
+                    "Together, the two checks make the `ArchiveLinkedStashEntries` "
+                    "call inside `ArchiveItem` a no-op",
                     archive,
                 )
                 # The guard runs before the archive call in the same step.
@@ -1105,6 +1106,86 @@ class RenderedRegionParityII(unittest.TestCase):
                 expected = _anchored_region(_allowlisted(_scope(self.rendered, start, end)), anchor)
                 actual = _anchored_region(_scope(self.mirror, start, end), anchor)
                 self.assertEqual(actual, expected)
+
+
+class ReviewFixCycleSevenAssertions(unittest.TestCase):
+    """PR #477 review-fix cycle 7: the engine stash-link guard also runs the
+    engine's exact active stash-link relation, read-only, before each archive.
+    """
+
+    _QUERY = (
+        "`SELECT sl.stash_id FROM stash_links sl JOIN stash_entries se ON "
+        "se.stash_id = sl.stash_id WHERE sl.item_id = ? AND se.state = 'active'`"
+    )
+
+    def test_guard_names_exact_relation_query(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn("*Exact relation check.*", archive)
+                self.assertIn(self._QUERY, archive)
+                self.assertIn("`TestArchiveItem_ArchivesLinkedStashEntries`", archive)
+                self.assertIn("bound to the target ID", archive)
+                # The key check stays first; the relation check runs after it
+                # and before the archive call.
+                self.assertLess(
+                    archive.index("*Provenance key check.*"),
+                    archive.index("*Exact relation check.*"),
+                )
+                self.assertLess(
+                    archive.index("*Exact relation check.*"),
+                    archive.index("Otherwise archive that single artifact"),
+                )
+                self.assertIn("immediately before the archive call", archive)
+
+    def test_relation_query_is_read_only(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn("Open the index **read-only** through the SQLite URI", archive)
+                self.assertRegex(archive, r"`file:[^`]*/backlogit\.db\?mode=ro`")
+                self.assertIn(
+                    "never write, migrate, sync, rehydrate, or hand-edit the index",
+                    archive,
+                )
+                self.assertIn("reapply those checks to it before opening it", archive)
+
+    def test_any_returned_row_retains(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn(
+                    "If the query returns any row, the target is never archived: record "
+                    "outcome `retained_shared_reference` with `reason_code: "
+                    "engine_stash_link` and the returned stash IDs",
+                    archive,
+                )
+                self.assertIn("Only an error-free query that returns zero rows clears", archive)
+                report = _step(_section(raw), 5)
+                self.assertIn("the stash IDs the exact relation check returned", report)
+
+    def test_unreadable_index_retains_fail_closed(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn(
+                    "If the index is missing, fails the containment checks, cannot be "
+                    "opened read-only, or lacks the `stash_links` or `stash_entries` "
+                    "table or a queried column",
+                    archive,
+                )
+                self.assertIn(
+                    "archived (fail-closed): record outcome `retained_engine_unverified` "
+                    "with `reason_code: engine_stash_link_unverifiable`",
+                    archive,
+                )
+                report = _step(_section(raw), 5)
+                self.assertIn("`reason_code: engine_stash_link_unverifiable`", report)
+                baseline = _step(_section(raw), 2)
+                self.assertIn(
+                    "provenance key check and exact relation check together retain",
+                    baseline,
+                )
 
 
 if __name__ == "__main__":
