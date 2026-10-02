@@ -246,3 +246,18 @@ its manifest happened to contain no truly pre-archived members at closure
 time, so its observed `archived_ids` exact match remains accurate as a
 historical record — but the general invariant this document previously
 endorsed is corrected.
+
+## Supersession note (2026-09-29, backlogit 1.11.0 flat cascade)
+
+The correction above, where it treats a qualifying feature member's validated
+linked deliberation as an archive candidate that may be correctly absent from
+`archived_ids`, is superseded for backlogit 1.11.x. The 1.11.0 flat cascade
+(`collectArchiveCandidateIDs`, commit `5a4b70dd`) never archives a feature's
+linked deliberations, so a linked deliberation is no longer an `allowed_ids`
+or `required_ids` member of a CASCADE close; it is handled only by the
+path-independent Linked-Deliberation Disposition step (P-015 INV-12), and
+CASCADE itself now also requires a verified engine-semantics line. The rule
+this document records — a `CASCADE` verdict is never silently substituted with
+safe-close — stands. Everything above stays unchanged as historical
+evidence. See
+[the 1.11 flat-cascade learning](2026-09-29-backlogit-1-11-flat-cascade-leaves-linked-deliberations.md).
