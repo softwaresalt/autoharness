@@ -529,6 +529,18 @@ completion.
       and `RECONCILE_FAIL_SNAPSHOT_MISSING` apply to manifest members only,
       never to disposition-set deliberations.
 
+      Apply the planner's containment checks before any byte read of a
+      record path, matching `shipment_closure.py`: the path must be
+      lexically and canonically contained in the backlog root, and it must
+      not be a symlink, junction, or other reparse point. A path that fails
+      either check is never opened or hashed; record it with outcome
+      `retained_read_error`, its workspace-relative `path`, and `reason_code`
+      `path_escape` or `symlink_or_reparse_point`, and do **not** halt. An
+      unreadable record path records `retained_read_error` with
+      `reason_code` `unreadable_file` instead of a hash. Step 5 compares a
+      read-error record path by its recorded location and `reason_code`, never
+      by following it to hash a target.
+
       Superseded provenance only: the prior 1.10-era contract followed
       Backlogit's removed `linkedDeliberationIDs` helper. Under the verified
       engine-semantics line (`5a4b70dd` / `v1.11.0`), the engine does not

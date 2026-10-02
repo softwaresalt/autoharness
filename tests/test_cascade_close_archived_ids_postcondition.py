@@ -161,6 +161,23 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
                     content,
                 )
 
+    def test_disposition_snapshot_applies_containment_before_hashing(self) -> None:
+        # PR #475 Copilot review round 3: never follow a symlink/junction or an
+        # escaping path to hash its target; mirror the planner's read-error outcome.
+        for label, raw in _skill_variants():
+            with self.subTest(variant=label):
+                content = _flatten(raw)
+                self.assertIn(
+                    "Apply the planner's containment checks before any byte read of a record path",
+                    content,
+                )
+                self.assertIn("is never opened or hashed", content)
+                self.assertIn("`path_escape` or `symlink_or_reparse_point`", content)
+                self.assertIn(
+                    "never by following it to hash a target",
+                    content,
+                )
+
     def test_two_conditions_are_independently_labelled_and_not_merged(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("Unexpected-artifact check", content)
