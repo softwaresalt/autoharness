@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 import unittest
 from pathlib import Path
+from typing import ClassVar
 
 try:
     from _assertion_render import render_source
@@ -66,18 +67,40 @@ def _variants() -> tuple[tuple[str, str], ...]:
     )
 
 
+def _must_index(text: str, marker: str, label: str, start: int = 0) -> int:
+    try:
+        return text.index(marker, start)
+    except ValueError as exc:  # pragma: no cover - failure path exercised by tests
+        raise AssertionError(f"marker not found for {label}: {marker!r}") from exc
+
+
+def _scope_between(raw: str, start_marker: str, end_marker: str, label: str) -> str:
+    start = _must_index(raw, start_marker, f"{label} start")
+    end = _must_index(raw, end_marker, f"{label} end", start)
+    return raw[start:end]
+
+
 def _section(raw: str) -> str:
     """The raw text of the Linked-Deliberation Disposition section."""
-    start = raw.index(_SECTION_HEADING)
-    return raw[start : raw.index(_NEXT_HEADING, start)]
+    return _scope_between(raw, _SECTION_HEADING, _NEXT_HEADING, "disposition section")
+
+
+def _numbered_step(region: str, number: int, *, final_number: int, label: str) -> str:
+    """One numbered step from ``region``, failing if a non-final successor is absent."""
+    start = _must_index(region, f"\n{number}. **", f"{label} step {number}")
+    next_marker = f"\n{number + 1}. **"
+    following = region.find(next_marker, start)
+    if following == -1:
+        if number == final_number:
+            following = len(region)
+        else:
+            raise AssertionError(f"marker not found for {label} step {number + 1}: {next_marker!r}")
+    return _flatten(region[start:following])
 
 
 def _step(section: str, number: int) -> str:
     """One numbered step of the disposition section, flattened."""
-    start = section.index(f"\n{number}. **")
-    following = section.find(f"\n{number + 1}. **", start)
-    end = following if following != -1 else len(section)
-    return _flatten(section[start:end])
+    return _numbered_step(section, number, final_number=6, label="disposition")
 
 
 class DispositionSectionAssertionsI(unittest.TestCase):
@@ -202,7 +225,7 @@ class DispositionSectionAssertionsIII(unittest.TestCase):
                 self.assertIn("Pass **no cascade flag**", archive)
                 self.assertIn("(CLI fallback `backlogit archive {id}`)", archive)
                 self.assertIn("one at a time, in ascending ID order", archive)
-                for forbidden in ("--cascade", "backlogit shipment ship", "ship_shipment"):
+                for forbidden in ("--cascade", "backlogit shipment ship", "ship_shipment", "OP_SHIP_SHIPMENT"):
                     self.assertNotIn(forbidden, section)
 
     def test_h_c_disposition_halt_string_present(self) -> None:
@@ -266,24 +289,32 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                 self.assertIn("disposition-baseline invariance holds", verify)
 
 
+def _safe_close_region(raw: str) -> str:
+    return _scope_between(raw, "### Safe-Close Mode", "### Cascade Close Sub-Procedure", "safe-close mode")
+
+
+def _cascade_region(raw: str) -> str:
+    return _scope_between(raw, "### Cascade Close Sub-Procedure", _SECTION_HEADING, "cascade close")
+
+
 def _safe_close_step(raw: str, number: int) -> str:
     """One numbered Safe-Close Mode step (before the Cascade sub-procedure)."""
-    mode = raw[raw.index("### Safe-Close Mode") : raw.index("### Cascade Close Sub-Procedure")]
-    start = mode.index(f"\n{number}. **")
-    following = mode.find(f"\n{number + 1}. **", start)
-    return _flatten(mode[start : following if following != -1 else len(mode)])
+    return _numbered_step(_safe_close_region(raw), number, final_number=10, label="safe-close")
+
+
+def _cascade_step(raw: str, number: int) -> str:
+    """One numbered Cascade Close Sub-Procedure step."""
+    return _numbered_step(_cascade_region(raw), number, final_number=7, label="cascade")
 
 
 def _post_mode_step(raw: str, number: int) -> str:
     """One numbered Post-Mode step."""
-    mode = raw[raw.index("### Post-Mode") : raw.index("### Safe-Close Mode")]
-    start = mode.index(f"\n{number}. **")
-    following = mode.find(f"\n{number + 1}. **", start)
-    return _flatten(mode[start : following if following != -1 else len(mode)])
+    mode = _scope_between(raw, "### Post-Mode", "### Safe-Close Mode", "post-mode")
+    return _numbered_step(mode, number, final_number=6, label="post-mode")
 
 
 def _behavioral_constraints(raw: str) -> str:
-    return _flatten(raw[raw.index("## Behavioral Constraints") : raw.index("## Required Protocol")])
+    return _flatten(_scope_between(raw, "## Behavioral Constraints", "## Required Protocol", "behavioral constraints"))
 
 
 def _vocabulary_line(raw: str, invariant: str) -> str:
@@ -308,16 +339,18 @@ class HandOffScopingAndSelectedWordingAssertions(unittest.TestCase):
                 self.assertNotIn("Proceed to post-mode", gate)
                 # The Step 0(c) CASCADE routing and Cascade step 7 hand off to
                 # the same step, so both close paths converge on it.
-                flat = _flatten(raw)
+                routing = _safe_close_step(raw, 0)
+                cascade_gate = _cascade_step(raw, 7)
                 self.assertIn(
                     "in place of steps 1–10, then continue to the "
                     "Linked-Deliberation Disposition step.",
-                    flat,
+                    routing,
                 )
                 self.assertIn(
                     "`recommendation: CLOSED`. Hand off to the "
-                    "Linked-Deliberation Disposition step.",
-                    flat,
+                    "Linked-Deliberation Disposition step; proceed to post-mode "
+                    "only after that step returns `recommendation: DISPOSITION_COMPLETE`.",
+                    cascade_gate,
                 )
                 self.assertIn(
                     "only after that step returns "
@@ -369,9 +402,7 @@ class HandOffScopingAndSelectedWordingAssertions(unittest.TestCase):
 
 def _matrix_row(raw: str, row: str) -> str:
     """One linked-deliberation row of the Deterministic Safe-Close Scenario Matrix."""
-    matrix = raw[
-        raw.index("## Deterministic Safe-Close Scenario Matrix") : raw.index("## Quality Criteria")
-    ]
+    matrix = _scope_between(raw, "## Deterministic Safe-Close Scenario Matrix", "## Quality Criteria", "scenario matrix")
     prefix = f"* **Linked deliberation ({row}) — "
     rows = [line for line in matrix.splitlines() if line.startswith(prefix)]
     if len(rows) != 1:
@@ -415,24 +446,28 @@ class ScenarioMatrixAssertionsI(unittest.TestCase):
                 self.assertNotIn("HALT", row)
 
     def test_i_5c_engine_drift_halts(self) -> None:
-        halt = "HALT — cascade modified linked deliberation {id} — engine semantics drift"
+        unexpected = "HALT — cascade archived unexpected artifact {id}"
+        drift = "HALT — cascade modified linked deliberation {id} — engine semantics drift"
         for label, raw in _variants():
             with self.subTest(surface=label):
                 row = _matrix_row(raw, "c")
                 self.assertIn(
-                    "a cascade that archives or modifies a disposition-set linked "
-                    "deliberation is engine drift",
+                    "a cascade that archives a non-manifest disposition-set linked "
+                    "deliberation halts at Cascade Close Sub-Procedure step 3",
                     row,
                 )
-                self.assertIn(f"Cascade Close Sub-Procedure step 5 halts with `{halt}`", row)
-                self.assertIn("emits a P-005 violation", row)
+                self.assertIn(f"`{unexpected}`", row)
+                self.assertIn(
+                    "a cascade that modifies but does not archive one halts at step 5",
+                    row,
+                )
+                self.assertIn(f"`{drift}`", row)
                 self.assertIn(
                     "neither the Linked-Deliberation Disposition step nor post-mode runs", row
                 )
-                cascade = raw[
-                    raw.index("### Cascade Close Sub-Procedure") : raw.index(_SECTION_HEADING)
-                ]
-                self.assertIn(f"halts with `{halt}`", cascade)
+                cascade = _cascade_region(raw)
+                self.assertIn(f"halts with `{drift}`", cascade)
+                self.assertIn(f"`{unexpected}`", cascade)
 
 
 class ScenarioMatrixAssertionsII(unittest.TestCase):
@@ -474,7 +509,7 @@ class ScenarioMatrixAssertionsII(unittest.TestCase):
 
 
 def _quality_criteria(raw: str) -> str:
-    return _flatten(raw[raw.index("## Quality Criteria") : raw.index("## Related Artifacts")])
+    return _flatten(_scope_between(raw, "## Quality Criteria", "## Related Artifacts", "quality criteria"))
 
 
 class PostModeAndQualityCriteriaAssertions(unittest.TestCase):
@@ -539,8 +574,7 @@ def _allowlisted(rendered: str) -> str:
 
 
 def _scope(raw: str, start: str, end: str) -> str:
-    begin = raw.index(start)
-    return raw[begin : raw.index(end, begin)]
+    return _scope_between(raw, start, end, f"scope {start!r}")
 
 
 def _list_indent(line: str) -> int | None:
@@ -548,8 +582,19 @@ def _list_indent(line: str) -> int | None:
     return len(match.group(1)) if match else None
 
 
+def _is_heading(line: str) -> bool:
+    return bool(re.match(r"^#{1,6}\s+", line))
+
+
+def _next_nonblank(lines: list[str], start: int) -> str | None:
+    for line in lines[start:]:
+        if line.strip():
+            return line
+    return None
+
+
 def _anchored_region(text: str, anchor: str) -> str:
-    """The anchor line plus its continuation, up to a blank line or a sibling item."""
+    """The anchor line plus continuation, including multi-paragraph list items."""
     lines = text.splitlines()
     hits = [idx for idx, line in enumerate(lines) if line.startswith(anchor)]
     if len(hits) != 1:
@@ -557,8 +602,20 @@ def _anchored_region(text: str, anchor: str) -> str:
     start = hits[0]
     indent = _list_indent(lines[start])
     end = start + 1
-    while end < len(lines) and lines[end].strip():
-        following = _list_indent(lines[end])
+    while end < len(lines):
+        line = lines[end]
+        if _is_heading(line):
+            break
+        if not line.strip():
+            following_line = _next_nonblank(lines, end + 1)
+            if following_line is None or _is_heading(following_line):
+                break
+            following_item = _list_indent(following_line)
+            if indent is not None and following_item is not None and following_item <= indent:
+                break
+            end += 1
+            continue
+        following = _list_indent(line)
         if indent is not None and following is not None and following <= indent:
             break
         end += 1
@@ -568,6 +625,7 @@ def _anchored_region(text: str, anchor: str) -> str:
 # (scope start, scope end, anchor) for every region the U5b triples
 # (200.007-T and 200.009-T) edited.
 _U5B_REGIONS = (
+    ("## Behavioral Constraints", "## Required Protocol", "* **Report-and-halt only.**"),
     ("## Behavioral Constraints", "## Required Protocol", "* **Manifest-scoped mutation only.**"),
     ("### Post-Mode", "### Safe-Close Mode", "2. **Per-item archive check**"),
     ("### Post-Mode", "### Safe-Close Mode", "   The queue-to-archive moves made by"),
@@ -575,6 +633,7 @@ _U5B_REGIONS = (
     ("### Safe-Close Mode", "### Cascade Close Sub-Procedure", "1. **Load manifest**"),
     ("### Safe-Close Mode", "### Cascade Close Sub-Procedure", "   * If `backlogit move <shipment_id> --status shipped` is refused"),
     ("### Safe-Close Mode", "### Cascade Close Sub-Procedure", "10. **Gate decision**"),
+    ("### Cascade Close Sub-Procedure", _SECTION_HEADING, "7. **Gate decision**"),
     ("## P-015 Vocabulary and Invariant Summary", "## Deterministic Safe-Close Scenario Matrix", "* `INV-11` ("),
     *(
         ("## Deterministic Safe-Close Scenario Matrix", "## Quality Criteria", f"* **Linked deliberation ({row}) — ")
@@ -588,11 +647,162 @@ _U5B_REGIONS = (
 )
 
 
+class ReviewFixCycleOneAssertions(unittest.TestCase):
+    """206-S review-fix cycle 1 hardening over the edited INV-12 prose."""
+
+    def test_transition_window_record_removed_everywhere(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                self.assertNotIn("step-not-yet-on-main", raw)
+                cascade_gate = _cascade_step(raw, 7)
+                self.assertIn("Hand off to the Linked-Deliberation Disposition step", cascade_gate)
+                self.assertIn("DISPOSITION_COMPLETE", cascade_gate)
+                self.assertIn("Any verification failure above → the corresponding `HALT`", cascade_gate)
+
+    def test_recommendation_tokens_include_disposition_results(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                output = _scope_between(raw, "## Output", "### Mixed-Role Detection Classification", "output")
+                self.assertIn("`DISPOSITION_COMPLETE`", output)
+                self.assertIn(f"`{_HALT_DISPOSITION}`", output)
+
+    def test_mutation_scoping_pointers_and_halt_list_include_disposition(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                constraints = _behavioral_constraints(raw)
+                self.assertIn(
+                    "outside the safe-close mode's manifest-scoped archival and the "
+                    "separately sanctioned INV-12 Linked-Deliberation Disposition step",
+                    constraints,
+                )
+                self.assertIn("Do not commit backlog state if safe-close returns", constraints)
+                self.assertIn("`HALT — linked-deliberation disposition failed {id}`", constraints)
+                self.assertIn("Surface the report path to the operator", constraints)
+                criteria = _quality_criteria(raw)
+                self.assertIn(
+                    "Report-and-halt in pre/post mode; safe-close mutation is strictly "
+                    "manifest-scoped with no auto-prune, and the separately sanctioned "
+                    "INV-12 Linked-Deliberation Disposition step is the only additional "
+                    "queue/archive mutation",
+                    criteria,
+                )
+
+    def test_planner_result_must_match_snapshot_before_mutation(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                step0 = _step(_section(raw), 0)
+                self.assertIn("never substitutes a recomputed set for the snapshot", step0)
+                plan = _step(_section(raw), 1)
+                self.assertIn(
+                    "Before any archive, the planner's disposition set (deliberation IDs, "
+                    "link kinds, linking members, record paths, and record hashes) MUST "
+                    "equal the Step 0(c) disposition snapshot",
+                    plan,
+                )
+                self.assertIn(
+                    "Any difference halts with `HALT — linked-deliberation disposition "
+                    "failed {id}` and no mutation",
+                    plan,
+                )
+                self.assertIn("The list below is the precedence order", plan)
+                self.assertIn("other outcome enumerations in this skill are unordered", plan)
+
+    def test_pre_archive_recheck_and_hash_halt_are_fully_scoped(self) -> None:
+        expected = (
+            "A hash mismatch halts with `HALT — linked-deliberation disposition failed {id}`; "
+            "emit a **P-005** violation once through D6, scoped to the disposition archive "
+            "of {id}; the completed close-path closure is never rolled back."
+        )
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn("re-listing the deliberation ID's record paths under", archive)
+                self.assertIn("require exactly the disposition snapshot's single path", archive)
+                self.assertIn(expected, archive)
+                verify = _step(_section(raw), 4)
+                self.assertNotIn("emit a **P-005** violation, and follow the D6 sequence", verify)
+                self.assertIn("follow the D6 sequence of safe-close step 6", verify)
+
+    def test_verify_after_each_allows_previously_verified_archives(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                verify = _step(_section(raw), 4)
+                self.assertIn(
+                    "except that call's allowed `ArchiveItem` side effects and the side "
+                    "effects of earlier disposition archives in this step that already "
+                    "passed verification",
+                    verify,
+                )
+
+    def test_planning_error_reports_snapshot_retained_outcomes(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                report = _step(_section(raw), 5)
+                self.assertIn("When the planner reports `planning_error`", report)
+                self.assertIn("record the `planning_error`", report)
+                self.assertIn("every Step 0(c) disposition-snapshot deliberation", report)
+                self.assertIn("`retained_ambiguous`", report)
+                self.assertIn("`stranded_linked_deliberation` advisory", report)
+                gate = _step(_section(raw), 6)
+                self.assertIn(
+                    "`linked_deliberation_disposition: []` is valid only when the "
+                    "Step 0(c) disposition snapshot is empty",
+                    gate,
+                )
+
+    def test_small_clarity_clauses_are_present(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                baseline = _step(_section(raw), 2)
+                self.assertIn("(disposition step 0)", baseline)
+                report = _step(_section(raw), 5)
+                self.assertIn(
+                    "Report keys map to planner/code fields as follows: `id` → "
+                    "`deliberation_id`, `linking_members` → `linking_member_ids`, "
+                    "`referrers` → `referrer_ids`, and `pre_sha256` records one "
+                    "pre-archive SHA-256 per record.",
+                    report,
+                )
+                gate = _step(_section(raw), 6)
+                self.assertIn(
+                    "On a disposition HALT, release the shipment lock through the same "
+                    "halt path used by other safe-close HALTs",
+                    gate,
+                )
+                row_b = _matrix_row(raw, "b")
+                self.assertIn("with the engine VERIFIED", row_b)
+                row_d = _matrix_row(raw, "d")
+                self.assertIn("with the engine VERIFIED", row_d)
+                self.assertIn("no higher-precedence rule matched", row_d)
+                self.assertIn("description/references", row_d)
+
+
+class HelperHardeningAssertions(unittest.TestCase):
+    """The test slicers fail closed when their structural markers drift."""
+
+    def test_numbered_step_helper_fails_when_non_final_successor_missing(self) -> None:
+        with self.assertRaises(AssertionError):
+            _numbered_step("\n1. **One**\nbody\n3. **Three**\n", 1, final_number=3, label="demo")
+
+    def test_marker_lookup_helper_reports_label(self) -> None:
+        with self.assertRaisesRegex(AssertionError, "demo-marker"):
+            _must_index("abc", "missing", "demo-marker")
+
+    def test_anchored_region_keeps_multi_paragraph_list_item(self) -> None:
+        text = "* anchor line\n  first continuation\n\n  second paragraph\n* next item\n"
+        region = _anchored_region(text, "* anchor line")
+        self.assertIn("second paragraph", region)
+        self.assertNotIn("* next item", region)
+
+
 class RenderedRegionParityII(unittest.TestCase):
     """200.013-T: scenarios H-m and I-13. The product template, rendered by
     ``tests/_assertion_render.py::render_source``, matches the dogfood mirror
     over the U5a and U5b regions, modulo the policy parity allowlist.
     """
+
+    rendered: ClassVar[str]
+    mirror: ClassVar[str]
 
     @classmethod
     def setUpClass(cls) -> None:
