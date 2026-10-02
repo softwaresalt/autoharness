@@ -87,7 +87,7 @@ backlog):
 | A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Owns `redact` and the `*_to_record` / `*_from_record` helpers (cycle-1 R6, R8). Size M / low |
 | A1c | *new* | **New task (cycle-1 R4).** Disposition and set-term rules (R5, D2), with pre-mutation outcomes only and two-way engine/outcome consistency (cycle-1 R13). S / low |
 | A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Uses the A1 `redact`; `engine_semantics.reason` and `close_path_selection.reason` are not redacted (cycle-1 R6). Owns the `EXIT_*` constants in `shipment_close/__init__.py` (cycle-1 R15). M / medium |
-| A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty temporary directory (cycle-1 R3). S / medium |
+| A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty, workspace-contained, Git-ignored probe directory that is never deleted automatically (cycle-1 R3; Copilot PR #481 T3). S / medium |
 | A2a | *new* | **New task.** CLI engine-semantics probe (`shipment_close/engine_probe.py`). S / low |
 | A2b | *new* | **New task (cycle-1 R4).** Safe-close observation set (`shipment_close/observation.py`). It holds no disposition-set deliberation (cycle-1 R2) unless the engine is UNVERIFIED (cycle-2 C2-1). A missing member is recorded, not raised (cycle-2 C2-2). S / medium |
 | A2 | `192.003-T` | **Changed.** Planner-based disposition snapshot, `select_close_path`, observation set from A2b. M / medium |
@@ -629,10 +629,29 @@ set-term rules), so each satisfies the 2-hour rule.
       shim is refused, because batch argument parsing can reinterpret
       metacharacters even with `shell=False` (SL-F02).
   * Every version probe of the resolved binary runs with `cwd` set to a fresh,
-    empty temporary directory outside the workspace, created per probe and
-    removed in `finally`, never the workspace root (re-plan cycle-1 R3). A
-    trusted-looking name such as `python` therefore cannot pick up a planted
-    `version` file from the workspace.
+    empty probe directory **inside the workspace** (Copilot PR #481 T3;
+    constitution IV, CLI workspace containment), never the workspace root
+    (re-plan cycle-1 R3). A trusted-looking name such as `python` therefore
+    cannot pick up a planted `version` file from the workspace root. The
+    probe directory rule (owned by A2a, the only probe spawner):
+    * it lives under `.autoharness/gates/cascade-close/probe/`, the Git-ignored
+      runtime directory that already holds the A1b pair lock
+      (`.autoharness/gates/` is in `.gitignore`), so the command adds no new
+      ignore assumption;
+    * every path component from the workspace root down to `probe/` passes
+      the same containment and directory-trust check as the A1b lock
+      directory (contained in the workspace, a real directory, no symlink,
+      junction, or reparse point; missing components created one at a time
+      with `mkdir` and re-checked, SL-F06);
+    * each probe gets its own directory, created exclusively with
+      `tempfile.mkdtemp(prefix="probe-", dir=<probe root>)` and confirmed empty
+      and contained (`assert_path_within_workspace`) immediately before the
+      spawn;
+    * the command **never deletes** a probe directory, in `finally` or
+      anywhere else. An empty probe directory is left in place, and removing
+      accumulated probe directories is an operator action under the
+      destructive-command approval path (constitution VII), exactly like
+      removing a stale lock.
   * It records the absolute path and the file's SHA-256 as `tool{binary_path,
     binary_sha256}`. A3a never spawns `--version` itself (re-plan cycle-1 R7):
     `tool.version_excerpt` is taken from the output of the single A2a probe
@@ -663,7 +682,8 @@ set-term rules), so each satisfies the 2-hour rule.
      `timed_out: true`.
   3. **Drain:** a fake emitting 2 MiB of stdout is drained.
 
-  Test fakes are real executables outside the workspace, for example a
+  Test fakes are real executables outside the test's fixture workspace root
+  (both created by the test itself, never by the command), for example a
   tiny compiled or `sys.executable`-launched shim whose resolution is injected
   through the `ResolvedBinary` seam, never a `.cmd`. `ResolvedBinary` carries
   `argv_prefix: tuple[str, ...]`, which is `(absolute_path,)` in production and
@@ -684,12 +704,19 @@ set-term rules), so each satisfies the 2-hour rule.
 * **Files:** `src/autoharness/shipment_close/engine_probe.py` (new), and
   `tests/test_shipment_close_engine_probe.py` (new).
 * **Changes:**
-  * `probe_engine_semantics(resolved: ResolvedBinary, *, cwd) -> EngineProbe`
+  * `probe_engine_semantics(resolved: ResolvedBinary, *, workspace) -> EngineProbe`
     runs A3a `run_bounded` with the fixed argv
     `[*resolved.argv_prefix, "version", "--no-update-check", "--format", "json"]`
-    (the shipment-reconcile Step 0(c) CLI probe), `cwd` set to a fresh, empty
-    temporary directory outside the workspace (re-plan cycle-1 R3; created
-    per probe, removed in `finally`), and a fixed 30 s timeout. It never spawns through a bare name and
+    (the shipment-reconcile Step 0(c) CLI probe), `cwd` set to a fresh, empty,
+    workspace-contained probe directory under the Git-ignored
+    `.autoharness/gates/cascade-close/probe/` (re-plan cycle-1 R3; Copilot
+    PR #481 T4, constitution IV; the probe directory rule is stated under
+    A3a: trusted components, exclusive `mkdtemp` creation, emptiness and
+    containment re-checked before the spawn, and **no automatic deletion**,
+    removal being an operator action under constitution VII), and a fixed
+    30 s timeout. If the probe directory cannot be established (a
+    containment or trust failure, or an I/O error), the probe spawns nothing
+    and the result is `UNVERIFIED` with `probed_version=None`. It never spawns through a bare name and
     never uses a different binary from the one A3 later invokes. A3 step 6
     re-hashes that binary right before the spawn.
   * It parses **stdout only** as one JSON object and reads the raw `version`
@@ -758,11 +785,16 @@ set-term rules), so each satisfies the 2-hour rule.
      yield `probed_version: null` and `UNVERIFIED` with the
      `ENGINE_SEMANTICS_UNVERIFIED:` reason prefix, and nothing raises
      (re-plan cycle-1 R18).
-  4. **Working-directory isolation:** `cli.binary: python` (a bare name that
-     passes A3a) with a planted `version` script in the workspace: the probe
-     runs in the empty temporary directory, the planted script never executes
-     (its sentinel file is never written), and the result is `UNVERIFIED`
-     (re-plan cycle-1 R3).
+  4. **Working-directory isolation and containment:** `cli.binary: python` (a
+     bare name that passes A3a) with a planted `version` script in the
+     workspace root: the probe runs in a fresh, empty probe directory under
+     `.autoharness/gates/cascade-close/probe/` inside the fixture workspace,
+     the planted script never executes (its sentinel file is never written),
+     and the result is `UNVERIFIED` (re-plan cycle-1 R3); after the probe
+     returns, the probe directory still exists (no automatic deletion) and
+     nothing was created outside the fixture workspace; a junctioned or
+     symlinked `probe/` component makes the probe spawn nothing and return
+     `UNVERIFIED` (Copilot PR #481 T4; constitution IV and VII).
 * **Depends on:** A3a (`192.004-T`) directly; A1b and A1c are reached
   through it. **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** low (risk low).
@@ -1738,7 +1770,9 @@ that follow-up is recorded here.
 * **PATH trust is unchanged from today** (SL-F03). Pinning a trusted absolute
   binary path in the registry is a follow-up, out of scope under P-021 C1.
 * **Windows:** the atomic replace over an open file is covered in A1b's tests, and
-  the temp directory is cleaned up with bounded retry (compound 034-DL pattern).
+  test-fixture directories are cleaned up with bounded retry (compound 034-DL
+  pattern). The command itself never deletes its probe directories (A3a/A2a;
+  Copilot PR #481 T3/T4, constitution VII).
 * **Merge overlap** with 192-S / 197-S on `_ship.agent.md*`. They touch different
   sections, and Ship rebases.
 * **Private `shipment_closure` names are reused in production** (re-plan
@@ -1776,8 +1810,11 @@ Requires plan hardening: yes
 * Environment precheck: `backlogit --version` resolves outside the workspace root
   and reports the version recorded in A3's characterization step. `git status` of
   the scratch workspace is clean before the run.
-* Runtime proof: in a scratch copy of a fixture workspace created under the OS
-  temp directory (never the live `.backlogit/` and never inside this repository),
+* Runtime proof: in a scratch copy of a fixture workspace created under the
+  Git-ignored `.proof-scratch/` directory of this repository (constitution IV:
+  never outside the workspace; confirm the ignore rule with `git check-ignore`
+  first, NOROW-F18; never the live `.backlogit/`; the scratch copy is removed
+  only through the operator-approval path, constitution VII),
   run `autoharness shipment cascade-close` against the real `backlogit` binary on
   a CASCADE-eligible fixture. Confirm that the record is written,
   `postcondition_verdict: pass` holds, and `autoharness gate closure-evidence`
@@ -1892,7 +1929,9 @@ unit it changed.
     PID, and the timeout is bounded to 30-900 s. Re-plan cycle-1 R3:
     `cli.binary` must be a bare name (`^[A-Za-z0-9_-]+$`), the resolved
     basename must equal it, and every version probe runs in a fresh, empty
-    temporary directory, never the workspace.
+    probe directory inside the workspace (under the Git-ignored
+    `.autoharness/gates/cascade-close/probe/`), never the workspace root, and
+    never deleted automatically (Copilot PR #481 T3/T4; constitution IV, VII).
   * **H-B7 (decomposition):** the subprocess runner was split out of A3 as A3a, and
     review cycle 1 split further into A1/A1b and A3b/A3. Re-plan cycle-1 R4
     split again: A1c out of A1, A2b out of A2, A3c out of A3b, A3d out of A3,
