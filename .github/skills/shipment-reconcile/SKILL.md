@@ -537,9 +537,19 @@ completion.
       `retained_read_error`, its workspace-relative `path`, and `reason_code`
       `path_escape` or `symlink_or_reparse_point`, and do **not** halt. An
       unreadable record path records `retained_read_error` with
-      `reason_code` `unreadable_file` instead of a hash. Step 5 compares a
-      read-error record path by its recorded location and `reason_code`, never
-      by following it to hash a target.
+      `reason_code` `unreadable_file` instead of a hash. A record path that
+      passes containment and is read successfully is then parsed exactly as
+      the planner's `_read_record` parses it. A record path whose frontmatter
+      opens with a `---` delimiter but never closes it records
+      `retained_read_error` with `reason_code` `body_unseparable`. A record
+      path with missing frontmatter, frontmatter that is not valid YAML or not
+      a mapping, or a missing or invalid `id` records `retained_read_error`
+      with `reason_code` `malformed_frontmatter`. Such a record cannot supply
+      the declared status required above, so it is recorded with its
+      workspace-relative `path` and `reason_code` instead of a hash; it is
+      never omitted from the disposition set and does **not** halt. Step 5
+      compares a read-error record path by its recorded location and
+      `reason_code`, never by following it to hash a target.
 
       Superseded provenance only: the prior 1.10-era contract followed
       Backlogit's removed `linkedDeliberationIDs` helper. Under the verified

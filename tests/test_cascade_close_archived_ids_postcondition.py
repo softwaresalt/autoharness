@@ -178,6 +178,29 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
                     content,
                 )
 
+    def test_disposition_snapshot_records_malformed_records_as_read_errors(self) -> None:
+        # PR #475 Copilot review round 4: a deliberation record whose frontmatter
+        # is malformed or whose body cannot be separated mirrors the planner's
+        # _read_record outcome (retained_read_error, never omitted, never a halt).
+        for label, raw in _skill_variants():
+            with self.subTest(variant=label):
+                content = _flatten(raw)
+                self.assertIn(
+                    "A record path whose frontmatter opens with a `---` delimiter but "
+                    "never closes it records `retained_read_error` with `reason_code` "
+                    "`body_unseparable`",
+                    content,
+                )
+                self.assertIn(
+                    "records `retained_read_error` with `reason_code` "
+                    "`malformed_frontmatter`",
+                    content,
+                )
+                self.assertIn(
+                    "is never omitted from the disposition set and does **not** halt",
+                    content,
+                )
+
     def test_two_conditions_are_independently_labelled_and_not_merged(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("Unexpected-artifact check", content)
