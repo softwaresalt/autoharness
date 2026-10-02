@@ -22,6 +22,16 @@ import re
 import unittest
 from pathlib import Path
 
+try:
+    from _assertion_render import render_source
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests._assertion_render import render_source
+
+try:
+    from test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
+    from tests.test_flat_manifest_closure_docs import POLICY_PARITY_ALLOWLIST
+
 _ROOT = Path(__file__).resolve().parents[1]
 _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl"
 _SKILL_MIRROR = _ROOT / ".github" / "skills" / "shipment-reconcile" / "SKILL.md"
@@ -520,6 +530,94 @@ class PostModeAndQualityCriteriaAssertions(unittest.TestCase):
             for bullet in bullets:
                 with self.subTest(surface=label, bullet=bullet[:40]):
                     self.assertIn(bullet, criteria)
+
+
+def _allowlisted(rendered: str) -> str:
+    for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+        rendered = rendered.replace(template_text, mirror_text)
+    return rendered
+
+
+def _scope(raw: str, start: str, end: str) -> str:
+    begin = raw.index(start)
+    return raw[begin : raw.index(end, begin)]
+
+
+def _list_indent(line: str) -> int | None:
+    match = re.match(r"^(\s*)(?:[*+-]|\d+\.)\s+", line)
+    return len(match.group(1)) if match else None
+
+
+def _anchored_region(text: str, anchor: str) -> str:
+    """The anchor line plus its continuation, up to a blank line or a sibling item."""
+    lines = text.splitlines()
+    hits = [idx for idx, line in enumerate(lines) if line.startswith(anchor)]
+    if len(hits) != 1:
+        raise AssertionError(f"anchor {anchor!r} matched {len(hits)} lines")
+    start = hits[0]
+    indent = _list_indent(lines[start])
+    end = start + 1
+    while end < len(lines) and lines[end].strip():
+        following = _list_indent(lines[end])
+        if indent is not None and following is not None and following <= indent:
+            break
+        end += 1
+    return "\n".join(lines[start:end])
+
+
+# (scope start, scope end, anchor) for every region the U5b triples
+# (200.007-T and 200.009-T) edited.
+_U5B_REGIONS = (
+    ("## Behavioral Constraints", "## Required Protocol", "* **Manifest-scoped mutation only.**"),
+    ("### Post-Mode", "### Safe-Close Mode", "2. **Per-item archive check**"),
+    ("### Post-Mode", "### Safe-Close Mode", "   The queue-to-archive moves made by"),
+    ("### Post-Mode", "### Safe-Close Mode", "5. **Gate decision**"),
+    ("### Safe-Close Mode", "### Cascade Close Sub-Procedure", "1. **Load manifest**"),
+    ("### Safe-Close Mode", "### Cascade Close Sub-Procedure", "   * If `backlogit move <shipment_id> --status shipped` is refused"),
+    ("### Safe-Close Mode", "### Cascade Close Sub-Procedure", "10. **Gate decision**"),
+    ("## P-015 Vocabulary and Invariant Summary", "## Deterministic Safe-Close Scenario Matrix", "* `INV-11` ("),
+    *(
+        ("## Deterministic Safe-Close Scenario Matrix", "## Quality Criteria", f"* **Linked deliberation ({row}) — ")
+        for row in "abcdef"
+    ),
+    ("## Quality Criteria", "## Related Artifacts", "* After the selected close path returns `recommendation: CLOSED`"),
+    ("## Quality Criteria", "## Related Artifacts", "* \"Manifest-scoped mutation only\" and safe-close step 1"),
+    ("## Quality Criteria", "## Related Artifacts", "* Safe-close step 8 and the INV-11 summary"),
+    ("## Quality Criteria", "## Related Artifacts", "* Post-mode step 2 archive-checks"),
+    ("## Quality Criteria", "## Related Artifacts", "* The Deterministic Safe-Close Scenario Matrix covers"),
+)
+
+
+class RenderedRegionParityII(unittest.TestCase):
+    """200.013-T: scenarios H-m and I-13. The product template, rendered by
+    ``tests/_assertion_render.py::render_source``, matches the dogfood mirror
+    over the U5a and U5b regions, modulo the policy parity allowlist.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.rendered = render_source(".github/skills/shipment-reconcile/SKILL.md")
+        cls.mirror = _SKILL_MIRROR.read_text(encoding="utf-8")
+
+    def test_region_helper_detects_continuation_drift(self) -> None:
+        template = "* anchor line\n  template continuation\n* next\n"
+        mirror = "* anchor line\n  mirror continuation\n* next\n"
+        self.assertNotEqual(
+            _anchored_region(template, "* anchor line"), _anchored_region(mirror, "* anchor line")
+        )
+
+    def test_h_m_u5a_disposition_section_rendered_region_parity(self) -> None:
+        self.assertEqual(
+            _section(self.mirror),
+            _allowlisted(_section(self.rendered)),
+        )
+
+    def test_i_13_u5b_rendered_region_parity(self) -> None:
+        for start, end, anchor in _U5B_REGIONS:
+            with self.subTest(anchor=anchor):
+                expected = _anchored_region(_allowlisted(_scope(self.rendered, start, end)), anchor)
+                actual = _anchored_region(_scope(self.mirror, start, end), anchor)
+                self.assertEqual(actual, expected)
 
 
 if __name__ == "__main__":
