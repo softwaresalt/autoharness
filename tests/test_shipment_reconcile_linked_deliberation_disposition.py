@@ -108,5 +108,64 @@ class DispositionSectionAssertionsI(unittest.TestCase):
                 )
 
 
+class DispositionSectionAssertionsII(unittest.TestCase):
+    """200.003-T: scenarios H-e, H-g and H-l."""
+
+    def test_h_e_disposition_baseline_definition(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                baseline = _step(_section(raw), 2)
+                self.assertIn("**Disposition baseline.**", baseline)
+                self.assertIn("(i) the path-specific set", baseline)
+                self.assertIn("safe-close observation-set fingerprints", baseline)
+                self.assertIn("out-of-manifest descendant fingerprints", baseline)
+                self.assertIn("(ii) the disposition snapshot", baseline)
+                self.assertRegex(
+                    baseline,
+                    r"\(iii\) a pre-disposition `git status --porcelain -- "
+                    r"\"[^\"]+/\"` capture",
+                )
+                self.assertIn(
+                    "minus the `closure_scope(S)` IDs this run already archived",
+                    baseline,
+                )
+
+    def test_h_g_allowed_side_effect_paths_exclude_stash_files(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                baseline = _step(_section(raw), 2)
+                self.assertIn("`v1.11.0` `internal/core/archive.go`", baseline)
+                self.assertIn("the target deliberation's own queue→archive move", baseline)
+                self.assertIn(
+                    "frontmatter keys `status`, `archived_status`, and `archived_from`",
+                    baseline,
+                )
+                self.assertRegex(baseline, r"gitignored item event log \(`[^`]+/logs/`\)")
+                self.assertRegex(baseline, r"index \(`[^`]+/\*\.db\*`\)")
+                self.assertIn("lock and hook-queue files", baseline)
+                self.assertRegex(
+                    baseline,
+                    r"`ArchiveItem` does \*\*not\*\* write `[^`]+/stash\.jsonl` or "
+                    r"`[^`]+/archive/stash\.jsonl`",
+                )
+                self.assertIn(
+                    "any change there, or to any other path, violates the "
+                    "disposition baseline",
+                    baseline,
+                )
+
+    def test_h_l_matcher_referenced_by_name_not_restated(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                section = _section(raw)
+                self.assertIn("the Step 0(c) matcher", _flatten(section))
+                self.assertNotIn(_MATCHER_LITERAL, section)
+                # The plan text (U5a step 1) says the skill-wide count "stays
+                # 2"; 199.007-T (205-S) later removed the second literal from a
+                # Quality Criteria bullet, so the skill-wide count this slice
+                # must leave unchanged is 1: the Step 0(c) snapshot definition.
+                self.assertEqual(raw.count(_MATCHER_LITERAL), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
