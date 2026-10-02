@@ -2,17 +2,89 @@
 title: "Automatic, fail-closed CASCADE close-evidence capture"
 description: "Replace the agent-discretionary CASCADE close audit trail with an autoharness-owned command that captures the fresh classifier verdict, the out-of-manifest snapshot, and the raw bounded, redacted backlogit close output into a committed evidence record, plus a closure-evidence gate that refuses CASCADE closure without that record."
 doc_type: plan
-status: reviewed
+status: replanned-pending-review
 review_record: docs/reviews/2026-09-27-cascade-close-evidence-capture-plan-review.md
 created: 2026-09-27
+amended: 2026-10-02
 source_stash: 008F3BCF
+replan_stash: 1263B218
 source_deliberation: docs/decisions/2026-09-27-close-evidence-frontmatter-context-tier-staging-deliberation.md
+replan_deliberation: docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md
+replan_contract: "201-S / 195-F (038-DL D2, D3a, D4a; docs/plans/2026-09-29-backlogit-1-11-cascade-alignment-plan.md), verified on main at 654b143d"
+requires_plan_rereview: "yes - the 2026-09-27 PASS predates the 2026-10-02 re-plan (P-021 C6)"
 provenance: "175-S / 167-F, PR #458 (merge 985e3990), closure PR #459, close commit 5cc5371a, condition operator-accepts-175s-cascade-evidence-deviation"
 requires_plan_hardening: "yes"
 post_review_operator_amendment: "2026-09-27T22:50-07:00 - D-A1..D-A6 (including the review-cycle-1 D-A3 SAFE_CLOSE fail-closed amendment) operator-confirmed; shipment 198-S is an operator-declared dag-root. No design change; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00)."
 ---
 
 # Automatic, fail-closed CASCADE close-evidence capture
+
+## Re-plan amendment (2026-10-02, stash 1263B218)
+
+This plan was reviewed on 2026-09-27 against the backlogit 1.10.x cascade
+contract. In that contract, `validated_linked_deliberations(S)` belonged to both
+`allowed_ids` and `required_ids`, and no engine-semantics gate existed.
+`201-S` / `195-F` has since shipped the flat 1.11.x contract on `main`
+(`654b143d`). This amendment re-plans every affected unit onto that contract. The
+decisions are recorded in
+`docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md` (amends
+035-DL). They come from 038-DL D2, D3a, and D4a, and the amendment introduces no
+new design. Where this section and any unit text written before 2026-10-02
+disagree, this section and the revised unit text win.
+
+**Merged contract consumed** (`src/autoharness/gates/shipment_closure.py`):
+
+* `assess_cascade_engine_semantics(probed_version, *, probe_surface, invocation_surface, probed_commit=None) -> EngineSemanticsDecision`;
+* `select_close_path(classifier: ClosePathDecision, engine: EngineSemanticsDecision) -> tuple[ClosePath, str]`;
+* `compute_linked_deliberation_disposition(manifest_items, shipment_id, workspace_backlog_dir, *, engine, stash_path=None) -> LinkedDeliberationDispositionPlan`;
+* `classify_shipment_close_path`, unchanged;
+* `closure_scope(S)`, which exists only as the private `_closure_scope_ids`. No
+  public `allowed_ids` / `required_ids` helper exists. This plan computes the
+  flat sets locally in A3b and pins them by a parity test (M1 in the
+  deliberation).
+
+**Alignment items to units:**
+
+| # | Stash 1263B218 item | Settled by | Units |
+|---|---|---|---|
+| 1 | Evidence gains `engine_semantics` from `assess_cascade_engine_semantics` on the invocation surface (CLI) | D4a | A2a (new), A1, A2 |
+| 2 | Close path from `select_close_path`. A `safe_close` record may carry `classifier_verdict: CASCADE` when the engine is UNVERIFIED | D4a | A1, A2, A4 |
+| 3 | `cascade-close` never runs the cascade without the engine gate. It fails closed to SAFE_CLOSE (exit 3). A re-probe difference halts (exit 4) | D4a | A3, A5 |
+| 4 | Flat `allowed_ids` / `required_ids`. A disposition-set deliberation in `archived_ids`, or modified, is engine drift | D2 | A3b, A3, A1 |
+| 5 | Evidence records `linked_deliberation_disposition` from the planner. `retained_*` never halts. The command never archives | D3a, U5a | A2, A1, A4, A5 |
+| 6 | Stale `dag-root` on 198-S | D8a, topology | Recommendation only: remove the label (see the deliberation) |
+
+**Removed from the plan:** every linked-deliberation term in `allowed_ids` and
+`required_ids`, in fixtures, and in tests. This includes the A2 "linked
+deliberations of each qualifying feature" collection and the record key
+`pre_close.linked_deliberations`. The replacement is the disposition snapshot,
+which the planner produces over every explicit manifest member with the H10
+exclusions.
+
+**Harvest delta for 198-S** (Stage re-harvest; this chunk does not mutate the
+backlog):
+
+| Unit | Task | Change |
+|---|---|---|
+| A1 | `192.001-T` | **Changed.** Record shape and validator rules (R1, R2, R4, R5). Size S → M |
+| A1b | `192.002-T` | **Changed (minor).** Redaction also covers `engine_semantics.reason` and the probe excerpt |
+| A3a | `192.004-T` | **Changed (order only).** Now precedes A2. Its body is unchanged |
+| A2a | *new* | **New task.** CLI engine-semantics probe (`shipment_close/engine_probe.py`). S / low |
+| A2 | `192.003-T` | **Changed.** Planner-based disposition snapshot, `select_close_path`, path-keyed observation set. Depends on A2a |
+| A3b | `192.005-T` | **Changed.** Flat sets and `linked_deliberation_drift` |
+| A3 | `192.006-T` | **Changed.** Engine re-probe in revalidation, exit 3 and exit 4 semantics, post-close re-collection |
+| A4 | `192.007-T` | **Changed.** Selected-path validation, the planned-`archive` exemption, advisory warnings |
+| A5 | `192.008-T` | **Changed.** Step 0(c) points to the command. The disposition step takes its inputs from the evidence |
+| A6 | `192.009-T` | **Changed (minor).** The pointer names the engine gate and the disposition step |
+| A7 | `192.010-T` | **Changed (minor).** Docs gain the new fields and exit semantics |
+
+No unit is removed. Dependency edges change. `192.003-T` now depends on
+`192.004-T` and on the new A2a task, and A2a depends on `192.004-T`. See the
+revised Dependency Graph.
+
+**Review state.** The plan-review PASS below predates this amendment. Under
+P-021 C6, this plan must be re-reviewed before 198-S is claimed. Plan hardening
+is extended with INV-P8 and INV-P9 (see Plan Hardening).
 
 ## Problem Frame
 
@@ -42,7 +114,7 @@ missing record is never refused.
 | # | Requirement (stash `008F3BCF` / deliberation D-A*) | Unit(s) |
 |---|---|---|
 | R1 | Record the pre-close classifier verdict automatically, from a fresh re-run | A2 |
-| R2 | Record the out-of-manifest snapshot (IDs, locations, content hashes, declared statuses, linked deliberations) before the close | A2 |
+| R2 | Record the out-of-manifest snapshot (IDs, locations, content hashes, declared statuses) and the linked-deliberation **disposition snapshot** before the close (re-plan 2026-10-02: the disposition snapshot replaces the 1.10.x qualifying-feature linked-deliberation collection) | A2 |
 | R3 | Record the raw close stdout, stderr, and exit code, bounded and redacted | A1b, A3a, A3 |
 | R4 | The evidence file is written before and after the close; if the pre-close write fails, nothing is invoked | A1b, A2, A3 |
 | R4a | An interrupted, concurrent, or ambiguous close is detectable and never silently retried (hardening H-B1/H-B2, review cycle 1) | A1b, A3 |
@@ -51,6 +123,10 @@ missing record is never refused.
 | R7 | Surfaces updated: shipment-reconcile (template and mirror), operational-closure (template and mirror), Ship agent (template and mirror), docs | A5, A6, A7 |
 | R8 | Upstream half as a portable, non-blocking backlogit request (D-A1) | A7 |
 | R9 | Retention and location (D-A2): committed at `docs/closure/evidence/`, and closure discovery is unaffected | A1, A4 |
+| R10 | Re-plan item 1 (D4a): the evidence records `engine_semantics` from `assess_cascade_engine_semantics`, probed on the CLI surface the command invokes, for released builds only | A2a, A1, A2 |
+| R11 | Re-plan items 2-3 (D4a): the close path comes from `select_close_path`. No cascade runs unless it selects `CASCADE`. A re-probe difference halts with no mutation | A1, A2, A3, A4, A5 |
+| R12 | Re-plan item 4 (D2): flat `allowed_ids` / `required_ids`. A disposition-set deliberation that is archived or modified is engine drift | A3b, A3 |
+| R13 | Re-plan item 5 (D3a): the evidence records the planned `linked_deliberation_disposition`. `retained_*` is non-halting. The command never archives a deliberation | A2, A1, A4, A5 |
 
 ## Implementation Units
 
@@ -77,27 +153,80 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     `assert_path_within_workspace`.
   * `validate_evidence_record(record: Mapping[str, object], *, shipment_id: str,
     feature_id: str, close_path: Literal["cascade", "safe_close"]) -> list[str]`
-    is the single validator. The gate and the command both use it. `cascade`
-    requires `phase: post_close`, `classifier_verdict: CASCADE`, and
+    is the single validator. The gate and the command both use it.
+    `close_path` is the **selected** close path (re-plan R2), not the classifier
+    verdict.
+  * **Selection consistency (re-plan R1/R2; D4a).** For both close paths:
+    * The validator rebuilds an `EngineSemanticsDecision` by calling
+      `shipment_closure.assess_cascade_engine_semantics(probed_version, probe_surface=..., invocation_surface=..., probed_commit=...)`
+      on the recorded raw `engine_semantics` inputs. The recorded `verdict`,
+      `reason`, and `minor_line` must equal the result, so a hand-edited
+      `VERIFIED` fails.
+    * It rebuilds a `ClosePathDecision` from `classifier_verdict` and
+      `classifier_reason`. Record values are `CASCADE` / `SAFE_CLOSE`, mapped to
+      `ClosePath.CASCADE` / `ClosePath.SAFE_CLOSE`.
+    * It calls `shipment_closure.select_close_path(classifier, engine)`. The
+      recorded `close_path_selection.selected_close_path` and `reason` must equal
+      the result.
+    * `invocation_surface` must be `"cli"`, because the command invokes only
+      through the CLI.
+  * `cascade` requires `phase: post_close`,
+    `close_path_selection.selected_close_path: cascade`,
+    `classifier_verdict: CASCADE`, `engine_semantics.verdict: VERIFIED`, and
     `postcondition_verdict: pass`, **and** internal consistency (AS-F11):
     `invocation.exit_code == 0`, `timed_out: false`, `mutation_state: completed`,
     no `parse_error`, empty `parsed_result.returned_ids`, empty
-    `unexpected_archived`, `missing_required`, and `failures[]`, and `parent_id_preserved`, `baseline_invariant`, and
-    `shipment_archived_shipped` all `true`. A `pass` verdict that contradicts any
-    of these is rejected. `safe_close` requires `phase: pre_close` and
-    `classifier_verdict: SAFE_CLOSE`. Both require the pair to match and every
-    required key to be present and well-typed.
+    `unexpected_archived`, `missing_required`, `linked_deliberation_drift`, and
+    `failures[]`, and `parent_id_preserved`, `baseline_invariant`,
+    `disposition_byte_identical`, and `shipment_archived_shipped` all `true`.
+    A `pass` verdict that contradicts any of these is rejected.
+  * `safe_close` requires `phase: pre_close` and
+    `close_path_selection.selected_close_path: safe_close`. `classifier_verdict`
+    is `SAFE_CLOSE`, **or** it is `CASCADE` together with
+    `engine_semantics.verdict: UNVERIFIED`. That is the `select_close_path` row
+    "CASCADE × UNVERIFIED → SAFE_CLOSE", and the selection-consistency check
+    enforces it. A `safe_close` record with `classifier_verdict: CASCADE` and a
+    `VERIFIED` engine is rejected, because `select_close_path` would have
+    selected `cascade`.
+  * Both require the pair to match and every required key to be present and
+    well-typed.
+  * **Disposition (re-plan R5).** `pre_close.linked_deliberation_disposition`
+    must be present on both paths. `planning_error` must be `null`, because the
+    command never writes a record when the planner fails.
+    * Each `outcome` must be one of the eight `LinkedDeliberationOutcome`
+      values or the planned `"archive"`. An unknown outcome is rejected (the
+      enum is closed).
+    * `reason_code` must be a non-empty string. Unknown reason codes are
+      accepted, because that vocabulary is extensible.
+    * Every `retained_*` outcome is valid and never makes a record invalid
+      (non-halting).
+    * Under `engine_semantics.verdict: UNVERIFIED`, no outcome may be `archive`
+      (D3a engine-gated).
+  * **No linked-deliberation set terms.** The validator never treats a
+    disposition-set ID as a member of `allowed_ids` or `required_ids`. A
+    recorded `allowed_ids` or `required_ids` that contains a disposition-set
+    deliberation ID is rejected (D2; the H10 explicit-member carve-out does not
+    apply, because H10 IDs are excluded from the disposition set).
   * `CascadeEvidenceError(Exception)` is the single error type. Exit-code
     constants `EXIT_*` (see A3) are defined here once.
 * **Record shape:**
   * `schema_version`, `shipment_id`, `feature_id`, `merge_commit_sha`, `run_id`
     (uuid4 hex, fixed by the owning run), and `phase: pre_close | invoking | post_close`;
   * `tool{binary_path, binary_sha256, version_excerpt}` (A3a);
-  * `pre_close{classifier_verdict, qualifying_feature_ids, shipment_record{location, sha256, declared_status}, manifest_members[{id, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberations[{id, location, sha256, declared_status}], observation_set[{id, location, sha256, declared_status}] (SAFE_CLOSE only), captured_at}`;
+  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface, probe_excerpt}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}], read_failures[{path, reason_code}], planning_error}, observation_set[{id, location, sha256, declared_status, disposition_outcome}] (selected SAFE_CLOSE only), captured_at}`.
+    `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
+    `invocation_surface` input and a bounded, redacted `probe_excerpt` (A2a).
+    `linked_deliberation_disposition` mirrors
+    `LinkedDeliberationDispositionPlan` field for field, with the planned
+    outcomes. It is also the **disposition snapshot** that A3b compares
+    against. `observation_set[].disposition_outcome` is the planned outcome when
+    the entry is a disposition-set deliberation, and `null` otherwise (A4
+    uses it). The 1.10.x key `linked_deliberations` is removed (re-plan);
   * `invocation{argv_redacted, started_at, finished_at, exit_code, timed_out, mutation_state: none | completed | indeterminate, stdout{total_bytes, total_lines, sha256, capture_truncated, excerpt, redaction_applied}, stderr{...same}}`
     (both excerpts are always persisted, bounded and redacted, on success and on
     failure, because R3 requires the raw close output — AS-F09);
-  * `post_close{parsed_result{shipment_status, archived_ids, returned_ids, commit_sha} | parse_error, shipment_record_status, shipment_record_archived_status, allowed_ids, required_ids, unexpected_archived, missing_required, parent_id_preserved, baseline_invariant, shipment_archived_shipped, postcondition_verdict: pass | fail, failures[]}`.
+  * `post_close{parsed_result{shipment_status, archived_ids, returned_ids, commit_sha} | parse_error, shipment_record_status, shipment_record_archived_status, allowed_ids, required_ids, unexpected_archived, missing_required, linked_deliberation_drift[], disposition_byte_identical, parent_id_preserved, baseline_invariant, shipment_archived_shipped, postcondition_verdict: pass | fail, failures[]}`.
+    `allowed_ids` and `required_ids` are the flat sets (re-plan R4, A3b).
   * Serialization (Principle IX): `json.dumps(sort_keys=True, indent=2,
     ensure_ascii=False)`, LF line endings, one trailing newline, and every ID list
     sorted.
@@ -105,8 +234,33 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   path and rejects: a missing `post_close` for `cascade`, a mismatched shipment or
   feature ID, `postcondition_verdict: fail`, a `SAFE_CLOSE` record offered for
   `cascade` (and the reverse), and an unknown `schema_version`. Serialization is
-  byte-stable across two writes of the same record.
-* **Posture:** test-first. **Size:** S. **Complexity:** low.
+  byte-stable across two writes of the same record. Re-plan additions:
+  * a `safe_close` record with `classifier_verdict: CASCADE` and
+    `engine_semantics.verdict: UNVERIFIED` (`probed_version` `1.10.1` or
+    `1.11.1-rc1`) is **accepted**;
+  * the same record with a `VERIFIED` engine (`1.11.0`, `cli`/`cli`) is
+    rejected;
+  * a `cascade` record whose engine is UNVERIFIED is rejected;
+  * a hand-edited `engine_semantics.verdict: VERIFIED` over `probed_version`
+    `1.10.0` is rejected, because re-assessment disagrees;
+  * a `selected_close_path` or reason that disagrees with `select_close_path`
+    is rejected;
+  * `invocation_surface` other than `cli` is rejected;
+  * every `retained_*` outcome, including `retained_read_error` with an
+    unknown `reason_code`, is accepted;
+  * an unknown `outcome` is rejected;
+  * an `archive` outcome under an UNVERIFIED engine is rejected;
+  * a non-null `planning_error` is rejected;
+  * a `cascade` record with a non-empty `linked_deliberation_drift` or
+    `disposition_byte_identical: false` is rejected;
+  * a recorded `required_ids` containing a disposition-set deliberation ID is
+    rejected.
+
+  Every fixture builds `engine_semantics` by calling
+  `assess_cascade_engine_semantics` and builds dispositions from
+  `LinkedDeliberationOutcome` values. No fixture hard-codes a
+  `validated_linked_deliberations` set.
+* **Posture:** test-first. **Size:** M (re-plan: was S). **Complexity:** low.
 
 ### A1b — Evidence persistence: streaming capture, redaction, lock, atomic write
 
@@ -128,7 +282,10 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     the text and a `redaction_applied` flag. It runs over the retained tail window
     **before** the excerpt is sliced (H-B4), and over **every** persisted
     free-text field: argv, version excerpt, `parse_error`, both excerpts, and
-    `failures[]` (SL-F04).
+    `failures[]` (SL-F04). Re-plan: it also covers `engine_semantics.reason` and
+    `engine_semantics.probe_excerpt` (A2a). Raw `probed_version` and
+    `probed_commit` are stored verbatim, because the validator re-assesses them,
+    and A2a bounds them to 64 characters each.
   * **Per-pair lock (SL-F01):** `acquire_pair_lock(workspace, S, F, run_id)`
     creates `.autoharness/gates/cascade-close/{S}-{F}.lock` (a gitignored
     runtime directory) with `O_CREAT | O_EXCL` (plus `O_NOFOLLOW` where
