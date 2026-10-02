@@ -203,3 +203,79 @@ reopen no finding above:
   overrides them before Ship claims 198-S.
 * The plan carries a matching "Operator Rulings (2026-09-27T22:50-07:00)" section,
   and 192-F carries the same wording.
+
+## Re-review (2026-10-02, P-021 C6, stash 1263B218) — cycle 1
+
+The 2026-09-27 PASS above predates the 2026-10-02 re-plan onto the 201-S /
+195-F flat cascade contract, so the re-plan was re-reviewed before 198-S can
+be claimed (P-021 C6).
+
+* **Reviewed revision:** `afed104c` (re-plan amendment plus Hardening Pass 3).
+* **Personas:** Correctness, Architecture Strategist, Scope Boundary Auditor,
+  and Security Lens.
+* **Result:** 5 P1 findings (Correctness F1 and F2, Architecture F1, Scope
+  SR-1, and Security F1), dispositioned as R1 to R4 (Correctness F2 and Scope
+  SR-1 share R1), and the remaining findings below P1. All 32 findings were
+  consolidated into dispositions R1 to R18.
+
+### Dispositions and fix commits
+
+| Disposition | Fix | Fix commit |
+|---|---|---|
+| R1 | A `--classify-only` record that selected `cascade` is compared against the fresh result; any difference exits 4 and the record is never overwritten | `e3a1c889` (batch 1) |
+| R2 | Removed the disposition-set deliberation records, the planned-`archive` exemption, and the `stranded_linked_deliberation` warnings from the A4 gate. A3c detects drift at close time, and the advisories stay in stash 3B43CE5A and D79EA53A | `e3a1c889` (batch 1) |
+| R3 | Binary trust: bare-name `cli.binary`, basename match, and probe `cwd` in an empty temporary directory | `e3a1c889` (batch 1) |
+| R4 | Unit splits A1c, A2b, A3c, A3d, and A4b (2-hour rule) | `43318b71`, `1d6b1428` (batch 2) |
+| R5 | Harvest delta, removal of the edge `192.004-T` → `192.003-T`, and the 17-item manifest | `43318b71`, `1d6b1428` (batch 2) |
+| R6 | Input sanitization of the probe values; the re-assessed fields are never redacted | `cb407602` (batch 3a) |
+| R7 | `probe_excerpt` dropped; the A2a probe is the only version spawn | `cb407602` (batch 3a) |
+| R8 | Record serialization helpers (`*_to_record` / `*_from_record`) and the canonical `declared_status` encoding | `cb407602` (batch 3a) |
+| R9 | "Truly archived" parity pinned against `_is_engine_inert` | `6969a752` (batch 3b) |
+| R10 | `planning_error` drift outcomes | `6969a752` (batch 3b) |
+| R11 | `closure_scope` exclusion from the observation set | `6969a752` (batch 3b) |
+| R12 | Record path containment under the backlog root | `6969a752` (batch 3b) |
+| R13 | A1c accepts only pre-mutation outcomes (`archive`, `already-archived`, `retained_*`), never `archived`, and enforces engine/outcome consistency both ways | batch 4 (this commit) |
+| R14 | The A1 record shape lists the plan fields it omits (`shipment_id`, `engine`) and why; no blanket field-for-field claim | batch 4 (this commit) |
+| R15 | The command's `EXIT_*` constants live in `shipment_close/__init__.py`, not in the read-only gate module | batch 4 (this commit) |
+| R16 | The `dag-root` ruling is marked superseded by the 2026-10-02 re-plan in the frontmatter and in Ruling 1 | batch 4 (this commit) |
+| R17 | `redact` covers quoted JSON keys with a `:` separator; case folded into A1b scenario 1 | batch 4 (this commit) |
+| R18 | A2a tests cover a non-string or over-long `commit`, empty stdout, and an unexpected exception → UNVERIFIED (folded into scenarios 1 and 3) | batch 4 (this commit) |
+
+### Persona findings
+
+| Persona | Finding | Severity | Disposition |
+|---|---|---|---|
+| Correctness | F1 | P1 | R2 |
+| Correctness | F2 | P1 | R1 |
+| Correctness | F3 | below P1 | R5 |
+| Correctness | F4 | below P1 | R6 |
+| Correctness | F5 | below P1 | R7 |
+| Correctness | F6 | below P1 | R10 |
+| Correctness | F7 | below P1 | R2 |
+| Correctness | F8 | below P1 | R11 |
+| Correctness | F9 | below P1 | R8 |
+| Correctness | F10 | below P1 | R13 |
+| Correctness | F11 | below P1 | R14 |
+| Correctness | F12 | below P1 | R16 |
+| Architecture Strategist | F1 | P1 | R4 |
+| Architecture Strategist | F2 | below P1 | R6 |
+| Architecture Strategist | F3 | below P1 | R8 |
+| Architecture Strategist | F4 | below P1 | R9 |
+| Architecture Strategist | F5 | below P1 | R13 |
+| Architecture Strategist | F6 | below P1 | R2 |
+| Architecture Strategist | F7 | below P1 | R15 |
+| Architecture Strategist | F8 | below P1 | R5 |
+| Scope Boundary Auditor | SR-1 | P1 | R1 |
+| Scope Boundary Auditor | SR-2 | below P1 | R2 |
+| Scope Boundary Auditor | SR-3 | below P1 | R2 |
+| Scope Boundary Auditor | SR-4 | below P1 | R7 |
+| Scope Boundary Auditor | SR-5 | below P1 | R18 |
+| Scope Boundary Auditor | SR-6 | below P1 | R6 |
+| Scope Boundary Auditor | SR-7 | below P1 | R16 |
+| Security Lens | F1 | P1 | R3 |
+| Security Lens | F2 | below P1 | R6 |
+| Security Lens | F3 | below P1 | R12 |
+| Security Lens | F4 | below P1 | R17 |
+| Security Lens | F5 | below P1 | R7 |
+
+Cycle 1 verdict: REVISE -> all findings dispositioned and applied; cycle-2 verification pending.

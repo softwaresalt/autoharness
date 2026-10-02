@@ -14,7 +14,7 @@ replan_contract: "201-S / 195-F (038-DL D2, D3a, D4a; docs/plans/2026-09-29-back
 requires_plan_rereview: "yes - the 2026-09-27 PASS predates the 2026-10-02 re-plan (P-021 C6)"
 provenance: "175-S / 167-F, PR #458 (merge 985e3990), closure PR #459, close commit 5cc5371a, condition operator-accepts-175s-cascade-evidence-deviation"
 requires_plan_hardening: "yes"
-post_review_operator_amendment: "2026-09-27T22:50-07:00 - D-A1..D-A6 (including the review-cycle-1 D-A3 SAFE_CLOSE fail-closed amendment) operator-confirmed; shipment 198-S is an operator-declared dag-root. No design change; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00)."
+post_review_operator_amendment: "2026-09-27T22:50-07:00 - D-A1..D-A6 (including the review-cycle-1 D-A3 SAFE_CLOSE fail-closed amendment) operator-confirmed; shipment 198-S is an operator-declared dag-root. No design change; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00). Superseded by the 2026-10-02 re-plan: dag-root removal recommended (198-S now has an explicit blocks edge to 201-S)."
 ---
 
 # Automatic, fail-closed CASCADE close-evidence capture
@@ -67,8 +67,8 @@ backlog):
 | Unit | Task | Change |
 |---|---|---|
 | A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Owns `redact` and the `*_to_record` / `*_from_record` helpers (cycle-1 R6, R8). Size M / low |
-| A1c | *new* | **New task (cycle-1 R4).** Disposition and set-term rules (R5, D2). S / low |
-| A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Uses the A1 `redact`; `engine_semantics.reason` and `close_path_selection.reason` are not redacted (cycle-1 R6). M / medium |
+| A1c | *new* | **New task (cycle-1 R4).** Disposition and set-term rules (R5, D2), with pre-mutation outcomes only and two-way engine/outcome consistency (cycle-1 R13). S / low |
+| A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Uses the A1 `redact`; `engine_semantics.reason` and `close_path_selection.reason` are not redacted (cycle-1 R6). Owns the `EXIT_*` constants in `shipment_close/__init__.py` (cycle-1 R15). M / medium |
 | A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty temporary directory (cycle-1 R3). S / medium |
 | A2a | *new* | **New task.** CLI engine-semantics probe (`shipment_close/engine_probe.py`). S / low |
 | A2b | *new* | **New task (cycle-1 R4).** Safe-close observation set (`shipment_close/observation.py`), with no disposition-set deliberation (cycle-1 R2). S / medium |
@@ -192,7 +192,7 @@ scenarios. A scenario is one table-driven test whose rows are cases.
 |---|---|---|---|
 | A1 | 2 | 4 | M / low |
 | A1c | 2 | 4 | S / low |
-| A1b | 2, plus the empty `shipment_close/__init__.py` package marker | 4 | M / medium |
+| A1b | 2, plus `shipment_close/__init__.py`, which holds only the `EXIT_*` constants (re-plan cycle-1 R15) | 4 | M / medium |
 | A3a | 2 | 3 | S / medium |
 | A2a | 2 | 4 | S / low |
 | A2b | 2 | 4 | S / medium |
@@ -309,8 +309,10 @@ set-term rules), so each satisfies the 2-hour rule.
   * The disposition and set-term rules are A1c. They extend this same
     `validate_evidence_record`, so the gate and the command keep one
     validator.
-  * `CascadeEvidenceError(Exception)` is the single error type. Exit-code
-    constants `EXIT_*` (see A3) are defined here once.
+  * `CascadeEvidenceError(Exception)` is the single error type. This
+    read-only gate module defines no exit codes. The command's `EXIT_*`
+    constants live in `shipment_close/__init__.py` (A1b; re-plan cycle-1
+    R15).
 * **Record shape:**
   * `schema_version`, `shipment_id`, `feature_id`, `merge_commit_sha`, `run_id`
     (uuid4 hex, fixed by the owning run), and `phase: pre_close | invoking | post_close`;
@@ -323,12 +325,21 @@ set-term rules), so each satisfies the 2-hour rule.
     `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
     `invocation_surface` input. There is no probe excerpt in
     `engine_semantics` (re-plan cycle-1 R7).
-    `linked_deliberation_disposition` mirrors
-    `LinkedDeliberationDispositionPlan` field for field, with the planned
-      outcomes. It is also the **disposition snapshot** that A3c compares
-      against. The observation set never contains a disposition-set
-      deliberation (re-plan cycle-1 R2; see A2b and H-C2). The 1.10.x key
-      `linked_deliberations` is removed (re-plan);
+    `linked_deliberation_disposition` carries four of the six
+    `LinkedDeliberationDispositionPlan` fields: `dispositions`,
+    `unresolved_references`, `read_failures`, and `planning_error`, with the
+    planned outcomes. Each `dispositions[]` entry mirrors
+    `LinkedDeliberationDisposition` field for field. The plan's other two
+    fields are intentionally omitted (re-plan cycle-1 R14): `shipment_id`
+    always equals the top-level `shipment_id` that A2 passes to the planner,
+    and `engine` is the A2a decision already recorded as
+    `pre_close.engine_semantics` (the in-memory object is not JSON-safe).
+    `disposition_plan_to_record` drops both, and
+    `disposition_plan_from_record(r, *, shipment_id, engine)` restores them
+    from those two record fields. It is also the **disposition snapshot**
+    that A3c compares against. The observation set never contains a
+    disposition-set deliberation (re-plan cycle-1 R2; see A2b and H-C2). The
+    1.10.x key `linked_deliberations` is removed (re-plan);
   * `invocation{argv_redacted, started_at, finished_at, exit_code, timed_out, mutation_state: none | completed | indeterminate, stdout{total_bytes, total_lines, sha256, capture_truncated, excerpt, redaction_applied}, stderr{...same}}`
     (both excerpts are always persisted, bounded and redacted, on success and on
     failure, because R3 requires the raw close output — AS-F09);
@@ -387,15 +398,34 @@ set-term rules), so each satisfies the 2-hour rule.
   * **Disposition (re-plan R5).** `pre_close.linked_deliberation_disposition`
     must be present on both paths. `planning_error` must be `null`, because the
     command never writes a record when the planner fails.
-    * Each `outcome` must be one of the eight `LinkedDeliberationOutcome`
-      values or the planned `"archive"`. An unknown outcome is rejected (the
-      enum is closed).
+    * Each `outcome` must be a **pre-mutation** outcome (re-plan cycle-1
+      R13): the planned `"archive"` (`shipment_closure.PLANNED_ARCHIVE`),
+      `"already-archived"` (`LinkedDeliberationOutcome.ALREADY_ARCHIVED`), or
+      one of the six `retained_*` values `"retained_read_error"`,
+      `"retained_ambiguous"`, `"retained_engine_unverified"`,
+      `"retained_live_status"`, `"retained_shared_reference"`, and
+      `"retained_description_mention"`. `"archived"`
+      (`LinkedDeliberationOutcome.ARCHIVED`) is rejected: only the skill's
+      disposition step assigns it, after verify-after-each, and the command
+      never archives. Any other value is rejected.
     * `reason_code` must be a non-empty string. Unknown reason codes are
       accepted, because that vocabulary is extensible.
-    * Every `retained_*` outcome is valid and never makes a record invalid
-      (non-halting).
-    * Under `engine_semantics.verdict: UNVERIFIED`, no outcome may be `archive`
-      (D3a engine-gated).
+    * A `retained_*` outcome never halts by itself (non-halting). Only the
+      engine-consistency rule below can reject one.
+    * **Engine/outcome consistency, both ways (D3a; re-plan cycle-1 R13).**
+      The planner's INV-12 precedence applies the engine rule after
+      `retained_read_error`, `retained_ambiguous`, and `already-archived`,
+      and before every other rule. Therefore:
+      * under `engine_semantics.verdict: UNVERIFIED`, an outcome must be
+        `retained_read_error`, `retained_ambiguous`, `already-archived`, or
+        `retained_engine_unverified`. `archive`, `retained_live_status`,
+        `retained_shared_reference`, and `retained_description_mention` are
+        rejected, because the engine rule decides those deliberations first;
+      * under `VERIFIED`, `retained_engine_unverified` is rejected.
+
+      So `retained_engine_unverified` is present if and only if the engine is
+      UNVERIFIED, on exactly the deliberations that would otherwise reach
+      `archive` or a later retain rule.
   * **No linked-deliberation set terms.** The validator never treats a
     disposition-set ID as a member of `allowed_ids` or `required_ids`. A
     recorded `allowed_ids` or `required_ids` that contains a disposition-set
@@ -405,10 +435,14 @@ set-term rules), so each satisfies the 2-hour rule.
     `observation_set` entry whose ID is in the disposition snapshot is
     rejected.
 * **Tests (test-first, four table-driven scenarios):**
-  1. **Outcome table:** every `retained_*` outcome, including
-     `retained_read_error` with an unknown `reason_code`, is accepted; an
-     unknown `outcome` is rejected; an `archive` outcome under an UNVERIFIED
-     engine is rejected.
+  1. **Outcome and engine-consistency table:** every `retained_*` outcome
+     under its matching engine verdict, including `retained_read_error` with
+     an unknown `reason_code`, is accepted; `archive` and `already-archived`
+     under a VERIFIED engine are accepted; `"archived"` and an unknown
+     `outcome` are rejected under either engine; `archive` and
+     `retained_live_status` under an UNVERIFIED engine are rejected;
+     `retained_engine_unverified` under a VERIFIED engine is rejected
+     (re-plan cycle-1 R13).
   2. **Planner-state table:** a missing disposition snapshot and a non-null
      `planning_error` are rejected.
   3. **Set-term table:** a recorded `required_ids` or `allowed_ids` containing
@@ -418,7 +452,7 @@ set-term rules), so each satisfies the 2-hour rule.
      contains a disposition-set deliberation ID is rejected.
 
   Fixtures build dispositions from `LinkedDeliberationOutcome` values and
-  never hard-code a linked deliberation in either set.
+  `PLANNED_ARCHIVE`, and never hard-code a linked deliberation in either set.
 * **Depends on:** A1 (`192.001-T`). **Harness surface:**
   `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** low.
@@ -429,6 +463,11 @@ set-term rules), so each satisfies the 2-hour rule.
   `src/autoharness/shipment_close/persist.py` (new), and
   `tests/test_shipment_close_persist.py` (new).
 * **Changes:**
+  * **Exit codes (re-plan cycle-1 R15):** `shipment_close/__init__.py` holds
+    only the command's `EXIT_*` constants (the codes of the A3 table). It is
+    their single definition. A1b, A3a, A3, and A3d import them from there,
+    and the read-only `gates/cascade_evidence.py` never defines or imports
+    them.
   * **Streaming capture:** `StreamCapture` counts bytes and lines and folds every
     byte into a SHA-256. It retains (a) a tail window of the final 64 KiB / 500
     lines plus a 4 KiB leading margin, and (b) for stdout only, an in-memory
@@ -438,9 +477,14 @@ set-term rules), so each satisfies the 2-hour rule.
     (`parse_error: stdout exceeded capture cap`), never silently truncated JSON
     (AS-F03).
   * **Redaction:** `redact(text)` (defined in A1 `cascade_evidence.py`, re-plan
-    cycle-1 R6) covers bearer or basic `Authorization` values;
-    `key=value` credential pairs whose key is `token`, `password`, or `secret`;
-    GitHub `gh[pousr]_` and `github_pat_` tokens; and `sk-` style keys. It returns
+    cycle-1 R6) covers bearer or basic `Authorization` values; credential
+    pairs over one shared, case-insensitive key set (`token`, `password`,
+    `secret`, `api_key`, `apikey`, `access_token`, `refresh_token`, and
+    `client_secret`), both as `key=value` and as a quoted JSON key with a `:`
+    separator and optional whitespace (`"token": "..."`, `"api_key":"..."`;
+    the quoted value is redacted through its closing quote and the key is
+    kept, re-plan cycle-1 R17); GitHub `gh[pousr]_` and `github_pat_` tokens;
+    and `sk-` style keys. It returns
     the text and a `redaction_applied` flag. It runs over the retained tail window
     **before** the excerpt is sliced (H-B4), and over **every** persisted
     free-text field: argv, `tool.version_excerpt`, `parse_error`, both
@@ -498,7 +542,10 @@ set-term rules), so each satisfies the 2-hour rule.
   1. **Capture and redaction:** a truncation boundary at 64 KiB and at 500
      lines; a 2 MiB stream with bounded retained memory; a stdout overflow
      producing `parse_error`; a redaction case, plus a secret split across the
-     excerpt boundary; redaction of `failures[]` and `parse_error`.
+     excerpt boundary; a quoted JSON key case where `"token": "abc"`,
+     `"api_key":"abc"`, and `"Access_Token" : "abc"` each have the value
+     redacted and the key kept (re-plan cycle-1 R17); redaction of
+     `failures[]` and `parse_error`.
   2. **Lock and directory trust:** two concurrent acquirers where exactly one
      wins and the other gets exit 7; a symlinked or junctioned lock-directory
      or evidence-directory component is refused before any file is created.
@@ -648,16 +695,20 @@ set-term rules), so each satisfies the 2-hour rule.
      `{"version": "1.11.0", "commit": "131577c"}` yields `VERIFIED`,
      `minor_line` `[1, 11]`, the raw commit, and the exact argv; a planted
      `token=...` in stdout is redacted in `version_excerpt`; a `commit` of
-     `"xyz"` or `"token=abc"` is passed as `null` and the verdict stays
-     `VERIFIED` (re-plan cycle-1 R6).
+     `"xyz"` or `"token=abc"`, a non-string `commit` (`131577` or
+     `["131577c"]`), and a 65-character hex `commit` are each passed as
+     `null`, and the verdict stays `VERIFIED` (re-plan cycle-1 R6, R18).
   2. **Unverified-version table:** `1.10.1` and `1.11.1-rc1` yield
      `UNVERIFIED` with the reason prefix; a 65-character `version`, a
      `version` of `"1.11.0 token=abc"`, and one with a trailing newline each
      yield `probed_version: null`, and the recorded `reason` equals
      `redact(reason)` (re-plan cycle-1 R6).
   3. **Probe-failure table:** a fake that exits 1, one that sleeps past the
-     timeout, and one that emits non-JSON all yield `probed_version: null`
-     and `UNVERIFIED`, and nothing raises.
+     timeout, one that emits non-JSON, one that exits 0 with empty stdout,
+     and an injected `run_bounded` that raises an unexpected exception all
+     yield `probed_version: null` and `UNVERIFIED` with the
+     `ENGINE_SEMANTICS_UNVERIFIED:` reason prefix, and nothing raises
+     (re-plan cycle-1 R18).
   4. **Working-directory isolation:** `cli.binary: python` (a bare name that
      passes A3a) with a planted `version` script in the workspace: the probe
      runs in the empty temporary directory, the planted script never executes
@@ -1031,7 +1082,9 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     archives, moves, or edits a deliberation or any other artifact. The skill's
     Linked-Deliberation Disposition step is the only archiver (038-DL D3a,
     one archiver).
-  * Exit codes (one table for the command, including `--classify-only`):
+  * Exit codes (one table for the command, including `--classify-only`). Each
+    code is an `EXIT_*` constant from `shipment_close/__init__.py` (A1b;
+    re-plan cycle-1 R15):
 
     | Code | Meaning | Mutation possible? | Ship action |
     |---|---|---|---|
@@ -1816,6 +1869,10 @@ For this plan (192-F / 198-S), the effects are:
 * **Ruling 1:** D-P2's `dag-root` recommendation is confirmed. Shipment 198-S carries
   the `dag-root` label, and the ordering-only placeholder edge 198-S ← 189-S is
   removed. 199-S still blocks on 198-S.
+  *Superseded by the 2026-10-02 re-plan: dag-root removal recommended (198-S
+  now has an explicit blocks edge to 201-S). See the re-plan amendment, item
+  6, and `docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md`
+  (re-plan cycle-1 R16).*
 * **Not named in the ruling:** the acceptance of the benign direct-cascade residual
   (AN-F01 / AN-F07) and of the SL-F04 and SL-F07 residuals. These are the review's
   accepted residuals. Under the original harvest terms, they stand unless the
