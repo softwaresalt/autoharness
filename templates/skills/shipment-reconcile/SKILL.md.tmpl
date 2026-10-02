@@ -1073,8 +1073,12 @@ archive, one ID at a time.
    when the planner returns without `planning_error`. Before any archive,
    when the planner returns without `planning_error`, the planner's disposition
    set (deliberation IDs, link kinds, linking members, record paths, and
-   record hashes) MUST equal the Step 0(c) disposition snapshot. Any
-   difference halts with `HALT — linked-deliberation disposition failed {id}`;
+   record hashes) MUST equal the Step 0(c) disposition snapshot, and for
+   every deliberation the snapshot already settled as `retained_read_error`,
+   `retained_ambiguous`, or `already-archived`, the planner's outcome,
+   `reason_code`, and `path` MUST equal the snapshot's settled outcome data,
+   so a fresh plan never upgrades snapshot-settled evidence to a planned
+   `archive`. Any difference halts with `HALT — linked-deliberation disposition failed {id}`;
    emit **P-005** once; no mutation. `{id}` is the first differing
    deliberation ID, or the shipment ID for a set-level added/removed-ID
    difference. Other workspaces apply the same stated rules and
@@ -1115,7 +1119,11 @@ archive, one ID at a time.
      or the CASCADE out-of-manifest descendant fingerprints (disposition step 0);
    * (ii) the disposition snapshot;
    * (iii) a pre-disposition `git status --porcelain -- "{{BACKLOG_DIRECTORY}}/"`
-     capture;
+     capture, together with a location-and-SHA-256 fingerprint of every
+     path under `{{BACKLOG_DIRECTORY}}/` other than the exempt paths named below,
+     because porcelain status codes alone are not byte identity (a path
+     that is already modified or untracked keeps the same entry when its
+     bytes change again);
    * minus the `closure_scope(S)` IDs this run already archived (their
      queue→archive moves are the completed closure, not drift).
 
@@ -1132,6 +1140,11 @@ archive, one ID at a time.
    `ArchiveItem` does **not** write `{{BACKLOG_DIRECTORY}}/stash.jsonl` or
    `{{BACKLOG_DIRECTORY}}/archive/stash.jsonl`; any change there, or to any
    other path, violates the disposition baseline.
+
+   The exempt paths, excluded from the (iii) fingerprint, are only the
+   gitignored item event log, the index, lock and hook-queue files, and this
+   run's own closure report path under `{{BACKLOG_DIRECTORY}}/reconcile/` (written by
+   step 5). Every other `{{BACKLOG_DIRECTORY}}/reconcile/` path stays in the baseline.
 
 3. **Archive each planned `archive`, one at a time, in ascending ID order.**
    * Immediately before each call, re-run the SHA-256 check after first
@@ -1243,8 +1256,15 @@ archive, one ID at a time.
      to the operator.
 
 6. **Gate decision.**
-   * Every disposition-set deliberation has exactly one outcome and every
-     `archived` outcome passed step 4 → `recommendation: DISPOSITION_COMPLETE`.
+   * Every disposition-set deliberation has exactly one outcome, every
+     `archived` outcome passed step 4, and a final disposition-baseline
+     invariance check, run after the step 5 report write, passes (nothing
+     changed relative to the step 2 disposition baseline except the allowed
+     side effects of the verified disposition archives and this run's own
+     closure report path) → `recommendation: DISPOSITION_COMPLETE`. A failure
+     of that final check halts with `HALT — linked-deliberation disposition
+     failed {id}`, where `{id}` is the shipment ID; emit **P-005** once
+     through D6.
      Proceed to post-mode. Retained outcomes are reported, never halt, and
      never block this gate. `linked_deliberation_disposition: []` is valid
      only when the Step 0(c) disposition snapshot is empty; a `planning_error`

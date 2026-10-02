@@ -162,6 +162,32 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                     "minus the `closure_scope(S)` IDs this run already archived",
                     baseline,
                 )
+                # Porcelain status codes are not byte identity: the baseline also
+                # fingerprints every non-exempt backlog path by location and hash.
+                self.assertIn(
+                    "together with a location-and-SHA-256 fingerprint of every path under",
+                    baseline,
+                )
+                self.assertIn("porcelain status codes alone are not byte identity", baseline)
+                self.assertIn(
+                    "this run's own closure report path under",
+                    baseline,
+                )
+
+    def test_gate_runs_final_invariance_after_report_write(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                gate = _step(_section(raw), 6)
+                self.assertIn(
+                    "a final disposition-baseline invariance check, run after the step 5 "
+                    "report write, passes",
+                    gate,
+                )
+                self.assertIn(
+                    "A failure of that final check halts with `HALT — linked-deliberation "
+                    "disposition failed {id}`, where `{id}` is the shipment ID",
+                    gate,
+                )
 
     def test_h_g_allowed_side_effect_paths_exclude_stash_files(self) -> None:
         for label, raw in _variants():
@@ -748,6 +774,16 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                     "`planning_error`, the planner's disposition set (deliberation IDs, "
                     "link kinds, linking members, record paths, and record hashes) MUST "
                     "equal the Step 0(c) disposition snapshot",
+                    plan,
+                )
+                # Snapshot-settled outcome data joins the equality contract so a
+                # fresh plan cannot upgrade retained evidence to an archive.
+                self.assertIn(
+                    "for every deliberation the snapshot already settled as "
+                    "`retained_read_error`, `retained_ambiguous`, or `already-archived`, "
+                    "the planner's outcome, `reason_code`, and `path` MUST equal the "
+                    "snapshot's settled outcome data, so a fresh plan never upgrades "
+                    "snapshot-settled evidence to a planned `archive`.",
                     plan,
                 )
                 self.assertIn(
