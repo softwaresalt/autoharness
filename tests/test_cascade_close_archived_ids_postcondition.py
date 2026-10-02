@@ -256,6 +256,21 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn("empty (no required artifact left unarchived)", content)
         self.assertNotIn("archived_ids` matches exactly", content)
 
+    def test_gate_decision_records_t4_transition_hand_off(self) -> None:
+        expected = (
+            "linked_deliberation_disposition: step-not-yet-on-main "
+            "(transition window); all retained"
+        )
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                region = content[
+                    content.index("6. **Produce cascade-close report**") :
+                    content.index("## P-015 Vocabulary", content.index("7. **Gate decision**"))
+                ]
+                self.assertIn("Hand off to the Linked-Deliberation Disposition step", region)
+                self.assertIn(expected, region)
+
     def test_no_live_guidance_anywhere_still_asserts_exact_match(self) -> None:
         """Copilot review (PR #407): a live '## Quality Criteria' bullet
         previously survived the step-3/preamble rewrite and kept asserting
@@ -693,22 +708,79 @@ class SkillRenderedRegionParityTests(unittest.TestCase):
     dogfood allowlist used by policy rendered-region parity.
     """
 
-    def _assert_skill_rendered_line_parity(self, anchors: tuple[str, ...]) -> None:
-        rendered = render_source(".github/skills/shipment-reconcile/SKILL.md")
-        mirror = _SKILL_MIRROR.read_text(encoding="utf-8")
+    @staticmethod
+    def _allowlisted(region: str) -> str:
+        for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
+            region = region.replace(template_text, mirror_text)
+        return region
+
+    @staticmethod
+    def _unique_anchor_index(lines: list[str], anchor: str) -> int:
+        matches = [idx for idx, line in enumerate(lines) if line.startswith(anchor)]
+        if len(matches) != 1:
+            raise AssertionError(f"anchor {anchor!r} matched {len(matches)} lines")
+        return matches[0]
+
+    @staticmethod
+    def _list_marker(line: str) -> tuple[int, str] | None:
+        match = re.match(r"^(\s*)(?:([*+-])|(?:\d+\.))\s+", line)
+        if not match:
+            return None
+        return (len(match.group(1)), match.group(0).strip().split()[0])
+
+    @classmethod
+    def _bounded_region(cls, lines: list[str], start: int) -> str:
+        marker = cls._list_marker(lines[start])
+        end = start + 1
+        while end < len(lines) and lines[end].strip():
+            if marker is not None:
+                next_marker = cls._list_marker(lines[end])
+                if next_marker is not None and next_marker[0] <= marker[0]:
+                    break
+            end += 1
+        return "\n".join(lines[start:end])
+
+    def _assert_skill_rendered_region_parity(
+        self,
+        anchors: tuple[str, ...],
+        *,
+        rendered: str | None = None,
+        mirror: str | None = None,
+    ) -> None:
+        rendered = rendered if rendered is not None else render_source(
+            ".github/skills/shipment-reconcile/SKILL.md"
+        )
+        mirror = mirror if mirror is not None else _SKILL_MIRROR.read_text(
+            encoding="utf-8"
+        )
+        rendered_lines = rendered.splitlines()
+        mirror_lines = mirror.splitlines()
         for anchor in anchors:
             with self.subTest(anchor=anchor):
-                expected = [line for line in rendered.splitlines() if line.startswith(anchor)]
-                actual = [line for line in mirror.splitlines() if line.startswith(anchor)]
-                self.assertEqual(len(expected), 1)
-                self.assertEqual(len(actual), 1)
-                region = expected[0]
-                for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
-                    region = region.replace(template_text, mirror_text)
-                self.assertEqual(actual[0], region)
+                expected_start = self._unique_anchor_index(rendered_lines, anchor)
+                actual_start = self._unique_anchor_index(mirror_lines, anchor)
+                expected_region = self._allowlisted(
+                    self._bounded_region(rendered_lines, expected_start)
+                )
+                actual_region = self._bounded_region(mirror_lines, actual_start)
+                self.assertEqual(actual_region, expected_region)
+
+    def test_region_parity_detects_continuation_line_drift(self) -> None:
+        rendered = "before\nanchor line\ncontinuation from template\n\nafter\n"
+        mirror = "before\nanchor line\ncontinuation from mirror\n\nafter\n"
+        rendered_lines = rendered.splitlines()
+        mirror_lines = mirror.splitlines()
+        anchor = "anchor line"
+        expected_region = self._bounded_region(
+            rendered_lines, self._unique_anchor_index(rendered_lines, anchor)
+        )
+        actual_region = self._bounded_region(
+            mirror_lines, self._unique_anchor_index(mirror_lines, anchor)
+        )
+        self.assertNotEqual(actual_region, expected_region)
 
     def test_c_g_u3a_rendered_region_parity(self) -> None:
-        self._assert_skill_rendered_line_parity(
+        self._assert_skill_rendered_region_parity(
             (
                 "      **Declared `status` is read",
                 "      This is the **INV-6 engine-inertness containment gate**",
@@ -719,7 +791,7 @@ class SkillRenderedRegionParityTests(unittest.TestCase):
         )
 
     def test_f_j_u3b_rendered_region_parity(self) -> None:
-        self._assert_skill_rendered_line_parity(
+        self._assert_skill_rendered_region_parity(
             (
                 "      **Linked-deliberation disposition snapshot.**",
                 "      Validate existence before location",
@@ -731,7 +803,7 @@ class SkillRenderedRegionParityTests(unittest.TestCase):
         )
 
     def test_g_h_u4_rendered_region_parity(self) -> None:
-        self._assert_skill_rendered_line_parity(
+        self._assert_skill_rendered_region_parity(
             (
                 "3. **Verify `archived_ids`",
                 "   * **Compute `allowed_ids`**",
@@ -853,6 +925,28 @@ class CascadeCloseLinkedDeliberationFlatSemanticsTests(unittest.TestCase):
                 self.assertIn("Superseded provenance only", context)
                 self.assertIn("removed `linkedDeliberationIDs` helper", context)
                 self.assertIn("the engine does not archive these disposition-set deliberations", context)
+
+    def test_f_i_pre_invocation_recollection_covers_full_step_0c_set(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**This classifier re-run does not, by itself") :
+                    content.index("**Engine-semantics re-probe", content.index("**This classifier re-run"))
+                ]
+                self.assertIn("same full disposition set as the Step 0(c)", section)
+                self.assertIn("every explicit manifest member regardless of `artifact_type`", section)
+                self.assertIn("`custom_fields.source_deliberation_id`", section)
+                self.assertIn("description/references text", section)
+                self.assertIn("identical matcher", section)
+                self.assertIn("exclusion of the shipment record itself", section)
+                self.assertIn("every ID in `closure_scope(S)`", section)
+                self.assertIn("link kinds", section)
+                self.assertIn("every record path", section)
+                self.assertIn("declared statuses", section)
+                self.assertIn("SHA-256 values", section)
+                self.assertNotIn("each qualifying feature member's", section)
+                self.assertNotIn("by a qualifying feature after Step 0(c)", section)
 
 
 class CascadeCloseEngineSemanticsGateTests(unittest.TestCase):

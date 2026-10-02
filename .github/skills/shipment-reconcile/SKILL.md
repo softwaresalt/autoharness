@@ -836,19 +836,23 @@ substitution.
 **This classifier re-run does not, by itself, cover the Linked-deliberation
 disposition snapshot above**: `classify_shipment_close_path` intentionally
 never inspects `validated_linked_deliberations(S)` (see the INV-6 gate's
-own scoping above), so a linked deliberation gained or changed by a
-qualifying feature after Step 0(c) — a new `custom_fields.source_deliberation_id`,
-a newly added description/reference match, an added/removed record path, a
-declared-status change, or a content-hash change to an already snapshotted
-record — would leave all three classifier-compared values identical while
-still changing the INV-12 disposition evidence. Immediately alongside the
-classifier re-run above, independently re-collect each qualifying feature
-member's disposition-set deliberations using the identical link-source and
-exclusion rules from the Step 0(c) disposition snapshot above. Require this
-freshly re-collected snapshot — deliberation IDs, link kinds, linking
-members, every record path, declared statuses, and SHA-256 values together —
-to be **identical** to Step 0(c)'s captured disposition snapshot. Any drift
-halts with the same
+own scoping above), so a linked deliberation gained or changed on any
+explicit manifest member after Step 0(c) — a new
+`custom_fields.source_deliberation_id`, a newly added description/reference
+match, an added/removed record path, a declared-status change, or a
+content-hash change to an already snapshotted record — would leave all
+three classifier-compared values identical while still changing the INV-12
+disposition evidence. Immediately alongside the classifier re-run above,
+independently re-collect the same full disposition set as the Step 0(c)
+Linked-deliberation disposition snapshot: every explicit manifest member
+regardless of `artifact_type`, using the identical link-source rules
+(`custom_fields.source_deliberation_id` and description/references text),
+the identical matcher, and the identical exclusion of the shipment record
+itself and every ID in `closure_scope(S)`. Require this freshly
+re-collected snapshot — deliberation IDs, link kinds, linking members,
+every record path, declared statuses, and SHA-256 values together — to be
+**identical** to Step 0(c)'s captured disposition snapshot. Any drift halts
+with the same
 `HALT — cascade pre-invocation revalidation drift detected` message and
 **P-005** violation as the classifier-output drift above; do NOT invoke
 either close path. Only when both the classifier re-run and this
