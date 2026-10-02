@@ -151,7 +151,13 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
                     content,
                 )
                 self.assertIn(
-                    "any other identity-set difference from the post-cascade re-collection",
+                    "any other snapshot-field difference from the post-cascade re-collection",
+                    content,
+                )
+                # PR #475 Copilot review round 2: link metadata is compared too.
+                self.assertIn(
+                    "its link kinds, its linking manifest members, its declared status, "
+                    "and the complete set of record paths MUST be identical",
                     content,
                 )
 
