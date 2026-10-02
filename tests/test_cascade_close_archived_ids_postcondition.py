@@ -328,11 +328,7 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn("empty (no required artifact left unarchived)", content)
         self.assertNotIn("archived_ids` matches exactly", content)
 
-    def test_gate_decision_records_t4_transition_hand_off(self) -> None:
-        expected = (
-            "linked_deliberation_disposition: step-not-yet-on-main "
-            "(transition window); all retained"
-        )
+    def test_gate_decision_hands_off_to_disposition_step(self) -> None:
         for label, raw in _skill_variants():
             with self.subTest(surface=label):
                 content = _flatten(raw)
@@ -341,7 +337,7 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
                     content.index("## P-015 Vocabulary", content.index("7. **Gate decision**"))
                 ]
                 self.assertIn("Hand off to the Linked-Deliberation Disposition step", region)
-                self.assertIn(expected, region)
+                self.assertNotIn("step-not-yet-on-main", region)
 
     def test_no_live_guidance_anywhere_still_asserts_exact_match(self) -> None:
         """Copilot review (PR #407): a live '## Quality Criteria' bullet
