@@ -165,3 +165,18 @@ and unmodified. This document exists to preserve the observed fact pattern
 that deliberation, and explicitly to prevent a future session from citing it
 as authority to bypass the current contract without an actual, reviewed
 contract or engine-behavior fix.
+
+## Supersession note (2026-09-29, backlogit 1.11.0 flat cascade)
+
+The linked-deliberation half of the top-of-file CORRECTED / RETRACTED
+banner is superseded for
+backlogit 1.11.x. The 1.11.0 flat cascade (`collectArchiveCandidateIDs`,
+commit `5a4b70dd`) never archives a feature's linked deliberations, so a
+linked deliberation is no longer an `allowed_ids` or `required_ids` member
+of a CASCADE close at all; it is handled only by the path-independent
+Linked-Deliberation Disposition step (P-015 INV-12). The tolerance for a
+truly pre-archived non-feature manifest member stands, and this document's
+core lesson — the autoharness expectation, not the engine, was wrong — is
+the precedent the 1.11.0 realignment followed. Everything above stays
+unchanged as historical evidence. See
+[the 1.11 flat-cascade learning](2026-09-29-backlogit-1-11-flat-cascade-leaves-linked-deliberations.md).

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -86,6 +87,134 @@ class ShipSafeClosePointerTests(unittest.TestCase):
                 self.assertIn('halts fail-closed', normalized)
                 self.assertNotIn('requeues + detaches unshipped descendant tasks', normalized)
                 self.assertNotIn('VERIFIED FULLY-COVERED-ROOT EXCEPTION', normalized)
+
+
+def _normalized_files():
+    return tuple((label, ' '.join(content.split())) for label, content in _files())
+
+
+class ShipFlatCascadePhraseParityTests(unittest.TestCase):
+    """195.013-T: phrase-level parity (never byte parity) between the Ship
+    template and its dogfood mirror for the 195.006-T flat-cascade realignment."""
+
+    def test_j1_cascade_bullet_uses_flat_wording(self) -> None:
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(
+                    'never `validated_linked_deliberations(S)`: the engine leaves '
+                    'validated linked deliberations independent, so they are never in '
+                    '`allowed_ids(S)` / `required_ids(S)`',
+                    normalized,
+                )
+                self.assertIn(
+                    "CASCADE also requires the skill's engine-semantics gate to return "
+                    '`VERIFIED` (via `select_close_path`); otherwise the skill selects '
+                    '`SAFE_CLOSE`',
+                    normalized,
+                )
+                self.assertNotIn('may be live/required', normalized)
+                self.assertNotIn('separate linked-deliberation expansion', normalized)
+
+    def test_j2_safe_close_hands_off_to_disposition_step(self) -> None:
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(
+                    'out-of-manifest artifacts is still baseline-invariant, then the '
+                    "skill's Linked-Deliberation Disposition step.",
+                    normalized,
+                )
+                self.assertIn(
+                    'after either close path returns `CLOSED`, runs the path-independent '
+                    'Linked-Deliberation Disposition step (P-015 INV-12) before post-mode',
+                    normalized,
+                )
+                self.assertIn(
+                    'Ship never proceeds to post-mode directly after `CLOSED`',
+                    normalized,
+                )
+                self.assertIn("the skill's own halt handling governs any rollback", normalized)
+
+    def test_j3_commit_gate_requires_closed_disposition_complete_and_proceed(self) -> None:
+        gate = (
+            '**only after** safe-close returned `CLOSED`, the Linked-Deliberation '
+            'Disposition step returned `DISPOSITION_COMPLETE` (never after a '
+            'disposition `HALT`), and post-mode returned `PROCEED`'
+        )
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(gate, normalized)
+                self.assertNotIn(
+                    'safe-close returned `CLOSED` and post-mode returned `PROCEED`',
+                    normalized,
+                )
+
+    def test_j4_role_boundary_carries_inv12_archival_exception(self) -> None:
+        row = (
+            '| Planning | Read plans and deliberation artifacts for execution context | '
+            'Create or modify deliberation, spike, plan, or review artifacts '
+            '(P-015 INV-12 archival transitions of validated linked deliberations excepted) |'
+        )
+        allowed = (
+            'archive a validated linked deliberation only through the `shipment-reconcile` '
+            'Linked-Deliberation Disposition step (P-015 INV-12), never independently'
+        )
+        for label, content in _files():
+            with self.subTest(file=label):
+                self.assertIn(row, content.splitlines())
+                backlog_rows = [
+                    line for line in content.splitlines() if line.startswith('| Backlog |')
+                ]
+                self.assertEqual(len(backlog_rows), 1)
+                allowed_cell = backlog_rows[0].split(' | ')[1]
+                self.assertIn(allowed, allowed_cell)
+
+    def test_k6_mirror_archives_no_deliberation_outside_inv12(self) -> None:
+        """The dogfood mirror has no Step 7 deliberation retirement: it never
+        calls an item-archive operation, and every line that pairs archival
+        with deliberations is scoped to P-015 INV-12."""
+
+        mirror = _mirror_text()
+        self.assertNotIn('7. **Source artifact cleanup**', mirror)
+        sentences = re.split(r'(?<=[.;!?])\s+', ' '.join(mirror.split()))
+        for sentence in sentences:
+            if 'backlogit_archive_item' in sentence:
+                with self.subTest(sentence=sentence[:80]):
+                    self.assertRegex(sentence, r'\bnever\b|INV-12')
+        # An archival verb with "deliberation" as its object within a few words
+        # (a hard-wrapped sentence is flattened first, so wrapping cannot hide it).
+        archival_of_deliberation = re.compile(
+            r'\barchiv\w*\s+(?:[\w`-]+\s+){0,4}deliberations?\b', re.IGNORECASE
+        )
+        paired = [s for s in sentences if archival_of_deliberation.search(s)]
+        self.assertTrue(paired, 'expected at least the Role Boundary INV-12 sentences')
+        for sentence in paired:
+            with self.subTest(sentence=sentence[:80]):
+                self.assertIn('INV-12', sentence)
+
+    def test_k5_ship_pair_parity_for_step7_disposition_wording(self) -> None:
+        """195.012-T wording: in both files deliberation archival is routed
+        only through the INV-12 disposition step, and the withdrawn
+        independent archive call is absent; the template's Step 7 consumes
+        the report (the mirror has no Step 7 by design, see K-6)."""
+
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(
+                    'Linked-Deliberation Disposition step (P-015 INV-12)', normalized
+                )
+                self.assertNotIn(
+                    'If it exists and is not already archived, call `backlogit_archive_item`',
+                    normalized,
+                )
+        template = ' '.join(_template_text().split())
+        for phrase in (
+            "read the shipment's `linked_deliberation_disposition` report",
+            '**never archive**',
+            '`skipped_not_in_disposition_report`',
+            'copied from the disposition report, never re-derived',
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, template)
 
 
 if __name__ == '__main__':

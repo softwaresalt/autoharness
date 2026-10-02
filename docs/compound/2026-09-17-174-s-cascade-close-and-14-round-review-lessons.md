@@ -144,3 +144,13 @@ C1/C3. PR #454 reached Copilot review round 15 with `SATISFIED` (zero new thread
 merge-commit strategy (`d8615e9d5eb93a1d1616a735ca1433236868bee1`), and shipment 174-S was
 subsequently closed via the (now-corrected) CASCADE path — the first live production use of
 the corrected INV-6 text and the exposed `out_of_manifest_descendant_ids` field.
+
+## Supersession note (2026-09-29, backlogit 1.11.0)
+
+Lesson 1's premise that the CASCADE path cascades through, and archives, a qualifying
+feature's live/required linked-deliberation members is superseded for backlogit 1.11.x. The
+1.11.0 flat cascade (`collectArchiveCandidateIDs`, commit `5a4b70dd`) leaves a feature's
+linked deliberations independent unless their own IDs are explicit members; linked
+deliberations are now handled only by the path-independent Linked-Deliberation Disposition
+step (P-015 INV-12). The narrowing lesson itself still stands. See
+[the 1.11 flat-cascade learning](2026-09-29-backlogit-1-11-flat-cascade-leaves-linked-deliberations.md).

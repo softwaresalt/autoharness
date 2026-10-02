@@ -407,3 +407,23 @@ unchanged as historical evidence of the engine behavior this allowance now
 accounts for; read them as evidence of *why* the allowance exists, not as
 current required procedure.
 
+## Supersession note (2026-09-29, backlogit 1.11.0 flat cascade)
+
+The engine behavior recorded above, and the bounded linked-deliberation
+allowance the 2026-08-24 note describes, are superseded for backlogit 1.11.x.
+The 1.11.0 flat cascade (`collectArchiveCandidateIDs`, commit `5a4b70dd`)
+no longer archives a feature's linked deliberations: they stay independent
+unless their own IDs are explicit manifest members, so a linked deliberation
+is no longer an `allowed_ids` or `required_ids` member of a CASCADE close.
+Linked deliberations are now handled only by the path-independent
+Linked-Deliberation Disposition step (P-015 INV-12). On 1.11.x the 2026-08-24
+"Retired instruction" above is itself withdrawn: a linked deliberation that
+appears in `archived_ids` is no longer an `allowed_ids` member, so the cascade
+halts on it with `HALT — cascade archived unexpected artifact {id}`. The
+2026-08-24 pointer to Step 0(c) "Linked-deliberation snapshot extension" and
+P-015 changelog row 1.22.0 as "the current, binding contract text" is retired
+too; the binding text is now P-015 INV-12 and the `shipment-reconcile`
+Linked-Deliberation Disposition step. Everything above stays
+unchanged as 1.10-era historical evidence. See
+[the 1.11 flat-cascade learning](2026-09-29-backlogit-1-11-flat-cascade-leaves-linked-deliberations.md).
+
