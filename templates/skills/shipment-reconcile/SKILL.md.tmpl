@@ -985,41 +985,9 @@ the fact.
    cascade-detection failure equivalent to step 6 of safe-close: halt with
    `HALT — cascade cleared parent_id on {id}, revert required` and emit a
    **P-005** violation; do NOT commit the mutated backlog state.
-5. **Verify out-of-manifest descendant baseline invariance (INV-7/INV-10,
-   after invocation)**: re-scan every descendant captured in the
-   baseline-fingerprint snapshot above and compare its current location
-   plus content hash against that snapshot. Any change relative to
-   baseline — location change, content-hash change, deletion, rename, new
-   archive presence, or `parent_id` drift on any of these
-   descendants — is a cascade signal exactly as INV-7/the Required Check
-   defines for safe-close: halt with
-   `HALT — cascade modified out-of-manifest descendant {id}, revert
-   required` and emit a **P-005** violation; do NOT commit the mutated
-   backlog state. This is the CASCADE-side counterpart of safe-close's
-   verify-after-each invariant, closing the gap the classification-time
-   INV-6 engine-inertness gate alone does not cover: INV-6 governs whether
-   `CASCADE` may be selected, this step governs whether the postcondition
-   it promised (`allowed_ids(S)`-external byte-identity) actually held once
-   the engine ran.
-6. **Produce cascade-close report** recording the classifier's verdict,
-   qualifying feature IDs, and their validated linked deliberation IDs
-   (all Step 0(c)), the pre-close declared-status
-   snapshot (Step 0(b)/(c)), the `{{OP_SHIP_SHIPMENT_MCP}}` result
-   (`shipment_status`, `archived_ids`, `returned_ids`, `commit_sha`),
-   `allowed_ids`, `required_ids`, and both set differences
-   (`archived_ids - allowed_ids` and `required_ids - archived_ids`) — so a
-   vacuous `required_ids` is visible in the report rather than silent —
-   the parent_id-preservation verification outcome (against the Step 0(b)
-   snapshot), and the out-of-manifest descendant baseline-invariance
-   verification outcome from step 5 above.
-7. **Gate decision**: `returned_ids` empty, `archived_ids - allowed_ids`
-   empty (no unexpected artifact archived), `required_ids - archived_ids`
-   empty (no required artifact left unarchived), every `parent_id`
-   preserved (against the Step 0(b) snapshot), and every out-of-manifest
-   descendant byte-identical to its step-5 baseline fingerprint →
-   `recommendation: CLOSED`. Proceed to
-   post-mode. Any verification failure above → the corresponding `HALT`; do
-   not proceed to post-mode or any commit step.
+5. **Verify out-of-manifest descendant baseline invariance (INV-7/INV-10, after invocation) and linked-deliberation disposition byte identity**: first re-scan every descendant captured in the baseline-fingerprint snapshot above and compare its current location plus content hash against that snapshot. Any change relative to baseline — location change, content-hash change, deletion, rename, new archive presence, or `parent_id` drift on any of these descendants — is a cascade signal exactly as INV-7/the Required Check defines for safe-close: halt with `HALT — cascade modified out-of-manifest descendant {id}, revert required` and emit a **P-005** violation; do NOT commit the mutated backlog state. This is the CASCADE-side counterpart of safe-close's verify-after-each invariant, closing the gap the classification-time INV-6 engine-inertness gate alone does not cover: INV-6 governs whether `CASCADE` may be selected, this step governs whether the postcondition it promised (`allowed_ids(S)`-external byte-identity) actually held once the engine ran. Then re-scan every record path captured in the Step 0(c) linked-deliberation disposition snapshot and compare its current location plus SHA-256 against that snapshot. Every disposition-snapshot record path MUST remain byte-identical after the cascade. Any location or content-hash change, deletion, rename, archive move, queue move, or added/removed duplicate record for the same deliberation ID halts with `HALT — cascade modified linked deliberation {id} — engine semantics drift` and emits a **P-005** violation; do NOT commit the mutated backlog state. A cascade that mutates a disposition-set deliberation is engine drift under the verified flat line; INV-12 disposition, not the cascade, owns any later single-artifact deliberation archive.
+6. **Produce cascade-close report** recording the classifier's verdict, qualifying feature IDs, the Step 0(c) engine-semantics decision (`probe_surface`, `version`, `commit`, and verdict/reason), the Step 0(c) linked-deliberation disposition snapshot, the pre-close declared-status snapshot (Step 0(b)), the `{{OP_SHIP_SHIPMENT_MCP}}` result (`shipment_status`, `archived_ids`, `returned_ids`, `commit_sha`), `allowed_ids`, `required_ids`, and both set differences (`archived_ids - allowed_ids` and `required_ids - archived_ids`) — so a vacuous `required_ids` is visible in the report rather than silent — the parent_id-preservation verification outcome (against the Step 0(b) snapshot), the out-of-manifest descendant baseline-invariance verification outcome, and the linked-deliberation disposition byte-identity outcome from step 5 above.
+7. **Gate decision**: `returned_ids` empty, `archived_ids - allowed_ids` empty (no unexpected artifact archived), `required_ids - archived_ids` empty (no required artifact left unarchived), every `parent_id` preserved (against the Step 0(b) snapshot), each out-of-manifest descendant byte-identical to its step-5 baseline fingerprint, and every linked-deliberation disposition snapshot record path byte-identical to its Step 0(c) fingerprint → `recommendation: CLOSED`. Hand off to the Linked-Deliberation Disposition step. During the slice-4 transition window before that step has landed on main, Ship performs no deliberation mutation and records exactly `linked_deliberation_disposition: step-not-yet-on-main (transition window); all retained`; that transition record is the temporary hand-off result. Any verification failure above → the corresponding `HALT`; do not proceed to post-mode, the transition-window record, or any commit step.
 
 ### Mixed-Role Detection Mode (`mode: detect-mixed-role`, operator-invoked, READ-ONLY)
 
@@ -1187,18 +1155,19 @@ If pre-mode cannot acquire the lock because another process holds it:
 ## P-015 Vocabulary and Invariant Summary
 
 * D1a vocabulary used by this skill: `manifest_scope`, `closure_scope`, `allowed_ids`, `required_ids`, `validated_linked_deliberations`.
-* This list mirrors the policy's own `INV-1`..`INV-11` numbering and meaning exactly (`.github/policies/workflow-policies.md`, P-015 Invariants) — it is a condensed restatement, never a second/parallel numbering.
-* `INV-1` (Flat closure scope): `closure_scope(S) = items(S) ∪ {S}`. Ancestry never adds a member; linked deliberations are accounted for only in `allowed_ids(S)`, never in `closure_scope(S)`.
-* `INV-2` (Membership is explicit and exhaustive): an artifact is in `manifest_scope(S)` iff its ID appears in `items(S)`.
-* `INV-3` (Exclusion is never a gate): an out-of-manifest descendant may hold any status. Ancestry alone never makes it a closure blocker or closure-scope member.
-* `INV-4` (Multi-shipment feature delivery): a feature may be delivered across `S1..Sn`; contract-complete but operationally blocked pending an external prerequisite tracked in a durable active stash entry local to this workspace's own backlog.
-* `INV-5` (Feature terminality precondition): the final shipment in a delivery sequence may carry the feature only once every task actually delivered by `S1..Sn` is terminal; contract-complete but operationally blocked pending that same prerequisite.
-* `INV-6` (Engine-inertness containment gate): `CASCADE` is permitted only when every artifact in the `parent_id` descendant set the classifier enumerates (`out_of_manifest_descendant_ids`) that lies outside `closure_scope(S)` is engine-inert — an exact parsed-scalar `isinstance(status, str) and status == "archived"` match, with no `.lower()`, no `.strip()`, no `casefold`, no alias, and no `str()` coercion, and with any id resolving to more than one record (torn or duplicate) failing closed; this gate never reaches `validated_linked_deliberations(S)`.
-* `INV-7` (Baseline invariance replaces baseline presence): safe-close records each observed artifact's baseline location plus content hash and requires nothing outside `closure_scope(S)` changes relative to baseline.
-* `INV-8` (Manifest ordering is a Stage assembly convention, NOT a closure precondition).
+* This list mirrors the policy's own `INV-1`..`INV-12` numbering and meaning exactly (`.github/policies/workflow-policies.md`, P-015 Invariants) — it is a condensed restatement, never a second/parallel numbering.
+* `INV-1` (Flat closure scope): `closure_scope(S) = items(S) ∪ {S}`. Ancestry never adds a member. Linked deliberations do not extend `closure_scope(S)` or `allowed_ids(S)`; they are accounted for only by INV-12.
+* `INV-2` (Membership is explicit and exhaustive): an artifact is in `manifest_scope(S)` iff its ID appears in `items(S)`. Absence from `items(S)` is complete evidence that the artifact is not part of this delivery.
+* `INV-3` (Exclusion is never a gate): an out-of-manifest descendant may be `queued`, `active`, `blocked`, `done`, `archived`, descoped, or absent, and ancestry alone never makes it a closure blocker or a closure-scope member.
+* `INV-4` (Multi-shipment feature delivery): a feature may be delivered across `S1 … Sn`; `S1..Sn-1` carry no feature member; exactly one shipment, the final `Sn`, carries the feature itself as a manifest entry. This is contract-complete but operationally blocked pending INV-11's external runtime prerequisite, tracked in a durable active stash entry local to this workspace's own backlog.
+* `INV-5` (Feature terminality precondition): the final shipment may carry the feature only when every task actually delivered by `S1..Sn` is terminal. Tasks excluded from every manifest in the sequence are not part of this precondition. This is contract-complete but operationally blocked pending that same external runtime prerequisite.
+* `INV-6` (Engine-inertness containment gate): `CASCADE` is permitted only when every artifact in the `parent_id` descendant set the classifier enumerates (`out_of_manifest_descendant_ids`) that lies outside `closure_scope(S)` is engine-inert — an exact parsed-scalar `isinstance(status, str) and status == "archived"` match, with no `.lower()`, no `.strip()`, no `casefold`, no alias, and no `str()` coercion, and with any id resolving to more than one record (torn or duplicate) failing closed. This gate never reaches `validated_linked_deliberations(S)`: under the verified engine line the engine leaves linked deliberations independent, so their disposition is INV-12.
+* `INV-7` (Baseline invariance replaces baseline presence): safe-close records each observed artifact's baseline location plus content hash and requires nothing outside `closure_scope(S)` changes relative to baseline. Temporal scope: baseline invariance is evaluated at the close-path gate, before INV-12 disposition; INV-12 then applies its own invariance check against the disposition baseline.
+* `INV-8` (Manifest ordering is a Stage assembly convention, NOT a closure precondition). Stage may enforce feature-last ordering when assembling new shipments, but Ship MUST NOT treat manifest ordering as a closure precondition.
 * `INV-9` (DAG orthogonality): shipment sequencing and pipeline topology are orthogonal to closure scope; closure never consults the DAG when deciding what this shipment may transition.
-* `INV-10` (Postconditions): `archived_ids ⊆ allowed_ids(S)`; `required_ids(S) ⊆ archived_ids`; every artifact outside `allowed_ids(S)` is byte-identical to baseline, including `parent_id`; the shipment record declares `status: archived` plus `archived_status: shipped`.
-* `INV-11` (External runtime prerequisite): multi-shipment / split delivery is **contract-complete** but **operationally blocked** for backlogit 1.10.1; when a shipment record cannot safely reach `archived_status: shipped` without `CASCADE` eligibility, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` and track the external prerequisite in a durable active stash entry local to this workspace's own backlog.
+* `INV-10` (Close-path gate postconditions (evaluated before INV-12 disposition)): at the close-path gate, `archived_ids ⊆ allowed_ids(S)`; `required_ids(S) ⊆ archived_ids`; every artifact outside `allowed_ids(S)` is byte-identical to baseline, including `parent_id`; and the shipment record declares `status: archived` plus `archived_status: shipped`. INV-12's `archived` deliberations are the only artifacts outside `allowed_ids(S)` that may change after the gate, and only through INV-12.
+* `INV-11` (External runtime prerequisite): multi-shipment delivery is contract-complete but operationally blocked under backlogit 1.10.1 (the observed line; not re-verified for 1.11; re-verification is owned by the engine-behavior registry). An intermediate shipment carries no feature member, cannot qualify for `CASCADE`, and is therefore a genuine `SAFE_CLOSE` shipment. If `backlogit move <shipment_id> --status shipped` is refused while the manifest is not cascade-eligible, Ship MUST halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. The cascade path must NOT be substituted, because `returned_ids` and `parent_id` clearing are indicative and unproven only, and archiving an active shipment record stamps `archived_status: active` rather than `archived_status: shipped`. This is an unresolved upstream tooling gap tracked by a durable active stash entry local to this workspace's own backlog; no silent workaround, no retry, no hand-edit.
+* `INV-12` (Linked-deliberation disposition): after the selected close path's gate passes, the Linked-Deliberation Disposition step assigns each disposition-set member exactly one `LinkedDeliberationOutcome`: `archived`, `already-archived`, `retained_read_error`, `retained_engine_unverified`, `retained_ambiguous`, `retained_live_status`, `retained_shared_reference`, or `retained_description_mention`. Each outcome carries a `reason_code`, which defaults to the outcome value; `retained_read_error` also carries a workspace-relative `path` and a read-error `reason_code` (`path_escape`, `symlink_or_reparse_point`, `unreadable_file`, `malformed_frontmatter`, `body_unseparable`, `malformed_stash_entry`). A read or containment failure yields `retained_read_error` first. A disposition-set member is mutated only by a single-artifact, non-cascading archive, and only when the engine-semantics verdict is VERIFIED, the deliberation is linked from an explicit member's `source_deliberation_id`, its own status is not live (`active`, `blocked`, `review`), it resolves to exactly one record, and it has no live referrer. The step never widens `closure_scope(S)`, is independent of the selected close path, and reports retained outcomes, which never halt; a verification failure halts with P-005 and never advances to post-mode.
 
 ## Deterministic Safe-Close Scenario Matrix
 
