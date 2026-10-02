@@ -357,5 +357,73 @@ class HandOffScopingAndSelectedWordingAssertions(unittest.TestCase):
                 self.assertNotIn("not cascade-eligible", inv11)
 
 
+def _matrix_row(raw: str, row: str) -> str:
+    """One linked-deliberation row of the Deterministic Safe-Close Scenario Matrix."""
+    matrix = raw[
+        raw.index("## Deterministic Safe-Close Scenario Matrix") : raw.index("## Quality Criteria")
+    ]
+    prefix = f"* **Linked deliberation ({row}) — "
+    rows = [line for line in matrix.splitlines() if line.startswith(prefix)]
+    if len(rows) != 1:
+        raise AssertionError(f"scenario-matrix row ({row}) matched {len(rows)} lines")
+    return rows[0]
+
+
+class ScenarioMatrixAssertionsI(unittest.TestCase):
+    """200.010-T: scenarios I-5a, I-5b and I-5c."""
+
+    def test_i_5a_engine_unverified_cascade_selects_safe_close_and_retains(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                row = _matrix_row(raw, "a")
+                self.assertIn("the classifier returns `CASCADE`", row)
+                self.assertIn("engine-semantics verdict is `UNVERIFIED`", row)
+                self.assertIn(
+                    "selects `SAFE_CLOSE` with reason `ENGINE_SEMANTICS_UNVERIFIED`", row
+                )
+                self.assertIn("safe-close steps 1–10 run", row)
+                self.assertIn("as `retained_engine_unverified` and mutates none", row)
+                # The row restates contract text the skill already carries.
+                self.assertIn(
+                    "| `CASCADE` | `UNVERIFIED` | `SAFE_CLOSE`, reason "
+                    "`ENGINE_SEMANTICS_UNVERIFIED` |",
+                    raw,
+                )
+                self.assertIn(
+                    "This includes a classifier `CASCADE` that Step 0(c) routed to "
+                    "`SAFE_CLOSE` with reason `ENGINE_SEMANTICS_UNVERIFIED`.",
+                    _flatten(_section(raw)),
+                )
+
+    def test_i_5b_shared_reference_is_retained(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                row = _matrix_row(raw, "b")
+                self.assertIn("still has a live referrer outside `closure_scope(S)`", row)
+                self.assertIn("is recorded `retained_shared_reference` with its referrer IDs", row)
+                self.assertIn("it is never archived and never halts", row)
+                self.assertNotIn("HALT", row)
+
+    def test_i_5c_engine_drift_halts(self) -> None:
+        halt = "HALT — cascade modified linked deliberation {id} — engine semantics drift"
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                row = _matrix_row(raw, "c")
+                self.assertIn(
+                    "a cascade that archives or modifies a disposition-set linked "
+                    "deliberation is engine drift",
+                    row,
+                )
+                self.assertIn(f"Cascade Close Sub-Procedure step 5 halts with `{halt}`", row)
+                self.assertIn("emits a P-005 violation", row)
+                self.assertIn(
+                    "neither the Linked-Deliberation Disposition step nor post-mode runs", row
+                )
+                cascade = raw[
+                    raw.index("### Cascade Close Sub-Procedure") : raw.index(_SECTION_HEADING)
+                ]
+                self.assertIn(f"halts with `{halt}`", cascade)
+
+
 if __name__ == "__main__":
     unittest.main()
