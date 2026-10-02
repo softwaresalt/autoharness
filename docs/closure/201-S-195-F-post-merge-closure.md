@@ -91,7 +91,17 @@ the following as it happened:
 * the raw output of
   `backlogit shipment ship 201-S --sha bf3aaf76… --message … --author …`
   (backlogit 1.11.0, exit 0, about 9.8 minutes from invocation to
-  postcondition evaluation, under the 15-minute circuit-breaker threshold)
+  postcondition evaluation)
+
+**Stall-detection deviation.** The 9.8-minute run exceeded the 5-minute
+"other commands" timeout in `.github/instructions/circuit-breaker.instructions.md`
+(Stall Detection). It was not terminated, and that timeout should have counted
+as one failed attempt and one session stall. Disposition: the single invocation
+exited 0, was not retried, and every postcondition below was verified against
+the captured baseline, so the close outcome stands. The timeout is recorded
+here as a deviation, not as within threshold. Whether a long-running cascade
+close needs its own timeout class is out of scope for this closure and is
+captured for Stage triage (see Follow-ups).
 
 The results were:
 
@@ -229,6 +239,9 @@ All follow-ups are active stash entries. Stage owns triage.
 * `33004C12` (new, this closure): retire the stranded `038-DL` once it is no
   longer a shared reference. `195-F` is archived, so no later closure re-runs
   the disposition step for it.
+* `9869AA32` (new, PR #480 review): decide whether long-running cascade
+  closes need their own stall-detection timeout class (deferred scope
+  expansion).
 * `BCD87392`: realign the self-hosting dogfood Ship mirror with the template
   (including Step 7).
 * `40DCBEBC`: reword the P-010 "Ship MAY" bullet in the workflow policies.
@@ -242,9 +255,10 @@ All follow-ups are active stash entries. Stage owns triage.
 
 Carried-over entries from earlier slices stay active and untouched. With
 201-S shipped, the 195-F re-split is complete. The next shipment in the
-dark-mode scope is `198-S`. It is blocked on `201-S` and waits for its
-re-plan (`1263B218`). Its own `blocks` edges and the `pre_claim` topology gate
-decide when it can be claimed.
+dark-mode scope is `198-S`. Its only listed predecessor, `201-S`, is now
+archived with `archived_status: shipped`, so that dependency is satisfied.
+What still holds `198-S` is the captured re-plan (`1263B218`), plus the
+`pre_claim` topology gate, which decides when it can be claimed.
 
 ## Residual Risks
 
