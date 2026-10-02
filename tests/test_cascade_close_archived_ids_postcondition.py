@@ -667,6 +667,46 @@ class CascadeCloseLinkedDeliberationFlatSemanticsTests(unittest.TestCase):
                 self.assertIn("an explicit-member deliberation is an ordinary manifest member", section)
 
 
+    def test_f_c_torn_deliberation_is_retained_ambiguous_not_a_halt(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("A torn or duplicate deliberation", section)
+                self.assertIn("`retained_ambiguous` and does **not** halt", section)
+                self.assertIn("every discovered record path is still fingerprinted", section)
+                self.assertIn("`RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS`", section)
+                self.assertIn("apply to manifest members only", section)
+
+    def test_f_d_unresolved_references_are_recorded_without_halting(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("An unresolved ID records `unresolved_references`", section)
+                self.assertIn("does **not** halt", section)
+                self.assertIn("`RECONCILE_FAIL_SNAPSHOT_MISSING`", section)
+                self.assertIn("never to disposition-set deliberations", section)
+
+    def test_f_e_snapshot_records_sha_256_per_record_path(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("every record path", section)
+                self.assertIn("SHA-256 of each record path's bytes", section)
+                self.assertIn("captured SHA-256 values", section)
+
+
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
     """PR #407 review (threads PRRT_kwDORzpWpM6bo8m2 /
     PRRT_kwDORzpWpM6bpEZc): a qualifying feature member's live linked
