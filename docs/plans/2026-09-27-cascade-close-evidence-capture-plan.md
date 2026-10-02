@@ -543,11 +543,25 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     `backlogit --jsonrpc shipment ship --help` and a canned envelope captured from
     a scratch fixture workspace, and both are committed as test fixtures.
   * `evaluate_postconditions(snapshot, parsed, reread) -> PostCloseResult` is
-    pure, with no I/O. `reread` is a post-close read of the shipment record and
-    of every fingerprinted file, supplied by A3. It computes `allowed_ids` and
-    `required_ids` **exactly as defined** in the shipment-reconcile Cascade Close
-    Sub-Procedure step 3, from the pre-close snapshot only (INV-P2). It evaluates
-    INV-10 in full:
+    pure, with no I/O. `reread` is supplied by A3. It holds a post-close read
+    of the shipment record and of every fingerprinted file, plus the
+    post-cascade **re-collection** of the disposition snapshot (re-plan R4).
+  * **Flat sets (re-plan R4; 038-DL D2).** It computes both sets locally, from
+    the pre-close snapshot only (INV-P2), over every manifest item regardless of
+    `artifact_type`:
+    * `allowed_ids = items(S) ∪ {S}`, which is `closure_scope(S)`;
+    * `required_ids = {S} ∪ qualifying_feature_ids ∪ {x ∈ items(S): the pre-close declared status of x is not exactly archived}`.
+      `qualifying_feature_ids` is the classifier's set from Step 0(c), never a
+      re-derivation.
+
+    No linked-deliberation term appears in either set. There is no
+    `validated_linked_deliberations` term (re-plan, removed). A deliberation
+    that is an explicit manifest member is an ordinary member of
+    `allowed_ids` (H10). A disposition-set deliberation is in neither set. No
+    public set helper exists on `main`, so production code does not import the
+    private `_closure_scope_ids`. A parity test pins `allowed_ids` to it
+    instead (M1, INV-P8).
+  * It evaluates INV-10 in full:
     * `returned_ids == []`;
     * the unexpected-artifact check and the missing-required check, each
       separately labelled and failing independently (INV-P3);
@@ -558,16 +572,56 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
       `allowed_ids`;
     * the re-read shipment record declares `status: archived` and
       `archived_status: shipped` (AS-F04).
+  * **`linked_deliberation_drift[]` (re-plan R4).** Engine drift is any of the
+    following, and each is recorded as `{deliberation_id, kind, detail}`:
+    * `archived`: a disposition-set deliberation ID appears in `archived_ids`.
+      It also fails the unexpected-artifact check, because it is outside
+      `allowed_ids`;
+    * `modified`: the SHA-256 of any `records[]` path differs from the
+      pre-close snapshot, or the path moved. Then
+      `disposition_byte_identical` is `false`;
+    * `snapshot_drift`: the re-collected snapshot differs from the pre-close
+      snapshot in deliberation IDs, link kinds, linking members, declared
+      status, record paths, SHA-256, or unresolved references. Planned
+      outcomes are not compared.
+
+    Any drift entry makes `postcondition_verdict: fail` (exit 5 in A3).
+    `retained_*` outcomes are never drift by themselves.
   * `mutation_state` is derived here: `completed` for a parsed success envelope;
     `none` only when every fingerprinted file's SHA-256 is unchanged and no
     fingerprinted ID has gained an archive-location file; otherwise
     `indeterminate`. A timeout or a non-zero exit is never read as "no mutation"
     (compound `2026-08-30-157-s-copilot-review-timeout-not-a-clean-signal.md`).
-* **Tests:** a table-driven pass case; a non-empty `returned_ids` case; the two set
-  checks failing independently (with both failing at once, both are reported);
-  a moved `parent_id` on an archived manifest task and on an out-of-manifest artifact; a modified descendant giving `baseline_invariant: false`;
-  a shipment record lacking `archived_status: shipped`; a malformed envelope;
-  `mutation_state` for unchanged, changed, and unparsed inputs.
+* **Tests:**
+  * a table-driven pass case;
+  * a flat-contract pass case: a manifest member links a live deliberation,
+    the cascade leaves it in `queue/` and unchanged, and the result passes.
+    This pins the 190-S halt shape as a non-failure;
+  * a non-empty `returned_ids` case;
+  * the two set checks failing independently (with both failing at once, both
+    are reported);
+  * a pre-close archived manifest task is absent from `required_ids` (compound
+    `2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md`);
+  * a disposition-set deliberation in `archived_ids` is reported as an
+    unexpected artifact **and** as `linked_deliberation_drift` (`archived`);
+  * a modified deliberation record yields `modified` drift and
+    `disposition_byte_identical: false`;
+  * a re-collected snapshot with a new link kind yields `snapshot_drift`;
+  * an explicit-member deliberation that is archived passes as an ordinary
+    `allowed_ids` member (H10);
+  * the **parity test** (M1, INV-P8): for a table of manifest fixtures,
+    including an empty manifest and a manifest containing a deliberation,
+    `allowed_ids` equals `shipment_closure._closure_scope_ids(manifest_ids, S)`.
+    This test is the only importer of the private helper;
+  * a moved `parent_id` on an archived manifest task and on an
+    out-of-manifest artifact;
+  * a modified descendant giving `baseline_invariant: false`;
+  * a shipment record lacking `archived_status: shipped`;
+  * a malformed envelope;
+  * `mutation_state` for unchanged, changed, and unparsed inputs.
+
+  Fixtures build dispositions from `LinkedDeliberationOutcome` values, and
+  none hard-codes a linked deliberation in either set.
 * **Posture:** test-first. **Size:** M. **Complexity:** medium (the high-risk
   envelope uncertainty is de-risked by the characterization step, and the
   function is pure).
@@ -583,15 +637,30 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
        any classification.
     2. Validate `--message` and `--author`: each must be non-empty, contain no NUL
        or newline, and be at most 1,024 characters. Failure exits 2.
-    3. Call `run_preclose`. A non-CASCADE verdict writes the `pre_close` verdict
-       record and exits 3 without invoking anything.
+    3. Call `run_preclose`, which includes the A2a engine probe and
+       `select_close_path`. If the **selected** path is not CASCADE, the command
+       writes the `pre_close` verdict record and exits 3 without invoking
+       anything. This covers a SAFE_CLOSE classifier verdict, and it covers a
+       CASCADE classifier verdict with an UNVERIFIED engine. That is the engine
+       gate, failing closed to SAFE_CLOSE (re-plan R3; D4a). The cascade never
+       runs without a `VERIFIED` engine on the CLI surface it invokes.
     4. Write the `pre_close` record. If that write fails, exit 2 without invoking
        anything.
-    5. Revalidate (AS-F02): recompute the **entire** pre-close snapshot (the
-       verdict, qualifying set, linked deliberations, every declared status,
-       every `parent_id`, and every SHA-256) and compare it with the durable
-       record, ignoring only `captured_at`. Any difference exits 4
-       (`HALT — cascade pre-invocation revalidation drift detected`).
+    5. Revalidate (AS-F02): recompute the **entire** pre-close snapshot and
+       compare it with the durable record, ignoring only `captured_at`. The
+       snapshot covers the classifier verdict, the qualifying set, every
+       declared status, every `parent_id`, every SHA-256, and the disposition
+       snapshot (deliberation IDs, link kinds, linking members, declared
+       statuses, record paths, SHA-256 values, and unresolved references). Any
+       difference exits 4 (`HALT — cascade pre-invocation revalidation drift detected`).
+       **Engine re-probe** (re-plan R3; D4a), alongside the snapshot
+       recomputation: re-run the A2a probe fresh, through the same resolved
+       binary on the same CLI surface. Compare the raw `probed_version`,
+       `probed_commit`, and `probe_surface` values and the verdict with the
+       record by exact string equality, never by minor line only. Any
+       difference, or a re-probe failure of any kind, exits 4. It never
+       substitutes SAFE_CLOSE, because after a CASCADE selection that would be
+       the prohibited substitution (INV-P4).
     6. Re-hash the resolved binary. A mismatch with `tool.binary_sha256` exits 4
        without invoking anything, leaving only the replaceable `pre_close`
        record (AN-F08).
@@ -600,20 +669,27 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
        invoking anything (INV-P1, INV-P7).
     8. Invoke through A3a with the fixed argv
        `[<absolute binary>, "--no-update-check", "--jsonrpc", "--cwd", <workspace root>, "shipment", "ship", S, "--sha", X, "--message", M, "--author", A]`.
-    9. Re-read the fingerprinted files, then call A3b `parse_ship_response` and
+    9. Re-read the fingerprinted files and the shipment record. Re-collect the
+       disposition snapshot with `compute_linked_deliberation_disposition`,
+       passing the **pre-close** manifest IDs and the recorded pre-close engine
+       decision. Then call A3b `parse_ship_response` and
        `evaluate_postconditions`.
     10. Write the owner-bound `post_close` record. This happens **even when the
         invocation or the parse fails**, so the evidence of a failure is preserved.
         If this write fails, exit 8.
+  * The command spawns only the A2a probe and `shipment ship`. It never
+    archives, moves, or edits a deliberation or any other artifact. The skill's
+    Linked-Deliberation Disposition step is the only archiver (038-DL D3a,
+    one archiver).
   * Exit codes (one table for the command, including `--classify-only`):
 
     | Code | Meaning | Mutation possible? | Ship action |
     |---|---|---|---|
-    | 0 | Mutating mode: all postconditions passed. `--classify-only`: CASCADE verdict recorded | mutating: yes (completed); classify-only: no | See the A5 routing table |
-    | 2 | Input, I/O, no-clobber refusal (`already finalized`), or a pre-invocation write failure | no | HALT; fix the input or ask the operator |
-    | 3 | Verdict is not CASCADE; a verdict record is written and nothing is invoked | no | See the A5 routing table |
-    | 4 | Pre-invocation revalidation drift, including a binary hash change; nothing invoked | no | HALT; operator |
-    | 5 | A postcondition failed; the record names every failure | yes | HALT; operator review |
+    | 0 | Mutating mode: all postconditions passed. `--classify-only`: CASCADE selected (classifier CASCADE, engine VERIFIED), verdict recorded | mutating: yes (completed); classify-only: no | See the A5 routing table |
+    | 2 | Input, I/O, no-clobber refusal (`already finalized`), a disposition `planning_error`, or a pre-invocation write failure | no | HALT; fix the input or ask the operator |
+    | 3 | The selected path is not CASCADE: the classifier said SAFE_CLOSE, or the engine is UNVERIFIED. A verdict record is written and nothing is invoked | no | See the A5 routing table |
+    | 4 | Pre-invocation revalidation drift: snapshot drift, an engine re-probe difference or failure, or a binary hash change. Nothing invoked | no | HALT; operator. Never SAFE_CLOSE |
+    | 5 | A postcondition failed, including `linked_deliberation_drift`; the record names every failure | yes | HALT; operator review |
     | 6 | backlogit exited non-zero, timed out, or stdout did not parse | indeterminate | HALT; operator review |
     | 7 | An existing lock or `invoking` record; nothing invoked | unknown (prior run) | HALT; operator review |
     | 8 | The post-close evidence write failed after invocation | yes | HALT; operator review |
@@ -623,22 +699,35 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     SAFE_CLOSE (INV-P4) until an operator reviews the backlog state and the record.
   * `--json` output (AN-F06) is one object:
     `{mode, exit_code, evidence_path, phase_written, classifier_verdict,
-    mutation_possible: no | yes | indeterminate | unknown, postcondition_verdict,
-    failures[], operator_action: none | review_required}`. The exit-2 cases
-    always report `mutation_possible: no`, because every post-invocation write
-    failure uses exit 8.
+    engine_verdict, selected_close_path, mutation_possible: no | yes | indeterminate | unknown,
+    postcondition_verdict, failures[], operator_action: none | review_required}`.
+    The exit-2 cases always report `mutation_possible: no`, because every
+    post-invocation write failure uses exit 8.
   * `cli.py` gains the `shipment` group, the `cascade-close` subcommand, and USAGE
     lines. The USAGE text labels the mutating mode and
     `--classify-only --replace-pre-close` **destructive**, and plain
     `--classify-only` no-clobber and read-only apart from creating a new
     evidence record (Principle VII).
-* **Tests:** a fake `backlogit` (A3a seam) emitting a canned envelope: a pass case;
-  a non-empty `returned_ids` case, which exits 5 with the record written; backlogit
-  exiting 1 with stderr, where the record keeps redacted stderr and exits 6; a
-  pre-existing `invoking` record exits 7 and the fake is never spawned (the fake
-  writes a sentinel file when run); drift injected between steps 4 and 5 exits 4
-  with no spawn; a simulated post-close write failure exits 8; the argv the fake
-  receives equals the fixed argv, including `--cwd`; `--json` fields per exit code.
+* **Tests:** a fake `backlogit` (A3a seam) emitting a canned envelope. The fake
+  answers the `version` probe from a per-call script and writes a sentinel file
+  when `shipment ship` runs:
+  * a pass case;
+  * a classifier CASCADE with a fake `1.10.1` probe exits 3, the `shipment ship`
+    sentinel is never written, and the record selects `safe_close`;
+  * the fake's `commit` changes between the step 3 probe and the step 5
+    re-probe: exit 4, no spawn;
+  * the step 5 re-probe times out: exit 4, never 3;
+  * a non-empty `returned_ids` case, which exits 5 with the record written;
+  * the fake modifies a disposition-set deliberation during the ship call:
+    exit 5 with `linked_deliberation_drift` recorded;
+  * backlogit exiting 1 with stderr, where the record keeps redacted stderr and
+    exits 6;
+  * a pre-existing `invoking` record exits 7 and the fake is never spawned;
+  * drift injected between steps 4 and 5 exits 4 with no spawn;
+  * a simulated post-close write failure exits 8;
+  * the argv log holds only the probe argv and the fixed ship argv (including
+    `--cwd`), and no archive call;
+  * `--json` fields per exit code.
 * **Posture:** test-first. **Size:** M. **Complexity:** medium.
 
 ### A4 — Closure-evidence gate: `close_path` and the close-evidence requirement
