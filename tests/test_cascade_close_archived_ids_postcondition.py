@@ -39,6 +39,7 @@ except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
 
 _ROOT = Path(__file__).resolve().parents[1]
 _SKILL_TEMPLATE = _ROOT / "templates" / "skills" / "shipment-reconcile" / "SKILL.md.tmpl"
+_SKILL_MIRROR = _ROOT / ".github" / "skills" / "shipment-reconcile" / "SKILL.md"
 _POLICY_TEMPLATE = _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
 _SPIKE_DOC = _ROOT / "docs" / "spikes" / "2026-08-18-cascade-close-pre-archived-member-behavior.md"
 _COMPOUND_DOC = _ROOT / "docs" / "compound" / "2026-08-18-p015-cascade-classifier-override-deviation.md"
@@ -66,6 +67,14 @@ _CHANGELOG_1_19_0 = (
 
 def _skill_content() -> str:
     return _SKILL_TEMPLATE.read_text(encoding="utf-8")
+
+
+def _skill_mirror_content() -> str:
+    return _SKILL_MIRROR.read_text(encoding="utf-8")
+
+
+def _skill_variants() -> tuple[tuple[str, str], ...]:
+    return (("template", _skill_content()), ("mirror", _skill_mirror_content()))
 
 
 def _policy_content() -> str:
@@ -613,6 +622,49 @@ class CascadeCloseTwoSetGatePolicyTests(unittest.TestCase):
                 for template_text, mirror_text in POLICY_PARITY_ALLOWLIST:
                     region = region.replace(template_text, mirror_text)
                 self.assertEqual(observed, region)
+
+
+class CascadeCloseLinkedDeliberationFlatSemanticsTests(unittest.TestCase):
+    """199.004-T/199.005-T/199.006-T: pins the U3b flat-engine
+    disposition-snapshot contract in both the template and installed mirror.
+    """
+
+    def test_f_a_disposition_snapshot_states_exact_link_sources(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("every explicit manifest member regardless of `artifact_type`", section)
+                self.assertIn("`custom_fields.source_deliberation_id` as a complete literal value", section)
+                self.assertIn("description/references text scanned with the identical", section)
+                self.assertIn(r"\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b", section)
+
+    def test_f_b_disposition_snapshot_validates_existence_before_location(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("Validate existence before location", section)
+                self.assertIn("first determine whether the ID resolves to any deliberation record", section)
+                self.assertIn("only then classify where each record path resides", section)
+
+    def test_f_h_disposition_snapshot_excludes_self_and_closure_scope(self) -> None:
+        for label, raw in _skill_variants():
+            with self.subTest(surface=label):
+                content = _flatten(raw)
+                section = content[
+                    content.index("**Linked-deliberation disposition snapshot.**") :
+                    content.index("**Engine-semantics gate", content.index("**Linked-deliberation disposition snapshot."))
+                ]
+                self.assertIn("exclude the shipment record itself and every ID in `closure_scope(S)`", section)
+                self.assertIn("H10", section)
+                self.assertIn("an explicit-member deliberation is an ordinary manifest member", section)
 
 
 class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
