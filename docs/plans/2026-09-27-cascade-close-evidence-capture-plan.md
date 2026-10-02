@@ -560,7 +560,7 @@ set-term rules), so each satisfies the 2-hour rule.
       exit 2 (`evidence already exists`), nothing written (PR #460 review).
     * `--classify-only --replace-pre-close` may replace it. That is an
       overwrite, and therefore destructive, and needs operator approval
-      (Principle VII).
+      (Principle VII). The overwrite is an A1b pre_close takeover (below).
     * The mutating mode (itself destructive-approved) **never overwrites a
       `pre_close` record whose `close_path_selection.selected_close_path` is
       `cascade`** (re-plan cycle-1 R1). It hands that record to A3 as the
@@ -569,15 +569,44 @@ set-term rules), so each satisfies the 2-hour rule.
       mutating mode never writes a `safe_close` record over a
       `cascade`-selected one. The only write it may make over such a record is
       A3 step 4's re-stamp after an exact match (same selection, compared
-      content identical; only `run_id` and `captured_at` change). A `pre_close`
+      content identical; only `run_id` and `captured_at` change), made
+      through the **pre_close takeover** below. A `pre_close`
       record whose selected path is `safe_close` may be replaced by the
-      mutating mode, as before.
+      mutating mode, as before, also through the takeover.
     The check returns the existing `pre_close` record (or `None`) to its
     caller, so A3 never re-reads it outside the lock.
   * **Owner transition (AS-F01):** `write_evidence_atomic(path, record, *,
-    owner_run_id)` permits the owning run (the same `run_id`, holding the lock)
-    to move its own record `pre_close → invoking → post_close`. It refuses any
-    other writer, and it refuses any transition out of `post_close`.
+    owner_run_id, takeover_from_run_id=None)` permits the owning run (the
+    same `run_id`, holding the lock) to move its own record `pre_close →
+    invoking → post_close`. It refuses any other writer, and it refuses any
+    transition out of `post_close`.
+  * **Pre_close takeover (Copilot PR #481 T6).** A `pre_close` record
+    written by a `--classify-only` run carries that run's `run_id`, so a
+    later mutating run is a foreign writer to it. The one narrowly
+    authorized exception is an atomic compare-and-swap of a `pre_close`
+    record, requested with `takeover_from_run_id`:
+    * `write_evidence_atomic` re-reads the on-disk record under the pair
+      lock and proceeds only when it is `phase: pre_close` **and** its
+      `run_id` equals `takeover_from_run_id`. The new record must also be
+      `phase: pre_close` and carry `run_id == owner_run_id`. Otherwise it
+      raises `CascadeEvidenceError` and leaves the on-disk record
+      byte-identical. A takeover never applies to an `invoking` or
+      `post_close` record, and a write without `takeover_from_run_id` over a
+      record with a different `run_id` is still refused.
+    * `takeover_from_run_id` is the `run_id` of the record the
+      existing-record check returned under the same lock hold. It is never
+      read from anywhere else.
+    * Exactly three callers may pass it: (1) A3 step 4, re-stamping a
+      `cascade`-selected record, **only after** A3 step 3's exact-match
+      comparison passes and A3 has confirmed that the new record's
+      `*_to_record` encoding equals the handed-off record's except for
+      `run_id` and `captured_at`; (2) the mutating mode replacing a
+      `safe_close`-selected `pre_close` record; and (3) the
+      operator-approved `--classify-only --replace-pre-close`. No other
+      code path passes it.
+    * After the takeover, the record carries the mutating run's `run_id`,
+      so A3's later `invoking` and `post_close` writes are ordinary owner
+      transitions.
   * **Atomic write:** a same-directory temp file, flushed and fsynced, then
     `os.replace`. It refuses symlinked or reparse-point targets and parent
     directories (reusing the shipment_closure helpers). On Windows the directory
@@ -601,9 +630,15 @@ set-term rules), so each satisfies the 2-hour rule.
      `--replace-pre-close` replaces it (PR #460 review); the mutating mode
      receives an existing `cascade`-selected `pre_close` record back from the
      check instead of replacing it (re-plan cycle-1 R1).
-  4. **Owner transition and atomic write:** the transition succeeds for the
-     owning `run_id` and fails for a foreign one; an atomic write leaves no
-     partial file on a simulated failure and refuses a symlink target.
+  4. **Owner transition, takeover, and atomic write:** the transition
+     succeeds for the owning `run_id` and fails for a foreign one; a
+     `pre_close` takeover with the correct `takeover_from_run_id` replaces
+     the record and binds it to the new `run_id`, while a takeover with a
+     wrong `takeover_from_run_id`, over an `invoking` or `post_close`
+     record, or writing a non-`pre_close` record is refused with the
+     on-disk record byte-identical (Copilot PR #481 T6); an atomic write
+     leaves no partial file on a simulated failure and refuses a symlink
+     target.
 * **Depends on:** A1c. **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** M. **Complexity:** medium.
 
@@ -1189,9 +1224,19 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
          never substitutes SAFE_CLOSE (INV-P4). An exact match continues to
          step 4.
     4. Write the `pre_close` record. Over a matched `cascade`-selected record,
-       this is a re-stamp that changes only `run_id` and `captured_at`, so the
-       owner transition (A1b) binds the record to this run. If that write
-       fails, exit 2 without invoking anything.
+       this is a re-stamp that changes only `run_id` and `captured_at`. It is
+       made only after step 3's exact-match comparison passes, as an A1b
+       **pre_close takeover**: `write_evidence_atomic(path, restamped,
+       owner_run_id=<this run>, takeover_from_run_id=<run_id of the record
+       the existing-record check returned>)`, after A3 confirms that the
+       `*_to_record` encodings of `restamped` and the handed-off record differ
+       only in `run_id` and `captured_at` (Copilot PR #481 T6). The takeover
+       binds the record to this run, so steps 7 and 10 are ordinary owner
+       transitions. Over a `safe_close`-selected record, the replacement uses
+       the same takeover. A refused takeover (the on-disk record no longer
+       matches the expected prior `run_id` or phase) exits 4 with the record
+       byte-identical and nothing invoked. If the write fails for any other
+       reason, exit 2 without invoking anything.
     5. Revalidate (AS-F02): recompute the **entire** pre-close snapshot and
        compare it with the durable record, ignoring only `captured_at`. The
        snapshot covers the classifier verdict, the qualifying set, every
@@ -1274,7 +1319,10 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
      mutating run: exit 4, the `pre_close` record is byte-identical, no
      `safe_close` record is written, and `shipment ship` is never spawned.
      With nothing changed, the mutating run re-stamps only `run_id` and
-     `captured_at` and proceeds.
+     `captured_at` through the A1b pre_close takeover (the record now carries
+     the mutating run's `run_id`) and proceeds; a takeover attempted with a
+     stale expected `run_id` exits 4 with the record byte-identical (Copilot
+     PR #481 T6).
   4. **Post-spawn failure table:** a non-empty `returned_ids` exits 5 with the
      record written; the fake modifies a disposition-set deliberation during
      the ship call: exit 5 with `linked_deliberation_drift` recorded;
@@ -1912,7 +1960,11 @@ unit it changed.
     `--classify-only --replace-pre-close`; plain `--classify-only` refuses to
     overwrite it (exit 2). Re-plan cycle-1 R1: the mutating mode never
     overwrites a `cascade`-selected `pre_close` record except by the exact-match
-    re-stamp of A3 step 4; any difference exits 4.
+    re-stamp of A3 step 4; any difference exits 4. Copilot PR #481 T6: every
+    `pre_close` replacement by a different run (that re-stamp, the mutating
+    mode over a `safe_close`-selected record, and `--replace-pre-close`) is an
+    A1b pre_close takeover, an atomic compare-and-swap that requires the
+    expected prior `run_id` returned by the existing-record check.
   * **H-B3 (A3):** one exit-code table covering 0/2/3/4/5/6/7 (and 8 after review cycle 1), each with its
     mutation possibility, and a single HALT rule: no retry, no direct
     `backlogit shipment ship`, no SAFE_CLOSE substitution, and no commit of the
