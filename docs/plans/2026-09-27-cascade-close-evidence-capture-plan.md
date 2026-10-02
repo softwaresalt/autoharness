@@ -329,72 +329,6 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   on a simulated failure and refuses a symlink target.
 * **Posture:** test-first. **Size:** M. **Complexity:** medium.
 
-### A2 — Pre-close snapshot and `--classify-only`
-
-* **Files:** `src/autoharness/shipment_close/preclose.py` (new), and
-  `tests/test_shipment_cascade_close_preclose.py` (new).
-* **Changes:**
-  * Input validation happens before any read: `shipment_id` / `feature_id` through
-    `closure_contract.validate_closure_id`, and `--sha` as a full 40-character
-    lowercase hex SHA. Invalid input exits 2 and writes nothing.
-  * The lock and existing-record check (A1b) run **before** classification, in
-    both modes, so an `invoking` record always wins with exit 7 and can never be
-    reclassified into SAFE_CLOSE (AN-F02).
-  * `run_preclose(workspace, shipment_id, feature_id) -> PreCloseSnapshot`:
-    * it loads the manifest from the shipment record under the detected backlog
-      root (`backlog_root.py`; `.backlog/` and `.backlogit/` both present fails
-      closed);
-    * a shipment that is no longer open (already archived or shipped) exits 2 and
-      writes no record, so a verdict record cannot be produced after the fact
-      (AN-F01);
-    * it runs `classify_shipment_close_path` **fresh**;
-    * for CASCADE, `feature_id` must be in the classifier's
-      `qualifying_feature_ids`. For SAFE_CLOSE, it must be a manifest member or
-      the `parent_id` of one. Otherwise it exits 2 (AS-F08);
-    * it captures location, SHA-256, declared status, and `parent_id` for the
-      shipment record and for every manifest member (AS-F05);
-    * it collects the linked deliberations of each qualifying feature from exactly
-      the three engine sources defined in the shipment-reconcile Cascade Close
-      Sub-Procedure: the literal `custom_fields.source_deliberation_id`, plus the
-      description and references scanned with
-      `\b(?:DL\d+|[0-9]+(?:\.[0-9]+)*-DL)\b`, keeping only existing records whose
-      `artifact_type` is `deliberation` (compound
-      `2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`);
-    * it fingerprints `out_of_manifest_descendant_ids` and linked deliberations
-      (location plus SHA-256);
-    * for a SAFE_CLOSE verdict it also records the **safe-close observation
-      set**, each entry with its location (queue or archive), SHA-256, and
-      declared status. The set is the union of:
-      * the shipment-reconcile `mode: safe-close` observation set: the parent
-        feature of each manifest task, plus every unshipped sibling task;
-      * every out-of-manifest descendant of each manifest feature member (the
-        classifier's traversal helper);
-      * the linked deliberations of every feature in the set and of every
-        manifest feature member, collected from the same three engine sources
-        as CASCADE. A direct cascade would archive these without any qualifying
-        feature existing (compound
-        `2026-08-20-cascade-close-archives-out-of-manifest-linked-deliberation.md`).
-      This covers task-only, partial-feature manifests, which have no manifest
-      feature to traverse (AN-F07/AN-F09/AN-F01). If the observation set cannot be established,
-      `--classify-only` exits 2 and writes no record. That is fail-closed, and
-      it matches the skill's own safe-close, which cannot run without the set;
-    * a torn or missing queue/archive member fails closed.
-  * `--classify-only` writes a `phase: pre_close` record (for either verdict) and
-    exits 0 for CASCADE or 3 for SAFE_CLOSE. It never mutates backlog state.
-* **Tests:**
-  * a CASCADE fixture writes a pre-close record with every fingerprint;
-  * a task-only, partial-feature SAFE_CLOSE fixture records the parent feature and
-    the unshipped siblings as the observation set;
-  * a SAFE_CLOSE fixture writes a verdict record and returns exit 3;
-  * a torn or duplicate member fails closed with no record;
-  * a linked deliberation matched by the pattern and not by a substring;
-  * an existing `invoking` record returns exit 7 even when the fixture now
-    classifies SAFE_CLOSE;
-  * an already-shipped shipment returns exit 2 with no record;
-  * a `feature_id` outside the qualifying set returns exit 2.
-* **Posture:** test-first, using the fixture builders in
-  `tests/test_shipment_closure_classification.py`. **Size:** M. **Complexity:** medium.
-
 ### A3a — Bounded backlogit subprocess runner
 
 * **Files:** `src/autoharness/shipment_close/runner.py` (new), and
@@ -439,6 +373,165 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   after the process exits.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
+### A2a — CLI engine-semantics probe
+
+* **Goal:** produce the `pre_close.engine_semantics` decision (re-plan R1,
+  038-DL D4a) by probing the backlogit build the command will invoke, on the
+  same CLI surface, through the same resolved absolute binary. The probe never
+  halts. Every failure is `UNVERIFIED`, and `select_close_path` then selects
+  SAFE_CLOSE.
+* **Files:** `src/autoharness/shipment_close/engine_probe.py` (new), and
+  `tests/test_shipment_close_engine_probe.py` (new).
+* **Changes:**
+  * `probe_engine_semantics(resolved: ResolvedBinary, *, cwd) -> EngineProbe`
+    runs A3a `run_bounded` with the fixed argv
+    `[*resolved.argv_prefix, "version", "--no-update-check", "--format", "json"]`
+    (the shipment-reconcile Step 0(c) CLI probe), `cwd` set to the workspace
+    root, and a fixed 30 s timeout. It never spawns through a bare name and
+    never uses a different binary from the one A3 later invokes. A3 step 6
+    re-hashes that binary right before the spawn.
+  * It parses **stdout only** as one JSON object and reads the raw `version`
+    and `commit` strings. Each is kept verbatim, with no normalization, when it
+    is a string of at most 64 characters. Anything else (a missing key, a
+    non-string, or an over-length value) is passed as `None` (A1b bounds).
+  * It calls
+    `shipment_closure.assess_cascade_engine_semantics(version, probe_surface="cli", invocation_surface="cli", probed_commit=commit)`.
+    A non-zero exit, a timeout, a stdout overflow, or unparseable JSON passes
+    `probed_version=None`, so the result is `UNVERIFIED`. Released builds only
+    and the verified minor lines are enforced by the merged function. The probe
+    never restates them.
+  * `EngineProbe` is a frozen dataclass: the `EngineSemanticsDecision`,
+    `invocation_surface: "cli"`, and `probe_excerpt`. `probe_excerpt` is the
+    first 64 characters of stdout (of stderr when stdout is empty), with LF
+    line endings. A1b `redact` runs over the retained window before the slice
+    (H-B4). The excerpt is audit context only. The validator never re-assesses
+    it.
+  * Serialization into `pre_close.engine_semantics` (A1 shape): `verdict`,
+    `reason`, `probed_version`, `minor_line` (`[major, minor]` or `null`),
+    `probed_commit`, `probe_surface`, `invocation_surface`, and
+    `probe_excerpt`. A1b redaction also covers `reason`.
+  * The function never raises. An unexpected exception becomes an
+    `UNVERIFIED` decision built by the same merged function with
+    `probed_version=None`.
+* **Acceptance criteria:**
+  * A released `1.11.x` probe on `cli`/`cli` yields `VERIFIED`. Every other
+    outcome yields `UNVERIFIED`, with the `ENGINE_SEMANTICS_UNVERIFIED:` reason
+    prefix, and no exception and no exit code of its own.
+  * The recorded raw `probed_version` and `probed_commit`, re-assessed by the
+    A1 validator, reproduce the recorded `verdict`, `reason`, and `minor_line`.
+  * The spawned argv is exactly the fixed probe argv on `resolved.argv_prefix`.
+* **Tests (test-first, at most four scenarios, using the A3a `ResolvedBinary`
+  test seam):**
+  * a fake emitting `{"version": "1.11.0", "commit": "131577c"}` yields
+    `VERIFIED`, `minor_line` `[1, 11]`, the raw commit, and the exact argv;
+  * fakes emitting `1.10.1` and `1.11.1-rc1` yield `UNVERIFIED` with the
+    reason prefix;
+  * a fake that exits 1, one that sleeps past the timeout, one that emits
+    non-JSON, and one that emits a 65-character `version` all yield
+    `probed_version: null` and `UNVERIFIED`, and nothing raises;
+  * a planted `token=...` in stdout is redacted, and `probe_excerpt` is at
+    most 64 characters.
+* **Depends on:** A3a (`192.004-T`) and A1b. **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S. **Complexity:** low (risk low).
+
+### A2 — Pre-close snapshot and `--classify-only`
+
+* **Files:** `src/autoharness/shipment_close/preclose.py` (new), and
+  `tests/test_shipment_cascade_close_preclose.py` (new).
+* **Depends on:** A2a (re-plan). The engine decision feeds both
+  `select_close_path` and the disposition planner.
+* **Changes:**
+  * Input validation happens before any read: `shipment_id` / `feature_id` through
+    `closure_contract.validate_closure_id`, and `--sha` as a full 40-character
+    lowercase hex SHA. Invalid input exits 2 and writes nothing.
+  * The lock and existing-record check (A1b) run **before** classification, in
+    both modes, so an `invoking` record always wins with exit 7 and can never be
+    reclassified into SAFE_CLOSE (AN-F02).
+  * `run_preclose(workspace, shipment_id, feature_id, *, resolved) -> PreCloseSnapshot`:
+    * it loads the manifest from the shipment record under the detected backlog
+      root (`backlog_root.py`; `.backlog/` and `.backlogit/` both present fails
+      closed);
+    * a shipment that is no longer open (already archived or shipped) exits 2 and
+      writes no record, so a verdict record cannot be produced after the fact
+      (AN-F01);
+    * it runs `classify_shipment_close_path` **fresh**;
+    * it runs the A2a probe on `resolved` and records `engine_semantics`
+      (re-plan R1);
+    * it calls `select_close_path(classifier, engine)` and records
+      `close_path_selection{selected_close_path, reason}` (re-plan R2). Every
+      later branch keys on the **selected** path, never on the classifier
+      verdict alone;
+    * when the selected path is CASCADE, `feature_id` must be in the
+      classifier's `qualifying_feature_ids`. When it is SAFE_CLOSE (including
+      classifier CASCADE with an UNVERIFIED engine), `feature_id` must be a
+      manifest member or the `parent_id` of one. Otherwise it exits 2 (AS-F08);
+    * it captures location, SHA-256, declared status, and `parent_id` for the
+      shipment record and for every manifest member (AS-F05);
+    * it records the **disposition snapshot** (re-plan R5):
+      `compute_linked_deliberation_disposition(manifest_ids, shipment_id, backlog_dir, engine=<the A2a decision>)`,
+      with no `stash_path`, exactly as the skill's Linked-Deliberation
+      Disposition step calls it. The planner covers every explicit manifest
+      member, regardless of `artifact_type`, and applies the H10 exclusions
+      (self-reference and every ID in `closure_scope(S)`). Its output is
+      serialized verbatim into `pre_close.linked_deliberation_disposition`,
+      with the planned outcomes. This is a read-only call. The command never
+      archives a deliberation. A non-null `planning_error` exits 2 and writes
+      no record. Every `retained_*` outcome, unresolved reference, and read
+      failure is recorded and never halts;
+    * it fingerprints `out_of_manifest_descendant_ids` (location plus SHA-256);
+    * when the **selected** path is SAFE_CLOSE, it also records the
+      **safe-close observation set**. The set is **path-keyed**: there is one
+      entry per record path, with its location (queue or archive), SHA-256,
+      declared status, and `disposition_outcome`. The set is the union of:
+      * the shipment-reconcile `mode: safe-close` observation set: the parent
+        feature of each manifest task, plus every unshipped sibling task;
+      * every out-of-manifest descendant of each manifest feature member (the
+        classifier's traversal helper);
+      * every `records[]` path of every disposition-set deliberation in the
+        disposition snapshot, with `disposition_outcome` set to its planned
+        outcome. A torn or duplicate deliberation (`retained_ambiguous`)
+        contributes one entry per path and does not halt. Every other entry
+        has `disposition_outcome: null`.
+      This covers task-only, partial-feature manifests, which have no manifest
+      feature to traverse (AN-F07/AN-F09/AN-F01). If the observation set cannot be established,
+      `--classify-only` exits 2 and writes no record. That is fail-closed, and
+      it matches the skill's own safe-close, which cannot run without the set;
+    * a torn or missing manifest member, or a torn non-deliberation
+      observation-set member, fails closed. Disposition-set deliberations follow
+      the planner's non-halting `retained_*` outcomes instead
+      (`RECONCILE_FAIL_SNAPSHOT_*` applies to manifest members only).
+  * The 1.10.x collection of "linked deliberations of each qualifying feature"
+    and the `pre_close.linked_deliberations` key are removed (re-plan).
+  * `--classify-only` writes a `phase: pre_close` record (for either selected
+    path) and exits 0 when the selected path is CASCADE, or 3 when it is
+    SAFE_CLOSE. That includes classifier CASCADE with an UNVERIFIED engine. It
+    never mutates backlog state.
+* **Tests:**
+  * a CASCADE fixture with a fake `1.11.0` probe writes a pre-close record with
+    every fingerprint, `engine_semantics.verdict: VERIFIED`,
+    `selected_close_path: cascade`, and the disposition snapshot, and exits 0;
+  * the same fixture with a fake `1.10.1` probe records
+    `classifier_verdict: CASCADE`, `engine_semantics.verdict: UNVERIFIED`, and
+    `selected_close_path: safe_close`, records the observation set, and exits 3;
+  * a task-only, partial-feature SAFE_CLOSE fixture records the parent feature and
+    the unshipped siblings as the observation set;
+  * a manifest member linking a live deliberation records it in the disposition
+    snapshot with a planned outcome and an observation entry per record path. A
+    deliberation that is itself an explicit manifest member is absent from the
+    snapshot (H10). A torn deliberation records `retained_ambiguous` and does
+    not halt;
+  * a planner `planning_error` (injected) exits 2 with no record;
+  * a torn or duplicate manifest member fails closed with no record;
+  * an existing `invoking` record returns exit 7 even when the fixture now
+    classifies SAFE_CLOSE;
+  * an already-shipped shipment returns exit 2 with no record;
+  * a `feature_id` outside the qualifying set returns exit 2.
+
+  No fixture builds a `validated_linked_deliberations` set or asserts a
+  linked deliberation in `allowed_ids` or `required_ids`.
+* **Posture:** test-first, using the fixture builders in
+  `tests/test_shipment_closure_classification.py`. **Size:** M. **Complexity:** medium.
 ### A3b — Response parser and pure postcondition evaluator
 
 * **Files:** `src/autoharness/shipment_close/postclose.py` (new), and
