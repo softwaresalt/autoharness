@@ -1174,8 +1174,9 @@ archive, one ID at a time.
    * its `archived_status` equals the deliberation's declared status in the
      disposition snapshot;
    * its `archived_from` provenance is present and well-formed, naming the
-     deliberation's disposition-snapshot queue record path (missing or
-     ill-formed provenance fails verification);
+     deliberation's disposition-snapshot queue record path by exact string
+     match, workspace-relative with `/` separators (missing or ill-formed
+     provenance fails verification);
    * its frontmatter, compared **semantically** (parsed YAML, because
      `ArchiveItem` re-serializes it), equals the frontmatter of the record
      bytes retained at the step 3 re-check, except for the three engine keys
@@ -1209,9 +1210,14 @@ archive, one ID at a time.
      for every planner outcome other than the planned `archive` (never
      re-derived; an unknown code is carried as-is), except that a verified
      `archived` outcome carries `reason_code: archived` (the outcome-value
-     default, replacing the planner's pre-mutation `archive`) and an outcome
-     synthesized for a `planning_error` carries `reason_code:
-     planning_error`, `path` is present
+     default, replacing the planner's pre-mutation `archive`), a planned
+     `archive` that the step 3 re-check settles as
+     `retained_shared_reference` carries `reason_code:
+     retained_shared_reference`, an outcome preserved from the Step 0(c)
+     disposition snapshot keeps that snapshot's own `reason_code` (for
+     example a read error's `path_escape`), and an outcome synthesized for a
+     `planning_error` (only the remaining snapshot deliberations) carries
+     `reason_code: planning_error`, `path` is present
      for `retained_read_error`, `referrers` lists the live referrer IDs of a
      `retained_shared_reference`, and `post_sha256` and `archived_status` are
      present for an `archived` outcome. Report keys map to planner/code fields

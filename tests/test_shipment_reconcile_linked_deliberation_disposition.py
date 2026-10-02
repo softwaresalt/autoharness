@@ -261,8 +261,19 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                     report,
                 )
                 self.assertIn(
-                    "an outcome synthesized for a `planning_error` carries `reason_code: "
-                    "planning_error`",
+                    "a planned `archive` that the step 3 re-check settles as "
+                    "`retained_shared_reference` carries `reason_code: "
+                    "retained_shared_reference`",
+                    report,
+                )
+                self.assertIn(
+                    "an outcome preserved from the Step 0(c) disposition snapshot keeps "
+                    "that snapshot's own `reason_code`",
+                    report,
+                )
+                self.assertIn(
+                    "an outcome synthesized for a `planning_error` (only the remaining "
+                    "snapshot deliberations) carries `reason_code: planning_error`",
                     report,
                 )
                 self.assertNotIn(
@@ -299,8 +310,9 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                 self.assertIn("the archive copy declares `status: archived`", verify)
                 self.assertIn(
                     "its `archived_from` provenance is present and well-formed, naming the "
-                    "deliberation's disposition-snapshot queue record path (missing or "
-                    "ill-formed provenance fails verification)",
+                    "deliberation's disposition-snapshot queue record path by exact string "
+                    "match, workspace-relative with `/` separators (missing or ill-formed "
+                    "provenance fails verification)",
                     verify,
                 )
                 self.assertIn(
