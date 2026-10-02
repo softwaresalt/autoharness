@@ -113,11 +113,16 @@ The re-harvest sets each task's `dependencies` to exactly the following
 * Every new task gets `parent_id: 192-F`, the size and complexity above, and
   `harness-surface:harness-architect` (A1c, A2a, A2b, A3c, A3d, A4b are all
   code-bearing).
-* Every new task is added to 198-S `custom_fields.items` in manifest dependency
-  order: `192.001-T`, A1c, `192.002-T`, `192.004-T`, A2a, A2b, `192.003-T`,
-  `192.005-T`, A3c, `192.006-T`, A3d, `192.007-T`, A4b, `192.008-T`,
-  `192.009-T`, `192.010-T`. The current manifest lists `192.003-T` before
-  `192.004-T`, so the existing order changes too.
+* Every new task is added to 198-S `custom_fields.items`, and the full
+  manifest is rewritten in this dependency order (covering feature first,
+  17 items): `192-F`, `192.001-T` (A1), A1c, `192.002-T` (A1b), `192.004-T`
+  (A3a), A2a, A2b, `192.003-T` (A2), `192.005-T` (A3b), A3c, `192.006-T`
+  (A3), A3d, `192.007-T` (A4), A4b, `192.008-T` (A5), `192.009-T` (A6),
+  `192.010-T` (A7). The current manifest lists `192.003-T` before
+  `192.004-T`, so the existing order changes too. Every item appears after
+  each of its dependencies in the table above.
+* The rows above, each unit's **Depends on** line, and the edge list in
+  `## Dependency Graph` state the same 16 task edges.
 * `192.007-T`, A4b, `192.008-T`, and `192.009-T` carry the one-PR constraint.
 
 **Review state.** The plan-review PASS below predates this amendment. Under
@@ -178,6 +183,29 @@ lives in the new command package `src/autoharness/shipment_close/`, which the ga
 never imports. New modules must not restate a closure filename (`*closure.md`,
 `post-merge-closure`) outside the contract-derived form, so
 `tests/test_closure_contract_nondrift.py` stays green.
+
+Granularity (re-plan cycle-1 R4, 2-hour rule): every unit touches at most two
+files (a module and its test), except where noted, and has at most four test
+scenarios. A scenario is one table-driven test whose rows are cases.
+
+| Unit | Files | Test scenarios | Size / complexity |
+|---|---|---|---|
+| A1 | 2 | 4 | S / low |
+| A1c | 2 | 4 | S / low |
+| A1b | 2, plus the empty `shipment_close/__init__.py` package marker | 4 | M / medium |
+| A3a | 2 | 3 | S / medium |
+| A2a | 2 | 4 | S / low |
+| A2b | 2 | 4 | S / medium |
+| A2 | 2 | 4 | M / medium |
+| A3b | 2 | 4 | M / medium |
+| A3c | 2 | 4 | S / medium |
+| A3 | 2 | 4 | M / medium |
+| A3d | 2 | 3 | S / low |
+| A4 | 2 | 4 | M / medium |
+| A4b | 2 | 2 | S / medium |
+| A5 | 2 rendered surfaces (template and mirror per skill), their manifest checksums, and 1 test file | 3 | M / low |
+| A6 | 1 rendered surface (template and mirror), its manifest checksum, and 1 test file | 2 | S / low |
+| A7 | 2 | 2 checks (no new test) | S / low |
 
 ### A1 — Evidence record contract: shape, path, and selection consistency (read-only)
 
@@ -1121,27 +1149,29 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
 
   * operational-closure: the closure artifact frontmatter gains `close_path` and
     `close_evidence`, and the evidence JSON is committed with the closure artifact.
-* **Tests:**
-  * The structural test `tests/test_flat_manifest_closure_docs.py` gains assertions
-    that the command, the routing table, the destructive-approval sentence, and the
-    P-005 wording appear in both the template and the mirror. Re-plan
-    additions: Step 0(c) names `--classify-only` and the three `pre_close`
-    fields; the Linked-Deliberation Disposition step's input sentence names the
-    evidence record as its source; and no edited surface places a linked
-    deliberation in `allowed_ids` or `required_ids`.
-  * AN-F05: a new parity assertion pins LF-normalized equality between the
-    rendered template and the installed mirror for each edited section (the
-    Step 0(c) block, the Cascade Close Sub-Procedure, and the operational-closure
-    frontmatter block). Existing tests cover only the Output bullet, Step 3a, and
-    the Ship paragraph.
-  * `tests/test_closure_contract_nondrift.py` must stay green unchanged: the
-    operational-closure `### Step 3a: Validate the Closure Artifact with the
-    Closure-Evidence Gate` heading is kept verbatim, and no edited surface may
-    restate a closure filename outside the contract-derived form.
+* **Tests (characterization-first, three scenarios):**
+  1. **Structural assertions:** `tests/test_flat_manifest_closure_docs.py`
+     gains assertions that the command, the routing table, the
+     destructive-approval sentence, and the P-005 wording appear in both the
+     template and the mirror. Re-plan additions: Step 0(c) names
+     `--classify-only` and the three `pre_close` fields; the
+     Linked-Deliberation Disposition step's input sentence names the evidence
+     record as its source; and no edited surface places a linked deliberation
+     in `allowed_ids` or `required_ids`.
+  2. **Rendered parity (AN-F05):** a new parity assertion pins LF-normalized
+     equality between the rendered template and the installed mirror for each
+     edited section (the Step 0(c) block, the Cascade Close Sub-Procedure, and
+     the operational-closure frontmatter block). Existing tests cover only the
+     Output bullet, Step 3a, and the Ship paragraph.
+  3. **Nondrift pin:** `tests/test_closure_contract_nondrift.py` stays green
+     unchanged. The operational-closure `### Step 3a: Validate the Closure
+     Artifact with the Closure-Evidence Gate` heading is kept verbatim, and no
+     edited surface restates a closure filename outside the contract-derived
+     form.
 * **Depends on:** A4b. **Harness surface:** `harness-surface:none`.
-  Granularity (re-plan cycle-1 R4): the template/mirror pairs and the manifest
-  checksum entries are one rendered surface per skill, so this unit edits two
-  surfaces and adds three structural assertion groups.
+  Granularity (re-plan cycle-1 R4): each template/mirror pair, with its
+  manifest checksum entry, is one rendered surface, so this unit edits two
+  surfaces plus one test file and has three test scenarios.
 * **Posture:** characterization-first (run the existing doc tests before editing).
   **Size:** M. **Complexity:** low.
 
@@ -1163,13 +1193,16 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
   * The closure-evidence contract sentence names the new frontmatter keys.
   * Pointer-level only. The routing table lives in the skill, not here.
   * Frontmatter is **not** touched (C owns it).
-* **Tests:** extend the existing Ship structural test that asserts the P-015 pointer,
-  in both files, including the engine-gate and disposition-step names, and add
-  a rendered-section parity assertion for step 2c (AN-F05).
-  The Ship `**Closure-evidence contract**` paragraph stays a single line in each
-  file with rendered template/mirror parity, because
-  `tests/test_closure_contract_nondrift.py::test_template_and_installed_mirror_parity`
-  asserts exactly one such line. The new keys are added inside that same line.
+* **Tests (characterization-first, two scenarios):**
+  1. **Pointer assertions:** extend the existing Ship structural test that
+     asserts the P-015 pointer, in both files, including the engine-gate and
+     disposition-step names.
+  2. **Rendered parity (AN-F05):** a rendered-section parity assertion for
+     step 2c. The Ship `**Closure-evidence contract**` paragraph stays a
+     single line in each file with rendered template/mirror parity, because
+     `tests/test_closure_contract_nondrift.py::test_template_and_installed_mirror_parity`
+     asserts exactly one such line. The new keys are added inside that same
+     line.
 * **Depends on:** A5. **Harness surface:** `harness-surface:none`.
 * **Posture:** characterization-first. **Size:** S. **Complexity:** low.
 
@@ -1204,16 +1237,46 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     `--classify-only` record, halts and never SAFE_CLOSE); and that the gate
     does not re-check disposition-set deliberations (re-plan cycle-1 R2). The
     1.10.x `pre_close.linked_deliberations` key is not documented.
-* **Tests:** markdownlint, and `tests/test_docs_frontmatter_decodes.py`.
+* **Tests (two checks, no new test scenario):** markdownlint, and
+  `tests/test_docs_frontmatter_decodes.py`.
 * **Depends on:** A3d. **Harness surface:** `harness-surface:none`.
 * **Posture:** docs-only. **Size:** S. **Complexity:** low.
 
 ## Dependency Graph
 
-Re-plan cycle-1 R4 (2026-10-02), in manifest dependency order:
+Re-plan cycle-1 R4/R5 (2026-10-02). Direct edges (`X → Y` means Y depends on
+X), matching each unit's **Depends on** line and the harvest delta:
 
-A1 → A1c → A1b → A3a → A2a → A2b → A2 → A3b → A3c → A3 → A3d → A4 → A4b →
-A5 → A6, and A3d → A7.
+| # | Edge | Tasks |
+|---|---|---|
+| 1 | A1 → A1c | `192.001-T` → *new* |
+| 2 | A1c → A1b | *new* → `192.002-T` |
+| 3 | A1c → A2b | *new* → *new* |
+| 4 | A1b → A3a | `192.002-T` → `192.004-T` |
+| 5 | A3a → A2a | `192.004-T` → *new* |
+| 6 | A2a → A2 | *new* → `192.003-T` |
+| 7 | A2b → A2 | *new* → `192.003-T` |
+| 8 | A2 → A3b | `192.003-T` → `192.005-T` |
+| 9 | A3b → A3c | `192.005-T` → *new* |
+| 10 | A3c → A3 | *new* → `192.006-T` |
+| 11 | A3 → A3d | `192.006-T` → *new* |
+| 12 | A3d → A4 | *new* → `192.007-T` |
+| 13 | A3d → A7 | *new* → `192.010-T` |
+| 14 | A4 → A4b | `192.007-T` → *new* |
+| 15 | A4b → A5 | *new* → `192.008-T` |
+| 16 | A5 → A6 | `192.008-T` → `192.009-T` |
+
+```text
+A1 → A1c ─┬─→ A1b → A3a → A2a ─┐
+          └─→ A2b ─────────────┴─→ A2 → A3b → A3c → A3 → A3d ─┬─→ A4 → A4b → A5 → A6
+                                                              └─→ A7
+```
+
+Manifest (linear topological) order: A1, A1c, A1b, A3a, A2a, A2b, A2, A3b,
+A3c, A3, A3d, A4, A4b, A5, A6, A7. A2b sits after A2a in the manifest only to
+keep the order linear. It has no edge from A2a. The removed task edge
+"`192.004-T` depends on `192.003-T`" (A3a on A2) is not in this graph,
+because A2 now depends on A3a through A2a.
 
 (Earlier forms: before the cycle-1 splits, A1 → A1b → A3a → A2a → A2 → A3b →
 A3 → A4 → A5 → A6, and A3 → A7; before the 2026-10-02 re-plan, A1 → A1b → A2
@@ -1225,8 +1288,7 @@ A3 → A4 → A5 → A6, and A3 → A7; before the 2026-10-02 re-plan, A1 → A1
   engine probe needs its runner.
 * A2a depends on A3a's `run_bounded` and `ResolvedBinary` seam (and, through
   A3a, on A1b and A1c).
-* A2b depends only on A1c's record shape. It is ordered after A2a only to keep
-  the manifest linear.
+* A2b depends only on A1c's record shape.
 * A2 depends on A2a (the engine decision feeds both `select_close_path` and
   the disposition planner) and on A2b (the observation set).
 * A3b depends on A2's snapshot type. A3c depends on A3b's `PostCloseResult`.
@@ -1433,8 +1495,12 @@ unit it changed.
     basename must equal it, and every version probe runs in a fresh, empty
     temporary directory, never the workspace.
   * **H-B7 (decomposition):** the subprocess runner was split out of A3 as A3a, and
-    review cycle 1 split further into A1/A1b and A3b/A3
-    (S / medium), which keeps A3 inside the 2-hour rule.
+    review cycle 1 split further into A1/A1b and A3b/A3. Re-plan cycle-1 R4
+    split again: A1c out of A1, A2b out of A2, A3c out of A3b, A3d out of A3,
+    and A4b out of A4. Every unit now touches at most two files (the A1b
+    package marker and the A5/A6 rendered template/mirror surfaces are noted
+    in the Implementation Units granularity table), has at most four test
+    scenarios, and is size S or M, inside the 2-hour rule.
   * **H-B8 (A4):** new checks run after the existing checks, so no existing
     `failed_check` is reordered. Evidence-path textual containment runs before any
     filesystem call, followed by a regular-file check and a 512 KiB size cap.
@@ -1508,7 +1574,7 @@ D2, D3a, D4a) as a testable plan invariant.
     `assess_cascade_engine_semantics` and `select_close_path` over the recorded
     raw inputs, so a hand-edited verdict or selection is rejected, and a later
     widening of the verified minor lines needs no record-shape change.
-  * **H-C2 (A2, A4; re-plan cycle-1 R2, amends R5a of the re-plan
+  * **H-C2 (A2, A2b, A4b; re-plan cycle-1 R2, amends R5a of the re-plan
     deliberation):** the observation set is path-keyed and never contains a
     disposition-set deliberation. The A4 gate has no planned-`archive`
     exemption and no `stranded_linked_deliberation` warning. Rationale: the
@@ -1516,12 +1582,16 @@ D2, D3a, D4a) as a testable plan invariant.
     re-plans after the close from live referrers, so any gate exemption or
     check keyed on the pre-close plan mis-fires (the executed outcome may
     legitimately differ from the recorded planned outcome). Engine drift on those deliberations (re-plan item 4) is
-    detected at close time by A3b's post-close re-collection, which is the
+    detected at close time by A3c's post-close re-collection, which is the
     authoritative point. Stranded-advisory surfacing at the gate stays in the
     deferred stash scope `3B43CE5A` / `D79EA53A`. The pre-close disposition
-    snapshot stays in the record (item 5) for A3b drift detection.
-  * **H-C3 (decomposition):** A2a is a separate S / low unit, so A2 stays
-    inside the 2-hour rule.
+    snapshot stays in the record (item 5) for A3c drift detection.
+  * **H-C3 (decomposition; re-plan cycle-1 R4):** A2a is a separate S / low
+    unit, and A2b (S / medium) takes the observation set out of A2, so A2
+    stays inside the 2-hour rule. The other re-plan units are also split:
+    A1c, A3c, A3d, and A4b. The granularity table under Implementation Units
+    records files and test-scenario counts for all 16 units. None exceeds
+    four scenarios.
 * **Additional ProposedAction / ActionRisk:**
 
   | ProposedAction | ActionRisk | Approval |
