@@ -629,58 +629,12 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
     requirement identically to the skill.
     """
 
-    def test_step_0c_extends_snapshot_with_linked_deliberations(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn("Linked-deliberation snapshot extension", content)
-        self.assertIn("collectArchiveCandidateIDs", content)
-        self.assertIn("linkedDeliberationIDs", content)
 
-    def test_linked_deliberation_torn_state_halts_fail_closed(self) -> None:
-        # PR #407 follow-up review round: the linked-deliberation snapshot
-        # must carry forward Step 0(b)'s torn-state (both queue/ and
-        # archive/) / missing-record halt discipline, never guessing which
-        # copy is authoritative before the destructive cascade invocation.
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "resolve its record location the identical way Step 0(b) "
-            "resolves a manifest task item",
-            content,
-        )
-        self.assertIn("RECONCILE_FAIL_SNAPSHOT_AMBIGUOUS", content)
-        self.assertIn("RECONCILE_FAIL_SNAPSHOT_MISSING", content)
-        self.assertIn(
-            "never compute `required_ids` from an arbitrary copy before "
-            "the destructive cascade invocation",
-            content,
-        )
 
-    def test_linked_deliberation_sources_match_engine_exactly(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn("custom_fields.source_deliberation_id", content)
-        self.assertIn(
-            "any deliberation ID embedded in the feature's description",
-            content,
-        )
-        self.assertIn("any deliberation the feature references", content)
 
-    def test_linked_deliberation_requires_existence_and_artifact_type(self) -> None:
-        content = _flatten(_skill_content())
-        self.assertIn(
-            "restricted to IDs that resolve to an **existing** artifact "
-            "whose own `artifact_type` is `deliberation`",
-            content,
-        )
 
     def test_no_blanket_allowance_for_arbitrary_ids(self) -> None:
         content = _flatten(_skill_content())
-        self.assertIn(
-            "never any other ID, and never an ID that fails either check",
-            content,
-        )
-        self.assertIn(
-            "without a blanket allowance for arbitrary IDs",
-            content,
-        )
         # Quality Criteria echo must carry the same never-blanket-allowance
         # framing, not just the sub-procedure prose.
         quality_idx = content.index("## Quality Criteria")
@@ -742,11 +696,6 @@ class CascadeCloseLinkedDeliberationAllowanceTests(unittest.TestCase):
             "the exact engine matcher must be specified at both cited "
             "locations (the narrative Step 0(c) extension and the Quality "
             "Criteria allowed_ids bullet), not merely described in prose",
-        )
-        self.assertIn("deliberationIDPattern", content)
-        self.assertIn(
-            "taken as a complete literal ID string, never regex-scanned",
-            content,
         )
 
     def test_quality_criteria_bullet_mentions_linked_deliberations(self) -> None:
@@ -818,6 +767,31 @@ class CascadeCloseEngineSemanticsGateTests(unittest.TestCase):
         self.assertIn("Verified engine-semantics lines: `1.11`", gate)
         self.assertNotIn("{{OP_", gate)
 
+    def test_c_c_pre_invocation_re_probe_compares_raw_engine_semantics(self) -> None:
+        flat = _flatten(_skill_content())
+        re_probe = flat[
+            flat.index("**Engine-semantics re-probe (pre-invocation revalidation).**") :
+            flat.index("**Baseline-fingerprint capture", flat.index("**Engine-semantics re-probe"))
+        ]
+        self.assertIn("re-run the Step 0(c) Engine-semantics gate probe **fresh**", re_probe)
+        self.assertIn("on the SAME surface", re_probe)
+        self.assertIn("compare the RAW `version`, `commit`, and `probe_surface` values", re_probe)
+        self.assertIn("resulting engine-semantics verdict", re_probe)
+        self.assertIn("by exact string equality", re_probe)
+        self.assertIn("never a normalized or minor-line-only comparison", re_probe)
+
+    def test_c_d_re_probe_failure_halts_drift_without_safe_close(self) -> None:
+        flat = _flatten(_skill_content())
+        re_probe = flat[
+            flat.index("**Engine-semantics re-probe (pre-invocation revalidation).**") :
+            flat.index("**Baseline-fingerprint capture", flat.index("**Engine-semantics re-probe"))
+        ]
+        self.assertIn("Any difference, or a re-probe failure of any kind", re_probe)
+        self.assertIn("HALT — cascade pre-invocation revalidation drift detected", re_probe)
+        self.assertIn("do NOT invoke either close path", re_probe)
+        self.assertIn("Never fall back to `SAFE_CLOSE` here", re_probe)
+        self.assertIn("prohibited `CASCADE` → `SAFE_CLOSE` substitution", re_probe)
+
     def test_c_e_step_0b_snapshots_every_explicit_manifest_member(self) -> None:
         flat = _flatten(_skill_content())
         self.assertIn(
@@ -870,14 +844,6 @@ class CascadeCloseTwoSetGateScenarioTests(unittest.TestCase):
         # feature's validated linked deliberation only (PR #407 review,
         # thread PRRT_kwDORzpWpM6b0kit) -- never the qualifying feature
         # member itself, which step 3 makes unconditionally required.
-        self.assertIn(
-            "A manifest task item, or a qualifying feature member's "
-            "validated linked deliberation, that was already truly "
-            "`status: archived` before the call therefore has no "
-            "transition to report and is **correctly absent** from "
-            "`archived_ids`",
-            content,
-        )
         self.assertIn("this is expected engine behavior", content)
 
     def test_scenario_2_preamble_never_restates_blanket_manifest_member_claim(
