@@ -1075,8 +1075,9 @@ archive, one ID at a time.
    set (deliberation IDs, link kinds, linking members, record paths, and
    record hashes) MUST equal the Step 0(c) disposition snapshot, and for
    every deliberation the snapshot already settled as `retained_read_error`,
-   `retained_ambiguous`, or `already-archived`, the planner's outcome,
-   `reason_code`, and `path` MUST equal the snapshot's settled outcome data,
+   `retained_ambiguous`, or `already-archived`, the planner's outcome and
+   `reason_code` (and, for `retained_read_error`, its `path`) MUST equal the
+   snapshot's settled outcome data,
    so a fresh plan never upgrades snapshot-settled evidence to a planned
    `archive`. Any difference halts with `HALT — linked-deliberation disposition failed {id}`;
    emit **P-005** once; no mutation. `{id}` is the first differing
@@ -1125,7 +1126,10 @@ archive, one ID at a time.
      that is already modified or untracked keeps the same entry when its
      bytes change again);
    * minus the `closure_scope(S)` IDs this run already archived (their
-     queue→archive moves are the completed closure, not drift).
+     queue→archive moves are the completed closure, not drift). This
+     subtraction applies to the (iii) porcelain capture only: the (iii)
+     fingerprint is taken after the closure, so it covers those records'
+     post-closure bytes and any later change to them violates the baseline.
 
    Relative to this baseline, an archive call may change only backlogit
    `ArchiveItem`'s own side effects (verified at `v1.11.0`
@@ -1263,8 +1267,9 @@ archive, one ID at a time.
      side effects of the verified disposition archives and this run's own
      closure report path) → `recommendation: DISPOSITION_COMPLETE`. A failure
      of that final check halts with `HALT — linked-deliberation disposition
-     failed {id}`, where `{id}` is the shipment ID; emit **P-005** once
-     through D6.
+     failed {id}`, where `{id}` is the shipment ID; follow the D6 sequence
+     of safe-close step 6, scoped to this run's disposition archives, and
+     emit **P-005** once.
      Proceed to post-mode. Retained outcomes are reported, never halt, and
      never block this gate. `linked_deliberation_disposition: []` is valid
      only when the Step 0(c) disposition snapshot is empty; a `planning_error`

@@ -173,6 +173,10 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                     "this run's own closure report path under",
                     baseline,
                 )
+                self.assertIn(
+                    "This subtraction applies to the (iii) porcelain capture only",
+                    baseline,
+                )
 
     def test_gate_runs_final_invariance_after_report_write(self) -> None:
         for label, raw in _variants():
@@ -186,6 +190,11 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                 self.assertIn(
                     "A failure of that final check halts with `HALT — linked-deliberation "
                     "disposition failed {id}`, where `{id}` is the shipment ID",
+                    gate,
+                )
+                self.assertIn(
+                    "follow the D6 sequence of safe-close step 6, scoped to this run's "
+                    "disposition archives",
                     gate,
                 )
 
@@ -781,8 +790,9 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 self.assertIn(
                     "for every deliberation the snapshot already settled as "
                     "`retained_read_error`, `retained_ambiguous`, or `already-archived`, "
-                    "the planner's outcome, `reason_code`, and `path` MUST equal the "
-                    "snapshot's settled outcome data, so a fresh plan never upgrades "
+                    "the planner's outcome and `reason_code` (and, for "
+                    "`retained_read_error`, its `path`) MUST equal the snapshot's "
+                    "settled outcome data, so a fresh plan never upgrades "
                     "snapshot-settled evidence to a planned `archive`.",
                     plan,
                 )
