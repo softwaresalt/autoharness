@@ -760,7 +760,13 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
        The remaining parent-swap race window needs a local attacker with write
        access to the working tree, which is outside this gate's threat model.
        This is accepted and recorded;
-    4. `validate_evidence_record(..., close_path=<declared>)` passes;
+    4. `validate_evidence_record(..., close_path=<declared>)` passes. The
+       declared `close_path` is checked against the record's **selected** close
+       path (re-plan R2), never against the classifier verdict alone. A
+       `safe_close` record whose `classifier_verdict` is `CASCADE` is valid
+       exactly when its engine is UNVERIFIED, because the validator re-runs
+       `assess_cascade_engine_semantics` and `select_close_path` over the
+       recorded inputs (A1);
     5. when the closure artifact carries the `merge_commit` frontmatter key (the
        key committed artifacts already use, for example
        `docs/closure/175-S-167-F-post-merge-closure.md`), the record's
@@ -769,7 +775,7 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
        mandate `merge_commit`, and mandating it is outside this plan's scope.
   * SAFE_CLOSE is fail-closed too (AN-F01, amending D-A3 — Stage-recommended,
     pending operator confirmation). A `safe_close` artifact without a valid
-    `SAFE_CLOSE` verdict record fails.
+    verdict record whose selected close path is `safe_close` fails.
   * SAFE_CLOSE direct-cascade detection (AN-F07/AN-F09): for a `safe_close`
     record, the gate requires every `observation_set` entry to still be at
     exactly its recorded location, with its recorded SHA-256. An entry that was
@@ -779,18 +785,35 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     safe-close itself asserts, re-checked at write time. An empty observation
     set (only when no manifest task has a parent) passes with a `warnings[]`
     entry saying the check was vacuous.
+  * **Planned-`archive` exemption (re-plan R5a; 038-DL D3a "two layers").** The
+    gate runs after the skill's Linked-Deliberation Disposition step, which may
+    legitimately archive a disposition-set deliberation. The re-check therefore
+    skips each entry whose `disposition_outcome` is the planned `archive`.
+    INV-12's verify-after-each owns that mutation, and its report is part of
+    the same closure artifact. Every other entry, including every `retained_*`
+    and `already-archived` deliberation, must still match its recorded
+    location and SHA-256 exactly. A retained deliberation that was archived or
+    modified fails as `failed_check: close_evidence` (one archiver, U6b). The
+    exemption is keyed only on the recorded planned outcome. The gate never
+    re-plans.
+  * **Advisory warnings (re-plan R5).** On both close paths, each disposition
+    whose recorded outcome is `retained_*` adds a `warnings[]` entry
+    `stranded_linked_deliberation: <deliberation_id> (<outcome>, <reason_code>)`.
+    These warnings never change the verdict. `retained_*` never halts.
   * **Guarantee:** a direct cascade can never be accepted under
     `close_path: cascade`. Under `close_path: safe_close`, it is detected whenever
-    it changed anything in the observation set (which includes every
-    descendant and linked deliberation a cascade could reach), which is exactly the corruption SAFE_CLOSE
-    exists to prevent. The undetected residual is a direct cascade whose effect
+    it changed anything in the observation set, which is exactly the corruption
+    SAFE_CLOSE exists to prevent. The set includes every out-of-manifest
+    descendant a cascade could reach and every disposition-set deliberation
+    except those planned for `archive`, which INV-12 owns. The undetected residual is a direct cascade whose effect
     equals the safe-close outcome, which by construction left nothing outside
     closure scope changed. It remains a P-005 deviation by skill contract, and
     upstream enforcement is requested in A7. Accepting this benign residual is a
     Stage-recommended decision, pending operator confirmation.
   * `close_path` and `close_evidence` are added to the `failed_check` vocabulary in
-    the gate USAGE text and the `--json` description, and `warnings[]` is
-    documented there.
+    the gate USAGE text and the `--json` description. `warnings[]` is
+    documented there, including `stranded_linked_deliberation` and the
+    vacuous-check and absent-`merge_commit` warnings.
   * The pipeline-topology closure reader is **not** modified.
 * **Tests:**
   * CASCADE with no record → FAIL;
@@ -799,9 +822,16 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   * SAFE_CLOSE with no record → FAIL; with a valid SAFE_CLOSE verdict record →
     PASS; with a CASCADE record → FAIL; with an observation-set parent feature or
     sibling now archived or modified (a task-only, partial-feature fixture) →
-    FAIL; with a linked deliberation of the parent feature now archived → FAIL;
-    with a sibling that was already archived at baseline and is unchanged → PASS;
+    FAIL; with a sibling that was already archived at baseline and is unchanged → PASS;
     with an empty observation set → PASS with the vacuous-check warning;
+  * SAFE_CLOSE with a record whose `classifier_verdict` is `CASCADE` and whose
+    engine is UNVERIFIED → PASS; CASCADE with a record whose engine is
+    UNVERIFIED → FAIL;
+  * SAFE_CLOSE where a disposition-set deliberation planned `archive` is now
+    archived → PASS (exempt); where a `retained_live_status` deliberation is now
+    archived, or a `retained_ambiguous` record path is modified → FAIL;
+  * a record with a `retained_*` disposition → PASS with a
+    `stranded_linked_deliberation` warning, on either close path;
   * `classify_closure_candidates` ignores a `docs/closure/evidence/` subdirectory
     (a regression pin);
   * a mismatched shipment ID in the record → FAIL;
@@ -822,9 +852,22 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   (only the checksums and notes of those two entries).
 * **Changes:**
   * shipment-reconcile:
-    * Step 0(c) and the Cascade Close Sub-Procedure pre-invocation revalidation,
-      baseline capture, step 1 invocation, and steps 2-6 now point at
-      `autoharness shipment cascade-close`;
+    * Step 0(c) (the engine-semantics gate, close-path selection, and the
+      linked-deliberation disposition snapshot) now points at
+      `autoharness shipment cascade-close --classify-only`. Its record carries
+      `pre_close.engine_semantics`, `pre_close.close_path_selection`, and
+      `pre_close.linked_deliberation_disposition` (re-plan R1, R2, R5);
+    * the Cascade Close Sub-Procedure pre-invocation revalidation (including
+      the engine-semantics re-probe), baseline capture, step 1 invocation, and
+      steps 2-6 now point at the mutating `autoharness shipment cascade-close`;
+    * the Linked-Deliberation Disposition step takes its step 0 inputs from the
+      evidence record and never recomputes them: the selected close path and
+      reason from `pre_close.close_path_selection`, the engine decision from
+      `pre_close.engine_semantics`, the disposition snapshot from
+      `pre_close.linked_deliberation_disposition`, and the path baseline from
+      `observation_set` (SAFE_CLOSE) or `out_of_manifest_descendants`
+      (CASCADE). The step stays the only archiver of a disposition-set
+      deliberation. The command never archives one (038-DL D3a, one archiver);
     * every close runs `autoharness shipment cascade-close --classify-only` first;
     * the mutating `cascade-close` invocation **is** the destructive command.
       It needs the same operator approval that the direct `backlogit shipment
@@ -842,10 +885,10 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     | Mode | Exit | Skill action |
     |---|---|---|
     | `--classify-only` | 0 (CASCADE) | Obtain destructive-command approval, then run mutating `cascade-close` |
-    | `--classify-only` | 3 (SAFE_CLOSE) | SAFE_CLOSE path, citing the verdict record as `close_evidence` |
-    | mutating | 0 | Write the closure artifact with `close_path: cascade` and `close_evidence` |
-    | mutating | 3 | The verdict changed after a CASCADE classify-only verdict: HALT and never SAFE_CLOSE (INV-P4) |
-    | either | 2, 4 | HALT. Nothing was mutated. Fix the input, or ask the operator |
+    | `--classify-only` | 3 (SAFE_CLOSE selected: classifier SAFE_CLOSE, or engine UNVERIFIED) | Safe-close steps 1-10, then the Linked-Deliberation Disposition step, citing the verdict record as `close_evidence` |
+    | mutating | 0 | Run the Linked-Deliberation Disposition step with its inputs from the evidence record, then write the closure artifact with `close_path: cascade` and `close_evidence` |
+    | mutating | 3 | The selected path changed (classifier or engine) after a CASCADE classify-only selection: HALT and never SAFE_CLOSE (INV-P4) |
+    | either | 2, 4 | HALT. Nothing was mutated. Exit 4 includes an engine re-probe difference, which is never answered with SAFE_CLOSE. Fix the input, or ask the operator |
     | either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
 
   * operational-closure: the closure artifact frontmatter gains `close_path` and
@@ -853,7 +896,11 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
 * **Tests:**
   * The structural test `tests/test_flat_manifest_closure_docs.py` gains assertions
     that the command, the routing table, the destructive-approval sentence, and the
-    P-005 wording appear in both the template and the mirror.
+    P-005 wording appear in both the template and the mirror. Re-plan
+    additions: Step 0(c) names `--classify-only` and the three `pre_close`
+    fields; the Linked-Deliberation Disposition step's input sentence names the
+    evidence record as its source; and no edited surface places a linked
+    deliberation in `allowed_ids` or `required_ids`.
   * AN-F05: a new parity assertion pins LF-normalized equality between the
     rendered template and the installed mirror for each edited section (the
     Step 0(c) block, the Cascade Close Sub-Procedure, and the operational-closure
@@ -875,11 +922,18 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     executed only through `autoharness shipment cascade-close`, with the same
     destructive-command approval, and the closure artifact needs `close_path` plus
     `close_evidence`.
+  * Re-plan: the pointer names the command's engine-semantics gate (no cascade
+    unless `select_close_path` selects CASCADE on a VERIFIED engine probed on
+    the CLI surface; otherwise exit 3, and a re-probe difference is exit 4).
+    It also names the skill's Linked-Deliberation Disposition step, which runs
+    after the close with its inputs from the evidence record and remains the
+    only archiver.
   * The closure-evidence contract sentence names the new frontmatter keys.
   * Pointer-level only. The routing table lives in the skill, not here.
   * Frontmatter is **not** touched (C owns it).
 * **Tests:** extend the existing Ship structural test that asserts the P-015 pointer,
-  in both files, and add a rendered-section parity assertion for step 2c (AN-F05).
+  in both files, including the engine-gate and disposition-step names, and add
+  a rendered-section parity assertion for step 2c (AN-F05).
   The Ship `**Closure-evidence contract**` paragraph stays a single line in each
   file with rendered template/mirror parity, because
   `tests/test_closure_contract_nondrift.py::test_template_and_installed_mirror_parity`
@@ -890,7 +944,8 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
 
 * **Files:** `docs/gates-reference.md` (a "Shipment close commands" section that
   explains why it is not a gate, including the A3 exit-code table and `--json`
-  fields), and
+  fields, and the closure-evidence gate's new `failed_check` values and
+  `warnings[]`), and
   `docs/bugs/2026-09-27-backlogit-shipment-ship-structured-evidence-request.md` (new).
 * **Changes:**
   * The upstream request is self-contained and copy-ready for the backlogit
@@ -904,6 +959,18 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
       mutation-boundary enforcement AN-F01 asks for, and autoharness cannot
       implement it itself.
   * It states explicitly that autoharness does not depend on it.
+  * Re-plan: the command reference documents the record fields
+    `pre_close.engine_semantics` (including `invocation_surface` and the
+    bounded `probe_excerpt`), `pre_close.close_path_selection`,
+    `pre_close.linked_deliberation_disposition`,
+    `observation_set[].disposition_outcome`, and
+    `post_close.linked_deliberation_drift`; the flat `allowed_ids` /
+    `required_ids` definitions; the `--json` fields `engine_verdict` and
+    `selected_close_path`; exit 3 (selected path not CASCADE, including an
+    UNVERIFIED engine, nothing invoked) and exit 4 (an engine re-probe
+    difference or failure halts, never SAFE_CLOSE); the planned-`archive`
+    exemption; and the `stranded_linked_deliberation` warning. The 1.10.x
+    `pre_close.linked_deliberations` key is not documented.
 * **Tests:** markdownlint, and `tests/test_docs_frontmatter_decodes.py`.
 * **Posture:** docs-only. **Size:** S. **Complexity:** low.
 
