@@ -50,8 +50,8 @@ disagree, this section and the revised unit text win.
 | 1 | Evidence gains `engine_semantics` from `assess_cascade_engine_semantics` on the invocation surface (CLI) | D4a | A2a (new), A1, A2 |
 | 2 | Close path from `select_close_path`. A `safe_close` record may carry `classifier_verdict: CASCADE` when the engine is UNVERIFIED | D4a | A1, A2, A4 |
 | 3 | `cascade-close` never runs the cascade without the engine gate. It fails closed to SAFE_CLOSE (exit 3). A re-probe difference, or any difference from a `cascade`-selected `--classify-only` record, halts (exit 4) and never overwrites that record | D4a | A3, A1b, A5 |
-| 4 | Flat `allowed_ids` / `required_ids`. A disposition-set deliberation in `archived_ids`, or modified, is engine drift | D2 | A3b, A3, A1 |
-| 5 | Evidence records `linked_deliberation_disposition` from the planner. `retained_*` never halts. The command never archives. The A4 gate does not re-check disposition-set deliberations (re-plan cycle-1 R2) | D3a, U5a | A2, A1, A5 |
+| 4 | Flat `allowed_ids` / `required_ids`. A disposition-set deliberation in `archived_ids`, or modified, is engine drift | D2 | A3b, A3c, A3, A1c |
+| 5 | Evidence records `linked_deliberation_disposition` from the planner. `retained_*` never halts. The command never archives. The A4 gate does not re-check disposition-set deliberations (re-plan cycle-1 R2) | D3a, U5a | A2, A2b, A1c, A4b, A5 |
 | 6 | Stale `dag-root` on 198-S | D8a, topology | Recommendation only: remove the label (see the deliberation) |
 
 **Removed from the plan:** every linked-deliberation term in `allowed_ids` and
@@ -66,21 +66,59 @@ backlog):
 
 | Unit | Task | Change |
 |---|---|---|
-| A1 | `192.001-T` | **Changed.** Record shape and validator rules (R1, R2, R4, R5). Size S → M |
-| A1b | `192.002-T` | **Changed (minor).** Redaction also covers `engine_semantics.reason` and the probe excerpt |
-| A3a | `192.004-T` | **Changed (order only).** Now precedes A2. Its body is unchanged |
+| A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Size S / low |
+| A1c | *new* | **New task (cycle-1 R4).** Disposition and set-term rules (R5, D2). S / low |
+| A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Redaction also covers `engine_semantics.reason` and the probe excerpt. M / medium |
+| A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty temporary directory (cycle-1 R3). S / medium |
 | A2a | *new* | **New task.** CLI engine-semantics probe (`shipment_close/engine_probe.py`). S / low |
-| A2 | `192.003-T` | **Changed.** Planner-based disposition snapshot, `select_close_path`, path-keyed observation set. Depends on A2a |
-| A3b | `192.005-T` | **Changed.** Flat sets and `linked_deliberation_drift` |
-| A3 | `192.006-T` | **Changed.** Engine re-probe in revalidation, exit 3 and exit 4 semantics, post-close re-collection |
-| A4 | `192.007-T` | **Changed.** Selected-path validation. No disposition-set deliberation re-check, no planned-`archive` exemption, no `stranded_linked_deliberation` warning (re-plan cycle-1 R2) |
-| A5 | `192.008-T` | **Changed.** Step 0(c) points to the command. The disposition step takes its inputs from the evidence |
-| A6 | `192.009-T` | **Changed (minor).** The pointer names the engine gate and the disposition step |
-| A7 | `192.010-T` | **Changed (minor).** Docs gain the new fields and exit semantics |
+| A2b | *new* | **New task (cycle-1 R4).** Safe-close observation set (`shipment_close/observation.py`), with no disposition-set deliberation (cycle-1 R2). S / medium |
+| A2 | `192.003-T` | **Changed.** Planner-based disposition snapshot, `select_close_path`, observation set from A2b. M / medium |
+| A3b | `192.005-T` | **Changed.** Parser, flat sets, and INV-10 (cycle-1 R4 moved drift to A3c). M / medium |
+| A3c | *new* | **New task (cycle-1 R4).** `linked_deliberation_drift` evaluator. S / medium |
+| A3 | `192.006-T` | **Changed.** Engine re-probe in revalidation, the `--classify-only` record hand-off (cycle-1 R1), exit 3 and exit 4 semantics, post-close re-collection. CLI wiring moves to A3d. M / medium |
+| A3d | *new* | **New task (cycle-1 R4).** `cli.py` wiring, USAGE, and `--json` output. S / low |
+| A4 | `192.007-T` | **Changed.** Selected-path validation and the `close_evidence` checks. The observation-set re-check moves to A4b. M / medium |
+| A4b | *new* | **New task (cycle-1 R4).** SAFE_CLOSE observation-set re-check. No disposition-set deliberation re-check, no planned-`archive` exemption, no `stranded_linked_deliberation` warning (cycle-1 R2). S / medium |
+| A5 | `192.008-T` | **Changed.** Step 0(c) points to the command. The disposition step takes its inputs from the evidence. The mutating-mode exit-3 routing row is revised (cycle-1 R1). M / low |
+| A6 | `192.009-T` | **Changed (minor).** The pointer names the engine gate and the disposition step. S / low |
+| A7 | `192.010-T` | **Changed (minor).** Docs gain the new fields and exit semantics. S / low |
 
-No unit is removed. Dependency edges change. `192.003-T` now depends on
-`192.004-T` and on the new A2a task, and A2a depends on `192.004-T`. See the
-revised Dependency Graph.
+No unit is removed. Six tasks are new: A1c, A2a, A2b, A3c, A3d, and A4b.
+The re-harvest sets each task's `dependencies` to exactly the following
+(re-plan cycle-1 R5):
+
+| Task | Unit | Dependencies after re-harvest | Change from the current backlog |
+|---|---|---|---|
+| `192.001-T` | A1 | none | unchanged |
+| *new* | A1c | `192.001-T` | new |
+| `192.002-T` | A1b | A1c | was `192.001-T` |
+| `192.004-T` | A3a | `192.002-T` | **remove `192.003-T`**, add `192.002-T` |
+| *new* | A2a | `192.004-T` | new |
+| *new* | A2b | A1c | new |
+| `192.003-T` | A2 | A2a, A2b | was `192.002-T` |
+| `192.005-T` | A3b | `192.003-T` | was `192.004-T` |
+| *new* | A3c | `192.005-T` | new |
+| `192.006-T` | A3 | A3c | was `192.005-T` |
+| *new* | A3d | `192.006-T` | new |
+| `192.007-T` | A4 | A3d | was `192.006-T` |
+| *new* | A4b | `192.007-T` | new |
+| `192.008-T` | A5 | A4b | was `192.007-T` |
+| `192.009-T` | A6 | `192.008-T` | unchanged |
+| `192.010-T` | A7 | A3d | was `192.006-T` |
+
+* The existing edge `192.004-T depends on 192.003-T` (verified in
+  `.backlogit/queue/192.004-T.md`) **must be removed** before `192.003-T`
+  gains its dependency on A2a, which depends on `192.004-T`. Keeping both
+  would form the cycle `192.003-T` → A2a → `192.004-T` → `192.003-T`.
+* Every new task gets `parent_id: 192-F`, the size and complexity above, and
+  `harness-surface:harness-architect` (A1c, A2a, A2b, A3c, A3d, A4b are all
+  code-bearing).
+* Every new task is added to 198-S `custom_fields.items` in manifest dependency
+  order: `192.001-T`, A1c, `192.002-T`, `192.004-T`, A2a, A2b, `192.003-T`,
+  `192.005-T`, A3c, `192.006-T`, A3d, `192.007-T`, A4b, `192.008-T`,
+  `192.009-T`, `192.010-T`. The current manifest lists `192.003-T` before
+  `192.004-T`, so the existing order changes too.
+* `192.007-T`, A4b, `192.008-T`, and `192.009-T` carry the one-PR constraint.
 
 **Review state.** The plan-review PASS below predates this amendment. Under
 P-021 C6, this plan must be re-reviewed before 198-S is claimed. Plan hardening
@@ -114,19 +152,19 @@ missing record is never refused.
 | # | Requirement (stash `008F3BCF` / deliberation D-A*) | Unit(s) |
 |---|---|---|
 | R1 | Record the pre-close classifier verdict automatically, from a fresh re-run | A2 |
-| R2 | Record the out-of-manifest snapshot (IDs, locations, content hashes, declared statuses) and the linked-deliberation **disposition snapshot** before the close (re-plan 2026-10-02: the disposition snapshot replaces the 1.10.x qualifying-feature linked-deliberation collection) | A2 |
+| R2 | Record the out-of-manifest snapshot (IDs, locations, content hashes, declared statuses) and the linked-deliberation **disposition snapshot** before the close (re-plan 2026-10-02: the disposition snapshot replaces the 1.10.x qualifying-feature linked-deliberation collection) | A2, A2b |
 | R3 | Record the raw close stdout, stderr, and exit code, bounded and redacted | A1b, A3a, A3 |
 | R4 | The evidence file is written before and after the close; if the pre-close write fails, nothing is invoked | A1b, A2, A3 |
 | R4a | An interrupted, concurrent, or ambiguous close is detectable and never silently retried (hardening H-B1/H-B2, review cycle 1) | A1b, A3 |
-| R5 | The closure-evidence gate refuses a closure whose close path lacks a valid record | A1, A4 |
-| R6 | SAFE_CLOSE (D-A3, amended by review cycle 1 — Stage-recommended, pending operator confirmation): verdict record via `--classify-only`, required by the gate | A2, A4 |
+| R5 | The closure-evidence gate refuses a closure whose close path lacks a valid record | A1, A1c, A4, A4b |
+| R6 | SAFE_CLOSE (D-A3, amended by review cycle 1 — Stage-recommended, pending operator confirmation): verdict record via `--classify-only`, required by the gate | A2, A2b, A3d, A4, A4b |
 | R7 | Surfaces updated: shipment-reconcile (template and mirror), operational-closure (template and mirror), Ship agent (template and mirror), docs | A5, A6, A7 |
 | R8 | Upstream half as a portable, non-blocking backlogit request (D-A1) | A7 |
 | R9 | Retention and location (D-A2): committed at `docs/closure/evidence/`, and closure discovery is unaffected | A1, A4 |
 | R10 | Re-plan item 1 (D4a): the evidence records `engine_semantics` from `assess_cascade_engine_semantics`, probed on the CLI surface the command invokes, for released builds only | A2a, A1, A2 |
-| R11 | Re-plan items 2-3 (D4a): the close path comes from `select_close_path`. No cascade runs unless it selects `CASCADE`. A re-probe difference halts with no mutation | A1, A2, A3, A4, A5 |
-| R12 | Re-plan item 4 (D2): flat `allowed_ids` / `required_ids`. A disposition-set deliberation that is archived or modified is engine drift | A3b, A3 |
-| R13 | Re-plan item 5 (D3a): the evidence records the planned `linked_deliberation_disposition`. `retained_*` is non-halting. The command never archives a deliberation | A2, A1, A5 |
+| R11 | Re-plan items 2-3 (D4a): the close path comes from `select_close_path`. No cascade runs unless it selects `CASCADE`. A re-probe difference halts with no mutation | A1, A2, A3, A3d, A4, A5 |
+| R12 | Re-plan item 4 (D2): flat `allowed_ids` / `required_ids`. A disposition-set deliberation that is archived or modified is engine drift | A3b, A3c, A3 |
+| R13 | Re-plan item 5 (D3a): the evidence records the planned `linked_deliberation_disposition`. `retained_*` is non-halting. The command never archives a deliberation | A2, A1c, A5 |
 
 ## Implementation Units
 
@@ -141,7 +179,10 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
 `post-merge-closure`) outside the contract-derived form, so
 `tests/test_closure_contract_nondrift.py` stays green.
 
-### A1 — Evidence record contract and validator (read-only)
+### A1 — Evidence record contract: shape, path, and selection consistency (read-only)
+
+Re-plan cycle-1 R4 split the former A1 into this unit and A1c (disposition and
+set-term rules), so each satisfies the 2-hour rule.
 
 * **Files:** `src/autoharness/gates/cascade_evidence.py` (new), and
   `tests/test_cascade_evidence_contract.py` (new).
@@ -190,6 +231,69 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     selected `cascade`.
   * Both require the pair to match and every required key to be present and
     well-typed.
+  * The disposition and set-term rules are A1c. They extend this same
+    `validate_evidence_record`, so the gate and the command keep one
+    validator.
+  * `CascadeEvidenceError(Exception)` is the single error type. Exit-code
+    constants `EXIT_*` (see A3) are defined here once.
+* **Record shape:**
+  * `schema_version`, `shipment_id`, `feature_id`, `merge_commit_sha`, `run_id`
+    (uuid4 hex, fixed by the owning run), and `phase: pre_close | invoking | post_close`;
+  * `tool{binary_path, binary_sha256, version_excerpt}` (A3a);
+  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface, probe_excerpt}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}],   read_failures[{path, reason_code}], planning_error}, observation_set[{id, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
+    `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
+    `invocation_surface` input and a bounded, redacted `probe_excerpt` (A2a).
+    `linked_deliberation_disposition` mirrors
+    `LinkedDeliberationDispositionPlan` field for field, with the planned
+      outcomes. It is also the **disposition snapshot** that A3c compares
+      against. The observation set never contains a disposition-set
+      deliberation (re-plan cycle-1 R2; see A2b and H-C2). The 1.10.x key
+      `linked_deliberations` is removed (re-plan);
+  * `invocation{argv_redacted, started_at, finished_at, exit_code, timed_out, mutation_state: none | completed | indeterminate, stdout{total_bytes, total_lines, sha256, capture_truncated, excerpt, redaction_applied}, stderr{...same}}`
+    (both excerpts are always persisted, bounded and redacted, on success and on
+    failure, because R3 requires the raw close output — AS-F09);
+  * `post_close{parsed_result{shipment_status, archived_ids, returned_ids, commit_sha} | parse_error, shipment_record_status, shipment_record_archived_status, allowed_ids, required_ids, unexpected_archived, missing_required, linked_deliberation_drift[], disposition_byte_identical, parent_id_preserved, baseline_invariant, shipment_archived_shipped, postcondition_verdict: pass | fail, failures[]}`.
+    `allowed_ids` and `required_ids` are the flat sets (re-plan R4, A3b).
+  * Serialization (Principle IX): `json.dumps(sort_keys=True, indent=2,
+    ensure_ascii=False)`, LF line endings, one trailing newline, and every ID list
+    sorted.
+* **Tests (test-first, four scenarios; each scenario is one table-driven test
+  whose rows are cases, matching the table-driven precedent in
+  `docs/plans/2026-08-31-ship1-v1_5_0-guardrail-contract-restoration-plan.md`
+  and `docs/plans/2026-09-27-agent-skill-frontmatter-conformity-plan.md`):**
+  1. **Shape and pair table:** a well-formed record for each close path is
+     accepted; a missing `post_close` for `cascade`, a mismatched shipment or
+     feature ID, an unknown `schema_version`, and a `SAFE_CLOSE` record offered
+     for `cascade` (and the reverse) are rejected.
+  2. **Cascade internal-consistency table (AS-F11):** `postcondition_verdict:
+     fail`, a non-zero `exit_code`, a non-empty `linked_deliberation_drift`,
+     and `disposition_byte_identical: false` under a `pass` verdict are each
+     rejected.
+  3. **Selection-consistency table (re-plan R1/R2):** a `safe_close` record
+     with `classifier_verdict: CASCADE` and an UNVERIFIED engine
+     (`probed_version` `1.10.1` or `1.11.1-rc1`) is **accepted**; the same
+     record with a `VERIFIED` engine (`1.11.0`, `cli`/`cli`) is rejected; a
+     `cascade` record whose engine is UNVERIFIED is rejected; a hand-edited
+     `engine_semantics.verdict: VERIFIED` over `1.10.0` is rejected; a
+     `selected_close_path` or reason that disagrees with `select_close_path`
+     is rejected; an `invocation_surface` other than `cli` is rejected.
+  4. **Serialization:** two writes of the same record are byte-stable.
+
+  Every fixture builds `engine_semantics` by calling
+  `assess_cascade_engine_semantics`. No fixture hard-codes a
+  `validated_linked_deliberations` set.
+* **Depends on:** none. **Harness surface:** `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S (re-plan cycle-1 R4: was M before the
+  split). **Complexity:** low.
+
+### A1c — Evidence record contract: disposition and set-term rules (read-only)
+
+* **Goal:** the disposition and set-term half of the A1 validator (re-plan R5,
+  D2, D3a), split out of A1 by re-plan cycle-1 R4.
+* **Files:** `src/autoharness/gates/cascade_evidence.py` (extended), and
+  `tests/test_cascade_evidence_disposition.py` (new).
+* **Changes:** `validate_evidence_record` gains these rules, as private
+  helpers it calls:
   * **Disposition (re-plan R5).** `pre_close.linked_deliberation_disposition`
     must be present on both paths. `planning_error` must be `null`, because the
     command never writes a record when the planner fails.
@@ -207,60 +311,27 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     recorded `allowed_ids` or `required_ids` that contains a disposition-set
     deliberation ID is rejected (D2; the H10 explicit-member carve-out does not
     apply, because H10 IDs are excluded from the disposition set).
-  * `CascadeEvidenceError(Exception)` is the single error type. Exit-code
-    constants `EXIT_*` (see A3) are defined here once.
-* **Record shape:**
-  * `schema_version`, `shipment_id`, `feature_id`, `merge_commit_sha`, `run_id`
-    (uuid4 hex, fixed by the owning run), and `phase: pre_close | invoking | post_close`;
-  * `tool{binary_path, binary_sha256, version_excerpt}` (A3a);
-  * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface, probe_excerpt}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}], read_failures[{path, reason_code}],   planning_error}, observation_set[{id, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
-    `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
-    `invocation_surface` input and a bounded, redacted `probe_excerpt` (A2a).
-    `linked_deliberation_disposition` mirrors
-    `LinkedDeliberationDispositionPlan` field for field, with the planned
-    outcomes. It is also the **disposition snapshot** that A3b compares
-      against. The observation set never contains a disposition-set
-      deliberation (re-plan cycle-1 R2; see A2 and H-C2). The 1.10.x key
-      `linked_deliberations` is removed (re-plan);
-  * `invocation{argv_redacted, started_at, finished_at, exit_code, timed_out, mutation_state: none | completed | indeterminate, stdout{total_bytes, total_lines, sha256, capture_truncated, excerpt, redaction_applied}, stderr{...same}}`
-    (both excerpts are always persisted, bounded and redacted, on success and on
-    failure, because R3 requires the raw close output — AS-F09);
-  * `post_close{parsed_result{shipment_status, archived_ids, returned_ids, commit_sha} | parse_error, shipment_record_status, shipment_record_archived_status, allowed_ids, required_ids, unexpected_archived, missing_required, linked_deliberation_drift[], disposition_byte_identical, parent_id_preserved, baseline_invariant, shipment_archived_shipped, postcondition_verdict: pass | fail, failures[]}`.
-    `allowed_ids` and `required_ids` are the flat sets (re-plan R4, A3b).
-  * Serialization (Principle IX): `json.dumps(sort_keys=True, indent=2,
-    ensure_ascii=False)`, LF line endings, one trailing newline, and every ID list
-    sorted.
-* **Tests (test-first):** the validator accepts a well-formed record for each close
-  path and rejects: a missing `post_close` for `cascade`, a mismatched shipment or
-  feature ID, `postcondition_verdict: fail`, a `SAFE_CLOSE` record offered for
-  `cascade` (and the reverse), and an unknown `schema_version`. Serialization is
-  byte-stable across two writes of the same record. Re-plan additions:
-  * a `safe_close` record with `classifier_verdict: CASCADE` and
-    `engine_semantics.verdict: UNVERIFIED` (`probed_version` `1.10.1` or
-    `1.11.1-rc1`) is **accepted**;
-  * the same record with a `VERIFIED` engine (`1.11.0`, `cli`/`cli`) is
-    rejected;
-  * a `cascade` record whose engine is UNVERIFIED is rejected;
-  * a hand-edited `engine_semantics.verdict: VERIFIED` over `probed_version`
-    `1.10.0` is rejected, because re-assessment disagrees;
-  * a `selected_close_path` or reason that disagrees with `select_close_path`
-    is rejected;
-  * `invocation_surface` other than `cli` is rejected;
-  * every `retained_*` outcome, including `retained_read_error` with an
-    unknown `reason_code`, is accepted;
-  * an unknown `outcome` is rejected;
-  * an `archive` outcome under an UNVERIFIED engine is rejected;
-  * a non-null `planning_error` is rejected;
-  * a `cascade` record with a non-empty `linked_deliberation_drift` or
-    `disposition_byte_identical: false` is rejected;
-  * a recorded `required_ids` containing a disposition-set deliberation ID is
+  * **No deliberation in the observation set (re-plan cycle-1 R2).** An
+    `observation_set` entry whose ID is in the disposition snapshot is
     rejected.
+* **Tests (test-first, four table-driven scenarios):**
+  1. **Outcome table:** every `retained_*` outcome, including
+     `retained_read_error` with an unknown `reason_code`, is accepted; an
+     unknown `outcome` is rejected; an `archive` outcome under an UNVERIFIED
+     engine is rejected.
+  2. **Planner-state table:** a missing disposition snapshot and a non-null
+     `planning_error` are rejected.
+  3. **Set-term table:** a recorded `required_ids` or `allowed_ids` containing
+     a disposition-set deliberation ID is rejected; an explicit-member
+     deliberation (H10) in `allowed_ids` is accepted.
+  4. **Observation-set table:** a `safe_close` record whose observation set
+     contains a disposition-set deliberation ID is rejected.
 
-  Every fixture builds `engine_semantics` by calling
-  `assess_cascade_engine_semantics` and builds dispositions from
-  `LinkedDeliberationOutcome` values. No fixture hard-codes a
-  `validated_linked_deliberations` set.
-* **Posture:** test-first. **Size:** M (re-plan: was S). **Complexity:** low.
+  Fixtures build dispositions from `LinkedDeliberationOutcome` values and
+  never hard-code a linked deliberation in either set.
+* **Depends on:** A1 (`192.001-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S. **Complexity:** low.
 
 ### A1b — Evidence persistence: streaming capture, redaction, lock, atomic write
 
@@ -330,18 +401,24 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     fsync is skipped (unsupported), and `os.replace` retries a sharing-violation
     `PermissionError` at most 3 times with bounded backoff. The temp file is
     removed in `finally`.
-* **Tests (test-first):** a truncation boundary at 64 KiB and at 500 lines; a 2 MiB
-  stream with bounded retained memory; a stdout overflow producing `parse_error`;
-  a redaction case, plus a secret split across the excerpt boundary; redaction of
-  `failures[]` and `parse_error`; plain `--classify-only` over an existing
-  `pre_close` record exits 2 and leaves it byte-identical, while
-  `--replace-pre-close` replaces it (PR #460 review); the mutating mode
-  receives an existing `cascade`-selected `pre_close` record back from the
-  check instead of replacing it (re-plan cycle-1 R1); two concurrent acquirers where exactly one
-  wins and the other gets exit 7; a symlinked or junctioned lock-directory or
-  evidence-directory component is refused before any file is created; the owner transition succeeds for the owning
-  `run_id` and fails for a foreign one; an atomic write that leaves no partial file
-  on a simulated failure and refuses a symlink target.
+* **Tests (test-first, four table-driven scenarios):**
+  1. **Capture and redaction:** a truncation boundary at 64 KiB and at 500
+     lines; a 2 MiB stream with bounded retained memory; a stdout overflow
+     producing `parse_error`; a redaction case, plus a secret split across the
+     excerpt boundary; redaction of `failures[]` and `parse_error`.
+  2. **Lock and directory trust:** two concurrent acquirers where exactly one
+     wins and the other gets exit 7; a symlinked or junctioned lock-directory
+     or evidence-directory component is refused before any file is created.
+  3. **Existing-record check table:** an `invoking` record gives exit 7; a
+     `post_close` record gives exit 2; plain `--classify-only` over an
+     existing `pre_close` record exits 2 and leaves it byte-identical, while
+     `--replace-pre-close` replaces it (PR #460 review); the mutating mode
+     receives an existing `cascade`-selected `pre_close` record back from the
+     check instead of replacing it (re-plan cycle-1 R1).
+  4. **Owner transition and atomic write:** the transition succeeds for the
+     owning `run_id` and fails for a foreign one; an atomic write leaves no
+     partial file on a simulated failure and refuses a symlink target.
+* **Depends on:** A1c. **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** M. **Complexity:** medium.
 
 ### A3a — Bounded backlogit subprocess runner
@@ -387,19 +464,26 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     does a bounded `wait(10)`.
   * `timeout` defaults to 120 s. `--timeout` accepts 30-900 s; out-of-range values
     exit 2.
-* **Tests:** a fake binary inside the workspace root is refused; a `.cmd` shim is
-  refused on Windows (skipped elsewhere); `cli.binary` values `/bin/sh`, an
-  absolute path (`C:\Tools\backlogit.exe` or `/usr/local/bin/backlogit`), and
-  `tools/backlogit` are refused before any lookup, and a bare name whose
-  resolved basename differs is refused (re-plan cycle-1 R3); a fake that sleeps past a 1 s test
-  timeout is killed with `timed_out: true`; a fake emitting 2 MiB of stdout is
-  drained. Test fakes are real executables outside the workspace, for example a
+* **Tests (test-first, three table-driven scenarios):**
+  1. **Binary trust table:** a fake binary inside the workspace root is
+     refused; a `.cmd` shim is refused on Windows (skipped elsewhere);
+     `cli.binary` values `/bin/sh`, an absolute path (`C:\Tools\backlogit.exe`
+     or `/usr/local/bin/backlogit`), and `tools/backlogit` are refused before
+     any lookup; a bare name whose resolved basename differs is refused
+     (re-plan cycle-1 R3).
+  2. **Timeout:** a fake that sleeps past a 1 s test timeout is killed with
+     `timed_out: true`.
+  3. **Drain:** a fake emitting 2 MiB of stdout is drained.
+
+  Test fakes are real executables outside the workspace, for example a
   tiny compiled or `sys.executable`-launched shim whose resolution is injected
   through the `ResolvedBinary` seam, never a `.cmd`. `ResolvedBinary` carries
   `argv_prefix: tuple[str, ...]`, which is `(absolute_path,)` in production and
   `(sys.executable, fake_script)` in tests. The `.exe` and containment checks
   apply to `argv_prefix[0]`. Reader threads are joined with a bounded timeout
   after the process exits.
+* **Depends on:** A1b (`192.002-T`), for `StreamCapture`. **Harness surface:**
+  `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
 ### A2a — CLI engine-semantics probe
@@ -450,31 +534,65 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   * The recorded raw `probed_version` and `probed_commit`, re-assessed by the
     A1 validator, reproduce the recorded `verdict`, `reason`, and `minor_line`.
   * The spawned argv is exactly the fixed probe argv on `resolved.argv_prefix`.
-* **Tests (test-first, at most four scenarios, using the A3a `ResolvedBinary`
-  test seam):**
-  * a fake emitting `{"version": "1.11.0", "commit": "131577c"}` yields
-    `VERIFIED`, `minor_line` `[1, 11]`, the raw commit, and the exact argv;
-  * fakes emitting `1.10.1` and `1.11.1-rc1` yield `UNVERIFIED` with the
-    reason prefix;
-  * a fake that exits 1, one that sleeps past the timeout, one that emits
-    non-JSON, and one that emits a 65-character `version` all yield
-    `probed_version: null` and `UNVERIFIED`, and nothing raises;
-  * a planted `token=...` in stdout is redacted, and `probe_excerpt` is at
-    most 64 characters;
-  * `cli.binary: python` (a bare name that passes A3a) with a planted
-    `version` script in the workspace: the probe runs in the empty temporary
-    directory, the planted script never executes (its sentinel file is never
-    written), and the result is `UNVERIFIED` (re-plan cycle-1 R3).
-* **Depends on:** A3a (`192.004-T`) and A1b. **Harness surface:**
-  `harness-surface:harness-architect`.
+* **Tests (test-first, four table-driven scenarios, using the A3a
+  `ResolvedBinary` test seam):**
+  1. **Verified probe:** a fake emitting
+     `{"version": "1.11.0", "commit": "131577c"}` yields `VERIFIED`,
+     `minor_line` `[1, 11]`, the raw commit, and the exact argv; a planted
+     `token=...` in stdout is redacted, and `probe_excerpt` is at most 64
+     characters.
+  2. **Unverified-version table:** `1.10.1` and `1.11.1-rc1` yield
+     `UNVERIFIED` with the reason prefix; a 65-character `version` yields
+     `probed_version: null`.
+  3. **Probe-failure table:** a fake that exits 1, one that sleeps past the
+     timeout, and one that emits non-JSON all yield `probed_version: null`
+     and `UNVERIFIED`, and nothing raises.
+  4. **Working-directory isolation:** `cli.binary: python` (a bare name that
+     passes A3a) with a planted `version` script in the workspace: the probe
+     runs in the empty temporary directory, the planted script never executes
+     (its sentinel file is never written), and the result is `UNVERIFIED`
+     (re-plan cycle-1 R3).
+* **Depends on:** A3a (`192.004-T`) directly; A1b and A1c are reached
+  through it. **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** low (risk low).
+
+### A2b — Safe-close observation set
+
+* **Goal:** compute the path-keyed safe-close observation set that A2 records
+  for a selected SAFE_CLOSE and that A4b re-checks. Split out of A2 by re-plan
+  cycle-1 R4.
+* **Files:** `src/autoharness/shipment_close/observation.py` (new), and
+  `tests/test_shipment_close_observation.py` (new).
+* **Changes:**
+  * `compute_observation_set(manifest_items, shipment_id, backlog_dir, *, excluded_ids) -> tuple[ObservationEntry, ...]`
+    is read-only and returns one entry per record path, with its location
+    (queue or archive), SHA-256, and declared status. The set is the union of:
+    * the shipment-reconcile `mode: safe-close` observation set: the parent
+      feature of each manifest task, plus every unshipped sibling task;
+    * every out-of-manifest descendant of each manifest feature member (the
+      classifier's traversal helper).
+  * `excluded_ids` is supplied by A2: every ID in the disposition snapshot.
+    The set never contains a disposition-set deliberation (re-plan cycle-1
+    R2; see H-C2).
+  * A torn or missing observation-set member raises `CascadeEvidenceError`,
+    which A2 turns into exit 2 with no record (fail-closed, matching the
+    skill's safe-close, which cannot run without the set).
+* **Tests (test-first, four scenarios):**
+  1. a task-only, partial-feature manifest yields the parent feature and the
+     unshipped siblings, including a sibling already archived at baseline;
+  2. an out-of-manifest descendant of a manifest feature member is included;
+  3. an ID in `excluded_ids` is absent even when it is a descendant;
+  4. a torn observation-set member raises, and nothing is returned.
+* **Depends on:** A1c. **Harness surface:** `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
 ### A2 — Pre-close snapshot and `--classify-only`
 
 * **Files:** `src/autoharness/shipment_close/preclose.py` (new), and
   `tests/test_shipment_cascade_close_preclose.py` (new).
-* **Depends on:** A2a (re-plan). The engine decision feeds both
-  `select_close_path` and the disposition planner.
+* **Depends on:** A2a (re-plan) and A2b (re-plan cycle-1 R4). The engine
+  decision feeds both `select_close_path` and the disposition planner, and A2b
+  supplies the observation set.
 * **Changes:**
   * Input validation happens before any read: `shipment_id` / `feature_id` through
     `closure_contract.validate_closure_id`, and `--sha` as a full 40-character
@@ -515,21 +633,14 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
       failure is recorded and never halts;
     * it fingerprints `out_of_manifest_descendant_ids` (location plus SHA-256);
     * when the **selected** path is SAFE_CLOSE, it also records the
-      **safe-close observation set**. The set is **path-keyed**: there is one
-      entry per record path, with its location (queue or archive), SHA-256,
-      and declared status. The set is the union of:
-      * the shipment-reconcile `mode: safe-close` observation set: the parent
-        feature of each manifest task, plus every unshipped sibling task;
-      * every out-of-manifest descendant of each manifest feature member (the
-        classifier's traversal helper).
-
-      It never contains a disposition-set deliberation (re-plan cycle-1 R2):
-      any ID in the disposition snapshot is left out of the set. The skill's
-      Linked-Deliberation Disposition step is the only archiver of those
-      records and re-plans them after the close from live referrers, so the A4
-      write-time re-check cannot key on them (see H-C2). The disposition
-      snapshot itself stays in `pre_close.linked_deliberation_disposition`
-      for A3b drift detection.
+      **safe-close observation set** by calling A2b
+      `compute_observation_set(..., excluded_ids=<every disposition-snapshot ID>)`.
+      The set is path-keyed and never contains a disposition-set deliberation
+      (re-plan cycle-1 R2). The skill's Linked-Deliberation Disposition step
+      is the only archiver of those records and re-plans them after the close
+      from live referrers, so the A4b write-time re-check cannot key on them
+      (see H-C2). The disposition snapshot itself stays in
+      `pre_close.linked_deliberation_disposition` for A3c drift detection.
       This covers task-only, partial-feature manifests, which have no manifest
       feature to traverse (AN-F07/AN-F09/AN-F01). If the observation set cannot be established,
       `--classify-only` exits 2 and writes no record. That is fail-closed, and
@@ -544,33 +655,34 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     path) and exits 0 when the selected path is CASCADE, or 3 when it is
     SAFE_CLOSE. That includes classifier CASCADE with an UNVERIFIED engine. It
     never mutates backlog state.
-* **Tests:**
-  * a CASCADE fixture with a fake `1.11.0` probe writes a pre-close record with
-    every fingerprint, `engine_semantics.verdict: VERIFIED`,
-    `selected_close_path: cascade`, and the disposition snapshot, and exits 0;
-  * the same fixture with a fake `1.10.1` probe records
-    `classifier_verdict: CASCADE`, `engine_semantics.verdict: UNVERIFIED`, and
-    `selected_close_path: safe_close`, records the observation set, and exits 3;
-  * a task-only, partial-feature SAFE_CLOSE fixture records the parent feature and
-    the unshipped siblings as the observation set;
-  * a manifest member linking a live deliberation records it in the disposition
-    snapshot with a planned outcome, and the deliberation is absent from the
-    observation set (re-plan cycle-1 R2). A
-    deliberation that is itself an explicit manifest member is absent from the
-    snapshot (H10). A torn deliberation records `retained_ambiguous` and does
-    not halt;
-  * a planner `planning_error` (injected) exits 2 with no record;
-  * a torn or duplicate manifest member fails closed with no record;
-  * an existing `invoking` record returns exit 7 even when the fixture now
-    classifies SAFE_CLOSE;
-  * an already-shipped shipment returns exit 2 with no record;
-  * a `feature_id` outside the qualifying set returns exit 2.
+* **Tests (test-first, four table-driven scenarios):**
+  1. **Selection table:** a CASCADE fixture with a fake `1.11.0` probe writes
+     a pre-close record with every fingerprint,
+     `engine_semantics.verdict: VERIFIED`, `selected_close_path: cascade`, and
+     the disposition snapshot, and exits 0; the same fixture with a fake
+     `1.10.1` probe records `classifier_verdict: CASCADE`,
+     `engine_semantics.verdict: UNVERIFIED`, and
+     `selected_close_path: safe_close`, records the A2b observation set, and
+     exits 3.
+  2. **Disposition-snapshot table:** a manifest member linking a live
+     deliberation records it with a planned outcome, and the deliberation is
+     absent from the observation set (re-plan cycle-1 R2); a deliberation
+     that is itself an explicit manifest member is absent from the snapshot
+     (H10); a torn deliberation records `retained_ambiguous` and does not
+     halt; an injected planner `planning_error` exits 2 with no record.
+  3. **Fail-closed input table:** a torn or duplicate manifest member, an
+     already-shipped shipment, and a `feature_id` outside the qualifying set
+     each exit 2 with no record.
+  4. **Lock precedence:** an existing `invoking` record returns exit 7 even
+     when the fixture now classifies SAFE_CLOSE.
 
   No fixture builds a `validated_linked_deliberations` set or asserts a
   linked deliberation in `allowed_ids` or `required_ids`.
+* **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first, using the fixture builders in
   `tests/test_shipment_closure_classification.py`. **Size:** M. **Complexity:** medium.
-### A3b — Response parser and pure postcondition evaluator
+
+### A3b — Response parser, flat sets, and INV-10 evaluator
 
 * **Files:** `src/autoharness/shipment_close/postclose.py` (new), and
   `tests/test_shipment_close_postconditions.py` (new).
@@ -583,7 +695,8 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   * `evaluate_postconditions(snapshot, parsed, reread) -> PostCloseResult` is
     pure, with no I/O. `reread` is supplied by A3. It holds a post-close read
     of the shipment record and of every fingerprinted file, plus the
-    post-cascade **re-collection** of the disposition snapshot (re-plan R4).
+    post-cascade **re-collection** of the disposition snapshot, which A3c
+    evaluates (re-plan R4).
   * **Flat sets (re-plan R4; 038-DL D2).** It computes both sets locally, from
     the pre-close snapshot only (INV-P2), over every manifest item regardless of
     `artifact_type`:
@@ -610,64 +723,85 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
       `allowed_ids`;
     * the re-read shipment record declares `status: archived` and
       `archived_status: shipped` (AS-F04).
-  * **`linked_deliberation_drift[]` (re-plan R4).** Engine drift is any of the
-    following, and each is recorded as `{deliberation_id, kind, detail}`:
+  * `linked_deliberation_drift[]` and `disposition_byte_identical` are
+    computed by A3c and merged into the `PostCloseResult`; any drift entry
+    makes `postcondition_verdict: fail`.
+  * `mutation_state` is derived here: `completed` for a parsed success envelope;
+    `none` only when every fingerprinted file's SHA-256 is unchanged and no
+    fingerprinted ID has gained an archive-location file; otherwise
+    `indeterminate`. A timeout or a non-zero exit is never read as "no mutation"
+    (compound `2026-08-30-157-s-copilot-review-timeout-not-a-clean-signal.md`).
+* **Tests (test-first, four table-driven scenarios):**
+  1. **Envelope and `mutation_state`:** the characterized envelope parses; a
+     malformed envelope yields `ParseError`; `mutation_state` for unchanged,
+     changed, and unparsed inputs.
+  2. **Flat-set table:** a table-driven pass case; the two set checks failing
+     independently (with both failing at once, both are reported); a
+     pre-close archived manifest task is absent from `required_ids` (compound
+     `2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md`);
+     an explicit-member deliberation that is archived passes as an ordinary
+     `allowed_ids` member (H10); a disposition-set deliberation in
+     `archived_ids` is reported as an unexpected artifact.
+  3. **INV-10 table:** a non-empty `returned_ids`; a moved `parent_id` on an
+     archived manifest task and on an out-of-manifest artifact; a modified
+     descendant giving `baseline_invariant: false`; a shipment record lacking
+     `archived_status: shipped`.
+  4. **Parity test** (M1, INV-P8): for a table of manifest fixtures,
+     including an empty manifest and a manifest containing a deliberation,
+     `allowed_ids` equals `shipment_closure._closure_scope_ids(manifest_ids, S)`.
+     This test is the only importer of the private helper.
+
+  Fixtures build dispositions from `LinkedDeliberationOutcome` values, and
+  none hard-codes a linked deliberation in either set.
+* **Depends on:** A2 (`192.003-T`), for the snapshot type. **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** M. **Complexity:** medium (the high-risk
+  envelope uncertainty is de-risked by the characterization step, and the
+  function is pure).
+
+### A3c — Linked-deliberation drift evaluator
+
+* **Goal:** detect engine drift on disposition-set deliberations at close
+  time (re-plan item 4, R4; 038-DL D2). Split out of A3b by re-plan cycle-1
+  R4. This is the authoritative drift check: the A4b gate does not re-check
+  disposition-set deliberations (H-C2).
+* **Files:** `src/autoharness/shipment_close/postclose.py` (extended), and
+  `tests/test_shipment_close_deliberation_drift.py` (new).
+* **Changes:**
+  * `evaluate_linked_deliberation_drift(snapshot, archived_ids, recollected) -> tuple[DriftEntry, ...]`
+    is pure. Engine drift is any of the following, and each is recorded as
+    `{deliberation_id, kind, detail}`:
     * `archived`: a disposition-set deliberation ID appears in `archived_ids`.
-      It also fails the unexpected-artifact check, because it is outside
+      It also fails the A3b unexpected-artifact check, because it is outside
       `allowed_ids`;
     * `modified`: the SHA-256 of any `records[]` path differs from the
       pre-close snapshot, or the path moved. Then
       `disposition_byte_identical` is `false`;
     * `snapshot_drift`: the re-collected snapshot differs from the pre-close
       snapshot in deliberation IDs, link kinds, linking members, declared
-      status, record paths, SHA-256, or unresolved references. Planned
-      outcomes are not compared.
+      status, record paths, SHA-256, or unresolved references.
 
     Any drift entry makes `postcondition_verdict: fail` (exit 5 in A3).
     `retained_*` outcomes are never drift by themselves.
-  * `mutation_state` is derived here: `completed` for a parsed success envelope;
-    `none` only when every fingerprinted file's SHA-256 is unchanged and no
-    fingerprinted ID has gained an archive-location file; otherwise
-    `indeterminate`. A timeout or a non-zero exit is never read as "no mutation"
-    (compound `2026-08-30-157-s-copilot-review-timeout-not-a-clean-signal.md`).
-* **Tests:**
-  * a table-driven pass case;
-  * a flat-contract pass case: a manifest member links a live deliberation,
-    the cascade leaves it in `queue/` and unchanged, and the result passes.
-    This pins the 190-S halt shape as a non-failure;
-  * a non-empty `returned_ids` case;
-  * the two set checks failing independently (with both failing at once, both
-    are reported);
-  * a pre-close archived manifest task is absent from `required_ids` (compound
-    `2026-08-23-cascade-close-archived-ids-omits-pre-archived-tasks-on-1101.md`);
-  * a disposition-set deliberation in `archived_ids` is reported as an
-    unexpected artifact **and** as `linked_deliberation_drift` (`archived`);
-  * a modified deliberation record yields `modified` drift and
-    `disposition_byte_identical: false`;
-  * a re-collected snapshot with a new link kind yields `snapshot_drift`;
-  * an explicit-member deliberation that is archived passes as an ordinary
-    `allowed_ids` member (H10);
-  * the **parity test** (M1, INV-P8): for a table of manifest fixtures,
-    including an empty manifest and a manifest containing a deliberation,
-    `allowed_ids` equals `shipment_closure._closure_scope_ids(manifest_ids, S)`.
-    This test is the only importer of the private helper;
-  * a moved `parent_id` on an archived manifest task and on an
-    out-of-manifest artifact;
-  * a modified descendant giving `baseline_invariant: false`;
-  * a shipment record lacking `archived_status: shipped`;
-  * a malformed envelope;
-  * `mutation_state` for unchanged, changed, and unparsed inputs.
+* **Tests (test-first, four scenarios):**
+  1. **Flat-contract pass:** a manifest member links a live deliberation, the
+     cascade leaves it in `queue/` and unchanged, and the result has no drift.
+     This pins the 190-S halt shape as a non-failure.
+  2. **`archived` drift:** a disposition-set deliberation in `archived_ids` is
+     reported as `linked_deliberation_drift` (`archived`).
+  3. **`modified` drift:** a modified deliberation record yields `modified`
+     drift and `disposition_byte_identical: false`.
+  4. **`snapshot_drift` table:** a re-collected snapshot with a new link kind
+     yields `snapshot_drift`.
+* **Depends on:** A3b (`192.005-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
-  Fixtures build dispositions from `LinkedDeliberationOutcome` values, and
-  none hard-codes a linked deliberation in either set.
-* **Posture:** test-first. **Size:** M. **Complexity:** medium (the high-risk
-  envelope uncertainty is de-risked by the characterization step, and the
-  function is pure).
+### A3 — `cascade-close` orchestration
 
-### A3 — `cascade-close` orchestration and CLI
+Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
 
-* **Files:** `src/autoharness/shipment_close/command.py` (new),
-  `src/autoharness/cli.py` (dispatch and usage only), and
+* **Files:** `src/autoharness/shipment_close/command.py` (new), and
   `tests/test_shipment_cascade_close_invoke.py` (new).
 * **Changes:**
   * `run_cascade_close(...)` steps, all under the A1b pair lock:
@@ -752,6 +886,43 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   * Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
     `cascade-close`, calling `backlogit shipment ship` directly, or substituting
     SAFE_CLOSE (INV-P4) until an operator reviews the backlog state and the record.
+  * `run_cascade_close` returns a frozen `CascadeCloseOutcome` (exit code,
+    evidence path, phase written, and the fields A3d renders). The CLI wiring
+    and the `--json` rendering are A3d.
+* **Tests (test-first, four table-driven scenarios).** A fake `backlogit` (A3a
+  seam) emits a canned envelope, answers the `version` probe from a per-call
+  script, and writes a sentinel file when `shipment ship` runs:
+  1. **Pass and argv log:** a pass case; the argv log holds only the probe
+     argv and the fixed ship argv (including `--cwd`), and no archive call.
+  2. **Pre-spawn fail-closed table:** a classifier CASCADE with a fake
+     `1.10.1` probe exits 3, the `shipment ship` sentinel is never written,
+     and the record selects `safe_close`; the fake's `commit` changes between
+     the step 3 probe and the step 5 re-probe: exit 4, no spawn; the step 5
+     re-probe times out: exit 4, never 3; drift injected between steps 4 and 5
+     exits 4 with no spawn; a pre-existing `invoking` record exits 7 and the
+     fake is never spawned.
+  3. **`--classify-only` record hand-off (re-plan cycle-1 R1):** a
+     `--classify-only` run records a `cascade` selection, then the fake's
+     probe answers `1.10.1` (or the disposition snapshot changes) before the
+     mutating run: exit 4, the `pre_close` record is byte-identical, no
+     `safe_close` record is written, and `shipment ship` is never spawned.
+     With nothing changed, the mutating run re-stamps only `run_id` and
+     `captured_at` and proceeds.
+  4. **Post-spawn failure table:** a non-empty `returned_ids` exits 5 with the
+     record written; the fake modifies a disposition-set deliberation during
+     the ship call: exit 5 with `linked_deliberation_drift` recorded;
+     backlogit exiting 1 with stderr keeps redacted stderr in the record and
+     exits 6; a simulated post-close write failure exits 8.
+* **Depends on:** A3c. **Harness surface:** `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** M. **Complexity:** medium.
+
+### A3d — `cascade-close` CLI wiring and `--json` output
+
+* **Goal:** expose `run_cascade_close` as `autoharness shipment cascade-close`.
+  Split out of A3 by re-plan cycle-1 R4.
+* **Files:** `src/autoharness/cli.py` (dispatch and usage only), and
+  `tests/test_cli_shipment_cascade_close.py` (new).
+* **Changes:**
   * `--json` output (AN-F06) is one object:
     `{mode, exit_code, evidence_path, phase_written, classifier_verdict,
     engine_verdict, selected_close_path, mutation_possible: no | yes | indeterminate | unknown,
@@ -763,33 +934,17 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     `--classify-only --replace-pre-close` **destructive**, and plain
     `--classify-only` no-clobber and read-only apart from creating a new
     evidence record (Principle VII).
-* **Tests:** a fake `backlogit` (A3a seam) emitting a canned envelope. The fake
-  answers the `version` probe from a per-call script and writes a sentinel file
-  when `shipment ship` runs:
-  * a pass case;
-  * a classifier CASCADE with a fake `1.10.1` probe exits 3, the `shipment ship`
-    sentinel is never written, and the record selects `safe_close`;
-  * a `--classify-only` run records a `cascade` selection, then the fake's
-    probe answers `1.10.1` (or the disposition snapshot changes) before the
-    mutating run: exit 4, the `pre_close` record is byte-identical, no
-    `safe_close` record is written, and `shipment ship` is never spawned. With
-    nothing changed, the mutating run re-stamps only `run_id` and
-    `captured_at` and proceeds (re-plan cycle-1 R1);
-  * the fake's `commit` changes between the step 3 probe and the step 5
-    re-probe: exit 4, no spawn;
-  * the step 5 re-probe times out: exit 4, never 3;
-  * a non-empty `returned_ids` case, which exits 5 with the record written;
-  * the fake modifies a disposition-set deliberation during the ship call:
-    exit 5 with `linked_deliberation_drift` recorded;
-  * backlogit exiting 1 with stderr, where the record keeps redacted stderr and
-    exits 6;
-  * a pre-existing `invoking` record exits 7 and the fake is never spawned;
-  * drift injected between steps 4 and 5 exits 4 with no spawn;
-  * a simulated post-close write failure exits 8;
-  * the argv log holds only the probe argv and the fixed ship argv (including
-    `--cwd`), and no archive call;
-  * `--json` fields per exit code.
-* **Posture:** test-first. **Size:** M. **Complexity:** medium.
+  * Argument parsing: `--timeout` accepts 30-900 s (out of range exits 2), and
+    `--replace-pre-close` is accepted only together with `--classify-only`.
+* **Tests (test-first, three scenarios, with `run_cascade_close` stubbed):**
+  1. `--json` fields for every exit code in the A3 table, including
+     `mutation_possible` per code;
+  2. the USAGE text carries the destructive and no-clobber labels;
+  3. argument-parsing table: an out-of-range `--timeout`, a lone
+     `--replace-pre-close`, and a missing `--sha` each exit 2.
+* **Depends on:** A3 (`192.006-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S. **Complexity:** low.
 
 ### A4 — Closure-evidence gate: `close_path` and the close-evidence requirement
 
@@ -837,6 +992,41 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   * SAFE_CLOSE is fail-closed too (AN-F01, amending D-A3 — Stage-recommended,
     pending operator confirmation). A `safe_close` artifact without a valid
     verdict record whose selected close path is `safe_close` fails.
+  * The SAFE_CLOSE observation-set re-check is A4b (re-plan cycle-1 R4). It
+    runs as the last `close_evidence` sub-check, after step 5.
+  * `close_path` and `close_evidence` are added to the `failed_check` vocabulary in
+    the gate USAGE text and the `--json` description. `warnings[]` is
+    documented there, including the vacuous-check (A4b) and
+    absent-`merge_commit` warnings.
+  * The pipeline-topology closure reader is **not** modified.
+* **Tests (test-first, four table-driven scenarios):**
+  1. **Per-path verdict table:** CASCADE with no record, with a `fail`
+     verdict record, or with a record whose engine is UNVERIFIED → FAIL;
+     CASCADE with a valid record → PASS; SAFE_CLOSE with no record or with a
+     CASCADE record → FAIL; SAFE_CLOSE with a valid verdict record, including
+     one whose `classifier_verdict` is `CASCADE` and whose engine is
+     UNVERIFIED → PASS; a mismatched shipment ID in the record → FAIL.
+  2. **Evidence-path containment table:** a `..` path, an absolute path, a
+     path other than `build_evidence_path(S, F)`, an oversize file, and a
+     symlinked record → FAIL with no read outside the workspace.
+  3. **`merge_commit` cross-check:** a mismatched `merge_commit_sha` → FAIL;
+     an absent `merge_commit` key → PASS with the warning.
+  4. **Non-regression pins:** a `BLOCKED` artifact still reports
+     `failed_check: frontmatter_predicate`; the topology gate still accepts a
+     committed fixture artifact that has no `close_path` (INV-P5 pin);
+     `classify_closure_candidates` ignores a `docs/closure/evidence/`
+     subdirectory.
+* **Depends on:** A3d. A4, A4b, A5, and A6 ship in one PR. **Harness
+  surface:** `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** M. **Complexity:** medium.
+
+### A4b — Closure-evidence gate: SAFE_CLOSE observation-set re-check
+
+* **Goal:** the write-time SAFE_CLOSE direct-cascade detection, split out of
+  A4 by re-plan cycle-1 R4.
+* **Files:** `src/autoharness/cli.py` (the `_evaluate_closure_evidence` path
+  only), and `tests/test_cli_gate_closure_evidence_observation.py` (new).
+* **Changes:**
   * SAFE_CLOSE direct-cascade detection (AN-F07/AN-F09): for a `safe_close`
     record, the gate requires every `observation_set` entry to still be at
     exactly its recorded location, with its recorded SHA-256. An entry that was
@@ -847,13 +1037,13 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     set (only when no manifest task has a parent) passes with a `warnings[]`
     entry saying the check was vacuous.
   * **No disposition-set deliberation re-check (re-plan cycle-1 R2).** The
-    observation set never holds a disposition-set deliberation (A2), so the
-    gate has no planned-`archive` exemption, never reads a disposition
+    observation set never holds a disposition-set deliberation (A2b, A1c), so
+    the gate has no planned-`archive` exemption, never reads a disposition
     outcome, and emits no `stranded_linked_deliberation` warning. The skill's
     Linked-Deliberation Disposition step runs before the closure artifact is
     written, is the sole archiver, and re-plans from live referrers after the
     close, so any gate rule keyed on the pre-close plan would mis-fire. Engine
-    drift on those deliberations is detected at close time by A3b's
+    drift on those deliberations is detected at close time by A3c's
     post-close re-collection, which is the authoritative point. Stranded
     advisories are surfaced by the skill's own disposition report;
     gate-level surfacing stays in the deferred stash scope `3B43CE5A` /
@@ -867,37 +1057,19 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     closure scope changed. It remains a P-005 deviation by skill contract, and
     upstream enforcement is requested in A7. Accepting this benign residual is a
     Stage-recommended decision, pending operator confirmation.
-  * `close_path` and `close_evidence` are added to the `failed_check` vocabulary in
-    the gate USAGE text and the `--json` description. `warnings[]` is
-    documented there, including the vacuous-check and absent-`merge_commit`
-    warnings.
-  * The pipeline-topology closure reader is **not** modified.
-* **Tests:**
-  * CASCADE with no record → FAIL;
-  * CASCADE with a `fail` verdict record → FAIL;
-  * CASCADE with a valid record → PASS;
-  * SAFE_CLOSE with no record → FAIL; with a valid SAFE_CLOSE verdict record →
-    PASS; with a CASCADE record → FAIL; with an observation-set parent feature or
-    sibling now archived or modified (a task-only, partial-feature fixture) →
-    FAIL; with a sibling that was already archived at baseline and is unchanged → PASS;
-    with an empty observation set → PASS with the vacuous-check warning;
-  * SAFE_CLOSE with a record whose `classifier_verdict` is `CASCADE` and whose
-    engine is UNVERIFIED → PASS; CASCADE with a record whose engine is
-    UNVERIFIED → FAIL;
-  * after safe-close, the disposition step archives a planned-`archive`
-    deliberation → PASS, because no disposition-set deliberation is in the
-    observation set, and no `stranded_linked_deliberation` warning is emitted
-    for a `retained_*` disposition (re-plan cycle-1 R2 regression pin);
-  * `classify_closure_candidates` ignores a `docs/closure/evidence/` subdirectory
-    (a regression pin);
-  * a mismatched shipment ID in the record → FAIL;
-  * a `..` path, an absolute path, and a symlinked record → FAIL with no read
-    outside the workspace;
-  * a mismatched `merge_commit_sha` → FAIL;
-  * a `BLOCKED` artifact still reports `failed_check: frontmatter_predicate`;
-  * the topology gate still accepts a committed fixture artifact that has no
-    `close_path` (INV-P5 pin).
-* **Posture:** test-first. **Size:** M. **Complexity:** medium.
+* **Tests (test-first, two scenarios):**
+  1. **Partial-feature table** (a task-only, partial-feature fixture): an
+     observation-set parent feature or sibling now archived or modified →
+     FAIL; a sibling that was already archived at baseline and is unchanged
+     → PASS; an empty observation set → PASS with the vacuous-check warning.
+  2. **Disposition independence (re-plan cycle-1 R2 regression pin):** after
+     safe-close, the disposition step archives a planned-`archive`
+     deliberation → PASS, because no disposition-set deliberation is in the
+     observation set, and no `stranded_linked_deliberation` warning is
+     emitted for a `retained_*` disposition.
+* **Depends on:** A4 (`192.007-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
 ### A5 — Skill templates and mirrors route CASCADE through the command
 
@@ -966,6 +1138,10 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     operational-closure `### Step 3a: Validate the Closure Artifact with the
     Closure-Evidence Gate` heading is kept verbatim, and no edited surface may
     restate a closure filename outside the contract-derived form.
+* **Depends on:** A4b. **Harness surface:** `harness-surface:none`.
+  Granularity (re-plan cycle-1 R4): the template/mirror pairs and the manifest
+  checksum entries are one rendered surface per skill, so this unit edits two
+  surfaces and adds three structural assertion groups.
 * **Posture:** characterization-first (run the existing doc tests before editing).
   **Size:** M. **Complexity:** low.
 
@@ -994,6 +1170,7 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
   file with rendered template/mirror parity, because
   `tests/test_closure_contract_nondrift.py::test_template_and_installed_mirror_parity`
   asserts exactly one such line. The new keys are added inside that same line.
+* **Depends on:** A5. **Harness surface:** `harness-surface:none`.
 * **Posture:** characterization-first. **Size:** S. **Complexity:** low.
 
 ### A7 — Docs: command reference and the portable upstream backlogit request
@@ -1028,29 +1205,42 @@ never imports. New modules must not restate a closure filename (`*closure.md`,
     does not re-check disposition-set deliberations (re-plan cycle-1 R2). The
     1.10.x `pre_close.linked_deliberations` key is not documented.
 * **Tests:** markdownlint, and `tests/test_docs_frontmatter_decodes.py`.
+* **Depends on:** A3d. **Harness surface:** `harness-surface:none`.
 * **Posture:** docs-only. **Size:** S. **Complexity:** low.
 
 ## Dependency Graph
 
-A1 → A1b → A3a → A2a → A2 → A3b → A3 → A4 → A5 → A6, and A3 → A7
-(re-plan 2026-10-02; previously A1 → A1b → A2 → A3a → A3b).
+Re-plan cycle-1 R4 (2026-10-02), in manifest dependency order:
 
-* A1b, A2, A3b, and A4 consume A1's contract and validator.
-* A3a depends only on A1b's `StreamCapture`. It now precedes A2, because the
-  CLI engine probe needs its runner.
-* A2a (new) depends on A3a's `run_bounded` and `ResolvedBinary` seam and on
-  A1b's `redact`.
-* A2 depends on A2a: the engine decision feeds both `select_close_path` and the
-  disposition planner.
-* A3b depends only on A1 and on A2's snapshot type.
-* A3 composes A1b, A2a (the step 5 engine re-probe), A2, A3a, and A3b.
-* Task edges at re-harvest: `192.003-T` (A2) depends on `192.004-T` (A3a) and
-  on the new A2a task. The A2a task depends on `192.004-T`.
-* A4 follows A3 so the gate and the command land against one settled record shape.
+A1 → A1c → A1b → A3a → A2a → A2b → A2 → A3b → A3c → A3 → A3d → A4 → A4b →
+A5 → A6, and A3d → A7.
+
+(Earlier forms: before the cycle-1 splits, A1 → A1b → A3a → A2a → A2 → A3b →
+A3 → A4 → A5 → A6, and A3 → A7; before the 2026-10-02 re-plan, A1 → A1b → A2
+→ A3a → A3b.)
+
+* A1c extends A1's validator. A1b, A2b, A2, A3b, A3c, A4, and A4b consume the
+  A1/A1c contract and validator.
+* A3a depends only on A1b's `StreamCapture`. It precedes A2, because the CLI
+  engine probe needs its runner.
+* A2a depends on A3a's `run_bounded` and `ResolvedBinary` seam (and, through
+  A3a, on A1b and A1c).
+* A2b depends only on A1c's record shape. It is ordered after A2a only to keep
+  the manifest linear.
+* A2 depends on A2a (the engine decision feeds both `select_close_path` and
+  the disposition planner) and on A2b (the observation set).
+* A3b depends on A2's snapshot type. A3c depends on A3b's `PostCloseResult`.
+* A3 composes A1b, A2a (the step 5 engine re-probe), A2, A3a, A3b, and A3c. A3d
+  wires A3 into `cli.py`.
+* A4 follows A3d so the gate and the command land against one settled record
+  shape. A4b extends A4's `close_evidence` check. A4 and A4b both edit
+  `_evaluate_closure_evidence`, so they stay serial.
 * A5 and A6 both touch `.autoharness/harness-manifest.yaml`, so they stay serial.
-* A4, A5, and A6 must ship in the same release unit (one PR). The stricter gate
-  must never land ahead of the skill and agent routing that produces its evidence.
+* A4, A4b, A5, and A6 must ship in the same release unit (one PR). The stricter
+  gate must never land ahead of the skill and agent routing that produces its
+  evidence.
 * A7 documents the shipped command behavior.
+* The task-level edges are listed in the Re-plan amendment's harvest delta.
 
 ## Decisions and Rationale
 
