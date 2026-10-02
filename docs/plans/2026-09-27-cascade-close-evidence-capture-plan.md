@@ -2,7 +2,7 @@
 title: "Automatic, fail-closed CASCADE close-evidence capture"
 description: "Replace the agent-discretionary CASCADE close audit trail with an autoharness-owned command that captures the fresh classifier verdict, the out-of-manifest snapshot, and the raw bounded, redacted backlogit close output into a committed evidence record, plus a closure-evidence gate that refuses CASCADE closure without that record."
 doc_type: plan
-status: replanned-pending-review
+status: replanned-reviewed
 review_record: docs/reviews/2026-09-27-cascade-close-evidence-capture-plan-review.md
 created: 2026-09-27
 amended: 2026-10-02
@@ -11,7 +11,7 @@ replan_stash: 1263B218
 source_deliberation: docs/decisions/2026-09-27-close-evidence-frontmatter-context-tier-staging-deliberation.md
 replan_deliberation: docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md
 replan_contract: "201-S / 195-F (038-DL D2, D3a, D4a; docs/plans/2026-09-29-backlogit-1-11-cascade-alignment-plan.md), verified on main at 654b143d"
-requires_plan_rereview: "yes - the 2026-09-27 PASS predates the 2026-10-02 re-plan (P-021 C6)"
+requires_plan_rereview: "no - re-reviewed 2026-10-02 (cycles 1-2), PASS_WITH_FOLLOWUPS; see review record"
 provenance: "175-S / 167-F, PR #458 (merge 985e3990), closure PR #459, close commit 5cc5371a, condition operator-accepts-175s-cascade-evidence-deviation"
 requires_plan_hardening: "yes"
 post_review_operator_amendment: "2026-09-27T22:50-07:00 - D-A1..D-A6 (including the review-cycle-1 D-A3 SAFE_CLOSE fail-closed amendment) operator-confirmed; shipment 198-S is an operator-declared dag-root. No design change; the PASS review is not reopened. See section Operator Rulings (2026-09-27T22:50-07:00). Superseded by the 2026-10-02 re-plan: dag-root removal recommended (198-S now has an explicit blocks edge to 201-S)."
@@ -43,6 +43,24 @@ disagree, this section and the revised unit text win.
   flat sets locally in A3b and pins them by a parity test (M1 in the
   deliberation).
 
+**Private-name rule (re-plan cycle-2 C2-4).** One rule governs every private
+`shipment_closure` name this plan uses:
+
+* `_closure_scope_ids` and `_is_engine_inert` are never imported by
+  production code. A3b re-derives the flat sets locally, and its parity test
+  pins them to these two helpers (M1).
+* `_RELEASE_VERSION_PATTERN` (A2a), `_scan_backlog` and
+  `_enumerate_descendants` (A2b), `_read_artifact_record` (A2b, A4b), and
+  `_check_path_containment` (A4b) are reused rather than restated. Each is
+  imported **lazily**, inside
+  the function that uses it, and never at module top level in `cli.py` or in
+  any `shipment_close/` module. An upstream rename therefore cannot break
+  `cli.py` import or any unrelated command. It fails only the call that
+  needs the name.
+* The A3b parity test module, which is test-only, also pins that each of
+  these five names exists with the signature (or, for the pattern, the
+  type) this plan relies on. A rename fails the tests, not the CLI import.
+
 **Alignment items to units:**
 
 | # | Stash 1263B218 item | Settled by | Units |
@@ -51,7 +69,7 @@ disagree, this section and the revised unit text win.
 | 2 | Close path from `select_close_path`. A `safe_close` record may carry `classifier_verdict: CASCADE` when the engine is UNVERIFIED | D4a | A1, A2, A4 |
 | 3 | `cascade-close` never runs the cascade without the engine gate. It fails closed to SAFE_CLOSE (exit 3). A re-probe difference, or any difference from a `cascade`-selected `--classify-only` record, halts (exit 4) and never overwrites that record | D4a | A3, A1b, A5 |
 | 4 | Flat `allowed_ids` / `required_ids`. A disposition-set deliberation in `archived_ids`, or modified, is engine drift | D2 | A3b, A3c, A3, A1c |
-| 5 | Evidence records `linked_deliberation_disposition` from the planner. `retained_*` never halts. The command never archives. The A4 gate does not re-check disposition-set deliberations (re-plan cycle-1 R2) | D3a, U5a | A2, A2b, A1c, A4b, A5 |
+| 5 | Evidence records `linked_deliberation_disposition` from the planner. `retained_*` never halts. The command never archives. The A4 gate does not re-check disposition-set deliberations (re-plan cycle-1 R2), except on a `safe_close` record with an UNVERIFIED engine, where no archive is planned (re-plan cycle-2 C2-1) | D3a, U5a | A2, A2b, A1c, A4b, A5 |
 | 6 | Stale `dag-root` on 198-S | D8a, topology | Recommendation only: remove the label (see the deliberation) |
 
 **Removed from the plan:** every linked-deliberation term in `allowed_ids` and
@@ -71,14 +89,14 @@ backlog):
 | A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Uses the A1 `redact`; `engine_semantics.reason` and `close_path_selection.reason` are not redacted (cycle-1 R6). Owns the `EXIT_*` constants in `shipment_close/__init__.py` (cycle-1 R15). M / medium |
 | A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty temporary directory (cycle-1 R3). S / medium |
 | A2a | *new* | **New task.** CLI engine-semantics probe (`shipment_close/engine_probe.py`). S / low |
-| A2b | *new* | **New task (cycle-1 R4).** Safe-close observation set (`shipment_close/observation.py`), with no disposition-set deliberation (cycle-1 R2). S / medium |
+| A2b | *new* | **New task (cycle-1 R4).** Safe-close observation set (`shipment_close/observation.py`). It holds no disposition-set deliberation (cycle-1 R2) unless the engine is UNVERIFIED (cycle-2 C2-1). A missing member is recorded, not raised (cycle-2 C2-2). S / medium |
 | A2 | `192.003-T` | **Changed.** Planner-based disposition snapshot, `select_close_path`, observation set from A2b. M / medium |
 | A3b | `192.005-T` | **Changed.** Parser, flat sets, and INV-10 (cycle-1 R4 moved drift to A3c). M / medium |
 | A3c | *new* | **New task (cycle-1 R4).** `linked_deliberation_drift` evaluator. S / medium |
 | A3 | `192.006-T` | **Changed.** Engine re-probe in revalidation, the `--classify-only` record hand-off (cycle-1 R1), exit 3 and exit 4 semantics, post-close re-collection. CLI wiring moves to A3d. M / medium |
 | A3d | *new* | **New task (cycle-1 R4).** `cli.py` wiring, USAGE, and `--json` output. S / low |
 | A4 | `192.007-T` | **Changed.** Selected-path validation and the `close_evidence` checks. The observation-set re-check moves to A4b. M / medium |
-| A4b | *new* | **New task (cycle-1 R4).** SAFE_CLOSE observation-set re-check. No disposition-set deliberation re-check, no planned-`archive` exemption, no `stranded_linked_deliberation` warning (cycle-1 R2). S / medium |
+| A4b | *new* | **New task (cycle-1 R4).** SAFE_CLOSE observation-set re-check. No planned-`archive` exemption and no `stranded_linked_deliberation` warning (cycle-1 R2). Disposition-set deliberation records are re-checked only on an UNVERIFIED-engine record (cycle-2 C2-1). S / medium |
 | A5 | `192.008-T` | **Changed.** Step 0(c) points to the command. The disposition step takes its inputs from the evidence. The mutating-mode exit-3 routing row is revised (cycle-1 R1). M / low |
 | A6 | `192.009-T` | **Changed (minor).** The pointer names the engine gate and the disposition step. S / low |
 | A7 | `192.010-T` | **Changed (minor).** Docs gain the new fields and exit semantics. S / low |
@@ -126,8 +144,10 @@ The re-harvest sets each task's `dependencies` to exactly the following
 * `192.007-T`, A4b, `192.008-T`, and `192.009-T` carry the one-PR constraint.
 
 **Review state.** The plan-review PASS below predates this amendment. Under
-P-021 C6, this plan must be re-reviewed before 198-S is claimed. Plan hardening
-is extended with INV-P8 and INV-P9 (see Plan Hardening).
+P-021 C6, this plan was re-reviewed on 2026-10-02 (cycles 1-2) with verdict
+PASS_WITH_FOLLOWUPS and no open P0/P1; the follow-up is the Stage re-harvest
+above, before 198-S is claimed. Plan hardening is extended with INV-P8 and
+INV-P9 (see Plan Hardening).
 
 ## Problem Frame
 
@@ -256,8 +276,9 @@ set-term rules), so each satisfies the 2-hour rule.
     prefix. The check is textual and runs before anything else reads the
     path. `path: null` is accepted only on a `retained_read_error`
     disposition and a `read_failures[]` entry, where the planner reported a
-    path outside the backlog root and A2 kept only the `reason_code`. Any
-    other value rejects the record.
+    path outside the backlog root and A2 kept only the `reason_code`, and on
+    an `observation_set` entry with `location: missing` (re-plan cycle-2
+    C2-2). Any other value rejects the record.
   * **Redaction function (re-plan cycle-1 R6).** `redact(text) -> tuple[str,
     bool]` is defined here, not in `shipment_close/`, because the validator
     needs it and the gate never imports the command package. A1b's
@@ -337,8 +358,12 @@ set-term rules), so each satisfies the 2-hour rule.
     `disposition_plan_to_record` drops both, and
     `disposition_plan_from_record(r, *, shipment_id, engine)` restores them
     from those two record fields. It is also the **disposition snapshot**
-    that A3c compares against. The observation set never contains a
-    disposition-set deliberation (re-plan cycle-1 R2; see A2b and H-C2). The
+    that A3c compares against. The observation set contains no
+    disposition-set deliberation (re-plan cycle-1 R2), except on a
+    `safe_close` record with an UNVERIFIED engine (re-plan cycle-2 C2-1; see
+    A1c, A2b, and H-C2). An `observation_set` entry for an expected member
+    that is missing at baseline records `location: missing`, `path: null`,
+    `sha256: null`, and `declared_status: null` (re-plan cycle-2 C2-2). The
     1.10.x key `linked_deliberations` is removed (re-plan);
   * `invocation{argv_redacted, started_at, finished_at, exit_code, timed_out, mutation_state: none | completed | indeterminate, stdout{total_bytes, total_lines, sha256, capture_truncated, excerpt, redaction_applied}, stderr{...same}}`
     (both excerpts are always persisted, bounded and redacted, on success and on
@@ -358,7 +383,9 @@ set-term rules), so each satisfies the 2-hour rule.
      for `cascade` (and the reverse) are rejected; a path field that is
      absolute, contains `..`, carries a drive or UNC prefix, or lies outside
      the backlog root is rejected, and `path: null` on a
-     `retained_read_error` disposition is accepted (re-plan cycle-1 R12).
+     `retained_read_error` disposition, or on an `observation_set` entry
+     with `location: missing` and a null `sha256`, is accepted (re-plan
+     cycle-1 R12; cycle-2 C2-2).
   2. **Cascade internal-consistency table (AS-F11):** `postcondition_verdict:
      fail`, a non-zero `exit_code`, a non-empty `linked_deliberation_drift`,
      and `disposition_byte_identical: false` under a `pass` verdict are each
@@ -431,9 +458,17 @@ set-term rules), so each satisfies the 2-hour rule.
     recorded `allowed_ids` or `required_ids` that contains a disposition-set
     deliberation ID is rejected (D2; the H10 explicit-member carve-out does not
     apply, because H10 IDs are excluded from the disposition set).
-  * **No deliberation in the observation set (re-plan cycle-1 R2).** An
-    `observation_set` entry whose ID is in the disposition snapshot is
-    rejected.
+  * **Deliberations in the observation set (re-plan cycle-1 R2; cycle-2
+    C2-1).** An `observation_set` entry whose ID is in the disposition
+    snapshot is rejected, with one exception: on a `safe_close` record whose
+    `engine_semantics.verdict` is `UNVERIFIED`. There, the observation set
+    must contain exactly one entry for each `records[]` path of every
+    disposition whose outcome is not `already-archived`, with that
+    deliberation's ID and the snapshot's `path` and `sha256`. A missing,
+    extra, or mismatched entry is rejected. This exception is safe because
+    the outcome rule above forbids a planned `archive` under an UNVERIFIED
+    engine, so the disposition step archives nothing. Under a `VERIFIED`
+    engine, and on every `cascade` record, the rejection still applies.
 * **Tests (test-first, four table-driven scenarios):**
   1. **Outcome and engine-consistency table:** every `retained_*` outcome
      under its matching engine verdict, including `retained_read_error` with
@@ -448,8 +483,14 @@ set-term rules), so each satisfies the 2-hour rule.
   3. **Set-term table:** a recorded `required_ids` or `allowed_ids` containing
      a disposition-set deliberation ID is rejected; an explicit-member
      deliberation (H10) in `allowed_ids` is accepted.
-  4. **Observation-set table:** a `safe_close` record whose observation set
-     contains a disposition-set deliberation ID is rejected.
+  4. **Observation-set table:** a `safe_close` record with a `VERIFIED`
+     engine whose observation set contains a disposition-set deliberation ID
+     is rejected; a `safe_close` record with an UNVERIFIED engine whose
+     observation set holds exactly the `records[]` paths and hashes of its
+     non-`already-archived` dispositions is accepted, and the same record
+     with one such path omitted, with a changed `sha256`, or with an
+     `already-archived` deliberation's path added is rejected (re-plan
+     cycle-2 C2-1).
 
   Fixtures build dispositions from `LinkedDeliberationOutcome` values and
   `PLANNED_ARCHIVE`, and never hard-code a linked deliberation in either set.
@@ -652,7 +693,9 @@ set-term rules), so each satisfies the 2-hour rule.
     * `version` is passed unchanged only when it is a `str` of at most 64
       characters that fully matches the merged release-version pattern
       (`re.fullmatch(shipment_closure._RELEASE_VERSION_PATTERN, version,
-      flags=re.ASCII)`, reused rather than restated) **and**
+      flags=re.ASCII)`, reused rather than restated, and imported lazily
+      inside `probe_engine_semantics` under the private-name rule, re-plan
+      cycle-2 C2-4) **and**
       `redact(version) == version`. Otherwise `None` is passed.
     * `commit` is passed unchanged only when it is a `str` that fully matches
       `^[0-9a-f]{7,64}$`. Otherwise `None` is passed.
@@ -726,7 +769,7 @@ set-term rules), so each satisfies the 2-hour rule.
 * **Files:** `src/autoharness/shipment_close/observation.py` (new), and
   `tests/test_shipment_close_observation.py` (new).
 * **Changes:**
-  * `compute_observation_set(manifest_items, shipment_id, backlog_dir, *, excluded_ids) -> tuple[ObservationEntry, ...]`
+  * `compute_observation_set(manifest_items, shipment_id, backlog_dir, *, excluded_ids, deliberation_records=()) -> tuple[ObservationEntry, ...]`
     is read-only and returns one entry per record path, with its
     workspace-relative `path`, location (queue or archive), SHA-256, and
     declared status, each encoded with A1 `observation_entry_to_record`
@@ -734,7 +777,31 @@ set-term rules), so each satisfies the 2-hour rule.
     * the shipment-reconcile `mode: safe-close` observation set: the parent
       feature of each manifest task, plus every unshipped sibling task;
     * every out-of-manifest descendant of each manifest feature member (the
-      classifier's traversal helper).
+      classifier's traversal, `shipment_closure._scan_backlog` and
+      `_enumerate_descendants`);
+    * the entries built from `deliberation_records` (re-plan cycle-2 C2-1,
+      below).
+  * **Private helpers (re-plan cycle-2 C2-4).** `_scan_backlog`,
+    `_enumerate_descendants`, and `_read_artifact_record` are imported
+    lazily inside `compute_observation_set`, under the private-name rule in
+    the re-plan amendment.
+  * **Per-ID resolution and missing members (re-plan cycle-2 C2-2).** Each
+    expected traversal ID is first resolved with
+    `shipment_closure._read_artifact_record` (`queue/` and `archive/`, with a
+    frontmatter `id` match). This matches the skill's safe-close step 3,
+    which fingerprints each member's baseline location as `queue`,
+    `archive`, or `missing`, and treats a member that is "already archived,
+    descoped, or missing **at baseline**" as baseline state that is
+    "explicitly **NOT** a halt":
+    * no match records `location: missing`, `path: null`, `sha256: null`,
+      and `declared_status: null`, and does not raise;
+    * one match is located and fingerprinted;
+    * more than one match (torn), a `BacklogUnavailableError`, a `None`
+      traversal scan, or a resolved path that cannot be fingerprinted raises
+      `CascadeEvidenceError`, which A2 turns into exit 2 with no record. That
+      matches the skill, which halts only when a member "resolves to more
+      than one record, cannot be fingerprinted, or otherwise cannot be read
+      consistently".
   * **Closure-scope exclusion (re-plan cycle-1 R11).** Every ID in
     `closure_scope(S)` (`items(S) ∪ {S}`, computed locally exactly as A3b
     computes `allowed_ids`) is excluded, matching the skill's safe-close
@@ -743,11 +810,23 @@ set-term rules), so each satisfies the 2-hour rule.
     is itself a manifest member (a whole-feature manifest), because
     safe-close archives it.
   * `excluded_ids` is supplied by A2: every ID in the disposition snapshot.
-    The set never contains a disposition-set deliberation (re-plan cycle-1
+    It removes those IDs from the traversal entries, so under a `VERIFIED`
+    engine the set holds no disposition-set deliberation (re-plan cycle-1
     R2; see H-C2).
-  * A torn or missing observation-set member raises `CascadeEvidenceError`,
-    which A2 turns into exit 2 with no record (fail-closed, matching the
-    skill's safe-close, which cannot run without the set).
+  * **UNVERIFIED-engine deliberation records (re-plan cycle-2 C2-1).**
+    When the engine verdict is `UNVERIFIED`, A2 passes as
+    `deliberation_records` every `records[]` entry of each disposition
+    whose outcome is not `already-archived`. Each becomes one entry with
+    the deliberation ID, the snapshot's `path` and `sha256`, the location
+    taken from the path's `queue/` or `archive/` segment, and the snapshot's
+    `declared_status`. The entries are copied from the disposition snapshot
+    and never re-read, so a deliberation's `retained_*` outcome never makes
+    the set fail. A `retained_read_error` path has no `records[]` entry and
+    is not included. Under a `VERIFIED` engine, A2 passes nothing. This
+    closes the residual of AN-F07: an unauthorized direct cascade on a
+    1.10.x engine that archives a linked deliberation. Under an UNVERIFIED
+    engine, A1c forbids a planned `archive`, so the disposition step
+    archives nothing and the A4b re-check of these paths cannot misfire.
 * **Tests (test-first, four scenarios):**
   1. a task-only, partial-feature manifest yields the parent feature and the
      unshipped siblings, including a sibling already archived at baseline;
@@ -756,7 +835,14 @@ set-term rules), so each satisfies the 2-hour rule.
      a descendant; in a whole-feature manifest, the covering feature (a
      manifest member, so inside `closure_scope(S)`) is absent while its
      archived out-of-manifest descendants are present (re-plan cycle-1 R11);
-  4. a torn observation-set member raises, and nothing is returned.
+     the `records[]` paths of a non-`already-archived` disposition passed as
+     `deliberation_records` are present with the snapshot's `sha256`, and an
+     `already-archived` disposition's paths, which A2 never passes, are
+     absent (re-plan cycle-2 C2-1);
+  4. **Torn versus missing table:** a torn observation-set member raises,
+     and nothing is returned; a missing parent feature is recorded as
+     `location: missing` with a null `path` and `sha256`, and nothing raises
+     (re-plan cycle-2 C2-2).
 * **Depends on:** A1c. **Harness surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
@@ -816,17 +902,24 @@ set-term rules), so each satisfies the 2-hour rule.
     * it fingerprints `out_of_manifest_descendant_ids` (location plus SHA-256);
     * when the **selected** path is SAFE_CLOSE, it also records the
       **safe-close observation set** by calling A2b
-      `compute_observation_set(..., excluded_ids=<every disposition-snapshot ID>)`.
-      The set is path-keyed and never contains a disposition-set deliberation
-      (re-plan cycle-1 R2). The skill's Linked-Deliberation Disposition step
-      is the only archiver of those records and re-plans them after the close
-      from live referrers, so the A4b write-time re-check cannot key on them
-      (see H-C2). The disposition snapshot itself stays in
+      `compute_observation_set(..., excluded_ids=<every disposition-snapshot ID>, deliberation_records=<see below>)`.
+      The set is path-keyed. Under a `VERIFIED` engine (classifier
+      SAFE_CLOSE), A2 passes no `deliberation_records`, so the set holds no
+      disposition-set deliberation (re-plan cycle-1 R2): the skill's
+      Linked-Deliberation Disposition step may archive those records after
+      the close, so the A4b write-time re-check cannot key on them (see
+      H-C2). Under an UNVERIFIED engine, A2 passes every `records[]` entry of
+      each disposition whose outcome is not `already-archived` (re-plan
+      cycle-2 C2-1), because no archive is planned and the A4b re-check
+      cannot misfire. The disposition snapshot itself stays in
       `pre_close.linked_deliberation_disposition` for A3c drift detection.
       This covers task-only, partial-feature manifests, which have no manifest
-      feature to traverse (AN-F07/AN-F09/AN-F01). If the observation set cannot be established,
+      feature to traverse (AN-F07/AN-F09/AN-F01). If the observation set cannot be established
+      (a torn or unreadable member; a missing member is recorded as
+      `location: missing`, re-plan cycle-2 C2-2),
       `--classify-only` exits 2 and writes no record. That is fail-closed, and
-      it matches the skill's own safe-close, which cannot run without the set;
+      it matches the skill's own safe-close, which halts on the same
+      conditions;
     * a torn or missing manifest member, or a torn observation-set member,
       fails closed. Disposition-set deliberations follow the planner's
       non-halting `retained_*` outcomes instead (`RECONCILE_FAIL_SNAPSHOT_*`
@@ -844,11 +937,13 @@ set-term rules), so each satisfies the 2-hour rule.
      the disposition snapshot, and exits 0; the same fixture with a fake
      `1.10.1` probe records `classifier_verdict: CASCADE`,
      `engine_semantics.verdict: UNVERIFIED`, and
-     `selected_close_path: safe_close`, records the A2b observation set, and
-     exits 3.
+     `selected_close_path: safe_close`, records the A2b observation set,
+     including the record paths of the fixture's linked deliberation, now
+     planned `retained_engine_unverified` (re-plan cycle-2 C2-1), and exits 3.
   2. **Disposition-snapshot table:** a manifest member linking a live
-     deliberation records it with a planned outcome, and the deliberation is
-     absent from the observation set (re-plan cycle-1 R2); a deliberation
+     deliberation records it with a planned outcome, and under a `VERIFIED`
+     engine the deliberation is absent from the observation set (re-plan
+     cycle-1 R2); a deliberation
      that is itself an explicit manifest member is absent from the snapshot
      (H10); a torn deliberation records `retained_ambiguous` and does not
      halt; an injected planner `planning_error` exits 2 with no record.
@@ -895,7 +990,7 @@ set-term rules), so each satisfies the 2-hour rule.
     `allowed_ids` (H10). A disposition-set deliberation is in neither set. No
     public set helper exists on `main`, so production code does not import the
     private `_closure_scope_ids`. A parity test pins `allowed_ids` to it
-    instead (M1, INV-P8).
+    instead (M1, INV-P8; see the private-name rule in the re-plan amendment).
   * It evaluates INV-10 in full:
     * `returned_ids == []`;
     * the unexpected-artifact check and the missing-required check, each
@@ -939,8 +1034,13 @@ set-term rules), so each satisfies the 2-hour rule.
      `" archived "`, `True`, `None`, and a missing `status` key, the local
      check over the A1-encoded and decoded status equals `_is_engine_inert`
      over the raw parsed value (`None` for the missing key), so only the
-     first is archived. This test is the only importer of the two private
-     helpers.
+     first is archived. This test module is the only importer of these two
+     private helpers. It also pins the existence and signature (for the
+     pattern, a `str`) of the five lazily imported private names
+     (`_RELEASE_VERSION_PATTERN`, `_scan_backlog`, `_enumerate_descendants`,
+     `_read_artifact_record`, `_check_path_containment`), so an upstream
+     rename fails this test rather than `cli.py` import (re-plan cycle-2
+     C2-4).
 
   Fixtures build dispositions from `LinkedDeliberationOutcome` values, and
   none hard-codes a linked deliberation in either set.
@@ -970,10 +1070,19 @@ set-term rules), so each satisfies the 2-hour rule.
       `disposition_byte_identical` is `false`;
     * `snapshot_drift`: the re-collected snapshot differs from the pre-close
       snapshot in deliberation IDs, link kinds, linking members, declared
-      status, record paths, SHA-256, unresolved references, planned
-      `outcome` per deliberation, or `read_failures` (each `{path,
-      reason_code}`). For a `retained_read_error` disposition, its `path` and
-      `reason_code` are compared too (re-plan cycle-1 R10);
+      status, record paths, SHA-256, unresolved references, or
+      `read_failures` (each `{path, reason_code}`). That is the field set the
+      skill's Cascade Close Sub-Procedure step 5 compares. The planned
+      `outcome` is compared only when the pre-close or the re-collected
+      outcome is a settled outcome (`retained_read_error`,
+      `retained_ambiguous`, or `already-archived`), and for a
+      `retained_read_error` disposition its `path` and `reason_code` are
+      compared too (re-plan cycle-1 R10). This matches the settled-outcome
+      comparison in the skill's Linked-Deliberation Disposition step 1.
+      Any other outcome change is not drift (re-plan cycle-2 C2-3). For
+      example, `retained_shared_reference` and the planned `archive` can
+      swap when a live referrer outside `closure_scope(S)` changes, and the
+      disposition step re-plans those outcomes itself;
     * `planning_error`: the post-close re-collection returned a non-null
       `planning_error`. That is drift, never a skipped comparison, so it
       makes `postcondition_verdict: fail` (exit 5) (re-plan cycle-1 R10).
@@ -992,11 +1101,14 @@ set-term rules), so each satisfies the 2-hour rule.
   3. **`modified` drift:** a modified deliberation record yields `modified`
      drift and `disposition_byte_identical: false`.
   4. **`snapshot_drift` and `planning_error` table:** a re-collected
-     snapshot with a new link kind, a changed planned `outcome`, a
+     snapshot with a new link kind, a changed settled outcome, a
      `retained_read_error` whose `path` or `reason_code` changed, or a
      changed `read_failures` entry yields `snapshot_drift`; a re-collection
      with a non-null `planning_error` yields `planning_error` drift; each
-     row makes `postcondition_verdict: fail` (re-plan cycle-1 R10).
+     row makes `postcondition_verdict: fail` (re-plan cycle-1 R10); a
+     planned `archive` that became `retained_shared_reference` from a new
+     live referrer, with every compared field unchanged, yields no drift
+     (re-plan cycle-2 C2-3).
 * **Depends on:** A3b (`192.005-T`). **Harness surface:**
   `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
@@ -1247,19 +1359,26 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     record, the gate requires every `observation_set` entry to still be at
     exactly its recorded location, with its recorded SHA-256. An entry that was
     already archived at baseline therefore stays valid, and only a change
-    relative to the baseline fails. Any difference fails as
+    relative to the baseline fails. An entry recorded `location: missing`
+    (re-plan cycle-2 C2-2) must still be missing:
+    `shipment_closure._read_artifact_record(backlog_dir, id)`, imported
+    lazily under the private-name rule, must return `None`. A record that now
+    resolves, or a torn or unsafe resolution (`BacklogUnavailableError`),
+    fails. Any difference fails as
     `failed_check: close_evidence`. This is the same baseline invariance that
     safe-close itself asserts, re-checked at write time. An empty observation
     set (when no manifest task has a parent outside `closure_scope(S)` and no
     manifest feature has an out-of-manifest descendant) passes with a
     `warnings[]` entry saying the check was vacuous.
-  * **Path containment (re-plan cycle-1 R12).** Every observation-set path
+  * **Path containment (re-plan cycle-1 R12).** Every non-null
+    observation-set path
     is read through the same containment discipline as `close_evidence`
     (A4 steps 1 and 3), before any byte is read: the A1 textual check (the
     validator has already run), then the first segment must equal the
     detected backlog root, then
     `shipment_closure._check_path_containment(workspace_root / path,
-    backlog_dir)` (verified on `main`: lexical containment, no symlink,
+    backlog_dir)`, imported lazily inside the re-check function under the
+    private-name rule (re-plan cycle-2 C2-4) (verified on `main`: lexical containment, no symlink,
     junction, or reparse point on any component from the backlog root down,
     and canonical containment; it returns a read-error reason code or
     `None`). A non-`None` result fails as `failed_check: close_evidence`
@@ -1268,29 +1387,57 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     available, regular file, `fstat` equal to the pre-open `lstat`, bounded
     size). Reusing the planner's own containment helper, rather than
     restating it, keeps one containment rule for every backlog path the
-    plan reads; the A4b tests pin the behavior, so a change to the private
-    helper surfaces there.
-  * **No disposition-set deliberation re-check (re-plan cycle-1 R2).** The
-    observation set never holds a disposition-set deliberation (A2b, A1c), so
-    the gate has no planned-`archive` exemption, never reads a disposition
-    outcome, and emits no `stranded_linked_deliberation` warning. The skill's
-    Linked-Deliberation Disposition step runs before the closure artifact is
-    written, is the sole archiver, and re-plans from live referrers after the
-    close, so any gate rule keyed on the pre-close plan would mis-fire. Engine
-    drift on those deliberations is detected at close time by A3c's
-    post-close re-collection, which is the authoritative point. Stranded
-    advisories are surfaced by the skill's own disposition report;
+    plan reads; the A4b tests and the A3b private-name pin cover the
+    behavior, so a change to the private helper surfaces there.
+  * **Disposition-set deliberations (re-plan cycle-1 R2; cycle-2 C2-1,
+    C2-5).** The gate has no planned-`archive` exemption, never reads a
+    disposition outcome, and emits no `stranded_linked_deliberation`
+    warning. It re-checks a disposition-set deliberation only through the
+    observation set, and only where A2b put one there:
+    * **`VERIFIED` engine (classifier SAFE_CLOSE).** The observation set
+      holds no disposition-set deliberation (A2b, A1c), so the gate does not
+      re-check them. The skill's Linked-Deliberation Disposition step runs
+      after the close and before the closure artifact is written, and it is
+      the sole archiver. It takes its inputs from Step 0(c) (from the
+      evidence record after A5), then re-runs the planner with the recorded
+      engine decision. That plan must match the snapshot on IDs, link kinds,
+      linking members, record paths, hashes, settled outcomes, and
+      unresolved references, but the archive-or-retain outcome of every
+      other deliberation comes from the live referrers at that moment, and
+      step 3 re-checks the shared-reference guard before each archive. A
+      gate rule keyed on the pre-close planned outcome would therefore
+      misfire. Engine drift on those deliberations under the CASCADE path is
+      detected at close time by A3c's post-close re-collection, which is the
+      authoritative point.
+    * **UNVERIFIED engine (classifier SAFE_CLOSE or CASCADE).** The
+      observation set holds every `records[]` path of each disposition
+      whose outcome is not `already-archived` (A2b), and the gate re-checks
+      each one byte-identical (location and SHA-256), like any other entry.
+      The re-check cannot misfire: A1c forbids a planned `archive` under an
+      UNVERIFIED engine, and the skill's disposition step mutates nothing
+      ("Engine UNVERIFIED means no mutation").
+
+    Stranded advisories are surfaced by the skill's own disposition report;
     gate-level surfacing stays in the deferred stash scope `3B43CE5A` /
     `D79EA53A`.
   * **Guarantee:** a direct cascade can never be accepted under
     `close_path: cascade`. Under `close_path: safe_close`, it is detected whenever
     it changed anything in the observation set, which is exactly the corruption
     SAFE_CLOSE exists to prevent. The set includes every out-of-manifest
-    descendant a cascade could reach. The undetected residual is a direct cascade whose effect
-    equals the safe-close outcome, which by construction left nothing outside
-    closure scope changed. It remains a P-005 deviation by skill contract, and
-    upstream enforcement is requested in A7. Accepting this benign residual is a
-    Stage-recommended decision, pending operator confirmation.
+    descendant a cascade could reach and, under an UNVERIFIED engine (for
+    example backlogit 1.10.x, whose cascade can archive linked
+    deliberations), every hashed record path of each disposition-set
+    deliberation that was not already archived pre-close (re-plan cycle-2
+    C2-1). Under a `VERIFIED` (1.11.x) engine, the flat cascade does not
+    archive disposition-set deliberations, so they are not re-checked. Two
+    residuals stay undetected. The first is a direct cascade whose effect
+    equals the
+    safe-close outcome, which by construction left nothing outside closure
+    scope changed. The second is a `retained_read_error` deliberation path,
+    which has no hash and is never read. Both remain P-005 deviations by
+    skill contract, and upstream enforcement is requested in A7. Accepting
+    the first, benign residual is a Stage-recommended decision, pending
+    operator confirmation.
 * **Tests (test-first, two scenarios):**
   1. **Observation-set table:** on a task-only, partial-feature fixture, an
      observation-set parent feature or sibling now archived or modified →
@@ -1303,12 +1450,18 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
      `closure_scope(S)` and never in the observation set (re-plan cycle-1
      R11). An observation-set entry whose path has a junctioned or
      symlinked component, or whose first segment is not the detected backlog
-     root, → FAIL with no read (re-plan cycle-1 R12).
-  2. **Disposition independence (re-plan cycle-1 R2 regression pin):** after
-     safe-close, the disposition step archives a planned-`archive`
-     deliberation → PASS, because no disposition-set deliberation is in the
-     observation set, and no `stranded_linked_deliberation` warning is
-     emitted for a `retained_*` disposition.
+     root, → FAIL with no read (re-plan cycle-1 R12). An entry recorded
+     `location: missing` that is still missing → PASS, and one that now
+     resolves to a record → FAIL (re-plan cycle-2 C2-2).
+  2. **Disposition table (re-plan cycle-1 R2 regression pin; cycle-2
+     C2-1):** on a `VERIFIED`-engine `safe_close` record, the disposition
+     step archives a planned-`archive` deliberation after safe-close →
+     PASS, because no disposition-set deliberation is in the observation
+     set, and no `stranded_linked_deliberation` warning is emitted for a
+     `retained_*` disposition. On an UNVERIFIED-engine `safe_close` record,
+     a `retained_engine_unverified` deliberation whose recorded record path
+     is unchanged → PASS, and one that a direct cascade archived or
+     modified → FAIL as `failed_check: close_evidence`.
 * **Depends on:** A4 (`192.007-T`). **Harness surface:**
   `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
@@ -1331,12 +1484,22 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
       the engine-semantics re-probe), baseline capture, step 1 invocation, and
       steps 2-6 now point at the mutating `autoharness shipment cascade-close`;
     * the Linked-Deliberation Disposition step takes its step 0 inputs from the
-      evidence record and never recomputes them: the selected close path and
+      evidence record instead of from in-session Step 0(c) state, and never
+      recomputes them: the selected close path and
       reason from `pre_close.close_path_selection`, the engine decision from
-      `pre_close.engine_semantics`, the disposition snapshot from
+      `pre_close.engine_semantics` (rebuilt with A1
+      `engine_semantics_from_record`), the disposition snapshot from
       `pre_close.linked_deliberation_disposition`, and the path baseline from
       `observation_set` (SAFE_CLOSE) or `out_of_manifest_descendants`
-      (CASCADE). The step stays the only archiver of a disposition-set
+      (CASCADE). That input source is the only change to the step (re-plan
+      cycle-2 C2-5). Steps 1-6 are unchanged: step 1 still re-runs the
+      planner after the close with that recorded engine decision and halts
+      unless the fresh plan matches the snapshot on IDs, link kinds, linking
+      members, record paths, hashes, settled outcomes, and unresolved
+      references, while every other deliberation's archive-or-retain outcome
+      still comes from live referrers; step 3 still re-checks the
+      shared-reference guard before each single-artifact archive. Under an
+      UNVERIFIED engine the step still mutates nothing. The step stays the only archiver of a disposition-set
       deliberation. The command never archives one (038-DL D3a, one archiver);
     * every close runs `autoharness shipment cascade-close --classify-only` first;
     * the mutating `cascade-close` invocation **is** the destructive command.
@@ -1571,14 +1734,20 @@ that follow-up is recorded here.
   the temp directory is cleaned up with bounded retry (compound 034-DL pattern).
 * **Merge overlap** with 192-S / 197-S on `_ship.agent.md*`. They touch different
   sections, and Ship rebases.
-* **Two private `shipment_closure` names are reused in production** (re-plan
-  cycle-1 R6, R12): A2a's sanitizer matches `_RELEASE_VERSION_PATTERN`, and
-  A4b's observation-set read calls `_check_path_containment`. Both are
-  reused, not restated, so the probe and the gate apply the merged rule
-  exactly. A rename on `main` breaks the import loudly, and the A2a and A4b
-  tests pin the behavior. M1 still governs the flat sets, which are
-  re-derived locally and parity-pinned (A3b), and `_closure_scope_ids` and
-  `_is_engine_inert` stay test-only imports.
+* **Private `shipment_closure` names are reused in production** (re-plan
+  cycle-1 R6, R12; cycle-2 C2-2, C2-4): A2a's sanitizer matches
+  `_RELEASE_VERSION_PATTERN`; A2b traverses with `_scan_backlog`,
+  `_enumerate_descendants`, and `_read_artifact_record`; and A4b's
+  observation-set re-check calls `_check_path_containment` and
+  `_read_artifact_record`. They are reused, not restated, so the probe,
+  the observation set, and the gate apply the merged rules exactly. Under
+  the private-name rule in the re-plan amendment, each is imported lazily
+  inside the function that uses it, never at module top level of `cli.py`
+  or a `shipment_close/` module, so an upstream rename cannot break CLI
+  import. The A3b parity test module pins their existence and signatures,
+  so a rename fails the tests first. M1 still governs the flat sets, which
+  are re-derived locally and parity-pinned (A3b), and `_closure_scope_ids`
+  and `_is_engine_inert` stay test-only imports.
 
 ## Plan Hardening Signals
 
@@ -1771,8 +1940,10 @@ D2, D3a, D4a) as a testable plan invariant.
   * `src/autoharness/gates/shipment_closure.py` on `main` (`654b143d`):
     `assess_cascade_engine_semantics`, `select_close_path`,
     `compute_linked_deliberation_disposition`, and the private
-    `_closure_scope_ids`, `_is_engine_inert`, `_check_path_containment`, and
-    `_RELEASE_VERSION_PATTERN` (re-plan cycle-1 R6, R9, R12).
+    `_closure_scope_ids`, `_is_engine_inert`, `_check_path_containment`,
+    `_RELEASE_VERSION_PATTERN`, `_read_artifact_record`, `_scan_backlog`, and
+    `_enumerate_descendants` (re-plan cycle-1 R6, R9, R12; cycle-2 C2-2,
+    C2-4).
 * **Added protected invariants:**
   * INV-P8: `allowed_ids` and `required_ids` are flat (038-DL D2).
     `allowed_ids = closure_scope(S) = items(S) ∪ {S}`, and the A3b parity test
@@ -1800,18 +1971,36 @@ D2, D3a, D4a) as a testable plan invariant.
     `assess_cascade_engine_semantics` and `select_close_path` over the recorded
     raw inputs, so a hand-edited verdict or selection is rejected, and a later
     widening of the verified minor lines needs no record-shape change.
-  * **H-C2 (A2, A2b, A4b; re-plan cycle-1 R2, amends R5a of the re-plan
-    deliberation):** the observation set is path-keyed and never contains a
-    disposition-set deliberation. The A4 gate has no planned-`archive`
-    exemption and no `stranded_linked_deliberation` warning. Rationale: the
-    skill's Linked-Deliberation Disposition step is the sole archiver and
-    re-plans after the close from live referrers, so any gate exemption or
-    check keyed on the pre-close plan mis-fires (the executed outcome may
-    legitimately differ from the recorded planned outcome). Engine drift on those deliberations (re-plan item 4) is
-    detected at close time by A3c's post-close re-collection, which is the
-    authoritative point. Stranded-advisory surfacing at the gate stays in the
-    deferred stash scope `3B43CE5A` / `D79EA53A`. The pre-close disposition
-    snapshot stays in the record (item 5) for A3c drift detection.
+  * **H-C2 (A1c, A2, A2b, A4b; re-plan cycle-1 R2 and cycle-2 C2-1, C2-5;
+    amends R5a of the re-plan deliberation):** the observation set is
+    path-keyed. The A4 gate has no planned-`archive` exemption and no
+    `stranded_linked_deliberation` warning.
+    * Under a `VERIFIED` engine, the observation set never contains a
+      disposition-set deliberation. Rationale: the skill's
+      Linked-Deliberation Disposition step is the sole archiver. After the
+      close, it re-runs the planner with the recorded engine decision. The
+      fresh plan must match the snapshot on IDs, link kinds, linking
+      members, record paths, hashes, settled outcomes, and unresolved
+      references, but every other deliberation's archive-or-retain outcome
+      comes from live referrers. A gate exemption or check keyed on the
+      pre-close planned outcome would therefore misfire (the executed
+      outcome may legitimately differ from the recorded planned outcome).
+      Engine drift on those deliberations (re-plan item 4) is detected at
+      close time by A3c's post-close re-collection, which is the
+      authoritative point.
+    * Under an UNVERIFIED engine (a `safe_close` record only), the
+      observation set contains every `records[]` path of each disposition
+      whose outcome is not `already-archived`, and A4b re-checks each one
+      byte-identical. A1c forbids a planned `archive` under an UNVERIFIED
+      engine, and the skill's disposition step mutates nothing, so the
+      re-check cannot misfire. It closes the AN-F07 residual: an
+      unauthorized direct cascade on a 1.10.x engine that archives linked
+      deliberations. This narrows R5a's "never contains one" to the
+      `VERIFIED` case. Under this plan's amendment rule, the plan text wins
+      over the deliberation.
+    * Stranded-advisory surfacing at the gate stays in the deferred stash
+      scope `3B43CE5A` / `D79EA53A`. The pre-close disposition snapshot stays
+      in the record (item 5) for A3c drift detection.
   * **H-C3 (decomposition; re-plan cycle-1 R4):** A2a is a separate S / low
     unit, and A2b (S / medium) takes the observation set out of A2, so A2
     stays inside the 2-hour rule. The other re-plan units are also split:
@@ -1825,7 +2014,8 @@ D2, D3a, D4a) as a testable plan invariant.
   | Run the read-only `backlogit version` probe twice per mutating run | low | None. It is read-only and passes `--no-update-check` |
 
 * **Review state:** the 2026-09-27 plan-review PASS below predates this pass.
-  The re-plan must be re-reviewed before 198-S is claimed (P-021 C6).
+  The re-plan was re-reviewed on 2026-10-02 (cycles 1-2, P-021 C6):
+  PASS_WITH_FOLLOWUPS. See the review record.
 
 ## Plan Review
 
@@ -1836,6 +2026,9 @@ decision: PASS
 
 * Review record: `docs/reviews/2026-09-27-cascade-close-evidence-capture-plan-review.md`.
   It is authoritative for findings, dispositions, and persona coverage.
+* Re-review (2026-10-02, P-021 C6, stash `1263B218`): cycles 1-2 over the
+  re-plan, verdict **PASS_WITH_FOLLOWUPS** (no open P0/P1). The follow-up is
+  the Stage re-harvest of 198-S. See the review record's re-review sections.
 * Gate: **PASS** under severity rule C4, with 0 open P0 and 0 open P1, after three
   review-fix cycles and a bounded fix-verification loop confined to the cycle-3
   fixes.

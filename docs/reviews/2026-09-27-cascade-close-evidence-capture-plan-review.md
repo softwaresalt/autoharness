@@ -279,3 +279,37 @@ be claimed (P-021 C6).
 | Security Lens | F5 | below P1 | R7 |
 
 Cycle 1 verdict: REVISE -> all findings dispositioned and applied; cycle-2 verification pending.
+
+## Re-review (2026-10-02, P-021 C6, stash 1263B218) — cycle 2
+
+Cycle 2 verified the cycle-1 fixes (batches 1 to 4, through `6d923631`) with
+the same four personas.
+
+### Cycle-1 status by persona
+
+| Persona | Cycle-2 verdict | Cycle-1 findings |
+|---|---|---|
+| Correctness | PASS_WITH_FOLLOWUPS | F1 to F12 all RESOLVED |
+| Architecture Strategist | PASS_WITH_FOLLOWUPS | F1 to F8 all RESOLVED |
+| Scope Boundary Auditor | PASS_WITH_FOLLOWUPS | SR-1 to SR-7 all RESOLVED |
+| Security Lens | PASS_WITH_FOLLOWUPS | F1 to F5 all RESOLVED |
+
+No new P0 or P1 finding was raised. Cycle 2 raised five new P2 findings,
+C2-1 to C2-5. The Orchestrator dispositioned each one, and this commit
+applies all five to the plan. No fix needed a new design decision.
+
+### New P2 findings and fixes (this commit)
+
+| ID | Source | Finding | Fix |
+|---|---|---|---|
+| C2-1 | Scope N-1, Security N1 | Residual of AN-F07: on a `safe_close` record with an UNVERIFIED engine, an unauthorized direct cascade on a 1.10.x engine could archive linked deliberations, which the observation set excluded | A2b adds every `records[]` path of each disposition that is not `already-archived` when the engine is UNVERIFIED. The entries are copied from the snapshot and never re-read. A4b re-checks them byte-identical (location and SHA-256). A1c accepts deliberations in the observation set only in this case, requires that exact set, and still rejects them otherwise. Updated: A1 shape, A2 (text and scenario 1), A2b `excluded_ids` text, A4b Guarantee (residuals stated accurately), and H-C2. Scenarios were folded into A1c 4, A2b 3, and A4b 2. No misfire is possible, because A1c forbids a planned `archive` under an UNVERIFIED engine and the skill's disposition step mutates nothing |
+| C2-2 | Correctness N1 | A2b raised on a missing observation-set member. The skill's safe-close step 3 treats a member missing at baseline as baseline state, "explicitly **NOT** a halt" (verified in `.github/skills/shipment-reconcile/SKILL.md`, safe-close step 3) | A2b resolves each expected ID with `_read_artifact_record`. A missing member is recorded as `location: missing` with null `path`, `sha256`, and `declared_status`. Only a torn or unfingerprintable member raises (exit 2). A1 accepts `path: null` on such an entry. A4b requires a member recorded as missing to still be missing. Scenarios were folded into A1 1, A2b 4, and A4b 1 |
+| C2-3 | Correctness N2 | A3c `snapshot_drift` compared every planned `outcome`, so a legitimate live-referrer change (for example `retained_shared_reference` and `archive` swapping) was reported as drift | `snapshot_drift` compares the field set of the skill's Cascade Close step 5 (IDs, link kinds, linking members, declared status, record paths, unresolved references), plus SHA-256 and `read_failures`. It compares the outcome only when either side is settled (`retained_read_error`, `retained_ambiguous`, `already-archived`), matching the settled-outcome check in the skill's disposition step 1. It keeps the `path` and `reason_code` comparison for `retained_read_error` and `planning_error` drift. A no-drift row was folded into A3c scenario 4 |
+| C2-4 | Architecture | Production imports of private `shipment_closure` names contradicted M1, and an upstream rename would break `cli.py` import | One private-name rule, in the re-plan amendment: `_RELEASE_VERSION_PATTERN` (A2a), `_scan_backlog` and `_enumerate_descendants` (A2b), `_read_artifact_record` (A2b, A4b), and `_check_path_containment` (A4b) are imported lazily inside the function that uses them, never at module top level. The test-only A3b parity module pins their existence and signatures. `_closure_scope_ids` and `_is_engine_inert` stay test-only. Updated: M1 and A3b ("only importer" claim), A2a, A2b, A4b, Risks, and the Hardening Pass 3 sources |
+| C2-5 | Architecture (remaining check) | The plan said both that the disposition step "re-plans from live referrers" and that it "never recomputes" its inputs | Reconciled with the skill's Linked-Deliberation Disposition section. Step 0 takes its inputs from Step 0(c). Step 1 re-runs the planner after the close with the Step 0(c) engine decision. That plan must equal the snapshot on IDs, link kinds, linking members, record paths, hashes, settled outcomes, and unresolved references; other outcomes come from live referrers. Step 3 re-checks the shared-reference guard. A5 now changes only the source of the step 0 inputs (the evidence record, with the engine decision rebuilt by `engine_semantics_from_record`) and leaves steps 1 to 6 unchanged, consistent with 038-DL D3a (one archiver). The wording was aligned in A2, A4b, A5, and H-C2 |
+
+### Follow-up
+
+Re-harvest must carry R3, R6, R7, R17 (and all R-items) into task bodies 192.001-T..192.010-T, create the six new tasks, remove edge 192.004-T -> 192.003-T, update the 198-S manifest, and remove the stale dag-root label before 198-S is claimed.
+
+Re-review verdict: PASS_WITH_FOLLOWUPS (no open P0/P1; follow-up = Stage re-harvest).
