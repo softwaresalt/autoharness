@@ -1109,6 +1109,77 @@ archive, one ID at a time.
      `probe_surface` the Step 0(c) engine-semantics gate recorded. Pass **no
      cascade flag**.
 
+4. **Verify-after-each** (immediately after each archive call). All of the
+   following must hold:
+   * the queue copy is absent, and the archive copy is present exactly once;
+   * the archive copy declares `status: archived`;
+   * its `archived_status` equals the deliberation's declared status in the
+     disposition snapshot;
+   * its frontmatter, compared **semantically** (parsed YAML, because
+     `ArchiveItem` re-serializes it), equals the frontmatter of the record
+     bytes retained at the step 3 re-check, except for the three engine keys
+     `status`, `archived_status`, and `archived_from`;
+   * its Markdown body after the closing frontmatter delimiter is
+     **byte-exact** against those retained record bytes;
+   * disposition-baseline invariance holds: nothing changed relative to the
+     step 2 disposition baseline except that call's allowed `ArchiveItem`
+     side effects.
+
+   Any failure: `HALT — linked-deliberation disposition failed {id}`, emit a
+   **P-005** violation, and follow the D6 sequence of safe-close step 6
+   (capture evidence → HALT → emit P-005 → request EXPLICIT operator approval
+   → REVALIDATE → execute ONLY the approved rollback). There is no retry and
+   no rollback of the completed closure: the close path's gate already
+   passed, so the closure is complete and only the disposition is not. Do not
+   advance to post-mode, and never commit a torn disposition (a partially
+   verified archive state; the self-hosting repository records this lesson in
+   `docs/compound/2026-08-15-torn-archive-log-entry-without-file-mutation-must-not-be-committed.md`).
+
+5. **Report.** Add to the closure report (safe-close step 9 or cascade-close
+   step 6):
+   * `linked_deliberation_disposition: [{id, link_kinds, linking_members, outcome, reason_code, path, referrers, pre_sha256, post_sha256, archived_status}]`,
+     one entry per disposition-set deliberation, where `outcome` is a
+     `LinkedDeliberationOutcome` value (`archived`, `already-archived`,
+     `retained_read_error`, `retained_ambiguous`,
+     `retained_engine_unverified`, `retained_live_status`,
+     `retained_shared_reference`, or `retained_description_mention`),
+     `reason_code` is always present and copied verbatim from the planner
+     (never re-derived; an unknown code is carried as-is), `path` is present
+     for `retained_read_error`, `referrers` lists the live referrer IDs of a
+     `retained_shared_reference`, and `post_sha256` and `archived_status` are
+     present for an `archived` outcome. An empty disposition set records
+     `linked_deliberation_disposition: []`;
+   * `unresolved_references` (`{id, reason_code}`), plus every planner read
+     failure (`{path, reason_code}`);
+   * the durable advisories, carried into the closure summary:
+     `ENGINE_SEMANTICS_UNVERIFIED` with the Step 0(c) reason whenever the
+     engine-semantics verdict is `UNVERIFIED`, and
+     `ENGINE_LINE_UNVERIFIED_ADVISORY` naming the probed version whenever its
+     minor line is not a P-015 verified engine-semantics line;
+   * a `stranded_linked_deliberation` advisory listing every `retained_*`
+     outcome, so a deliberation that stays live across closures stays visible
+     to the operator.
+
+6. **Gate decision.**
+   * Every disposition-set deliberation has exactly one outcome and every
+     `archived` outcome passed step 4 → `recommendation: DISPOSITION_COMPLETE`.
+     Proceed to post-mode. Retained outcomes are reported, never halt, and
+     never block this gate.
+   * Any halt above → `recommendation: HALT — linked-deliberation disposition failed {id}`.
+     Do not proceed to post-mode or to any commit step.
+
+**Action risk (ProposedAction / ActionRisk).** `{{OP_ARCHIVE_ITEM_MCP}}` on a
+linked deliberation is ActionRisk **medium**: it is reversible with
+`backlogit restore`, and it is gated by the shared-reference guard, the
+pre-archive hash re-check, and verify-after-each. The engine-version probe is
+ActionRisk **none** (read-only). This step adds no other mutation.
+
+**Sanctioned successor.** This step is the sanctioned successor to the
+operator-approved 190-S closure deviation, in which the operator approved a
+one-off standalone archive of a linked deliberation that the cascade had left
+live. That archive now happens only here, under the guards above; no closure
+repeats it as an ad hoc deviation.
+
 ### Mixed-Role Detection Mode (`mode: detect-mixed-role`, operator-invoked, READ-ONLY)
 
 No lock is acquired for this mode — no backlog/shipment artifact is ever
