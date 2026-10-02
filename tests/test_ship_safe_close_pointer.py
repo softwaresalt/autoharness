@@ -88,5 +88,64 @@ class ShipSafeClosePointerTests(unittest.TestCase):
                 self.assertNotIn('VERIFIED FULLY-COVERED-ROOT EXCEPTION', normalized)
 
 
+def _normalized_files():
+    return tuple((label, ' '.join(content.split())) for label, content in _files())
+
+
+class ShipFlatCascadePhraseParityTests(unittest.TestCase):
+    """195.013-T: phrase-level parity (never byte parity) between the Ship
+    template and its dogfood mirror for the 195.006-T flat-cascade realignment."""
+
+    def test_j1_cascade_bullet_uses_flat_wording(self) -> None:
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(
+                    'never `validated_linked_deliberations(S)`: the engine leaves '
+                    'validated linked deliberations independent, so they are never in '
+                    '`allowed_ids(S)` / `required_ids(S)`',
+                    normalized,
+                )
+                self.assertIn(
+                    "CASCADE also requires the skill's engine-semantics gate to return "
+                    '`VERIFIED` (via `select_close_path`); otherwise the skill selects '
+                    '`SAFE_CLOSE`',
+                    normalized,
+                )
+                self.assertNotIn('may be live/required', normalized)
+                self.assertNotIn('separate linked-deliberation expansion', normalized)
+
+    def test_j2_safe_close_hands_off_to_disposition_step(self) -> None:
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(
+                    'out-of-manifest artifacts is still baseline-invariant, then the '
+                    "skill's Linked-Deliberation Disposition step.",
+                    normalized,
+                )
+                self.assertIn(
+                    'after either close path returns `CLOSED`, runs the path-independent '
+                    'Linked-Deliberation Disposition step (P-015 INV-12) before post-mode',
+                    normalized,
+                )
+                self.assertIn(
+                    'Ship never proceeds to post-mode directly after `CLOSED`',
+                    normalized,
+                )
+
+    def test_j3_commit_gate_requires_closed_disposition_complete_and_proceed(self) -> None:
+        gate = (
+            '**only after** safe-close returned `CLOSED`, the Linked-Deliberation '
+            'Disposition step returned `DISPOSITION_COMPLETE` (never after a '
+            'disposition `HALT`), and post-mode returned `PROCEED`'
+        )
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(gate, normalized)
+                self.assertNotIn(
+                    'safe-close returned `CLOSED` and post-mode returned `PROCEED`',
+                    normalized,
+                )
+
+
 if __name__ == '__main__':
     unittest.main()
