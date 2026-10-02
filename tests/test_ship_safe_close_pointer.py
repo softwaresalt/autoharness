@@ -146,6 +146,55 @@ class ShipFlatCascadePhraseParityTests(unittest.TestCase):
                     normalized,
                 )
 
+    def test_j4_role_boundary_carries_inv12_archival_exception(self) -> None:
+        row = (
+            '| Planning | Read plans and deliberation artifacts for execution context | '
+            'Create or modify deliberation, spike, plan, or review artifacts '
+            '(P-015 INV-12 archival transitions of validated linked deliberations excepted) |'
+        )
+        for label, content in _files():
+            with self.subTest(file=label):
+                self.assertIn(row, content.splitlines())
+
+    def test_k6_mirror_archives_no_deliberation_outside_inv12(self) -> None:
+        """The dogfood mirror has no Step 7 deliberation retirement: it never
+        calls an item-archive operation, and every line that pairs archival
+        with deliberations is scoped to P-015 INV-12."""
+
+        mirror = _mirror_text()
+        self.assertNotIn('backlogit_archive_item', mirror)
+        self.assertNotIn('7. **Source artifact cleanup**', mirror)
+        for line in mirror.splitlines():
+            lowered = line.casefold()
+            if 'archiv' in lowered and 'deliberation' in lowered:
+                with self.subTest(line=line[:80]):
+                    self.assertIn('INV-12', line)
+
+    def test_k5_ship_pair_parity_for_step7_disposition_wording(self) -> None:
+        """195.012-T wording: in both files deliberation archival is routed
+        only through the INV-12 disposition step, and the withdrawn
+        independent archive call is absent; the template's Step 7 consumes
+        the report (the mirror has no Step 7 by design, see K-6)."""
+
+        for label, normalized in _normalized_files():
+            with self.subTest(file=label):
+                self.assertIn(
+                    'Linked-Deliberation Disposition step (P-015 INV-12)', normalized
+                )
+                self.assertNotIn(
+                    'If it exists and is not already archived, call `backlogit_archive_item`',
+                    normalized,
+                )
+        template = ' '.join(_template_text().split())
+        for phrase in (
+            "read the shipment's `linked_deliberation_disposition` report",
+            '**never archive**',
+            '`skipped_not_in_disposition_report`',
+            'copied from the disposition report, never re-derived',
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, template)
+
 
 if __name__ == '__main__':
     unittest.main()
