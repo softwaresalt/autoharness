@@ -214,9 +214,14 @@ Adopt Option A. Each stash item maps to a settled source:
 * **R5a — Gate layering (consequence of D3a "two layers"; revised by
   plan-review cycle 1, R2).**
   * The A4 write-time SAFE_CLOSE observation-set re-check does **not** cover
-    disposition-set deliberations at all. The observation set never contains
-    one, the gate has no planned-`archive` exemption, and it emits no
-    `stranded_linked_deliberation` warning.
+    disposition-set deliberations, with one exception (plan-review cycle 2,
+    C2-1): on a `safe_close` record whose engine is UNVERIFIED, every hashed
+    record path of each deliberation not already archived pre-close is in the
+    observation set and must stay byte-identical. Under an UNVERIFIED engine
+    no planned `archive` is allowed, so the disposition step archives nothing
+    and the check cannot mis-fire. Otherwise the observation set contains no
+    disposition-set deliberation. The gate has no planned-`archive` exemption
+    and emits no `stranded_linked_deliberation` warning.
   * Rationale: the skill's Linked-Deliberation Disposition step is the sole
     archiver (one archiver, U6b) and re-plans after the close from live
     referrers. The executed outcome can therefore legitimately differ from the
@@ -224,7 +229,7 @@ Adopt Option A. Each stash item maps to a settled source:
     pre-close plan mis-fires. INV-12's verify-after-each, reported in the
     closure artifact, owns every disposition mutation.
   * Engine drift on those deliberations (item 4) is detected at close time by
-    the A3b post-close re-collection, which is the authoritative point.
+    the A3c post-close re-collection, which is the authoritative point.
     Gate-level stranded-advisory surfacing stays in the deferred stash scope
     `3B43CE5A` / `D79EA53A`.
   * The pre-close disposition snapshot stays in the evidence record (item 5)
