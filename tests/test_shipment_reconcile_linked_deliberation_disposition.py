@@ -230,7 +230,8 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                 self.assertRegex(
                     baseline,
                     r"Any change to `[^`]+/stash\.jsonl` or `[^`]+/archive/stash\.jsonl`, "
-                    r"or to any other path, violates the disposition baseline",
+                    r"or to any other path outside these allowed side effects, violates "
+                    r"the disposition baseline",
                 )
 
     def test_h_l_matcher_referenced_by_name_not_restated(self) -> None:
@@ -1000,17 +1001,38 @@ class ReviewFixCycleFourAssertions(unittest.TestCase):
                     baseline,
                 )
                 self.assertIn(
-                    "A containment failure while capturing this baseline is never read or "
-                    "hashed; it halts with `HALT — linked-deliberation disposition failed "
-                    "{id}`, where `{id}` is the shipment ID; emit **P-005** once; no "
-                    "mutation.",
+                    "A path that fails those checks, or cannot be read, while capturing "
+                    "this baseline is never opened or hashed and does not halt",
                     baseline,
                 )
                 self.assertIn(
-                    "A containment failure during a later comparison is never read or "
-                    "hashed and fails that step's verification",
+                    "by its workspace-relative path and `reason_code` (`path_escape`, "
+                    "`symlink_or_reparse_point`, or `unreadable_file`) instead of a SHA-256",
                     baseline,
                 )
+                self.assertIn(
+                    "compare such a path by location and `reason_code` only, never by "
+                    "following or reading it",
+                    baseline,
+                )
+                self.assertIn(
+                    "is never read or hashed and fails that step's verification (step 4 "
+                    "or step 6)",
+                    baseline,
+                )
+                # Scenario row (f): a containment failure is retained, never a halt.
+                self.assertNotIn("A containment failure while capturing this baseline", baseline)
+
+    def test_step_3_retention_rules_have_explicit_precedence(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn(
+                    "These retention rules apply in the order listed, and the first "
+                    "that applies settles the ID",
+                    archive,
+                )
+                self.assertIn("deliberately retains every harvest-created deliberation", archive)
 
 
 class HelperHardeningAssertions(unittest.TestCase):

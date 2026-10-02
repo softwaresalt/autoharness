@@ -1157,18 +1157,24 @@ archive, one ID at a time.
    effect: the step 3 engine stash-link guard retains every target that can
    carry such a link, so the call is a no-op for every archived target. Any
    change to `{{BACKLOG_DIRECTORY}}/stash.jsonl` or `{{BACKLOG_DIRECTORY}}/archive/stash.jsonl`,
-   or to any other path, violates the disposition baseline.
+   or to any other path outside these allowed side effects, violates the
+   disposition baseline.
 
    The exempt paths, excluded from the (iii) fingerprint, are only the
    gitignored item event log, the index, lock and hook-queue files, and this
    run's own closure report path under `{{BACKLOG_DIRECTORY}}/reconcile/` (written by
    step 5). Every other `{{BACKLOG_DIRECTORY}}/reconcile/` path stays in the baseline.
 
-   A containment failure while capturing this baseline is never read or
-   hashed; it halts with `HALT — linked-deliberation disposition failed {id}`,
-   where `{id}` is the shipment ID; emit **P-005** once; no mutation. A
-   containment failure during a later comparison is never read or hashed and
-   fails that step's verification (step 4 or step 6).
+   A path that fails those checks, or cannot be read, while capturing this
+   baseline is never opened or hashed and does not halt: record it in the
+   (iii) fingerprint by its workspace-relative path and `reason_code`
+   (`path_escape`, `symlink_or_reparse_point`, or `unreadable_file`) instead
+   of a SHA-256, as Step 0(c) records a read-error record path. At every later
+   comparison in steps 4 and 6, compare such a path by location and
+   `reason_code` only, never by following or reading it. Any other path that
+   fails those checks at a later comparison, or a recorded path whose
+   location or `reason_code` changed, is never read or hashed and fails that
+   step's verification (step 4 or step 6).
 
 3. **Archive each planned `archive`, one at a time, in ascending ID order.**
    * Immediately before each call, re-run the SHA-256 check after first
@@ -1194,14 +1200,17 @@ archive, one ID at a time.
    * A hash mismatch halts with `HALT — linked-deliberation disposition failed {id}`;
      emit a **P-005** violation once through D6, scoped to the disposition
      archive of {id}; the completed close-path closure is never rolled back.
+   * These retention rules apply in the order listed, and the first that
+     applies settles the ID.
    * **Archive-resident target.** A target whose disposition-snapshot record
      path lies under `{{BACKLOG_DIRECTORY}}/archive/` rather than
      `{{BACKLOG_DIRECTORY}}/queue/` is never archived: record outcome
      `retained_ambiguous` with `reason_code: archive_resident_unarchived` for
      that ID, with no mutation, and the loop continues. For such a record,
-     `ArchiveItem` stamps `archived_from` with the engine's canonical queue
-     restore path, which is not a disposition-snapshot record path, so step 4
-     could never verify it.
+     `ArchiveItem` stamps `archived_from` with a path that is not a
+     disposition-snapshot queue record path (the engine's canonical queue
+     restore path when the record already sits at its archive path), so step
+     4 could never verify it.
    * **Engine stash-link guard.** A target whose retained record bytes
      declare a `custom_fields.source_stash_id` key, with any value, is never
      archived: record outcome `retained_shared_reference` with `reason_code:
@@ -1214,7 +1223,9 @@ archive, one ID at a time.
      The guard ignores whether that stash entry still looks active, because
      the index can lag the stash file. It therefore makes the
      `ArchiveLinkedStashEntries` call inside `ArchiveItem` a no-op for every
-     archived target.
+     archived target. It deliberately retains every harvest-created
+     deliberation, even one whose link is no longer active, so such a
+     deliberation stays in the `stranded_linked_deliberation` advisory.
    * A new live referrer records `retained_shared_reference: [referrer IDs]`
      for that ID with no mutation, and the loop continues.
    * Otherwise archive that single artifact via `{{OP_ARCHIVE_ITEM_MCP}}`
