@@ -1137,11 +1137,19 @@ archive, one ID at a time.
    * Immediately before each call, re-run the SHA-256 check after first
      re-listing the deliberation ID's record
      paths under `.backlogit/queue/` and `.backlogit/archive/` and require
-     exactly the disposition snapshot's single path, then check that record
+     exactly the disposition snapshot's single path, then reapply the Step
+     0(c) containment checks to that record path before reading any of its
+     bytes (lexical and canonical containment in the backlog root, and no
+     symlink, junction, or other reparse point), then check that record
      path against its disposition-snapshot hash **and** the shared-reference
      guard for that ID, so nothing that changed since
      the snapshot is archived (TOCTOU). Retain the record bytes this re-check
      read; step 4 compares against them.
+   * A containment failure at this re-check is never opened, hashed, or
+     archived; it halts identically with `HALT — linked-deliberation
+     disposition failed {id}`; emit a **P-005** violation once through D6,
+     scoped to the disposition archive of {id}; no mutation, and the
+     completed close-path closure is never rolled back.
    * A record-path re-list mismatch halts identically with `HALT —
      linked-deliberation disposition failed {id}`; emit a **P-005**
      violation once through D6, scoped to the disposition archive of
@@ -1159,9 +1167,15 @@ archive, one ID at a time.
 4. **Verify-after-each** (immediately after each archive call). All of the
    following must hold:
    * the queue copy is absent, and the archive copy is present exactly once;
+   * the archive copy passes the Step 0(c) containment checks (lexical and
+     canonical containment in the backlog root, and no symlink, junction, or
+     other reparse point) before any of its bytes are read;
    * the archive copy declares `status: archived`;
    * its `archived_status` equals the deliberation's declared status in the
      disposition snapshot;
+   * its `archived_from` provenance is present and well-formed, naming the
+     deliberation's disposition-snapshot queue record path (missing or
+     ill-formed provenance fails verification);
    * its frontmatter, compared **semantically** (parsed YAML, because
      `ArchiveItem` re-serializes it), equals the frontmatter of the record
      bytes retained at the step 3 re-check, except for the three engine keys
@@ -1191,8 +1205,13 @@ archive, one ID at a time.
      `retained_read_error`, `retained_ambiguous`,
      `retained_engine_unverified`, `retained_live_status`,
      `retained_shared_reference`, or `retained_description_mention`),
-     `reason_code` is always present and copied verbatim from the planner
-     (never re-derived; an unknown code is carried as-is), `path` is present
+     `reason_code` is always present and is copied verbatim from the planner
+     for every planner outcome other than the planned `archive` (never
+     re-derived; an unknown code is carried as-is), except that a verified
+     `archived` outcome carries `reason_code: archived` (the outcome-value
+     default, replacing the planner's pre-mutation `archive`) and an outcome
+     synthesized for a `planning_error` carries `reason_code:
+     planning_error`, `path` is present
      for `retained_read_error`, `referrers` lists the live referrer IDs of a
      `retained_shared_reference`, and `post_sha256` and `archived_status` are
      present for an `archived` outcome. Report keys map to planner/code fields

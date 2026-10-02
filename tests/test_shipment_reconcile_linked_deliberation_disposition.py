@@ -248,7 +248,25 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                         self.assertIn(f"`{outcome}`", section)
                 report = _step(_section(raw), 5)
                 self.assertIn(
-                    "`reason_code` is always present and copied verbatim from the planner",
+                    "`reason_code` is always present and is copied verbatim from the "
+                    "planner for every planner outcome other than the planned `archive` "
+                    "(never re-derived; an unknown code is carried as-is)",
+                    report,
+                )
+                # A verified archive reports the outcome-value default, never the
+                # planner's pre-mutation `archive`; a planning_error synthesizes.
+                self.assertIn(
+                    "a verified `archived` outcome carries `reason_code: archived` (the "
+                    "outcome-value default, replacing the planner's pre-mutation `archive`)",
+                    report,
+                )
+                self.assertIn(
+                    "an outcome synthesized for a `planning_error` carries `reason_code: "
+                    "planning_error`",
+                    report,
+                )
+                self.assertNotIn(
+                    "`reason_code` is always present and copied verbatim from the planner (",
                     report,
                 )
                 self.assertIn("`path` is present for `retained_read_error`", report)
@@ -279,6 +297,18 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                     verify,
                 )
                 self.assertIn("the archive copy declares `status: archived`", verify)
+                self.assertIn(
+                    "its `archived_from` provenance is present and well-formed, naming the "
+                    "deliberation's disposition-snapshot queue record path (missing or "
+                    "ill-formed provenance fails verification)",
+                    verify,
+                )
+                self.assertIn(
+                    "the archive copy passes the Step 0(c) containment checks (lexical and "
+                    "canonical containment in the backlog root, and no symlink, junction, "
+                    "or other reparse point) before any of its bytes are read",
+                    verify,
+                )
                 self.assertIn("compared **semantically** (parsed YAML", verify)
                 self.assertIn(
                     "except for the three engine keys `status`, `archived_status`, "
@@ -729,6 +759,22 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 archive = _step(_section(raw), 3)
                 self.assertIn("re-listing the deliberation ID's record paths under", archive)
                 self.assertIn("require exactly the disposition snapshot's single path", archive)
+                # The TOCTOU re-check reapplies containment before any byte read.
+                self.assertIn(
+                    "then reapply the Step 0(c) containment checks to that record path "
+                    "before reading any of its bytes (lexical and canonical containment "
+                    "in the backlog root, and no symlink, junction, or other reparse "
+                    "point), then check that record path against its disposition-snapshot "
+                    "hash",
+                    archive,
+                )
+                self.assertIn(
+                    "A containment failure at this re-check is never opened, hashed, or "
+                    "archived; it halts identically with `HALT — linked-deliberation "
+                    "disposition failed {id}`; emit a **P-005** violation once through D6, "
+                    "scoped to the disposition archive of {id}; no mutation",
+                    archive,
+                )
                 self.assertIn(
                     "A record-path re-list mismatch halts identically with `HALT — "
                     "linked-deliberation disposition failed {id}`; emit a **P-005** "
