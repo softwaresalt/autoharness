@@ -1067,11 +1067,17 @@ archive, one ID at a time.
    (this self-hosting repository's own implementation lives at
    `src/autoharness/gates/shipment_closure.py`). The call passes no
    `stash_path`, so the planner reads the active stash file at
-   `{{BACKLOG_DIRECTORY}}/stash.jsonl`. Before any archive, the planner's disposition
+   `{{BACKLOG_DIRECTORY}}/stash.jsonl`. The planner result is consumed in this order. Check `planning_error` first: when `planning_error` is present, it
+   is exempt from the planner-vs-snapshot equality check because the
+   planner returns `dispositions=()`; the equality check applies only
+   when the planner returns without `planning_error`. Before any archive,
+   when the planner returns without `planning_error`, the planner's disposition
    set (deliberation IDs, link kinds, linking members, record paths, and
    record hashes) MUST equal the Step 0(c) disposition snapshot. Any
-   difference halts with `HALT — linked-deliberation disposition failed {id}`
-   and no mutation. Other workspaces apply the same stated rules and
+   difference halts with `HALT — linked-deliberation disposition failed {id}`;
+   emit **P-005** once; no mutation. `{id}` is the first differing
+   deliberation ID, or the shipment ID for a set-level added/removed-ID
+   difference. Other workspaces apply the same stated rules and
    first-match precedence over the eight `LinkedDeliberationOutcome` values
    that INV-12 names (P-015 Vocabulary and Invariant Summary below). The
    list below is the precedence order; other outcome enumerations in this
@@ -1088,9 +1094,12 @@ archive, one ID at a time.
    `closure_scope(S)` that are not truly archived, shipments other than this
    one that are not truly archived, and active stash entries. It never counts
    the deliberation itself, any other deliberation, docs, or archived records.
-   A planner `planning_error` carries no planned `archive`, so every
-   deliberation in the Step 0(c) disposition snapshot is retained and
-   reported with `retained_ambiguous`.
+   A planner `planning_error` carries no planned `archive`. Preserve outcomes
+   already settled by the Step 0(c) disposition snapshot (`retained_read_error`,
+   `retained_ambiguous`, and `already-archived`); for every remaining snapshot
+   deliberation, report outcome `retained_ambiguous` with `reason_code:
+   planning_error`, and exclude `already-archived` deliberations from the
+   `stranded_linked_deliberation` advisory.
 
    **Engine UNVERIFIED means no mutation.** When the Step 0(c)
    engine-semantics verdict is `UNVERIFIED`, every disposition-set
@@ -1133,6 +1142,10 @@ archive, one ID at a time.
      guard for that ID, so nothing that changed since
      the snapshot is archived (TOCTOU). Retain the record bytes this re-check
      read; step 4 compares against them.
+   * A record-path re-list mismatch halts identically with `HALT —
+     linked-deliberation disposition failed {id}`; emit a **P-005**
+     violation once through D6, scoped to the disposition archive of
+     {id}; the completed close-path closure is never rolled back.
    * A hash mismatch halts with `HALT — linked-deliberation disposition failed {id}`;
      emit a **P-005** violation once through D6, scoped to the disposition
      archive of {id}; the completed close-path closure is never rolled back.
@@ -1186,10 +1199,13 @@ archive, one ID at a time.
      as follows: `id` → `deliberation_id`, `linking_members` →
      `linking_member_ids`, `referrers` → `referrer_ids`, and `pre_sha256`
      records one pre-archive SHA-256 per record. When the planner reports
-     `planning_error`, record the `planning_error`, give every Step 0(c)
-     disposition-snapshot deliberation outcome `retained_ambiguous`, and list
-     each under the `stranded_linked_deliberation` advisory. An empty
-     disposition set records `linked_deliberation_disposition: []`;
+     `planning_error`, record the `planning_error`. Preserve outcomes already
+     settled by the Step 0(c) disposition snapshot (`retained_read_error`,
+     `retained_ambiguous`, and `already-archived`); for every remaining snapshot
+     deliberation, report outcome `retained_ambiguous` with `reason_code:
+     planning_error`, and exclude `already-archived` deliberations from the
+     `stranded_linked_deliberation` advisory. An empty disposition set records
+     `linked_deliberation_disposition: []`;
    * `unresolved_references` (`{id, reason_code}`), plus every planner read
      failure (`{path, reason_code}`);
    * the durable advisories, carried into the closure summary:
@@ -1207,11 +1223,16 @@ archive, one ID at a time.
      Proceed to post-mode. Retained outcomes are reported, never halt, and
      never block this gate. `linked_deliberation_disposition: []` is valid
      only when the Step 0(c) disposition snapshot is empty; a `planning_error`
-     over a non-empty snapshot reports retained outcomes instead.
+     over a non-empty snapshot preserves snapshot-settled outcomes and reports
+     only the remaining deliberations as `retained_ambiguous` with
+     `reason_code: planning_error`.
    * Any halt above → `recommendation: HALT — linked-deliberation disposition failed {id}`.
      Do not proceed to post-mode or to any commit step. On a disposition HALT,
-     release the shipment lock through the same halt path used by other
-     safe-close HALTs.
+     keep the shipment lock held through the D6 sequence (approval → REVALIDATE
+     → approved rollback) and release it only after D6 finishes — either the
+     approved rollback is complete or the operator declines — following
+     pre-mode step 7's rule to release the lock on pre-mode HALT while retaining
+     it after `PROCEED` from Ship Step 6 until post-mode completes.
 
 **Action risk (ProposedAction / ActionRisk).** `{{OP_ARCHIVE_ITEM_MCP}}` on a
 linked deliberation is ActionRisk **medium**: it is reversible with

@@ -654,6 +654,7 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
         for label, raw in _variants():
             with self.subTest(surface=label):
                 self.assertNotIn("step-not-yet-on-main", raw)
+                self.assertNotIn("transition window", raw)
                 cascade_gate = _cascade_step(raw, 7)
                 self.assertIn("Hand off to the Linked-Deliberation Disposition step", cascade_gate)
                 self.assertIn("DISPOSITION_COMPLETE", cascade_gate)
@@ -694,14 +695,24 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 self.assertIn("never substitutes a recomputed set for the snapshot", step0)
                 plan = _step(_section(raw), 1)
                 self.assertIn(
-                    "Before any archive, the planner's disposition set (deliberation IDs, "
+                    "Check `planning_error` first: when `planning_error` is present, it "
+                    "is exempt from the planner-vs-snapshot equality check because the "
+                    "planner returns `dispositions=()`; the equality check applies only "
+                    "when the planner returns without `planning_error`.",
+                    plan,
+                )
+                self.assertIn(
+                    "Before any archive, when the planner returns without "
+                    "`planning_error`, the planner's disposition set (deliberation IDs, "
                     "link kinds, linking members, record paths, and record hashes) MUST "
                     "equal the Step 0(c) disposition snapshot",
                     plan,
                 )
                 self.assertIn(
                     "Any difference halts with `HALT — linked-deliberation disposition "
-                    "failed {id}` and no mutation",
+                    "failed {id}`; emit **P-005** once; no mutation. `{id}` is the "
+                    "first differing deliberation ID, or the shipment ID for a set-level "
+                    "added/removed-ID difference.",
                     plan,
                 )
                 self.assertIn("The list below is the precedence order", plan)
@@ -718,6 +729,13 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 archive = _step(_section(raw), 3)
                 self.assertIn("re-listing the deliberation ID's record paths under", archive)
                 self.assertIn("require exactly the disposition snapshot's single path", archive)
+                self.assertIn(
+                    "A record-path re-list mismatch halts identically with `HALT — "
+                    "linked-deliberation disposition failed {id}`; emit a **P-005** "
+                    "violation once through D6, scoped to the disposition archive of "
+                    "{id}; the completed close-path closure is never rolled back.",
+                    archive,
+                )
                 self.assertIn(expected, archive)
                 verify = _step(_section(raw), 4)
                 self.assertNotIn("emit a **P-005** violation, and follow the D6 sequence", verify)
@@ -740,9 +758,15 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 report = _step(_section(raw), 5)
                 self.assertIn("When the planner reports `planning_error`", report)
                 self.assertIn("record the `planning_error`", report)
-                self.assertIn("every Step 0(c) disposition-snapshot deliberation", report)
-                self.assertIn("`retained_ambiguous`", report)
-                self.assertIn("`stranded_linked_deliberation` advisory", report)
+                self.assertIn(
+                    "Preserve outcomes already settled by the Step 0(c) disposition "
+                    "snapshot (`retained_read_error`, `retained_ambiguous`, and "
+                    "`already-archived`); for every remaining snapshot deliberation, "
+                    "report outcome `retained_ambiguous` with `reason_code: "
+                    "planning_error`, and exclude `already-archived` deliberations from "
+                    "the `stranded_linked_deliberation` advisory.",
+                    report,
+                )
                 gate = _step(_section(raw), 6)
                 self.assertIn(
                     "`linked_deliberation_disposition: []` is valid only when the "
@@ -765,8 +789,12 @@ class ReviewFixCycleOneAssertions(unittest.TestCase):
                 )
                 gate = _step(_section(raw), 6)
                 self.assertIn(
-                    "On a disposition HALT, release the shipment lock through the same "
-                    "halt path used by other safe-close HALTs",
+                    "On a disposition HALT, keep the shipment lock held through the D6 "
+                    "sequence (approval → REVALIDATE → approved rollback) and release it "
+                    "only after D6 finishes — either the approved rollback is complete or "
+                    "the operator declines — following pre-mode step 7's rule to release "
+                    "the lock on pre-mode HALT while retaining it after `PROCEED` from "
+                    "Ship Step 6 until post-mode completes.",
                     gate,
                 )
                 row_b = _matrix_row(raw, "b")
