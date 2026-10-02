@@ -120,6 +120,15 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         self.assertIn(_HALT_MISSING, content)
         self.assertNotEqual(_HALT_UNEXPECTED, _HALT_MISSING)
 
+    def test_linked_deliberation_byte_identity_drift_halt_present(self) -> None:
+        content = _skill_content()
+        self.assertIn(
+            "HALT — cascade modified linked deliberation {id} — engine semantics drift",
+            content,
+        )
+        self.assertIn("Every disposition-snapshot record path MUST remain byte-identical", content)
+        self.assertIn("linked-deliberation disposition byte-identity outcome", content)
+
     def test_two_conditions_are_independently_labelled_and_not_merged(self) -> None:
         content = _flatten(_skill_content())
         self.assertIn("Unexpected-artifact check", content)
@@ -174,6 +183,11 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         )
         self.assertIn("linked deliberations are handled only by INV-12", content)
         self.assertIn("H10 carve-out", content)
+        self.assertIn(
+            "MUST NOT trip the unexpected-artifact check merely because its "
+            "`artifact_type` is `deliberation`",
+            content,
+        )
         self.assertNotIn("every validated linked deliberation ID", content)
 
     def test_required_ids_no_longer_extended_for_linked_deliberations(self) -> None:
