@@ -1207,5 +1207,96 @@ class ReviewFixCycleSevenAssertions(unittest.TestCase):
                 )
 
 
+# 195.017-T (I-12): every realigned template/mirror pair. The policy,
+# shipment-reconcile, Ship agent and operational-closure pairs must carry none
+# of the withdrawn linked-deliberation cascade wording.
+_STALE_WORDING_PAIRS = (
+    (
+        "policy",
+        _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl",
+        _ROOT / ".github" / "policies" / "workflow-policies.md",
+    ),
+    ("shipment-reconcile", _SKILL_TEMPLATE, _SKILL_MIRROR),
+    (
+        "ship-agent",
+        _ROOT / "templates" / "agents" / "_ship.agent.md.tmpl",
+        _ROOT / ".github" / "agents" / "_ship.agent.md",
+    ),
+    (
+        "operational-closure",
+        _ROOT / "templates" / "skills" / "operational-closure" / "SKILL.md.tmpl",
+        _ROOT / ".github" / "skills" / "operational-closure" / "SKILL.md",
+    ),
+)
+_STALE_LITERALS = (
+    "expected, in-scope cascade mutation",
+    "may be live/required",
+    "CASCADE` archiving it is expected",
+    "appends, for every explicit qualifying feature member",
+)
+_LINKED_DELIBERATION_RE = re.compile(r"linked[ _-]deliberation", re.IGNORECASE)
+_SAFE_CLOSE_RE = re.compile(r"SAFE_CLOSE|safe[- ]close", re.IGNORECASE)
+# A close-path ``CLOSED`` followed, with only markup or punctuation (and an
+# optional "then"/"and") between them, by "proceed to post-mode".
+_CLOSED_THEN_POST_MODE_RE = re.compile(
+    r"\bCLOSED\b[`*\"'.,;:)\s→—-]*(?:(?:then|and)\s+)?proceed to post-mode",
+    re.IGNORECASE,
+)
+
+
+def _sentences(flat: str) -> list[str]:
+    return re.split(r"(?<=[.!?])\s+", flat)
+
+
+def _stale_wording_findings(text: str) -> list[str]:
+    """Every withdrawn linked-deliberation cascade phrase present in ``text``."""
+    flat = _flatten(text)
+    findings = [f"literal {literal!r}" for literal in _STALE_LITERALS if literal in flat]
+    for sentence in _sentences(flat):
+        if "correctly absent" in sentence and _LINKED_DELIBERATION_RE.search(sentence):
+            findings.append(f"'correctly absent' naming a linked deliberation: {sentence!r}")
+        if "always valid" in sentence and _SAFE_CLOSE_RE.search(sentence):
+            findings.append(f"'always valid' applied to SAFE_CLOSE: {sentence!r}")
+    for match in _CLOSED_THEN_POST_MODE_RE.finditer(flat):
+        findings.append(f"'Proceed to post-mode' directly after CLOSED: {match.group(0)!r}")
+    return findings
+
+
+class ClosingNegativeGrepAssertions(unittest.TestCase):
+    """195.017-T scenario I-12: the closing negative grep over every realigned pair."""
+
+    def test_no_stale_linked_deliberation_cascade_wording(self) -> None:
+        for pair, template, mirror in _STALE_WORDING_PAIRS:
+            for surface, path in (("template", template), ("mirror", mirror)):
+                with self.subTest(pair=pair, surface=surface):
+                    self.assertEqual(
+                        _stale_wording_findings(path.read_text(encoding="utf-8")), []
+                    )
+
+    def test_stale_wording_detector_catches_each_withdrawn_form(self) -> None:
+        samples = (
+            "This is an expected, in-scope cascade mutation of the record.",
+            "The deliberation may be live/required at close.",
+            "`CASCADE` archiving it is expected.",
+            "The engine appends, for every explicit qualifying feature member, its links.",
+            "A validated linked deliberation is correctly absent from `archived_ids`.",
+            "SAFE_CLOSE is always valid.",
+            "→ `recommendation: CLOSED`. Proceed to post-mode.",
+            "returns `CLOSED`, then proceed to post-mode",
+        )
+        for sample in samples:
+            with self.subTest(sample=sample):
+                self.assertNotEqual(_stale_wording_findings(sample), [])
+        self.assertEqual(
+            _stale_wording_findings(
+                "A non-feature manifest member is correctly absent from `archived_ids`. "
+                "→ `recommendation: CLOSED`. Hand off to the Linked-Deliberation "
+                "Disposition step; proceed to post-mode only after it returns "
+                "`DISPOSITION_COMPLETE`."
+            ),
+            [],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
