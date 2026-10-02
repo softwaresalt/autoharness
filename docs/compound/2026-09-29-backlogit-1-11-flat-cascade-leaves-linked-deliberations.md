@@ -4,14 +4,14 @@ description: "On backlogit 1.11.0 `backlogit shipment ship` archives only the sh
 problem_type: tool_version_behavior_drift
 category: backlogit
 component: "shipment-reconcile Cascade Close Sub-Procedure, P-015, Ship post-merge closure, src/autoharness/gates/shipment_closure.py"
-root_cause: "backlogit commit 5a4b70dd (tag v1.11.0) flattened `collectArchiveCandidateIDs`: its candidates are the shipment, each terminal not-yet-archived release-scope item, and each explicit-member feature that is not yet archived, and its descendants and linked deliberations remain independent unless their own IDs are explicit members. autoharness had encoded the 1.10.x behavior (the `linkedDeliberationIDs` helper appended linked deliberations to the candidates) as an unversioned contract, so its two-set gate put the description-linked deliberation 034-DL in `required_ids` and halted when the engine correctly left it live."
+root_cause: "backlogit commit 5a4b70dd (first released in tag v1.11.0, which points at commit 131577c) flattened `collectArchiveCandidateIDs`: its candidates are the shipment, each terminal not-yet-archived release-scope item, and each explicit-member feature that is not yet archived, and its descendants and linked deliberations remain independent unless their own IDs are explicit members. autoharness had encoded the 1.10.x behavior (the `linkedDeliberationIDs` helper appended linked deliberations to the candidates) as an unversioned contract, so its two-set gate put the description-linked deliberation 034-DL in `required_ids` and halted when the engine correctly left it live."
 resolution_type: design_change
 severity: high
 citations:
   - "190-S / 184-F post-merge closure HALT (docs/closure/190-S-184-F-post-merge-closure.md)"
   - "PR #464 (190-S, merge ef661e90)"
   - "PR #465 (190-S post-merge closure, operator-approved deviation archiving 034-DL)"
-  - "backlogit commit 5a4b70dd (tag v1.11.0): internal/core/shipment_lifecycle.go collectArchiveCandidateIDs L716-751, comment L734-735"
+  - "backlogit commit 5a4b70dd, first released in tag v1.11.0 (commit 131577c); line numbers verified at the tag: internal/core/shipment_lifecycle.go collectArchiveCandidateIDs L716-751, comment L734-735"
   - "backlogit test TestUArchiveCandidateFlat_UnlistedLinkedDeliberationIsUntouched"
   - "deliberation 038-DL (docs/decisions/2026-09-29-backlogit-1-11-cascade-linked-deliberation-alignment-deliberation.md)"
   - "deliberation 034-DL (the description-linked deliberation left live by the 190-S cascade)"
@@ -49,8 +49,8 @@ partition of umbrella feature 195-F (terminal slice: shipment 201-S).
 
 ## Engine root cause
 
-At tag `v1.11.0` (commit `5a4b70dd`, "fix(core): flatten shipment member
-projection and closure"), `internal/core/shipment_lifecycle.go`
+At tag `v1.11.0` (commit `131577c`), which first released fix commit
+`5a4b70dd` ("fix(core): flatten shipment member projection and closure"), `internal/core/shipment_lifecycle.go`
 `collectArchiveCandidateIDs` (L716-751) builds its candidates from three
 sources only: the shipment, each release-scope item that is terminal and not
 yet archived, and each explicit-member feature that is not yet archived. Its
@@ -64,7 +64,8 @@ for 1.10.x and wrong for 1.11.x.
 ## Four closure-time drift occurrences
 
 This was the fourth time autoharness discovered a backlogit engine-behavior
-change at closure time rather than before mutation:
+change during a live shipment operation rather than before mutation (three
+at closure; the 2026-08-21 claim cascade at claim time):
 
 1. **2026-08-20 — 143-S linked-deliberation cascade.** A 1.10-era cascade
    archived the out-of-manifest deliberation `019-DL` through
@@ -89,7 +90,7 @@ line: an unverified engine selects SAFE_CLOSE with `ENGINE_SEMANTICS_UNVERIFIED`
 and disposition records `retained_engine_unverified` without mutating anything.
 The single source of truth for the verified lines is
 `VERIFIED_CASCADE_ENGINE_MINOR_LINES` in
-`src/autoharness/gates/shipment_closure.py` (currently `{(1, 11)}`), mirrored by
+`src/autoharness/gates/shipment_closure.py`, mirrored by
 the "Verified engine-semantics lines" tokens in P-015 and the
 `shipment-reconcile` skill. Linked deliberations are now handled only by the
 path-independent Linked-Deliberation Disposition step (P-015 INV-12), never by
@@ -105,7 +106,9 @@ do not bump anything until that deliberation is decided.
    * `collectArchiveCandidateIDs` and `archiveItems` in
      `internal/core/shipment_lifecycle.go`.
    * `ArchiveItem` in `internal/core/archive.go`, including the set of
-     frontmatter keys it reads and writes.
+     frontmatter keys it reads and writes and its `ArchiveLinkedStashEntries`
+     call (`internal/core/stash.go`), the stash-link side effect the
+     Linked-Deliberation Disposition step's engine stash-link guard depends on.
 2. **Confirm the engine tests.** The `TestUArchiveCandidateFlat_*` tests still
    exist and still pass at the new tag, with the same assertions.
 3. **Bump together, in one change.**

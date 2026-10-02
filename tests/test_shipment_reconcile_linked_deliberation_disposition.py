@@ -1236,11 +1236,11 @@ _STALE_LITERALS = (
 )
 _LINKED_DELIBERATION_RE = re.compile(r"linked[ _-]deliberation", re.IGNORECASE)
 _SAFE_CLOSE_RE = re.compile(r"SAFE_CLOSE|safe[- ]close", re.IGNORECASE)
-# A close-path ``CLOSED`` followed, with only markup or punctuation (and an
-# optional "then"/"and") between them, by "proceed to post-mode".
+# A close-path ``CLOSED`` (case-sensitive token) followed, with only markup or
+# punctuation (and an optional "then"/"and") between them, by "proceed(s) to
+# post-mode".
 _CLOSED_THEN_POST_MODE_RE = re.compile(
-    r"\bCLOSED\b[`*\"'.,;:)\s→—-]*(?:(?:then|and)\s+)?proceed to post-mode",
-    re.IGNORECASE,
+    r"\bCLOSED\b[`*\"'.,;:)\s→—-]*(?:(?i:then|and)\s+)?(?i:proceeds? to post-mode)"
 )
 
 
@@ -1283,6 +1283,7 @@ class ClosingNegativeGrepAssertions(unittest.TestCase):
             "SAFE_CLOSE is always valid.",
             "→ `recommendation: CLOSED`. Proceed to post-mode.",
             "returns `CLOSED`, then proceed to post-mode",
+            "returns `CLOSED` and proceeds to post-mode",
         )
         for sample in samples:
             with self.subTest(sample=sample):
@@ -1292,7 +1293,8 @@ class ClosingNegativeGrepAssertions(unittest.TestCase):
                 "A non-feature manifest member is correctly absent from `archived_ids`. "
                 "→ `recommendation: CLOSED`. Hand off to the Linked-Deliberation "
                 "Disposition step; proceed to post-mode only after it returns "
-                "`DISPOSITION_COMPLETE`."
+                "`DISPOSITION_COMPLETE`. The shipment is closed, then proceeds to "
+                "post-mode only after the disposition step."
             ),
             [],
         )

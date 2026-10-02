@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
@@ -131,6 +132,7 @@ class ShipFlatCascadePhraseParityTests(unittest.TestCase):
                     'Ship never proceeds to post-mode directly after `CLOSED`',
                     normalized,
                 )
+                self.assertIn("the skill's own halt handling governs any rollback", normalized)
 
     def test_j3_commit_gate_requires_closed_disposition_complete_and_proceed(self) -> None:
         gate = (
@@ -152,9 +154,19 @@ class ShipFlatCascadePhraseParityTests(unittest.TestCase):
             'Create or modify deliberation, spike, plan, or review artifacts '
             '(P-015 INV-12 archival transitions of validated linked deliberations excepted) |'
         )
+        allowed = (
+            'archive a validated linked deliberation only through the `shipment-reconcile` '
+            'Linked-Deliberation Disposition step (P-015 INV-12), never independently'
+        )
         for label, content in _files():
             with self.subTest(file=label):
                 self.assertIn(row, content.splitlines())
+                backlog_rows = [
+                    line for line in content.splitlines() if line.startswith('| Backlog |')
+                ]
+                self.assertEqual(len(backlog_rows), 1)
+                allowed_cell = backlog_rows[0].split(' | ')[1]
+                self.assertIn(allowed, allowed_cell)
 
     def test_k6_mirror_archives_no_deliberation_outside_inv12(self) -> None:
         """The dogfood mirror has no Step 7 deliberation retirement: it never
@@ -162,13 +174,22 @@ class ShipFlatCascadePhraseParityTests(unittest.TestCase):
         with deliberations is scoped to P-015 INV-12."""
 
         mirror = _mirror_text()
-        self.assertNotIn('backlogit_archive_item', mirror)
         self.assertNotIn('7. **Source artifact cleanup**', mirror)
-        for line in mirror.splitlines():
-            lowered = line.casefold()
-            if 'archiv' in lowered and 'deliberation' in lowered:
-                with self.subTest(line=line[:80]):
-                    self.assertIn('INV-12', line)
+        sentences = re.split(r'(?<=[.;!?])\s+', ' '.join(mirror.split()))
+        for sentence in sentences:
+            if 'backlogit_archive_item' in sentence:
+                with self.subTest(sentence=sentence[:80]):
+                    self.assertRegex(sentence, r'\bnever\b|INV-12')
+        # An archival verb with "deliberation" as its object within a few words
+        # (a hard-wrapped sentence is flattened first, so wrapping cannot hide it).
+        archival_of_deliberation = re.compile(
+            r'\barchiv\w*\s+(?:[\w`-]+\s+){0,4}deliberations?\b', re.IGNORECASE
+        )
+        paired = [s for s in sentences if archival_of_deliberation.search(s)]
+        self.assertTrue(paired, 'expected at least the Role Boundary INV-12 sentences')
+        for sentence in paired:
+            with self.subTest(sentence=sentence[:80]):
+                self.assertIn('INV-12', sentence)
 
     def test_k5_ship_pair_parity_for_step7_disposition_wording(self) -> None:
         """195.012-T wording: in both files deliberation archival is routed

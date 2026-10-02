@@ -44,7 +44,7 @@ Ship is an execution and delivery agent. Acting outside this boundary is a **P-0
 
 | Category | Allowed | Forbidden |
 |---|---|---|
-| Backlog | Claim shipments, move tasks to active/done, close shipments (single-artifact safe-close), archive completed items; when backlogit is configured, refresh the disposable backlog query index via `backlogit_sync_index` or its registered `backlogit sync` CLI fallback before semantic shipment/task reads as required by Step 0.1, without changing backlog item, shipment, or stash markdown as part of that cache refresh; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_archive` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, edit planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
+| Backlog | Claim shipments, move tasks to active/done, close shipments (single-artifact safe-close), archive completed items; archive a validated linked deliberation only through the `shipment-reconcile` Linked-Deliberation Disposition step (P-015 INV-12), never independently; when backlogit is configured, refresh the disposable backlog query index via `backlogit_sync_index` or its registered `backlogit sync` CLI fallback before semantic shipment/task reads as required by Step 0.1, without changing backlog item, shipment, or stash markdown as part of that cache refresh; create a capture-only stash entry (P-021 C5) for a C2 deferred-scope-expansion capture or an existing pre-merge Step 9 / post-merge Step 6 follow-up-stash step; retire the source stash entry that fed the shipped scope via `backlogit_stash_archive` on `custom_fields.source_stash_id` at post-merge Step 7 (a manifest-derived closure operation, distinct from discretionary removal) | Create backlog items, create shipments, edit planning fields (scope, acceptance criteria); triage, prioritize/re-prioritize, re-classify, edit, harvest, or deliberate on stash entries; discretionary removal or archival of stash entries |
 | Source code | Delegate tracked source/test reads and writes to build/fix skills; directly create, revise, execute, and clean up bounded disposable test scripts/fixtures in a named Git-ignored, untracked scripts/scratch directory within the current cwd/worktree (see below) | — |
 | Git | Create/checkout feature/chore + post-merge branches, commit, push | Commit or push directly to `main` |
 | Build | Run build systems, test suites, linters, format checks, and authorized temporary verification test scripts/fixtures | — |
@@ -738,12 +738,17 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    e. after either close path returns `CLOSED`, runs the path-independent
       Linked-Deliberation Disposition step (P-015 INV-12) before post-mode, and
       returns `DISPOSITION_COMPLETE` or `HALT — linked-deliberation disposition
-      failed {id}`. Ship never proceeds to post-mode directly after `CLOSED`:
-      it runs `shipment-reconcile` `mode: post` only after `DISPOSITION_COMPLETE`,
-      and commits the closure backlog state **only after** safe-close returned
-      `CLOSED`, the Linked-Deliberation Disposition step returned
-      `DISPOSITION_COMPLETE` (never after a disposition `HALT`), and post-mode
-      returned `PROCEED`.
+      failed {id}`.
+
+   Ship never proceeds to post-mode directly after `CLOSED`: it runs
+   `shipment-reconcile` `mode: post` only after `DISPOSITION_COMPLETE`, and
+   commits the closure backlog state **only after** safe-close returned
+   `CLOSED`, the Linked-Deliberation Disposition step returned
+   `DISPOSITION_COMPLETE` (never after a disposition `HALT`), and post-mode
+   returned `PROCEED`. If the disposition step returns
+   `HALT — linked-deliberation disposition failed {id}`, Ship halts without
+   running post-mode or committing, and the skill's own halt handling governs
+   any rollback.
 3. Write compound learnings for hard-won solutions.
 4. Update documentation if templates changed significantly.
 5. Write session memory to `docs/memory/`. When the `backlogit` capability pack is

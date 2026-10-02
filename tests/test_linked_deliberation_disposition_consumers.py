@@ -64,9 +64,40 @@ class ShipStep7ConsumesDispositionReportTests(unittest.TestCase):
         self.assertIn("source_deliberation_id", section)
         self.assertIn("backlogit_archive_item", section)
         self.assertIn("never call `backlogit_archive_item` on it independently", section)
-        # The withdrawn independent archive call is gone.
+        # The withdrawn independent archive call is gone: the only remaining
+        # mention of the item-archive tool is the prohibition itself.
         self.assertNotIn(
             "If it exists and is not already archived, call `backlogit_archive_item`",
+            section,
+        )
+        self.assertEqual(section.count("backlogit_archive_item"), 1)
+
+    def test_k1_report_locator_names_the_disposition_complete_close_report(self) -> None:
+        section = _ship_template_step7()
+        self.assertIn(
+            "The report is the `linked_deliberation_disposition` field of this closure's "
+            "`shipment-reconcile` close report under `{{BACKLOG_DIRECTORY}}/reconcile/`, "
+            "taken from the run that returned `DISPOSITION_COMPLETE`",
+            section,
+        )
+
+    def test_k1_unknown_outcome_and_unresolved_references_are_recorded_not_archived(
+        self,
+    ) -> None:
+        section = _ship_template_step7()
+        self.assertIn("any other outcome value: record it verbatim and never archive", section)
+        self.assertIn(
+            "When the ID is listed in the close report's `unresolved_references`, also "
+            "copy that entry's `reason_code` verbatim",
+            section,
+        )
+        self.assertIn("explicit manifest member is outside the disposition set (H10)", section)
+
+    def test_k1_delib_count_counts_disposition_archives_not_ship_archives(self) -> None:
+        section = _ship_template_step7()
+        self.assertIn(
+            "`{delib_count}` counts the report's `archived` outcomes (archived by the "
+            "INV-12 disposition step, never by Ship)",
             section,
         )
 
@@ -154,6 +185,25 @@ class OperationalClosureRetainedOutcomesTests(unittest.TestCase):
                 self.assertIn("never re-derived", bullet)
                 self.assertIn("an unknown `reason_code` is recorded verbatim", bullet)
                 self.assertIn("a `retained_*` deliberation is never archived", bullet)
+                self.assertIn("nor is a `skipped_not_in_disposition_report` one", bullet)
+
+    def test_k2_deliberation_outcomes_use_the_report_literals(self) -> None:
+        for label, raw in _op_closure_variants():
+            with self.subTest(surface=label):
+                bullet = _cleanup_bullet(raw, label)
+                self.assertIn(
+                    "otherwise it is the report's literal outcome — `archived`, "
+                    "`already-archived`,",
+                    bullet,
+                )
+                self.assertIn(
+                    "A `source_stash_id` outcome is one of: archived, skipped because it "
+                    "was already archived, skipped because it was not found, or `none`",
+                    bullet,
+                )
+                self.assertIn(
+                    "only the INV-12 disposition step archives a deliberation", bullet
+                )
 
 
 class VerifyWorkspaceTokensPresentTests(unittest.TestCase):
@@ -162,6 +212,7 @@ class VerifyWorkspaceTokensPresentTests(unittest.TestCase):
     def test_k3_ship_source_artifact_cleanup_tokens_in_ship_template(self) -> None:
         assertion = _pack_assertion("ship_source_artifact_cleanup")
         self.assertEqual(assertion["path"], ".github/agents/_ship.agent.md")
+        self.assertTrue(assertion["must_contain"])
         raw = _SHIP_TEMPLATE.read_text(encoding="utf-8")
         for token in assertion["must_contain"]:
             with self.subTest(token=token):
@@ -170,6 +221,7 @@ class VerifyWorkspaceTokensPresentTests(unittest.TestCase):
     def test_k3_closure_source_artifact_cleanup_tokens_in_op_closure_pair(self) -> None:
         assertion = _pack_assertion("closure_source_artifact_cleanup")
         self.assertEqual(assertion["path"], _OP_CLOSURE_INSTALLED)
+        self.assertTrue(assertion["must_contain"])
         for label, raw in _op_closure_variants():
             for token in assertion["must_contain"]:
                 with self.subTest(surface=label, token=token):
@@ -192,10 +244,8 @@ class OperationalClosureRenderedRegionParityTests(unittest.TestCase):
     def test_k4_cleanup_bullet_helper_detects_drift(self) -> None:
         with self.assertRaisesRegex(AssertionError, "matched 0 lines"):
             _cleanup_bullet("* **Other** — text\n", "demo")
-        self.assertNotEqual(
-            _cleanup_bullet(f"{_CLEANUP_ANCHOR} — template\n", "a"),
-            _cleanup_bullet(f"{_CLEANUP_ANCHOR} — mirror\n", "b"),
-        )
+        with self.assertRaisesRegex(AssertionError, "matched 2 lines"):
+            _cleanup_bullet(f"{_CLEANUP_ANCHOR} — a\n{_CLEANUP_ANCHOR} — b\n", "demo")
 
 
 if __name__ == "__main__":
