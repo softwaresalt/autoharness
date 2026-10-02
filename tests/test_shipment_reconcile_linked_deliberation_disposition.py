@@ -167,5 +167,41 @@ class DispositionSectionAssertionsII(unittest.TestCase):
                 self.assertEqual(raw.count(_MATCHER_LITERAL), 1)
 
 
+class DispositionSectionAssertionsIII(unittest.TestCase):
+    """200.005-T: scenarios H-i, H-j and H-c."""
+
+    def test_h_i_hash_and_guard_rerun_before_each_archive(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                archive = _step(_section(raw), 3)
+                self.assertIn("Immediately before each call, re-run the SHA-256 check", archive)
+                self.assertIn("**and** the shared-reference guard for that ID", archive)
+                self.assertIn("(TOCTOU)", archive)
+                self.assertIn("A hash mismatch halts with", archive)
+                self.assertIn(
+                    "A new live referrer records `retained_shared_reference: "
+                    "[referrer IDs]` for that ID with no mutation",
+                    archive,
+                )
+
+    def test_h_j_archive_call_carries_no_cascade_flag(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                section = _section(raw)
+                archive = _step(section, 3)
+                self.assertIn("Pass **no cascade flag**", archive)
+                self.assertIn("(CLI fallback `backlogit archive {id}`)", archive)
+                self.assertIn("one at a time, in ascending ID order", archive)
+                for forbidden in ("--cascade", "backlogit shipment ship", "ship_shipment"):
+                    self.assertNotIn(forbidden, section)
+
+    def test_h_c_disposition_halt_string_present(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                section = _section(raw)
+                self.assertIn(f"`{_HALT_DISPOSITION}`", _step(section, 4))
+                self.assertIn(_HALT_DISPOSITION, _step(section, 6))
+
+
 if __name__ == "__main__":
     unittest.main()
