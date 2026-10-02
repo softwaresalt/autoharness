@@ -594,8 +594,23 @@ class ScenarioMatrixAssertionsII(unittest.TestCase):
                     "workspace-relative `path`",
                     row,
                 )
+                # The non-halting rule covers only snapshot/plan-time read errors;
+                # late containment drift fails closed through D6 (PR #477 cycle 5).
+                self.assertIn("found by the Step 0(c) snapshot or the step 1 plan", row)
                 self.assertIn("it is never archived and never halts", row)
-                self.assertNotIn("HALT", row)
+                self.assertIn(
+                    "A record that passed those checks but fails containment later, at "
+                    "the step 3 pre-archive re-check or as a new or changed failure at the "
+                    "step 4 or step 6 comparison, is not a read-error retention: it halts "
+                    "with `HALT — linked-deliberation disposition failed {id}` through D6, "
+                    "where `{id}` is that step's own halt ID (the re-checked or "
+                    "just-archived deliberation at steps 3 and 4, the shipment ID at step 6).",
+                    row,
+                )
+                self.assertLess(
+                    row.index("it is never archived and never halts"),
+                    row.index("fails containment later"),
+                )
 
 
 def _quality_criteria(raw: str) -> str:
