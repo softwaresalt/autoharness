@@ -1395,6 +1395,12 @@ If pre-mode cannot acquire the lock because another process holds it:
 * **Negative — missing archive**: if the archive file for the shipment record is missing after `backlogit archive <shipment_id>`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
 * **Negative — archived abandoned**: if the shipment record archives with `archived_status: abandoned`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
 * **Negative — missing provenance**: if the shipment record is archived but lacks `archived_status: shipped|done`, keep out-of-scope artifacts outside `closure_scope(S)` unchanged relative to baseline and halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
+* **Linked deliberation (a) — engine unverified**: the classifier returns `CASCADE` but the Step 0(c) engine-semantics verdict is `UNVERIFIED`, so Step 0(c) selects `SAFE_CLOSE` with reason `ENGINE_SEMANTICS_UNVERIFIED`; safe-close steps 1–10 run, and the Linked-Deliberation Disposition step records every linked deliberation that `retained_read_error`, `retained_ambiguous`, or `already-archived` does not settle as `retained_engine_unverified` and mutates none.
+* **Linked deliberation (b) — shared reference**: a linked deliberation that still has a live referrer outside `closure_scope(S)` is recorded `retained_shared_reference` with its referrer IDs; it is never archived and never halts.
+* **Linked deliberation (c) — engine drift**: a cascade that archives or modifies a disposition-set linked deliberation is engine drift; Cascade Close Sub-Procedure step 5 halts with `HALT — cascade modified linked deliberation {id} — engine semantics drift` and emits a P-005 violation, and neither the Linked-Deliberation Disposition step nor post-mode runs.
+* **Linked deliberation (d) — description-only mention**: a deliberation ID mentioned only in a member's description, never in `custom_fields.source_deliberation_id`, is recorded `retained_description_mention`; it is never archived and never halts.
+* **Linked deliberation (e) — torn deliberation**: a deliberation ID that resolves to more than one record is recorded `retained_ambiguous`; it is never archived and never halts.
+* **Linked deliberation (f) — read error**: an unreadable, malformed, or containment-failing deliberation record or stash input is recorded `retained_read_error` with its `reason_code` and workspace-relative `path`; it is never archived and never halts.
 
 ## Quality Criteria
 
@@ -1411,6 +1417,11 @@ If pre-mode cannot acquire the lock because another process holds it:
 * Safe-close detects off-scope drift, then follows the D6 approval-gated rollback sequence; it never auto-prunes the manifest
 * If `backlogit move <shipment_id> --status shipped` is refused and Step 0(c) did not select `CASCADE`, safe-close halts with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; no substitution, no retry, no hand-edit
 * `mode: post` runs after the safe-close archive sequence in Ship Step 6
+* After the selected close path returns `recommendation: CLOSED` (safe-close step 10, or Cascade Close Sub-Procedure step 7), the Linked-Deliberation Disposition step runs before post-mode; post-mode runs only after that step returns `recommendation: DISPOSITION_COMPLETE`, never directly after a close-path `CLOSED`
+* "Manifest-scoped mutation only" and safe-close step 1 bound only safe-close steps 1–10; the INV-12 Linked-Deliberation Disposition step is separately sanctioned and archives a validated linked deliberation only through a single-artifact, non-cascading archive, one ID at a time
+* Safe-close step 8 and the INV-11 summary key the `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt on Step 0(c)'s **selected** close path, so a classifier `CASCADE` with `ENGINE_SEMANTICS_UNVERIFIED`, which selects `SAFE_CLOSE`, is handled as a `SAFE_CLOSE` shipment there
+* Post-mode step 2 archive-checks every disposition `archived` outcome, the step 3 deleted-file guard treats their moves as expected, and retained outcomes never change the step 5 gate
+* The Deterministic Safe-Close Scenario Matrix covers linked-deliberation rows (a)–(f): engine unverified, shared reference, engine drift, description-only mention, torn deliberation, and read error; only row (c) halts, and every retained outcome is reported without halting
 * All five item classifications are represented in the schema
 * Pre-mode adds a shipment-record-status classification (`record-consistent` /
   `record-queued-with-active-work` / `record-blocked-with-active-work` /
