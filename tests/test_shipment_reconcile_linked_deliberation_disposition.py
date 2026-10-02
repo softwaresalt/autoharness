@@ -425,5 +425,43 @@ class ScenarioMatrixAssertionsI(unittest.TestCase):
                 self.assertIn(f"halts with `{halt}`", cascade)
 
 
+class ScenarioMatrixAssertionsII(unittest.TestCase):
+    """200.011-T: scenarios I-5d, I-5e and I-5f."""
+
+    def test_i_5d_description_only_mention_is_retained(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                row = _matrix_row(raw, "d")
+                self.assertIn("mentioned only in a member's description", row)
+                self.assertIn("never in `custom_fields.source_deliberation_id`", row)
+                self.assertIn("is recorded `retained_description_mention`", row)
+                self.assertIn("it is never archived and never halts", row)
+
+    def test_i_5e_torn_deliberation_is_retained_ambiguous(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                row = _matrix_row(raw, "e")
+                self.assertIn("resolves to more than one record", row)
+                self.assertIn("is recorded `retained_ambiguous`", row)
+                self.assertIn("it is never archived and never halts", row)
+
+    def test_i_5f_read_error_is_retained_with_reason_code_and_path(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                row = _matrix_row(raw, "f")
+                self.assertIn(
+                    "an unreadable, malformed, or containment-failing deliberation "
+                    "record or stash input",
+                    row,
+                )
+                self.assertIn(
+                    "is recorded `retained_read_error` with its `reason_code` and "
+                    "workspace-relative `path`",
+                    row,
+                )
+                self.assertIn("it is never archived and never halts", row)
+                self.assertNotIn("HALT", row)
+
+
 if __name__ == "__main__":
     unittest.main()
