@@ -154,41 +154,46 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
             content,
         )
         self.assertIn(
-            "every other `allowed_ids` member (a manifest task item, or a "
-            "qualifying feature member's validated linked deliberation) "
-            "that was **not** truly `status: archived`",
+            "every other manifest item that was **not** truly `status: archived` "
+            "in the Step 0(b) all-member pre-close declared-status snapshot",
+            content,
+        )
+        self.assertIn(
+            "A disposition-set deliberation that is not an explicit manifest "
+            "member is never a `required_ids` member",
             content,
         )
 
-    def test_allowed_ids_defined_via_step_0c_qualifying_feature_determination(self) -> None:
+    def test_allowed_ids_row_is_flat_closure_scope_without_linked_deliberation_union(self) -> None:
         content = _flatten(_skill_content())
+        self.assertIn("**Compute `allowed_ids`** = `closure_scope(S)`", content)
         self.assertIn(
-            "every qualifying feature member identified by Step 0(c)'s own "
-            "classification",
+            "every explicit manifest item ID from `items(S)`, regardless of "
+            "`artifact_type`, plus the shipment record itself",
             content,
         )
-        self.assertIn("independent of *how* the engine happens to transition", content)
+        self.assertIn("linked deliberations are handled only by INV-12", content)
+        self.assertIn("H10 carve-out", content)
+        self.assertNotIn("every validated linked deliberation ID", content)
 
-    def test_qualifying_feature_statuses_captured_after_0c_before_invocation(self) -> None:
+    def test_required_ids_no_longer_extended_for_linked_deliberations(self) -> None:
         content = _flatten(_skill_content())
-        # Step 0(c) extension: captured immediately after qualifying features
-        # are identified, and explicitly before the cascade invocation.
         self.assertIn(
-            "When this classification identifies qualifying feature members",
+            "Because Step 0(b) snapshots every explicit manifest member "
+            "regardless of `artifact_type`, no Step 0(c) "
+            "linked-deliberation extension participates in this set",
             content,
         )
         self.assertIn(
-            "extend the same pre-close declared-status snapshot from (b) — "
-            "still **before** the cascade invocation, never after",
+            "A disposition-set deliberation that is not an explicit manifest "
+            "member is never a `required_ids` member",
             content,
         )
-        # Step 3's required_ids computation also states all three snapshot
-        # parts (manifest tasks from (b), qualifying features and their
-        # linked deliberations extended in (c) -- 155-S/PR #407) are
-        # captured before the step 1 invocation.
-        self.assertIn("extended by Step 0(c) for qualifying feature members", content)
-        self.assertIn("all captured", content)
-        self.assertIn("**before** this step 1 invocation", content)
+        self.assertNotIn(
+            "extended by Step 0(c) for qualifying feature members and their "
+            "validated linked deliberations",
+            content,
+        )
 
     def test_location_alone_is_not_declared_status(self) -> None:
         content = _flatten(_skill_content())
@@ -253,11 +258,16 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
             "`archived_ids`",
             content,
         )
-        # The Quality Criteria bullet must reference the two-set gate.
+        # The Quality Criteria bullet must reference the flat two-set gate,
+        # not the retired linked-deliberation allowance.
         quality_idx = content.index("## Quality Criteria")
         quality_section = content[quality_idx:]
+        self.assertIn("flat two-set", quality_section)
         self.assertIn("allowed_ids", quality_section)
         self.assertIn("required_ids", quality_section)
+        self.assertIn("linked deliberations are handled only by INV-12", quality_section)
+        self.assertNotIn("validated linked deliberation IDs", quality_section)
+        self.assertNotIn("never a blanket allowance for arbitrary IDs", quality_section)
 
     def test_report_records_allowed_required_and_both_differences(self) -> None:
         content = _flatten(_skill_content())
@@ -287,20 +297,19 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
 
     def test_tolerance_list_excludes_bare_qualifying_feature_member(self) -> None:
         # PR #407 review (thread PRRT_kwDORzpWpM6bzlFl): a bare qualifying
-        # feature member must no longer be offered as an eligible-for-
-        # tolerance option in the parenthetical list -- only a manifest
-        # task item or a qualifying feature member's *validated linked
-        # deliberation* may be already truly archived pre-close.
+        # Under the flat 1.11.x sets, the pre-archived tolerance is scoped
+        # to explicit non-shipment, non-feature manifest members. A linked
+        # deliberation participates here only if it is an explicit manifest
+        # member under H10, never merely because it is in the disposition set.
         content = _flatten(_skill_content())
         self.assertIn(
-            "(a manifest task item, or a qualifying feature member's "
-            "validated linked deliberation — never the qualifying feature "
-            "member itself",
+            "An `allowed_ids` **non-shipment, non-feature** member",
             content,
         )
+        self.assertIn("including an explicit-member deliberation under H10", content)
         self.assertNotIn(
-            "(a manifest task item, a qualifying feature member, or a "
-            "qualifying feature member's validated linked deliberation)",
+            "qualifying feature member's validated linked deliberation — "
+            "never the qualifying feature member itself",
             content,
         )
 
