@@ -23,8 +23,9 @@ The verbose original is listed in `compacted_from`. Closure record:
   `b610fe30`, with `READY_WITH_FOLLOWUPS` and P0=0, P1=0.
 * 2622 tests OK (skipped=54). CI was green and P-018 was `SATISFIED`.
 * 8 review-fix cycles (4 to 8 Orchestrator-authorized) resolved 43 threads.
-  The final 4 were deferred to `B7AFF12B` and `E5951CCC`. Cycle 1 flipped one
-  slice-4 test per the 200-F T5 rule.
+  The final 4 went to the new capture `B7AFF12B` and the existing entry
+  `E5951CCC` (captured at `c3687667`). Cycle 1 flipped one slice-4 test per
+  the 200-F T5 rule.
 
 ## Close
 
@@ -37,7 +38,12 @@ This was the first INV-12 Linked-Deliberation Disposition run. It recorded
 `linked_deliberation_disposition: []` and returned `DISPOSITION_COMPLETE`,
 with no mutation.
 
-## Next
+## Learnings
 
-195-F slice 6 (201-S) is the first closure with the full contract and the live
-proof.
+* The 205-S proof script can be reused for the disposition step. Write the
+  close report inside the run, before the step 6 final invariance check, and
+  exempt only that report path.
+* The lock was held from `16:42:40Z` to `16:53:45Z`, mostly inside the
+  cascade call.
+* Next: 195-F slice 6 (201-S) is the first closure with the full contract and
+  the live proof.

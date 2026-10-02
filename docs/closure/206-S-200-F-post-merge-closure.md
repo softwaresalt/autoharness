@@ -35,9 +35,11 @@ This closure is the first to run the merged disposition step (200-F T5).
   cycles 4 to 8 under the operator's standing directive to resolve all Copilot
   comments before merging.
 * All 43 review threads were resolved. The 4 threads in the final round (on
-  `b610fe30`) were out of scope under P-021 C1. They were captured first, to
-  stashes `B7AFF12B` and `E5951CCC`, then replied to with no code change and
-  resolved.
+  `b610fe30`) were out of scope under P-021 C1. Before any reply, they were
+  dispositioned to the new capture `B7AFF12B` and to the existing entry
+  `E5951CCC`, which was captured earlier at local-review HEAD `c3687667` and
+  reused as a confirmed match. They were then replied to with no code change
+  and resolved.
 * **Slice-4 test flip (review cycle 1).** The 200-F T5 rule removed the
   Cascade Close Sub-Procedure step 7 transition-window wording ("step not yet
   on main"). So the slice-4 T4 transition-window test in
@@ -96,8 +98,8 @@ of the following as it happened:
 * a baseline fingerprint of 1503 queue and archive records
 * the raw output of
   `backlogit shipment ship 206-S --sha e338fdc3… --message … --author …`
-  (backlogit 1.11.0, exit 0, about 10.4 minutes, under the 15-minute
-  circuit-breaker threshold)
+  (backlogit 1.11.0, exit 0, at most about 10.4 minutes from invocation to
+  postcondition evaluation, under the 15-minute circuit-breaker threshold)
 
 The results were:
 
@@ -127,9 +129,10 @@ lock, after the cascade gate and before post-mode.
   disposition set, and a result equal to the Step 0(c) snapshot.
 * **Disposition baseline (step 2)**: the (i) CASCADE descendant set was
   empty, and the (ii) disposition snapshot was empty. The (iii) baseline
-  captured `git status --porcelain -- .backlogit/`. It also fingerprinted
-  1721 non-exempt `.backlogit/` paths by location and SHA-256, without
-  following reparse points; no path was flagged.
+  captured `git status --porcelain -- .backlogit/` (17 entries: the 15
+  closure records and the pre-existing `B7AFF12B` stash capture). It also
+  fingerprinted 1721 non-exempt `.backlogit/` paths by location and SHA-256,
+  without following reparse points; no path was flagged.
 * **Archive and verify (steps 3 and 4)**: there was no planned `archive`, so
   there was no archive call. Ship made no deliberation mutation.
 * **Report (step 5)**: `linked_deliberation_disposition: []`,
@@ -196,10 +199,11 @@ commit. This closure created no checkpoints, so none needed resolving.
 These P-021 deferred scope expansions and follow-ups from 206-S are all
 captured as active stash entries. Stage owns triage.
 
-* `E5951CCC`: align P-015 INV-11 policy wording (final review round).
+* `E5951CCC`: align P-015 INV-11 policy wording. It was captured at
+  local-review HEAD `c3687667` and reused for final-round threads.
 * `B7AFF12B`: no-mutation halt path for the disposition step (final review
-  round). It duplicates item (4) of `D1F25FC0`. Ship left both in place for
-  Stage to dedupe.
+  round). It overlaps with item (4) of `D1F25FC0` and in part duplicates it.
+  Ship left both in place for Stage to dedupe.
 * `D1F25FC0`: carry the cycle-4 INV-12 disposition guards beyond the skill
   text.
 * `DE0F8FB3`: stale docstrings in `src/autoharness/gates/shipment_closure.py`.
@@ -220,8 +224,9 @@ The next shipment is `201-S` (slice 6 of 6). Its own `blocks` edges and the
 
 * The cascade rewrote each released task's `commit` field to the merge SHA.
   The implementing commits remain in git history.
-* The cascade spent about 10.4 minutes of engine time on 15 artifacts. This
-  is a latency observation, not a correctness issue.
+* The cascade took at most about 10.4 minutes (invocation to postcondition
+  evaluation) on 15 artifacts. This is a latency observation, not a
+  correctness issue.
 * This first disposition run had an empty set, so it exercised only the
   empty path. The archive, verify-after-each, and retained-outcome paths get
   their first live run at 201-S.

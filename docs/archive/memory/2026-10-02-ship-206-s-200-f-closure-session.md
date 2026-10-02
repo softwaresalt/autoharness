@@ -18,8 +18,9 @@ session_id: ship-2026-10-02-206s-closure
   `SATISFIED` at `b610fe30`.
 * There were 8 review-fix cycles. The Orchestrator authorized cycles 4 to 8
   under the operator's standing directive to resolve all Copilot comments.
-  All 43 threads were resolved. The 4 final-round threads were out of scope
-  and went to stashes `B7AFF12B` and `E5951CCC`.
+  All 43 threads were resolved. The 4 final-round threads were out of scope.
+  They went to the new capture `B7AFF12B` and to the existing entry
+  `E5951CCC`, captured earlier at `c3687667` and reused as a confirmed match.
 * Review cycle 1 flipped one slice-4 test. The Cascade step 7
   transition-window wording was removed per the 200-F T5 rule, and the test
   became `test_gate_decision_hands_off_to_disposition_step`.
@@ -30,7 +31,8 @@ The close path was `CASCADE` (classifier `CASCADE` with root `200-F` and no
 descendants; engine `1.11.0` / `131577c` on the CLI, `VERIFIED`). The
 pre-invocation revalidation found no drift. `archived_ids` held the 13 tasks,
 `200-F` and `206-S`. `returned_ids` was `[]`. Every postcondition passed. The
-`backlogit shipment ship` call took about 10.4 minutes.
+`backlogit shipment ship` call took at most about 10.4 minutes (invocation to
+postcondition evaluation).
 
 ## Linked-Deliberation Disposition (first run)
 
