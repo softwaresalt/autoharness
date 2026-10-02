@@ -191,7 +191,11 @@ Every actual outcome is in the plan's list, and there was no halt.
 `CLOSURE_INDEX_SYNC_OK`. Ship ran `backlogit sync` (the CLI fallback for
 `backlogit_sync_index`) after the cascade close and the follow-up stash
 capture (`33004C12`), before any closure commit. It exited 0 with
-`Indexed 1676 artifacts`. This closure created no checkpoints, so none needed
+`Indexed 1676 artifacts`. PR #480 review then captured one more stash entry
+(`9869AA32`), so `backlogit sync` was re-run after that final backlog
+mutation. It exited 0 with `Indexed 1677 artifacts`, and this re-run is the
+`CLOSURE_INDEX_SYNC_OK` evidence for the final closure state. This closure
+created no checkpoints, so none needed
 resolving. A re-run of the P-018 gate on PR #479 at closure returned
 `SATISFIED: PASS`.
 
