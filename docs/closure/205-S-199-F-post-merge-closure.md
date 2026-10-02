@@ -75,9 +75,10 @@ untouched:
 
 ## Validator Evidence / Runtime Verification
 
-There is no runtime validator surface. The slice changes skill and policy
-text and the tests. The unit suite and the skill-parity and policy assertions
-verify it. This closure also ran the new flat-set gate and the all-member
+There is no runtime validator surface. The slice changes the
+`shipment-reconcile` skill text, its template, and tests. P-015 was already
+flat, so no policy file changed. The unit suite and the skill-parity and
+policy assertions verify it. This closure also ran the new flat-set gate and the all-member
 disposition snapshot against live data, as recorded below.
 
 ## Closure Path
@@ -166,7 +167,8 @@ closure commit.
 
 ## Releasability Evidence
 
-* **Status**: READY. The change is limited to skill, policy, and test text.
+* **Status**: READY. The change is limited to the skill text, its template,
+  and tests. No policy file changed.
 * **Monitoring**: the CI `test` job and the canonical suite.
 * **Healthy signals**: the skill-parity, policy, and close-path test modules
   stay green. Later `CASCADE` closures record flat `allowed_ids` and
