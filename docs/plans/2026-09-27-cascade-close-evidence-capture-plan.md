@@ -140,14 +140,114 @@ The re-harvest sets each task's `dependencies` to exactly the following
   `192.004-T`, so the existing order changes too. Every item appears after
   each of its dependencies in the table above.
 * The rows above, each unit's **Depends on** line, and the edge list in
-  `## Dependency Graph` state the same 16 task edges.
-* `192.007-T`, A4b, `192.008-T`, and `192.009-T` carry the one-PR constraint.
+  `## Dependency Graph` stated the same 16 task edges at re-harvest. The
+  Copilot PR #481 cycle-1 amendment below supersedes this table, the
+  17-item manifest, and the one-PR list: its table is the current one (22
+  task edges, 23 manifest items).
+* `192.007-T`, A4b, `192.008-T`, and `192.009-T` carry the one-PR constraint
+  (extended by the Copilot PR #481 amendment to A5b, A5c, and A6b).
 
 **Review state.** The plan-review PASS below predates this amendment. Under
 P-021 C6, this plan was re-reviewed on 2026-10-02 (cycles 1-2) with verdict
 PASS_WITH_FOLLOWUPS and no open P0/P1; the follow-up is the Stage re-harvest
 above, before 198-S is claimed. Plan hardening is extended with INV-P8 and
 INV-P9 (see Plan Hardening).
+
+## Copilot cycle 1 amendment (PR #481, 2026-10-02)
+
+Copilot's first review of the 198-S re-plan PR (#481) raised ten threads
+(T1-T10) on one contract surface. All ten are fixed in this plan, in the
+task bodies, and in the backlog; none is deferred. The dispositions are in
+the review record, section "Copilot cycle 1 (PR #481)". Where this section
+and earlier text disagree, this section and the revised unit text win.
+
+* **T1, T2, T5 (tuple comparison).** `redact()` returns `(text,
+  redaction_applied)`, so every redaction-neutrality check is now written
+  `redact(x)[0] == x` (A1 validator, A1b, A2a sanitizer, A2 reason check).
+* **T3, T4 (workspace containment, constitution IV).** The engine-probe
+  `cwd` is a fresh, empty, trust-checked directory under the Git-ignored
+  `.autoharness/gates/cascade-close/probe/`, inside the workspace, and the
+  command never deletes it (removal is an operator action, constitution
+  VII). See A3a and A2a. The runtime-proof scratch workspace likewise moves
+  under the Git-ignored `.proof-scratch/`.
+* **T6 (`run_id` ownership).** A `pre_close` record written by a
+  `--classify-only` run is replaced by a different run only through the A1b
+  **pre_close takeover**: an atomic compare-and-swap that requires the
+  expected prior `run_id`. A3 step 4 uses it only after step 3's exact-match
+  check passes. See A1b and A3.
+* **T7 (A7 ordering).** A7 documents the gate's new `failed_check` values
+  and `warnings[]`, so it depends on A4b (`192.016-T`), not on A3d.
+* **T8, T9, T10 (granularity, Primitive 2: fewer than 3 files, 5
+  functions, 4 test scenarios).**
+  * A1 kept `build_evidence_path`, `validate_evidence_record`, and `redact`.
+    Its ten serializer functions moved into three new codec units: A1d
+    (`declared_status_*`, `observation_entry_*`; `192.017-T`), A1e
+    (`engine_semantics_*`, `close_path_selection_*`; `192.018-T`), and A1f
+    (`disposition_plan_*`; `192.019-T`). Each has at most four functions,
+    two files, and three test scenarios. A1 drops to three scenarios and
+    size S.
+  * A5 split into A5 (shipment-reconcile, `192.008-T`), A5b
+    (operational-closure, `192.020-T`), and A5c (doc assertions,
+    `192.021-T`). A6 split into A6 (Ship template and mirror, `192.009-T`)
+    and A6b (pointer assertions, `192.022-T`).
+  * **Rendered-surface triple.** A template, its installed mirror, and the
+    mirror's checksum line in `.autoharness/harness-manifest.yaml` must
+    change in one commit. Existing tests compare template with mirror, and
+    `tests/test_crash_resumption_protocol.py` and
+    `tests/test_checkpoint_payload_contract.py` assert the `_ship.agent.md`
+    mirror checksum. A5, A5b, and A6 therefore each edit that atomic triple
+    and nothing else, and their new assertions are separate one-file test
+    tasks (A5c, A6b). A split that separated the triple would leave a task
+    whose verifiable outcome is a failing suite, which Primitive 2's atomic
+    milestone rule forbids. The residual (three files) is recorded in the
+    review record.
+
+The backlog now sets each task's `dependencies` to exactly the following.
+This table, each unit's **Depends on** line, and the edge list in
+`## Dependency Graph` state the same 22 task edges:
+
+| Task | Unit | Dependencies | Change in Copilot cycle 1 |
+|---|---|---|---|
+| `192.001-T` | A1 | none | unchanged (size M → S) |
+| `192.017-T` | A1d | `192.001-T` | new (T8) |
+| `192.018-T` | A1e | `192.017-T` | new (T8) |
+| `192.019-T` | A1f | `192.018-T` | new (T8) |
+| `192.011-T` | A1c | `192.019-T` | was `192.001-T` (T8) |
+| `192.002-T` | A1b | `192.011-T` | unchanged |
+| `192.004-T` | A3a | `192.002-T` | unchanged |
+| `192.012-T` | A2a | `192.004-T` | unchanged |
+| `192.013-T` | A2b | `192.011-T` | unchanged |
+| `192.003-T` | A2 | `192.012-T`, `192.013-T` | unchanged |
+| `192.005-T` | A3b | `192.003-T` | unchanged |
+| `192.014-T` | A3c | `192.005-T` | unchanged |
+| `192.006-T` | A3 | `192.014-T` | unchanged |
+| `192.015-T` | A3d | `192.006-T` | unchanged |
+| `192.007-T` | A4 | `192.015-T` | unchanged |
+| `192.016-T` | A4b | `192.007-T` | unchanged |
+| `192.008-T` | A5 | `192.016-T` | unchanged (scope narrowed, T9) |
+| `192.020-T` | A5b | `192.008-T` | new (T9) |
+| `192.021-T` | A5c | `192.020-T` | new (T9) |
+| `192.009-T` | A6 | `192.021-T` | was `192.008-T` (T9/T10) |
+| `192.022-T` | A6b | `192.009-T` | new (T10) |
+| `192.010-T` | A7 | `192.016-T` | was `192.015-T` (T7) |
+
+* The 198-S manifest is rewritten in this dependency order (covering
+  feature first, 23 items): `192-F`, `192.001-T` (A1), `192.017-T` (A1d),
+  `192.018-T` (A1e), `192.019-T` (A1f), `192.011-T` (A1c), `192.002-T`
+  (A1b), `192.004-T` (A3a), `192.012-T` (A2a), `192.013-T` (A2b),
+  `192.003-T` (A2), `192.005-T` (A3b), `192.014-T` (A3c), `192.006-T` (A3),
+  `192.015-T` (A3d), `192.007-T` (A4), `192.016-T` (A4b), `192.008-T` (A5),
+  `192.020-T` (A5b), `192.021-T` (A5c), `192.009-T` (A6), `192.022-T`
+  (A6b), `192.010-T` (A7).
+* A6 depends on A5c, not on A5, so that the three `harness-manifest.yaml`
+  checksum edits (A5, A5b, A6) stay serial and A6 follows the whole A5
+  family.
+* A4, A4b, A5, A5b, A5c, A6, and A6b (`192.007-T`, `192.016-T`,
+  `192.008-T`, `192.020-T`, `192.021-T`, `192.009-T`, `192.022-T`) carry the
+  one-PR constraint (label `release-unit-a4-a6`).
+* The new code-bearing tasks A1d, A1e, and A1f carry
+  `harness-surface:harness-architect`. A5b, A5c, and A6b carry
+  `harness-surface:none`.
 
 ## Problem Frame
 

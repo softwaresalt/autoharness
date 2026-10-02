@@ -313,3 +313,33 @@ applies all five to the plan. No fix needed a new design decision.
 Re-harvest must carry R3, R6, R7, R17 (and all R-items) into task bodies 192.001-T..192.010-T, create the six new tasks, remove edge 192.004-T -> 192.003-T, update the 198-S manifest, and remove the stale dag-root label before 198-S is claimed.
 
 Re-review verdict: PASS_WITH_FOLLOWUPS (no open P0/P1; follow-up = Stage re-harvest).
+
+## Copilot cycle 1 (PR #481)
+
+Copilot's first hosted review of the re-plan staging PR (#481, reviewed HEAD
+`1db836a5`) raised ten threads. All ten passed the P-021 C1 same-contract-surface
+test (each completes the authorized re-plan) and are fixed; none is deferred.
+The plan section "Copilot cycle 1 amendment (PR #481, 2026-10-02)" is the
+authoritative text.
+
+| ID | Task | Finding | Disposition | Fix commit |
+|---|---|---|---|---|
+| T1 | `192.001-T` | `redact()` returns `(text, applied)`, so `redact(x) == x` is always false | Fixed: every neutrality check is `redact(x)[0] == x` (A1, A1b, A2a, A2) | `d7de9744` |
+| T2 | `192.003-T` | Same tuple comparison in the A2 reason check | Fixed with T1 | `d7de9744` |
+| T3 | `192.004-T` | Probe temp dir outside the workspace (constitution IV) | Fixed: probe `cwd` under Git-ignored `.autoharness/gates/cascade-close/probe/`; never auto-deleted (constitution VII) | `db9f68f6` |
+| T4 | `192.012-T` | Same containment issue for the A2a probe dir | Fixed with T3 | `db9f68f6` |
+| T5 | `192.012-T` | Tuple comparison made the probed version always `None` | Fixed with T1 | `d7de9744` |
+| T6 | `192.002-T` | Classify-only `pre_close` record `run_id` ownership conflicted with the A3 step 4 re-stamp | Fixed: A1b atomic pre_close takeover (compare-and-swap on the expected prior `run_id`), used by A3 only after the step 3 exact-match check | `fde4af8b` |
+| T7 | `192.010-T` | A7 should follow A4b, not A3d | Fixed: dependency `192.010-T` → `192.016-T` | this batch |
+| T8 | `192.001-T` | A1 exceeded the Primitive 2 function budget | Fixed: serializers split into A1d `192.017-T`, A1e `192.018-T`, A1f `192.019-T` | this batch |
+| T9 | `192.008-T` | A5 spanned six files | Fixed: split into A5 `192.008-T`, A5b `192.020-T`, A5c `192.021-T` | this batch |
+| T10 | `192.009-T` | A6 spanned four files | Fixed: split into A6 `192.009-T` and A6b `192.022-T` | this batch |
+
+Residual (accepted, documented): A5, A5b, and A6 each touch three files (template,
+installed mirror, and its `harness-manifest.yaml` checksum line). That triple must
+change in one commit because existing tests compare template with mirror and
+assert the mirror checksum; splitting it would leave a task whose verifiable
+outcome is a failing suite, contrary to Primitive 2's atomic milestone rule.
+
+Manifest: 198-S now lists 23 items (feature plus 22 tasks) in dependency order;
+the dependency graph has 22 task edges.
