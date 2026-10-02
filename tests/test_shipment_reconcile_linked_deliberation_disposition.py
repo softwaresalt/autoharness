@@ -463,5 +463,64 @@ class ScenarioMatrixAssertionsII(unittest.TestCase):
                 self.assertNotIn("HALT", row)
 
 
+def _quality_criteria(raw: str) -> str:
+    return _flatten(raw[raw.index("## Quality Criteria") : raw.index("## Related Artifacts")])
+
+
+class PostModeAndQualityCriteriaAssertions(unittest.TestCase):
+    """200.012-T: scenarios I-4 and I-11."""
+
+    def test_i_4_post_mode_covers_disposition_outcomes(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                per_item = _post_mode_step(raw, 2)
+                self.assertIn(
+                    "The same per-item check covers every Linked-Deliberation "
+                    "Disposition `archived` outcome: verify each such deliberation's "
+                    "archive file exists and flag any absence in the report.",
+                    per_item,
+                )
+                self.assertIn("Retained (`retained_*`) outcomes are not archive-checked.", per_item)
+                guard = _post_mode_step(raw, 3)
+                self.assertIn(
+                    "The queue-to-archive moves made by the Linked-Deliberation "
+                    "Disposition step's `archived` outcomes are expected: this guard "
+                    "never flags them as deletions or unexpected changes.",
+                    guard,
+                )
+                gate = _post_mode_step(raw, 5)
+                self.assertIn(
+                    "Retained (`retained_*`) Linked-Deliberation Disposition outcomes "
+                    "never change this gate",
+                    gate,
+                )
+                self.assertIn("are not missing archive files, and are not deletions", gate)
+
+    def test_i_11_quality_criteria_bullets_present(self) -> None:
+        bullets = (
+            "the Linked-Deliberation Disposition step runs before post-mode; post-mode "
+            "runs only after that step returns `recommendation: DISPOSITION_COMPLETE`, "
+            "never directly after a close-path `CLOSED`",
+            "\"Manifest-scoped mutation only\" and safe-close step 1 bound only "
+            "safe-close steps 1–10; the INV-12 Linked-Deliberation Disposition step is "
+            "separately sanctioned",
+            "Safe-close step 8 and the INV-11 summary key the "
+            "`RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt on Step 0(c)'s "
+            "**selected** close path",
+            "Post-mode step 2 archive-checks every disposition `archived` outcome, the "
+            "step 3 deleted-file guard treats their moves as expected, and retained "
+            "outcomes never change the step 5 gate",
+            "The Deterministic Safe-Close Scenario Matrix covers linked-deliberation "
+            "rows (a)–(f): engine unverified, shared reference, engine drift, "
+            "description-only mention, torn deliberation, and read error; only row (c) "
+            "halts",
+        )
+        for label, raw in _variants():
+            criteria = _quality_criteria(raw)
+            for bullet in bullets:
+                with self.subTest(surface=label, bullet=bullet[:40]):
+                    self.assertIn(bullet, criteria)
+
+
 if __name__ == "__main__":
     unittest.main()
