@@ -227,10 +227,14 @@ mutated or repaired by this mode.
   In pre- and post-mode it only reports; operators must manually reconcile via
   existing backlog tools and re-invoke Ship Step 6.
 * **Manifest-scoped mutation only.** In `mode: safe-close`, the ONLY artifacts
-  this skill may move or archive are the shipment manifest's explicit item IDs and
+  safe-close steps 1–10 may move or archive are the shipment manifest's explicit item IDs and
   the shipment record itself (`{shipment_id}`). It must NEVER archive the parent
   feature or any sibling task that is not in the manifest. It never calls the cascade
   `{{OP_SHIP_SHIPMENT_MCP}}`; the shipment record is closed as its own single artifact.
+  The INV-12 Linked-Deliberation Disposition step is separately sanctioned: it
+  runs only after the selected close path returns `recommendation: CLOSED`, never
+  widens `closure_scope(S)` or `allowed_ids(S)`, and archives a validated linked
+  deliberation only through a single-artifact, non-cascading archive, one ID at a time.
 * **No prune / no auto-repair.** Auto-mutation of the manifest itself is reserved
   for a future version. Safe-close never prunes the manifest and never
   auto-deletes non-manifest artifacts; on cascade detection it reverts the
@@ -333,6 +337,10 @@ mutated or repaired by this mode.
 2. **Per-item archive check**:
    For every item in the manifest, verify a corresponding archive file exists.
    If any are absent, flag them in the report.
+   The same per-item check covers every Linked-Deliberation Disposition
+   `archived` outcome: verify each such deliberation's archive file exists and
+   flag any absence in the report. Retained (`retained_*`) outcomes are not
+   archive-checked.
 
 3. **Deleted-file guard** (known `{{OP_SHIP_SHIPMENT_MCP}}` quirk — see P-007):
    Run `git status -- "{{BACKLOG_DIRECTORY}}/archive/"` and inspect for deletions.
@@ -349,6 +357,9 @@ mutated or repaired by this mode.
    it. Never recommend the restore as an unconditional next step, and never
    recommend an unscoped directory-level restore or stage — the recommendation
    itself is evidence-only guidance, not an authorization to run it.
+   The queue-to-archive moves made by the Linked-Deliberation Disposition step's
+   `archived` outcomes are expected: this guard never flags them as deletions or
+   unexpected changes.
 
 4. **Produce post-mode report** per the same schema.
 
@@ -356,6 +367,9 @@ mutated or repaired by this mode.
    * If all archive files present and no deletions detected → `recommendation: PROCEED`
    * If missing archive files or unrestored deletions detected →
      `recommendation: HALT — restore archives`
+   * Retained (`retained_*`) Linked-Deliberation Disposition outcomes never
+     change this gate: they are reported by the disposition step, are not
+     missing archive files, and are not deletions.
    * On `HALT`: release the lock and report. Ship must restore archives before committing.
 
 6. **Release lock** (acquired in step 1 of pre-mode):
@@ -596,8 +610,9 @@ completion.
      already-loaded manifest rather than issuing a second call).
 
 1. **Load manifest** via `{{OP_GET_SHIPMENT_MCP}}(shipment_id)`. Extract the
-   `items` list. These IDs are the **only** artifacts safe-close may move or
-   archive.
+   `items` list. These IDs are the **only** artifacts safe-close steps 1–10 may move or
+   archive; the INV-12 Linked-Deliberation Disposition step is separately
+   sanctioned and runs only after step 10 returns `recommendation: CLOSED`.
 
 2. **Compute the observation set** (partial-feature detection and baseline watching):
    * Derive the covering feature ID from the manifest item hierarchy
@@ -676,8 +691,9 @@ completion.
 8. **Close the shipment record itself** (single artifact, non-cascading; authoritative order):
    * Move **ONLY** the live shipment record to `status: shipped` via the generic,
      non-cascading `backlogit move <shipment_id> --status shipped`.
-   * If `backlogit move <shipment_id> --status shipped` is refused (exit 9) while the
-     manifest is not `CASCADE`-eligible under Step 0(c), halt fail-closed with
+   * If `backlogit move <shipment_id> --status shipped` is refused (exit 9)
+     while Step 0(c)'s **selected** close path is not `CASCADE` (classifier `CASCADE`
+     with `ENGINE_SEMANTICS_UNVERIFIED` selects `SAFE_CLOSE`), halt fail-closed with
      `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. This is **INV-11**: multi-shipment /
      split delivery is **contract-complete** but **operationally blocked** for backlogit
      1.10.1, tracked by a durable active stash entry local to this workspace's own backlog. There is no known safe
@@ -707,7 +723,9 @@ completion.
 
 10. **Gate decision**:
     * All manifest items `matched` or `pre-archived`, the shipment record archived,
-      and the observation set still baseline-invariant → `recommendation: CLOSED`. Proceed to post-mode.
+      and the observation set still baseline-invariant → `recommendation: CLOSED`. Continue to the
+      Linked-Deliberation Disposition step, not directly to post-mode; proceed to
+      post-mode only after that step returns `recommendation: DISPOSITION_COMPLETE`.
     * Any cascade detected → `recommendation: HALT — cascade detected, revert required`
       (see step 6). Do not proceed to the commit step.
 
@@ -1357,7 +1375,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `INV-8` (Manifest ordering is a Stage assembly convention, NOT a closure precondition). Stage may enforce feature-last ordering when assembling new shipments, but Ship MUST NOT treat manifest ordering as a closure precondition.
 * `INV-9` (DAG orthogonality): shipment sequencing and pipeline topology are orthogonal to closure scope; closure never consults the DAG when deciding what this shipment may transition.
 * `INV-10` (Close-path gate postconditions (evaluated before INV-12 disposition)): at the close-path gate, `archived_ids ⊆ allowed_ids(S)`; `required_ids(S) ⊆ archived_ids`; every artifact outside `allowed_ids(S)` is byte-identical to baseline, including `parent_id`; and the shipment record declares `status: archived` plus `archived_status: shipped`. INV-12's `archived` deliberations are the only artifacts outside `allowed_ids(S)` that may change after the gate, and only through INV-12.
-* `INV-11` (External runtime prerequisite): multi-shipment delivery is contract-complete but operationally blocked under backlogit 1.10.1 (the observed line; not re-verified for 1.11; re-verification is owned by the engine-behavior registry). An intermediate shipment carries no feature member, cannot qualify for `CASCADE`, and is therefore a genuine `SAFE_CLOSE` shipment. If `backlogit move <shipment_id> --status shipped` is refused while the manifest is not cascade-eligible, Ship MUST halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. The cascade path must NOT be substituted, because `returned_ids` and `parent_id` clearing are indicative and unproven only, and archiving an active shipment record stamps `archived_status: active` rather than `archived_status: shipped`. This is an unresolved upstream tooling gap tracked by a durable active stash entry local to this workspace's own backlog; no silent workaround, no retry, no hand-edit.
+* `INV-11` (External runtime prerequisite): multi-shipment delivery is contract-complete but operationally blocked under backlogit 1.10.1 (the observed line; not re-verified for 1.11; re-verification is owned by the engine-behavior registry). An intermediate shipment carries no feature member, cannot qualify for `CASCADE`, and is therefore a genuine `SAFE_CLOSE` shipment. If `backlogit move <shipment_id> --status shipped` is refused while Step 0(c)'s **selected** close path is not `CASCADE` (classifier `CASCADE` with `ENGINE_SEMANTICS_UNVERIFIED` selects `SAFE_CLOSE`), Ship MUST halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`. The cascade path must NOT be substituted, because `returned_ids` and `parent_id` clearing are indicative and unproven only, and archiving an active shipment record stamps `archived_status: active` rather than `archived_status: shipped`. This is an unresolved upstream tooling gap tracked by a durable active stash entry local to this workspace's own backlog; no silent workaround, no retry, no hand-edit.
 * `INV-12` (Linked-deliberation disposition): after the selected close path's gate passes, the Linked-Deliberation Disposition step assigns each disposition-set member exactly one `LinkedDeliberationOutcome`: `archived`, `already-archived`, `retained_read_error`, `retained_engine_unverified`, `retained_ambiguous`, `retained_live_status`, `retained_shared_reference`, or `retained_description_mention`. Each outcome carries a `reason_code`, which defaults to the outcome value; `retained_read_error` also carries a workspace-relative `path` and a read-error `reason_code` (`path_escape`, `symlink_or_reparse_point`, `unreadable_file`, `malformed_frontmatter`, `body_unseparable`, `malformed_stash_entry`). A read or containment failure yields `retained_read_error` first. A disposition-set member is mutated only by a single-artifact, non-cascading archive, and only when the engine-semantics verdict is VERIFIED, the deliberation is linked from an explicit member's `source_deliberation_id`, its own status is not live (`active`, `blocked`, `review`), it resolves to exactly one record, and it has no live referrer. The step never widens `closure_scope(S)`, is independent of the selected close path, and reports retained outcomes, which never halt; a verification failure halts with P-005 and never advances to post-mode.
 
 ## Deterministic Safe-Close Scenario Matrix
