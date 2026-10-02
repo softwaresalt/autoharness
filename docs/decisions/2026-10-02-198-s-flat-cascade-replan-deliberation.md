@@ -171,6 +171,14 @@ Adopt Option A. Each stash item maps to a settled source:
     raw `version`, `commit`, `probe_surface`, and verdict. Any difference or
     re-probe failure exits 4 (halt, non-mutating) and never substitutes
     SAFE_CLOSE.
+  * Plan-review cycle 1 (R1): when a `--classify-only` record that selected
+    `cascade` exists, the mutating run treats it as the Step 0(c) record and
+    compares the fresh classifier verdict, engine probe (verdict, raw version
+    and commit, binary hash), selection, and disposition snapshot against it.
+    Any difference exits 4 and leaves the record byte-identical. The mutating
+    run never writes a `safe_close` record over a `cascade`-selected one. This
+    is the D4a "re-probe difference halts" rule applied to the Step 0(c)
+    record, not new design.
 * **R4 — Flat sets (item 4; D2).**
   * The A3b evaluator computes `allowed_ids = items(S) ∪ {S}`.
   * It computes `required_ids = {S} ∪ qualifying feature members ∪ {x ∈ items(S): declared status in the pre-close snapshot is not exactly archived}`.
@@ -192,8 +200,9 @@ Adopt Option A. Each stash item maps to a settled source:
     is `compute_linked_deliberation_disposition(manifest, S, backlog_dir, engine=<R1 decision>)`.
   * This record is also the disposition snapshot that R4 compares against.
   * Every `retained_*` outcome is non-halting for the command, the validator,
-    and the gate. The gate surfaces each one as a `stranded_linked_deliberation`
-    warning.
+    and the gate. The gate does not surface them (re-plan cycle-1 R2, see
+    R5a); the skill's disposition report carries the
+    `stranded_linked_deliberation` advisory.
   * The command never archives a deliberation (one archiver). The executed
     outcomes, including `archived`, are recorded by the skill's
     Linked-Deliberation Disposition report in the closure artifact. That step
@@ -202,15 +211,26 @@ Adopt Option A. Each stash item maps to a settled source:
   * A `planning_error` at pre-close means the disposition snapshot cannot be
     established. The command exits 2 and writes no record. This is the same
     fail-closed rule as the existing "observation set cannot be established".
-* **R5a — Gate layering (consequence of D3a "two layers").**
-  * The A4 write-time SAFE_CLOSE observation-set re-check runs after the
-    disposition step has run. It therefore excludes disposition-set
-    deliberations whose recorded planned outcome is `archive`. INV-12's
-    verify-after-each, reported in the closure artifact, owns those.
-  * Every other observation-set entry, including every `retained_*` and
-    `already-archived` deliberation, must still match its recorded location
-    and SHA-256 exactly. A retained deliberation is never archived (one
-    archiver, U6b).
+* **R5a — Gate layering (consequence of D3a "two layers"; revised by
+  plan-review cycle 1, R2).**
+  * The A4 write-time SAFE_CLOSE observation-set re-check does **not** cover
+    disposition-set deliberations at all. The observation set never contains
+    one, the gate has no planned-`archive` exemption, and it emits no
+    `stranded_linked_deliberation` warning.
+  * Rationale: the skill's Linked-Deliberation Disposition step is the sole
+    archiver (one archiver, U6b) and re-plans after the close from live
+    referrers. The executed outcome can therefore legitimately differ from the
+    pre-close planned outcome, and any gate exemption or check keyed on the
+    pre-close plan mis-fires. INV-12's verify-after-each, reported in the
+    closure artifact, owns every disposition mutation.
+  * Engine drift on those deliberations (item 4) is detected at close time by
+    the A3b post-close re-collection, which is the authoritative point.
+    Gate-level stranded-advisory surfacing stays in the deferred stash scope
+    `3B43CE5A` / `D79EA53A`.
+  * The pre-close disposition snapshot stays in the evidence record (item 5)
+    for A3b drift detection.
+  * The earlier R5a text (exempt planned `archive`, re-check every other
+    deliberation entry) is withdrawn.
 * **R6 — `dag-root` hygiene (item 6; D8a, topology).** See the next section.
 * **R7 — Decomposition consequence.**
   * The CLI probe needs the A3a runner. The order therefore becomes A1 → A1b →
@@ -264,5 +284,5 @@ Recommendation: **remove the `dag-root` label from 198-S.**
 |---|---|
 | A future 1.11.x patch changes cascade semantics inside the verified line | The post-cascade disposition re-collection and the unexpected-artifact check fail as `linked_deliberation_drift` (exit 5) |
 | The probe runs on a different build than the invocation | The probe and the invocation use the same resolved absolute binary, whose hash is checked right before the spawn (A3 step 6) |
-| The A4 exemption hides a malformed archive of a planned-`archive` deliberation | INV-12 verify-after-each owns that mutation and halts with P-005. Its report is part of the same closure artifact |
+| A disposition-set deliberation is mis-archived by the disposition step | INV-12 verify-after-each owns that mutation and halts with P-005. Its report is part of the same closure artifact. The A4 gate does not re-check it (plan-review cycle 1, R2) |
 | The verified engine line is widened later | `8928EC67` must be deliberated first (038-DL D8a). The validator re-runs `assess_cascade_engine_semantics`, so a widened constant is picked up without changing the record shape |
