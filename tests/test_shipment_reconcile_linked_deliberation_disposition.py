@@ -256,5 +256,106 @@ class DispositionSectionAssertionsIV(unittest.TestCase):
                 self.assertIn("disposition-baseline invariance holds", verify)
 
 
+def _safe_close_step(raw: str, number: int) -> str:
+    """One numbered Safe-Close Mode step (before the Cascade sub-procedure)."""
+    mode = raw[raw.index("### Safe-Close Mode") : raw.index("### Cascade Close Sub-Procedure")]
+    start = mode.index(f"\n{number}. **")
+    following = mode.find(f"\n{number + 1}. **", start)
+    return _flatten(mode[start : following if following != -1 else len(mode)])
+
+
+def _post_mode_step(raw: str, number: int) -> str:
+    """One numbered Post-Mode step."""
+    mode = raw[raw.index("### Post-Mode") : raw.index("### Safe-Close Mode")]
+    start = mode.index(f"\n{number}. **")
+    following = mode.find(f"\n{number + 1}. **", start)
+    return _flatten(mode[start : following if following != -1 else len(mode)])
+
+
+def _behavioral_constraints(raw: str) -> str:
+    return _flatten(raw[raw.index("## Behavioral Constraints") : raw.index("## Required Protocol")])
+
+
+def _vocabulary_line(raw: str, invariant: str) -> str:
+    for line in raw.splitlines():
+        if line.startswith(f"* `{invariant}` ("):
+            return line
+    raise AssertionError(f"{invariant} vocabulary line not found")
+
+
+class HandOffScopingAndSelectedWordingAssertions(unittest.TestCase):
+    """200.008-T: scenarios I-1, I-2 and I-3."""
+
+    def test_i_1_safe_close_closed_hands_off_to_disposition_step(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                gate = _safe_close_step(raw, 10)
+                self.assertIn(
+                    "→ `recommendation: CLOSED`. Continue to the "
+                    "Linked-Deliberation Disposition step, not directly to post-mode",
+                    gate,
+                )
+                self.assertNotIn("Proceed to post-mode", gate)
+                # The Step 0(c) CASCADE routing and Cascade step 7 hand off to
+                # the same step, so both close paths converge on it.
+                flat = _flatten(raw)
+                self.assertIn(
+                    "in place of steps 1–10, then continue to the "
+                    "Linked-Deliberation Disposition step.",
+                    flat,
+                )
+                self.assertIn(
+                    "`recommendation: CLOSED`. Hand off to the "
+                    "Linked-Deliberation Disposition step.",
+                    flat,
+                )
+                self.assertIn(
+                    "only after that step returns "
+                    "`recommendation: DISPOSITION_COMPLETE`",
+                    gate,
+                )
+
+    def test_i_2_mutation_scoping_limited_to_safe_close_steps(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                constraints = _behavioral_constraints(raw)
+                self.assertIn(
+                    "**Manifest-scoped mutation only.** In `mode: safe-close`, the "
+                    "ONLY artifacts safe-close steps 1–10 may move or archive are",
+                    constraints,
+                )
+                self.assertIn(
+                    "The INV-12 Linked-Deliberation Disposition step is separately "
+                    "sanctioned",
+                    constraints,
+                )
+                load = _safe_close_step(raw, 1)
+                self.assertIn(
+                    "are the **only** artifacts safe-close steps 1–10 may move or archive",
+                    load,
+                )
+                self.assertIn(
+                    "the INV-12 Linked-Deliberation Disposition step is separately "
+                    "sanctioned",
+                    load,
+                )
+
+    def test_i_3_selected_close_path_wording(self) -> None:
+        selected = "while Step 0(c)'s **selected** close path is not `CASCADE`"
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                record_close = _safe_close_step(raw, 8)
+                self.assertIn(selected, record_close)
+                self.assertNotIn("`CASCADE`-eligible under Step 0(c)", record_close)
+                self.assertIn(
+                    "classifier `CASCADE` with `ENGINE_SEMANTICS_UNVERIFIED` "
+                    "selects `SAFE_CLOSE`",
+                    record_close,
+                )
+                inv11 = _vocabulary_line(raw, "INV-11")
+                self.assertIn(selected, inv11)
+                self.assertNotIn("not cascade-eligible", inv11)
+
+
 if __name__ == "__main__":
     unittest.main()
