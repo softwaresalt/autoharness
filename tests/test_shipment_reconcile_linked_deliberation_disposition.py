@@ -203,5 +203,58 @@ class DispositionSectionAssertionsIII(unittest.TestCase):
                 self.assertIn(_HALT_DISPOSITION, _step(section, 6))
 
 
+class DispositionSectionAssertionsIV(unittest.TestCase):
+    """200.006-T: scenarios H-b, H-d and H-f."""
+
+    def test_h_b_eight_outcomes_and_reason_code_path_fields(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                section = _flatten(_section(raw))
+                for outcome in _OUTCOMES:
+                    with self.subTest(outcome=outcome):
+                        self.assertIn(f"`{outcome}`", section)
+                report = _step(_section(raw), 5)
+                self.assertIn(
+                    "`reason_code` is always present and copied verbatim from the planner",
+                    report,
+                )
+                self.assertIn("`path` is present for `retained_read_error`", report)
+                self.assertIn("`unresolved_references` (`{id, reason_code}`)", report)
+
+    def test_h_d_linked_deliberation_disposition_report_field(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                report = _step(_section(raw), 5)
+                self.assertIn(
+                    "`linked_deliberation_disposition: [{id, link_kinds, "
+                    "linking_members, outcome, reason_code, path, referrers, "
+                    "pre_sha256, post_sha256, archived_status}]`",
+                    report,
+                )
+                self.assertIn("`outcome` is a `LinkedDeliberationOutcome` value", report)
+                self.assertIn("`ENGINE_SEMANTICS_UNVERIFIED`", report)
+                self.assertIn("`ENGINE_LINE_UNVERIFIED_ADVISORY`", report)
+                self.assertIn("`stranded_linked_deliberation` advisory", report)
+
+    def test_h_f_semantic_frontmatter_and_byte_exact_body(self) -> None:
+        for label, raw in _variants():
+            with self.subTest(surface=label):
+                verify = _step(_section(raw), 4)
+                self.assertIn("**Verify-after-each** (immediately after each archive call)", verify)
+                self.assertIn(
+                    "the queue copy is absent, and the archive copy is present exactly once",
+                    verify,
+                )
+                self.assertIn("the archive copy declares `status: archived`", verify)
+                self.assertIn("compared **semantically** (parsed YAML", verify)
+                self.assertIn(
+                    "except for the three engine keys `status`, `archived_status`, "
+                    "and `archived_from`",
+                    verify,
+                )
+                self.assertIn("is **byte-exact**", verify)
+                self.assertIn("disposition-baseline invariance holds", verify)
+
+
 if __name__ == "__main__":
     unittest.main()
