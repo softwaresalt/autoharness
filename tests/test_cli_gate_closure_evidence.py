@@ -90,6 +90,7 @@ def evidence_record(close_path: str, shipment_id: str, feature_id: str, **kwargs
         # recomputed from, so rebind it consistently (PR #482 review).
         original = record["shipment_id"]
         post = record["post_close"]
+        post["parsed_result"]["shipment_id"] = shipment_id
         for container, key in (
             (post["parsed_result"], "archived_ids"),
             (post, "allowed_ids"),
@@ -628,10 +629,13 @@ class CloseEvidenceRequirementTests(_ClosureWorkspaceMixin, unittest.TestCase):
         tampered["post_close"]["shipment_record_status"] = "active"
         tampered["post_close"]["allowed_ids"] = []
         tampered["post_close"]["required_ids"] = []
+        other_shipment_result = evidence_record("cascade", "175-S", "167-F")
+        other_shipment_result["post_close"]["parsed_result"]["shipment_id"] = "176-S"
         rows = [
             ("cascade, no record", "cascade", None, "close_evidence"),
             ("cascade, fail verdict record", "cascade", failed, "close_evidence"),
             ("cascade, tampered derived fields", "cascade", tampered, "close_evidence"),
+            ("cascade, engine result names another shipment", "cascade", other_shipment_result, "close_evidence"),
             (
                 "cascade, UNVERIFIED engine record",
                 "cascade",

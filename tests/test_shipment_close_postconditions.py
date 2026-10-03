@@ -216,6 +216,8 @@ class EnvelopeTests(unittest.TestCase):
                     commit_sha="0123456789abcdef0123456789abcdef01234567",
                 ),
             )
+            # PR #482 review: the durable record keeps the shipment the result named.
+            self.assertEqual(parsed.to_record()["shipment_id"], "001-S")
         with self.subTest("characterized error envelope"):
             parsed = parse_ship_response((_FIXTURES / "shipment-ship-gate-blocked.jsonrpc").read_bytes())
             self.assertIsInstance(parsed, ParseError)

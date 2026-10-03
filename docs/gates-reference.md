@@ -425,6 +425,10 @@ The record's selection and disposition fields:
   the `pre_close` section only. `allowed_ids` is the manifest items plus the
   shipment ID. `required_ids` is the shipment ID, plus the qualifying feature IDs,
   plus every manifest item that was not already archived before the close.
+* `post_close.parsed_result`: the parsed `backlogit shipment ship` result
+  (`shipment_id`, `shipment_status`, `archived_ids`, `returned_ids`, and
+  `commit_sha`). Its `shipment_id` must equal the record's top-level
+  `shipment_id`.
 * Derived `post_close` fields are recomputed, not trusted. Record validation
   recomputes `allowed_ids` and `required_ids` from `pre_close`, both set
   differences (`unexpected_archived` and `missing_required`) from

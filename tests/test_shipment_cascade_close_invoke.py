@@ -275,8 +275,10 @@ class PassAndArgvLogTests(unittest.TestCase):
         self.assertEqual(
             validate_evidence_record(record, shipment_id=_SHIPMENT, feature_id=_FEATURE, close_path="cascade"), []
         )
-        # PR #482 review: the validator recomputes derived fields, so a
-        # tampered real record is rejected.
+        # PR #482 review: the durable parsed_result names the shipment the
+        # engine result named, and the validator recomputes derived fields, so
+        # a tampered real record is rejected.
+        self.assertEqual(record["post_close"]["parsed_result"]["shipment_id"], _SHIPMENT)
         for key, value in (("allowed_ids", []), ("required_ids", [])):
             with self.subTest(tampered=key):
                 tampered = json.loads(json.dumps(record))

@@ -196,6 +196,7 @@ def cascade_record(*, engine: dict | None = None) -> dict:
     }
     record["post_close"] = {
         "parsed_result": {
+            "shipment_id": _SHIPMENT,
             "shipment_status": "shipped",
             "archived_ids": ["192.001-T", "192-F", _SHIPMENT],
             "returned_ids": [],
@@ -551,6 +552,33 @@ class DerivedFieldRecomputationTests(unittest.TestCase):
         self.assertEqual(_validate(record, "cascade"), [])
         record["post_close"]["required_ids"] = sorted(record["post_close"]["required_ids"] + ["192.002-T"])
         self.assertNotEqual(_errors_at(_validate(record, "cascade"), "record.post_close.required_ids"), [])
+
+
+class ParsedResultShipmentIdTests(unittest.TestCase):
+    """PR #482 review: ``parsed_result.shipment_id`` is persisted and must name the record's shipment."""
+
+    def test_parsed_result_shipment_id_table(self) -> None:
+        def drop(record: dict) -> None:
+            del record["post_close"]["parsed_result"]["shipment_id"]
+
+        def set_to(value: object):
+            return lambda r: r["post_close"]["parsed_result"].__setitem__("shipment_id", value)
+
+        rows = [
+            ("missing", drop),
+            ("another shipment", set_to("199-S")),
+            ("empty", set_to("")),
+            ("not a string", set_to(198)),
+        ]
+        self.assertEqual(_validate(cascade_record(), "cascade"), [])
+        for label, mutation in rows:
+            with self.subTest(label):
+                record = cascade_record()
+                mutation(record)
+                errors = _validate(record, "cascade")
+                self.assertNotEqual(
+                    _errors_at(errors, "record.post_close.parsed_result.shipment_id"), [], f"{label}: {errors}"
+                )
 
 
 class SelectionConsistencyTests(unittest.TestCase):

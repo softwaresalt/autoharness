@@ -1215,6 +1215,14 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
     parsed = checker.mapping(post_close, "parsed_result", where)
     if parsed is not None:
         parsed_where = f"{where}.parsed_result"
+        # PR #482 review: the captured engine result must name this record's shipment.
+        parsed_shipment = checker.field(parsed, "shipment_id", parsed_where, _is_nonempty_str, "a non-empty string")
+        record_shipment = record.get("shipment_id")
+        if parsed_shipment is not _MISSING and parsed_shipment != record_shipment:
+            checker.fail(
+                f"{parsed_where}.shipment_id",
+                f"the engine result names {parsed_shipment!r}, not the record's shipment {record_shipment!r}",
+            )
         status = checker.field(parsed, "shipment_status", parsed_where, _is_str, "a string")
         if status is not _MISSING and status != _SHIPPED_STATUS:
             checker.fail(f"{parsed_where}.shipment_status", f"a passing cascade requires 'shipped' (got {status!r})")

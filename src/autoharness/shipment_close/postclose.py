@@ -108,6 +108,7 @@ class ParsedResult:
         """The A1 ``post_close.parsed_result`` shape."""
 
         return {
+            "shipment_id": self.shipment_id,
             "shipment_status": self.shipment_status,
             "archived_ids": list(self.archived_ids),
             "returned_ids": list(self.returned_ids),
