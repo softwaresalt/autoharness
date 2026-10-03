@@ -360,21 +360,33 @@ cost of `backlogit shipment ship`, and P is its per-artifact cost:
   with a timeout known to be too short.
 
 The reference values F = 133 s and P = 35 s were measured on backlogit 1.11.0 at
-~1,700 indexed artifacts from `.backlogit/logs` (201-S: 553 s predicted vs 581 s
+~1,700 indexed artifacts from the backlogit event logs under `<backlog root>/logs`
+(`.backlog/` by default; legacy `.backlogit/`) (201-S: 553 s predicted vs 581 s
 actual; 202-S: 483 s predicted vs ~486 s actual). The per-archive term tracks a full
 index rebuild, so it grows with index size. The 1.5 factor leaves at least 50 %
 headroom over the model, and more under the 1800 s default. Re-derive F and P from
-`.backlogit/logs` when a cascade runs longer than its prediction by more than that
+`<backlog root>/logs` when a cascade runs longer than its prediction by more than that
 headroom.
 
 The ceiling is finite on purpose. A timeout kills the engine mid-cascade and ends in
 exit 6 (`mutation_possible: indeterminate`), so a too-short timeout tears a healthy
 cascade, while an unbounded one would never surface a hung engine.
 
+Whenever the effective timeout (B, or the 1800 default) exceeds the agent runtime's
+synchronous tool-call limit (some runtimes cap a shell call at about 10 minutes),
+Ship MUST start the mutating run in the runtime's background/async mode, attached to
+the session (never detached from it), and poll until the command exits. If the
+runtime cannot keep the process alive for the full timeout, Ship HALTs before the
+mutating run. A runtime that kills `autoharness` mid-run leaves `backlogit` running
+unsupervised in its own process group, the evidence record at `invoking`, and the
+pair lock in place, so the next run exits 7.
+
 Ship stays attached to the run until the command exits and never abandons or kills
 it on an agent-tool wait. For this run the command's `--timeout` is the stall bound:
-the circuit-breaker "Other commands" 5-minute stall timeout does not apply, because
-the most specific applicable limit governs.
+the circuit-breaker Stall Detection table's `autoharness shipment cascade-close`
+(mutating mode) row sets it in place of the "Other commands" 5-minute stall timeout.
+The broader stall-detection timeout class for other long-running commands remains
+deferred (stash 9869AA32).
 
 ### Engine-semantics gate and close-path selection
 
@@ -468,6 +480,9 @@ The record's selection and disposition fields:
 * `post_close.linked_deliberation_drift`: a list of disposition-set deliberations
   that the cascade archived or modified. That is engine drift; a non-empty list
   fails the postconditions (exit 5).
+
+The effective `--timeout` is not recorded in the evidence record; the record carries
+only whether the run timed out (`invocation.timed_out`).
 
 ### Closure-evidence gate: close-path checks
 

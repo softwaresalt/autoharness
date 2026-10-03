@@ -832,11 +832,19 @@ backlogit 1.11.0: F = 133 s, P = 35 s). If B <= 1800, the default suffices.
 If 1800 < B <= 3600, Ship adds `--timeout B` to the invocation above. If
 B > 3600, Ship does not start the mutating run and HALTs for an operator
 decision; it never invokes the command with a timeout known to be too
-short. Ship stays attached to the run until the command exits and never
-abandons or kills it on an agent-tool wait. For this run the command's
-`--timeout` is the stall bound and the circuit-breaker "Other commands"
-5-minute stall timeout does not apply, because the most specific applicable
-limit governs.
+short. Whenever the effective timeout (B, or the 1800 default) exceeds the
+agent runtime's synchronous tool-call limit, Ship MUST start the mutating
+run in the runtime's background/async mode, attached to the session (never
+detached from it), and poll until the command exits; if the runtime cannot
+keep the process alive for the full timeout, Ship HALTs before the mutating
+run. A runtime that kills the command mid-run leaves `backlogit` running
+unsupervised in its own process group, the evidence record at `invoking`,
+and the pair lock in place, so the next run exits 7. Ship stays attached to
+the run until the command exits and never abandons or kills it on an
+agent-tool wait. For this run the command's `--timeout` is the stall bound:
+the circuit-breaker Stall Detection table's `autoharness shipment
+cascade-close` (mutating mode) row sets it in place of the "Other commands"
+5-minute stall timeout.
 <!-- cascade-close-routing:END cascade-sub-procedure -->
 
 **Pre-archived manifest members (expected and tolerated)**: before invoking

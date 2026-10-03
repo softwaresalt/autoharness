@@ -269,10 +269,11 @@ or otherwise alter the 3-cycle count semantics above.
 
 Commands that exceed their timeout are counted as failures:
 
-| Command type       | Timeout    |
-|--------------------|------------|
-| Build/test         | 45 minutes |
-| Other commands     | 5 minutes  |
+| Command type                                          | Timeout                                                                                          |
+|-------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| Build/test                                            | 45 minutes                                                                                       |
+| `autoharness shipment cascade-close` (mutating mode)  | the command's own `--timeout` (30-3600 s; sized per the shipment-reconcile Timeout sizing note)  |
+| Other commands                                        | 5 minutes                                                                                        |
 
 If a command exceeds its timeout, terminate the process and count it as one
 failed attempt toward the retry threshold immediately. The timeout marker is
@@ -283,7 +284,8 @@ part of the same-operation evidence, just like a native process exit code.
 A **session stall** occurs when the agent encounters a blocking condition that
 prevents forward progress. The session stall counter increments when:
 
-1. A command exceeds its timeout (build/test: 45 min, other: 5 min)
+1. A command exceeds its timeout (build/test: 45 min; mutating
+   `autoharness shipment cascade-close`: its own `--timeout`; other: 5 min)
 2. A file lock acquisition blocks and the retry also fails (per concurrency protocol)
 3. A required tool or MCP surface becomes unavailable mid-session
 4. An agent-intercom heartbeat ping fails (when the pack is enabled)

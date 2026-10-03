@@ -663,6 +663,31 @@ _RANGE_TOKEN = (
 )
 
 
+# 198-S A8 local review: the sizing-band boundaries, the stay-attached /
+# background-poll rule, and the circuit-breaker Stall Detection row that sets
+# the mutating run's stall bound are pinned alongside the range token.
+_DEFAULT_BAND = f"B <= {_runner.DEFAULT_TIMEOUT_SECONDS}"
+_EXPLICIT_BAND = f"{_runner.DEFAULT_TIMEOUT_SECONDS} < B <= {_runner.MAX_TIMEOUT_SECONDS}"
+_BACKGROUND_POLL = (
+    "exceeds the agent runtime's synchronous tool-call limit"
+)
+_STALL_ROW_POINTER = (
+    "the circuit-breaker Stall Detection table's `autoharness shipment cascade-close` "
+    "(mutating mode) row"
+)
+_RETIRED_STALL_ARGUMENT = "the most specific applicable limit governs"
+CIRCUIT_BREAKER_FILES = (
+    Path(".github") / "instructions" / "circuit-breaker.instructions.md",
+    Path("templates") / "instructions" / "circuit-breaker.instructions.md.tmpl",
+)
+STALL_DETECTION_HEADING = "## Stall Detection"
+_STALL_ROW_PREFIX = "| `autoharness shipment cascade-close` (mutating mode) |"
+_STALL_ROW_TIMEOUT = (
+    f"| the command's own `--timeout` ({_runner.MIN_TIMEOUT_SECONDS}-"
+    f"{_runner.MAX_TIMEOUT_SECONDS} s; sized per the shipment-reconcile Timeout sizing note) |"
+)
+
+
 def _collapse(text: str) -> str:
     return " ".join(text.split())
 
@@ -679,6 +704,14 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
         section = _collapse(_heading_section(text, TIMEOUT_SIZING_HEADING))
         self.assertIn(_SIZING_FORMULA, section)
         self.assertRegex(section, rf"B > {_runner.MAX_TIMEOUT_SECONDS}: HALT\b")
+        self.assertIn(_DEFAULT_BAND, section)
+        self.assertIn(_EXPLICIT_BAND, section)
+        self.assertIn(_BACKGROUND_POLL, section)
+        self.assertIn(_STALL_ROW_POINTER, section)
+        self.assertIn("stash 9869AA32", section)
+        self.assertNotIn(_RETIRED_STALL_ARGUMENT, section)
+        self.assertNotIn(".backlogit/logs", section)
+        self.assertIn("`<backlog root>/logs`", section)
 
     def test_shipment_reconcile_sizing_note(self) -> None:
         for label, text in _read_pair(RECONCILE_FILES):
@@ -688,9 +721,30 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
                 self.assertIn(_RANGE_TOKEN, region)
                 self.assertRegex(region, rf"B > {_runner.MAX_TIMEOUT_SECONDS}[^.]*HALT")
                 self.assertIn("stays attached to the run until the command exits", region)
-                self.assertIn("the most specific applicable limit governs", region)
+                self.assertIn(_DEFAULT_BAND, region)
+                self.assertIn(_EXPLICIT_BAND, region)
+                self.assertIn(_BACKGROUND_POLL, region)
+                self.assertIn("HALTs before the mutating run", region)
+                self.assertIn(_STALL_ROW_POINTER, region)
+                self.assertNotIn(_RETIRED_STALL_ARGUMENT, region)
                 self.assertNotIn("30-900", text)
                 self.assertNotIn("docs/gates-reference.md", text)
+
+    def test_circuit_breaker_stall_detection_row(self) -> None:
+        for label, text in _read_pair(CIRCUIT_BREAKER_FILES):
+            with self.subTest(path=label):
+                section = _heading_section(text, STALL_DETECTION_HEADING)
+                rows = [
+                    _collapse(line) for line in section.split("\n") if line.startswith(_STALL_ROW_PREFIX[:3])
+                ]
+                matching = [row for row in rows if row.startswith(_STALL_ROW_PREFIX)]
+                self.assertEqual(len(matching), 1)
+                self.assertTrue(matching[0].endswith(_STALL_ROW_TIMEOUT), matching[0])
+                self.assertIn(str(_runner.MAX_TIMEOUT_SECONDS), matching[0])
+                self.assertIn(
+                    "mutating `autoharness shipment cascade-close`: its own `--timeout`",
+                    _collapse(section),
+                )
 
 
 if __name__ == "__main__":

@@ -715,8 +715,11 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    Linked-Deliberation Disposition step (P-015 INV-12) runs with its inputs from the evidence
    record and remains the only archiver of a linked deliberation; the command never
    archives one. The closure artifact records `close_path` (`cascade` or
-   `safe_close`) and `close_evidence` (the evidence record path). The exit-code
-   routing table lives in the `shipment-reconcile` skill, not here.
+   `safe_close`) and `close_evidence` (the evidence record path). The mutating run
+   is long-running; `--timeout` sizing, the B > 3600 HALT, and the
+   stay-attached/background-poll rule live in the skill's Cascade Close
+   Sub-Procedure. The exit-code routing table lives in the `shipment-reconcile`
+   skill, not here.
    At the summary level, the skill:
    a. classifies the close path via the P-015 flat-manifest, engine-inertness
       containment gate (`classify_shipment_close_path(manifest_items,
