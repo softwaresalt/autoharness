@@ -2213,7 +2213,12 @@ Exit codes:
   4  pre-invocation revalidation drift; nothing invoked. Never answer with SAFE_CLOSE.
   5  a postcondition failed (operator review).
   6  backlogit exited non-zero, timed out, or its output did not parse (operator review).
-  7  an existing lock or invoking record; nothing invoked (operator review).
+  7  the pair lock is already held, or an existing evidence record needs review
+     (invoking, unreadable, ambiguous, or another pair); nothing invoked
+     (operator review). The lock is
+     .autoharness/gates/cascade-close/{S}-{F}.lock; it is never broken
+     automatically, and removing a stale lock is an operator-only action
+     (agents must not delete it).
   8  the post-close evidence write failed after invocation (operator review).
 Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
 cascade-close, calling `backlogit shipment ship` directly, or substituting
