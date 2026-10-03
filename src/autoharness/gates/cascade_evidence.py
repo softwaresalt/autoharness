@@ -43,6 +43,7 @@ from autoharness.gates.closure_contract import (
 from autoharness.gates.shipment_closure import (
     ClosePath,
     ClosePathDecision,
+    EngineSemanticsDecision,
     EngineSemanticsVerdict,
     assess_cascade_engine_semantics,
     select_close_path,
@@ -350,6 +351,110 @@ def observation_entry_from_record(record: object) -> ObservationEntry:
         declared_status=declared_status_from_record(record["declared_status"]),
     )
 
+
+# ---------------------------------------------------------------------------
+# Record codec: engine_semantics and close_path_selection (plan unit A1e)
+# ---------------------------------------------------------------------------
+
+_ENGINE_KEYS: Final = frozenset(
+    {"verdict", "reason", "probed_version", "minor_line", "probed_commit", "probe_surface", "invocation_surface"}
+)
+_SELECTION_KEYS: Final = frozenset({"selected_close_path", "reason"})
+
+
+def engine_semantics_to_record(
+    decision: EngineSemanticsDecision, *, invocation_surface: str
+) -> dict[str, object]:
+    """Encode an ``EngineSemanticsDecision`` plus its ``invocation_surface`` input.
+
+    Every value is stored verbatim (re-plan cycle-1 R6), so re-assessment of
+    the recorded inputs reproduces the recorded outputs. ``minor_line`` is
+    ``[major, minor]`` or ``None``. There is no probe excerpt (cycle-1 R7).
+    """
+
+    if type(decision) is not EngineSemanticsDecision:
+        raise CascadeEvidenceError(f"expected an EngineSemanticsDecision (got {type(decision).__name__})")
+    record = {
+        "verdict": decision.verdict.value if isinstance(decision.verdict, EngineSemanticsVerdict) else decision.verdict,
+        "reason": decision.reason,
+        "probed_version": decision.probed_version,
+        "minor_line": list(decision.minor_line) if decision.minor_line is not None else None,
+        "probed_commit": decision.probed_commit,
+        "probe_surface": decision.probe_surface,
+        "invocation_surface": invocation_surface,
+    }
+    engine_semantics_from_record(record)  # one decoder: reject what it would reject
+    return record
+
+
+def engine_semantics_from_record(record: object) -> tuple[EngineSemanticsDecision, str]:
+    """Decode an ``engine_semantics`` record into ``(decision, invocation_surface)``.
+
+    Raises :class:`CascadeEvidenceError` on a missing or unknown key, an
+    unknown ``verdict``, a ``minor_line`` that is neither ``None`` nor a list
+    of two integers, or a wrong-typed value.
+    """
+
+    if not isinstance(record, Mapping):
+        raise CascadeEvidenceError("engine_semantics must be an object")
+    keys = set(record)
+    if keys != _ENGINE_KEYS:
+        raise CascadeEvidenceError(
+            f"engine_semantics keys must be {sorted(_ENGINE_KEYS)} (got {sorted(map(str, keys))})"
+        )
+    verdict = record["verdict"]
+    if verdict not in _ENGINE_VERDICTS or type(verdict) is not str:
+        raise CascadeEvidenceError(f"engine_semantics has unknown verdict {verdict!r}")
+    if type(record["reason"]) is not str:
+        raise CascadeEvidenceError("engine_semantics.reason must be a string")
+    for key in ("probed_version", "probed_commit", "probe_surface"):
+        if record[key] is not None and type(record[key]) is not str:
+            raise CascadeEvidenceError(f"engine_semantics.{key} must be a string or null")
+    if type(record["invocation_surface"]) is not str:
+        raise CascadeEvidenceError("engine_semantics.invocation_surface must be a string")
+    minor_line = record["minor_line"]
+    if minor_line is not None and not (
+        type(minor_line) is list and len(minor_line) == 2 and all(type(part) is int for part in minor_line)
+    ):
+        raise CascadeEvidenceError(f"engine_semantics.minor_line must be null or two integers (got {minor_line!r})")
+    decision = EngineSemanticsDecision(
+        verdict=EngineSemanticsVerdict(verdict),
+        reason=record["reason"],
+        probed_version=record["probed_version"],
+        minor_line=(minor_line[0], minor_line[1]) if minor_line is not None else None,
+        probe_surface=record["probe_surface"],
+        probed_commit=record["probed_commit"],
+    )
+    return decision, record["invocation_surface"]
+
+
+def close_path_selection_to_record(selection: tuple[ClosePath, str]) -> dict[str, object]:
+    """Encode the ``(ClosePath, reason)`` result of ``select_close_path``."""
+
+    if type(selection) is not tuple or len(selection) != 2 or type(selection[0]) is not ClosePath:
+        raise CascadeEvidenceError("expected a (ClosePath, reason) selection")
+    record = {"selected_close_path": selection[0].value, "reason": selection[1]}
+    close_path_selection_from_record(record)
+    return record
+
+
+def close_path_selection_from_record(record: object) -> tuple[ClosePath, str]:
+    """Decode a ``close_path_selection`` record; raises :class:`CascadeEvidenceError`."""
+
+    if not isinstance(record, Mapping):
+        raise CascadeEvidenceError("close_path_selection must be an object")
+    keys = set(record)
+    if keys != _SELECTION_KEYS:
+        raise CascadeEvidenceError(
+            f"close_path_selection keys must be {sorted(_SELECTION_KEYS)} (got {sorted(map(str, keys))})"
+        )
+    selected = record["selected_close_path"]
+    if type(selected) is not str or selected not in _CLOSE_PATHS:
+        raise CascadeEvidenceError(f"close_path_selection has unknown selected_close_path {selected!r}")
+    if type(record["reason"]) is not str:
+        raise CascadeEvidenceError("close_path_selection.reason must be a string")
+    return ClosePath(selected), record["reason"]
+
 def redact(text: str) -> tuple[str, bool]:
     """Return ``(redacted_text, redaction_applied)`` for one free-text value.
 
@@ -574,27 +679,14 @@ def _check_tool(checker: _Checker, record: Mapping[str, object]) -> None:
     checker.field(tool, "version_excerpt", "record.tool", _is_str, "a string")
 
 
-def _check_engine_shape(checker: _Checker, engine: Mapping[str, object], where: str) -> bool:
-    before = len(checker.errors)
-    checker.field(engine, "verdict", where, lambda v: v in _ENGINE_VERDICTS, f"one of {sorted(_ENGINE_VERDICTS)}")
-    checker.field(engine, "reason", where, _is_str, "a string")
-    for key in ("probed_version", "probed_commit", "probe_surface"):
-        checker.field(engine, key, where, lambda v: v is None or _is_str(v), "a string or null")
-    checker.field(
-        engine,
-        "minor_line",
-        where,
-        lambda v: v is None or (type(v) is list and len(v) == 2 and all(_is_int(i) for i in v)),
-        "null or a list of two integers",
-    )
-    surface = checker.field(engine, "invocation_surface", where, _is_str, "a string")
-    if surface is not _MISSING and surface != "cli":
-        checker.fail(f"{where}.invocation_surface", f"must be 'cli' (got {surface!r})")
-    return len(checker.errors) == before
-
-
 def _check_selection(checker: _Checker, pre_close: Mapping[str, object], close_path: str) -> None:
-    """Re-assess the engine and re-select the close path (re-plan R1/R2, D4a)."""
+    """Re-assess the engine and re-select the close path (re-plan R1/R2, D4a).
+
+    The recorded ``engine_semantics`` and ``close_path_selection`` are decoded
+    through the A1e codec (one decoder), re-assessed with
+    ``assess_cascade_engine_semantics`` and ``select_close_path``, and compared
+    as ``*_to_record`` encodings.
+    """
 
     where = "record.pre_close"
     verdict = checker.field(
@@ -604,21 +696,27 @@ def _check_selection(checker: _Checker, pre_close: Mapping[str, object], close_p
     qualifying = checker.field(pre_close, "qualifying_feature_ids", where, _is_str_list, "a list of strings")
     engine = checker.mapping(pre_close, "engine_semantics", where)
     selection = checker.mapping(pre_close, "close_path_selection", where)
-    engine_ok = engine is not None and _check_engine_shape(checker, engine, f"{where}.engine_semantics")
-    selected = reason_recorded = _MISSING
+
+    decoded_engine: EngineSemanticsDecision | None = None
+    surface = ""
+    if engine is not None:
+        try:
+            decoded_engine, surface = engine_semantics_from_record(engine)
+        except CascadeEvidenceError as exc:
+            checker.fail(f"{where}.engine_semantics", str(exc))
+        else:
+            if surface != "cli":
+                checker.fail(f"{where}.engine_semantics.invocation_surface", f"must be 'cli' (got {surface!r})")
+    decoded_selection: tuple[ClosePath, str] | None = None
     if selection is not None:
-        selected = checker.field(
-            selection,
-            "selected_close_path",
-            f"{where}.close_path_selection",
-            lambda v: v in _CLOSE_PATHS,
-            f"one of {sorted(_CLOSE_PATHS)}",
-        )
-        reason_recorded = checker.field(selection, "reason", f"{where}.close_path_selection", _is_str, "a string")
-    if selected is not _MISSING and selected != close_path:
+        try:
+            decoded_selection = close_path_selection_from_record(selection)
+        except CascadeEvidenceError as exc:
+            checker.fail(f"{where}.close_path_selection", str(exc))
+    if decoded_selection is not None and decoded_selection[0].value != close_path:
         checker.fail(
             f"{where}.close_path_selection.selected_close_path",
-            f"record selected {selected!r} but is offered for {close_path!r}",
+            f"record selected {decoded_selection[0].value!r} but is offered for {close_path!r}",
         )
 
     # Sanitized inputs, unredacted outputs (re-plan cycle-1 R6): compare the
@@ -634,47 +732,40 @@ def _check_selection(checker: _Checker, pre_close: Mapping[str, object], close_p
         if type(value) is str and redact(value)[0] != value:
             checker.fail(location, "value is not redaction-neutral (sanitized input expected)")
 
-    if not engine_ok or engine is None:
+    if decoded_engine is None or engine is None:
         return
-    decision = assess_cascade_engine_semantics(
-        engine["probed_version"],
-        probe_surface=engine["probe_surface"],
-        invocation_surface=engine["invocation_surface"],
-        probed_commit=engine["probed_commit"],
+    fresh = assess_cascade_engine_semantics(
+        decoded_engine.probed_version,
+        probe_surface=decoded_engine.probe_surface,
+        invocation_surface=surface,
+        probed_commit=decoded_engine.probed_commit,
     )
-    expected_engine = {
-        "verdict": decision.verdict.value,
-        "reason": decision.reason,
-        "probed_version": decision.probed_version,
-        "minor_line": list(decision.minor_line) if decision.minor_line is not None else None,
-        "probed_commit": decision.probed_commit,
-        "probe_surface": decision.probe_surface,
-    }
+    expected_engine = engine_semantics_to_record(fresh, invocation_surface=surface)
     for key, expected in expected_engine.items():
         if engine[key] != expected:
             checker.fail(
                 f"{where}.engine_semantics.{key}",
                 f"recorded {engine[key]!r} but re-assessment gives {expected!r}",
             )
-    if verdict is _MISSING or reason is _MISSING or qualifying is _MISSING or selected is _MISSING or reason_recorded is _MISSING:
+    if decoded_selection is None or selection is None or _MISSING in (verdict, reason, qualifying):
         return
     classifier = ClosePathDecision(
         close_path=_CLASSIFIER_VERDICTS[verdict],
         reason=reason,
         qualifying_feature_ids=tuple(qualifying),
     )
-    expected_path, expected_reason = select_close_path(classifier, decision)
-    if selected != expected_path.value:
+    expected_selection = close_path_selection_to_record(select_close_path(classifier, fresh))
+    if selection["selected_close_path"] != expected_selection["selected_close_path"]:
         checker.fail(
             f"{where}.close_path_selection.selected_close_path",
-            f"recorded {selected!r} but select_close_path gives {expected_path.value!r}",
+            f"recorded {selection['selected_close_path']!r} but select_close_path gives "
+            f"{expected_selection['selected_close_path']!r}",
         )
-    if reason_recorded != expected_reason:
+    if selection["reason"] != expected_selection["reason"]:
         checker.fail(
             f"{where}.close_path_selection.reason",
             "recorded reason disagrees with select_close_path",
         )
-
 
 def _check_disposition_paths(checker: _Checker, pre_close: Mapping[str, object]) -> None:
     """Walk the disposition snapshot's path fields (shape rules belong to A1c)."""
