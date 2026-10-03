@@ -715,11 +715,19 @@ def _canonicalize(value: object, key: str | None = None) -> object:
     return value
 
 
-def _serialize_evidence_record(record: Mapping[str, object]) -> str:
-    """Serialize ``record`` under the A1 rule: sorted keys and ID lists, LF, one trailing newline."""
+def serialize_evidence_record(record: Mapping[str, object]) -> str:
+    """Serialize ``record`` under the A1 rule: sorted keys and ID lists, LF, one trailing newline.
+
+    Public so the ``shipment_close`` writer (A1b) and the A1 contract share one
+    byte-stable serializer (Principle IX).
+    """
 
     text = json.dumps(_canonicalize(record), sort_keys=True, indent=2, ensure_ascii=False)
     return text + "\n"
+
+
+# Backwards-compatible private alias (A1 tests).
+_serialize_evidence_record = serialize_evidence_record
 
 
 # ---------------------------------------------------------------------------
