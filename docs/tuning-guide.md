@@ -192,6 +192,106 @@ grouped warning summaries. When that happens, review both the grouped warning
 count and the underlying finding count so a high-volume compatibility problem is
 not mistaken for a single isolated warning.
 
+## Agent and Skill Frontmatter Contract
+
+The YAML frontmatter keys that agents and skills may, must, and must not carry
+are defined once, in `src/autoharness/frontmatter_contract.py`. The
+`verify-workspace` `frontmatter_conformity` targeted check, the repository's
+template conformity test, and the tune-harness Step 1.5c migration all read that
+single definition.
+
+### Routing Key Constants
+
+| Constant | Keys |
+|---|---|
+| `TIER_KEYS` | `max_subagent_tier`, `subagent_depth` |
+| `ROUTE_VALUE_KEYS` | `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| `routing_keys()` | `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+
+The shared routing-key set is the union of `TIER_KEYS` and `ROUTE_VALUE_KEYS`.
+It is computed at call time by `routing_keys()` rather than stored as a
+separate literal, so extending the contract with a new route-value key is a
+single edit to `ROUTE_VALUE_KEYS`. A bare `model:` key is never valid on any
+agent or skill.
+
+### Key Sets by Profile
+
+| Artifact | Required keys | Optional keys | Forbidden keys |
+|---|---|---|---|
+| Agent, `tier-routed` | `name`, `description`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` | `model` |
+| Agent, `plugin-global` | `name`, `description`, `max_subagent_tier`, `subagent_depth` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target` | `model`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| Skill | `name`, `description` | `argument-hint`, `input`, `license`, `compatibility`, `metadata`, `allowed-tools` | `model`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+
+An agent listed in the autoharness root `plugin.json` `agents[]` is checked
+against the `plugin-global` profile; every other agent is `tier-routed`.
+Skills are leaf executors (P-013.5): they inherit the invoking agent's route
+and carry no routing key.
+
+Value rules:
+
+* `max_subagent_tier` is an integer from 1 to 3, and `subagent_depth` is a
+  non-negative integer.
+* `name`, `description`, `model_family`, `anchor_review_family`, and
+  `alt_review_family` are non-empty strings. The provider and reasoning-effort
+  keys are strings and may be empty.
+* A skill's `name` equals its directory name, matches
+  `^[a-z0-9]+(-[a-z0-9]+)*$`, and is at most 64 characters long.
+* An installed artifact must not contain an unresolved `{{...}}` placeholder.
+* A key outside every set is reported as `FM_UNKNOWN_KEY`, which is
+  informational only and never fails verification.
+
+### Plugin-Global Agents
+
+Plugin-distributed agents (for example `auto-tune` and `auto-mergeinstall`) are
+shipped verbatim and are never install-rendered. They declare only the tier
+keys — `max_subagent_tier`, the ceiling for the subagents they dispatch, and
+`subagent_depth` — plus the tier statement in their persona body ("operates at
+Tier N"). They carry no route-value frontmatter and run on the operator's
+session model. There is no automatic route resolution for them: autoharness does
+not claim to select or enforce a model for a plugin-global agent.
+
+### Provenance Classes
+
+`verify-workspace` classifies each agent and skill file by provenance before it
+decides how a nonconformant file is reported:
+
+| Class | Provenance | Verify outcome | Tune migration |
+|---|---|---|---|
+| `managed-rendered` | Rendered from an autoharness template | Fails closed | `rerender`, or `source-repair` when the template itself is defective |
+| `managed-community` | Installed community template | Fails closed | `reinstall-community`, or `source-repair` |
+| `managed-source` | autoharness's own source-controlled global agent or skill definition | Fails closed | Single-key frontmatter edits |
+| `workspace-authored` | Not tracked by the harness manifest | Advisory warning; never fails verification | Single-key edits, only with per-proposal operator approval |
+| `unknown-provenance` | Provenance cannot be established | Advisory warning | Single-key edits, only with per-proposal operator approval |
+
+Managed files fail closed regardless of checksum status: a `user-modified` or
+`ignored` checksum does not excuse a nonconformant managed file.
+
+Workspace-authored agents, such as a project's own `sqlite-reviewer` review
+persona, are preserved and reported, not rewritten. Their findings appear as
+advisory warnings and migration proposals that the operator approves one at a
+time.
+
+### Frontmatter Migration
+
+Every blocking finding yields a `contract: frontmatter-conformity` entry in
+`migration_proposals[]`. tune-harness promotes these in Step 1.5c:
+
+* managed findings (`severity: P1`) are **Breaking** drift, and
+  workspace-authored or unknown-provenance findings (`severity: P2`) are
+  **Degrading** drift;
+* each proposal carries one action — `rerender`, `reinstall-community`,
+  `source-repair`, `manual-fix`, `migrate-key`, `remove-key`, `add-key`, or
+  `replace-value`. `source-repair` and `manual-fix` are report-only, and the
+  four key-level actions edit a single frontmatter key while preserving the
+  body;
+* `reinstall-community` refreshes both the `installed_checksum` and the
+  `source_checksum` of the community-template entry;
+* `migrate-key` and `remove-key` proposals, every `manual_review: true`
+  proposal, and every proposal against a workspace-authored or user-modified
+  file need per-proposal operator approval;
+* a bare `model:` → `model_family` migration never invents `model_provider`;
+  a missing provider is supplied by the operator.
+
 ## Manual Tuning
 
 All harness artifacts are regular Markdown files. You can edit them directly:

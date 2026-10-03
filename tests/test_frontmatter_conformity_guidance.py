@@ -15,6 +15,8 @@ from pathlib import Path
 
 import yaml
 
+from autoharness import frontmatter_contract as fc
+
 _ROOT = Path(__file__).resolve().parents[1]
 _MANIFEST = _ROOT / ".autoharness" / "harness-manifest.yaml"
 _TUNE = ".github/skills/tune-harness/SKILL.md"
@@ -175,6 +177,85 @@ class GuidanceManifestChecksumTests(unittest.TestCase):
                 self.assertIn(rel, by_path)
                 self.assertEqual(by_path[rel].get("template"), "global skill definition")
                 self.assertEqual(by_path[rel].get("checksum"), _staged_blob_sha256(_ROOT / rel))
+
+
+_TUNING_GUIDE = "docs/tuning-guide.md"
+_ARCHITECTURE = "docs/ARCHITECTURE.md"
+_CONTRACT_HEADING = "## Agent and Skill Frontmatter Contract"
+_BACKTICK = re.compile(r"`([^`]+)`")
+
+
+def _table_rows(section: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for line in section.split("\n"):
+        stripped = line.strip()
+        if not stripped.startswith("|") or set(stripped) <= {"|", "-", " ", ":"}:
+            continue
+        rows.append([cell.strip() for cell in stripped.strip("|").split("|")])
+    return rows
+
+
+def _keys(cell: str) -> frozenset[str]:
+    return frozenset(key for key in _BACKTICK.findall(cell) if key != "none")
+
+
+class TuningGuideContractDocTests(unittest.TestCase):
+    """B6: the documented key sets and profiles match the shipped B1 constants exactly."""
+
+    def setUp(self) -> None:
+        self.section = _section(_read(_TUNING_GUIDE), _CONTRACT_HEADING)
+        self.flat = _normalized(self.section)
+        self.rows = _table_rows(self.section)
+
+    def _row(self, label: str) -> list[str]:
+        matches = [row for row in self.rows if row and row[0] == label]
+        self.assertEqual(len(matches), 1, f"expected exactly one table row labelled {label!r}")
+        return matches[0]
+
+    def test_section_exists(self) -> None:
+        self.assertTrue(self.section.strip(), "tuning-guide frontmatter contract section is missing")
+        self.assertIn("src/autoharness/frontmatter_contract.py", self.section)
+
+    def test_key_constants_match_module(self) -> None:
+        self.assertEqual(_keys(self._row("`TIER_KEYS`")[1]), fc.TIER_KEYS)
+        self.assertEqual(_keys(self._row("`ROUTE_VALUE_KEYS`")[1]), fc.ROUTE_VALUE_KEYS)
+        self.assertEqual(_keys(self._row("`routing_keys()`")[1]), fc.routing_keys())
+
+    def test_profile_key_sets_match_module(self) -> None:
+        expected = {
+            f"Agent, `{fc.PROFILE_TIER_ROUTED}`": fc.agent_key_sets(fc.PROFILE_TIER_ROUTED),
+            f"Agent, `{fc.PROFILE_PLUGIN_GLOBAL}`": fc.agent_key_sets(fc.PROFILE_PLUGIN_GLOBAL),
+            "Skill": fc.skill_key_sets(),
+        }
+        for label, key_sets in expected.items():
+            with self.subTest(row=label):
+                row = self._row(label)
+                self.assertEqual(_keys(row[1]), key_sets.required, "required")
+                self.assertEqual(_keys(row[2]), key_sets.optional, "optional")
+                self.assertEqual(_keys(row[3]), key_sets.forbidden, "forbidden")
+
+    def test_documents_every_agent_profile(self) -> None:
+        for profile in sorted(fc.AGENT_PROFILES):
+            with self.subTest(profile=profile):
+                self.assertIn(f"`{profile}`", self.section)
+
+    def test_documents_classes_and_plugin_global_rule(self) -> None:
+        for token in ("managed-rendered", "managed-source", "workspace-authored"):
+            with self.subTest(token=token):
+                self.assertIn(f"`{token}`", self.section)
+        self.assertIn("`sqlite-reviewer`", self.section)
+        self.assertIn("preserved and reported, not rewritten", self.flat)
+        self.assertIn("operator's session model", self.flat)
+        self.assertIn("no automatic route resolution", self.flat)
+
+
+class ArchitecturePointerTests(unittest.TestCase):
+    """B6: ARCHITECTURE points at the contract module."""
+
+    def test_architecture_points_to_contract_module(self) -> None:
+        text = _read(_ARCHITECTURE)
+        self.assertIn("src/autoharness/frontmatter_contract.py", text)
+        self.assertIn("tuning-guide.md", text)
 
 
 if __name__ == "__main__":

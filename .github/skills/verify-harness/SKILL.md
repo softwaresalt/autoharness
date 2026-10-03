@@ -68,9 +68,8 @@ Each file is classified by provenance:
 | `unknown-provenance` | Provenance cannot be established | Advisory, like `workspace-authored` |
 
 Managed files fail closed regardless of checksum status (H-B3): a
-`user-modified`, `missing`, or `ignored` checksum does not excuse a
-nonconformant managed file. Workspace-authored files are preserved and
-reported, never rewritten.
+`user-modified` or `ignored` checksum does not excuse a nonconformant managed
+file. Workspace-authored files are preserved and reported, never rewritten.
 
 Agents are checked against one of two profiles, selected by the autoharness
 `plugin.json` `agents[]` list:
