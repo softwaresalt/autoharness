@@ -3572,6 +3572,92 @@ def _fc_evaluate_target(
     return record
 
 
+def _fc_finding_line(rel: str, finding: Any) -> str:
+    return f"{rel}: {finding.code} {finding.key}".rstrip()
+
+
+def _add_frontmatter_conformity_check(
+    report: dict[str, Any],
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: Any,
+    profile: Any,
+) -> None:
+    """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
+
+    Registered once, after the artifact checksum and staging-render loop
+    (AN-F10). Managed files (rendered, community, source) with a
+    non-informational finding fail closed whatever their checksum status
+    (H-B3); workspace-authored and unknown-provenance files produce one
+    advisory ``warnings[]`` entry each and never change ``ok``.
+    ``FM_UNKNOWN_KEY`` appears only in per-file ``findings[]`` and ``info[]``
+    (INV-B4). The legacy pipeline-agent checks are untouched (INV-B3).
+    Writes nothing.
+    """
+    provenance = _fc_build_provenance_index(workspace_path, autoharness_home, manifest)
+    plugin_agents, plugin_warnings = _fc_load_plugin_agents(workspace_path, manifest)
+    report["warnings"].extend(plugin_warnings)
+    checksum_lookup = {
+        _fc_normalize_relative(item.get("path", "")): str(item.get("status", ""))
+        for item in report.get("checksum_scan") or []
+        if isinstance(item, dict)
+    }
+
+    ok = True
+    errors: list[str] = []
+    info: list[str] = []
+    files: dict[str, dict[str, Any]] = {}
+    for target in _fc_enumerate_targets(workspace_path, profile):
+        record = _fc_evaluate_target(workspace_path, target, provenance, plugin_agents, checksum_lookup)
+        rel = record["rel"]
+        if record["skipped"]:
+            report["warnings"].append(record["warning"])
+            continue
+        findings = record["findings"]
+        files[rel] = {
+            "class": record["class"],
+            "profile": record["profile"],
+            "checksum_status": record["checksum_status"],
+            "findings": [
+                {
+                    "code": item.code,
+                    "key": item.key,
+                    "message": item.message,
+                    "informational": item.informational,
+                }
+                for item in findings
+            ],
+        }
+        info.extend(_fc_finding_line(rel, item) for item in findings if item.informational)
+        blocking = [item for item in findings if not item.informational]
+        if not blocking:
+            continue
+        if record["managed"]:
+            ok = False
+            errors.extend(_fc_finding_line(rel, item) for item in blocking)
+        else:
+            codes = sorted({item.code for item in blocking})
+            report["warnings"].append(
+                {
+                    "kind": FC_WARNING_KIND,
+                    "path": rel,
+                    "class": record["class"],
+                    "codes": codes,
+                    "message": (
+                        f"{record['class']} {record['kind']} frontmatter is nonconformant "
+                        f"({', '.join(codes)}); advisory only, see migration proposals."
+                    ),
+                }
+            )
+
+    report["targeted_checks"]["frontmatter_conformity"] = {
+        "ok": ok,
+        "errors": errors,
+        "info": info,
+        "files": files,
+    }
+
+
 def _add_orchestrator_invocation_routing_directive_check(
     report: dict[str, Any],
     key: str,
@@ -5033,6 +5119,8 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
                 lines.append(f"  errors: {'; '.join(check['errors'])}")
             elif check.get("reason"):
                 lines.append(f"  reason: {check['reason']}")
+            if check.get("info"):
+                lines.append(f"  info: {'; '.join(check['info'])}")
     else:
         lines.append("none")
 
@@ -5379,6 +5467,11 @@ def verify_workspace(
             }
         )
         report["unresolved"].extend(_find_unresolved_placeholders(stage_path))
+
+    # 193-F B2a: agent/skill frontmatter conformity. Registered once, AFTER the
+    # artifact checksum and staging-render loop so staged render candidates
+    # exist (AN-F10). Rollback: remove this single call.
+    _add_frontmatter_conformity_check(report, workspace_path, autoharness_home, manifest, profile)
 
     if profile_path.exists() and profile:
         _add_runtime_validation_profile_check(

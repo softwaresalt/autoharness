@@ -494,5 +494,348 @@ class PerFileEvaluationTests(unittest.TestCase):
             self.assertEqual(record["checksum_status"], expected, checksum)
 
 
+# ---------------------------------------------------------------------------
+# B2a.2 — check integration, result shape, Markdown parity, INV-B3, dogfood pin
+# ---------------------------------------------------------------------------
+
+
+def _write_permissive_schemas(autoharness_home: Path) -> None:
+    schema = json.dumps({"$schema": "http://json-schema.org/draft-07/schema#", "type": "object"})
+    for name in ("harness-manifest", "harness-config", "workspace-profile"):
+        (autoharness_home / "schemas" / name).mkdir(parents=True, exist_ok=True)
+        (autoharness_home / "schemas" / f"{name}.schema.json").write_text(schema, encoding="utf-8")
+        (autoharness_home / "schemas" / name / "1.0.0.schema.json").write_text(schema, encoding="utf-8")
+
+
+class _VerifyFixture(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.env = _Env(Path(self._tmp.name))
+        _write_permissive_schemas(self.env.home)
+        self.staging = self.env.root / "staging"
+        self.artifacts: list[dict[str, Any]] = []
+        self.community: list[dict[str, Any]] = []
+        self.manifest_extra: dict[str, Any] = {}
+        self.profile: dict[str, Any] = {"schema_version": "1.0.0"}
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def track(self, rel: str, label: str, *, unchanged: bool = True) -> None:
+        checksum = ""
+        path = self.env.ws / rel
+        if path.exists():
+            checksum = hashlib.sha256(path.read_bytes()).hexdigest() if unchanged else "0" * 64
+        self.artifacts.append(_artifact(rel, label, checksum))
+
+    def run_verify(self) -> dict[str, Any]:
+        manifest = {
+            "schema_version": "1.0.0",
+            "installed_at": "2026-09-28T00:00:00Z",
+            "autoharness_version": "0.0.0",
+            "profile_hash": "abc",
+            "primitives_installed": [1],
+            "capability_packs": [],
+            "artifacts": self.artifacts,
+            "variables_used": {"PROJECT_NAME": "demo"},
+        }
+        if self.community:
+            manifest["community_templates"] = self.community
+        manifest.update(self.manifest_extra)
+        self.env.write(".autoharness/harness-manifest.yaml", yaml.safe_dump(manifest, sort_keys=False))
+        self.env.write(".autoharness/config.yaml", yaml.safe_dump({"schema_version": "1.0.0"}))
+        self.env.write(".autoharness/workspace-profile.yaml", yaml.safe_dump(self.profile, sort_keys=False))
+        return vw.verify_workspace(self.env.ws, self.env.home, self.staging)
+
+    @staticmethod
+    def check(report: dict[str, Any]) -> dict[str, Any]:
+        return report["targeted_checks"]["frontmatter_conformity"]
+
+    @staticmethod
+    def fc_warnings(report: dict[str, Any]) -> list[dict[str, Any]]:
+        return [w for w in report["warnings"] if w.get("kind") == vw.FC_WARNING_KIND]
+
+
+class FrontmatterConformityCheckTests(_VerifyFixture):
+    def test_result_shape(self) -> None:
+        self.env.write(".github/agents/hand.agent.md", CONFORMANT_AGENT)
+        check = self.check(self.run_verify())
+        self.assertEqual(set(check), {"ok", "errors", "info", "files"})
+        self.assertEqual(
+            set(check["files"][".github/agents/hand.agent.md"]),
+            {"class", "profile", "checksum_status", "findings"},
+        )
+
+    def test_managed_skill_with_routing_key_fails(self) -> None:
+        self.env.template("skills/demo/SKILL.md.tmpl", _skill("demo"))
+        self.env.write(".github/skills/demo/SKILL.md", _skill("demo", "model_family: fam\n"))
+        self.track(".github/skills/demo/SKILL.md", "skills/demo/SKILL.md.tmpl")
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertIn(".github/skills/demo/SKILL.md: FM_FORBIDDEN_KEY model_family", check["errors"])
+        self.assertEqual(check["files"][".github/skills/demo/SKILL.md"]["class"], vw.FC_CLASS_MANAGED_RENDERED)
+
+    def test_managed_user_modified_agent_with_bare_model_fails(self) -> None:
+        self.env.template("agents/demo.agent.md.tmpl", CONFORMANT_AGENT)
+        self.env.write(".github/agents/demo.agent.md", CONFORMANT_AGENT.replace("---\n\n#", "model: gpt-x\n---\n\n#"))
+        self.track(".github/agents/demo.agent.md", "agents/demo.agent.md.tmpl", unchanged=False)
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        record = check["files"][".github/agents/demo.agent.md"]
+        self.assertEqual(record["checksum_status"], "user-modified")
+        self.assertIn(".github/agents/demo.agent.md: FM_BARE_MODEL model", check["errors"])
+
+    def test_managed_source_skill_without_name_fails(self) -> None:
+        self.env.write(".github/skills/install-harness/SKILL.md", _skill(None))
+        self.track(".github/skills/install-harness/SKILL.md", "global skill definition")
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertIn(".github/skills/install-harness/SKILL.md: FM_MISSING_REQUIRED name", check["errors"])
+
+    def test_workspace_authored_bare_model_passes_with_exactly_one_warning(self) -> None:
+        self.env.write(".github/agents/hand.agent.md", BARE_MODEL_AGENT)
+        report = self.run_verify()
+        check = self.check(report)
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["errors"], [])
+        warnings = self.fc_warnings(report)
+        self.assertEqual(len(warnings), 1)
+        warning = warnings[0]
+        self.assertEqual(warning["path"], ".github/agents/hand.agent.md")
+        self.assertEqual(warning["class"], vw.FC_CLASS_WORKSPACE_AUTHORED)
+        self.assertIn(FM_BARE_MODEL, warning["codes"])
+        self.assertEqual(warning["codes"], sorted(set(warning["codes"])))
+
+    def test_unknown_provenance_labels_warn_and_never_fail(self) -> None:
+        for name, label in (
+            ("a", "workspace-discovery output"),
+            ("b", "a label the target added"),
+            ("c", "agents/missing-source.agent.md"),
+        ):
+            rel = f".github/agents/{name}.agent.md"
+            self.env.write(rel, BARE_MODEL_AGENT)
+            self.track(rel, label)
+        report = self.run_verify()
+        check = self.check(report)
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["errors"], [])
+        warnings = self.fc_warnings(report)
+        self.assertEqual(len(warnings), 3)
+        self.assertEqual({w["class"] for w in warnings}, {vw.FC_CLASS_UNKNOWN_PROVENANCE})
+
+    def test_foreign_plugin_json_or_non_self_install_never_selects_plugin_global(self) -> None:
+        self.env.write(".github/agents/auto-tune.agent.md", PLUGIN_GLOBAL_AGENT)
+        self.track(".github/agents/auto-tune.agent.md", "global agent definition")
+        self.env.write("plugin.json", json.dumps({"name": "autoharness", "agents": [".github/agents/auto-tune.agent.md"]}))
+        # Manifest is not self-install: plugin.json ignored, agent is tier-routed and fails.
+        check = self.check(self.run_verify())
+        self.assertEqual(check["files"][".github/agents/auto-tune.agent.md"]["profile"], PROFILE_TIER_ROUTED)
+        self.assertFalse(check["ok"])
+        # Self-install, but a foreign plugin name.
+        self.manifest_extra = {"install_mode": "self-install"}
+        self.env.write("plugin.json", json.dumps({"name": "other", "agents": [".github/agents/auto-tune.agent.md"]}))
+        check = self.check(self.run_verify())
+        self.assertEqual(check["files"][".github/agents/auto-tune.agent.md"]["profile"], PROFILE_TIER_ROUTED)
+
+    def test_plugin_global_passes_with_tier_and_fails_with_model_family(self) -> None:
+        self.manifest_extra = {"install_mode": "self-install"}
+        self.env.write("plugin.json", json.dumps({"name": "autoharness", "agents": ["./.github/agents/auto-tune.agent.md"]}))
+        self.env.write(".github/agents/auto-tune.agent.md", PLUGIN_GLOBAL_AGENT)
+        self.track(".github/agents/auto-tune.agent.md", "global agent definition")
+        check = self.check(self.run_verify())
+        self.assertTrue(check["ok"], check["errors"])
+        self.assertEqual(check["files"][".github/agents/auto-tune.agent.md"]["profile"], PROFILE_PLUGIN_GLOBAL)
+        self.env.write(".github/agents/auto-tune.agent.md", PLUGIN_GLOBAL_AGENT.replace("---\n\n#", "model_family: fam\n---\n\n#"))
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertIn(".github/agents/auto-tune.agent.md: FM_FORBIDDEN_KEY model_family", check["errors"])
+
+    @unittest.skipUnless(_SYMLINKS, _SYMLINK_SKIP)
+    def test_symlinked_plugin_json_escaping_workspace_is_never_read(self) -> None:
+        self.manifest_extra = {"install_mode": "self-install"}
+        outside = self.env.root / "outside-plugin.json"
+        outside.write_text(
+            json.dumps({"name": "autoharness", "agents": [".github/agents/auto-tune.agent.md"]}), encoding="utf-8"
+        )
+        os.symlink(outside, self.env.ws / "plugin.json")
+        self.env.write(".github/agents/auto-tune.agent.md", PLUGIN_GLOBAL_AGENT)
+        self.track(".github/agents/auto-tune.agent.md", "global agent definition")
+        report = self.run_verify()
+        plugin_warnings = [w for w in report["warnings"] if w.get("kind") == vw.FC_PLUGIN_WARNING_KIND]
+        self.assertEqual(len(plugin_warnings), 1)
+        check = self.check(report)
+        self.assertEqual(check["files"][".github/agents/auto-tune.agent.md"]["profile"], PROFILE_TIER_ROUTED)
+
+    def test_unknown_key_only_agent_passes_with_no_warning(self) -> None:
+        self.env.write(".github/agents/hand.agent.md", CONFORMANT_AGENT.replace("---\n\n#", "custom_key: 1\n---\n\n#"))
+        report = self.run_verify()
+        check = self.check(report)
+        self.assertTrue(check["ok"])
+        self.assertEqual(self.fc_warnings(report), [])
+        self.assertEqual(check["errors"], [])
+        self.assertEqual(check["info"], [".github/agents/hand.agent.md: FM_UNKNOWN_KEY custom_key"])
+        codes = [f["code"] for f in check["files"][".github/agents/hand.agent.md"]["findings"]]
+        self.assertEqual(codes, ["FM_UNKNOWN_KEY"])
+
+    @unittest.skipUnless(_SYMLINKS, _SYMLINK_SKIP)
+    def test_escaping_symlink_untracked_skipped_and_managed_fails(self) -> None:
+        outside = self.env.root / "outside.agent.md"
+        outside.write_text(BARE_MODEL_AGENT, encoding="utf-8")
+        (self.env.ws / ".github" / "agents").mkdir(parents=True)
+        os.symlink(outside, self.env.ws / ".github" / "agents" / "untracked.agent.md")
+        report = self.run_verify()
+        check = self.check(report)
+        self.assertTrue(check["ok"])
+        self.assertNotIn(".github/agents/untracked.agent.md", check["files"])
+        skipped = [w for w in self.fc_warnings(report) if w["path"] == ".github/agents/untracked.agent.md"]
+        self.assertEqual(len(skipped), 1)
+
+        os.symlink(outside, self.env.ws / ".github" / "agents" / "managed.agent.md")
+        self.artifacts.append(_artifact(".github/agents/managed.agent.md", "global agent definition", "x"))
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertIn(".github/agents/managed.agent.md: FM_PATH_ESCAPE", check["errors"])
+
+    def test_undecodable_file_gives_parse_error_without_crashing(self) -> None:
+        # Full verify path with an undecodable managed skill (the pre-existing
+        # agent-identity scan reads *.agent.md as UTF-8 and is out of scope).
+        path = self.env.ws / ".github" / "skills" / "bad" / "SKILL.md"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"---\nname: \xff\xfe\n---\n")
+        self.track(".github/skills/bad/SKILL.md", "global skill definition")
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertEqual(
+            [f["code"] for f in check["files"][".github/skills/bad/SKILL.md"]["findings"]], [FM_PARSE_ERROR]
+        )
+        # Check level, undecodable agent.
+        agent = self.env.ws / ".github" / "agents" / "bad.agent.md"
+        agent.parent.mkdir(parents=True)
+        agent.write_bytes(b"---\nname: \xff\xfe\n---\n")
+        report: dict[str, Any] = {"warnings": [], "targeted_checks": {}, "checksum_scan": []}
+        vw._add_frontmatter_conformity_check(
+            report, self.env.workspace, self.env.autoharness_home, {"artifacts": []}, {}
+        )
+        check = self.check(report)
+        self.assertTrue(check["ok"])
+        self.assertEqual(
+            [f["code"] for f in check["files"][".github/agents/bad.agent.md"]["findings"]], [FM_PARSE_ERROR]
+        )
+        self.assertEqual(
+            [w["path"] for w in report["warnings"]],
+            [".github/agents/bad.agent.md", ".github/skills/bad/SKILL.md"],
+        )
+
+    def test_no_agents_directory_is_ok_with_zero_files(self) -> None:
+        report = self.run_verify()
+        check = self.check(report)
+        self.assertTrue(check["ok"])
+        self.assertEqual(check["files"], {})
+        # Overall verify may still fail on the legacy unconditional orchestrator_tier_fields (AS-F1).
+        self.assertFalse(report["targeted_checks"]["orchestrator_tier_fields"]["ok"])
+
+    def test_managed_nonconformant_agent_in_local_agents_dir_fails(self) -> None:
+        self.profile = {
+            "schema_version": "1.0.0",
+            "distribution": {"is_global_tool": True, "local_agents_dir": "custom-agents"},
+        }
+        self.env.template("agents/local.agent.md.tmpl", CONFORMANT_AGENT)
+        self.env.write("custom-agents/local.agent.md", BARE_MODEL_AGENT)
+        self.track("custom-agents/local.agent.md", "agents/local.agent.md.tmpl")
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertIn("custom-agents/local.agent.md", check["files"])
+
+    def test_markdown_report_carries_errors_info_and_warnings(self) -> None:
+        self.env.write(".github/skills/install-harness/SKILL.md", _skill(None))
+        self.track(".github/skills/install-harness/SKILL.md", "global skill definition")
+        self.env.write(".github/agents/hand.agent.md", BARE_MODEL_AGENT.replace("---\n\n#", "custom_key: 1\n---\n\n#"))
+        report = self.run_verify()
+        check = self.check(report)
+        self.assertTrue(check["errors"])
+        self.assertTrue(check["info"])
+        markdown = Path(report["report_paths"]["markdown"]).read_text(encoding="utf-8")
+        for line in check["errors"] + check["info"]:
+            self.assertIn(line, markdown)
+        self.assertIn("  info: ", markdown)
+        warnings = self.fc_warnings(report)
+        self.assertTrue(warnings)
+        for warning in warnings:
+            self.assertIn(json.dumps(warning, ensure_ascii=False), markdown)
+
+    def test_check_registered_once_after_render_loop(self) -> None:
+        self.env.write(".github/agents/hand.agent.md", CONFORMANT_AGENT)
+        real = vw._add_frontmatter_conformity_check
+        observed: list[int] = []
+
+        def _spy(report: dict[str, Any], *args: Any, **kwargs: Any) -> None:
+            # The staging render loop has already populated `rendered`/`checksum_scan`.
+            observed.append(len(report["checksum_scan"]))
+            real(report, *args, **kwargs)
+
+        self.env.template("agents/demo.agent.md.tmpl", CONFORMANT_AGENT)
+        self.env.write(".github/agents/demo.agent.md", CONFORMANT_AGENT)
+        self.track(".github/agents/demo.agent.md", "agents/demo.agent.md.tmpl")
+        with mock.patch.object(vw, "_add_frontmatter_conformity_check", side_effect=_spy) as spy:
+            self.run_verify()
+        self.assertEqual(spy.call_count, 1)
+        self.assertEqual(observed, [1])
+
+    def test_check_writes_nothing(self) -> None:
+        self.env.write(".github/agents/hand.agent.md", BARE_MODEL_AGENT)
+        self.env.write(".github/skills/demo/SKILL.md", _skill("demo"))
+
+        def _snapshot() -> dict[str, tuple[int, bytes]]:
+            return {
+                p.relative_to(self.env.root).as_posix(): (p.stat().st_mtime_ns, p.read_bytes())
+                for p in sorted(self.env.root.rglob("*"))
+                if p.is_file()
+            }
+
+        before = _snapshot()
+        report: dict[str, Any] = {"warnings": [], "targeted_checks": {}, "checksum_scan": [], "migration_proposals": []}
+        vw._add_frontmatter_conformity_check(
+            report, self.env.workspace, self.env.autoharness_home, {"artifacts": []}, {}
+        )
+        self.assertEqual(_snapshot(), before)
+
+    def test_existing_model_routing_results_byte_identical_before_and_after(self) -> None:
+        """INV-B3: the three *_model_routing_fields results are untouched by registration."""
+        for name in ("_orchestrator", "_stage", "_ship"):
+            self.env.write(f".github/agents/{name}.agent.md", BARE_MODEL_AGENT)
+        self.env.write(".github/agents/_ship.agent.md", CONFORMANT_AGENT)
+        keys = (
+            "orchestrator_model_routing_fields",
+            "stage_model_routing_fields",
+            "ship_model_routing_fields",
+        )
+        with_check = self.run_verify()
+        with mock.patch.object(vw, "_add_frontmatter_conformity_check", return_value=None):
+            without_check = self.run_verify()
+        self.assertIn("frontmatter_conformity", with_check["targeted_checks"])
+        self.assertNotIn("frontmatter_conformity", without_check["targeted_checks"])
+        for key in keys:
+            self.assertEqual(
+                json.dumps(with_check["targeted_checks"][key], sort_keys=True).encode("utf-8"),
+                json.dumps(without_check["targeted_checks"][key], sort_keys=True).encode("utf-8"),
+                key,
+            )
+
+
+class DogfoodFrontmatterConformityPinTests(unittest.TestCase):
+    """Integration pin: this repository's own agents and skills conform (B2a, H-B10)."""
+
+    def test_repository_frontmatter_conformity_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as staging:
+            report = vw.verify_workspace(_ROOT, _ROOT, Path(staging))
+        check = report["targeted_checks"]["frontmatter_conformity"]
+        self.assertTrue(check["ok"], check["errors"])
+        self.assertTrue(check["files"])
+        self.assertIn(".github/agents/_ship.agent.md", check["files"])
+        self.assertEqual(
+            check["files"][".github/agents/auto-tune.agent.md"]["profile"], PROFILE_PLUGIN_GLOBAL
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
