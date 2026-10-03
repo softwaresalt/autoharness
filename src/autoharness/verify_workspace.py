@@ -3509,6 +3509,7 @@ def _fc_evaluate_target(
     record: dict[str, Any] = {
         "rel": rel,
         "kind": target["kind"],
+        "skill_dir": target.get("skill_dir"),
         "class": artifact_class,
         "profile": profile_name,
         "checksum_status": checksum_status,
@@ -3576,12 +3577,242 @@ def _fc_finding_line(rel: str, finding: Any) -> str:
     return f"{rel}: {finding.code} {finding.key}".rstrip()
 
 
+# ---------------------------------------------------------------------------
+# 193-F B2b: frontmatter-conformity migration proposals
+# ---------------------------------------------------------------------------
+
+FC_CONTRACT = "frontmatter-conformity"
+FC_TO_VERSION = "fc-1"
+_FC_CLASS_STATUS = {
+    FC_CLASS_MANAGED_RENDERED: ("nonconformant-managed", "P1"),
+    FC_CLASS_MANAGED_COMMUNITY: ("nonconformant-managed", "P1"),
+    FC_CLASS_MANAGED_SOURCE: ("nonconformant-managed", "P1"),
+    FC_CLASS_WORKSPACE_AUTHORED: ("nonconformant-workspace", "P2"),
+    FC_CLASS_UNKNOWN_PROVENANCE: ("nonconformant-unknown", "P2"),
+}
+_FC_AUTO_ACTIONS = frozenset({"rerender", "reinstall-community"})
+_FC_CITATION_SKILL = (
+    "P-013.5: skills are leaf executors that inherit the invoking agent's route; "
+    "no routing keys and no bare model"
+)
+_FC_CITATION_PLUGIN_GLOBAL = (
+    "P-013.4: plugin-global agents declare tier keys only and run on the operator's "
+    "session model; no route-value keys and no bare model"
+)
+_FC_CITATION_TIER_ROUTED = (
+    "P-013.4/P-013.5: tier-routed agents declare max_subagent_tier, subagent_depth and the "
+    "model_family/model_provider/reasoning_effort route; no bare model"
+)
+
+
+def _fc_check_bytes(raw: bytes, record: dict[str, Any]) -> list[Any]:
+    parsed = fc.parse_frontmatter(raw, fc.MODE_INSTALLED)
+    if record["kind"] == "agent":
+        return fc.check_agent(parsed, record["profile"], fc.MODE_INSTALLED)
+    return fc.check_skill(parsed, record["skill_dir"], fc.MODE_INSTALLED)
+
+
+def _fc_contained_community_source(autoharness_home: Path, template_rel: str) -> Path | None:
+    """Resolve a community ``template_path``; ``None`` unless it is an existing file in templates/ (AS-F9)."""
+    text = str(template_rel or "")
+    if not text or text.startswith(("/", "\\")) or ".." in re.split(r"[\\/]", text):
+        return None
+    if Path(text).anchor:
+        return None
+    try:
+        templates_root = (autoharness_home / "templates").resolve()
+        candidate = (autoharness_home / text).resolve()
+    except (OSError, RuntimeError):
+        return None
+    if not candidate.is_relative_to(templates_root) or not candidate.is_file():
+        return None
+    return candidate
+
+
+def _fc_rendered_candidate(
+    record: dict[str, Any],
+    report: dict[str, Any],
+    autoharness_home: Path,
+    variables: dict[str, str],
+    model_routing: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate the rendered source candidate in installed mode (AS-F8, AN-F10).
+
+    managed-rendered: the staged render verify already wrote. managed-community:
+    an in-memory render of the contained ``template_path`` (nothing written;
+    an escaping path is never read). Returns ``{status, findings, template_path,
+    reason}`` with status ``pass`` | ``fail`` | ``unproducible`` | ``not-applicable``.
+    """
+    entry = record["entry"]
+    result: dict[str, Any] = {"status": "not-applicable", "findings": [], "template_path": None, "reason": ""}
+    try:
+        if record["class"] == FC_CLASS_MANAGED_RENDERED:
+            result["template_path"] = entry.get("source_path")
+            rendered = {
+                _fc_normalize_relative(item.get("path", ""))
+                for item in report.get("rendered") or []
+                if isinstance(item, dict)
+            }
+            staging_dir = report.get("staging_dir")
+            if not staging_dir or record["rel"] not in rendered:
+                result.update(status="unproducible", reason="no staged render candidate was produced")
+                return result
+            raw = _fc_read_bytes(_normalize_stage_path(Path(staging_dir), record["rel"]))
+        elif record["class"] == FC_CLASS_MANAGED_COMMUNITY:
+            template_rel = entry.get("template_path") or ""
+            result["template_path"] = template_rel
+            source = _fc_contained_community_source(autoharness_home, template_rel)
+            if source is None:
+                result.update(
+                    status="unproducible",
+                    reason=(
+                        "community template_path fails containment (must be a relative path to an "
+                        "existing file inside autoharness_home/templates/); not read"
+                    ),
+                )
+                return result
+            composed = _compose_artifact_variables(
+                variables, model_routing, _resolve_artifact_role(record["rel"])
+            )
+            text = _fc_read_bytes(source).decode("utf-8")
+            raw = _render_template(text, composed).encode("utf-8")
+        else:
+            return result
+        blocking = [item for item in _fc_check_bytes(raw, record) if not item.informational]
+    except Exception as exc:  # noqa: BLE001 - an unproducible candidate is source-repair, never a crash
+        result.update(status="unproducible", reason=f"{type(exc).__name__}: {exc}")
+        return result
+    result["findings"] = blocking
+    result["status"] = "fail" if blocking else "pass"
+    return result
+
+
+def _fc_parsed_data(record: dict[str, Any]) -> dict[str, Any]:
+    raw = record.get("raw")
+    if raw is None:
+        return {}
+    try:
+        parsed = fc.parse_frontmatter(raw, fc.MODE_INSTALLED)
+    except Exception:  # noqa: BLE001 - proposal shaping must never crash verify
+        return {}
+    return parsed.data or {}
+
+
+def _fc_build_proposals(record: dict[str, Any], candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    """Apply ordered action rules 1-8 (first match wins) to each blocking finding (B2b)."""
+    blocking = [item for item in record["findings"] if not item.informational]
+    if not blocking:
+        return []
+    status, severity = _FC_CLASS_STATUS[record["class"]]
+    file_codes = sorted({item.code for item in blocking})
+    if record["kind"] == "skill":
+        citation = _FC_CITATION_SKILL
+    elif record["profile"] == fc.PROFILE_PLUGIN_GLOBAL:
+        citation = _FC_CITATION_PLUGIN_GLOBAL
+    else:
+        citation = _FC_CITATION_TIER_ROUTED
+    data = _fc_parsed_data(record)
+    is_skill = record["kind"] == "skill"
+    tier_routed = record["kind"] == "agent" and record["profile"] == fc.PROFILE_TIER_ROUTED
+    # Rule 1 applies to rendered/community sources; an escaping path is never re-rendered through.
+    regen_class = (
+        record["class"] in (FC_CLASS_MANAGED_RENDERED, FC_CLASS_MANAGED_COMMUNITY)
+        and fc.FM_PATH_ESCAPE not in file_codes
+    )
+    candidate_status = candidate.get("status")
+    regenerate = regen_class and candidate_status == "pass" and record["checksum_status"] == "unchanged"
+    source_repair = regen_class and candidate_status in ("fail", "unproducible")
+    key_level = not (regenerate or source_repair)
+    # A rule-2 migrate-key already targets model_family; do not also propose add-key for it.
+    migrates_model = key_level and tier_routed and fc.FM_BARE_MODEL in file_codes and (
+        not isinstance(data.get("model"), str) or data.get("model") != data.get("model_family")
+    )
+
+    proposals: list[dict[str, Any]] = []
+    for finding in blocking:
+        extra: dict[str, Any] = {}
+        to_keys: list[str] = []
+        value: Any = None
+        key = finding.key
+        if regenerate:  # rule 1
+            action = "rerender" if record["class"] == FC_CLASS_MANAGED_RENDERED else "reinstall-community"
+        elif source_repair:  # rule 1
+            action = "source-repair"
+            extra = {
+                "template_path": candidate.get("template_path"),
+                "candidate_findings": [f"{item.code} {item.key}".rstrip() for item in candidate.get("findings", [])],
+                "candidate_reason": candidate.get("reason", ""),
+            }
+        elif finding.code == fc.FM_BARE_MODEL and tier_routed:  # rule 2
+            model = data.get("model")
+            family = data.get("model_family")
+            if isinstance(model, str) and "model_family" not in data:
+                action, to_keys, value = "migrate-key", ["model_family"], model
+            elif isinstance(model, str) and model == family:
+                action = "remove-key"
+            else:
+                action, to_keys = "migrate-key", ["model_family"]
+        elif finding.code == fc.FM_BARE_MODEL:  # rule 3 (skill or plugin-global)
+            action = "remove-key"
+        elif finding.code == fc.FM_FORBIDDEN_KEY:  # rule 4
+            action = "remove-key"
+        elif finding.code == fc.FM_MISSING_REQUIRED:  # rule 5
+            if migrates_model and key == "model_family":
+                continue
+            action, to_keys = "add-key", [key]
+            if is_skill and key == "name":
+                value = record["skill_dir"]
+        elif finding.code == fc.FM_TYPE_INVALID:  # rule 6
+            action, to_keys = "replace-value", [key]
+            if is_skill and key == "name" and isinstance(data.get("name"), str):
+                value = record["skill_dir"]
+        elif finding.code == fc.FM_UNRESOLVED_PLACEHOLDER:  # rule 7
+            action, to_keys = "replace-value", [key]
+        else:  # rule 8: FM_PARSE_ERROR, FM_PATH_ESCAPE
+            action = "manual-fix"
+        manual_review = action not in _FC_AUTO_ACTIONS
+        from_key = key or None
+        evidence = {
+            "codes": [finding.code],
+            "file_codes": file_codes,
+            "citation": citation,
+            "finding": finding.message,
+            **extra,
+        }
+        summary = (
+            f"{record['rel']}: {action} {from_key or '-'} -> [{', '.join(to_keys)}]"
+            + (" [manual review]" if manual_review else "")
+        )
+        proposals.append(
+            {
+                "contract": FC_CONTRACT,
+                "path": record["rel"],
+                "from_version": None,
+                "to_version": FC_TO_VERSION,
+                "status": status,
+                "severity": severity,
+                "changed_fields": sorted({item for item in [from_key, *to_keys] if item}),
+                "action": action,
+                "manual_review": manual_review,
+                "evidence": evidence,
+                "code": finding.code,
+                "from_key": from_key,
+                "to_keys": to_keys,
+                "value": value,
+                "summary": summary,
+            }
+        )
+    return proposals
+
+
 def _add_frontmatter_conformity_check(
     report: dict[str, Any],
     workspace_path: Path,
     autoharness_home: Path,
     manifest: Any,
     profile: Any,
+    variables: dict[str, str] | None = None,
+    model_routing: dict[str, Any] | None = None,
 ) -> None:
     """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
 
@@ -3592,7 +3823,9 @@ def _add_frontmatter_conformity_check(
     advisory ``warnings[]`` entry each and never change ``ok``.
     ``FM_UNKNOWN_KEY`` appears only in per-file ``findings[]`` and ``info[]``
     (INV-B4). The legacy pipeline-agent checks are untouched (INV-B3).
-    Writes nothing.
+    Every blocking finding also yields a ``frontmatter-conformity`` migration
+    proposal (B2b; ``variables``/``model_routing`` feed the in-memory
+    community render candidate). Writes nothing.
     """
     provenance = _fc_build_provenance_index(workspace_path, autoharness_home, manifest)
     plugin_agents, plugin_warnings = _fc_load_plugin_agents(workspace_path, manifest)
@@ -3632,6 +3865,14 @@ def _add_frontmatter_conformity_check(
         blocking = [item for item in findings if not item.informational]
         if not blocking:
             continue
+        candidate = _fc_rendered_candidate(
+            record,
+            report,
+            autoharness_home,
+            variables or {},
+            model_routing if isinstance(model_routing, dict) else {},
+        )
+        report.setdefault("migration_proposals", []).extend(_fc_build_proposals(record, candidate))
         if record["managed"]:
             ok = False
             errors.extend(_fc_finding_line(rel, item) for item in blocking)
@@ -5471,7 +5712,15 @@ def verify_workspace(
     # 193-F B2a: agent/skill frontmatter conformity. Registered once, AFTER the
     # artifact checksum and staging-render loop so staged render candidates
     # exist (AN-F10). Rollback: remove this single call.
-    _add_frontmatter_conformity_check(report, workspace_path, autoharness_home, manifest, profile)
+    _add_frontmatter_conformity_check(
+        report,
+        workspace_path,
+        autoharness_home,
+        manifest,
+        profile,
+        variables=variables,
+        model_routing=_model_routing_for_composition,
+    )
 
     if profile_path.exists() and profile:
         _add_runtime_validation_profile_check(
