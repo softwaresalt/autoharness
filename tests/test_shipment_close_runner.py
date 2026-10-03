@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import hashlib
 import os
+import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -24,7 +26,13 @@ from pathlib import Path
 from unittest import mock
 
 from autoharness.shipment_close import EXIT_INPUT
-from autoharness.shipment_close.persist import PARSE_CAP_BYTES, STDOUT_OVERFLOW_ERROR, PersistError
+from autoharness.shipment_close import runner as runner_module
+from autoharness.shipment_close.persist import (
+    PARSE_CAP_BYTES,
+    STDOUT_OVERFLOW_ERROR,
+    STREAM_DRAIN_INCOMPLETE_ERROR,
+    PersistError,
+)
 from autoharness.shipment_close.runner import (
     DEFAULT_TIMEOUT_SECONDS,
     ResolvedBinary,
@@ -177,6 +185,79 @@ class TimeoutTests(unittest.TestCase):
         with self.subTest("an unspawnable program"):
             with self.assertRaises(PersistError):
                 run_bounded([str(fixture.fakes / f"missing{_EXE}")], cwd=fixture.fakes, timeout=5)
+
+
+class LingeringGrandchildTests(unittest.TestCase):
+    """198-S local review: a grandchild holding stdout must not defeat the bound."""
+
+    _GRANDCHILD_SLEEP = 20
+
+    def test_lingering_grandchild_does_not_hang_and_marks_drain_incomplete(self) -> None:
+        fixture = _Fixture(self)
+        pid_file = fixture.fakes / "grandchild.pid"
+
+        def kill_grandchild() -> None:
+            try:
+                pid = int(pid_file.read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                return
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                return
+            time.sleep(0.5)  # let Windows release the grandchild's cwd handle
+
+        self.addCleanup(kill_grandchild)
+        resolved = fixture.script(
+            "spawner.py",
+            "import subprocess, sys\n"
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep("
+            f"{self._GRANDCHILD_SLEEP})'], stdout=sys.stdout, stderr=sys.stderr)\n"
+            f"open({str(pid_file)!r}, 'w').write(str(child.pid))\n"
+            "sys.stdout.write('parent done\\n')\nsys.stdout.flush()\n",
+        )
+        with mock.patch.object(runner_module, "_READER_JOIN_SECONDS", 1):
+            started = time.monotonic()
+            result = run_bounded([*resolved.argv_prefix], cwd=fixture.fakes, timeout=30)
+            elapsed = time.monotonic() - started
+        self.assertLess(elapsed, self._GRANDCHILD_SLEEP - 5)
+        self.assertFalse(result.timed_out)
+        self.assertEqual(result.exit_code, 0)
+        self.assertTrue(result.stdout.drain_incomplete)
+        self.assertTrue(result.stdout.capture_truncated)
+        self.assertIsNone(result.stdout.parse_bytes)
+        self.assertEqual(result.stdout.parse_error, STREAM_DRAIN_INCOMPLETE_ERROR)
+        self.assertNotIn("drain_incomplete", result.stdout.to_record())
+
+    def test_keyboard_interrupt_kills_the_child_group(self) -> None:
+        fixture = _Fixture(self)
+        resolved = fixture.script("sleeper.py", "import time\ntime.sleep(60)\n")
+        original_wait = subprocess.Popen.wait
+        calls = {"count": 0}
+
+        def interrupted_wait(process, timeout=None):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise KeyboardInterrupt
+            return original_wait(process, timeout=timeout)
+
+        spawned: list[subprocess.Popen] = []
+        original_init = subprocess.Popen.__init__
+
+        def recording_init(process, *args, **kwargs):
+            original_init(process, *args, **kwargs)
+            spawned.append(process)
+
+        with (
+            mock.patch.object(subprocess.Popen, "__init__", recording_init),
+            mock.patch.object(subprocess.Popen, "wait", interrupted_wait),
+            mock.patch.object(runner_module, "_kill_group", wraps=runner_module._kill_group) as kill,
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                run_bounded([*resolved.argv_prefix], cwd=fixture.fakes, timeout=30)
+        kill.assert_called()
+        self.assertTrue(spawned)
+        self.assertIsNotNone(spawned[0].poll())
 
 
 class DrainTests(unittest.TestCase):

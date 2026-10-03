@@ -34,6 +34,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -59,6 +60,7 @@ __all__ = [
     "PARSE_CAP_BYTES",
     "PARSE_CAP_LINES",
     "STDOUT_OVERFLOW_ERROR",
+    "STREAM_DRAIN_INCOMPLETE_ERROR",
     "TAIL_BYTES",
     "TAIL_LINES",
     "CapturedStream",
@@ -80,6 +82,7 @@ LEADING_MARGIN_BYTES: Final = 4 * 1024
 PARSE_CAP_BYTES: Final = 1024 * 1024
 PARSE_CAP_LINES: Final = 10_000
 STDOUT_OVERFLOW_ERROR: Final = "stdout exceeded capture cap"
+STREAM_DRAIN_INCOMPLETE_ERROR: Final = "stdout drain incomplete (a lingering process held the pipe)"
 
 LOCK_DIR: Final = Path(".autoharness") / "gates" / "cascade-close"
 
@@ -121,7 +124,11 @@ class CapturedStream:
 
     ``parse_bytes`` and ``parse_error`` are in-memory only and never persisted
     by :meth:`to_record`. ``capture_truncated`` is ``True`` whenever the
-    excerpt is not the whole (redacted) stream.
+    excerpt is not the whole (redacted) stream. ``drain_incomplete`` (also
+    in-memory only) is ``True`` when the stream could not be drained to EOF
+    within the bound (a lingering grandchild held the pipe; 198-S local
+    review): the totals and SHA-256 then cover only the bytes read, the
+    capture is marked truncated, and stdout carries no parse buffer.
     """
 
     total_bytes: int
@@ -132,7 +139,7 @@ class CapturedStream:
     redaction_applied: bool
     parse_bytes: bytes | None
     parse_error: str | None
-
+    drain_incomplete: bool = False
     def to_record(self) -> dict[str, object]:
         return {
             "total_bytes": self.total_bytes,
@@ -156,6 +163,10 @@ class StreamCapture:
         self._parse_enabled = parse_buffer
         self._parse: bytearray | None = bytearray() if parse_buffer else None
         self._overflow = False
+        # A reader thread left alive past the bound may still call feed();
+        # the lock plus ``_finished`` freeze the capture at finish().
+        self._lock = threading.Lock()
+        self._finished = False
 
     @property
     def retained_bytes(self) -> int:
@@ -167,6 +178,12 @@ class StreamCapture:
     def feed(self, chunk: bytes) -> None:
         if not chunk:
             return
+        with self._lock:
+            if self._finished:
+                return
+            self._feed_locked(chunk)
+
+    def _feed_locked(self, chunk: bytes) -> None:
         self._hash.update(chunk)
         self._total += len(chunk)
         self._newlines += chunk.count(b"\n")
@@ -182,7 +199,12 @@ class StreamCapture:
             else:
                 self._parse += chunk
 
-    def finish(self) -> CapturedStream:
+    def finish(self, *, drain_incomplete: bool = False) -> CapturedStream:
+        with self._lock:
+            self._finished = True
+            return self._finish_locked(drain_incomplete)
+
+    def _finish_locked(self, drain_incomplete: bool) -> CapturedStream:
         raw = bytes(self._window)
         text = raw.decode("utf-8", errors="replace")
         redacted, applied = redact(text)  # before the slice (H-B4)
@@ -191,8 +213,16 @@ class StreamCapture:
         lines = excerpt.splitlines(keepends=True)
         if len(lines) > TAIL_LINES:
             excerpt = "".join(lines[-TAIL_LINES:])
-        truncated = self._total != len(raw) or excerpt != redacted or self._overflow
-        parse_bytes = bytes(self._parse) if self._parse is not None else None
+        truncated = self._total != len(raw) or excerpt != redacted or self._overflow or drain_incomplete
+        parse_bytes = bytes(self._parse) if self._parse is not None and not drain_incomplete else None
+        if not self._parse_enabled:
+            parse_error = None
+        elif self._overflow:
+            parse_error = STDOUT_OVERFLOW_ERROR
+        elif drain_incomplete:
+            parse_error = STREAM_DRAIN_INCOMPLETE_ERROR
+        else:
+            parse_error = None
         return CapturedStream(
             total_bytes=self._total,
             total_lines=self._lines(),
@@ -201,7 +231,8 @@ class StreamCapture:
             excerpt=excerpt,
             redaction_applied=applied,
             parse_bytes=parse_bytes,
-            parse_error=STDOUT_OVERFLOW_ERROR if self._parse_enabled and self._overflow else None,
+            parse_error=parse_error,
+            drain_incomplete=drain_incomplete,
         )
 
 

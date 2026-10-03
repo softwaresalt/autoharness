@@ -12,6 +12,11 @@
   :class:`~autoharness.shipment_close.persist.StreamCapture`, and on timeout
   kills the whole group (``os.killpg`` on POSIX; the absolute
   ``%SystemRoot%\\System32\\taskkill.exe /T /F /PID <pid>`` on Windows).
+  If a grandchild inherited a pipe and outlives the child, the group is
+  killed, a pipe whose reader is still alive is never closed (a buffered
+  ``close()`` would block on the reader's lock), and that stream is marked
+  ``drain_incomplete``; any ``BaseException`` while waiting kills the group
+  before re-raising (198-S local review).
 
 The trust model equals the current skill's (the first ``backlogit`` on
 PATH); pinning a trusted absolute path in the registry is a P-021 follow-up.
@@ -260,24 +265,39 @@ def run_bounded(argv: Sequence[str], *, cwd: Path | str, timeout: float) -> Boun
     for reader in readers:
         reader.start()
     timed_out = False
+    incomplete = [False, False]
     try:
-        process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _kill_group(process)
         try:
-            process.wait(timeout=_KILL_WAIT_SECONDS)
+            process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
-            pass
-    for reader in readers:
-        reader.join(_READER_JOIN_SECONDS)
-    for pipe in (process.stdout, process.stderr):
-        try:
-            pipe.close()
-        except OSError:
-            pass
-    for reader in readers:
-        reader.join(_READER_JOIN_SECONDS)
+            timed_out = True
+            _kill_group(process)
+            _wait_after_kill(process)
+        for reader in readers:
+            reader.join(_READER_JOIN_SECONDS)
+        if any(reader.is_alive() for reader in readers):
+            # A grandchild inherited a pipe and outlived the child (198-S local
+            # review): kill the group, and mark every stream we had to cut short.
+            incomplete = [reader.is_alive() for reader in readers]
+            _kill_group(process)
+            for reader in readers:
+                reader.join(_READER_JOIN_SECONDS)
+        for index, (reader, pipe) in enumerate(zip(readers, (process.stdout, process.stderr))):
+            if reader.is_alive():
+                # Never close a buffered pipe under a live reader: close() would
+                # block on the lock its read() holds, defeating the bound. The
+                # daemon reader is abandoned and its capture is frozen below.
+                incomplete[index] = True
+                continue
+            try:
+                pipe.close()
+            except OSError:
+                pass
+    except BaseException:
+        # KeyboardInterrupt/SystemExit must never leave the child running.
+        _kill_group(process)
+        _wait_after_kill(process)
+        raise
     finished_at = _utc_now()
     return BoundedRunResult(
         argv=argv,
@@ -285,6 +305,13 @@ def run_bounded(argv: Sequence[str], *, cwd: Path | str, timeout: float) -> Boun
         timed_out=timed_out,
         started_at=started_at,
         finished_at=finished_at,
-        stdout=stdout_capture.finish(),
-        stderr=stderr_capture.finish(),
+        stdout=stdout_capture.finish(drain_incomplete=incomplete[0]),
+        stderr=stderr_capture.finish(drain_incomplete=incomplete[1]),
     )
+
+
+def _wait_after_kill(process: subprocess.Popen) -> None:
+    try:
+        process.wait(timeout=_KILL_WAIT_SECONDS)
+    except (subprocess.TimeoutExpired, OSError):
+        pass
