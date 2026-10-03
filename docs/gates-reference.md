@@ -425,6 +425,13 @@ The record's selection and disposition fields:
   the `pre_close` section only. `allowed_ids` is the manifest items plus the
   shipment ID. `required_ids` is the shipment ID, plus the qualifying feature IDs,
   plus every manifest item that was not already archived before the close.
+* Derived `post_close` fields are recomputed, not trusted. Record validation
+  recomputes `allowed_ids` and `required_ids` from `pre_close`, both set
+  differences (`unexpected_archived` and `missing_required`) from
+  `parsed_result.archived_ids`, and `shipment_archived_shipped` from the recorded
+  re-read shipment status. A stored value that differs from its recomputation is
+  rejected. A `cascade` record also requires `parsed_result.shipment_status:
+  shipped`.
 * `post_close.linked_deliberation_drift`: a list of disposition-set deliberations
   that the cascade archived or modified. That is engine drift; a non-empty list
   fails the postconditions (exit 5).

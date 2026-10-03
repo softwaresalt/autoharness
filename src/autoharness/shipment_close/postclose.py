@@ -9,7 +9,11 @@
   ``required_ids`` from the pre-close snapshot only (INV-P2; re-plan R4,
   038-DL D2). Neither set holds a linked-deliberation term: a deliberation
   that is an explicit manifest member is an ordinary member (H10), and a
-  disposition-set deliberation is in neither set.
+  disposition-set deliberation is in neither set. The flat sets, the set
+  differences, the ``archived`` drift IDs, and the archived/shipped check are
+  defined once in :mod:`autoharness.gates.cascade_evidence`, and the evidence
+  validator recomputes the record's derived fields with the same functions
+  (PR #482 review).
 * :func:`evaluate_postconditions` evaluates INV-10 in full. It is pure: the
   caller (A3) supplies the post-close re-read as a :class:`PostCloseReread`,
   and the A3c linked-deliberation drift results as keyword arguments. Every
@@ -24,7 +28,9 @@
 
 No function here reads the filesystem or spawns a process. No private
 ``shipment_closure`` name is imported by this module (re-plan cycle-2 C2-4):
-the flat sets are re-derived locally and pinned by the A3b parity test.
+the flat sets are derived by the evidence contract's public
+``compute_flat_sets`` (not the classifier's private helpers) and pinned by the
+A3b parity test.
 """
 
 from __future__ import annotations
@@ -38,9 +44,13 @@ from typing import Final
 from autoharness.gates.cascade_evidence import (
     DECLARED_STATUS_MISSING,
     CascadeEvidenceError,
-    declared_status_from_record,
+    archived_disposition_deliberation_ids,
+    compute_flat_sets,
+    compute_set_differences,
     declared_status_to_record,
     disposition_plan_to_record,
+    is_archived_shipped,
+    is_declared_archived,
     redact,
 )
 from autoharness.gates.shipment_closure import LinkedDeliberationDispositionPlan
@@ -72,8 +82,9 @@ MUTATION_NONE: Final = "none"
 MUTATION_COMPLETED: Final = "completed"
 MUTATION_INDETERMINATE: Final = "indeterminate"
 
-_ARCHIVED: Final = "archived"
 _SHIPPED: Final = "shipped"
+# The A3b parity test pins the "truly archived" check under its historic name.
+_is_declared_archived = is_declared_archived
 _MAX_ERROR_TEXT: Final = 512
 _RESULT_KEYS: Final = ("archived_ids", "returned_ids", "shipment_id", "shipment_status", "commit_sha")
 
@@ -220,44 +231,10 @@ class PostCloseReread:
     unreadable_ids: frozenset[str] = frozenset()
 
 
-def _is_declared_archived(record_value: object) -> bool:
-    """The local "truly archived" check over an A1-encoded declared status.
-
-    Only an exact ``str`` equal to ``"archived"`` counts (re-plan cycle-1 R9);
-    a value that does not decode is not archived.
-    """
-
-    try:
-        decoded = declared_status_from_record(record_value)
-    except CascadeEvidenceError:
-        return False
-    return type(decoded) is str and decoded == _ARCHIVED
-
-
 def _members(pre_close: Mapping[str, object]) -> list[Mapping[str, object]]:
     members = pre_close.get("manifest_members")
     return [member for member in members if isinstance(member, Mapping)] if isinstance(members, list) else []
 
-
-def compute_flat_sets(pre_close: Mapping[str, object], shipment_id: str) -> tuple[frozenset[str], frozenset[str]]:
-    """Return ``(allowed_ids, required_ids)`` from the pre-close record section only (INV-P2).
-
-    ``allowed_ids = items(S) ∪ {S}``; ``required_ids = {S} ∪
-    qualifying_feature_ids ∪ {x ∈ items(S): x was not truly archived
-    pre-close}``, over every manifest item regardless of ``artifact_type``.
-    """
-
-    members = _members(pre_close)
-    member_ids = {member["id"] for member in members if type(member.get("id")) is str}
-    allowed = frozenset(member_ids | {shipment_id})
-    qualifying = pre_close.get("qualifying_feature_ids")
-    qualifying_ids = {item for item in qualifying if type(item) is str} if isinstance(qualifying, list) else set()
-    unarchived = {
-        member["id"]
-        for member in members
-        if type(member.get("id")) is str and not _is_declared_archived(member.get("declared_status"))
-    }
-    return allowed, frozenset({shipment_id} | qualifying_ids | unarchived)
 
 
 # ---------------------------------------------------------------------------
@@ -452,12 +429,8 @@ def evaluate_linked_deliberation_drift(
     pre_by_id = _by_id(recorded)
     drift: list[DriftEntry] = []
 
-    archived = set(archived_ids)
-    for deliberation_id in sorted(pre_by_id):
-        if deliberation_id in archived:
-            drift.append(
-                DriftEntry(deliberation_id, DRIFT_ARCHIVED, "the cascade archived a disposition-set deliberation")
-            )
+    for deliberation_id in archived_disposition_deliberation_ids(snapshot.pre_close, archived_ids):
+        drift.append(DriftEntry(deliberation_id, DRIFT_ARCHIVED, "the cascade archived a disposition-set deliberation"))
 
     if recollected is None:
         drift.append(DriftEntry(None, DRIFT_PLANNING_ERROR, "the post-close disposition was not re-collected"))
@@ -623,9 +596,7 @@ def evaluate_postconditions(
             failures.append(f"shipment_status: the response reports {parsed_result.shipment_status!r}, not 'shipped'")
         if parsed_result.returned_ids:
             failures.append(f"returned_ids: must be empty (got {sorted(parsed_result.returned_ids)})")
-        archived = frozenset(parsed_result.archived_ids)
-        unexpected = tuple(sorted(archived - allowed))
-        missing = tuple(sorted(required - archived))
+        unexpected, missing = compute_set_differences(parsed_result.archived_ids, allowed, required)
         if unexpected:
             failures.append(f"unexpected_archived: {list(unexpected)} archived outside allowed_ids")
         if missing:
@@ -640,10 +611,7 @@ def evaluate_postconditions(
     shipment_ok = (
         shipment is not None
         and snapshot.shipment_id not in reread.unreadable_ids
-        and type(status) is str
-        and status == _ARCHIVED
-        and type(archived_status) is str
-        and archived_status == _SHIPPED
+        and is_archived_shipped(status, archived_status)
     )
     if not shipment_ok:
         failures.append(

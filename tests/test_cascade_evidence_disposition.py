@@ -222,11 +222,32 @@ class SetTermTests(unittest.TestCase):
 
             return build
 
+        def explicit_member_deliberation() -> dict:
+            # H10: an explicit-member deliberation is an ordinary manifest member,
+            # so it is a flat-set term computed from pre_close (PR #482 review).
+            record = cascade_record()
+            record["pre_close"]["manifest_members"].append(
+                {
+                    "id": "040-DL",
+                    "artifact_type": "deliberation",
+                    "location": "queue",
+                    "sha256": _SHA_E,
+                    "declared_status": "accepted",
+                    "parent_id": None,
+                }
+            )
+            for key in ("allowed_ids", "required_ids"):
+                record["post_close"][key] = sorted(record["post_close"][key] + ["040-DL"])
+            record["post_close"]["parsed_result"]["archived_ids"].append("040-DL")
+            return record
+
         rows = [
             ("disposition-set id in required_ids", with_terms("required_ids", "035-DL", in_snapshot=True), False),
             ("disposition-set id in allowed_ids", with_terms("allowed_ids", "035-DL", in_snapshot=True), False),
             # H10: an explicit-member deliberation is excluded from the disposition set.
-            ("explicit-member deliberation in allowed_ids", with_terms("allowed_ids", "040-DL", in_snapshot=False), True),
+            ("explicit-member deliberation in allowed_ids", explicit_member_deliberation, True),
+            # A deliberation that is not a manifest member is never a flat-set term.
+            ("non-member deliberation in allowed_ids", with_terms("allowed_ids", "040-DL", in_snapshot=False), False),
         ]
         for label, build, accepted in rows:
             with self.subTest(label):

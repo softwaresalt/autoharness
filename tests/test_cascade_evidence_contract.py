@@ -172,6 +172,18 @@ def safe_close_record(
 def cascade_record(*, engine: dict | None = None) -> dict:
     engine = engine if engine is not None else _engine_record()
     record = _base("post_close", _pre_close("CASCADE", engine, observation=False))
+    # The qualifying feature is an explicit manifest member, so the stored flat
+    # sets below equal compute_flat_sets(pre_close) (PR #482 review).
+    record["pre_close"]["manifest_members"].append(
+        {
+            "id": _FEATURE,
+            "artifact_type": "feature",
+            "location": "queue",
+            "sha256": _SHA_C,
+            "declared_status": "done",
+            "parent_id": None,
+        }
+    )
     record["invocation"] = {
         "argv_redacted": ["backlogit", "shipment", "ship", _SHIPMENT, "--json"],
         "started_at": "2026-10-02T00:00:01Z",
@@ -185,7 +197,7 @@ def cascade_record(*, engine: dict | None = None) -> dict:
     record["post_close"] = {
         "parsed_result": {
             "shipment_status": "shipped",
-            "archived_ids": ["192.001-T", "192-F"],
+            "archived_ids": ["192.001-T", "192-F", _SHIPMENT],
             "returned_ids": [],
             "commit_sha": None,
         },
@@ -424,6 +436,121 @@ class CascadeInternalConsistencyTests(unittest.TestCase):
                 record = cascade_record()
                 mutation(record)
                 self.assertNotEqual(_validate(record, "cascade"), [], f"{label} was accepted")
+
+
+def _errors_at(errors: list[str], location: str) -> list[str]:
+    return [error for error in errors if error.startswith(f"{location}:")]
+
+
+class DerivedFieldRecomputationTests(unittest.TestCase):
+    """PR #482 review: derived ``post_close`` fields are recomputed from captured facts, never trusted."""
+
+    def test_tampered_conclusions_are_rejected(self) -> None:
+        """A hand-edited record claiming success over empty sets and an active shipment fails."""
+
+        record = cascade_record()
+        post = record["post_close"]
+        post["parsed_result"]["shipment_status"] = "active"
+        post["parsed_result"]["archived_ids"] = []
+        post["shipment_record_status"] = "active"
+        for key in ("allowed_ids", "required_ids", "unexpected_archived", "missing_required", "failures"):
+            post[key] = []
+        for key in ("disposition_byte_identical", "parent_id_preserved", "baseline_invariant", "shipment_archived_shipped"):
+            post[key] = True
+        post["postcondition_verdict"] = "pass"
+        errors = _validate(record, "cascade")
+        for location in (
+            "record.post_close.parsed_result.shipment_status",
+            "record.post_close.allowed_ids",
+            "record.post_close.required_ids",
+            "record.post_close.missing_required",
+            "record.post_close.shipment_archived_shipped",
+        ):
+            with self.subTest(location):
+                self.assertNotEqual(_errors_at(errors, location), [], errors)
+
+    def test_derived_field_mismatch_table(self) -> None:
+        def post(key: str, value: object):
+            return lambda r: r["post_close"].__setitem__(key, value)
+
+        def parsed(key: str, value: object):
+            return lambda r: r["post_close"]["parsed_result"].__setitem__(key, value)
+
+        def archive_disposition_deliberation(record: dict) -> None:
+            record["pre_close"]["linked_deliberation_disposition"]["dispositions"] = [_disposition("archive")]
+            record["post_close"]["parsed_result"]["archived_ids"].append("035-DL")
+
+        rows = [
+            ("allowed_ids drops a member", post("allowed_ids", ["192-F", _SHIPMENT]), "record.post_close.allowed_ids"),
+            (
+                "allowed_ids adds a stranger",
+                post("allowed_ids", ["192.001-T", "192-F", "199-F", _SHIPMENT]),
+                "record.post_close.allowed_ids",
+            ),
+            ("required_ids drops the shipment", post("required_ids", ["192.001-T", "192-F"]), "record.post_close.required_ids"),
+            (
+                "archived_ids misses a required member",
+                parsed("archived_ids", ["192-F", _SHIPMENT]),
+                "record.post_close.missing_required",
+            ),
+            (
+                "archived_ids holds an unexpected artifact",
+                parsed("archived_ids", ["192.001-T", "192-F", "199-F", _SHIPMENT]),
+                "record.post_close.unexpected_archived",
+            ),
+            (
+                "stored unexpected_archived disagrees",
+                post("unexpected_archived", ["199-F"]),
+                "record.post_close.unexpected_archived",
+            ),
+            ("engine reports active", parsed("shipment_status", "active"), "record.post_close.parsed_result.shipment_status"),
+            (
+                "re-read shipment not archived",
+                post("shipment_record_status", "active"),
+                "record.post_close.shipment_archived_shipped",
+            ),
+            (
+                "re-read shipment archived_status not shipped",
+                post("shipment_record_archived_status", "abandoned"),
+                "record.post_close.shipment_archived_shipped",
+            ),
+            (
+                "re-read shipment archived_status missing",
+                post("shipment_record_archived_status", {"type": "missing", "value": None}),
+                "record.post_close.shipment_archived_shipped",
+            ),
+            (
+                "disposition-set deliberation archived",
+                archive_disposition_deliberation,
+                "record.post_close.linked_deliberation_drift",
+            ),
+        ]
+        self.assertEqual(_validate(cascade_record(), "cascade"), [])
+        for label, mutation, location in rows:
+            with self.subTest(label):
+                record = cascade_record()
+                mutation(record)
+                errors = _validate(record, "cascade")
+                self.assertNotEqual(_errors_at(errors, location), [], f"{label}: {errors}")
+
+    def test_pre_archived_member_is_not_required(self) -> None:
+        """A truly pre-archived non-feature member is in allowed_ids but not required_ids (flat sets)."""
+
+        record = cascade_record()
+        record["pre_close"]["manifest_members"].append(
+            {
+                "id": "192.002-T",
+                "artifact_type": "task",
+                "location": "archive",
+                "sha256": _SHA_A,
+                "declared_status": "archived",
+                "parent_id": _FEATURE,
+            }
+        )
+        record["post_close"]["allowed_ids"] = sorted(record["post_close"]["allowed_ids"] + ["192.002-T"])
+        self.assertEqual(_validate(record, "cascade"), [])
+        record["post_close"]["required_ids"] = sorted(record["post_close"]["required_ids"] + ["192.002-T"])
+        self.assertNotEqual(_errors_at(_validate(record, "cascade"), "record.post_close.required_ids"), [])
 
 
 class SelectionConsistencyTests(unittest.TestCase):

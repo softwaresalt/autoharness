@@ -85,6 +85,17 @@ def evidence_record(close_path: str, shipment_id: str, feature_id: str, **kwargs
     """A valid record for the pair: ``safe_close`` (A1 builder) or ``cascade``."""
 
     record = safe_close_record(**kwargs) if close_path == "safe_close" else cascade_record(**kwargs)
+    if close_path == "cascade":
+        # The shipment ID is a captured fact the derived post_close fields are
+        # recomputed from, so rebind it consistently (PR #482 review).
+        original = record["shipment_id"]
+        post = record["post_close"]
+        for container, key in (
+            (post["parsed_result"], "archived_ids"),
+            (post, "allowed_ids"),
+            (post, "required_ids"),
+        ):
+            container[key] = [shipment_id if item == original else item for item in container[key]]
     record["shipment_id"] = shipment_id
     record["feature_id"] = feature_id
     record["merge_commit_sha"] = _MERGE_SHA
@@ -609,9 +620,18 @@ class CloseEvidenceRequirementTests(_ClosureWorkspaceMixin, unittest.TestCase):
         failed["post_close"]["failures"] = ["returned_ids non-empty"]
         foreign = evidence_record("safe_close", "175-S", "167-F")
         foreign["shipment_id"] = "176-S"
+        # PR #482 review: stored success conclusions over empty sets and an
+        # active shipment are recomputed from captured facts and refused.
+        tampered = evidence_record("cascade", "175-S", "167-F")
+        tampered["post_close"]["parsed_result"]["shipment_status"] = "active"
+        tampered["post_close"]["parsed_result"]["archived_ids"] = []
+        tampered["post_close"]["shipment_record_status"] = "active"
+        tampered["post_close"]["allowed_ids"] = []
+        tampered["post_close"]["required_ids"] = []
         rows = [
             ("cascade, no record", "cascade", None, "close_evidence"),
             ("cascade, fail verdict record", "cascade", failed, "close_evidence"),
+            ("cascade, tampered derived fields", "cascade", tampered, "close_evidence"),
             (
                 "cascade, UNVERIFIED engine record",
                 "cascade",

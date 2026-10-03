@@ -754,6 +754,105 @@ _serialize_evidence_record = serialize_evidence_record
 
 
 # ---------------------------------------------------------------------------
+# Derived post_close facts (plan unit A3b; PR #482 review)
+# ---------------------------------------------------------------------------
+#
+# The one derivation of every ``post_close`` field that follows from captured
+# facts. The ``shipment_close`` writer (A3b) computes the record with these
+# functions and the validator recomputes them from the record's own
+# ``pre_close`` section and ``parsed_result``, so a stored conclusion is never
+# trusted on its own.
+
+_ARCHIVED_STATUS: Final = "archived"
+_SHIPPED_STATUS: Final = "shipped"
+
+
+def is_declared_archived(record_value: object) -> bool:
+    """The "truly archived" check over an A1-encoded declared status.
+
+    Only an exact ``str`` equal to ``"archived"`` counts (re-plan cycle-1 R9);
+    a value that does not decode is not archived.
+    """
+
+    try:
+        decoded = declared_status_from_record(record_value)
+    except CascadeEvidenceError:
+        return False
+    return type(decoded) is str and decoded == _ARCHIVED_STATUS
+
+
+def _manifest_members(pre_close: Mapping[str, object]) -> list[Mapping[str, object]]:
+    members = pre_close.get("manifest_members")
+    return [member for member in members if isinstance(member, Mapping)] if isinstance(members, list) else []
+
+
+def compute_flat_sets(pre_close: Mapping[str, object], shipment_id: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Return ``(allowed_ids, required_ids)`` from the pre-close record section only (INV-P2).
+
+    ``allowed_ids = items(S) ∪ {S}``; ``required_ids = {S} ∪
+    qualifying_feature_ids ∪ {x ∈ items(S): x was not truly archived
+    pre-close}``, over every manifest item regardless of ``artifact_type``.
+    Neither set holds a linked-deliberation term: a deliberation that is an
+    explicit manifest member is an ordinary member (H10), and a
+    disposition-set deliberation is in neither set.
+    """
+
+    members = _manifest_members(pre_close)
+    member_ids = {member["id"] for member in members if type(member.get("id")) is str}
+    allowed = frozenset(member_ids | {shipment_id})
+    qualifying = pre_close.get("qualifying_feature_ids")
+    qualifying_ids = {item for item in qualifying if type(item) is str} if isinstance(qualifying, list) else set()
+    unarchived = {
+        member["id"]
+        for member in members
+        if type(member.get("id")) is str and not is_declared_archived(member.get("declared_status"))
+    }
+    return allowed, frozenset({shipment_id} | qualifying_ids | unarchived)
+
+
+def compute_set_differences(
+    archived_ids: object, allowed_ids: frozenset[str], required_ids: frozenset[str]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return ``(unexpected_archived, missing_required)``, each sorted.
+
+    ``unexpected_archived = archived_ids - allowed_ids`` and
+    ``missing_required = required_ids - archived_ids``: two independent,
+    never-merged conditions.
+    """
+
+    archived = frozenset(archived_ids)
+    return tuple(sorted(archived - allowed_ids)), tuple(sorted(required_ids - archived))
+
+
+def archived_disposition_deliberation_ids(pre_close: Mapping[str, object], archived_ids: object) -> tuple[str, ...]:
+    """The disposition-set deliberations the cascade archived, sorted (A3c ``archived`` drift)."""
+
+    snapshot = pre_close.get("linked_deliberation_disposition")
+    dispositions = snapshot.get("dispositions") if isinstance(snapshot, Mapping) else None
+    disposition_ids = (
+        {
+            entry["deliberation_id"]
+            for entry in dispositions
+            if isinstance(entry, Mapping) and type(entry.get("deliberation_id")) is str
+        }
+        if isinstance(dispositions, list)
+        else set()
+    )
+    return tuple(sorted(disposition_ids & set(archived_ids)))
+
+
+def is_archived_shipped(status: object, archived_status: object) -> bool:
+    """``True`` only for a decoded ``status: archived`` plus ``archived_status: shipped`` (INV-10)."""
+
+    return (
+        type(status) is str
+        and status == _ARCHIVED_STATUS
+        and type(archived_status) is str
+        and archived_status == _SHIPPED_STATUS
+    )
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
@@ -1112,21 +1211,30 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
     where = "record.post_close"
     if post_close.get("parse_error") is not None:
         checker.fail(f"{where}.parse_error", "a passing cascade must have a parsed result")
+    archived: object = _MISSING
     parsed = checker.mapping(post_close, "parsed_result", where)
     if parsed is not None:
         parsed_where = f"{where}.parsed_result"
-        checker.field(parsed, "shipment_status", parsed_where, _is_str, "a string")
-        checker.field(parsed, "archived_ids", parsed_where, _is_str_list, "a list of strings")
+        status = checker.field(parsed, "shipment_status", parsed_where, _is_str, "a string")
+        if status is not _MISSING and status != _SHIPPED_STATUS:
+            checker.fail(f"{parsed_where}.shipment_status", f"a passing cascade requires 'shipped' (got {status!r})")
+        archived = checker.field(parsed, "archived_ids", parsed_where, _is_str_list, "a list of strings")
         returned = checker.field(parsed, "returned_ids", parsed_where, _is_str_list, "a list of strings")
         if returned is not _MISSING and returned:
             checker.fail(f"{parsed_where}.returned_ids", "must be empty")
         checker.field(parsed, "commit_sha", parsed_where, lambda v: v is None or _is_str(v), "a string or null")
-    for key in ("shipment_record_status", "shipment_record_archived_status"):
-        checker.field(post_close, key, where, _is_declared_status, "a declared status")
-    for key in ("allowed_ids", "required_ids"):
-        checker.field(post_close, key, where, _is_str_list, "a list of strings")
+    statuses = {
+        key: checker.field(post_close, key, where, _is_declared_status, "a declared status")
+        for key in ("shipment_record_status", "shipment_record_archived_status")
+    }
+    stored_sets = {
+        key: checker.field(post_close, key, where, _is_str_list, "a list of strings")
+        for key in ("allowed_ids", "required_ids")
+    }
+    stored_differences = {}
     for key in ("unexpected_archived", "missing_required", "failures"):
         value = checker.field(post_close, key, where, _is_str_list, "a list of strings")
+        stored_differences[key] = value
         if value is not _MISSING and value:
             checker.fail(f"{where}.{key}", "must be empty under a pass verdict")
     drift = checker.field(post_close, "linked_deliberation_drift", where, lambda v: type(v) is list, "a list")
@@ -1139,6 +1247,68 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
     verdict = checker.field(post_close, "postcondition_verdict", where, lambda v: v in ("pass", "fail"), "pass or fail")
     if verdict is not _MISSING and verdict != "pass":
         checker.fail(f"{where}.postcondition_verdict", "a cascade record requires pass")
+    _check_derived_post_close(checker, record, pre_close, archived, statuses, stored_sets, stored_differences)
+
+
+def _check_derived_post_close(
+    checker: _Checker,
+    record: Mapping[str, object],
+    pre_close: Mapping[str, object] | None,
+    archived: object,
+    statuses: Mapping[str, object],
+    stored_sets: Mapping[str, object],
+    stored_differences: Mapping[str, object],
+) -> None:
+    """Recompute every derivable ``post_close`` fact from the captured ones (PR #482 review).
+
+    ``allowed_ids`` / ``required_ids`` are recomputed from ``pre_close``; both
+    set differences and the ``archived`` drift from ``parsed_result.archived_ids``;
+    and ``shipment_archived_shipped`` from the recorded re-read statuses. A
+    stored value that disagrees with its recomputation, or a recomputed pass
+    condition that fails, is rejected, so a hand-edited conclusion never passes.
+    """
+
+    where = "record.post_close"
+    status, archived_status = statuses["shipment_record_status"], statuses["shipment_record_archived_status"]
+    if status is not _MISSING and archived_status is not _MISSING:
+        decoded_status = declared_status_from_record(status)
+        decoded_archived_status = declared_status_from_record(archived_status)
+        if not is_archived_shipped(decoded_status, decoded_archived_status):
+            checker.fail(
+                f"{where}.shipment_archived_shipped",
+                f"the recorded re-read shipment declares status {decoded_status!r} and archived_status "
+                f"{decoded_archived_status!r}, not 'archived' and 'shipped'",
+            )
+
+    shipment_id = record.get("shipment_id")
+    if pre_close is None or not _is_nonempty_str(shipment_id):
+        return
+    allowed, required = compute_flat_sets(pre_close, shipment_id)
+    for key, expected in (("allowed_ids", allowed), ("required_ids", required)):
+        stored = stored_sets[key]
+        if stored is not _MISSING and sorted(stored) != sorted(expected):
+            checker.fail(
+                f"{where}.{key}",
+                f"recorded {sorted(stored)} but recomputation from pre_close gives {sorted(expected)}",
+            )
+    if archived is _MISSING:
+        return
+    unexpected, missing = compute_set_differences(archived, allowed, required)
+    for key, expected in (("unexpected_archived", unexpected), ("missing_required", missing)):
+        stored = stored_differences[key]
+        if stored is not _MISSING and sorted(stored) != list(expected):
+            checker.fail(
+                f"{where}.{key}",
+                f"recorded {sorted(stored)} but recomputation from pre_close and parsed_result gives {list(expected)}",
+            )
+        elif expected:
+            checker.fail(f"{where}.{key}", f"recomputation gives {list(expected)}, so the cascade did not pass")
+    drifted = archived_disposition_deliberation_ids(pre_close, archived)
+    if drifted:
+        checker.fail(
+            f"{where}.linked_deliberation_drift",
+            f"the cascade archived disposition-set deliberation(s) {list(drifted)}, which is engine drift",
+        )
 
 
 def _check_safe_close(checker: _Checker, record: Mapping[str, object], pre_close: Mapping[str, object] | None) -> None:

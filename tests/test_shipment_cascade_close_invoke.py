@@ -275,6 +275,18 @@ class PassAndArgvLogTests(unittest.TestCase):
         self.assertEqual(
             validate_evidence_record(record, shipment_id=_SHIPMENT, feature_id=_FEATURE, close_path="cascade"), []
         )
+        # PR #482 review: the validator recomputes derived fields, so a
+        # tampered real record is rejected.
+        for key, value in (("allowed_ids", []), ("required_ids", [])):
+            with self.subTest(tampered=key):
+                tampered = json.loads(json.dumps(record))
+                tampered["post_close"][key] = value
+                self.assertNotEqual(
+                    validate_evidence_record(
+                        tampered, shipment_id=_SHIPMENT, feature_id=_FEATURE, close_path="cascade"
+                    ),
+                    [],
+                )
         # The command never archives a deliberation (038-DL D3a).
         self.assertTrue((harness.backlog / "queue" / f"{_DL}.md").exists())
 
