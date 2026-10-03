@@ -1,6 +1,6 @@
 ---
 title: Validation Gates Reference
-description: Deterministic pre-task-completion validation gates — configuration schema, gate policy, the autoharness gate check CLI contract, the optional detector registry and gate pre-review reader, and the kill-switch rollback
+description: Deterministic pre-task-completion validation gates — configuration schema, gate policy, the autoharness gate check CLI contract, the optional detector registry and gate pre-review reader, the kill-switch rollback, and the evidence-capturing autoharness shipment cascade-close command with the closure-evidence gate's close-path checks
 doc_type: reference
 source: docs/gates-reference.md
 ---
@@ -306,6 +306,146 @@ gate check never dirties the working tree:
 Circuit-breaker checkpoints (written on the 3rd consecutive failure) are the one
 intentional exception: they are committed session memory under
 `docs/memory/{date}/circuit-break-gate-{task}.md`.
+
+## Shipment Close Commands
+
+`autoharness shipment cascade-close` (192-F) captures durable evidence for every
+shipment close. It lives under `autoharness shipment`, not `autoharness gate`,
+because it is **not a gate**: a gate is a read-only, exit-code-based check, while
+`cascade-close` writes an evidence record and, in its mutating mode, invokes the
+destructive `backlogit shipment ship` cascade. The read-only check over its output is
+the `closure-evidence` gate described in
+[Closure-evidence gate: close-path checks](#closure-evidence-gate-close-path-checks).
+
+The `shipment-reconcile` skill owns the routing. Every close, on either close path,
+starts with `--classify-only`. CASCADE runs only through the mutating command, which
+needs the same operator approval as a direct `backlogit shipment ship` call. A direct
+`backlogit shipment ship` CLI call or `backlogit_ship_shipment` MCP call is a P-005
+deviation, and the closure-evidence gate refuses the closure it produces.
+
+### Invocation and modes
+
+```text
+autoharness shipment cascade-close --shipment <S> --feature <F> --sha <merge_sha>
+                      --message <text> --author <name> [--timeout <seconds>]
+                      [--workspace <path>] [--json]
+autoharness shipment cascade-close --classify-only [--replace-pre-close]
+                      --shipment <S> --feature <F> --sha <merge_sha>
+                      [--workspace <path>] [--json]
+```
+
+| Mode | Behavior | Approval |
+|---|---|---|
+| plain `--classify-only` | Re-runs the classifier, probes the engine, selects the close path, and writes a new `pre_close` record. No-clobber: an existing `pre_close` record exits 2 and is left untouched. Never invokes the cascade. | None |
+| `--classify-only --replace-pre-close` | Overwrites an existing `pre_close` record through the pre_close takeover (a compare-and-swap on the prior `run_id`). | Destructive-command approval |
+| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-900 seconds (default 120). | Destructive-command approval |
+
+The evidence record is written to the fixed path
+`docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`. That path
+is never derived from the closure directory. The record is committed with the
+closure artifact, kept permanently, and never hand-edited. Its `phase` is
+`pre_close`, `invoking`, or `post_close`. The command writes the record before the
+close; if that write fails, nothing is invoked.
+
+### Engine-semantics gate and close-path selection
+
+No cascade runs unless `select_close_path` selects `CASCADE`. That requires a
+classifier verdict of `CASCADE` and an engine-semantics verdict of `VERIFIED` from
+`assess_cascade_engine_semantics`, probed on the CLI surface the command invokes
+(released builds only). Otherwise the command records the verdict and exits 3,
+having invoked nothing. Immediately before invocation, the mutating mode re-probes
+the engine and revalidates the snapshot. Any difference, including a difference from
+the `cascade`-selected `--classify-only` record, exits 4 with nothing mutated. Exit 4
+is never answered with `SAFE_CLOSE`.
+
+### Exit codes
+
+| Code | Meaning | `mutation_possible` (mutating mode) | Operator review |
+|---|---|---|---|
+| `0` | Mutating: every postcondition passed. `--classify-only`: `CASCADE` selected. | `yes` | No |
+| `2` | Input, I/O, no-clobber refusal, disposition planning error, or pre-invocation write failure. Nothing mutated. | `no` | No |
+| `3` | The selected close path is not `CASCADE` (classifier `SAFE_CLOSE`, or engine `UNVERIFIED`). Verdict recorded, nothing invoked. | `no` | No |
+| `4` | Pre-invocation revalidation drift: snapshot, engine re-probe, binary hash, or a difference from the `cascade`-selected `--classify-only` record. Nothing invoked. Never answered with `SAFE_CLOSE`. | `no` | Yes |
+| `5` | A postcondition failed, including a non-empty `post_close.linked_deliberation_drift`. | `yes` | Yes |
+| `6` | `backlogit` exited non-zero, timed out, or its output did not parse. | `indeterminate` | Yes |
+| `7` | An existing lock or `invoking` record. Nothing invoked. | `unknown` | Yes |
+| `8` | The post-close evidence write failed after invocation. | `yes` | Yes |
+
+Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
+`cascade-close`, calling `backlogit shipment ship` directly, or substituting
+`SAFE_CLOSE` until an operator reviews the backlog state and the record.
+
+### `--json` output
+
+`--json` emits one JSON object:
+
+| Field | Meaning |
+|---|---|
+| `mode` | `mutating`, `classify_only`, or `replace_pre_close` |
+| `exit_code` | The exit code above |
+| `evidence_path` | The evidence record path, or `null` |
+| `phase_written` | The record phase this run wrote, or `null` |
+| `classifier_verdict` | `CASCADE` or `SAFE_CLOSE` from the fresh classifier run |
+| `engine_verdict` | `VERIFIED` or `UNVERIFIED` from the engine-semantics gate |
+| `selected_close_path` | The close path `select_close_path` selected |
+| `mutation_possible` | `no`, `yes`, `indeterminate`, or `unknown` |
+| `postcondition_verdict` | `pass`, `fail`, or `null` when no postconditions ran |
+| `failures` | A list of failure messages |
+| `operator_action` | `none` for exits 0, 2, and 3; otherwise `review_required` |
+
+### Evidence record fields
+
+The record's selection and disposition fields:
+
+* `pre_close.engine_semantics`: `verdict`, `reason`, `probed_version`,
+  `minor_line`, `probed_commit`, `probe_surface`, and `invocation_surface` (always
+  `cli`). The record carries no probe excerpt here; the probe's stdout excerpt is
+  `tool.version_excerpt`.
+* `pre_close.close_path_selection`: `selected_close_path` and `reason`, as
+  `select_close_path` returns them.
+* `pre_close.linked_deliberation_disposition`: the planned disposition of each
+  linked deliberation (`dispositions`, `unresolved_references`, `read_failures`,
+  and `planning_error`). A `retained_*` outcome does not halt. The command never
+  archives a deliberation; the `shipment-reconcile` Linked-Deliberation Disposition
+  step (P-015 INV-12) reads these inputs from the record after the close and remains
+  the only archiver.
+* `pre_close.observation_set`: recorded only on a selected `SAFE_CLOSE`.
+* `post_close.allowed_ids` and `post_close.required_ids`: flat sets computed from
+  the `pre_close` section only. `allowed_ids` is the manifest items plus the
+  shipment ID. `required_ids` is the shipment ID, plus the qualifying feature IDs,
+  plus every manifest item that was not already archived before the close.
+* `post_close.linked_deliberation_drift`: a list of disposition-set deliberations
+  that the cascade archived or modified. That is engine drift; a non-empty list
+  fails the postconditions (exit 5).
+
+### Closure-evidence gate: close-path checks
+
+`autoharness gate closure-evidence` stays read-only. After its existing checks
+(workspace containment, input, filename, `frontmatter_predicate`, and
+discoverability) pass, it checks the close path. Either refusal exits 1:
+
+| `failed_check` | Refused when |
+|---|---|
+| `close_path` | The closure artifact does not declare `close_path: cascade` or `close_path: safe_close`. |
+| `close_evidence` | `close_evidence` is not the canonical `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json` path (relative POSIX, no `..`, no drive or UNC prefix), is not a regular file of at most 512 KiB reached through no symlink or junction, or does not validate as a record whose selected close path equals the declared `close_path`. Also refused: a `merge_commit` key that differs from the record's `merge_commit_sha`, and, for `safe_close`, a failed observation-set re-check. |
+
+The observation-set re-check requires every recorded entry to remain at its recorded
+backlog path and location with its recorded SHA-256. Every entry recorded `missing`
+must still be missing, and each path is containment-checked before any read. The gate
+never reads a disposition outcome and does not re-check the disposition snapshot. A
+disposition-set deliberation is re-checked only as an ordinary observation-set entry,
+where the `SAFE_CLOSE` observation set includes it.
+
+With `--json`, the result also carries `warnings[]`, a list of non-blocking notes:
+
+* the closure artifact has no `merge_commit` key, so the record's `merge_commit_sha`
+  was not cross-checked;
+* the `SAFE_CLOSE` observation set is empty, so the re-check was vacuous.
+
+A warning never changes the exit code. The structured-evidence request to the
+upstream `backlogit` maintainers is recorded in
+[the backlogit `shipment ship` structured-evidence request](bugs/2026-09-27-backlogit-shipment-ship-structured-evidence-request.md).
+autoharness does not depend on it.
 
 ## References
 
