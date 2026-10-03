@@ -84,7 +84,7 @@ backlog):
 
 | Unit | Task | Change |
 |---|---|---|
-| A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Owns `redact` and the `*_to_record` / `*_from_record` helpers (cycle-1 R6, R8). Size M / low |
+| A1 | `192.001-T` | **Changed.** Record shape, path, and selection consistency (R1, R2, R4). Disposition and set-term rules move to A1c (cycle-1 R4). Owns `redact` and the `*_to_record` / `*_from_record` helpers (cycle-1 R6, R8). Size M / low. **Superseded by Copilot PR #481 T8:** the ten helpers moved to A1d/A1e/A1f (`192.017-T`..`192.019-T`); A1 is size S |
 | A1c | *new* | **New task (cycle-1 R4).** Disposition and set-term rules (R5, D2), with pre-mutation outcomes only and two-way engine/outcome consistency (cycle-1 R13). S / low |
 | A1b | `192.002-T` | **Changed (minor).** Existing-record check hands a `cascade`-selected `pre_close` record to A3 (cycle-1 R1). Uses the A1 `redact`; `engine_semantics.reason` and `close_path_selection.reason` are not redacted (cycle-1 R6). Owns the `EXIT_*` constants in `shipment_close/__init__.py` (cycle-1 R15). M / medium |
 | A3a | `192.004-T` | **Changed.** Now precedes A2. Bare-name `cli.binary`, basename match, probe `cwd` in an empty, workspace-contained, Git-ignored probe directory that is never deleted automatically (cycle-1 R3; Copilot PR #481 T3). S / medium |
@@ -310,7 +310,10 @@ scenarios. A scenario is one table-driven test whose rows are cases.
 
 | Unit | Files | Test scenarios | Size / complexity |
 |---|---|---|---|
-| A1 | 2 | 4 | M / low |
+| A1 | 2 | 3 | S / low |
+| A1d | 2 | 3 | S / low |
+| A1e | 2 | 3 | S / low |
+| A1f | 2 | 2 | S / low |
 | A1c | 2 | 4 | S / low |
 | A1b | 2, plus `shipment_close/__init__.py`, which holds only the `EXIT_*` constants (re-plan cycle-1 R15) | 4 | M / medium |
 | A3a | 2 | 3 | S / medium |
@@ -330,8 +333,17 @@ scenarios. A scenario is one table-driven test whose rows are cases.
 ### A1 — Evidence record contract: shape, path, and selection consistency (read-only)
 
 Re-plan cycle-1 R4 split the former A1 into this unit and A1c (disposition and
-set-term rules), so each satisfies the 2-hour rule.
+set-term rules), so each satisfies the 2-hour rule. Copilot PR #481 T8 then
+moved the ten record-serialization functions into three codec units, A1d,
+A1e, and A1f, because A1 held three public functions plus ten serializer
+functions (Primitive 2: fewer than 3 files, 5 functions, 4 test scenarios).
 
+* **Goal:** the single read-only evidence contract and validator that the
+  A4/A4b gate and the `shipment_close` command both use.
+* **Functions (3 public):** `build_evidence_path`,
+  `validate_evidence_record`, and `redact`, plus private validator helpers.
+  The `*_to_record` / `*_from_record` codec is **not** this unit (A1d, A1e,
+  A1f).
 * **Files:** `src/autoharness/gates/cascade_evidence.py` (new), and
   `tests/test_cascade_evidence_contract.py` (new).
 * **Changes:**
@@ -389,29 +401,17 @@ set-term rules), so each satisfies the 2-hour rule.
     `redact(x)[0] == x` (or `redact(x)[0] != x` for the negation). A bare
     `redact(x) == x` compares a tuple with a string and is always false
     (Copilot PR #481 T1, T2, T5).
-  * **Record serialization helpers (re-plan cycle-1 R8).** This module owns
-    pure `*_to_record` / `*_from_record` pairs, and A2a, A2, A2b, A3, A3b, and
-    A3c use them both to write the record and to compare a fresh value
-    against it. No other module encodes a record field. The pairs are
-    `declared_status_*`, `engine_semantics_*` (an `EngineSemanticsDecision`
-    plus `invocation_surface`), `close_path_selection_*`,
-    `disposition_plan_*` (a `LinkedDeliberationDispositionPlan`), and
-    `observation_entry_*`. A comparison always compares the `*_to_record`
-    encodings of both sides, never a parsed YAML value against JSON.
-    * One canonical encoding for `declared_status` (and every other parsed
-      frontmatter scalar the record keeps): an exact `str` is stored as the
-      JSON string. Every other value is stored as a tagged object
-      `{"type": <tag>, "value": <canonical text or null>}`, with the tags
-      `missing` (no `status` key; `value: null`), `null`, `bool`, `int`,
-      `float`, `date`, `datetime` (ISO 8601 text), `list`, and `mapping`
-      (canonical JSON text of the recursively encoded items, `sort_keys=True`),
-      and `other` (the type name only). A YAML `status: 2026-01-01` is
-      therefore `{"type": "date", "value": "2026-01-01"}`, never the string
-      `"2026-01-01"`, so it cannot compare equal to a quoted date string.
-    * `*_from_record` decodes a record value (an `other` tag decodes to an
-      opaque marker that keeps only the type name) and rejects an unknown tag
-      or a malformed tagged object with `CascadeEvidenceError`. Round trips
-      are stable: `x_to_record(x_from_record(r)) == r` for every valid `r`.
+  * **Record serialization codec (re-plan cycle-1 R8; Copilot PR #481 T8).**
+    This module owns the pure `*_to_record` / `*_from_record` pairs, and A2a,
+    A2, A2b, A3, A3b, and A3c use them both to write the record and to
+    compare a fresh value against it. No other module encodes a record
+    field. This unit does **not** implement them: `declared_status_*` and
+    `observation_entry_*` are A1d (`192.017-T`), `engine_semantics_*` and
+    `close_path_selection_*` are A1e (`192.018-T`), and `disposition_plan_*`
+    is A1f (`192.019-T`). This unit's validator reads the plain JSON record
+    fields directly; A1d and A1e later route the well-typed and
+    selection-consistency checks through their decoders, so one decoder
+    exists per field.
   * `cascade` requires `phase: post_close`,
     `close_path_selection.selected_close_path: cascade`,
     `classifier_verdict: CASCADE`, `engine_semantics.verdict: VERIFIED`, and
@@ -446,8 +446,8 @@ set-term rules), so each satisfies the 2-hour rule.
     A3a; `version_excerpt` from the single A2a probe spawn, re-plan cycle-1
     R7);
   * `pre_close{classifier_verdict, classifier_reason, qualifying_feature_ids, engine_semantics{verdict, reason, probed_version, minor_line, probed_commit, probe_surface, invocation_surface}, close_path_selection{selected_close_path, reason}, shipment_record{location, sha256, declared_status}, manifest_members[{id, artifact_type, location, sha256, declared_status, parent_id}], out_of_manifest_descendants[{id, location, sha256, declared_status}], linked_deliberation_disposition{dispositions[{deliberation_id, outcome, reason_code, path, link_kinds[], linking_member_ids[], referrer_ids[], declared_status, records[{path, declared_status, sha256}]}], unresolved_references[{id, reason_code}],   read_failures[{path, reason_code}], planning_error}, observation_set[{id, path, location, sha256, declared_status}] (selected SAFE_CLOSE only), captured_at}`.
-    Every `declared_status` uses the canonical encoding above (re-plan
-    cycle-1 R8).
+    Every `declared_status` uses the canonical encoding defined in A1d
+    (re-plan cycle-1 R8).
     `engine_semantics` mirrors `EngineSemanticsDecision`, plus the
     `invocation_surface` input. There is no probe excerpt in
     `engine_semantics` (re-plan cycle-1 R7).
@@ -460,7 +460,7 @@ set-term rules), so each satisfies the 2-hour rule.
     always equals the top-level `shipment_id` that A2 passes to the planner,
     and `engine` is the A2a decision already recorded as
     `pre_close.engine_semantics` (the in-memory object is not JSON-safe).
-    `disposition_plan_to_record` drops both, and
+    `disposition_plan_to_record` (A1f) drops both, and
     `disposition_plan_from_record(r, *, shipment_id, engine)` restores them
     from those two record fields. It is also the **disposition snapshot**
     that A3c compares against. The observation set contains no
@@ -478,7 +478,7 @@ set-term rules), so each satisfies the 2-hour rule.
   * Serialization (Principle IX): `json.dumps(sort_keys=True, indent=2,
     ensure_ascii=False)`, LF line endings, one trailing newline, and every ID list
     sorted.
-* **Tests (test-first, four scenarios; each scenario is one table-driven test
+* **Tests (test-first, three scenarios; each scenario is one table-driven test
   whose rows are cases, matching the table-driven precedent in
   `docs/plans/2026-08-31-ship1-v1_5_0-guardrail-contract-restoration-plan.md`
   and `docs/plans/2026-09-27-agent-skill-frontmatter-conformity-plan.md`):**
@@ -490,7 +490,8 @@ set-term rules), so each satisfies the 2-hour rule.
      the backlog root is rejected, and `path: null` on a
      `retained_read_error` disposition, or on an `observation_set` entry
      with `location: missing` and a null `sha256`, is accepted (re-plan
-     cycle-1 R12; cycle-2 C2-2).
+     cycle-1 R12; cycle-2 C2-2); two serializations of the same record are
+     byte-stable (LF, one trailing newline, sorted ID lists).
   2. **Cascade internal-consistency table (AS-F11):** `postcondition_verdict:
      fail`, a non-zero `exit_code`, a non-empty `linked_deliberation_drift`,
      and `disposition_byte_identical: false` under a `pass` verdict are each
@@ -505,19 +506,167 @@ set-term rules), so each satisfies the 2-hour rule.
      is rejected; an `invocation_surface` other than `cli` is rejected; a
      `probed_commit` or `close_path_selection.reason` containing `token=...`
      (so `redact(x)[0] != x`) is rejected (re-plan cycle-1 R6).
-  4. **Serialization:** two writes of the same record are byte-stable; a
-     manifest member with YAML `status: 2026-01-01` encodes as
-     `{"type": "date", "value": "2026-01-01"}`, round-trips through
-     `declared_status_from_record`, and does not compare equal to the string
-     `"2026-01-01"` (re-plan cycle-1 R8).
 
   Every fixture builds `engine_semantics` by calling
   `assess_cascade_engine_semantics`. No fixture hard-codes a
-  `validated_linked_deliberations` set.
-* **Depends on:** none. **Harness surface:** `harness-surface:harness-architect`.
-* **Posture:** test-first. **Size:** M (re-plan cycle-1 R4 split it to S;
-  R6 and R8 added `redact` and the serialization helpers). **Complexity:**
+  `validated_linked_deliberations` set. The former fourth scenario
+  (serialization and the `declared_status` date encoding) moved: byte
+  stability is now part of scenario 1, and the date encoding is A1d
+  scenario 1 (Copilot PR #481 T8).
+* **Depends on:** none (first task). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. **Size:** S (re-plan cycle-1 R4 split it to S;
+  R6 and R8 raised it to M; Copilot PR #481 T8 moved the ten serializer
+  functions into A1d, A1e, and A1f and returned it to S). **Complexity:**
   low.
+
+### A1d — Evidence record codec: declared_status and observation_entry helpers
+
+* **Goal:** the canonical `declared_status` encoding and the
+  observation-set entry codec, split out of A1 by Copilot PR #481 T8.
+* **Functions (4):** `declared_status_to_record`,
+  `declared_status_from_record`, `observation_entry_to_record`, and
+  `observation_entry_from_record`.
+* **Files:** `src/autoharness/gates/cascade_evidence.py` (extended), and
+  `tests/test_cascade_evidence_codec_status.py` (new).
+* **Changes:**
+  * **Canonical `declared_status` encoding (re-plan cycle-1 R8).** The same
+    encoding covers every other parsed frontmatter scalar the record keeps.
+    An exact `str` is stored as the JSON string. Every other value is stored
+    as a tagged object `{"type": <tag>, "value": <canonical text or null>}`,
+    with the tags `missing` (no `status` key; `value: null`), `null`,
+    `bool`, `int`, `float`, `date`, `datetime` (ISO 8601 text), `list` and
+    `mapping` (canonical JSON text of the recursively encoded items,
+    `sort_keys=True`), and `other` (the type name only). A YAML
+    `status: 2026-01-01` is therefore
+    `{"type": "date", "value": "2026-01-01"}`, never the string
+    `"2026-01-01"`, so it cannot compare equal to a quoted date string.
+  * `declared_status_from_record` decodes a record value (an `other` tag
+    decodes to an opaque marker that keeps only the type name) and rejects
+    an unknown tag or a malformed tagged object with `CascadeEvidenceError`.
+    Round trips are stable: `x_to_record(x_from_record(r)) == r` for every
+    valid `r`.
+  * `observation_entry_*` encode and decode
+    `{id, path, location, sha256, declared_status}`. `location` is `queue`,
+    `archive`, or `missing`. A `location: missing` entry has `path`,
+    `sha256`, and `declared_status` all `null` (re-plan cycle-2 C2-2).
+    `declared_status` goes through `declared_status_to_record`.
+  * `validate_evidence_record`'s well-typed check decodes every
+    `declared_status` field and every `observation_set` entry through these
+    helpers, so one decoder exists and a malformed tagged object rejects the
+    record.
+  * A comparison always compares the `*_to_record` encodings of both sides,
+    never a parsed YAML value against JSON.
+* **Tests (test-first, three table-driven scenarios):**
+  1. **`declared_status` tag table:** an exact `str` encodes as the JSON
+     string; each tag (`missing`, `null`, `bool`, `int`, `float`, `date`,
+     `datetime`, `list`, `mapping`, `other`) encodes and round-trips; YAML
+     `status: 2026-01-01` encodes as `{"type": "date", "value":
+     "2026-01-01"}`, round-trips, and does not compare equal to the string
+     `"2026-01-01"` (re-plan cycle-1 R8).
+  2. **Malformed-tag table:** an unknown tag, a tagged object without
+     `value`, and a non-object, non-string value each raise
+     `CascadeEvidenceError`, and a record carrying one is rejected by
+     `validate_evidence_record`.
+  3. **Observation-entry table:** a `queue` entry and a `location: missing`
+     entry (null `path`, `sha256`, and `declared_status`) round-trip; two
+     serializations of a record carrying both are byte-identical under the
+     A1 serialization rule.
+* **Depends on:** A1 (`192.001-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. Pure functions, no I/O. **Size:** S.
+  **Complexity:** low.
+
+### A1e — Evidence record codec: engine_semantics and close_path_selection helpers
+
+* **Goal:** the engine-semantics and close-path-selection record codec,
+  split out of A1 by Copilot PR #481 T8.
+* **Functions (4):** `engine_semantics_to_record`,
+  `engine_semantics_from_record`, `close_path_selection_to_record`, and
+  `close_path_selection_from_record`.
+* **Files:** `src/autoharness/gates/cascade_evidence.py` (extended), and
+  `tests/test_cascade_evidence_codec_selection.py` (new).
+* **Changes:**
+  * `engine_semantics_*` encode an `EngineSemanticsDecision` plus the
+    `invocation_surface` input as `{verdict, reason, probed_version,
+    minor_line, probed_commit, probe_surface, invocation_surface}`, where
+    `minor_line` is `[major, minor]` or `null`. There is no probe excerpt
+    (re-plan cycle-1 R7; the probe stdout excerpt is
+    `tool.version_excerpt`). No field is redacted (re-plan cycle-1 R6):
+    values are stored verbatim, so re-assessment reproduces them.
+  * `engine_semantics_from_record` rebuilds the decision fields and
+    `invocation_surface`. A missing key, a `minor_line` that is neither
+    `null` nor a two-integer list, or an unknown `verdict` raises
+    `CascadeEvidenceError`.
+  * `close_path_selection_*` encode the `(ClosePath, reason)` result of
+    `select_close_path` as `{selected_close_path: cascade | safe_close,
+    reason}`. An unknown `selected_close_path` raises
+    `CascadeEvidenceError`.
+  * A1's selection-consistency check decodes the recorded `engine_semantics`
+    and `close_path_selection` through these helpers (one decoder) before it
+    re-assesses with `assess_cascade_engine_semantics` and
+    `select_close_path`.
+  * Round trips are stable, and a comparison always compares `*_to_record`
+    encodings.
+* **Tests (test-first, three table-driven scenarios):**
+  1. **Engine round-trip table:** a `VERIFIED` `1.11.0` `cli`/`cli` decision
+     and `UNVERIFIED` decisions (`probed_version` `None`; `1.10.1`), each
+     built by `assess_cascade_engine_semantics`, round-trip with
+     `minor_line` `[1, 11]` or `null` and every value stored verbatim
+     (re-plan cycle-1 R6).
+  2. **Close-path round-trip table:** both selections returned by
+     `select_close_path` round-trip; an unknown `selected_close_path` raises
+     `CascadeEvidenceError`.
+  3. **Malformed-engine table:** a missing key, a `minor_line` of length 3
+     or of type `str`, and an unknown `verdict` each raise
+     `CascadeEvidenceError`, and `validate_evidence_record` rejects a record
+     carrying one.
+* **Depends on:** A1d (`192.017-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. Pure functions, no I/O. **Size:** S.
+  **Complexity:** low.
+
+### A1f — Evidence record codec: disposition_plan helpers
+
+* **Goal:** the linked-deliberation disposition snapshot codec, split out of
+  A1 by Copilot PR #481 T8.
+* **Functions (2):** `disposition_plan_to_record` and
+  `disposition_plan_from_record`.
+* **Files:** `src/autoharness/gates/cascade_evidence.py` (extended), and
+  `tests/test_cascade_evidence_codec_disposition.py` (new).
+* **Changes:**
+  * `disposition_plan_to_record(plan)` encodes four of the six
+    `LinkedDeliberationDispositionPlan` fields: `dispositions`,
+    `unresolved_references`, `read_failures`, and `planning_error`. Each
+    `dispositions[]` entry mirrors `LinkedDeliberationDisposition` field for
+    field: `{deliberation_id, outcome, reason_code, path, link_kinds[],
+    linking_member_ids[], referrer_ids[], declared_status, records[{path,
+    declared_status, sha256}]}`. Every `declared_status` goes through A1d's
+    `declared_status_to_record`, and ID lists are sorted.
+  * `shipment_id` and `engine` are intentionally dropped (re-plan cycle-1
+    R14). `disposition_plan_from_record(r, *, shipment_id, engine)` restores
+    them from the top-level `shipment_id` and the decoded
+    `pre_close.engine_semantics`.
+  * A malformed record (a missing key, an unknown field, or a malformed
+    tagged `declared_status`) raises `CascadeEvidenceError`. Round trips are
+    stable.
+  * The outcome vocabulary and the engine/outcome consistency rules belong
+    to the A1c validator (`192.011-T`), not to this codec, which round-trips
+    any outcome string.
+* **Tests (test-first, two table-driven scenarios):**
+  1. **Round-trip table** over plans built from `LinkedDeliberationOutcome`
+     values and `PLANNED_ARCHIVE` (`archive`, `already-archived`, and each
+     `retained_*` outcome): `to_record` drops `shipment_id` and `engine`;
+     `from_record(r, shipment_id=..., engine=...)` restores them; and
+     `x_to_record(x_from_record(r)) == r`. No fixture hard-codes a
+     `validated_linked_deliberations` set.
+  2. **Malformed-plan table:** a missing `dispositions` key, an unknown
+     disposition field, and a malformed tagged `declared_status` inside
+     `records[]` each raise `CascadeEvidenceError`.
+* **Depends on:** A1e (`192.018-T`). **Harness surface:**
+  `harness-surface:harness-architect`.
+* **Posture:** test-first. Pure functions, no I/O. **Size:** S.
+  **Complexity:** low.
 
 ### A1c — Evidence record contract: disposition and set-term rules (read-only)
 
@@ -599,7 +748,8 @@ set-term rules), so each satisfies the 2-hour rule.
 
   Fixtures build dispositions from `LinkedDeliberationOutcome` values and
   `PLANNED_ARCHIVE`, and never hard-code a linked deliberation in either set.
-* **Depends on:** A1 (`192.001-T`). **Harness surface:**
+* **Depends on:** A1f (`192.019-T`; was A1 `192.001-T` before Copilot PR #481
+  T8 inserted the A1d-A1f codec chain). **Harness surface:**
   `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** low.
 
@@ -885,7 +1035,7 @@ set-term rules), so each satisfies the 2-hour rule.
     the probe is the only version spawn (re-plan cycle-1 R7). It is audit
     context only, and the validator never re-assesses it.
   * Serialization into `pre_close.engine_semantics` (A1 shape) goes through
-    A1 `engine_semantics_to_record` (re-plan cycle-1 R8): `verdict`,
+    A1e `engine_semantics_to_record` (re-plan cycle-1 R8): `verdict`,
     `reason`, `probed_version`, `minor_line` (`[major, minor]` or `null`),
     `probed_commit`, `probe_surface`, and `invocation_surface`. None of these
     is redacted (re-plan cycle-1 R6).
@@ -945,7 +1095,7 @@ set-term rules), so each satisfies the 2-hour rule.
   * `compute_observation_set(manifest_items, shipment_id, backlog_dir, *, excluded_ids, deliberation_records=()) -> tuple[ObservationEntry, ...]`
     is read-only and returns one entry per record path, with its
     workspace-relative `path`, location (queue or archive), SHA-256, and
-    declared status, each encoded with A1 `observation_entry_to_record`
+    declared status, each encoded with A1d `observation_entry_to_record`
     (re-plan cycle-1 R8). The set is the union of:
     * the shipment-reconcile `mode: safe-close` observation set: the parent
       feature of each manifest task, plus every unshipped sibling task;
@@ -1057,14 +1207,14 @@ set-term rules), so each satisfies the 2-hour rule.
       manifest member or the `parent_id` of one. Otherwise it exits 2 (AS-F08);
     * it captures location, SHA-256, declared status, and `parent_id` for the
       shipment record and for every manifest member (AS-F05). Every field is
-      encoded with the A1 `*_to_record` helpers (re-plan cycle-1 R8);
+      encoded with the A1d-A1f `*_to_record` helpers (re-plan cycle-1 R8);
     * it records the **disposition snapshot** (re-plan R5):
       `compute_linked_deliberation_disposition(manifest_ids, shipment_id, backlog_dir, engine=<the A2a decision>)`,
       with no `stash_path`, exactly as the skill's Linked-Deliberation
       Disposition step calls it. The planner covers every explicit manifest
       member, regardless of `artifact_type`, and applies the H10 exclusions
       (self-reference and every ID in `closure_scope(S)`). Its output is
-      serialized with A1 `disposition_plan_to_record` into
+      serialized with A1f `disposition_plan_to_record` into
       `pre_close.linked_deliberation_disposition`, with the planned outcomes.
       A planner path that is not a workspace-relative path under the backlog
       root (for example the out-of-workspace path the planner reports for a
@@ -1261,7 +1411,7 @@ set-term rules), so each satisfies the 2-hour rule.
       `planning_error`. That is drift, never a skipped comparison, so it
       makes `postcondition_verdict: fail` (exit 5) (re-plan cycle-1 R10).
 
-    The re-collected plan is encoded with A1 `disposition_plan_to_record`,
+    The re-collected plan is encoded with A1f `disposition_plan_to_record`,
     and every comparison is between that encoding and the recorded one,
     never between a parsed YAML value and JSON (re-plan cycle-1 R8).
     Any drift entry makes `postcondition_verdict: fail` (exit 5 in A3).
@@ -1318,7 +1468,7 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
          `tool.binary_sha256`); the close-path selection; and the disposition
          snapshot. **Any** difference, including a fresh selection of
          SAFE_CLOSE, exits 4 and leaves the record byte-identical. Every
-         compared field is compared as its A1 `*_to_record` encoding (re-plan
+         compared field is compared as its A1d-A1f `*_to_record` encoding (re-plan
          cycle-1 R8). The command
          never writes a `safe_close` record over a `cascade`-selected one and
          never substitutes SAFE_CLOSE (INV-P4). An exact match continues to
