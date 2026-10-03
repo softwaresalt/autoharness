@@ -272,7 +272,10 @@ closure-evidence options:
   --workspace, -w     Workspace root. Default: .
   --json              Emit the validation result as JSON (includes failed_check:
                       workspace_containment | input | filename |
-                      frontmatter_predicate | discoverability, or null on pass).
+                      frontmatter_predicate | discoverability | close_path |
+                      close_evidence, or null on pass; and warnings[], a list
+                      of non-blocking notes: an absent merge_commit key, or a
+                      vacuous SAFE_CLOSE observation-set re-check).
 
 `closure-evidence` is READ-ONLY and never writes, renames, or repairs an
 artifact. Checks run in order: workspace containment, input readability (a
@@ -281,6 +284,16 @@ the on-disk name), the consumer's own acceptance predicate
 (topology._closure_artifact_complete, reused by import), and discoverability
 for the declared shipment under docs/closure/. Legacy date-prefixed names are
 readable by the topology gate but are never a valid write.
+Only after those pass (192-F): the artifact must declare
+`close_path: cascade | safe_close` (failed_check close_path) and
+`close_evidence: docs/closure/evidence/{S}-{F}-close-evidence.json`
+(failed_check close_evidence). The evidence path is checked textually first
+(relative POSIX, no `..`, no drive or UNC prefix), must equal the pair's
+canonical evidence path, must be a regular file of at most 512 KiB reached
+through no symlink or junction, and must validate against the declared
+close_path as the record's selected close path. When the artifact carries
+merge_commit, the record's merge_commit_sha must equal it (absent: a
+warning). SAFE_CLOSE without a valid safe_close-selected record fails.
 
 `dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any
 path. It is existence-guarded (zero shipments -> empty report, exit 0) and
@@ -319,7 +332,8 @@ Exit codes:
   1  at least one matched file failed its gate (blocked), unless advisory; or
      copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
      or pipeline-topology BLOCK; or closure-evidence validation failure
-     (filename, frontmatter predicate, or discoverability).
+     (filename, frontmatter predicate, discoverability, close_path, or
+     close_evidence).
   2  invalid arguments or invalid gate configuration; invalid pre-review
      detector input/registry; or pipeline-topology invalid
      mode/phase/target configuration; or closure-evidence invalid input
@@ -1728,6 +1742,148 @@ def _on_disk_name(path: Path) -> str | None:
     return folded[0] if len(folded) == 1 else None
 
 
+_CLOSE_PATH_VALUES = ("cascade", "safe_close")
+_CLOSE_EVIDENCE_MAX_BYTES = 512 * 1024
+_CLOSE_EVIDENCE_PREFIX = "docs/closure/evidence/"
+
+
+def _relative_posix_problem(value: object, prefix: str) -> str | None:
+    """Textual containment of a recorded relative path, before any filesystem call (A4 step 1)."""
+    if type(value) is not str or not value:
+        return f"must be a non-empty string (got {value!r})"
+    if "\\" in value or "\0" in value:
+        return f"{value!r} must use '/' separators and contain no NUL"
+    if value.startswith("/") or (len(value) >= 2 and value[1] == ":"):
+        return f"{value!r} must be a relative path (no drive, UNC, or absolute prefix)"
+    if any(part in ("", ".", "..") for part in value.split("/")):
+        return f"{value!r} must not contain empty, '.', or '..' segments"
+    if not value.startswith(prefix):
+        return f"{value!r} must lie under {prefix}"
+    return None
+
+
+def _read_contained_regular_file(root: Path, relative: str, base: Path, limit: int) -> bytes:
+    """Read ``root / relative`` once, with no link on any component from ``base`` down (A4 step 3).
+
+    The pre-open ``lstat`` must show a regular file of at most ``limit`` bytes;
+    the file is opened with ``O_NOFOLLOW`` where available, and before any byte
+    is read the ``fstat`` identity must equal the ``lstat`` and the containment
+    of the file and of each parent component is re-checked. Raises ValueError.
+    """
+    import stat
+
+    # Private-name rule (re-plan cycle-2 C2-4): imported lazily, never at module top.
+    from autoharness.gates.shipment_closure import _check_path_containment
+
+    target = root.joinpath(*relative.split("/"))
+    reason = _check_path_containment(target, base)
+    if reason is not None:
+        raise ValueError(f"'{relative}' fails containment ({reason}); nothing was read")
+    try:
+        before = os.lstat(target)
+    except FileNotFoundError:
+        raise ValueError(f"'{relative}' does not exist") from None
+    except OSError as exc:
+        raise ValueError(f"'{relative}' cannot be inspected: {exc}") from exc
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if not stat.S_ISREG(before.st_mode) or getattr(before, "st_file_attributes", 0) & reparse:
+        raise ValueError(f"'{relative}' is not a regular file (symlinks and reparse points are refused)")
+    if before.st_size > limit:
+        raise ValueError(f"'{relative}' is {before.st_size} bytes, over the {limit // 1024} KiB limit")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(target, flags)
+    except OSError as exc:
+        raise ValueError(f"'{relative}' cannot be opened: {exc}") from exc
+    try:
+        after = os.fstat(fd)
+        if (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(after.st_mode):
+            raise ValueError(f"'{relative}' changed identity between lstat and open; nothing was read")
+        reason = _check_path_containment(target, base)
+        if reason is not None:
+            raise ValueError(f"'{relative}' fails containment after open ({reason}); nothing was read")
+        chunks: list[bytes] = []
+        remaining = limit + 1
+        while remaining > 0:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+    except OSError as exc:
+        raise ValueError(f"'{relative}' cannot be read: {exc}") from exc
+    finally:
+        os.close(fd)
+    data = b"".join(chunks)
+    if len(data) > limit:
+        raise ValueError(f"'{relative}' is over the {limit // 1024} KiB limit")
+    return data
+
+
+def _check_close_path_requirement(
+    frontmatter: dict, root: Path, shipment_id: str, feature_id: str, warnings: list[str]
+) -> tuple[str, str] | None:
+    """The 192-F ``close_path`` / ``close_evidence`` checks (plan unit A4); ``(failed_check, message)`` or None.
+
+    Runs only after the existing checks pass, so it never masks or reorders an
+    existing ``failed_check``. The declared ``close_path`` is validated against
+    the record's **selected** close path by ``validate_evidence_record`` (re-plan R2).
+    """
+    import json as _json
+
+    from autoharness.gates.cascade_evidence import (
+        CascadeEvidenceError,
+        build_evidence_path,
+        validate_evidence_record,
+    )
+
+    close_path = frontmatter.get("close_path")
+    if type(close_path) is not str or close_path not in _CLOSE_PATH_VALUES:
+        return "close_path", (
+            f"closure artifact must declare close_path: cascade | safe_close (got {close_path!r})"
+        )
+    declared = frontmatter.get("close_evidence")
+    problem = _relative_posix_problem(declared, _CLOSE_EVIDENCE_PREFIX)
+    if problem is not None:
+        return "close_evidence", f"close_evidence {problem}"
+    try:
+        expected = build_evidence_path(root, shipment_id, feature_id).relative_to(root).as_posix()
+    except (CascadeEvidenceError, ValueError) as exc:
+        return "close_evidence", f"the evidence path for {shipment_id}/{feature_id} cannot be built: {exc}"
+    if declared != expected:
+        return "close_evidence", (
+            f"close_evidence '{declared}' is not the evidence path '{expected}' for {shipment_id}/{feature_id}"
+        )
+    try:
+        raw = _read_contained_regular_file(root, declared, root, _CLOSE_EVIDENCE_MAX_BYTES)
+        record = _json.loads(raw.decode("utf-8"))
+    except ValueError as exc:  # includes JSONDecodeError and UnicodeDecodeError
+        return "close_evidence", f"close_evidence record cannot be read: {exc}"
+    if not isinstance(record, dict):
+        return "close_evidence", f"close_evidence record '{declared}' is not a JSON object"
+    problems = validate_evidence_record(
+        record, shipment_id=shipment_id, feature_id=feature_id, close_path=close_path
+    )
+    if problems:
+        return "close_evidence", (
+            f"close_evidence record '{declared}' is not a valid {close_path} record for "
+            f"{shipment_id}/{feature_id}: {'; '.join(problems)}"
+        )
+    if "merge_commit" in frontmatter:
+        merge_commit = frontmatter.get("merge_commit")
+        if type(merge_commit) is not str or merge_commit.strip() != record.get("merge_commit_sha"):
+            return "close_evidence", (
+                f"closure artifact merge_commit {merge_commit!r} does not equal the record's "
+                f"merge_commit_sha {record.get('merge_commit_sha')!r}"
+            )
+    else:
+        warnings.append(
+            "closure artifact has no merge_commit key; the evidence record's merge_commit_sha "
+            "was not cross-checked"
+        )
+    return None
+
+
 def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspace: Path) -> dict:
     """Validate one closure artifact against the closure-evidence contract.
 
@@ -1759,6 +1915,7 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
         "exit_code": 2,
         "failed_check": None,
         "message": "",
+        "warnings": [],
     }
 
     def _finish(exit_code: int, failed_check: str | None, message: str) -> dict:
@@ -1880,6 +2037,11 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
             f"closure artifact '{resolved}' is not discoverable for shipment {declared_shipment}: "
             f"the topology gate reads canonical closure evidence only from '{closure_dir}'",
         )
+    requirement = _check_close_path_requirement(
+        frontmatter, root, declared_shipment, match.group("feature_id"), payload["warnings"]
+    )
+    if requirement is not None:
+        return _finish(1, *requirement)
     return _finish(
         0,
         None,

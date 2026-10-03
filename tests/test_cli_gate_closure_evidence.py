@@ -1,9 +1,14 @@
-"""CLI tests for `autoharness gate closure-evidence` (167.004-T U4, 167.011-T U11).
+"""CLI tests for `autoharness gate closure-evidence` (167.004-T U4, 167.011-T U11, 192.007-T A4).
 
 Write-time validation of a post-merge closure artifact against the
 closure-evidence naming contract. Every fixture lives in a temporary scratch
 workspace; canonical names come from ``build_closure_path`` and legacy names
 from ``tests/_closure_legacy_names.py`` (plan C6).
+
+192.007-T (plan unit A4) adds the ``close_path`` and ``close_evidence``
+requirement: ``_canonical`` now writes a valid ``safe_close`` evidence record
+(materialized against a scratch ``.backlogit`` tree) unless told not to, and
+:class:`CloseEvidenceRequirementTests` holds the four A4 scenarios.
 """
 
 from __future__ import annotations
@@ -17,7 +22,17 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from _closure_legacy_names import legacy_closure_filename
+from test_cascade_evidence_contract import (
+    _engine_record,
+    cascade_record,
+    safe_close_record,
+)
+
 from autoharness.cli import main
+from autoharness.gates.cascade_evidence import (
+    build_evidence_path,
+    serialize_evidence_record,
+)
 from autoharness.gates.closure_contract import (
     CANONICAL_CLOSURE_PATTERN_DOC,
     CLOSURE_PREDICATE_REQUIREMENT_DOC,
@@ -25,6 +40,84 @@ from autoharness.gates.closure_contract import (
 )
 
 _READY = "---\ncompaction_status: done\nclosure_status: READY\n---\n"
+_MERGE_SHA = "bd824b97999832aa38122f2f70d300ebbb5d2e09"
+_MAX_EVIDENCE_BYTES = 512 * 1024
+
+
+def evidence_relpath(shipment_id: str, feature_id: str) -> str:
+    """The canonical ``close_evidence`` value for a pair (``build_evidence_path``, POSIX, relative)."""
+
+    root = Path(tempfile.gettempdir()).resolve()
+    return build_evidence_path(root, shipment_id, feature_id).relative_to(root).as_posix()
+
+
+def write_backlog_record(root: Path, folder: str, artifact_id: str, *, status: str = "done", extra: str = "") -> Path:
+    """Write one ``.backlogit/{folder}/{id}.md`` record; returns its path."""
+
+    directory = root / ".backlogit" / folder
+    directory.mkdir(parents=True, exist_ok=True)
+    (root / ".backlogit" / ("archive" if folder == "queue" else "queue")).mkdir(exist_ok=True)
+    path = directory / f"{artifact_id}.md"
+    path.write_text(
+        f"---\nid: {artifact_id}\nartifact_type: task\nstatus: {status}\n{extra}---\n# {artifact_id}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def materialize_observation(root: Path, record: dict) -> dict:
+    """Make every observation-set entry true of ``root``: write its file and record the real SHA-256."""
+
+    import hashlib
+
+    for entry in record.get("pre_close", {}).get("observation_set", []):
+        if entry["location"] == "missing":
+            (root / ".backlogit" / "queue").mkdir(parents=True, exist_ok=True)
+            (root / ".backlogit" / "archive").mkdir(parents=True, exist_ok=True)
+            continue
+        status = entry["declared_status"] if isinstance(entry["declared_status"], str) else "done"
+        path = write_backlog_record(root, entry["location"], entry["id"], status=status)
+        entry["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return record
+
+
+def evidence_record(close_path: str, shipment_id: str, feature_id: str, **kwargs: object) -> dict:
+    """A valid record for the pair: ``safe_close`` (A1 builder) or ``cascade``."""
+
+    record = safe_close_record(**kwargs) if close_path == "safe_close" else cascade_record(**kwargs)
+    record["shipment_id"] = shipment_id
+    record["feature_id"] = feature_id
+    record["merge_commit_sha"] = _MERGE_SHA
+    return record
+
+
+def write_evidence(root: Path, shipment_id: str, feature_id: str, record: dict | str | bytes) -> Path:
+    """Write ``record`` at ``build_evidence_path`` for the pair (materializing a SAFE_CLOSE observation set)."""
+
+    path = build_evidence_path(root, shipment_id, feature_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(record, dict):
+        materialize_observation(root, record)
+        record = serialize_evidence_record(record)
+    if isinstance(record, str):
+        record = record.encode("utf-8")
+    path.write_bytes(record)
+    return path
+
+
+def with_close_keys(body: str, close_path: str | None, close_evidence: str | None, *, merge_commit: str | None = None) -> str:
+    """Insert ``close_path`` / ``close_evidence`` (and ``merge_commit``) keys into a frontmatter body."""
+
+    if not body.startswith("---\n"):
+        return body
+    lines = []
+    if close_path is not None:
+        lines.append(f"close_path: {close_path}\n")
+    if close_evidence is not None:
+        lines.append(f"close_evidence: {close_evidence}\n")
+    if merge_commit is not None:
+        lines.append(f"merge_commit: '{merge_commit}'\n")
+    return "---\n" + "".join(lines) + body[4:]
 
 
 def _run(*argv: str) -> tuple[str, str, int | None]:
@@ -73,7 +166,19 @@ class _ClosureWorkspaceMixin:
     def tearDown(self) -> None:  # noqa: D401 - unittest hook
         self._tmp.cleanup()
 
-    def _canonical(self, shipment_id: str = "175-S", feature_id: str = "167-F", body: str = _READY) -> Path:
+    def _canonical(
+        self,
+        shipment_id: str = "175-S",
+        feature_id: str = "167-F",
+        body: str = _READY,
+        *,
+        evidence: bool = True,
+    ) -> Path:
+        """Write a canonical closure artifact; by default with a valid ``safe_close`` evidence record (A4)."""
+
+        if evidence:
+            write_evidence(self.root, shipment_id, feature_id, evidence_record("safe_close", shipment_id, feature_id))
+            body = with_close_keys(body, "safe_close", evidence_relpath(shipment_id, feature_id))
         path = build_closure_path("docs/closure", shipment_id, feature_id, workspace_root=self.root)
         path.write_text(body, encoding="utf-8")
         return path
@@ -357,7 +462,18 @@ _PARITY_ROWS = (
 # Keys the closure-evidence JSON payload may carry. A field- or reason-level
 # key (e.g. "reason", "field", "cause") would be a second validity definition.
 _PAYLOAD_KEYS = frozenset(
-    {"gate", "path", "workspace", "shipment_id", "canonical_pattern", "passed", "exit_code", "failed_check", "message"}
+    {
+        "gate",
+        "path",
+        "workspace",
+        "shipment_id",
+        "canonical_pattern",
+        "passed",
+        "exit_code",
+        "failed_check",
+        "message",
+        "warnings",
+    }
 )
 
 
@@ -456,6 +572,216 @@ class ClosureEvidenceSemanticBatteryTests(_ClosureWorkspaceMixin, unittest.TestC
                 if isinstance(node, ast.Constant) and isinstance(node.value, str):
                     with self.subTest(function=name, constant=node.value):
                         self.assertNotIn(node.value.strip().lower(), forbidden)
+
+
+
+class CloseEvidenceRequirementTests(_ClosureWorkspaceMixin, unittest.TestCase):
+    """192.007-T (plan unit A4): ``close_path`` and the ``close_evidence`` requirement."""
+
+    def _artifact(
+        self,
+        close_path: str | None,
+        record: dict | str | bytes | None,
+        *,
+        close_evidence: str | None = None,
+        merge_commit: str | None = _MERGE_SHA,
+        body: str = _READY,
+    ) -> Path:
+        for existing in self.closure_dir.glob("*.md"):
+            existing.unlink()
+        evidence_path = self.root / evidence_relpath("175-S", "167-F")  # textual: never follow a test link
+        if evidence_path.is_symlink() or evidence_path.is_file():
+            evidence_path.unlink()
+        if record is not None:
+            write_evidence(self.root, "175-S", "167-F", record)
+        keys = with_close_keys(
+            body,
+            close_path,
+            close_evidence if close_evidence is not None else evidence_relpath("175-S", "167-F"),
+            merge_commit=merge_commit,
+        )
+        return self._canonical(body=keys, evidence=False)
+
+    def test_per_path_verdict_table(self) -> None:
+        unverified = _engine_record("1.10.1")
+        failed = evidence_record("cascade", "175-S", "167-F")
+        failed["post_close"]["postcondition_verdict"] = "fail"
+        failed["post_close"]["failures"] = ["returned_ids non-empty"]
+        foreign = evidence_record("safe_close", "175-S", "167-F")
+        foreign["shipment_id"] = "176-S"
+        rows = [
+            ("cascade, no record", "cascade", None, "close_evidence"),
+            ("cascade, fail verdict record", "cascade", failed, "close_evidence"),
+            (
+                "cascade, UNVERIFIED engine record",
+                "cascade",
+                evidence_record("cascade", "175-S", "167-F", engine=unverified),
+                "close_evidence",
+            ),
+            ("cascade, valid record", "cascade", evidence_record("cascade", "175-S", "167-F"), None),
+            ("safe_close, no record", "safe_close", None, "close_evidence"),
+            ("safe_close, cascade record", "safe_close", evidence_record("cascade", "175-S", "167-F"), "close_evidence"),
+            ("safe_close, valid record", "safe_close", evidence_record("safe_close", "175-S", "167-F"), None),
+            (
+                "safe_close, classifier CASCADE with UNVERIFIED engine",
+                "safe_close",
+                evidence_record("safe_close", "175-S", "167-F", classifier="CASCADE", engine=unverified),
+                None,
+            ),
+            ("mismatched shipment ID in the record", "safe_close", foreign, "close_evidence"),
+            ("close_path missing", None, evidence_record("safe_close", "175-S", "167-F"), "close_path"),
+            ("close_path out of vocabulary", "CASCADE", evidence_record("cascade", "175-S", "167-F"), "close_path"),
+            ("record is not JSON", "safe_close", "not json", "close_evidence"),
+            ("record is a JSON array", "safe_close", "[]", "close_evidence"),
+        ]
+        for label, close_path, record, failed_check in rows:
+            with self.subTest(row=label):
+                artifact = self._artifact(close_path, record)
+                payload, code = self._gate(artifact)
+                self.assertEqual(payload["failed_check"], failed_check, payload["message"])
+                self.assertEqual(code if code is not None else 0, 0 if failed_check is None else 1)
+                self.assertEqual(payload["passed"], failed_check is None)
+                self.assertIsInstance(payload["warnings"], list)
+
+        with self.subTest(row="close_evidence key missing"):
+            for existing in self.closure_dir.glob("*.md"):
+                existing.unlink()
+            write_evidence(self.root, "175-S", "167-F", evidence_record("safe_close", "175-S", "167-F"))
+            artifact = self._canonical(body=with_close_keys(_READY, "safe_close", None), evidence=False)
+            payload, code = self._gate(artifact)
+            self.assertEqual((code, payload["failed_check"]), (1, "close_evidence"))
+
+    def test_evidence_path_containment_table(self) -> None:
+        valid = evidence_record("safe_close", "175-S", "167-F")
+        outside_record = self.outside / "175-S-167-F-close-evidence.json"
+        outside_record.write_text(serialize_evidence_record(valid), encoding="utf-8")
+        other = evidence_relpath("176-S", "167-F")
+        write_evidence(self.root, "176-S", "167-F", evidence_record("safe_close", "176-S", "167-F"))
+        rows = [
+            ("dot-dot traversal", "docs/closure/evidence/../evidence/175-S-167-F-close-evidence.json"),
+            ("escape to outside", "../outside/175-S-167-F-close-evidence.json"),
+            ("absolute path", outside_record.as_posix()),
+            ("drive-qualified path", "C:/docs/closure/evidence/175-S-167-F-close-evidence.json"),
+            ("UNC path", "//attacker/share/175-S-167-F-close-evidence.json"),
+            ("backslash separators", "docs\\closure\\evidence\\175-S-167-F-close-evidence.json"),
+            ("outside the evidence directory", "docs/closure/175-S-167-F-close-evidence.json"),
+            ("another pair's record", other),
+        ]
+        opened: list[str] = []
+        real_open = os.open
+
+        def spy(path, *args, **kwargs):
+            opened.append(os.path.abspath(os.fspath(path)))
+            return real_open(path, *args, **kwargs)
+
+        from unittest import mock
+
+        for label, close_evidence in rows:
+            with self.subTest(row=label):
+                artifact = self._artifact("safe_close", valid, close_evidence=close_evidence)
+                opened.clear()
+                with mock.patch("os.open", side_effect=spy):
+                    payload, code = self._gate(artifact)
+                self.assertEqual((code, payload["failed_check"]), (1, "close_evidence"), payload["message"])
+                self.assertFalse(
+                    [path for path in opened if path.startswith(str(self.outside))], "read outside the workspace"
+                )
+
+        with self.subTest(row="oversize record"):
+            oversize = evidence_record("safe_close", "175-S", "167-F")
+            oversize["pre_close"]["captured_at"] = "x" * (_MAX_EVIDENCE_BYTES + 1)
+            artifact = self._artifact("safe_close", oversize)
+            payload, code = self._gate(artifact)
+            self.assertEqual((code, payload["failed_check"]), (1, "close_evidence"))
+            self.assertIn("512", payload["message"])
+
+        with self.subTest(row="symlinked record"):
+            artifact = self._artifact("safe_close", None)
+            link = build_evidence_path(self.root, "175-S", "167-F")
+            link.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.symlink(outside_record, link)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"cannot create file symlink: {exc}")
+            opened.clear()
+            with mock.patch("os.open", side_effect=spy):
+                payload, code = self._gate(artifact)
+            self.assertEqual((code, payload["failed_check"]), (1, "close_evidence"))
+            self.assertFalse([path for path in opened if path.startswith(str(self.outside))])
+
+        with self.subTest(row="junctioned evidence directory"):
+            artifact = self._artifact("safe_close", None)
+            evidence_dir = (self.root / evidence_relpath("175-S", "167-F")).parent
+            for leftover in evidence_dir.iterdir():
+                leftover.unlink()
+            evidence_dir.rmdir()
+            target = self.outside / "evidence"
+            target.mkdir()
+            (target / "175-S-167-F-close-evidence.json").write_text(
+                serialize_evidence_record(evidence_record("safe_close", "175-S", "167-F")), encoding="utf-8"
+            )
+            reason = _make_dir_link(evidence_dir, target)
+            if reason:
+                self.skipTest(reason)
+            opened.clear()
+            with mock.patch("os.open", side_effect=spy):
+                payload, code = self._gate(artifact)
+            self.assertEqual((code, payload["failed_check"]), (1, "close_evidence"))
+            self.assertFalse([path for path in opened if path.startswith(str(self.outside))])
+
+    def test_merge_commit_cross_check(self) -> None:
+        record = evidence_record("safe_close", "175-S", "167-F")
+        with self.subTest(row="matching merge_commit"):
+            payload, code = self._gate(self._artifact("safe_close", copy_record(record)))
+            self.assertEqual((code, payload["failed_check"]), (0, None), payload["message"])
+            self.assertFalse([w for w in payload["warnings"] if "merge_commit" in w])
+        with self.subTest(row="mismatched merge_commit"):
+            artifact = self._artifact("safe_close", copy_record(record), merge_commit="0" * 40)
+            payload, code = self._gate(artifact)
+            self.assertEqual((code, payload["failed_check"]), (1, "close_evidence"))
+            self.assertIn("merge_commit", payload["message"])
+        with self.subTest(row="absent merge_commit"):
+            artifact = self._artifact("safe_close", copy_record(record), merge_commit=None)
+            payload, code = self._gate(artifact)
+            self.assertEqual((code, payload["failed_check"]), (0, None), payload["message"])
+            self.assertTrue([w for w in payload["warnings"] if "merge_commit" in w], payload["warnings"])
+
+    def test_non_regression_pins(self) -> None:
+        from autoharness.gates.closure_contract import classify_closure_candidates
+        from autoharness.gates.topology import FilesystemTopologyReaders
+
+        with self.subTest(row="BLOCKED still fails frontmatter_predicate first"):
+            blocked = self._canonical(
+                body="---\ncompaction_status: done\nclosure_status: BLOCKED\n---\n", evidence=False
+            )
+            payload, code = self._gate(blocked)
+            self.assertEqual((code, payload["failed_check"]), (1, "frontmatter_predicate"))
+            blocked.unlink()
+
+        with self.subTest(row="INV-P5: the topology reader still accepts an artifact without close_path"):
+            committed = self._canonical(evidence=False)
+            payload, code = self._gate(committed)
+            self.assertEqual((code, payload["failed_check"]), (1, "close_path"))
+            self.assertIs(FilesystemTopologyReaders(self.root).closure_complete("175-S"), True)
+
+        with self.subTest(row="classify_closure_candidates ignores docs/closure/evidence/"):
+            committed.unlink()
+            write_evidence(self.root, "175-S", "167-F", evidence_record("safe_close", "175-S", "167-F"))
+            (self.closure_dir / "evidence" / "175-S-167-F-post-merge-closure.md").write_text(_READY, encoding="utf-8")
+            discovery = classify_closure_candidates(self.closure_dir, "175-S")
+            self.assertEqual(discovery.outcome, "absent")
+            self.assertEqual(list(discovery.canonical_matches), [])
+
+        with self.subTest(row="USAGE documents the new failed_check values and warnings[]"):
+            out, _err, _code = _run("gate", "--help")
+            for token in ("close_path", "close_evidence", "warnings"):
+                self.assertIn(token, out)
+
+
+def copy_record(record: dict) -> dict:
+    import copy
+
+    return copy.deepcopy(record)
 
 
 if __name__ == "__main__":
