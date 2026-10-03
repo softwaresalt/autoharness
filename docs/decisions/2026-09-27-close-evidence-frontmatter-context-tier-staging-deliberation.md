@@ -6,6 +6,8 @@ status: decided
 created: 2026-09-27
 decided: 2026-09-27
 operator_rulings: "2026-09-27T22:50-07:00 - items 1-4 confirmed; item 5 overrides (Ship context_tier long_context, Ship template max_subagent_tier 3)"
+amendments:
+  - docs/decisions/2026-10-02-198-s-flat-cascade-replan-deliberation.md
 source_stash:
   - 008F3BCF
   - EF96B695
@@ -459,3 +461,22 @@ repository's config from C4a onward.
 * `BAF15C62` (existing entry, reconciled in place): SB-F1, the tier-1 subagent
   `gpt-5.6-luna` mirror staleness (context-tier review). This is a duplicate of the
   PR #457 capture, so no new entry was created.
+
+## Amendment (2026-10-02): flat-cascade re-plan of 198-S (stash 1263B218)
+
+The 008F3BCF decisions D-A1 through D-A6 stand. Their linked-deliberation
+mechanics are amended by
+[`2026-10-02-198-s-flat-cascade-replan-deliberation.md`](2026-10-02-198-s-flat-cascade-replan-deliberation.md),
+which adopts the 201-S / 195-F contract (038-DL D2, D3a, D4a) for 198-S / 192-F:
+
+* the evidence gains `engine_semantics`, `close_path_selection`, and
+  `linked_deliberation_disposition`;
+* `cascade-close` runs the cascade only when `select_close_path` selects
+  `CASCADE`;
+* `allowed_ids` and `required_ids` are the flat 1.11.x sets;
+* the command never archives a deliberation.
+
+Where that amendment and D-A1's "linked-deliberation snapshot" wording disagree,
+the amendment wins. Operator ruling 1 (the `dag-root` declaration for 198-S) is
+superseded by 038-DL D8a (`198-S blocks-on 201-S`). The amendment recommends
+removing the now-stale label.

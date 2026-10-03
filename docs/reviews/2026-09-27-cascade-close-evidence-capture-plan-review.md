@@ -203,3 +203,143 @@ reopen no finding above:
   overrides them before Ship claims 198-S.
 * The plan carries a matching "Operator Rulings (2026-09-27T22:50-07:00)" section,
   and 192-F carries the same wording.
+
+## Re-review (2026-10-02, P-021 C6, stash 1263B218) — cycle 1
+
+The 2026-09-27 PASS above predates the 2026-10-02 re-plan onto the 201-S /
+195-F flat cascade contract, so the re-plan was re-reviewed before 198-S can
+be claimed (P-021 C6).
+
+* **Reviewed revision:** `afed104c` (re-plan amendment plus Hardening Pass 3).
+* **Personas:** Correctness, Architecture Strategist, Scope Boundary Auditor,
+  and Security Lens.
+* **Result:** 5 P1 findings (Correctness F1 and F2, Architecture F1, Scope
+  SR-1, and Security F1), dispositioned as R1 to R4 (Correctness F2 and Scope
+  SR-1 share R1), and the remaining findings below P1. All 32 findings were
+  consolidated into dispositions R1 to R18.
+
+### Dispositions and fix commits
+
+| Disposition | Fix | Fix commit |
+|---|---|---|
+| R1 | A `--classify-only` record that selected `cascade` is compared against the fresh result; any difference exits 4 and the record is never overwritten | `e3a1c889` (batch 1) |
+| R2 | Removed the disposition-set deliberation records, the planned-`archive` exemption, and the `stranded_linked_deliberation` warnings from the A4 gate. A3c detects drift at close time, and the advisories stay in stash 3B43CE5A and D79EA53A | `e3a1c889` (batch 1) |
+| R3 | Binary trust: bare-name `cli.binary`, basename match, and probe `cwd` in an empty temporary directory | `e3a1c889` (batch 1) |
+| R4 | Unit splits A1c, A2b, A3c, A3d, and A4b (2-hour rule) | `43318b71`, `1d6b1428` (batch 2) |
+| R5 | Harvest delta, removal of the edge `192.004-T` → `192.003-T`, and the 17-item manifest | `43318b71`, `1d6b1428` (batch 2) |
+| R6 | Input sanitization of the probe values; the re-assessed fields are never redacted | `cb407602` (batch 3a) |
+| R7 | `probe_excerpt` dropped; the A2a probe is the only version spawn | `cb407602` (batch 3a) |
+| R8 | Record serialization helpers (`*_to_record` / `*_from_record`) and the canonical `declared_status` encoding | `cb407602` (batch 3a) |
+| R9 | "Truly archived" parity pinned against `_is_engine_inert` | `6969a752` (batch 3b) |
+| R10 | `planning_error` drift outcomes | `6969a752` (batch 3b) |
+| R11 | `closure_scope` exclusion from the observation set | `6969a752` (batch 3b) |
+| R12 | Record path containment under the backlog root | `6969a752` (batch 3b) |
+| R13 | A1c accepts only pre-mutation outcomes (`archive`, `already-archived`, `retained_*`), never `archived`, and enforces engine/outcome consistency both ways | batch 4 (this commit) |
+| R14 | The A1 record shape lists the plan fields it omits (`shipment_id`, `engine`) and why; no blanket field-for-field claim | batch 4 (this commit) |
+| R15 | The command's `EXIT_*` constants live in `shipment_close/__init__.py`, not in the read-only gate module | batch 4 (this commit) |
+| R16 | The `dag-root` ruling is marked superseded by the 2026-10-02 re-plan in the frontmatter and in Ruling 1 | batch 4 (this commit) |
+| R17 | `redact` covers quoted JSON keys with a `:` separator; case folded into A1b scenario 1 | batch 4 (this commit) |
+| R18 | A2a tests cover a non-string or over-long `commit`, empty stdout, and an unexpected exception → UNVERIFIED (folded into scenarios 1 and 3) | batch 4 (this commit) |
+
+### Persona findings
+
+| Persona | Finding | Severity | Disposition |
+|---|---|---|---|
+| Correctness | F1 | P1 | R2 |
+| Correctness | F2 | P1 | R1 |
+| Correctness | F3 | below P1 | R5 |
+| Correctness | F4 | below P1 | R6 |
+| Correctness | F5 | below P1 | R7 |
+| Correctness | F6 | below P1 | R10 |
+| Correctness | F7 | below P1 | R2 |
+| Correctness | F8 | below P1 | R11 |
+| Correctness | F9 | below P1 | R8 |
+| Correctness | F10 | below P1 | R13 |
+| Correctness | F11 | below P1 | R14 |
+| Correctness | F12 | below P1 | R16 |
+| Architecture Strategist | F1 | P1 | R4 |
+| Architecture Strategist | F2 | below P1 | R6 |
+| Architecture Strategist | F3 | below P1 | R8 |
+| Architecture Strategist | F4 | below P1 | R9 |
+| Architecture Strategist | F5 | below P1 | R13 |
+| Architecture Strategist | F6 | below P1 | R2 |
+| Architecture Strategist | F7 | below P1 | R15 |
+| Architecture Strategist | F8 | below P1 | R5 |
+| Scope Boundary Auditor | SR-1 | P1 | R1 |
+| Scope Boundary Auditor | SR-2 | below P1 | R2 |
+| Scope Boundary Auditor | SR-3 | below P1 | R2 |
+| Scope Boundary Auditor | SR-4 | below P1 | R7 |
+| Scope Boundary Auditor | SR-5 | below P1 | R18 |
+| Scope Boundary Auditor | SR-6 | below P1 | R6 |
+| Scope Boundary Auditor | SR-7 | below P1 | R16 |
+| Security Lens | F1 | P1 | R3 |
+| Security Lens | F2 | below P1 | R6 |
+| Security Lens | F3 | below P1 | R12 |
+| Security Lens | F4 | below P1 | R17 |
+| Security Lens | F5 | below P1 | R7 |
+
+Cycle 1 verdict: REVISE -> all findings dispositioned and applied; cycle-2 verification pending.
+
+## Re-review (2026-10-02, P-021 C6, stash 1263B218) — cycle 2
+
+Cycle 2 verified the cycle-1 fixes (batches 1 to 4, through `6d923631`) with
+the same four personas.
+
+### Cycle-1 status by persona
+
+| Persona | Cycle-2 verdict | Cycle-1 findings |
+|---|---|---|
+| Correctness | PASS_WITH_FOLLOWUPS | F1 to F12 all RESOLVED |
+| Architecture Strategist | PASS_WITH_FOLLOWUPS | F1 to F8 all RESOLVED |
+| Scope Boundary Auditor | PASS_WITH_FOLLOWUPS | SR-1 to SR-7 all RESOLVED |
+| Security Lens | PASS_WITH_FOLLOWUPS | F1 to F5 all RESOLVED |
+
+No new P0 or P1 finding was raised. Cycle 2 raised five new P2 findings,
+C2-1 to C2-5. The Orchestrator dispositioned each one, and this commit
+applies all five to the plan. No fix needed a new design decision.
+
+### New P2 findings and fixes (this commit)
+
+| ID | Source | Finding | Fix |
+|---|---|---|---|
+| C2-1 | Scope N-1, Security N1 | Residual of AN-F07: on a `safe_close` record with an UNVERIFIED engine, an unauthorized direct cascade on a 1.10.x engine could archive linked deliberations, which the observation set excluded | A2b adds every `records[]` path of each disposition that is not `already-archived` when the engine is UNVERIFIED. The entries are copied from the snapshot and never re-read. A4b re-checks them byte-identical (location and SHA-256). A1c accepts deliberations in the observation set only in this case, requires that exact set, and still rejects them otherwise. Updated: A1 shape, A2 (text and scenario 1), A2b `excluded_ids` text, A4b Guarantee (residuals stated accurately), and H-C2. Scenarios were folded into A1c 4, A2b 3, and A4b 2. No misfire is possible, because A1c forbids a planned `archive` under an UNVERIFIED engine and the skill's disposition step mutates nothing |
+| C2-2 | Correctness N1 | A2b raised on a missing observation-set member. The skill's safe-close step 3 treats a member missing at baseline as baseline state, "explicitly **NOT** a halt" (verified in `.github/skills/shipment-reconcile/SKILL.md`, safe-close step 3) | A2b resolves each expected ID with `_read_artifact_record`. A missing member is recorded as `location: missing` with null `path`, `sha256`, and `declared_status`. Only a torn or unfingerprintable member raises (exit 2). A1 accepts `path: null` on such an entry. A4b requires a member recorded as missing to still be missing. Scenarios were folded into A1 1, A2b 4, and A4b 1 |
+| C2-3 | Correctness N2 | A3c `snapshot_drift` compared every planned `outcome`, so a legitimate live-referrer change (for example `retained_shared_reference` and `archive` swapping) was reported as drift | `snapshot_drift` compares the field set of the skill's Cascade Close step 5 (IDs, link kinds, linking members, declared status, record paths, unresolved references), plus SHA-256 and `read_failures`. It compares the outcome only when either side is settled (`retained_read_error`, `retained_ambiguous`, `already-archived`), matching the settled-outcome check in the skill's disposition step 1. It keeps the `path` and `reason_code` comparison for `retained_read_error` and `planning_error` drift. A no-drift row was folded into A3c scenario 4 |
+| C2-4 | Architecture | Production imports of private `shipment_closure` names contradicted M1, and an upstream rename would break `cli.py` import | One private-name rule, in the re-plan amendment: `_RELEASE_VERSION_PATTERN` (A2a), `_scan_backlog` and `_enumerate_descendants` (A2b), `_read_artifact_record` (A2b, A4b), and `_check_path_containment` (A4b) are imported lazily inside the function that uses them, never at module top level. The test-only A3b parity module pins their existence and signatures. `_closure_scope_ids` and `_is_engine_inert` stay test-only. Updated: M1 and A3b ("only importer" claim), A2a, A2b, A4b, Risks, and the Hardening Pass 3 sources |
+| C2-5 | Architecture (remaining check) | The plan said both that the disposition step "re-plans from live referrers" and that it "never recomputes" its inputs | Reconciled with the skill's Linked-Deliberation Disposition section. Step 0 takes its inputs from Step 0(c). Step 1 re-runs the planner after the close with the Step 0(c) engine decision. That plan must equal the snapshot on IDs, link kinds, linking members, record paths, hashes, settled outcomes, and unresolved references; other outcomes come from live referrers. Step 3 re-checks the shared-reference guard. A5 now changes only the source of the step 0 inputs (the evidence record, with the engine decision rebuilt by `engine_semantics_from_record`) and leaves steps 1 to 6 unchanged, consistent with 038-DL D3a (one archiver). The wording was aligned in A2, A4b, A5, and H-C2 |
+
+### Follow-up
+
+Re-harvest must carry R3, R6, R7, R17 (and all R-items) into task bodies 192.001-T..192.010-T, create the six new tasks, remove edge 192.004-T -> 192.003-T, update the 198-S manifest, and remove the stale dag-root label before 198-S is claimed.
+
+Re-review verdict: PASS_WITH_FOLLOWUPS (no open P0/P1; follow-up = Stage re-harvest).
+
+## Copilot cycle 1 (PR #481)
+
+Copilot's first hosted review of the re-plan staging PR (#481, reviewed HEAD
+`1db836a5`) raised ten threads. All ten passed the P-021 C1 same-contract-surface
+test (each completes the authorized re-plan) and are fixed; none is deferred.
+The plan section "Copilot cycle 1 amendment (PR #481, 2026-10-02)" is the
+authoritative text.
+
+| ID | Task | Finding | Disposition | Fix commit |
+|---|---|---|---|---|
+| T1 | `192.001-T` | `redact()` returns `(text, applied)`, so `redact(x) == x` is always false | Fixed: every neutrality check is `redact(x)[0] == x` (A1, A1b, A2a, A2) | `d7de9744` |
+| T2 | `192.003-T` | Same tuple comparison in the A2 reason check | Fixed with T1 | `d7de9744` |
+| T3 | `192.004-T` | Probe temp dir outside the workspace (constitution IV) | Fixed: probe `cwd` under Git-ignored `.autoharness/gates/cascade-close/probe/`; never auto-deleted (constitution VII) | `db9f68f6` |
+| T4 | `192.012-T` | Same containment issue for the A2a probe dir | Fixed with T3 | `db9f68f6` |
+| T5 | `192.012-T` | Tuple comparison made the probed version always `None` | Fixed with T1 | `d7de9744` |
+| T6 | `192.002-T` | Classify-only `pre_close` record `run_id` ownership conflicted with the A3 step 4 re-stamp | Fixed: A1b atomic pre_close takeover (compare-and-swap on the expected prior `run_id`), used by A3 only after the step 3 exact-match check | `fde4af8b` |
+| T7 | `192.010-T` | A7 should follow A4b, not A3d | Fixed: dependency `192.010-T` → `192.016-T` | this batch |
+| T8 | `192.001-T` | A1 exceeded the Primitive 2 function budget | Fixed: serializers split into A1d `192.017-T`, A1e `192.018-T`, A1f `192.019-T` | this batch |
+| T9 | `192.008-T` | A5 spanned six files | Fixed: split into A5 `192.008-T`, A5b `192.020-T`, A5c `192.021-T` | this batch |
+| T10 | `192.009-T` | A6 spanned four files | Fixed: split into A6 `192.009-T` and A6b `192.022-T` | this batch |
+
+Residual (accepted, documented): A5, A5b, and A6 each touch three files (template,
+installed mirror, and its `harness-manifest.yaml` checksum line). That triple must
+change in one commit because existing tests compare template with mirror and
+assert the mirror checksum; splitting it would leave a task whose verifiable
+outcome is a failing suite, contrary to Primitive 2's atomic milestone rule.
+
+Manifest: 198-S now lists 23 items (feature plus 22 tasks) in dependency order;
+the dependency graph has 22 task edges.
