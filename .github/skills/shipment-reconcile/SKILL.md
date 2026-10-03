@@ -606,6 +606,53 @@ completion.
       | `SAFE_CLOSE` | `VERIFIED` | `SAFE_CLOSE`, the classifier's reason |
       | `SAFE_CLOSE` | `UNVERIFIED` | `SAFE_CLOSE`, the classifier's reason |
 
+      <!-- cascade-close-routing:BEGIN step-0c -->
+      **Command routing (192-F): `--classify-only` first, on every close.**
+      Every close, on either path, first runs
+      `autoharness shipment cascade-close --classify-only --shipment <shipment_id> --feature <feature_id> --sha <merge_commit_sha> --json`,
+      where `<feature_id>` is the shipment's covering feature (derived as
+      safe-close step 2 derives it). That command performs (a)–(c) above:
+      the manifest load, the Step 0(b) snapshot, the classification, the
+      engine-semantics gate, the close-path selection, and the
+      linked-deliberation disposition snapshot. It records them in the
+      evidence record
+      `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`
+      (the fixed path `build_evidence_path` builds), whose
+      `pre_close.engine_semantics`, `pre_close.close_path_selection`, and
+      `pre_close.linked_deliberation_disposition` fields carry the Step 0(c)
+      engine-semantics decision, close-path selection, and disposition
+      snapshot. The same record carries the path-specific baseline:
+      `pre_close.observation_set` on a selected `SAFE_CLOSE`, and
+      `pre_close.out_of_manifest_descendants` on either path. The prose in
+      (a)–(c) above stays the specification the command implements; Ship
+      never re-derives these values by hand.
+
+      Plain `--classify-only` needs no operator approval: it is no-clobber
+      (an existing `pre_close` record exits 2 and is left untouched) and only
+      creates a new record. `--classify-only --replace-pre-close` overwrites
+      an existing `pre_close` record and needs the same destructive-command
+      approval as the mutating run. The mutating
+      `autoharness shipment cascade-close` invocation (no `--classify-only`)
+      **is** the destructive command: it needs the same operator approval
+      that a direct `backlogit shipment ship` call needs (the intercom
+      auto-check or explicit operator clearance). A direct
+      `backlogit_ship_shipment` MCP or `backlogit shipment ship` CLI call is
+      a **P-005 deviation** on either path, and the closure-evidence gate
+      refuses the closure it produces, because no valid evidence record
+      backs it.
+
+      Route on the command's exit code:
+
+      | Mode | Exit | Skill action |
+      |---|---|---|
+      | `--classify-only` | 0 (`CASCADE`) | Obtain destructive-command approval, then run the mutating `cascade-close` (Cascade Close Sub-Procedure) |
+      | `--classify-only` | 3 (`SAFE_CLOSE` selected: classifier `SAFE_CLOSE`, or engine `UNVERIFIED`) | Safe-close steps 1–10, then the Linked-Deliberation Disposition step, citing the verdict record as `close_evidence` |
+      | mutating | 0 | Run the Linked-Deliberation Disposition step with its inputs from the evidence record, then write the closure artifact with `close_path: cascade` and `close_evidence` |
+      | mutating | 3 | Reached only when no `cascade`-selected `--classify-only` record preceded the run, which the routing above never does. Nothing was mutated: HALT, operator review, and never `SAFE_CLOSE` on this result (the Cascade Close Sub-Procedure's No-substitution rule). A selected-path change after a `CASCADE` `--classify-only` selection is exit 4, never 3 |
+      | either | 2, 4 | HALT. Nothing was mutated. Exit 4 includes an engine re-probe difference and any difference from the `cascade`-selected `--classify-only` record, and is never answered with `SAFE_CLOSE`. Fix the input, or ask the operator |
+      | either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
+      <!-- cascade-close-routing:END step-0c -->
+
    * **CASCADE selected** → skip directly to the **Cascade Close
      Sub-Procedure** below (reusing the manifest and snapshot from (a)/(b)/(c)
      above — do not reload) in place of steps 1–10, then continue to the
@@ -744,6 +791,29 @@ Step 0 already captured in (a)/(b)/(c) — this sub-procedure never reloads
 the manifest or attempts to reconstruct pre-close state after the fact.
 Replaces steps 1–10 above entirely for this shipment's closure; there is no
 partial mixing of the two paths.
+
+<!-- cascade-close-routing:BEGIN cascade-sub-procedure -->
+**Command routing (192-F): the mutating `cascade-close` runs this
+sub-procedure.** The pre-invocation revalidation below (the classifier
+re-run, the linked-deliberation re-collection, and the engine-semantics
+re-probe), the baseline-fingerprint capture, step 1's invocation, and
+steps 2–6 are performed by the mutating
+`autoharness shipment cascade-close --shipment <shipment_id> --feature <feature_id> --sha <merge_commit_sha> --message <merge_commit_message> --author <merge_commit_author> --json`.
+Ship runs it only after the Step 0(c) `--classify-only` run exited 0
+(`CASCADE` selected) and only with the destructive-command approval Step
+0(c) names. Before it invokes anything, the command re-checks the
+`cascade`-selected `--classify-only` record: any difference from that
+record, and any engine re-probe difference, exits 4 with nothing mutated.
+Its exit 0 is step 7's `recommendation: CLOSED`, and the record it
+finalizes (phase `post_close`) is step 6's cascade-close report and the
+closure artifact's `close_evidence`. Every other exit follows the Step 0(c)
+routing table: HALT, never a `SAFE_CLOSE` substitution. Ship never performs
+these steps by hand and never invokes the cascade operation directly: a
+direct `backlogit_ship_shipment` MCP or `backlogit shipment ship` CLI call is
+a **P-005 deviation**. The command never archives a disposition-set
+deliberation; the Linked-Deliberation Disposition step stays its only
+archiver. The prose below stays the specification the command implements.
+<!-- cascade-close-routing:END cascade-sub-procedure -->
 
 **Pre-archived manifest members (expected and tolerated)**: before invoking
 step 1 below, classify each manifest member's **location** as `queued` or
@@ -937,9 +1007,12 @@ classification and invocation are not atomic. Retain this snapshot in
 memory for step 5's verification below; it is never reconstructed after
 the fact.
 
-1. Invoke `backlogit_ship_shipment(shipment_id, merge_commit_sha)` directly
-   (CLI: `backlogit shipment ship <shipment_id> --sha <merge_commit_sha>
-   --message <merge_commit_message> --author <merge_commit_author>`).
+1. The mutating `autoharness shipment cascade-close` invokes the cascade
+   operation `backlogit_ship_shipment(shipment_id, merge_commit_sha)` itself,
+   over its CLI form (`backlogit shipment ship <shipment_id> --sha
+   <merge_commit_sha> --message <merge_commit_message> --author
+   <merge_commit_author>`). It is the only invoker; Ship never issues this
+   call directly.
 2. **Verify the result matches the classifier's own precondition**:
    `returned_ids` MUST be empty (`[]`). A non-empty `returned_ids` means the
    live engine found an unreleased descendant the classifier's live-workspace
@@ -1051,15 +1124,33 @@ disposition-set deliberation only through a single-artifact, non-cascading
 archive, one ID at a time.
 
 0. **Inputs.** The step consumes these values from Step 0 and the selected
-   close path, and never substitutes a recomputed set for the snapshot:
-   * the selected close path and its reason (Step 0(c) close-path selection);
+   close path, and never substitutes a recomputed set for the snapshot.
+   <!-- cascade-close-routing:BEGIN disposition-inputs -->
+   It takes every input from the evidence record
+   (`docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`,
+   written by the Step 0(c) `autoharness shipment cascade-close` run), never
+   from in-session Step 0(c) state, and never recomputes one:
+   <!-- cascade-close-routing:END disposition-inputs -->
+   * the selected close path and its reason (Step 0(c) close-path selection),
+     from `pre_close.close_path_selection`;
    * the Step 0(c) engine-semantics decision (`probe_surface`, `version`,
-     `commit`, and verdict/reason);
+     `commit`, and verdict/reason), from `pre_close.engine_semantics`,
+     rebuilt with `engine_semantics_from_record` (this self-hosting
+     repository's own implementation lives at
+     `src/autoharness/gates/cascade_evidence.py`);
    * the Step 0(c) linked-deliberation disposition snapshot (the
-     **disposition snapshot**);
+     **disposition snapshot**), from
+     `pre_close.linked_deliberation_disposition`;
    * the path-specific baseline: the safe-close step 3 observation-set
-     fingerprints, or the Cascade Close Sub-Procedure's out-of-manifest
-     descendant baseline fingerprints.
+     fingerprints, from `pre_close.observation_set` (`SAFE_CLOSE`), or the
+     Cascade Close Sub-Procedure's out-of-manifest descendant baseline
+     fingerprints, from `pre_close.out_of_manifest_descendants` (`CASCADE`).
+
+   The input source is the only thing the evidence record changes here:
+   steps 1–6 below run exactly as stated, with the recorded engine decision
+   as step 1's `engine=` argument. Under an `UNVERIFIED` engine the step
+   still mutates nothing, and it stays the only archiver of a
+   disposition-set deliberation.
 
 1. **Plan.** Workspaces with a Python implementation installed plan each
    disposition-set deliberation's outcome with
