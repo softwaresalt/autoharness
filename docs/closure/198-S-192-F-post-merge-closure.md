@@ -63,7 +63,7 @@ Delivery took two merges and one interim halt:
 | Post-mode reconcile | `PROCEED` |
 | Closure index resync | `CLOSURE_INDEX_SYNC_OK` (`backlogit sync`: `Indexed 1696 artifacts` after the final backlog mutation) |
 | Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/198-S-192-F-post-merge-closure.md --shipment 198-S --json`: exit 0 with `compaction_status: done` (the earlier `pending` run failed only `frontmatter_predicate`, as expected) |
-| Full unit suite | See [Verification](#verification) |
+| Full unit suite | `Ran 2772 tests`, `OK (skipped=54)` on `chore/198-s-closure-2` |
 
 ## Validator Evidence / Runtime Verification
 
@@ -195,8 +195,7 @@ change to plan, decision, review, or spike artifacts (P-010).
 ## Verification
 
 `$env:PYTHONPATH='src'; python -m unittest discover -s tests` (venv Python) on
-the closure branch: result recorded in the closure PR's Local Review
-Readiness block.
+the closure branch: `Ran 2772 tests in 301.451s`, `OK (skipped=54)`, exit 0.
 
 ## Follow-Up Items
 
