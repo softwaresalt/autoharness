@@ -24,6 +24,7 @@ from autoharness.frontmatter_contract import (
     ROUTE_VALUE_KEYS,
     agent_profile_for,
     check_agent,
+    check_skill,
     has_blocking_findings,
     parse_frontmatter,
     read_frontmatter,
@@ -159,6 +160,107 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
         self.assertEqual(lines[0], "---")
         self.assertTrue(lines[1].startswith("# Source: "))
         self.assertTrue(lines[2].startswith("# License: "))
+
+
+class SkillFrontmatterConformityTests(unittest.TestCase):
+    """B4 (193.003-T): skills carry name == directory and no routing key (P-013.5)."""
+
+    # 18 skill templates that lacked ``name:`` before 193.003-T (all 13 community
+    # skill templates already carried it).
+    REMEDIATED_TEMPLATES = (
+        "brainstorm",
+        "build-feature",
+        "compact-context",
+        "compound",
+        "compound-refresh",
+        "deliberate",
+        "evolve",
+        "file-lock",
+        "fix-ci",
+        "impl-plan",
+        "learn",
+        "observe",
+        "operational-closure",
+        "plan-harden",
+        "runtime-verification",
+        "safety-modes",
+        "skill-search",
+        "spike",
+    )
+    # Nine template-rendered installed skills (render parity with the template edit, H-B8).
+    TEMPLATE_RENDERED_INSTALLED = (
+        "compact-context",
+        "deliberate",
+        "file-lock",
+        "fix-ci",
+        "impl-plan",
+        "operational-closure",
+        "plan-harden",
+        "runtime-verification",
+        "spike",
+    )
+    # Four ``global skill definition`` sources.
+    SOURCE_INSTALLED = ("install-harness", "tune-harness", "verify-harness", "workspace-discovery")
+
+    def _check_all(self, paths: list[Path], mode: str) -> dict[str, list[tuple[str, str]]]:
+        failures: dict[str, list[tuple[str, str]]] = {}
+        for path in paths:
+            findings = check_skill(read_frontmatter(path, mode), path.parent.name, mode)
+            if has_blocking_findings(findings):
+                failures[_rel(path)] = [(f.code, f.key) for f in findings if not f.informational]
+        return failures
+
+    def test_skill_templates_conform_in_template_mode(self) -> None:
+        templates = sorted((_ROOT / "templates").rglob("SKILL.md.tmpl"))
+        self.assertTrue(templates)
+        failures = self._check_all(templates, MODE_TEMPLATE)
+        self.assertEqual(failures, {}, _format(failures))
+
+    def test_installed_skills_conform_in_installed_mode(self) -> None:
+        skills = sorted((_ROOT / ".github" / "skills").glob("*/SKILL.md"))
+        self.assertTrue(skills)
+        failures = self._check_all(skills, MODE_INSTALLED)
+        self.assertEqual(failures, {}, _format(failures))
+
+    def _first_key_line(self, path: Path) -> str:
+        lines = path.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")
+        self.assertEqual(lines[0], "---", _rel(path))
+        return next(line for line in lines[1:] if not line.startswith("#"))
+
+    def test_remediated_name_is_first_frontmatter_key(self) -> None:
+        for name in self.REMEDIATED_TEMPLATES:
+            with self.subTest(template=name):
+                path = _ROOT / "templates" / "skills" / name / "SKILL.md.tmpl"
+                self.assertEqual(self._first_key_line(path), f"name: {name}")
+        for name in self.TEMPLATE_RENDERED_INSTALLED + self.SOURCE_INSTALLED:
+            with self.subTest(installed=name):
+                path = _ROOT / ".github" / "skills" / name / "SKILL.md"
+                self.assertEqual(self._first_key_line(path), f"name: {name}")
+
+    def test_template_rendered_skills_keep_name_render_parity(self) -> None:
+        for name in self.TEMPLATE_RENDERED_INSTALLED:
+            with self.subTest(skill=name):
+                self.assertIn(name, self.REMEDIATED_TEMPLATES)
+                template = _ROOT / "templates" / "skills" / name / "SKILL.md.tmpl"
+                installed = _ROOT / ".github" / "skills" / name / "SKILL.md"
+                self.assertEqual(self._first_key_line(template), self._first_key_line(installed))
+
+    def test_remediated_skill_manifest_checksums_match_staged_blobs(self) -> None:
+        manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
+        by_path = {item.get("path"): item for item in manifest.get("artifacts") or []}
+        for name in self.TEMPLATE_RENDERED_INSTALLED + self.SOURCE_INSTALLED:
+            rel = f".github/skills/{name}/SKILL.md"
+            with self.subTest(skill=rel):
+                self.assertIn(rel, by_path)
+                self.assertEqual(by_path[rel].get("checksum"), _staged_blob_sha256(_ROOT / rel))
+        for name in self.SOURCE_INSTALLED:
+            self.assertEqual(
+                by_path[f".github/skills/{name}/SKILL.md"].get("template"), "global skill definition"
+            )
+        for name in self.TEMPLATE_RENDERED_INSTALLED:
+            self.assertEqual(
+                by_path[f".github/skills/{name}/SKILL.md"].get("template"), f"skills/{name}/SKILL.md.tmpl"
+            )
 
 
 if __name__ == "__main__":

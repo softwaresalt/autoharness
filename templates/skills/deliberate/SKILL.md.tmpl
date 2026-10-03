@@ -1,4 +1,5 @@
 ---
+name: deliberate
 description: "Interactively deliberate on a request, feature, or chore — frame the problem, research options, compare trade-offs, and produce a decision artifact that links into the backlog queue"
 ---
 

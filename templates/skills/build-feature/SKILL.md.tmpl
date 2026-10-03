@@ -1,4 +1,5 @@
 ---
+name: build-feature
 description: "Execute a harness loop — iteratively run tests, capture failures, fix code, and repeat until the harness passes or the circuit breaker trips"
 ---
 

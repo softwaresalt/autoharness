@@ -1,4 +1,5 @@
 ---
+name: runtime-verification
 description: "Validate affected runtime surfaces after build and CI using adapter-based runtime validators and structured evidence"
 ---
 

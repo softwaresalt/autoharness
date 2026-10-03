@@ -1,4 +1,5 @@
 ---
+name: spike
 description: "Time-boxed investigation of a technical question, feasibility study, or proof-of-concept — produces a findings artifact with a recommendation and optional backlog linkage"
 ---
 

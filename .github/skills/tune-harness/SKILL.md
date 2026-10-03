@@ -1,4 +1,5 @@
 ---
+name: tune-harness
 description: "Maintenance and tuning workflow that iteratively adapts an installed agent harness to match the current state of a codebase as it evolves"
 ---
 

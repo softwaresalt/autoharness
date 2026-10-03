@@ -1,4 +1,5 @@
 ---
+name: workspace-discovery
 description: "Discover target workspace technology stack, conventions, build tools, test runners, CI/CD pipelines, and project structure to generate a workspace profile for harness composition"
 ---
 

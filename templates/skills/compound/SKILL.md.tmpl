@@ -1,4 +1,5 @@
 ---
+name: compound
 description: "Capture solved problems as institutional knowledge for the learnings-researcher to find in future tasks"
 ---
 

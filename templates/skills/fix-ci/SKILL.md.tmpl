@@ -1,4 +1,5 @@
 ---
+name: fix-ci
 description: "Detect CI pipeline failures and review comments, reproduce and fix locally, push and poll until clean"
 ---
 

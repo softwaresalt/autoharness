@@ -1,4 +1,5 @@
 ---
+name: verify-harness
 description: "Multi-model adversarial verification of installed or tuned harness artifacts using parallel reviewers with consensus-based finding assembly and auto-remediation"
 ---
 

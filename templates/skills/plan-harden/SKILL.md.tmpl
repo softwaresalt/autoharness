@@ -1,4 +1,5 @@
 ---
+name: plan-harden
 description: "Risk-triggered plan reinforcement that deepens verification, rollback, and guardrail detail before plan review"
 ---
 
