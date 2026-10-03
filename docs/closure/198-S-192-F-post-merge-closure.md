@@ -8,7 +8,7 @@ feature_merge_commit: eb8b78115c4650e898049920d7f454cb435083dd
 reviewed_head: 58cea2f2
 date: 2026-10-03
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 close_path: cascade
 close_evidence: docs/closure/evidence/198-S-192-F-close-evidence.json
 ---
@@ -62,6 +62,7 @@ Delivery took two merges and one interim halt:
 | INV-12 disposition | `DISPOSITION_COMPLETE` |
 | Post-mode reconcile | `PROCEED` |
 | Closure index resync | `CLOSURE_INDEX_SYNC_OK` (`backlogit sync`: `Indexed 1696 artifacts` after the final backlog mutation) |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/198-S-192-F-post-merge-closure.md --shipment 198-S --json`: exit 0 with `compaction_status: done` (the earlier `pending` run failed only `frontmatter_predicate`, as expected) |
 | Full unit suite | See [Verification](#verification) |
 
 ## Validator Evidence / Runtime Verification
@@ -231,4 +232,20 @@ All follow-ups are active stash entries. Stage owns triage.
 
 ## Compaction Status (P-020)
 
-`pending`. This value is finalized after `compact-context` runs.
+`done`. `compact-context` ran with `target: all` after this closure's
+session memory was written.
+
+* **Assessment**: `docs/memory` held 178 files (about 1312 KB), which
+  exceeds the generic thresholds in aggregate.
+* **Candidates**: the run was a bounded Tier-1 pass over this release unit.
+  The two 198-S memories (the 2026-10-02 halt checkpoint and the 2026-10-03
+  resumed-closure session) were consolidated into
+  `docs/memory/compacted/2026-10-03-ship-198-s-192-f-full-lifecycle-compacted.md`.
+  The verbose originals are under `docs/archive/memory/`.
+* **Excluded**:
+  * other release units' memories, which are out of scope for this bounded
+    run
+  * plans (`docs/plans/2026-09-27-cascade-close-evidence-capture-plan.md`
+    and `docs/plans/2026-10-03-cascade-close-timeout-cap-plan.md`), because
+    Stage owns that work (P-010)
+  * closure records, which are fresh (under `threshold_days`)
