@@ -48,7 +48,7 @@ from autoharness.gates.cascade_evidence import (
     serialize_evidence_record,
 )
 from autoharness.gates.closure_contract import ClosureContractError, assert_path_within_workspace
-from autoharness.shipment_close import EXIT_INPUT, EXIT_LOCKED
+from autoharness.shipment_close import EXIT_INPUT, EXIT_LOCKED, EXIT_REVALIDATION_DRIFT
 
 __all__ = [
     "LEADING_MARGIN_BYTES",
@@ -65,6 +65,7 @@ __all__ = [
     "PairLock",
     "PersistError",
     "StreamCapture",
+    "TakeoverRefusedError",
     "acquire_pair_lock",
     "check_existing_record",
     "ensure_trusted_directory",
@@ -100,6 +101,13 @@ class PersistError(CascadeEvidenceError):
     def __init__(self, exit_code: int, message: str) -> None:
         super().__init__(message)
         self.exit_code = exit_code
+
+
+class TakeoverRefusedError(PersistError):
+    """A refused ``pre_close`` takeover compare-and-swap; the record is byte-identical (A3 step 4: exit 4)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(EXIT_REVALIDATION_DRIFT, message)
 
 
 # ---------------------------------------------------------------------------
@@ -505,7 +513,7 @@ def _check_transition(
 ) -> None:
     if existing is None:
         if takeover_from_run_id is not None:
-            raise PersistError(EXIT_INPUT, "a pre_close takeover requires an existing pre_close record")
+            raise TakeoverRefusedError("a pre_close takeover requires an existing pre_close record")
         if phase != "pre_close":
             raise PersistError(EXIT_INPUT, f"a new evidence record must start at pre_close (got {phase!r})")
         return
@@ -515,10 +523,9 @@ def _check_transition(
         raise PersistError(EXIT_INPUT, "evidence already finalized; no transition out of post_close")
     if takeover_from_run_id is not None:
         if old_phase != "pre_close" or old_run_id != takeover_from_run_id or phase != "pre_close":
-            raise PersistError(
-                EXIT_INPUT,
+            raise TakeoverRefusedError(
                 "pre_close takeover refused: the on-disk record is not the expected pre_close record "
-                "or the new record is not pre_close",
+                "or the new record is not pre_close"
             )
         return
     if old_run_id != owner_run_id:
