@@ -23,6 +23,13 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from _closure_legacy_names import legacy_closure_filename
+from test_cli_gate_closure_evidence import (
+    evidence_record,
+    evidence_relpath,
+    with_close_keys,
+    write_evidence,
+)
+
 from autoharness.cli import main
 from autoharness.gates.closure_contract import DEFAULT_CLOSURE_DIR, build_closure_path
 from autoharness.gates.topology import FilesystemTopologyReaders
@@ -91,7 +98,10 @@ class ComposedClosureStateMachineTests(unittest.TestCase):
         return path
 
     def test_composed_round_trip_producer_to_real_consumer(self) -> None:
-        artifact = self._produce(_SHIPMENT, _FEATURE, _ACCEPTABLE)
+        # 192-F (A4): the producer also declares close_path and cites a valid close-evidence record.
+        write_evidence(self.workspace, _SHIPMENT, _FEATURE, evidence_record("safe_close", _SHIPMENT, _FEATURE))
+        body = with_close_keys(_ACCEPTABLE, "safe_close", evidence_relpath(_SHIPMENT, _FEATURE))
+        artifact = self._produce(_SHIPMENT, _FEATURE, body)
         # Producer side: the write-time gate the producer spec mandates accepts it.
         self.assertEqual(_gate_exit(artifact, _SHIPMENT, self.workspace), 0)
         # Consumer side: the real topology reader recognizes and accepts it.

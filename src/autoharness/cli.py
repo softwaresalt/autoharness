@@ -47,7 +47,8 @@ Usage:
   autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
   autoharness gate dag-readiness  Read-only ready-set/critical-path/downstream-dependents report
   autoharness gate closure-evidence  Write-time validation of a post-merge closure artifact
-  autoharness telemetry begin   Create a pre-execution telemetry context artifact
+  autoharness shipment cascade-close  Evidence-capturing CASCADE close (see `autoharness shipment --help`)
+  autoharness telemetry begin    Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -271,7 +272,10 @@ closure-evidence options:
   --workspace, -w     Workspace root. Default: .
   --json              Emit the validation result as JSON (includes failed_check:
                       workspace_containment | input | filename |
-                      frontmatter_predicate | discoverability, or null on pass).
+                      frontmatter_predicate | discoverability | close_path |
+                      close_evidence, or null on pass; and warnings[], a list
+                      of non-blocking notes: an absent merge_commit key, or a
+                      vacuous SAFE_CLOSE observation-set re-check).
 
 `closure-evidence` is READ-ONLY and never writes, renames, or repairs an
 artifact. Checks run in order: workspace containment, input readability (a
@@ -280,6 +284,21 @@ the on-disk name), the consumer's own acceptance predicate
 (topology._closure_artifact_complete, reused by import), and discoverability
 for the declared shipment under docs/closure/. Legacy date-prefixed names are
 readable by the topology gate but are never a valid write.
+Only after those pass (192-F): the artifact must declare
+`close_path: cascade | safe_close` (failed_check close_path) and
+`close_evidence: docs/closure/evidence/{S}-{F}-close-evidence.json`
+(failed_check close_evidence). The evidence path is checked textually first
+(relative POSIX, no `..`, no drive or UNC prefix), must equal the pair's
+canonical evidence path, must be a regular file of at most 512 KiB reached
+through no symlink or junction, and must validate against the declared
+close_path as the record's selected close path. When the artifact carries
+merge_commit, the record's merge_commit_sha must equal it (absent: a
+warning). SAFE_CLOSE without a valid safe_close-selected record fails.
+Last, for safe_close, every recorded observation-set entry must still be at
+its recorded backlog path and location with its recorded SHA-256 (path
+containment checked before any read), and every entry recorded missing must
+still be missing (failed_check close_evidence); an empty observation set
+passes with a vacuous-check warning.
 
 `dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any
 path. It is existence-guarded (zero shipments -> empty report, exit 0) and
@@ -318,7 +337,8 @@ Exit codes:
   1  at least one matched file failed its gate (blocked), unless advisory; or
      copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
      or pipeline-topology BLOCK; or closure-evidence validation failure
-     (filename, frontmatter predicate, or discoverability).
+     (filename, frontmatter predicate, discoverability, close_path, or
+     close_evidence).
   2  invalid arguments or invalid gate configuration; invalid pre-review
      detector input/registry; or pipeline-topology invalid
      mode/phase/target configuration; or closure-evidence invalid input
@@ -1727,6 +1747,222 @@ def _on_disk_name(path: Path) -> str | None:
     return folded[0] if len(folded) == 1 else None
 
 
+_CLOSE_PATH_VALUES = ("cascade", "safe_close")
+_CLOSE_EVIDENCE_MAX_BYTES = 512 * 1024
+_CLOSE_EVIDENCE_PREFIX = "docs/closure/evidence/"
+
+
+def _relative_posix_problem(value: object, prefix: str) -> str | None:
+    """Textual containment of a recorded relative path, before any filesystem call (A4 step 1)."""
+    if type(value) is not str or not value:
+        return f"must be a non-empty string (got {value!r})"
+    if "\\" in value or "\0" in value:
+        return f"{value!r} must use '/' separators and contain no NUL"
+    if value.startswith("/") or (len(value) >= 2 and value[1] == ":"):
+        return f"{value!r} must be a relative path (no drive, UNC, or absolute prefix)"
+    if any(part in ("", ".", "..") for part in value.split("/")):
+        return f"{value!r} must not contain empty, '.', or '..' segments"
+    if not value.startswith(prefix):
+        return f"{value!r} must lie under {prefix}"
+    return None
+
+
+def _read_contained_regular_file(root: Path, relative: str, base: Path, limit: int) -> bytes:
+    """Read ``root / relative`` once, with no link on any component from ``base`` down (A4 step 3).
+
+    The pre-open ``lstat`` must show a regular file of at most ``limit`` bytes;
+    the file is opened with ``O_NOFOLLOW`` where available, and before any byte
+    is read the ``fstat`` identity must equal the ``lstat`` and the containment
+    of the file and of each parent component is re-checked. Raises ValueError.
+    """
+    import stat
+
+    # Private-name rule (re-plan cycle-2 C2-4): imported lazily, never at module top.
+    from autoharness.gates.shipment_closure import _check_path_containment
+
+    target = root.joinpath(*relative.split("/"))
+    reason = _check_path_containment(target, base)
+    if reason is not None:
+        raise ValueError(f"'{relative}' fails containment ({reason}); nothing was read")
+    try:
+        before = os.lstat(target)
+    except FileNotFoundError:
+        raise ValueError(f"'{relative}' does not exist") from None
+    except OSError as exc:
+        raise ValueError(f"'{relative}' cannot be inspected: {exc}") from exc
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if not stat.S_ISREG(before.st_mode) or getattr(before, "st_file_attributes", 0) & reparse:
+        raise ValueError(f"'{relative}' is not a regular file (symlinks and reparse points are refused)")
+    if before.st_size > limit:
+        raise ValueError(f"'{relative}' is {before.st_size} bytes, over the {limit // 1024} KiB limit")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(target, flags)
+    except OSError as exc:
+        raise ValueError(f"'{relative}' cannot be opened: {exc}") from exc
+    try:
+        after = os.fstat(fd)
+        if (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(after.st_mode):
+            raise ValueError(f"'{relative}' changed identity between lstat and open; nothing was read")
+        reason = _check_path_containment(target, base)
+        if reason is not None:
+            raise ValueError(f"'{relative}' fails containment after open ({reason}); nothing was read")
+        chunks: list[bytes] = []
+        remaining = limit + 1
+        while remaining > 0:
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+    except OSError as exc:
+        raise ValueError(f"'{relative}' cannot be read: {exc}") from exc
+    finally:
+        os.close(fd)
+    data = b"".join(chunks)
+    if len(data) > limit:
+        raise ValueError(f"'{relative}' is over the {limit // 1024} KiB limit")
+    return data
+
+
+def _check_close_path_requirement(
+    frontmatter: dict, root: Path, shipment_id: str, feature_id: str, warnings: list[str]
+) -> tuple[str, str] | None:
+    """The 192-F ``close_path`` / ``close_evidence`` checks (plan unit A4); ``(failed_check, message)`` or None.
+
+    Runs only after the existing checks pass, so it never masks or reorders an
+    existing ``failed_check``. The declared ``close_path`` is validated against
+    the record's **selected** close path by ``validate_evidence_record`` (re-plan R2).
+    """
+    import json as _json
+
+    from autoharness.gates.cascade_evidence import (
+        CascadeEvidenceError,
+        build_evidence_path,
+        validate_evidence_record,
+    )
+
+    close_path = frontmatter.get("close_path")
+    if type(close_path) is not str or close_path not in _CLOSE_PATH_VALUES:
+        return "close_path", (
+            f"closure artifact must declare close_path: cascade | safe_close (got {close_path!r})"
+        )
+    declared = frontmatter.get("close_evidence")
+    problem = _relative_posix_problem(declared, _CLOSE_EVIDENCE_PREFIX)
+    if problem is not None:
+        return "close_evidence", f"close_evidence {problem}"
+    try:
+        expected = build_evidence_path(root, shipment_id, feature_id).relative_to(root).as_posix()
+    except (CascadeEvidenceError, ValueError) as exc:
+        return "close_evidence", f"the evidence path for {shipment_id}/{feature_id} cannot be built: {exc}"
+    if declared != expected:
+        return "close_evidence", (
+            f"close_evidence '{declared}' is not the evidence path '{expected}' for {shipment_id}/{feature_id}"
+        )
+    try:
+        raw = _read_contained_regular_file(root, declared, root, _CLOSE_EVIDENCE_MAX_BYTES)
+        record = _json.loads(raw.decode("utf-8"))
+    except ValueError as exc:  # includes JSONDecodeError and UnicodeDecodeError
+        return "close_evidence", f"close_evidence record cannot be read: {exc}"
+    if not isinstance(record, dict):
+        return "close_evidence", f"close_evidence record '{declared}' is not a JSON object"
+    problems = validate_evidence_record(
+        record, shipment_id=shipment_id, feature_id=feature_id, close_path=close_path
+    )
+    if problems:
+        return "close_evidence", (
+            f"close_evidence record '{declared}' is not a valid {close_path} record for "
+            f"{shipment_id}/{feature_id}: {'; '.join(problems)}"
+        )
+    if "merge_commit" in frontmatter:
+        merge_commit = frontmatter.get("merge_commit")
+        if type(merge_commit) is not str or merge_commit.strip() != record.get("merge_commit_sha"):
+            return "close_evidence", (
+                f"closure artifact merge_commit {merge_commit!r} does not equal the record's "
+                f"merge_commit_sha {record.get('merge_commit_sha')!r}"
+            )
+    else:
+        warnings.append(
+            "closure artifact has no merge_commit key; the evidence record's merge_commit_sha "
+            "was not cross-checked"
+        )
+    if close_path == "safe_close":
+        problem = _recheck_observation_set(record, root, warnings)
+        if problem is not None:
+            return "close_evidence", f"SAFE_CLOSE observation-set re-check failed: {problem}"
+    return None
+
+
+_OBSERVATION_RECORD_MAX_BYTES = 2 * 1024 * 1024
+
+
+def _recheck_observation_set(record: dict, root: Path, warnings: list[str]) -> str | None:
+    """Re-check a validated ``safe_close`` record's observation set (plan unit A4b); a problem or None.
+
+    Every located entry must still be at exactly its recorded path and
+    location with its recorded SHA-256 (raw bytes); every ``location: missing``
+    entry must still resolve to no record. Each path is checked before any
+    byte is read: its first segment must be the detected backlog root, then
+    ``_check_path_containment``. Disposition-set deliberations are re-checked
+    only where A2b put them in the set (UNVERIFIED engine; re-plan cycle-2
+    C2-1); no disposition outcome is ever read and no stranded warning is
+    emitted (cycle-1 R2). An empty set passes with a vacuous-check warning.
+    """
+    import hashlib
+
+    # Private-name rule (re-plan cycle-2 C2-4): the shipment_closure names are
+    # imported lazily, never at module top.
+    from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
+    from autoharness.gates.shipment_closure import (
+        _check_path_containment,
+        _read_artifact_record,
+    )
+
+    entries = record["pre_close"]["observation_set"]  # shape guaranteed by validate_evidence_record
+    if not entries:
+        warnings.append(
+            "the SAFE_CLOSE observation set is empty, so the observation-set re-check was "
+            "vacuous (no out-of-scope parent, sibling, or descendant was observed)"
+        )
+        return None
+    try:
+        backlog_dir = resolve_backlog_root(root)
+    except BacklogUnavailableError as exc:
+        return f"the workspace backlog root cannot be detected: {exc}"
+    for entry in entries:
+        artifact_id = entry["id"]
+        if entry["location"] == "missing":
+            try:
+                resolved = _read_artifact_record(backlog_dir, artifact_id)
+            except BacklogUnavailableError as exc:
+                return f"entry {artifact_id!r} recorded missing cannot be resolved safely: {exc}"
+            if resolved is not None:
+                return f"entry {artifact_id!r} was recorded missing but now resolves to a record"
+            continue
+        path = entry["path"]
+        segments = path.split("/")
+        if segments[0] != backlog_dir.name:
+            return (
+                f"entry {artifact_id!r} path '{path}' is not under the detected backlog root "
+                f"'{backlog_dir.name}'; nothing was read"
+            )
+        if len(segments) < 3 or segments[1] != entry["location"]:
+            return (
+                f"entry {artifact_id!r} path '{path}' is not at its recorded location "
+                f"{entry['location']!r}; nothing was read"
+            )
+        reason = _check_path_containment(root.joinpath(*segments), backlog_dir)
+        if reason is not None:
+            return f"entry {artifact_id!r} path '{path}' fails containment ({reason}); nothing was read"
+        try:
+            raw = _read_contained_regular_file(root, path, backlog_dir, _OBSERVATION_RECORD_MAX_BYTES)
+        except ValueError as exc:
+            return f"entry {artifact_id!r} is no longer at its recorded location: {exc}"
+        if hashlib.sha256(raw).hexdigest() != entry["sha256"]:
+            return f"entry {artifact_id!r} at '{path}' changed since the pre-close baseline (SHA-256 differs)"
+    return None
+
+
 def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspace: Path) -> dict:
     """Validate one closure artifact against the closure-evidence contract.
 
@@ -1758,6 +1994,7 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
         "exit_code": 2,
         "failed_check": None,
         "message": "",
+        "warnings": [],
     }
 
     def _finish(exit_code: int, failed_check: str | None, message: str) -> dict:
@@ -1879,6 +2116,11 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
             f"closure artifact '{resolved}' is not discoverable for shipment {declared_shipment}: "
             f"the topology gate reads canonical closure evidence only from '{closure_dir}'",
         )
+    requirement = _check_close_path_requirement(
+        frontmatter, root, declared_shipment, match.group("feature_id"), payload["warnings"]
+    )
+    if requirement is not None:
+        return _finish(1, *requirement)
     return _finish(
         0,
         None,
@@ -1918,6 +2160,286 @@ def _gate_closure_evidence_command(rest: list[str]) -> None:
         print(f"Closure-evidence gate — {label}: {payload['message']}")
     if payload["exit_code"]:
         sys.exit(payload["exit_code"])
+
+
+SHIPMENT_USAGE = """\
+autoharness shipment — evidence-capturing shipment close (192-F)
+
+Subcommands:
+  cascade-close  Classify, and when selected run, a CASCADE close through backlogit,
+                 capturing a durable evidence record at
+                 docs/closure/evidence/{S}-{F}-close-evidence.json.
+
+Usage:
+  autoharness shipment cascade-close --shipment <S> --feature <F> --sha <merge_sha>
+                        --message <text> --author <name> [--timeout <seconds>]
+                        [--workspace <path>] [--json]
+  autoharness shipment cascade-close --classify-only [--replace-pre-close]
+                        --shipment <S> --feature <F> --sha <merge_sha>
+                        [--workspace <path>] [--json]
+
+Modes:
+  mutating mode (no --classify-only): DESTRUCTIVE. Invokes `backlogit shipment ship`
+      only when the selected close path is CASCADE (classifier CASCADE and engine
+      VERIFIED); otherwise it records the verdict and exits 3 without invoking
+      anything. Needs the same operator approval as a direct `shipment ship` call.
+  plain --classify-only: no-clobber, and read-only apart from creating a new
+      evidence record. An existing pre_close record exits 2 and is left untouched.
+  --classify-only --replace-pre-close: DESTRUCTIVE. Overwrites an existing
+      pre_close record (through the pre_close takeover) and needs operator
+      approval. --replace-pre-close is accepted only together with --classify-only.
+
+cascade-close options:
+  --shipment <S>      Shipment ID (e.g. 198-S). Required.
+  --feature <F>       Covering feature ID (e.g. 192-F). Required.
+  --sha <merge_sha>   Merge commit SHA, 40 lowercase hex characters. Required.
+  --message <text>    Ship message (mutating mode only; required there).
+  --author <name>     Ship author (mutating mode only; required there).
+  --timeout <secs>    `shipment ship` timeout, 30-900 seconds (mutating mode only).
+                      Default: 120.
+  --classify-only     Classify and record the verdict; never invoke the cascade.
+  --replace-pre-close With --classify-only only: replace an existing pre_close record.
+  --workspace, -w     Workspace root. Default: .
+  --json              Emit one JSON object: mode, exit_code, evidence_path,
+                      phase_written, classifier_verdict, engine_verdict,
+                      selected_close_path, mutation_possible (no | yes |
+                      indeterminate | unknown), postcondition_verdict, failures[],
+                      operator_action (none | review_required).
+
+Exit codes:
+  0  mutating: all postconditions passed; --classify-only: CASCADE selected.
+  2  input, I/O, no-clobber refusal, planning error, or pre-invocation write failure.
+  3  the selected close path is not CASCADE; verdict recorded, nothing invoked.
+  4  pre-invocation revalidation drift; nothing invoked. Never answer with SAFE_CLOSE.
+  5  a postcondition failed (operator review).
+  6  backlogit exited non-zero, timed out, or its output did not parse (operator review).
+  7  the pair lock is already held, or an existing evidence record needs review
+     (invoking, unreadable, ambiguous, or another pair); nothing invoked
+     (operator review). The lock is
+     .autoharness/gates/cascade-close/{S}-{F}.lock; it is never broken
+     automatically, and removing a stale lock is an operator-only action
+     (agents must not delete it).
+  8  the post-close evidence write failed after invocation (operator review).
+Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
+cascade-close, calling `backlogit shipment ship` directly, or substituting
+SAFE_CLOSE until an operator reviews the backlog state and the record.
+"""
+
+_CASCADE_CLOSE_VALUE_FLAGS = (
+    "--shipment",
+    "--feature",
+    "--sha",
+    "--message",
+    "--author",
+    "--timeout",
+    "--workspace",
+    "-w",
+)
+_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json")
+# Mutation possibility per exit code (plan A3 exit-code table). Exit 0 is "yes"
+# only for the mutating mode; --classify-only never invokes the cascade.
+_CASCADE_CLOSE_MUTATION = {
+    0: "yes",
+    2: "no",
+    3: "no",
+    4: "no",
+    5: "yes",
+    6: "indeterminate",
+    7: "unknown",
+    8: "yes",
+}
+_CASCADE_CLOSE_NO_REVIEW = frozenset({0, 2, 3})
+
+
+def _cascade_close_mode(args: list[str]) -> str:
+    if "--classify-only" in args:
+        return "replace_pre_close" if "--replace-pre-close" in args else "classify_only"
+    return "mutating"
+
+
+def _parse_cascade_close_args(args: list[str]) -> dict:
+    """Parse `autoharness shipment cascade-close` arguments (192.015-T); ValueError exits 2."""
+    from autoharness.shipment_close.persist import PersistError
+    from autoharness.shipment_close.runner import (
+        DEFAULT_TIMEOUT_SECONDS,
+        validate_timeout,
+    )
+
+    values: dict[str, str] = {}
+    flags: set[str] = set()
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in _CASCADE_CLOSE_VALUE_FLAGS:
+            key = "--workspace" if arg == "-w" else arg
+            if key in values:
+                raise ValueError(f"duplicate cascade-close argument: {arg}")
+            index += 1
+            if index >= len(args) or args[index] in _CASCADE_CLOSE_VALUE_FLAGS + _CASCADE_CLOSE_BOOL_FLAGS:
+                raise ValueError(f"Missing value for {arg}")
+            values[key] = args[index]
+        elif arg in _CASCADE_CLOSE_BOOL_FLAGS:
+            if arg in flags:
+                raise ValueError(f"duplicate cascade-close argument: {arg}")
+            flags.add(arg)
+        else:
+            raise ValueError(f"Unknown shipment cascade-close argument: {arg}")
+        index += 1
+
+    for required in ("--shipment", "--feature", "--sha"):
+        if required not in values:
+            raise ValueError(f"shipment cascade-close requires {required}")
+    classify_only = "--classify-only" in flags
+    if "--replace-pre-close" in flags and not classify_only:
+        raise ValueError("--replace-pre-close is accepted only together with --classify-only")
+    if classify_only:
+        stray = [flag for flag in ("--message", "--author", "--timeout") if flag in values]
+        if stray:
+            raise ValueError(f"{', '.join(stray)} cannot be combined with --classify-only")
+    else:
+        for required in ("--message", "--author"):
+            if required not in values:
+                raise ValueError(f"the mutating cascade-close mode requires {required}")
+    timeout = DEFAULT_TIMEOUT_SECONDS
+    if "--timeout" in values:
+        text = values["--timeout"]
+        if not text.isascii() or not text.isdigit():
+            raise ValueError(f"--timeout must be an integer number of seconds (got {text!r})")
+        try:
+            timeout = validate_timeout(int(text))
+        except PersistError as exc:
+            raise ValueError(str(exc)) from exc
+    return {
+        "mode": _cascade_close_mode(args),
+        "shipment": values["--shipment"],
+        "feature": values["--feature"],
+        "sha": values["--sha"],
+        "message": values.get("--message"),
+        "author": values.get("--author"),
+        "timeout": timeout,
+        "workspace": Path(values.get("--workspace", ".")),
+        "classify_only": classify_only,
+        "replace_pre_close": "--replace-pre-close" in flags,
+        "emit_json": "--json" in flags,
+    }
+
+
+def _cascade_close_payload(mode: str, exit_code: int, message: str, result: object | None = None) -> dict:
+    """Render the A3d `--json` object (AN-F06) from a mode outcome, or from an input failure."""
+
+    def field(name: str) -> object:
+        return getattr(result, name, None) if result is not None else None
+
+    evidence_path = field("evidence_path")
+    failures = [str(failure) for failure in (field("failures") or ())]
+    if exit_code not in (0, 3) and message and message not in failures:
+        failures.append(message)
+    if mode == "mutating":
+        mutation = _CASCADE_CLOSE_MUTATION.get(exit_code, "unknown")
+        phase_written = field("phase_written")
+    else:
+        mutation = "no" if exit_code in (0, 2, 3, 4) else "unknown"
+        phase_written = "pre_close" if exit_code in (0, 3) and evidence_path is not None else None
+    if exit_code == 2:
+        mutation = "no"  # every post-invocation write failure is exit 8
+    return {
+        "mode": mode,
+        "exit_code": exit_code,
+        "evidence_path": str(evidence_path) if evidence_path is not None else None,
+        "phase_written": phase_written,
+        "classifier_verdict": field("classifier_verdict"),
+        "engine_verdict": field("engine_verdict"),
+        "selected_close_path": field("selected_close_path"),
+        "mutation_possible": mutation,
+        "postcondition_verdict": field("postcondition_verdict"),
+        "failures": failures,
+        "operator_action": "none" if exit_code in _CASCADE_CLOSE_NO_REVIEW else "review_required",
+    }
+
+
+def _emit_cascade_close(payload: dict, message: str, emit_json: bool) -> None:
+    if emit_json:
+        print(json.dumps(payload, indent=2))
+    else:
+        stream = sys.stdout if payload["exit_code"] in (0, 3) else sys.stderr
+        print(f"cascade-close ({payload['mode']}) — exit {payload['exit_code']}: {message}", file=stream)
+        if payload["evidence_path"]:
+            print(f"evidence: {payload['evidence_path']}", file=stream)
+    if payload["exit_code"]:
+        sys.exit(payload["exit_code"])
+
+
+def _shipment_cascade_close_command(rest: list[str]) -> None:
+    """Run `autoharness shipment cascade-close` (192.015-T, plan unit A3d)."""
+    index = 0
+    while index < len(rest):
+        if rest[index] in ("help", "--help", "-h"):
+            print(SHIPMENT_USAGE)
+            return
+        index += 2 if rest[index] in _CASCADE_CLOSE_VALUE_FLAGS else 1
+
+    emit_json = "--json" in rest
+    try:
+        parsed = _parse_cascade_close_args(rest)
+    except ValueError as exc:
+        message = str(exc)
+        if emit_json:
+            print(json.dumps(_cascade_close_payload(_cascade_close_mode(rest), 2, message), indent=2))
+        else:
+            print(message, file=sys.stderr)
+        print(SHIPMENT_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    # Lazy imports: the module attributes are the test seams, and an import
+    # failure here never breaks any unrelated command.
+    from autoharness.shipment_close import command as cascade_command
+    from autoharness.shipment_close import preclose as cascade_preclose
+    from autoharness.shipment_close import runner as cascade_runner
+    from autoharness.shipment_close.persist import PersistError
+
+    mode = parsed["mode"]
+    try:
+        resolved = cascade_runner.resolve_backlogit_binary(parsed["workspace"])
+    except PersistError as exc:
+        exit_code = exc.exit_code if exc.exit_code == 2 else 2
+        _emit_cascade_close(_cascade_close_payload(mode, exit_code, str(exc)), str(exc), parsed["emit_json"])
+        return
+    if parsed["classify_only"]:
+        result = cascade_preclose.run_classify_only(
+            parsed["workspace"],
+            parsed["shipment"],
+            parsed["feature"],
+            parsed["sha"],
+            resolved=resolved,
+            replace_pre_close=parsed["replace_pre_close"],
+        )
+    else:
+        result = cascade_command.run_cascade_close(
+            parsed["workspace"],
+            parsed["shipment"],
+            parsed["feature"],
+            parsed["sha"],
+            message=parsed["message"],
+            author=parsed["author"],
+            resolved=resolved,
+            timeout=parsed["timeout"],
+        )
+    payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
+    _emit_cascade_close(payload, result.message, parsed["emit_json"])
+
+
+def _shipment_command(args: list[str]) -> None:
+    """Dispatch `autoharness shipment <subcommand>`."""
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(SHIPMENT_USAGE)
+        return
+    subcommand = args[0]
+    if subcommand == "cascade-close":
+        _shipment_cascade_close_command(args[1:])
+        return
+    print(f"Unknown shipment subcommand: {subcommand}", file=sys.stderr)
+    print(SHIPMENT_USAGE, file=sys.stderr)
+    sys.exit(2)
 
 
 TELEMETRY_USAGE = """\
@@ -3186,6 +3708,8 @@ def main(argv: list[str] | None = None) -> None:
         _verify_workspace_command(args[1:])
     elif command == "gate":
         _gate_command(args[1:])
+    elif command == "shipment":
+        _shipment_command(args[1:])
     elif command == "telemetry":
         _telemetry_command(args[1:])
     elif command == "eval":

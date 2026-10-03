@@ -217,5 +217,107 @@ class ShipFlatCascadePhraseParityTests(unittest.TestCase):
                 self.assertIn(phrase, template)
 
 
+# 192.022-T (plan A6b): the Ship P-015 post-merge step 2c pointer to
+# `autoharness shipment cascade-close` (template step 1.b, mirror step 2.c).
+_ROUTING_START = '**Command routing (192-F, pointer only)**'
+_ROUTING_END = 'At the summary level, the skill:'
+_CASCADE_START = '**`CASCADE` (the narrow P-015 exception)**'
+_CASCADE_END = 'invariance (captured before invocation, re-verified after).'
+_CONTRACT_MARKER = '**Closure-evidence contract**'
+# The only template -> mirror substitutions inside the pinned sections; the
+# mirror pins this workspace's rendered values.
+_RENDERED_VALUES = {
+    '{{OP_SHIP_SHIPMENT_MCP}}': 'backlogit_ship_shipment',
+    '{{DOCS_CLOSURE}}': 'docs/closure',
+}
+
+
+def _rendered(text: str) -> str:
+    for placeholder, value in _RENDERED_VALUES.items():
+        text = text.replace(placeholder, value)
+    return text
+
+
+def _between(normalized: str, start: str, end: str, *, label: str) -> str:
+    begin = normalized.find(start)
+    if begin < 0:
+        raise AssertionError(f'{label}: missing section start {start!r}')
+    finish = normalized.find(end, begin)
+    if finish < 0:
+        raise AssertionError(f'{label}: missing section end {end!r}')
+    return normalized[begin:finish + len(end)]
+
+
+class ShipCascadeClosePointerTests(unittest.TestCase):
+    """192.022-T: step 2c routes every close through `cascade-close`."""
+
+    def test_step_2c_pointer_routes_through_cascade_close(self) -> None:
+        routing_phrases = (
+            ('every close, on either path, starts with '
+            '`autoharness shipment cascade-close --classify-only --shipment {shipment_id} '
+            '--feature {feature_id} --sha {merge_commit_sha} --json`'),
+            '`docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`',
+            ("The command's engine-semantics gate runs no cascade unless "
+            '`select_close_path` selects `CASCADE` on a `VERIFIED` engine probed on the '
+            'CLI surface the command invokes; otherwise the command exits 3'),
+            ('an engine re-probe difference, or any difference from the '
+            '`cascade`-selected `--classify-only` record, exits 4 with nothing mutated'),
+            ('CASCADE is executed only through the mutating '
+            '`autoharness shipment cascade-close` (no `--classify-only`), which needs the '
+            'same destructive-command approval as a direct `backlogit shipment ship` call'),
+            'is a P-005 deviation whose closure the closure-evidence gate refuses',
+            ("the skill's Linked-Deliberation Disposition step (P-015 INV-12) runs with "
+            'its inputs from the evidence record and remains the only archiver of a '
+            'linked deliberation; the command never archives one'),
+            ('The closure artifact records `close_path` (`cascade` or `safe_close`) and '
+            '`close_evidence` (the evidence record path)'),
+            'The exit-code routing table lives in the `shipment-reconcile` skill, not here.',
+        )
+        for label, normalized in _normalized_files():
+            routing = _between(normalized, _ROUTING_START, _ROUTING_END, label=label)
+            cascade = _between(normalized, _CASCADE_START, _CASCADE_END, label=label)
+            for phrase in routing_phrases:
+                with self.subTest(file=label, phrase=phrase[:60]):
+                    self.assertIn(phrase, routing)
+            with self.subTest(file=label, section='CASCADE bullet'):
+                self.assertIn(
+                    'the skill invokes the cascade only through the mutating '
+                    '`autoharness shipment cascade-close`, which independently verifies '
+                    '`returned_ids` is empty',
+                    cascade,
+                )
+                self.assertNotIn('invokes the cascade operation and', cascade)
+            # The routing block precedes the close-path summary it governs.
+            with self.subTest(file=label, check='ordering'):
+                self.assertLess(normalized.find(_ROUTING_START), normalized.find(_CASCADE_START))
+
+    def test_step_2c_rendered_parity_and_single_line_contract(self) -> None:
+        template = ' '.join(_template_text().split())
+        mirror = ' '.join(_mirror_text().split())
+        for start, end in ((_ROUTING_START, _ROUTING_END), (_CASCADE_START, _CASCADE_END)):
+            with self.subTest(section=start):
+                self.assertEqual(
+                    _rendered(_between(template, start, end, label='template')),
+                    _between(mirror, start, end, label='mirror'),
+                )
+        paragraphs = {}
+        for label, content in _files():
+            lines = [line.strip() for line in content.splitlines() if _CONTRACT_MARKER in line]
+            with self.subTest(file=label, check='single contract line'):
+                self.assertEqual(len(lines), 1)
+            paragraphs[label] = lines[0]
+            for key in (
+                '`closure_status`',
+                '`compaction_status`',
+                '`close_path` (`cascade` or `safe_close`)',
+                ('`close_evidence` (the '
+                '`docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json` '
+                'record path written by `autoharness shipment cascade-close`'),
+            ):
+                with self.subTest(file=label, key=key[:40]):
+                    self.assertIn(key, lines[0])
+        self.assertEqual(_rendered(paragraphs['template']), paragraphs['mirror'])
+
+
 if __name__ == '__main__':
     unittest.main()

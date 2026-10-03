@@ -696,6 +696,27 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    via install-harness (PR #297 Copilot review). With the copies installed, the divergence
    is resolved and the template fallback is obsolete; preferring the templates now would
    bypass the manifest-tracked artifacts and their checksum verification.)
+   **Command routing (192-F, pointer only)**: every close, on either path, starts
+   with
+   `autoharness shipment cascade-close --classify-only --shipment {shipment_id} --feature {feature_id} --sha {merge_commit_sha} --json`,
+   which records the
+   pre-close evidence record
+   `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`. The
+   command's engine-semantics gate runs no cascade unless `select_close_path`
+   selects `CASCADE` on a `VERIFIED` engine probed on the CLI surface the command
+   invokes; otherwise the command exits 3 (`SAFE_CLOSE` selected, nothing invoked),
+   and an engine re-probe difference, or any difference from the `cascade`-selected
+   `--classify-only` record, exits 4 with nothing mutated and is never answered
+   with `SAFE_CLOSE`. CASCADE is executed only through the mutating
+   `autoharness shipment cascade-close` (no `--classify-only`), which needs the same
+   destructive-command approval as a direct `backlogit shipment ship` call; a direct
+   `backlogit shipment ship` / `backlogit_ship_shipment` call is a P-005 deviation
+   whose closure the closure-evidence gate refuses. After either close, the skill's
+   Linked-Deliberation Disposition step (P-015 INV-12) runs with its inputs from the evidence
+   record and remains the only archiver of a linked deliberation; the command never
+   archives one. The closure artifact records `close_path` (`cascade` or
+   `safe_close`) and `close_evidence` (the evidence record path). The exit-code
+   routing table lives in the `shipment-reconcile` skill, not here.
    At the summary level, the skill:
    a. classifies the close path via the P-015 flat-manifest, engine-inertness
       containment gate (`classify_shipment_close_path(manifest_items,
@@ -726,7 +747,8 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
       otherwise the skill selects `SAFE_CLOSE`.
       **Do NOT call `backlogit shipment ship` / `backlogit_ship_shipment`**
       directly — only the skill's own classification may select this path.
-      When selected, the skill invokes the cascade operation and
+      When selected, the skill invokes the cascade only through the mutating
+      `autoharness shipment cascade-close`, which
       independently verifies `returned_ids` is empty, the two-set
       `allowed_ids(S)` / `required_ids(S)` postcondition gate, `parent_id`
       preservation, and out-of-manifest descendant baseline-fingerprint
@@ -778,7 +800,7 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    compaction is completed — it does not strand the merged PR. A compact-context run that
    **FAILS** is **NON-BLOCKING** (record `compaction: degraded`, log a warning, and
    continue — the merge already landed and the skill is non-destructive).
-   **Closure-evidence contract**: write the closure artifact at the canonical path `docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md` with both gate-relevant frontmatter keys, `closure_status` and `compaction_status`, and run `autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md --shipment {shipment_id} --json` before every commit of it (while `compaction_status` is `pending` or `closure_status` is `BLOCKED`, only a `frontmatter_predicate` failure is tolerated) and again once its compaction status is finalized, when exit 0 is required before closure is declared complete (a finalized `BLOCKED` or unmet-conditions record may still be committed as a truthful record when the gate's reported `failed_check` is `frontmatter_predicate`, but closure is not declared complete). Legacy date-prefixed closure names remain readable but are never written.
+   **Closure-evidence contract**: write the closure artifact at the canonical path `docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md` with the gate-relevant frontmatter keys `closure_status`, `compaction_status`, `close_path` (`cascade` or `safe_close`), and `close_evidence` (the `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json` record path written by `autoharness shipment cascade-close`, committed with the artifact), and run `autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}-post-merge-closure.md --shipment {shipment_id} --json` before every commit of it (while `compaction_status` is `pending` or `closure_status` is `BLOCKED`, only a `frontmatter_predicate` failure is tolerated) and again once its compaction status is finalized, when exit 0 is required before closure is declared complete (a finalized `BLOCKED` or unmet-conditions record may still be committed as a truthful record when the gate's reported `failed_check` is `frontmatter_predicate`, but closure is not declared complete). Legacy date-prefixed closure names remain readable but are never written.
 7. In dark mode, the closure summary must list decisions, gates, reviewed HEADs,
    merge/fallback status, admin fallback result if any, compaction status (P-020),
    closure status, and follow-up items before `DARK_MODE_COMPLETE` can be emitted.
