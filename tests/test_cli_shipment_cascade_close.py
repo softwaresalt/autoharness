@@ -203,6 +203,9 @@ class UsageTests(unittest.TestCase):
         self.assertIn("shipment cascade-close", cli.USAGE)
         for token in ("--shipment", "--feature", "--sha", "--message", "--author", "--timeout", "--json"):
             self.assertIn(token, usage)
+        self.assertIn(f"{runner.MIN_TIMEOUT_SECONDS}-{runner.MAX_TIMEOUT_SECONDS} seconds", usage)
+        self.assertIn(f"Default: {runner.DEFAULT_TIMEOUT_SECONDS}.", usage)
+        self.assertNotIn("30-900", usage)
 
     def test_help_prints_usage(self) -> None:
         for argv in (("shipment",), ("shipment", "--help"), ("shipment", "cascade-close", "--help")):
