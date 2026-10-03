@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 import unittest
 
+from autoharness.shipment_close import runner as _runner
+
 try:
     from _assertion_render import render_source
 except ModuleNotFoundError:  # pragma: no cover - module path differs by runner
@@ -646,6 +648,49 @@ class ClosureRoutingNonDriftTests(unittest.TestCase):
             with self.subTest(region=label):
                 self.assertTrue(region.strip())
                 self.assertIsNone(_CLOSURE_FILENAME_RESTATEMENT.search(region))
+
+
+# 192.026-T (A8d): the cascade-close --timeout range, default and sizing rule
+# are pinned to the runner constants on whitespace-collapsed text, so neither
+# docs/gates-reference.md nor the shipment-reconcile sizing note can drift
+# from MIN/DEFAULT/MAX_TIMEOUT_SECONDS again.
+GATES_REFERENCE = Path("docs") / "gates-reference.md"
+TIMEOUT_SIZING_HEADING = "### Timeout sizing"
+_SIZING_FORMULA = "B = ceil(1.5 * (F + P * N))"
+_RANGE_TOKEN = (
+    f"`--timeout` is {_runner.MIN_TIMEOUT_SECONDS}-{_runner.MAX_TIMEOUT_SECONDS} seconds "
+    f"(default {_runner.DEFAULT_TIMEOUT_SECONDS})"
+)
+
+
+def _collapse(text: str) -> str:
+    return " ".join(text.split())
+
+
+class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
+    """192.026-T: the documented --timeout range, default and sizing rule match the runner."""
+
+    def test_gates_reference_timeout_range_and_sizing_section(self) -> None:
+        text = _lf((_REPO_ROOT / GATES_REFERENCE).read_text(encoding="utf-8"))
+        self.assertIn(_RANGE_TOKEN, _collapse(text))
+        self.assertNotIn("30-900", text)
+        self.assertNotIn("default 120", text)
+        self.assertEqual(text.split("\n").count(TIMEOUT_SIZING_HEADING), 1)
+        section = _collapse(_heading_section(text, TIMEOUT_SIZING_HEADING))
+        self.assertIn(_SIZING_FORMULA, section)
+        self.assertRegex(section, rf"B > {_runner.MAX_TIMEOUT_SECONDS}: HALT\b")
+
+    def test_shipment_reconcile_sizing_note(self) -> None:
+        for label, text in _read_pair(RECONCILE_FILES):
+            with self.subTest(path=label):
+                region = _collapse(_marker_region(text, "cascade-sub-procedure"))
+                self.assertIn(_SIZING_FORMULA, region)
+                self.assertIn(_RANGE_TOKEN, region)
+                self.assertRegex(region, rf"B > {_runner.MAX_TIMEOUT_SECONDS}[^.]*HALT")
+                self.assertIn("stays attached to the run until the command exits", region)
+                self.assertIn("the most specific applicable limit governs", region)
+                self.assertNotIn("30-900", text)
+                self.assertNotIn("docs/gates-reference.md", text)
 
 
 if __name__ == "__main__":

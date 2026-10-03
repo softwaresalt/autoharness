@@ -338,7 +338,7 @@ autoharness shipment cascade-close --classify-only [--replace-pre-close]
 |---|---|---|
 | plain `--classify-only` | Re-runs the classifier, probes the engine, selects the close path, and writes a new `pre_close` record. No-clobber: an existing `pre_close` record exits 2 and is left untouched. Never invokes the cascade. | None |
 | `--classify-only --replace-pre-close` | Overwrites an existing `pre_close` record through the pre_close takeover (a compare-and-swap on the prior `run_id`). | Destructive-command approval |
-| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-900 seconds (default 120). | Destructive-command approval |
+| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-3600 seconds (default 1800). | Destructive-command approval |
 
 The evidence record is written to the fixed path
 `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`. That path
@@ -346,6 +346,35 @@ is never derived from the closure directory. The record is committed with the
 closure artifact, kept permanently, and never hand-edited. Its `phase` is
 `pre_close`, `invoking`, or `post_close`. The command writes the record before the
 close; if that write fails, nothing is invoked.
+
+### Timeout sizing
+
+The mutating mode's `--timeout` bounds the `backlogit shipment ship` cascade. Size
+it before the run with the budget `B = ceil(1.5 * (F + P * N))` seconds, where
+N = |closure_scope(S)| (the manifest items plus the shipment record), F is the fixed
+cost of `backlogit shipment ship`, and P is its per-artifact cost:
+
+* B <= 1800: the default `--timeout` suffices.
+* 1800 < B <= 3600: pass `--timeout B` explicitly.
+* B > 3600: HALT before the mutating run for an operator decision. Never invoke
+  with a timeout known to be too short.
+
+The reference values F = 133 s and P = 35 s were measured on backlogit 1.11.0 at
+~1,700 indexed artifacts from `.backlogit/logs` (201-S: 553 s predicted vs 581 s
+actual; 202-S: 483 s predicted vs ~486 s actual). The per-archive term tracks a full
+index rebuild, so it grows with index size. The 1.5 factor leaves at least 50 %
+headroom over the model, and more under the 1800 s default. Re-derive F and P from
+`.backlogit/logs` when a cascade runs longer than its prediction by more than that
+headroom.
+
+The ceiling is finite on purpose. A timeout kills the engine mid-cascade and ends in
+exit 6 (`mutation_possible: indeterminate`), so a too-short timeout tears a healthy
+cascade, while an unbounded one would never surface a hung engine.
+
+Ship stays attached to the run until the command exits and never abandons or kills
+it on an agent-tool wait. For this run the command's `--timeout` is the stall bound:
+the circuit-breaker "Other commands" 5-minute stall timeout does not apply, because
+the most specific applicable limit governs.
 
 ### Engine-semantics gate and close-path selection
 
