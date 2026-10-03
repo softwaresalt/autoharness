@@ -159,7 +159,11 @@ Copilot's first review of the 198-S re-plan PR (#481) raised ten threads
 (T1-T10) on one contract surface. All ten are fixed in this plan, in the
 task bodies, and in the backlog; none is deferred. The dispositions are in
 the review record, section "Copilot cycle 1 (PR #481)". Where this section
-and earlier text disagree, this section and the revised unit text win.
+and earlier text disagree, this section and the revised unit text win. In
+Copilot cycle 2 (thread `PRRT_kwDORzpWpM6oh0SP`) the unit sections under
+`## Implementation Units` (including the new A1d, A1e, A1f, A5b, A5c, and
+A6b sections), the granularity table, and `## Dependency Graph` were brought
+into agreement with this section, so they no longer disagree.
 
 * **T1, T2, T5 (tuple comparison).** `redact()` returns `(text,
   redaction_applied)`, so every redaction-neutrality check is now written
@@ -1684,7 +1688,8 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
      committed fixture artifact that has no `close_path` (INV-P5 pin);
      `classify_closure_candidates` ignores a `docs/closure/evidence/`
      subdirectory.
-* **Depends on:** A3d. A4, A4b, A5, and A6 ship in one PR. **Harness
+* **Depends on:** A3d (`192.015-T`). A4, A4b, A5, A5b, A5c, A6, and A6b ship
+  in one PR (label `release-unit-a4-a6`). **Harness
   surface:** `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** M. **Complexity:** medium.
 
@@ -2064,46 +2069,58 @@ A6b.
 
 ## Dependency Graph
 
-Re-plan cycle-1 R4/R5 (2026-10-02). Direct edges (`X → Y` means Y depends on
-X), matching each unit's **Depends on** line and the harvest delta:
+Re-plan cycle-1 R4/R5 (2026-10-02), revised by Copilot PR #481 cycle 1
+(T7-T10). Direct edges (`X → Y` means Y depends on X). These 22 edges match
+each unit's **Depends on** line, the dependency table in the Copilot cycle 1
+amendment, and each task's backlog `dependencies`:
 
 | # | Edge | Tasks |
 |---|---|---|
-| 1 | A1 → A1c | `192.001-T` → *new* |
-| 2 | A1c → A1b | *new* → `192.002-T` |
-| 3 | A1c → A2b | *new* → *new* |
-| 4 | A1b → A3a | `192.002-T` → `192.004-T` |
-| 5 | A3a → A2a | `192.004-T` → *new* |
-| 6 | A2a → A2 | *new* → `192.003-T` |
-| 7 | A2b → A2 | *new* → `192.003-T` |
-| 8 | A2 → A3b | `192.003-T` → `192.005-T` |
-| 9 | A3b → A3c | `192.005-T` → *new* |
-| 10 | A3c → A3 | *new* → `192.006-T` |
-| 11 | A3 → A3d | `192.006-T` → *new* |
-| 12 | A3d → A4 | *new* → `192.007-T` |
-| 13 | A3d → A7 | *new* → `192.010-T` |
-| 14 | A4 → A4b | `192.007-T` → *new* |
-| 15 | A4b → A5 | *new* → `192.008-T` |
-| 16 | A5 → A6 | `192.008-T` → `192.009-T` |
+| 1 | A1 → A1d | `192.001-T` → `192.017-T` |
+| 2 | A1d → A1e | `192.017-T` → `192.018-T` |
+| 3 | A1e → A1f | `192.018-T` → `192.019-T` |
+| 4 | A1f → A1c | `192.019-T` → `192.011-T` |
+| 5 | A1c → A1b | `192.011-T` → `192.002-T` |
+| 6 | A1c → A2b | `192.011-T` → `192.013-T` |
+| 7 | A1b → A3a | `192.002-T` → `192.004-T` |
+| 8 | A3a → A2a | `192.004-T` → `192.012-T` |
+| 9 | A2a → A2 | `192.012-T` → `192.003-T` |
+| 10 | A2b → A2 | `192.013-T` → `192.003-T` |
+| 11 | A2 → A3b | `192.003-T` → `192.005-T` |
+| 12 | A3b → A3c | `192.005-T` → `192.014-T` |
+| 13 | A3c → A3 | `192.014-T` → `192.006-T` |
+| 14 | A3 → A3d | `192.006-T` → `192.015-T` |
+| 15 | A3d → A4 | `192.015-T` → `192.007-T` |
+| 16 | A4 → A4b | `192.007-T` → `192.016-T` |
+| 17 | A4b → A5 | `192.016-T` → `192.008-T` |
+| 18 | A4b → A7 | `192.016-T` → `192.010-T` |
+| 19 | A5 → A5b | `192.008-T` → `192.020-T` |
+| 20 | A5b → A5c | `192.020-T` → `192.021-T` |
+| 21 | A5c → A6 | `192.021-T` → `192.009-T` |
+| 22 | A6 → A6b | `192.009-T` → `192.022-T` |
 
 ```text
-A1 → A1c ─┬─→ A1b → A3a → A2a ─┐
-          └─→ A2b ─────────────┴─→ A2 → A3b → A3c → A3 → A3d ─┬─→ A4 → A4b → A5 → A6
-                                                              └─→ A7
+A1 → A1d → A1e → A1f → A1c ─┬─→ A1b → A3a → A2a ─┐
+                            └─→ A2b ─────────────┴─→ A2 → A3b → A3c → A3 → A3d → A4 → A4b ─┬─→ A5 → A5b → A5c → A6 → A6b
+                                                                                           └─→ A7
 ```
 
-Manifest (linear topological) order: A1, A1c, A1b, A3a, A2a, A2b, A2, A3b,
-A3c, A3, A3d, A4, A4b, A5, A6, A7. A2b sits after A2a in the manifest only to
-keep the order linear. It has no edge from A2a. The removed task edge
-"`192.004-T` depends on `192.003-T`" (A3a on A2) is not in this graph,
-because A2 now depends on A3a through A2a.
+Manifest (linear topological) order: A1, A1d, A1e, A1f, A1c, A1b, A3a, A2a,
+A2b, A2, A3b, A3c, A3, A3d, A4, A4b, A5, A5b, A5c, A6, A6b, A7 (22 tasks;
+the 198-S manifest is 23 items with the covering feature `192-F` first).
+A2b sits after A2a in the manifest only to keep the order linear. It has no
+edge from A2a. The removed task edge "`192.004-T` depends on `192.003-T`"
+(A3a on A2) is not in this graph, because A2 now depends on A3a through A2a.
 
-(Earlier forms: before the cycle-1 splits, A1 → A1b → A3a → A2a → A2 → A3b →
-A3 → A4 → A5 → A6, and A3 → A7; before the 2026-10-02 re-plan, A1 → A1b → A2
-→ A3a → A3b.)
+(Earlier forms: before Copilot PR #481 cycle 1, 16 edges with A1 → A1c,
+A5 → A6, and A3d → A7; before the cycle-1 splits, A1 → A1b → A3a → A2a → A2
+→ A3b → A3 → A4 → A5 → A6, and A3 → A7; before the 2026-10-02 re-plan, A1 →
+A1b → A2 → A3a → A3b.)
 
-* A1c extends A1's validator. A1b, A2b, A2, A3b, A3c, A4, and A4b consume the
-  A1/A1c contract and validator.
+* A1d, A1e, and A1f implement the A1 record codec, and A1c extends A1's
+  validator (its fixtures build dispositions with A1f
+  `disposition_plan_to_record`). A1b, A2b, A2, A3b, A3c, A4, and A4b consume
+  the A1-A1f contract, codec, and validator.
 * A3a depends only on A1b's `StreamCapture`. It precedes A2, because the CLI
   engine probe needs its runner.
 * A2a depends on A3a's `run_bounded` and `ResolvedBinary` seam (and, through
@@ -2117,12 +2134,16 @@ A3 → A4 → A5 → A6, and A3 → A7; before the 2026-10-02 re-plan, A1 → A1
 * A4 follows A3d so the gate and the command land against one settled record
   shape. A4b extends A4's `close_evidence` check. A4 and A4b both edit
   `_evaluate_closure_evidence`, so they stay serial.
-* A5 and A6 both touch `.autoharness/harness-manifest.yaml`, so they stay serial.
-* A4, A4b, A5, and A6 must ship in the same release unit (one PR). The stricter
-  gate must never land ahead of the skill and agent routing that produces its
-  evidence.
-* A7 documents the shipped command behavior.
-* The task-level edges are listed in the Re-plan amendment's harvest delta.
+* A5, A5b, and A6 each touch `.autoharness/harness-manifest.yaml`, so they
+  stay serial (A6 depends on A5c, which follows A5b).
+* A4, A4b, A5, A5b, A5c, A6, and A6b must ship in the same release unit (one
+  PR; label `release-unit-a4-a6`). The stricter gate must never land ahead of
+  the skill and agent routing that produces its evidence.
+* A7 documents the shipped command behavior and the closure-evidence gate's
+  new `failed_check` values and `warnings[]`, so it follows A4b (Copilot PR
+  #481 T7).
+* The task-level edges are the 22 rows above and the dependency table in the
+  Copilot cycle 1 amendment.
 
 ## Decisions and Rationale
 
@@ -2269,7 +2290,8 @@ Requires plan hardening: yes
   | Persist subprocess output into the repository | medium | Redaction tests in A1 are a merge prerequisite |
   | Edit the skill and agent templates plus mirrors and manifest checksums | low | Checksums refreshed from the raw staged blob (IM-12) |
 
-* **Rollback:** each unit is a separate commit. Reverting A5 and A6 restores the
+* **Rollback:** each unit is a separate commit. Reverting A5, A5b, and A6
+  (with their assertion units A5c and A6b) restores the
   prose path. Reverting A4 restores the old gate. The command itself is additive.
   Rollback trigger: any closure that the new gate FAILs incorrectly, or any wrapper
   crash during a real closure. In that case Ship halts and records a P-005 deviation
@@ -2458,8 +2480,9 @@ D2, D3a, D4a) as a testable plan invariant.
     unit, and A2b (S / medium) takes the observation set out of A2, so A2
     stays inside the 2-hour rule. The other re-plan units are also split:
     A1c, A3c, A3d, and A4b. The granularity table under Implementation Units
-    records files and test-scenario counts for all 16 units. None exceeds
-    four scenarios.
+    records files and test-scenario counts for all 16 units (22 after
+    Copilot PR #481 cycle 1 added A1d, A1e, A1f, A5b, A5c, and A6b). None
+    exceeds four scenarios.
 * **Additional ProposedAction / ActionRisk:**
 
   | ProposedAction | ActionRisk | Approval |
