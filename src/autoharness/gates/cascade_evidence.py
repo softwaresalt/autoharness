@@ -10,7 +10,10 @@ closure-evidence gate (A4/A4b) and the ``shipment_close`` command. It owns:
   *selected* close path, never the classifier verdict;
 * :func:`redact`, the one redaction function every persisted free-text field
   goes through;
-* :class:`CascadeEvidenceError`, the single error type.
+* :class:`CascadeEvidenceError`, the single error type;
+* the pure record codec (``*_to_record`` / ``*_from_record``) that every
+  writer and every comparison uses, so one encoder and one decoder exist per
+  record field (A1d: ``declared_status`` and observation entries).
 
 Layering (AS-F07): this module never writes, never spawns a subprocess, never
 imports the command package and defines no exit codes.
@@ -24,9 +27,11 @@ so a hand-edited verdict or selection is rejected.
 
 from __future__ import annotations
 
+import datetime
 import json
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
 
@@ -130,6 +135,220 @@ _REDACTION_RULES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
 class CascadeEvidenceError(Exception):
     """The single error type of the close-evidence contract."""
 
+
+# ---------------------------------------------------------------------------
+# Record codec: declared_status and observation entries (plan unit A1d)
+# ---------------------------------------------------------------------------
+
+
+class _DeclaredStatusMissing:
+    """Sentinel for a frontmatter with no ``status`` key at all."""
+
+    _instance: _DeclaredStatusMissing | None = None
+
+    def __new__(cls) -> _DeclaredStatusMissing:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "DECLARED_STATUS_MISSING"
+
+
+DECLARED_STATUS_MISSING: Final = _DeclaredStatusMissing()
+
+
+@dataclass(frozen=True)
+class OpaqueStatus:
+    """The decoded form of an ``other`` tag: only the original type name is kept."""
+
+    type_name: str
+
+
+@dataclass(frozen=True)
+class ObservationEntry:
+    """One safe-close observation-set entry (``location: missing`` has null fields)."""
+
+    id: str
+    path: str | None
+    location: str
+    sha256: str | None
+    declared_status: object
+
+
+_STATUS_TAGS: Final = frozenset(
+    {"missing", "null", "bool", "int", "float", "date", "datetime", "list", "mapping", "other"}
+)
+_OBSERVATION_KEYS: Final = frozenset({"id", "path", "location", "sha256", "declared_status"})
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def declared_status_to_record(value: object) -> str | dict[str, object]:
+    """Encode a parsed frontmatter scalar canonically (re-plan cycle-1 R8).
+
+    An exact ``str`` is stored as the JSON string. Every other value is a
+    tagged object ``{"type": tag, "value": canonical text or null}``, so a YAML
+    date never compares equal to a quoted date string.
+    """
+
+    if type(value) is str:
+        return value
+    if value is DECLARED_STATUS_MISSING:
+        return {"type": "missing", "value": None}
+    if value is None:
+        return {"type": "null", "value": None}
+    if type(value) is bool:
+        return {"type": "bool", "value": "true" if value else "false"}
+    if type(value) is int:
+        return {"type": "int", "value": str(value)}
+    if type(value) is float:
+        return {"type": "float", "value": repr(value)}
+    if type(value) is datetime.datetime:
+        return {"type": "datetime", "value": value.isoformat()}
+    if type(value) is datetime.date:
+        return {"type": "date", "value": value.isoformat()}
+    if type(value) is list:
+        return {"type": "list", "value": _canonical_json([declared_status_to_record(item) for item in value])}
+    if type(value) is dict:
+        encoded = {str(key): declared_status_to_record(item) for key, item in value.items()}
+        return {"type": "mapping", "value": _canonical_json(encoded)}
+    if type(value) is OpaqueStatus:
+        return {"type": "other", "value": value.type_name}
+    return {"type": "other", "value": type(value).__name__}
+
+
+def _decode_tagged(tag: str, text: object) -> object:
+    if tag == "missing":
+        return DECLARED_STATUS_MISSING
+    if tag == "null":
+        return None
+    if type(text) is not str:
+        raise CascadeEvidenceError(f"declared_status tag {tag!r} requires a string value")
+    if tag == "bool":
+        if text not in ("true", "false"):
+            raise CascadeEvidenceError(f"declared_status bool value {text!r} is not 'true' or 'false'")
+        return text == "true"
+    if tag == "int":
+        return int(text)
+    if tag == "float":
+        return float(text)
+    if tag == "date":
+        return datetime.date.fromisoformat(text)
+    if tag == "datetime":
+        return datetime.datetime.fromisoformat(text)
+    if tag == "list":
+        items = json.loads(text)
+        if type(items) is not list:
+            raise CascadeEvidenceError("declared_status list value is not a JSON list")
+        return [declared_status_from_record(item) for item in items]
+    if tag == "mapping":
+        items = json.loads(text)
+        if type(items) is not dict:
+            raise CascadeEvidenceError("declared_status mapping value is not a JSON object")
+        return {key: declared_status_from_record(item) for key, item in items.items()}
+    if text == "":
+        raise CascadeEvidenceError("declared_status other value must name a type")
+    return OpaqueStatus(text)
+
+
+def declared_status_from_record(record_value: object) -> object:
+    """Decode a canonical ``declared_status`` record value.
+
+    Raises :class:`CascadeEvidenceError` on an unknown tag, a malformed tagged
+    object, a non-object non-string value, or any non-canonical encoding, so
+    ``declared_status_to_record(declared_status_from_record(r)) == r`` holds
+    for every accepted ``r``.
+    """
+
+    if type(record_value) is str:
+        return record_value
+    if not isinstance(record_value, Mapping):
+        raise CascadeEvidenceError(
+            f"declared_status must be a string or a tagged object (got {type(record_value).__name__})"
+        )
+    if set(record_value) != {"type", "value"}:
+        raise CascadeEvidenceError(
+            f"declared_status tagged object must have exactly 'type' and 'value' (got {sorted(map(str, record_value))})"
+        )
+    tag = record_value["type"]
+    if tag not in _STATUS_TAGS:
+        raise CascadeEvidenceError(f"declared_status has unknown tag {tag!r}")
+    text = record_value["value"]
+    if tag in ("missing", "null") and text is not None:
+        raise CascadeEvidenceError(f"declared_status tag {tag!r} requires a null value")
+    try:
+        decoded = _decode_tagged(tag, text)
+    except CascadeEvidenceError:
+        raise
+    except (ValueError, TypeError, OverflowError, RecursionError) as exc:
+        raise CascadeEvidenceError(f"declared_status {tag!r} value {text!r} is malformed: {exc}") from exc
+    if declared_status_to_record(decoded) != dict(record_value):
+        raise CascadeEvidenceError(f"declared_status {tag!r} value {text!r} is not canonical")
+    return decoded
+
+
+def observation_entry_to_record(entry: ObservationEntry) -> dict[str, object]:
+    """Encode one observation-set entry; ``location: missing`` keeps every other field null."""
+
+    if type(entry) is not ObservationEntry:
+        raise CascadeEvidenceError(f"expected an ObservationEntry (got {type(entry).__name__})")
+    if entry.location == "missing":
+        if entry.path is not None or entry.sha256 is not None or entry.declared_status is not None:
+            raise CascadeEvidenceError(
+                f"observation entry {entry.id!r}: a missing entry has null path, sha256 and declared_status"
+            )
+        status: object = None
+    else:
+        status = declared_status_to_record(entry.declared_status)
+    record = {
+        "id": entry.id,
+        "path": entry.path,
+        "location": entry.location,
+        "sha256": entry.sha256,
+        "declared_status": status,
+    }
+    observation_entry_from_record(record)  # one decoder: reject what it would reject
+    return record
+
+
+def observation_entry_from_record(record: object) -> ObservationEntry:
+    """Decode one observation-set entry record; raises :class:`CascadeEvidenceError`."""
+
+    if not isinstance(record, Mapping):
+        raise CascadeEvidenceError("observation entry must be an object")
+    keys = set(record)
+    if keys != _OBSERVATION_KEYS:
+        raise CascadeEvidenceError(
+            f"observation entry keys must be {sorted(_OBSERVATION_KEYS)} (got {sorted(map(str, keys))})"
+        )
+    entry_id = record["id"]
+    if type(entry_id) is not str or entry_id == "":
+        raise CascadeEvidenceError("observation entry id must be a non-empty string")
+    location = record["location"]
+    if location not in _LOCATIONS:
+        raise CascadeEvidenceError(f"observation entry {entry_id!r}: unknown location {location!r}")
+    if location == "missing":
+        if record["path"] is not None or record["sha256"] is not None or record["declared_status"] is not None:
+            raise CascadeEvidenceError(
+                f"observation entry {entry_id!r}: a missing entry has null path, sha256 and declared_status"
+            )
+        return ObservationEntry(id=entry_id, path=None, location=location, sha256=None, declared_status=None)
+    path = record["path"]
+    if type(path) is not str or path == "":
+        raise CascadeEvidenceError(f"observation entry {entry_id!r}: path must be a non-empty string")
+    sha256 = record["sha256"]
+    if not _is_sha256(sha256):
+        raise CascadeEvidenceError(f"observation entry {entry_id!r}: sha256 must be a lowercase hex digest")
+    return ObservationEntry(
+        id=entry_id,
+        path=path,
+        location=location,
+        sha256=sha256,
+        declared_status=declared_status_from_record(record["declared_status"]),
+    )
 
 def redact(text: str) -> tuple[str, bool]:
     """Return ``(redacted_text, redaction_applied)`` for one free-text value.
@@ -244,8 +463,12 @@ def _is_sha256(value: object) -> bool:
 
 
 def _is_declared_status(value: object) -> bool:
-    # Plain shape check; the A1d decoder owns the canonical encoding.
-    return type(value) is str or isinstance(value, Mapping)
+    # One decoder (A1d): a value is well-typed only if the codec accepts it.
+    try:
+        declared_status_from_record(value)
+    except CascadeEvidenceError:
+        return False
+    return True
 
 
 class _Checker:
@@ -512,6 +735,10 @@ def _check_pre_close(checker: _Checker, pre_close: Mapping[str, object], close_p
                 checker.fail(f"{entry_where}.path", "must be null when location is missing")
             else:
                 checker.record_path(path, f"{entry_where}.path", nullable=location == "missing")
+            try:
+                observation_entry_from_record(entry)
+            except CascadeEvidenceError as exc:
+                checker.fail(entry_where, str(exc))
     elif "observation_set" in pre_close:
         checker.fail(f"{where}.observation_set", "is recorded only on a selected SAFE_CLOSE")
 
