@@ -27,12 +27,14 @@ lock.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import datetime
 import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import threading
 import time
@@ -413,15 +415,41 @@ class PairLock:
     held: bool = True
 
     def release(self) -> None:
+        """Remove our own lock; never raises (it runs in ``finally``, 198-S local review).
+
+        A Windows sharing violation (AV/indexer) is retried with the same
+        bounded backoff as :func:`_replace_with_retry`; on final failure a
+        stderr warning names the lock for operator removal and the lock is
+        left in place rather than replacing the run's real outcome.
+        """
+
         if not self.held:
             return
         self.held = False
         # Only ever remove our own lock.
-        if _lock_run_id(self.lock_path) == self.run_id:
+        if _lock_run_id(self.lock_path) != self.run_id:
+            return
+        for attempt in range(_REPLACE_RETRIES + 1):
             try:
                 os.unlink(self.lock_path)
+                return
             except FileNotFoundError:
-                pass
+                return
+            except PermissionError as exc:
+                if attempt < _REPLACE_RETRIES:
+                    time.sleep(_REPLACE_BACKOFF_SECONDS * (2**attempt))
+                    continue
+                failure: OSError = exc
+            except OSError as exc:
+                failure = exc
+            break
+        try:
+            sys.stderr.write(
+                f"warning: cannot remove cascade-close lock {self.lock_path}: {failure}; "
+                "remove it manually (an operator action) before the next run\n"
+            )
+        except (OSError, ValueError):
+            pass
 
     def __enter__(self) -> PairLock:
         return self
@@ -466,10 +494,16 @@ def acquire_pair_lock(workspace: Path | str, shipment_id: str, feature_id: str, 
         raise PersistError(EXIT_INPUT, f"cannot create lock {lock_path}: {exc}") from exc
     payload = json.dumps({"run_id": run_id, "pid": os.getpid(), "started_at": _utc_now()}, sort_keys=True)
     try:
-        os.write(fd, (payload + "\n").encode("utf-8"))
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+        try:
+            os.write(fd, (payload + "\n").encode("utf-8"))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        # Never leave a half-written O_EXCL lock behind (198-S local review).
+        with contextlib.suppress(OSError):
+            os.unlink(lock_path)
+        raise PersistError(EXIT_INPUT, f"cannot write lock {lock_path}: {exc}") from exc
     return PairLock(
         workspace=root,
         shipment_id=shipment_id,

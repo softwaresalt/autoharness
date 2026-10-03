@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import io
 import json
 import os
 import tempfile
@@ -296,6 +297,56 @@ class LockAndDirectoryTrustTests(unittest.TestCase):
             workspace = _Workspace(self)
             with self.assertRaises(PersistError):
                 acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, "not-a-run-id")
+
+    def test_lock_write_failure_is_persist_error_and_leaves_no_lock(self) -> None:
+        # 198-S local review: os.write/os.fsync OSError must not escape raw or
+        # leave a half-written O_EXCL lock behind.
+        for target in ("write", "fsync"):
+            with self.subTest(target):
+                workspace = _Workspace(self)
+                with mock.patch.object(persist.os, target, side_effect=OSError(28, "No space left on device")):
+                    with self.assertRaises(PersistError) as caught:
+                        acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, _RUN_A)
+                self.assertEqual(caught.exception.exit_code, EXIT_INPUT)
+                self.assertIn("cannot write lock", str(caught.exception))
+                self.assertEqual([p for p in workspace.root.rglob("*.lock")], [])
+                with acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, _RUN_B) as lock:
+                    self.assertTrue(lock.lock_path.exists())
+
+    def test_release_retries_unlink_and_never_raises(self) -> None:
+        # 198-S local review: a Windows sharing violation on unlink must not
+        # replace the real outcome from a ``finally`` release.
+        with self.subTest("a transient PermissionError is retried"):
+            workspace = _Workspace(self)
+            lock = acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, _RUN_A)
+            real_unlink = os.unlink
+            calls = {"count": 0}
+
+            def flaky_unlink(path, *args, **kwargs):
+                calls["count"] += 1
+                if calls["count"] == 1:
+                    raise PermissionError(13, "sharing violation")
+                return real_unlink(path, *args, **kwargs)
+
+            with mock.patch.object(persist.os, "unlink", flaky_unlink), mock.patch.object(persist.time, "sleep"):
+                lock.release()
+            self.assertEqual(calls["count"], 2)
+            self.assertFalse(lock.lock_path.exists())
+
+        with self.subTest("a persistent failure warns on stderr and leaves the lock"):
+            workspace = _Workspace(self)
+            lock = acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, _RUN_A)
+            stderr = io.StringIO()
+            with (
+                mock.patch.object(persist.os, "unlink", side_effect=PermissionError(13, "sharing violation")),
+                mock.patch.object(persist.time, "sleep"),
+                mock.patch.object(persist.sys, "stderr", stderr),
+            ):
+                lock.release()  # must not raise
+            self.assertFalse(lock.held)
+            self.assertTrue(lock.lock_path.exists())
+            self.assertIn(str(lock.lock_path), stderr.getvalue())
+            self.assertIn("operator", stderr.getvalue())
 
 
 class ExistingRecordCheckTests(unittest.TestCase):
