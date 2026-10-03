@@ -62,9 +62,9 @@ __all__ = [
 ]
 
 REGISTRY_PATH: Final = Path(".autoharness") / "backlog-registry.yaml"
-DEFAULT_TIMEOUT_SECONDS: Final = 120
+DEFAULT_TIMEOUT_SECONDS: Final = 1800
 MIN_TIMEOUT_SECONDS: Final = 30
-MAX_TIMEOUT_SECONDS: Final = 900
+MAX_TIMEOUT_SECONDS: Final = 3600
 
 _BARE_NAME: Final = re.compile(r"[A-Za-z0-9_-]+")
 _READ_CHUNK: Final = 65536
@@ -103,7 +103,7 @@ def _utc_now() -> str:
 
 
 def validate_timeout(value: object) -> int:
-    """Return a ``--timeout`` value in 30-900 s; anything else is exit 2."""
+    """Return a ``--timeout`` value in [MIN_TIMEOUT_SECONDS, MAX_TIMEOUT_SECONDS]; anything else is exit 2."""
 
     if type(value) is not int or not MIN_TIMEOUT_SECONDS <= value <= MAX_TIMEOUT_SECONDS:
         raise PersistError(

@@ -218,8 +218,8 @@ class ArgumentParsingTests(unittest.TestCase):
     def test_invalid_argument_table(self) -> None:
         no_sha = ("shipment", "cascade-close", "--shipment", "900-S", "--feature", "600-F")
         cases = [
-            ("timeout below range", (*_MUTATING, "--timeout", "29")),
-            ("timeout above range", (*_MUTATING, "--timeout", "901")),
+            ("timeout below range", (*_MUTATING, "--timeout", str(runner.MIN_TIMEOUT_SECONDS - 1))),
+            ("timeout above range", (*_MUTATING, "--timeout", str(runner.MAX_TIMEOUT_SECONDS + 1))),
             ("non-integer timeout", (*_MUTATING, "--timeout", "1e2")),
             ("lone --replace-pre-close", (*_MUTATING, "--replace-pre-close")),
             ("lone --replace-pre-close without message", (*_BASE, "--replace-pre-close")),
@@ -274,7 +274,10 @@ class ArgumentParsingTests(unittest.TestCase):
             stubs.mutating.assert_not_called()
 
         with self.subTest("mutating mode with the default and an explicit --timeout"):
-            for extra, timeout in (((), runner.DEFAULT_TIMEOUT_SECONDS), (("--timeout", "900"), 900)):
+            for extra, timeout in (
+                ((), runner.DEFAULT_TIMEOUT_SECONDS),
+                (("--timeout", str(runner.MAX_TIMEOUT_SECONDS)), runner.MAX_TIMEOUT_SECONDS),
+            ):
                 payload, _code, stubs = _json(*_MUTATING, *extra, mutating=mutating)
                 self.assertEqual(payload["mode"], "mutating")
                 stubs.mutating.assert_called_once_with(
