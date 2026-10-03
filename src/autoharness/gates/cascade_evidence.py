@@ -43,6 +43,7 @@ from autoharness.gates.closure_contract import (
     validate_closure_id,
 )
 from autoharness.gates.shipment_closure import (
+    PLANNED_ARCHIVE,
     ClosePath,
     ClosePathDecision,
     DeliberationRecordSnapshot,
@@ -1127,6 +1128,116 @@ def _check_safe_close(checker: _Checker, record: Mapping[str, object], pre_close
         )
 
 
+# ---------------------------------------------------------------------------
+# Disposition and set-term rules (plan unit A1c)
+# ---------------------------------------------------------------------------
+
+# Pre-mutation outcomes only (re-plan cycle-1 R13): the command never archives,
+# so the post-mutation "archived" is never a recorded outcome.
+_UNVERIFIED_OUTCOMES: Final = frozenset(
+    {
+        LinkedDeliberationOutcome.RETAINED_READ_ERROR.value,
+        LinkedDeliberationOutcome.RETAINED_AMBIGUOUS.value,
+        LinkedDeliberationOutcome.ALREADY_ARCHIVED.value,
+        LinkedDeliberationOutcome.RETAINED_ENGINE_UNVERIFIED.value,
+    }
+)
+_PRE_MUTATION_OUTCOMES: Final = _UNVERIFIED_OUTCOMES | frozenset(
+    {
+        PLANNED_ARCHIVE,
+        LinkedDeliberationOutcome.RETAINED_LIVE_STATUS.value,
+        LinkedDeliberationOutcome.RETAINED_SHARED_REFERENCE.value,
+        LinkedDeliberationOutcome.RETAINED_DESCRIPTION_MENTION.value,
+    }
+)
+
+
+def _check_disposition_rules(
+    checker: _Checker, record: Mapping[str, object], pre_close: Mapping[str, object], close_path: str
+) -> None:
+    """Disposition, set-term, and observation-set rules (re-plan R5, D2, D3a; cycle-1 R2/R13; cycle-2 C2-1)."""
+
+    where = "record.pre_close.linked_deliberation_disposition"
+    snapshot = checker.mapping(pre_close, "linked_deliberation_disposition", "record.pre_close")
+    if snapshot is None:
+        return
+    if snapshot.get("planning_error", _MISSING) is not None:
+        checker.fail(f"{where}.planning_error", "must be null (the command never records a failed plan)")
+
+    engine = pre_close.get("engine_semantics")
+    engine_verdict = engine.get("verdict") if isinstance(engine, Mapping) else None
+    raw_dispositions = snapshot.get("dispositions")
+    dispositions = [
+        entry for entry in (raw_dispositions if type(raw_dispositions) is list else []) if isinstance(entry, Mapping)
+    ]
+
+    disposition_ids: set[str] = set()
+    expected_observations: dict[tuple[str, str], object] = {}
+    for index, disposition in enumerate(dispositions):
+        entry_where = f"{where}.dispositions[{index}]"
+        deliberation_id = disposition.get("deliberation_id")
+        if type(deliberation_id) is str:
+            disposition_ids.add(deliberation_id)
+        outcome = disposition.get("outcome")
+        if outcome not in _PRE_MUTATION_OUTCOMES or type(outcome) is not str:
+            checker.fail(f"{entry_where}.outcome", f"must be a pre-mutation outcome (got {outcome!r})")
+            outcome = None
+        if not _is_nonempty_str(disposition.get("reason_code")):
+            checker.fail(f"{entry_where}.reason_code", "must be a non-empty string")
+        # Engine/outcome consistency, both ways (D3a; cycle-1 R13).
+        if outcome is not None:
+            if engine_verdict == EngineSemanticsVerdict.UNVERIFIED.value and outcome not in _UNVERIFIED_OUTCOMES:
+                checker.fail(f"{entry_where}.outcome", f"{outcome!r} is impossible under an UNVERIFIED engine")
+            if (
+                engine_verdict == EngineSemanticsVerdict.VERIFIED.value
+                and outcome == LinkedDeliberationOutcome.RETAINED_ENGINE_UNVERIFIED.value
+            ):
+                checker.fail(f"{entry_where}.outcome", "retained_engine_unverified requires an UNVERIFIED engine")
+        if outcome == LinkedDeliberationOutcome.ALREADY_ARCHIVED.value or type(deliberation_id) is not str:
+            continue
+        records = disposition.get("records")
+        for snapshot_record in records if type(records) is list else []:
+            if isinstance(snapshot_record, Mapping) and type(snapshot_record.get("path")) is str:
+                expected_observations[(deliberation_id, snapshot_record["path"])] = snapshot_record.get("sha256")
+
+    # No linked-deliberation set terms (D2).
+    post_close = record.get("post_close")
+    if isinstance(post_close, Mapping):
+        for key in ("allowed_ids", "required_ids"):
+            terms = post_close.get(key)
+            leaked = sorted(disposition_ids & set(terms)) if _is_str_list(terms) else []
+            if leaked:
+                checker.fail(f"record.post_close.{key}", f"contains disposition-set deliberation(s) {leaked}")
+
+    # Disposition-set deliberations in the observation set (cycle-1 R2; cycle-2 C2-1).
+    observation = pre_close.get("observation_set")
+    if type(observation) is not list:
+        return
+    observed = [
+        entry for entry in observation if isinstance(entry, Mapping) and entry.get("id") in disposition_ids
+    ]
+    unverified_safe_close = (
+        close_path == "safe_close" and engine_verdict == EngineSemanticsVerdict.UNVERIFIED.value
+    )
+    if not unverified_safe_close:
+        for entry in observed:
+            checker.fail("record.pre_close.observation_set", f"holds disposition-set deliberation {entry.get('id')!r}")
+        return
+    seen: dict[tuple[str, str], int] = {}
+    for entry in observed:
+        key = (entry.get("id"), entry.get("path"))
+        if key not in expected_observations:
+            checker.fail("record.pre_close.observation_set", f"unexpected disposition-set entry {key!r}")
+            continue
+        seen[key] = seen.get(key, 0) + 1
+        if entry.get("sha256") != expected_observations[key]:
+            checker.fail("record.pre_close.observation_set", f"entry {key!r} sha256 disagrees with the snapshot")
+    for key in expected_observations:
+        count = seen.get(key, 0)
+        if count != 1:
+            checker.fail("record.pre_close.observation_set", f"expected exactly one entry for {key!r} (got {count})")
+
+
 def validate_evidence_record(
     record: Mapping[str, object],
     *,
@@ -1165,6 +1276,7 @@ def validate_evidence_record(
     pre_close = checker.mapping(record, "pre_close", "record")
     if pre_close is not None:
         _check_pre_close(checker, pre_close, close_path)
+        _check_disposition_rules(checker, record, pre_close, close_path)
     if len(checker.roots) > 1:
         checker.fail("record", f"path fields span more than one backlog root {sorted(checker.roots)}")
 
