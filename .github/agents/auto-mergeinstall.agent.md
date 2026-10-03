@@ -3,6 +3,7 @@ name: Auto-MergeInstall
 description: "Discovers target workspace characteristics and composes a customized agent harness from universal primitive templates"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo
+max_subagent_tier: 2
 subagent_depth: 2
 ---
 

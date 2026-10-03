@@ -3,6 +3,7 @@ name: Auto-Tune
 description: "Iteratively adapts an installed agent harness to match codebase evolution, detecting drift and proposing targeted updates"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo
+max_subagent_tier: 2
 subagent_depth: 2
 ---
 
