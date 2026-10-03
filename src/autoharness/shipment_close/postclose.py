@@ -14,6 +14,10 @@
   caller (A3) supplies the post-close re-read as a :class:`PostCloseReread`,
   and the A3c linked-deliberation drift results as keyword arguments. Every
   check is separately labelled and fails the verdict on its own (INV-P3).
+* :func:`evaluate_linked_deliberation_drift` (A3c) is the authoritative
+  engine-drift check over the disposition-set deliberations (``archived``,
+  ``modified``, ``snapshot_drift``, ``planning_error``), comparing A1f
+  encodings only; :func:`disposition_byte_identical` derives the flag from it.
 * :func:`derive_mutation_state` derives ``invocation.mutation_state``. A
   timeout is never read as "no mutation", and ``none`` needs positive proof
   that nothing fingerprinted changed.
@@ -36,12 +40,18 @@ from autoharness.gates.cascade_evidence import (
     CascadeEvidenceError,
     declared_status_from_record,
     declared_status_to_record,
+    disposition_plan_to_record,
     redact,
 )
 from autoharness.gates.shipment_closure import LinkedDeliberationDispositionPlan
 from autoharness.shipment_close.preclose import PreCloseSnapshot
 
 __all__ = [
+    "DRIFT_ARCHIVED",
+    "DRIFT_MODIFIED",
+    "DRIFT_PLANNING_ERROR",
+    "DRIFT_SNAPSHOT",
+    "DriftEntry",
     "MUTATION_COMPLETED",
     "MUTATION_INDETERMINATE",
     "MUTATION_NONE",
@@ -52,6 +62,8 @@ __all__ = [
     "RereadRecord",
     "compute_flat_sets",
     "derive_mutation_state",
+    "disposition_byte_identical",
+    "evaluate_linked_deliberation_drift",
     "evaluate_postconditions",
     "parse_ship_response",
 ]
@@ -318,6 +330,168 @@ def derive_mutation_state(
     if exit_code == 0 or reread is None:
         return MUTATION_INDETERMINATE
     return MUTATION_NONE if _nothing_changed(snapshot, reread) else MUTATION_INDETERMINATE
+
+
+# ---------------------------------------------------------------------------
+# Linked-deliberation drift (A3c)
+# ---------------------------------------------------------------------------
+
+DRIFT_ARCHIVED: Final = "archived"
+DRIFT_MODIFIED: Final = "modified"
+DRIFT_SNAPSHOT: Final = "snapshot_drift"
+DRIFT_PLANNING_ERROR: Final = "planning_error"
+
+# The outcomes whose change is drift (re-plan cycle-2 C2-3). Any other outcome
+# change (for example the planned "archive" and retained_shared_reference
+# swapping on a live referrer outside closure_scope(S)) is re-planned by the
+# disposition step and is not drift.
+_SETTLED_OUTCOMES: Final = frozenset({"retained_read_error", "retained_ambiguous", "already-archived"})
+_READ_ERROR_OUTCOME: Final = "retained_read_error"
+# The per-deliberation fields snapshot_drift compares besides the outcome. The
+# records' path and SHA-256 are the ``modified`` check; referrer_ids is not
+# compared (it changes with retained_shared_reference).
+_SNAPSHOT_DISPOSITION_FIELDS: Final = ("link_kinds", "linking_member_ids", "declared_status")
+
+
+@dataclass(frozen=True)
+class DriftEntry:
+    """One ``post_close.linked_deliberation_drift`` entry; ``deliberation_id`` is ``None`` for a plan-level entry."""
+
+    deliberation_id: str | None
+    kind: str
+    detail: str
+
+    def to_record(self) -> dict[str, object]:
+        return {"deliberation_id": self.deliberation_id, "kind": self.kind, "detail": self.detail}
+
+
+def _by_id(encoded: Mapping[str, object]) -> dict[str, Mapping[str, object]]:
+    dispositions = encoded.get("dispositions")
+    if not isinstance(dispositions, list):
+        return {}
+    return {
+        entry["deliberation_id"]: entry
+        for entry in dispositions
+        if isinstance(entry, Mapping) and type(entry.get("deliberation_id")) is str
+    }
+
+
+def _record_locations(entry: Mapping[str, object]) -> list[tuple[object, object]]:
+    records = entry.get("records")
+    if not isinstance(records, list):
+        return []
+    return sorted(
+        ((record.get("path"), record.get("sha256")) for record in records if isinstance(record, Mapping)),
+        key=repr,
+    )
+
+
+def _record_statuses(entry: Mapping[str, object]) -> dict[object, object]:
+    records = entry.get("records")
+    if not isinstance(records, list):
+        return {}
+    return {record.get("path"): record.get("declared_status") for record in records if isinstance(record, Mapping)}
+
+
+def _sorted_entries(encoded: Mapping[str, object], key: str) -> list[str]:
+    entries = encoded.get(key)
+    if not isinstance(entries, list):
+        return []
+    return sorted(json.dumps(entry, sort_keys=True) for entry in entries)
+
+
+def _compare_disposition(
+    deliberation_id: str, pre: Mapping[str, object], post: Mapping[str, object], drift: list[DriftEntry]
+) -> None:
+    if _record_locations(pre) != _record_locations(post):
+        drift.append(
+            DriftEntry(
+                deliberation_id,
+                DRIFT_MODIFIED,
+                f"records changed (pre-close {_record_locations(pre)}, post-close {_record_locations(post)})",
+            )
+        )
+    changed = [name for name in _SNAPSHOT_DISPOSITION_FIELDS if pre.get(name) != post.get(name)]
+    pre_statuses, post_statuses = _record_statuses(pre), _record_statuses(post)
+    if any(pre_statuses[path] != post_statuses[path] for path in pre_statuses.keys() & post_statuses.keys()):
+        changed.append("records.declared_status")
+    pre_outcome, post_outcome = pre.get("outcome"), post.get("outcome")
+    if (pre_outcome in _SETTLED_OUTCOMES or post_outcome in _SETTLED_OUTCOMES) and pre_outcome != post_outcome:
+        changed.append(f"outcome ({pre_outcome!r} -> {post_outcome!r})")
+    if pre_outcome == _READ_ERROR_OUTCOME and post_outcome == _READ_ERROR_OUTCOME:
+        changed.extend(name for name in ("path", "reason_code") if pre.get(name) != post.get(name))
+    if changed:
+        drift.append(DriftEntry(deliberation_id, DRIFT_SNAPSHOT, f"changed: {', '.join(changed)}"))
+
+
+def evaluate_linked_deliberation_drift(
+    snapshot: PreCloseSnapshot,
+    archived_ids: Sequence[str],
+    recollected: LinkedDeliberationDispositionPlan | None,
+) -> tuple[DriftEntry, ...]:
+    """Detect engine drift on the disposition-set deliberations; pure, never raises (A3c).
+
+    * ``archived``: a disposition-set deliberation is in ``archived_ids``;
+    * ``modified``: a record's SHA-256 differs, a record moved, or the
+      deliberation was not re-collected at all;
+    * ``snapshot_drift``: the deliberation IDs, link kinds, linking members,
+      declared statuses, unresolved references, or ``read_failures`` differ,
+      or a settled outcome changed (and, for ``retained_read_error``, its
+      ``path`` or ``reason_code``);
+    * ``planning_error``: the re-collection carries a ``planning_error``, was
+      not obtained (``None``), or cannot be encoded. The remaining
+      comparisons are then not made, because the plan is unusable; the entry
+      itself fails the verdict.
+
+    Every comparison is between the A1f ``disposition_plan_to_record``
+    encoding of ``recollected`` and the recorded pre-close encoding.
+    """
+
+    recorded = snapshot.pre_close.get("linked_deliberation_disposition")
+    recorded = recorded if isinstance(recorded, Mapping) else {}
+    pre_by_id = _by_id(recorded)
+    drift: list[DriftEntry] = []
+
+    archived = set(archived_ids)
+    for deliberation_id in sorted(pre_by_id):
+        if deliberation_id in archived:
+            drift.append(
+                DriftEntry(deliberation_id, DRIFT_ARCHIVED, "the cascade archived a disposition-set deliberation")
+            )
+
+    if recollected is None:
+        drift.append(DriftEntry(None, DRIFT_PLANNING_ERROR, "the post-close disposition was not re-collected"))
+        return tuple(drift)
+    if recollected.planning_error is not None:
+        detail = _error_text(f"the post-close re-collection reported planning_error: {recollected.planning_error}")
+        drift.append(DriftEntry(None, DRIFT_PLANNING_ERROR, detail))
+        return tuple(drift)
+    try:
+        encoded = disposition_plan_to_record(recollected)
+    except CascadeEvidenceError as exc:
+        detail = _error_text(f"the post-close re-collection cannot be encoded: {exc}")
+        drift.append(DriftEntry(None, DRIFT_PLANNING_ERROR, detail))
+        return tuple(drift)
+
+    post_by_id = _by_id(encoded)
+    for deliberation_id in sorted(pre_by_id.keys() - post_by_id.keys()):
+        drift.append(DriftEntry(deliberation_id, DRIFT_MODIFIED, "the deliberation's records were not re-collected"))
+        drift.append(DriftEntry(deliberation_id, DRIFT_SNAPSHOT, "the deliberation left the disposition set"))
+    for deliberation_id in sorted(post_by_id.keys() - pre_by_id.keys()):
+        drift.append(DriftEntry(deliberation_id, DRIFT_SNAPSHOT, "the deliberation joined the disposition set"))
+    for deliberation_id in sorted(pre_by_id.keys() & post_by_id.keys()):
+        _compare_disposition(deliberation_id, pre_by_id[deliberation_id], post_by_id[deliberation_id], drift)
+
+    for key in ("unresolved_references", "read_failures"):
+        if _sorted_entries(recorded, key) != _sorted_entries(encoded, key):
+            drift.append(DriftEntry(None, DRIFT_SNAPSHOT, f"{key} changed"))
+    return tuple(drift)
+
+
+def disposition_byte_identical(drift: Sequence[DriftEntry]) -> bool:
+    """``False`` when any record was modified or the re-collection was unusable (byte identity unproven)."""
+
+    return not any(entry.kind in (DRIFT_MODIFIED, DRIFT_PLANNING_ERROR) for entry in drift)
 
 
 # ---------------------------------------------------------------------------
