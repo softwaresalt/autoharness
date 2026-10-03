@@ -74,7 +74,10 @@ because its closure is pending. A new shipment therefore cannot be claimed. The
 fix is harvested as remediation tasks under the still-active feature `192-F`
 and appended to the active `198-S` manifest. **The operator explicitly
 authorized this change to the active shipment manifest as closure-blocking
-remediation** (Orchestrator relay, 2026-10-03, dark-factory P-017). Without
+remediation.** The Orchestrator relayed the authorization to Stage verbatim on
+2026-10-03 (dark-factory P-017, operator AFK): "This modification of the
+active shipment manifest is explicitly operator-authorized as closure-blocking
+remediation; record that authorization in the deliberation and plan." Without
 that authorization, Stage would not modify an active shipment's manifest.
 
 Depth: **standard**. The change is a shipped command's input contract, but it
@@ -202,23 +205,36 @@ of scope.
   `Default: 1800.`) and `docs/gates-reference.md` (`30-3600 seconds (default
   1800)`) state the new range. Tests derive their expectations from the runner
   constants, so the next change cannot leave a stale literal behind.
-* **D3 — Sizing rule (documented, not coded).** Use the formula in
-  `docs/gates-reference.md` and a one-paragraph note in the shipment-reconcile
-  Cascade Close Sub-Procedure (template and installed mirror):
+* **D3 — Sizing rule (documented, not coded).** Put the rule in
+  `docs/gates-reference.md` and in a self-contained, one-paragraph note in the
+  shipment-reconcile Cascade Close Sub-Procedure (template and installed
+  mirror). The template ships to target workspaces, so the note does not link
+  to this repository's `docs/` (plan review SB-01 / CR-02).
   * N = |closure_scope(S)| = manifest items + 1 (the shipment record).
-  * B(N) = ⌈1.5 × (133 + 35 × N)⌉ seconds.
+  * `B = ceil(1.5 * (F + P * N))` seconds, where F is the fixed cost and P the
+    per-artifact cost. On this workspace (backlogit 1.11.0), F = 133 s and
+    P = 35 s, so B(N) = ⌈1.5 × (133 + 35 × N)⌉.
   * B ≤ 1800: use the default.
   * 1800 < B ≤ 3600: pass `--timeout B`.
   * B > 3600: HALT before the mutating run. That needs an operator decision,
     and Ship never invokes with a timeout known to be too short.
-  * The coefficients are the backlogit 1.11.0 measurements from this
-    workspace. Re-derive them from `.backlogit/logs` when a cascade runs longer
-    than its model prediction by more than the margin's headroom.
-* **D4 — Attached run.** The note tells Ship to stay attached to the mutating
-  run until the command exits, and never to abandon or kill it on an agent-tool
-  wait shorter than `--timeout`. Killing the command externally mid-cascade
-  has the same torn-backlog effect as an internal timeout. This one sentence is
-  the only part of the agent-runtime question that the fix trivially requires.
+  * F and P are reference measurements. Re-derive them from the workspace's
+    `.backlogit/logs` when a cascade runs longer than its model prediction by
+    more than the margin's headroom.
+* **D4 — Attached run and circuit-breaker precedence.** The note tells Ship to
+  stay attached to the mutating run until the command exits, and never to
+  abandon or kill it on an agent-tool wait shorter than `--timeout`. Killing
+  the command externally mid-cascade has the same torn-backlog effect as an
+  internal timeout.
+  * The circuit-breaker instruction's Stall Detection says "If a command
+    exceeds its timeout, terminate the process", with 5 minutes for other
+    commands. Taken literally, that would tear every cascade longer than
+    5 minutes.
+  * So the note also states an interim, command-specific precedence: the
+    command's own `--timeout` is the stall bound for the mutating
+    `cascade-close` run, and the 5-minute "Other commands" limit does not
+    apply to it.
+  * The circuit-breaker instruction itself is not edited (plan review SB-02).
 * **D5 — No change** to the exit-code table, the evidence record, the
   validator, `run_bounded`, the kill path, `PROBE_TIMEOUT_SECONDS` (30 s; the
   version probe is fast), or `_KILL_WAIT_SECONDS`.
@@ -229,24 +245,35 @@ of scope.
   shipment is created (the `pre_claim` gate forbids a second active shipment).
 * **D7 — Consequence for the 198-S closure** (procedural, Ship-owned). The
   `pre_close` record `docs/closure/evidence/198-S-192-F-close-evidence.json`
-  snapshots the 23-item manifest. Once the remediation tasks join the manifest,
-  the mutating run's revalidation will see a different manifest and exit 4,
-  with nothing invoked. Before the mutating run, Ship must refresh the record
-  with `--classify-only --replace-pre-close`. That is a destructive command
-  that needs operator (destructive-command) approval. It must run after the
-  remediation tasks are `done` and the fix is merged. The mutating run then
-  uses the default 1800 s (N = 28, B = 1670 s).
+  snapshots the 23-item manifest at `merge_commit_sha` `eb8b7811`.
+  * Once the remediation tasks join the manifest, the mutating run's step-3
+    handed-off check (`_check_handed_off`) sees a different result and exits 4.
+    The record stays byte-identical and nothing is invoked.
+  * Before the mutating run, Ship must refresh the record with
+    `--classify-only --replace-pre-close`. That is a destructive command that
+    needs operator (destructive-command) approval. It runs after the
+    remediation tasks are `done` and the fix is merged.
+  * Both runs use the same `--sha`: the remediation PR's merge commit (plan
+    review SB-03 / CR-01). That commit contains the work of all 27 members.
+    Stamping `eb8b7811` would record the wrong commit on the remediation tasks.
+  * The mutating run then uses the default 1800 s (N = 28, B = 1670 s).
 
 ### Relation to stash `9869AA32` (out of scope)
 
 `9869AA32` asks whether long-running P-015 cascade closes need their own
 stall-detection timeout class in the agent circuit-breaker policy (the 5-minute
-"other commands" limit, which did not terminate the 9.8-minute 201-S run). That
-question is about agent-runtime policy (the circuit-breaker instruction). It is
-a different contract surface from this command's own `--timeout` bound. This
-fix does not need it. The command's bounded timeout stays the authoritative
-guard, and D4's single "stay attached" sentence covers the only interaction
-that matters here. `9869AA32` stays deferred in the stash, unchanged.
+"other commands" limit, which did not terminate the 9.8-minute 201-S run).
+
+* That question is about agent-runtime policy (the circuit-breaker
+  instruction). It is a different contract surface from this command's own
+  `--timeout` bound, and the general timeout class is out of scope.
+* The fix does trivially require one thing: Ship must not kill this one
+  command at 5 minutes. D4 supplies that as an interim, command-specific
+  precedence sentence in the skill. The circuit-breaker instruction is not
+  edited.
+* `9869AA32` stays deferred in the stash, unchanged. It remains the tracking
+  point for reconciling the circuit-breaker instruction with long-running
+  destructive commands.
 
 ## Rejected Alternatives
 
@@ -275,7 +302,7 @@ that matters here. `9869AA32` stays deferred in the stash, unchanged.
 | Risk | Mitigation |
 |---|---|
 | A hung engine now holds the locks for up to 30 min by default, or 60 min at the ceiling, instead of 2 or 15 min | Accepted. A hang ends in exit 6 and operator review either way. A too-short timeout tears a *healthy* cascade, which is the worse outcome. The ceiling stays finite. |
-| Index growth raises the per-artifact cost beyond the 1.5× margin | The sizing rule names the re-derivation source (`.backlogit/logs`). The margin absorbs about +45 % per-artifact growth. |
+| Index growth raises the per-artifact cost beyond the 1.5× margin | The sizing rule names the re-derivation source (`.backlogit/logs`). The 1.5 factor leaves at least 50 % headroom over the total model cost. |
 | Docs, help, and constants drift apart again | Tests derive expected strings from the runner constants (D2). |
 | Ship forgets the sizing rule for a large shipment | For every size seen so far, the default already covers B(N). Above N = 30, the skill note is pinned by a docs test. |
 | The 198-S record no longer matches the grown manifest | D7: a `--replace-pre-close` refresh under operator approval before the mutating run. Exit 4 is non-mutating, so a missed refresh fails safe. |
