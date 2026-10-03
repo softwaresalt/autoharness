@@ -135,6 +135,19 @@ autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}
   `cascade-close` run wrote; never hand-edit the evidence record, and treat a
   `close_evidence` failure against a record the close already wrote as an
   operator-review HALT.
+* **Enforcement scope and pre-192-F closures**: the `close_path` and
+  `close_evidence` checks are enforced only at write time, by the
+  `cascade-close` command (which validates its `pre_close` record before
+  writing it) and by this gate run before the artifact is committed. The
+  `pipeline-topology` gate's predecessor-closure predicate does **not**
+  enforce them: it reads only `compaction_status` and `closure_status` (with
+  its `conditions`), never `close_path`, `close_evidence`, or the evidence
+  record, so a successor's `pre_claim` does not re-verify the close path and a
+  skipped gate run is not caught downstream. Closure artifacts committed
+  before 192-F carry neither key and no evidence record: they are not
+  expected to pass these checks, they remain predecessor-closure evidence for
+  the topology gate, and they must not be backfilled or given a fabricated
+  evidence record.
 
 ### Step 4: Feed Back into the Harness
 

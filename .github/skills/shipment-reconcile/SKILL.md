@@ -651,6 +651,13 @@ completion.
       | mutating | 3 | Reached only when no `cascade`-selected `--classify-only` record preceded the run, which the routing above never does. Nothing was mutated: HALT, operator review, and never `SAFE_CLOSE` on this result (the Cascade Close Sub-Procedure's No-substitution rule). A selected-path change after a `CASCADE` `--classify-only` selection is exit 4, never 3 |
       | either | 2, 4 | HALT. Nothing was mutated. Exit 4 includes an engine re-probe difference and any difference from the `cascade`-selected `--classify-only` record, and is never answered with `SAFE_CLOSE`. Fix the input, or ask the operator |
       | either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
+      | either | any other or unrecognized exit (including 1) | HALT (CLI too old or unexpected; do not fall back to cascade). Never call `backlogit shipment ship` directly and never substitute `SAFE_CLOSE`; ask the operator |
+
+      **Minimum version**: `autoharness shipment cascade-close` first ships
+      in the autoharness release containing 192-F (the first release after
+      1.5.0). An older CLI does not recognize the `shipment` command and
+      exits 1, which the last row routes to HALT. Upgrade autoharness before
+      closing; there is no hand-run fallback.
       <!-- cascade-close-routing:END step-0c -->
 
    * **CASCADE selected** → skip directly to the **Cascade Close

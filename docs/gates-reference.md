@@ -368,12 +368,23 @@ is never answered with `SAFE_CLOSE`.
 | `4` | Pre-invocation revalidation drift: snapshot, engine re-probe, binary hash, or a difference from the `cascade`-selected `--classify-only` record. Nothing invoked. Never answered with `SAFE_CLOSE`. | `no` | Yes |
 | `5` | A postcondition failed, including a non-empty `post_close.linked_deliberation_drift`. | `yes` | Yes |
 | `6` | `backlogit` exited non-zero, timed out, or its output did not parse. | `indeterminate` | Yes |
-| `7` | An existing lock or `invoking` record. Nothing invoked. | `unknown` | Yes |
+| `7` | The pair lock is already held, or an existing evidence record is an `invoking` record, unreadable, ambiguous, or names a different pair. Nothing invoked. | `unknown` | Yes |
 | `8` | The post-close evidence write failed after invocation. | `yes` | Yes |
 
 Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
 `cascade-close`, calling `backlogit shipment ship` directly, or substituting
 `SAFE_CLOSE` until an operator reviews the backlog state and the record.
+
+**Pair lock (exit 7).** Every run takes a per-pair lock, created exclusively at
+`.autoharness/gates/cascade-close/{shipment_id}-{feature_id}.lock` (Git-ignored),
+and releases it before exiting. A lock the command finds already present is never
+broken automatically: the run exits 7 and names the lock path. Because a finishing
+run releases its own lock, a lingering lock means a run for that pair is still in
+progress or was killed or crashed. Removing a stale lock is an **operator-only**
+action, taken only after the operator confirms no `cascade-close` run for that pair
+is still in progress and reviews the evidence record (an `invoking` phase means a
+prior run may have mutated the backlog). An agent must never delete, rename, or
+overwrite the lock file; it HALTs on exit 7 instead.
 
 ### `--json` output
 
@@ -435,6 +446,24 @@ must still be missing, and each path is containment-checked before any read. The
 never reads a disposition outcome and does not re-check the disposition snapshot. A
 disposition-set deliberation is re-checked only as an ordinary observation-set entry,
 where the `SAFE_CLOSE` observation set includes it.
+
+**Enforcement scope.** The close-path checks are enforced only at write time: the
+`cascade-close` command validates its `pre_close` record before writing it, and
+this gate checks the closure artifact's `close_path`, `close_evidence`, and the
+record it names before the artifact is committed. The `pipeline-topology` gate's
+predecessor-closure predicate (`closure_complete` in
+`src/autoharness/gates/topology.py`) does **not** enforce them: it reads only
+`compaction_status` (or legacy `compaction`) and `closure_status` with its
+`conditions`, and never reads `close_path`, `close_evidence`, or the evidence
+record. A successor's `pre_claim` therefore does not re-verify the close path, so
+skipping this gate before commit is not caught downstream.
+
+**Closures recorded before 192-F.** Closure artifacts committed before 192-F carry
+no `close_path` or `close_evidence` key and have no evidence record, so they are not
+expected to pass the close-path checks, and a `close_path` refusal on one of them is
+not a defect. They remain predecessor-closure evidence for the topology gate, which
+never checked these keys. Do not backfill the keys into them or fabricate an
+evidence record for them.
 
 With `--json`, the result also carries `warnings[]`, a list of non-blocking notes:
 
