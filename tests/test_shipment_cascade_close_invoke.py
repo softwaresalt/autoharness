@@ -34,6 +34,7 @@ from autoharness.gates.cascade_evidence import (
     validate_evidence_record,
 )
 from autoharness.shipment_close import (
+    EXIT_INPUT,
     EXIT_INVOCATION_INDETERMINATE,
     EXIT_LOCKED,
     EXIT_OK,
@@ -523,6 +524,38 @@ class PostSpawnFailureTests(unittest.TestCase):
         self.assertTrue(harness.shipped)
         self.assertEqual(harness.record()["phase"], "invoking")
         self.assertEqual(outcome.phase_written, "invoking")
+
+
+class InvokingWriteFailureTests(unittest.TestCase):
+    """198-S local review: no mutating call without a persisted ``invoking`` record."""
+
+    def test_invoking_write_failure_exits_2_and_never_ships(self) -> None:
+        for label, error in (
+            ("a persistence refusal", PersistError(2, "simulated invoking write failure")),
+            ("a raw OS error", OSError(28, "No space left on device")),
+        ):
+            with self.subTest(label):
+                harness = _Harness(self, probes=[_VERIFIED])
+                real_write = command.write_evidence_atomic
+                phases: list[str] = []
+
+                def write(path, record, *, _error=error, _phases=phases, _real=real_write, **kwargs):
+                    _phases.append(record.get("phase"))
+                    if record.get("phase") == "invoking":
+                        raise _error
+                    return _real(path, record, **kwargs)
+
+                with mock.patch.object(command, "write_evidence_atomic", side_effect=write):
+                    outcome = harness.run()
+                self.assertEqual(outcome.exit_code, EXIT_INPUT, outcome.message)
+                self.assertIn("invoking", phases)
+                self.assertNotIn("post_close", phases)
+                self.assertFalse(harness.shipped, "backlogit shipment ship ran without a persisted invoking record")
+                self.assertEqual(_ship_argvs(harness.argv_log()), [])
+                self.assertNotEqual(outcome.phase_written, "invoking")
+                record = harness.record()
+                self.assertIsNotNone(record)
+                self.assertEqual(record["phase"], "pre_close")
 
 
 if __name__ == "__main__":
