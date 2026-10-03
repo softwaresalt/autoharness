@@ -13,7 +13,9 @@ closure-evidence gate (A4/A4b) and the ``shipment_close`` command. It owns:
 * :class:`CascadeEvidenceError`, the single error type;
 * the pure record codec (``*_to_record`` / ``*_from_record``) that every
   writer and every comparison uses, so one encoder and one decoder exist per
-  record field (A1d: ``declared_status`` and observation entries).
+  record field (A1d: ``declared_status`` and observation entries; A1e:
+  ``engine_semantics`` and ``close_path_selection``; A1f: the
+  linked-deliberation disposition snapshot).
 
 Layering (AS-F07): this module never writes, never spawns a subprocess, never
 imports the command package and defines no exit codes.
@@ -43,8 +45,14 @@ from autoharness.gates.closure_contract import (
 from autoharness.gates.shipment_closure import (
     ClosePath,
     ClosePathDecision,
+    DeliberationRecordSnapshot,
+    DispositionReadFailure,
     EngineSemanticsDecision,
     EngineSemanticsVerdict,
+    LinkedDeliberationDisposition,
+    LinkedDeliberationDispositionPlan,
+    LinkedDeliberationOutcome,
+    UnresolvedDeliberationReference,
     assess_cascade_engine_semantics,
     select_close_path,
 )
@@ -62,7 +70,6 @@ _ENGINE_VERDICTS: Final = frozenset(verdict.value for verdict in EngineSemantics
 _MUTATION_STATES: Final = frozenset({"none", "completed", "indeterminate"})
 _LOCATIONS: Final = frozenset({"queue", "archive", "missing"})
 _BACKLOG_ROOTS: Final = frozenset({".backlog", ".backlogit"})
-_RETAINED_READ_ERROR: Final = "retained_read_error"
 
 _SHA256_PATTERN: Final = re.compile(r"[0-9a-f]{64}")
 _RUN_ID_PATTERN: Final = re.compile(r"[0-9a-f]{32}")
@@ -455,6 +462,189 @@ def close_path_selection_from_record(record: object) -> tuple[ClosePath, str]:
         raise CascadeEvidenceError("close_path_selection.reason must be a string")
     return ClosePath(selected), record["reason"]
 
+
+# ---------------------------------------------------------------------------
+# Record codec: linked-deliberation disposition snapshot (plan unit A1f)
+# ---------------------------------------------------------------------------
+
+_PLAN_KEYS: Final = frozenset({"dispositions", "unresolved_references", "read_failures", "planning_error"})
+_DISPOSITION_KEYS: Final = frozenset(
+    {
+        "deliberation_id",
+        "outcome",
+        "reason_code",
+        "path",
+        "link_kinds",
+        "linking_member_ids",
+        "referrer_ids",
+        "declared_status",
+        "records",
+    }
+)
+_SNAPSHOT_RECORD_KEYS: Final = frozenset({"path", "declared_status", "sha256"})
+_UNRESOLVED_KEYS: Final = frozenset({"id", "reason_code"})
+_READ_FAILURE_KEYS: Final = frozenset({"path", "reason_code"})
+
+
+def _require_keys(record: object, expected: frozenset[str], where: str) -> Mapping[str, object]:
+    if not isinstance(record, Mapping):
+        raise CascadeEvidenceError(f"{where} must be an object")
+    keys = set(record)
+    if keys != expected:
+        raise CascadeEvidenceError(f"{where} keys must be {sorted(expected)} (got {sorted(map(str, keys))})")
+    return record
+
+
+def _require_list(value: object, where: str) -> list[object]:
+    if type(value) is not list:
+        raise CascadeEvidenceError(f"{where} must be a list")
+    return value
+
+
+def _require_str_list(value: object, where: str) -> tuple[str, ...]:
+    items = _require_list(value, where)
+    if not all(type(item) is str for item in items):
+        raise CascadeEvidenceError(f"{where} must be a list of strings")
+    return tuple(items)
+
+
+def _require_str(value: object, where: str, *, nullable: bool = False) -> str | None:
+    if value is None and nullable:
+        return None
+    if type(value) is not str:
+        raise CascadeEvidenceError(f"{where} must be a string{' or null' if nullable else ''}")
+    return value
+
+
+def _outcome_from_record(value: object, where: str) -> object:
+    outcome = _require_str(value, where)
+    if outcome == "":
+        raise CascadeEvidenceError(f"{where} must be a non-empty string")
+    try:
+        return LinkedDeliberationOutcome(outcome)
+    except ValueError:
+        # The planned "archive" and any other string round-trip verbatim; the
+        # outcome vocabulary is the A1c validator's concern, not the codec's.
+        return outcome
+
+
+def disposition_plan_to_record(plan: LinkedDeliberationDispositionPlan) -> dict[str, object]:
+    """Encode four of the six plan fields (re-plan cycle-1 R14).
+
+    ``shipment_id`` and ``engine`` are dropped: they equal the record's
+    top-level ``shipment_id`` and ``pre_close.engine_semantics``. Every
+    ``declared_status`` goes through :func:`declared_status_to_record`, and ID
+    lists are sorted.
+    """
+
+    if type(plan) is not LinkedDeliberationDispositionPlan:
+        raise CascadeEvidenceError(f"expected a LinkedDeliberationDispositionPlan (got {type(plan).__name__})")
+    record = {
+        "dispositions": [
+            {
+                "deliberation_id": disposition.deliberation_id,
+                "outcome": str(getattr(disposition.outcome, "value", disposition.outcome)),
+                "reason_code": disposition.reason_code,
+                "path": disposition.path,
+                "link_kinds": list(disposition.link_kinds),
+                "linking_member_ids": sorted(disposition.linking_member_ids),
+                "referrer_ids": sorted(disposition.referrer_ids),
+                "declared_status": declared_status_to_record(disposition.declared_status),
+                "records": [
+                    {
+                        "path": snapshot.path,
+                        "declared_status": declared_status_to_record(snapshot.declared_status),
+                        "sha256": snapshot.sha256,
+                    }
+                    for snapshot in disposition.records
+                ],
+            }
+            for disposition in plan.dispositions
+        ],
+        "unresolved_references": [
+            {"id": reference.id, "reason_code": reference.reason_code} for reference in plan.unresolved_references
+        ],
+        "read_failures": [
+            {"path": failure.path, "reason_code": failure.reason_code} for failure in plan.read_failures
+        ],
+        "planning_error": plan.planning_error,
+    }
+    disposition_plan_from_record(record, shipment_id=plan.shipment_id, engine=plan.engine)
+    return record
+
+
+def disposition_plan_from_record(
+    record: object, *, shipment_id: str | None, engine: object
+) -> LinkedDeliberationDispositionPlan:
+    """Decode a disposition snapshot, restoring ``shipment_id`` and ``engine``.
+
+    Raises :class:`CascadeEvidenceError` on a missing or unknown key, a
+    wrong-typed value, or a malformed tagged ``declared_status``.
+    """
+
+    plan = _require_keys(record, _PLAN_KEYS, "linked_deliberation_disposition")
+    dispositions = []
+    for index, raw in enumerate(_require_list(plan["dispositions"], "dispositions")):
+        where = f"dispositions[{index}]"
+        entry = _require_keys(raw, _DISPOSITION_KEYS, where)
+        snapshots = []
+        for record_index, raw_snapshot in enumerate(_require_list(entry["records"], f"{where}.records")):
+            snapshot_where = f"{where}.records[{record_index}]"
+            snapshot = _require_keys(raw_snapshot, _SNAPSHOT_RECORD_KEYS, snapshot_where)
+            if not _is_sha256(snapshot["sha256"]):
+                raise CascadeEvidenceError(f"{snapshot_where}.sha256 must be a lowercase hex digest")
+            snapshots.append(
+                DeliberationRecordSnapshot(
+                    path=_require_str(snapshot["path"], f"{snapshot_where}.path"),
+                    declared_status=declared_status_from_record(snapshot["declared_status"]),
+                    sha256=snapshot["sha256"],
+                )
+            )
+        deliberation_id = _require_str(entry["deliberation_id"], f"{where}.deliberation_id")
+        if deliberation_id == "":
+            raise CascadeEvidenceError(f"{where}.deliberation_id must be a non-empty string")
+        dispositions.append(
+            LinkedDeliberationDisposition(
+                deliberation_id=deliberation_id,
+                outcome=_outcome_from_record(entry["outcome"], f"{where}.outcome"),
+                reason_code=_require_str(entry["reason_code"], f"{where}.reason_code"),
+                link_kinds=_require_str_list(entry["link_kinds"], f"{where}.link_kinds"),
+                linking_member_ids=_require_str_list(entry["linking_member_ids"], f"{where}.linking_member_ids"),
+                records=tuple(snapshots),
+                declared_status=declared_status_from_record(entry["declared_status"]),
+                referrer_ids=_require_str_list(entry["referrer_ids"], f"{where}.referrer_ids"),
+                path=_require_str(entry["path"], f"{where}.path", nullable=True),
+            )
+        )
+    unresolved = []
+    for index, raw in enumerate(_require_list(plan["unresolved_references"], "unresolved_references")):
+        where = f"unresolved_references[{index}]"
+        entry = _require_keys(raw, _UNRESOLVED_KEYS, where)
+        unresolved.append(
+            UnresolvedDeliberationReference(
+                id=_require_str(entry["id"], f"{where}.id"),
+                reason_code=_require_str(entry["reason_code"], f"{where}.reason_code"),
+            )
+        )
+    failures = []
+    for index, raw in enumerate(_require_list(plan["read_failures"], "read_failures")):
+        where = f"read_failures[{index}]"
+        entry = _require_keys(raw, _READ_FAILURE_KEYS, where)
+        failures.append(
+            DispositionReadFailure(
+                path=_require_str(entry["path"], f"{where}.path", nullable=True),
+                reason_code=_require_str(entry["reason_code"], f"{where}.reason_code"),
+            )
+        )
+    return LinkedDeliberationDispositionPlan(
+        shipment_id=shipment_id,
+        engine=engine,
+        dispositions=tuple(dispositions),
+        unresolved_references=tuple(unresolved),
+        read_failures=tuple(failures),
+        planning_error=_require_str(plan["planning_error"], "planning_error", nullable=True),
+    )
+
 def redact(text: str) -> tuple[str, bool]:
     """Return ``(redacted_text, redaction_applied)`` for one free-text value.
 
@@ -816,6 +1006,13 @@ def _check_pre_close(checker: _Checker, pre_close: Mapping[str, object], close_p
         _check_located_entry(checker, descendant, f"{where}.out_of_manifest_descendants[{index}]", require_id=True)
     checker.field(pre_close, "captured_at", where, _is_nonempty_str, "a non-empty string")
     _check_disposition_paths(checker, pre_close)
+    snapshot = pre_close.get("linked_deliberation_disposition", _MISSING)
+    if snapshot is not _MISSING:
+        # One decoder (A1f); presence and outcome rules belong to A1c.
+        try:
+            disposition_plan_from_record(snapshot, shipment_id=None, engine=None)
+        except CascadeEvidenceError as exc:
+            checker.fail(f"{where}.linked_deliberation_disposition", str(exc))
 
     if close_path == "safe_close":
         for index, entry in enumerate(checker.items(pre_close, "observation_set", where)):
