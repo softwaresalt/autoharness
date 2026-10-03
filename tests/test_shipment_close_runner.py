@@ -35,6 +35,8 @@ from autoharness.shipment_close.persist import (
 )
 from autoharness.shipment_close.runner import (
     DEFAULT_TIMEOUT_SECONDS,
+    MAX_TIMEOUT_SECONDS,
+    MIN_TIMEOUT_SECONDS,
     ResolvedBinary,
     hash_binary,
     resolve_backlogit_binary,
@@ -153,10 +155,13 @@ class BinaryTrustTests(unittest.TestCase):
                 resolve_backlogit_binary(fixture.root, which=mock.Mock(return_value=None))
 
         with self.subTest("timeout bounds"):
-            self.assertEqual(DEFAULT_TIMEOUT_SECONDS, 120)
-            for value in (30, 120, 900):
+            self.assertEqual(DEFAULT_TIMEOUT_SECONDS, 1800)
+            self.assertEqual(MAX_TIMEOUT_SECONDS, 3600)
+            self.assertEqual(MIN_TIMEOUT_SECONDS, 30)
+            self.assertTrue(MIN_TIMEOUT_SECONDS <= DEFAULT_TIMEOUT_SECONDS <= MAX_TIMEOUT_SECONDS)
+            for value in (MIN_TIMEOUT_SECONDS, DEFAULT_TIMEOUT_SECONDS, 900, MAX_TIMEOUT_SECONDS):
                 self.assertEqual(validate_timeout(value), value)
-            for value in (29, 901, 0, -1, True, 1.5, "60"):
+            for value in (MIN_TIMEOUT_SECONDS - 1, MAX_TIMEOUT_SECONDS + 1, 0, -1, True, 1.5, "60"):
                 with self.subTest(timeout=value):
                     with self.assertRaises(PersistError) as caught:
                         validate_timeout(value)

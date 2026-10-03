@@ -2195,8 +2195,8 @@ cascade-close options:
   --sha <merge_sha>   Merge commit SHA, 40 lowercase hex characters. Required.
   --message <text>    Ship message (mutating mode only; required there).
   --author <name>     Ship author (mutating mode only; required there).
-  --timeout <secs>    `shipment ship` timeout, 30-900 seconds (mutating mode only).
-                      Default: 120.
+  --timeout <secs>    `shipment ship` timeout, 30-3600 seconds (mutating mode only).
+                      Default: 1800.
   --classify-only     Classify and record the verdict; never invoke the cascade.
   --replace-pre-close With --classify-only only: replace an existing pre_close record.
   --workspace, -w     Workspace root. Default: .

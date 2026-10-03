@@ -338,7 +338,7 @@ autoharness shipment cascade-close --classify-only [--replace-pre-close]
 |---|---|---|
 | plain `--classify-only` | Re-runs the classifier, probes the engine, selects the close path, and writes a new `pre_close` record. No-clobber: an existing `pre_close` record exits 2 and is left untouched. Never invokes the cascade. | None |
 | `--classify-only --replace-pre-close` | Overwrites an existing `pre_close` record through the pre_close takeover (a compare-and-swap on the prior `run_id`). | Destructive-command approval |
-| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-900 seconds (default 120). | Destructive-command approval |
+| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-3600 seconds (default 1800). | Destructive-command approval |
 
 The evidence record is written to the fixed path
 `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`. That path
@@ -346,6 +346,66 @@ is never derived from the closure directory. The record is committed with the
 closure artifact, kept permanently, and never hand-edited. Its `phase` is
 `pre_close`, `invoking`, or `post_close`. The command writes the record before the
 close; if that write fails, nothing is invoked.
+
+### Timeout sizing
+
+The mutating mode's `--timeout` bounds the `backlogit shipment ship` cascade. Size
+it before the run with the budget `B = ceil(1.5 * (F + P * N))` seconds, where
+N = |closure_scope(S)| (the manifest items plus the shipment record), F is the fixed
+cost of `backlogit shipment ship`, and P is its per-artifact cost:
+
+* B <= 1800: the default `--timeout` suffices.
+* 1800 < B <= 3600: pass `--timeout B` explicitly.
+* B > 3600: HALT before the mutating run for an operator decision. Never invoke
+  with a timeout known to be too short.
+
+The reference values F = 133 s and P = 35 s were measured on backlogit 1.11.0 at
+~1,700 indexed artifacts from the backlogit event logs under `<backlog root>/logs`
+(`.backlog/` by default; legacy `.backlogit/`) (201-S: 553 s predicted vs 581 s
+actual; 202-S: 483 s predicted vs ~486 s actual). The per-archive term tracks a full
+index rebuild, so it grows with index size. The 1.5 factor leaves at least 50 %
+headroom over the model, and more under the 1800 s default. Re-derive F and P from
+`<backlog root>/logs` when a cascade runs longer than its prediction by more than that
+headroom.
+
+The ceiling is finite on purpose. A timeout kills the engine mid-cascade and ends in
+exit 6 (`mutation_possible: indeterminate`), so a too-short timeout tears a healthy
+cascade, while an unbounded one would never surface a hung engine.
+
+`--timeout` bounds only the `backlogit shipment ship` child, and the command's
+runner alone owns that child's expiry: on expiry it kills the child's process group
+and records the timeout. The B > 3600 HALT applies to `--timeout`, not to the whole
+command. The engine probes, preflight, and revalidation run before the child timer
+starts, and child cleanup, postcondition checks, evidence persistence, and lock
+release run after it. Ship therefore supervises the mutating command for its
+supervision budget: the effective timeout (B, or the 1800 default) + a fixed 600 s
+supervision margin (`SUPERVISION_MARGIN_SECONDS`), at most 4200 s. The margin is
+derived from the runner's own bounds:
+
+* Each spawned process has a worst-case kill path of 70 s: three 10 s kill waits
+  (`taskkill`, the wait after the kill, and the second group kill) and four 10 s
+  reader joins.
+* The two engine probes (classification and revalidation) take at most 2 * (30 + 70)
+  = 200 s, and the child's own kill path adds 70 s, so the timed overhead is 270 s.
+* The remaining 330 s is headroom for the untimed workspace reads, postcondition
+  re-reads, evidence writes, and lock release.
+
+Whenever the supervision budget exceeds the agent runtime's synchronous tool-call
+limit (some runtimes cap a shell call at about 10 minutes), Ship MUST start the
+mutating run in the runtime's background/async mode, attached to the session (never
+detached from it), and poll until the command exits. If the runtime cannot keep the
+process alive for the full supervision budget, Ship HALTs before the mutating run. A
+runtime that kills `autoharness` mid-run leaves `backlogit` running unsupervised in
+its own process group, the evidence record at `invoking`, and the pair lock in place,
+so the next run exits 7.
+
+Ship stays attached to the run until the command exits and never abandons or kills
+it on an agent-tool wait or before the supervision budget elapses. For this run the
+supervision budget is the stall bound: the circuit-breaker Stall Detection table's
+`autoharness shipment cascade-close` (mutating mode) row sets it in place of the
+"Other commands" 5-minute stall timeout.
+The broader stall-detection timeout class for other long-running commands remains
+deferred (stash 9869AA32).
 
 ### Engine-semantics gate and close-path selection
 
@@ -439,6 +499,9 @@ The record's selection and disposition fields:
 * `post_close.linked_deliberation_drift`: a list of disposition-set deliberations
   that the cascade archived or modified. That is engine drift; a non-empty list
   fails the postconditions (exit 5).
+
+The effective `--timeout` is not recorded in the evidence record; the record carries
+only whether the run timed out (`invocation.timed_out`).
 
 ### Closure-evidence gate: close-path checks
 

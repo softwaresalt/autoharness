@@ -820,6 +820,41 @@ direct `{{OP_SHIP_SHIPMENT_MCP}}` MCP or `backlogit shipment ship` CLI call is
 a **P-005 deviation**. The command never archives a disposition-set
 deliberation; the Linked-Deliberation Disposition step stays its only
 archiver. The prose below stays the specification the command implements.
+
+**Timeout sizing (192-F).** The mutating run's `--timeout` is 30-3600
+seconds (default 1800). On expiry the command kills the engine mid-cascade
+and exits 6 (`mutation_possible: indeterminate`), so Ship sizes it before
+the run. Let N = |closure_scope(S)| (the manifest items plus the shipment
+record) and compute the budget `B = ceil(1.5 * (F + P * N))` seconds, where
+F and P are the fixed and per-artifact `backlogit shipment ship` costs
+re-derived from the workspace's own backlogit event logs (reference values,
+backlogit 1.11.0: F = 133 s, P = 35 s). If B <= 1800, the default suffices.
+If 1800 < B <= 3600, Ship adds `--timeout B` to the invocation above. If
+B > 3600, Ship does not start the mutating run and HALTs for an operator
+decision; it never invokes the command with a timeout known to be too
+short.
+The B > 3600 HALT bounds `--timeout`, not the whole command: `--timeout`
+bounds only the `backlogit shipment ship` child, and the command's runner
+alone owns that child's expiry. The engine probes, preflight, and
+revalidation run before that timer starts, and child cleanup, postcondition
+checks, evidence persistence, and lock release run after it, so Ship
+supervises the command for its supervision budget: the effective timeout (B,
+or the 1800 default) + a fixed 600 s supervision margin (two 30 s engine
+probes, the bounded kill and reader-join cleanup of each spawned process, at
+most 70 s each, and headroom for the untimed workspace reads and writes), at
+most 4200 s. Whenever the supervision budget exceeds the agent runtime's
+synchronous tool-call limit, Ship MUST start the mutating run in the
+runtime's background/async mode, attached to the session (never detached
+from it), and poll until the command exits; if the runtime cannot keep the
+process alive for the full supervision budget, Ship HALTs before the
+mutating run. A runtime that kills the command mid-run leaves `backlogit`
+running unsupervised in its own process group, the evidence record at
+`invoking`, and the pair lock in place, so the next run exits 7. Ship stays
+attached to the run until the command exits and never abandons or kills it
+on an agent-tool wait or before the supervision budget elapses. For this run
+the supervision budget is the stall bound: the circuit-breaker Stall
+Detection table's `autoharness shipment cascade-close` (mutating mode) row
+sets it in place of the "Other commands" 5-minute stall timeout.
 <!-- cascade-close-routing:END cascade-sub-procedure -->
 
 **Pre-archived manifest members (expected and tolerated)**: before invoking
