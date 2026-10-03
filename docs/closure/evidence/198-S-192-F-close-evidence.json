@@ -1,9 +1,9 @@
 {
   "feature_id": "192-F",
-  "merge_commit_sha": "eb8b78115c4650e898049920d7f454cb435083dd",
+  "merge_commit_sha": "829ab5e13db9aafd25f21d12f92f4abd2d14a457",
   "phase": "pre_close",
   "pre_close": {
-    "captured_at": "2026-10-03T05:16:45Z",
+    "captured_at": "2026-10-03T08:07:46Z",
     "classifier_reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted",
     "classifier_verdict": "CASCADE",
     "close_path_selection": {
@@ -107,7 +107,7 @@
         "id": "192-F",
         "location": "queue",
         "parent_id": null,
-        "sha256": "f4f96ef60bdb68289f083926a8ec355e39828de98c07a39d7e9cb29dffcd6cff"
+        "sha256": "751b0b5c5b3a1f3fa05ed8ac7d7c841f45b1f46010b8b324f1232b6fd0da9107"
       },
       {
         "artifact_type": "task",
@@ -284,6 +284,38 @@
         "location": "archive",
         "parent_id": "192-F",
         "sha256": "305794ecc437b72baa88c0df7f52ffd3d0c1232bfaa5903a10002700d3b5fdc1"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "192.023-T",
+        "location": "archive",
+        "parent_id": "192-F",
+        "sha256": "4fda5ca72d052b4bda13377e792082d59067bef39ccad680ab9a4655ca38f6e6"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "192.024-T",
+        "location": "archive",
+        "parent_id": "192-F",
+        "sha256": "7c30ec8f00540fdedcd7dd9a9dc1bbe4bd32ab4c198c8e7970c4fffc75bc678f"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "192.025-T",
+        "location": "archive",
+        "parent_id": "192-F",
+        "sha256": "b32b7a53805c45845eceb871bdfaf360b4ac78ac2257d6c8ed0770338d74fd2b"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "192.026-T",
+        "location": "archive",
+        "parent_id": "192-F",
+        "sha256": "1467ee276ee2565faddd2d152faf3f406d667d1a109b1114fb839fc42e5ad363"
       }
     ],
     "out_of_manifest_descendants": [],
@@ -293,10 +325,10 @@
     "shipment_record": {
       "declared_status": "active",
       "location": "queue",
-      "sha256": "fa6dd75f3393ab37a1795e8be1ef624ed0bd7f660f767492eb1fe5d9508d0bf8"
+      "sha256": "cc909a543075a839463da3f0466920ea06a25261ec8daac0d3c0739d72d034c3"
     }
   },
-  "run_id": "313ac443ac4b445dbc60b9a2964ecc3a",
+  "run_id": "029e6fcd931f4d928bca6a17c3aa3ce5",
   "schema_version": 1,
   "shipment_id": "198-S",
   "tool": {
