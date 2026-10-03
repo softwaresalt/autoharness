@@ -683,9 +683,29 @@ CIRCUIT_BREAKER_FILES = (
 STALL_DETECTION_HEADING = "## Stall Detection"
 _STALL_ROW_PREFIX = "| `autoharness shipment cascade-close` (mutating mode) |"
 _STALL_ROW_TIMEOUT = (
-    f"| the command's own `--timeout` ({_runner.MIN_TIMEOUT_SECONDS}-"
-    f"{_runner.MAX_TIMEOUT_SECONDS} s; sized per the shipment-reconcile Timeout sizing note) |"
+    f"| its supervision budget: the command's own `--timeout` ({_runner.MIN_TIMEOUT_SECONDS}-"
+    f"{_runner.MAX_TIMEOUT_SECONDS} s; sized per the shipment-reconcile Timeout sizing note) "
+    f"+ {_runner.SUPERVISION_MARGIN_SECONDS} s supervision margin |"
 )
+# PR #485 review: `--timeout` bounds only the backlogit child (runner-owned
+# expiry); the wrapper is supervised for `--timeout` + the supervision margin,
+# and no doc may tell an agent to kill the wrapper at `--timeout`.
+_SUPERVISION_BUDGET = (
+    f"the effective timeout (B, or the {_runner.DEFAULT_TIMEOUT_SECONDS} default) "
+    f"+ a fixed {_runner.SUPERVISION_MARGIN_SECONDS} s supervision margin"
+)
+_SUPERVISION_MAX = f"at most {_runner.MAX_TIMEOUT_SECONDS + _runner.SUPERVISION_MARGIN_SECONDS} s"
+_RUNNER_OWNS_EXPIRY = "runner alone owns that child's expiry"
+_BUDGET_POLL = "Whenever the supervision budget exceeds the agent runtime's synchronous tool-call limit"
+_BUDGET_KEEP_ALIVE = "keep the process alive for the full supervision budget"
+_BUDGET_STALL = "the supervision budget is the stall bound"
+_RETIRED_TIMEOUT_STALL = "`--timeout` is the stall bound"
+_RETIRED_FULL_TIMEOUT = "for the full timeout"
+_CB_STALL_ITEM = (
+    "mutating `autoharness shipment cascade-close`: its supervision budget, `--timeout` + "
+    f"{_runner.SUPERVISION_MARGIN_SECONDS} s"
+)
+_CB_NO_EARLY_KILL = "The agent MUST NOT terminate the wrapper before the supervision budget elapses"
 
 
 def _collapse(text: str) -> str:
@@ -708,6 +728,12 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
         self.assertIn(_EXPLICIT_BAND, section)
         self.assertIn(_BACKGROUND_POLL, section)
         self.assertIn(_STALL_ROW_POINTER, section)
+        for token in (_SUPERVISION_BUDGET, _SUPERVISION_MAX, _RUNNER_OWNS_EXPIRY, _BUDGET_KEEP_ALIVE, _BUDGET_STALL):
+            self.assertIn(token, section)
+        self.assertIn(_BUDGET_POLL, section)
+        self.assertIn("`SUPERVISION_MARGIN_SECONDS`", section)
+        self.assertNotIn(_RETIRED_TIMEOUT_STALL, section)
+        self.assertNotIn(_RETIRED_FULL_TIMEOUT, section)
         self.assertIn("stash 9869AA32", section)
         self.assertNotIn(_RETIRED_STALL_ARGUMENT, section)
         self.assertNotIn(".backlogit/logs", section)
@@ -727,6 +753,13 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
                 self.assertIn("HALTs before the mutating run", region)
                 self.assertIn(_STALL_ROW_POINTER, region)
                 self.assertNotIn(_RETIRED_STALL_ARGUMENT, region)
+                for token in (_SUPERVISION_BUDGET, _SUPERVISION_MAX, _RUNNER_OWNS_EXPIRY, _BUDGET_KEEP_ALIVE):
+                    self.assertIn(token, region)
+                self.assertIn(_BUDGET_POLL, region)
+                self.assertIn(_BUDGET_STALL, region)
+                self.assertIn("before the supervision budget elapses", region)
+                self.assertNotIn(_RETIRED_TIMEOUT_STALL, region)
+                self.assertNotIn(_RETIRED_FULL_TIMEOUT, region)
                 self.assertNotIn("30-900", text)
                 self.assertNotIn("docs/gates-reference.md", text)
 
@@ -741,10 +774,25 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
                 self.assertEqual(len(matching), 1)
                 self.assertTrue(matching[0].endswith(_STALL_ROW_TIMEOUT), matching[0])
                 self.assertIn(str(_runner.MAX_TIMEOUT_SECONDS), matching[0])
-                self.assertIn(
-                    "mutating `autoharness shipment cascade-close`: its own `--timeout`",
-                    _collapse(section),
-                )
+                collapsed = _collapse(section)
+                self.assertIn(_CB_STALL_ITEM, collapsed)
+                self.assertNotIn("cascade-close`: its own `--timeout`", collapsed)
+                self.assertIn(_CB_NO_EARLY_KILL, collapsed)
+                self.assertIn("the command's runner alone owns that child's expiry", collapsed)
+                self.assertIn(f"`--timeout` + {_runner.SUPERVISION_MARGIN_SECONDS} s", collapsed)
+
+    def test_supervision_margin_covers_the_runner_bounds(self) -> None:
+        """PR #485 review: the margin covers both probes, every kill path, and filesystem headroom."""
+
+        from autoharness.shipment_close import engine_probe as _probe
+
+        kill_path = 3 * _runner._KILL_WAIT_SECONDS + 4 * _runner._READER_JOIN_SECONDS
+        self.assertEqual(kill_path, 70)
+        timed_overhead = 2 * (_probe.PROBE_TIMEOUT_SECONDS + kill_path) + kill_path
+        self.assertEqual(timed_overhead, 270)
+        self.assertEqual(_runner.SUPERVISION_MARGIN_SECONDS, 600)
+        self.assertGreater(_runner.SUPERVISION_MARGIN_SECONDS, timed_overhead)
+        self.assertIn("SUPERVISION_MARGIN_SECONDS", _runner.__all__)
 
 
 if __name__ == "__main__":

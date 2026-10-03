@@ -53,6 +53,7 @@ __all__ = [
     "MAX_TIMEOUT_SECONDS",
     "MIN_TIMEOUT_SECONDS",
     "REGISTRY_PATH",
+    "SUPERVISION_MARGIN_SECONDS",
     "BoundedRunResult",
     "ResolvedBinary",
     "hash_binary",
@@ -65,6 +66,18 @@ REGISTRY_PATH: Final = Path(".autoharness") / "backlog-registry.yaml"
 DEFAULT_TIMEOUT_SECONDS: Final = 1800
 MIN_TIMEOUT_SECONDS: Final = 30
 MAX_TIMEOUT_SECONDS: Final = 3600
+# The wrapper-supervision margin (PR #485 review). ``--timeout`` bounds only
+# the ``backlogit shipment ship`` child, and this runner alone owns that
+# expiry. The mutating command as a whole is supervised for ``--timeout`` +
+# this margin, which covers what runs outside the child wait: two engine
+# probes (``PROBE_TIMEOUT_SECONDS`` = 30 each, plus their kill path), the
+# child's own kill/reader-join cleanup, and the untimed workspace reads,
+# revalidation, postcondition checks, evidence writes, and lock release. Each
+# bounded run's worst-case kill path is 3 * _KILL_WAIT_SECONDS + 4 *
+# _READER_JOIN_SECONDS = 70 s, so the timed overhead is 2 * (30 + 70) + 70 =
+# 270 s; the remaining 330 s is headroom for the untimed filesystem work.
+# Documentation only: nothing in the command enforces it.
+SUPERVISION_MARGIN_SECONDS: Final = 600
 
 _BARE_NAME: Final = re.compile(r"[A-Za-z0-9_-]+")
 _READ_CHUNK: Final = 65536

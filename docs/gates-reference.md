@@ -372,19 +372,38 @@ The ceiling is finite on purpose. A timeout kills the engine mid-cascade and end
 exit 6 (`mutation_possible: indeterminate`), so a too-short timeout tears a healthy
 cascade, while an unbounded one would never surface a hung engine.
 
-Whenever the effective timeout (B, or the 1800 default) exceeds the agent runtime's
-synchronous tool-call limit (some runtimes cap a shell call at about 10 minutes),
-Ship MUST start the mutating run in the runtime's background/async mode, attached to
-the session (never detached from it), and poll until the command exits. If the
-runtime cannot keep the process alive for the full timeout, Ship HALTs before the
-mutating run. A runtime that kills `autoharness` mid-run leaves `backlogit` running
-unsupervised in its own process group, the evidence record at `invoking`, and the
-pair lock in place, so the next run exits 7.
+`--timeout` bounds only the `backlogit shipment ship` child, and the command's
+runner alone owns that child's expiry: on expiry it kills the child's process group
+and records the timeout. The B > 3600 HALT applies to `--timeout`, not to the whole
+command. The engine probes, preflight, and revalidation run before the child timer
+starts, and child cleanup, postcondition checks, evidence persistence, and lock
+release run after it. Ship therefore supervises the mutating command for its
+supervision budget: the effective timeout (B, or the 1800 default) + a fixed 600 s
+supervision margin (`SUPERVISION_MARGIN_SECONDS`), at most 4200 s. The margin is
+derived from the runner's own bounds:
+
+* Each spawned process has a worst-case kill path of 70 s: three 10 s kill waits
+  (`taskkill`, the wait after the kill, and the second group kill) and four 10 s
+  reader joins.
+* The two engine probes (classification and revalidation) take at most 2 * (30 + 70)
+  = 200 s, and the child's own kill path adds 70 s, so the timed overhead is 270 s.
+* The remaining 330 s is headroom for the untimed workspace reads, postcondition
+  re-reads, evidence writes, and lock release.
+
+Whenever the supervision budget exceeds the agent runtime's synchronous tool-call
+limit (some runtimes cap a shell call at about 10 minutes), Ship MUST start the
+mutating run in the runtime's background/async mode, attached to the session (never
+detached from it), and poll until the command exits. If the runtime cannot keep the
+process alive for the full supervision budget, Ship HALTs before the mutating run. A
+runtime that kills `autoharness` mid-run leaves `backlogit` running unsupervised in
+its own process group, the evidence record at `invoking`, and the pair lock in place,
+so the next run exits 7.
 
 Ship stays attached to the run until the command exits and never abandons or kills
-it on an agent-tool wait. For this run the command's `--timeout` is the stall bound:
-the circuit-breaker Stall Detection table's `autoharness shipment cascade-close`
-(mutating mode) row sets it in place of the "Other commands" 5-minute stall timeout.
+it on an agent-tool wait or before the supervision budget elapses. For this run the
+supervision budget is the stall bound: the circuit-breaker Stall Detection table's
+`autoharness shipment cascade-close` (mutating mode) row sets it in place of the
+"Other commands" 5-minute stall timeout.
 The broader stall-detection timeout class for other long-running commands remains
 deferred (stash 9869AA32).
 

@@ -269,15 +269,32 @@ or otherwise alter the 3-cycle count semantics above.
 
 Commands that exceed their timeout are counted as failures:
 
-| Command type                                          | Timeout                                                                                          |
-|-------------------------------------------------------|--------------------------------------------------------------------------------------------------|
-| Build/test                                            | 45 minutes                                                                                       |
-| `autoharness shipment cascade-close` (mutating mode)  | the command's own `--timeout` (30-3600 s; sized per the shipment-reconcile Timeout sizing note)  |
-| Other commands                                        | 5 minutes                                                                                        |
+| Command type                                         | Timeout                                                                                                                                            |
+|------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Build/test                                           | 45 minutes                                                                                                                                         |
+| `autoharness shipment cascade-close` (mutating mode) | its supervision budget: the command's own `--timeout` (30-3600 s; sized per the shipment-reconcile Timeout sizing note) + 600 s supervision margin |
+| Other commands                                       | 5 minutes                                                                                                                                          |
 
 If a command exceeds its timeout, terminate the process and count it as one
 failed attempt toward the retry threshold immediately. The timeout marker is
 part of the same-operation evidence, just like a native process exit code.
+
+The mutating `autoharness shipment cascade-close` row is the one exception to
+terminating at the command's timeout. Its `--timeout` bounds only the
+`backlogit shipment ship` child, and the command's runner alone owns that
+child's expiry: it kills the child's process group and records the timeout
+itself. The engine probes, preflight, and revalidation run before that timer
+starts, and child cleanup, postcondition checks, evidence persistence, and
+lock release run after it, so the wrapper is supervised by its supervision
+budget, `--timeout` + 600 s, instead. The 600 s supervision margin covers two
+30 s engine probes, the bounded kill and reader-join cleanup of each spawned
+process (at most 70 s each), and headroom for the untimed workspace reads and
+writes. The agent MUST NOT terminate the wrapper before the supervision budget
+elapses: a wrapper killed early can leave `backlogit` running unsupervised, the
+evidence record at `invoking`, and the pair lock in place. Only a wrapper still
+running after the full supervision budget is terminated, counted as a failed
+attempt and a session stall, and escalated to the operator, because its
+evidence record and pair lock need operator review.
 
 ### Session Stall Counting
 
@@ -285,7 +302,8 @@ A **session stall** occurs when the agent encounters a blocking condition that
 prevents forward progress. The session stall counter increments when:
 
 1. A command exceeds its timeout (build/test: 45 min; mutating
-   `autoharness shipment cascade-close`: its own `--timeout`; other: 5 min)
+   `autoharness shipment cascade-close`: its supervision budget, `--timeout` +
+   600 s; other: 5 min)
 2. A file lock acquisition blocks and the retry also fails (per concurrency protocol)
 3. A required tool or MCP surface becomes unavailable mid-session
 4. An agent-intercom heartbeat ping fails (when the pack is enabled)
