@@ -281,9 +281,9 @@ missing record is never refused.
 | R3 | Record the raw close stdout, stderr, and exit code, bounded and redacted | A1b, A3a, A3 |
 | R4 | The evidence file is written before and after the close; if the pre-close write fails, nothing is invoked | A1b, A2, A3 |
 | R4a | An interrupted, concurrent, or ambiguous close is detectable and never silently retried (hardening H-B1/H-B2, review cycle 1) | A1b, A3 |
-| R5 | The closure-evidence gate refuses a closure whose close path lacks a valid record | A1, A1c, A4, A4b |
+| R5 | The closure-evidence gate refuses a closure whose close path lacks a valid record | A1, A1d, A1e, A1f, A1c, A4, A4b |
 | R6 | SAFE_CLOSE (D-A3, amended by review cycle 1 — Stage-recommended, pending operator confirmation): verdict record via `--classify-only`, required by the gate | A2, A2b, A3d, A4, A4b |
-| R7 | Surfaces updated: shipment-reconcile (template and mirror), operational-closure (template and mirror), Ship agent (template and mirror), docs | A5, A6, A7 |
+| R7 | Surfaces updated: shipment-reconcile (template and mirror), operational-closure (template and mirror), Ship agent (template and mirror), docs | A5, A5b, A5c, A6, A6b, A7 |
 | R8 | Upstream half as a portable, non-blocking backlogit request (D-A1) | A7 |
 | R9 | Retention and location (D-A2): committed at `docs/closure/evidence/`, and closure discovery is unaffected | A1, A4 |
 | R10 | Re-plan item 1 (D4a): the evidence records `engine_semantics` from `assess_cascade_engine_semantics`, probed on the CLI surface the command invokes, for released builds only | A2a, A1, A2 |
@@ -326,8 +326,11 @@ scenarios. A scenario is one table-driven test whose rows are cases.
 | A3d | 2 | 3 | S / low |
 | A4 | 2 | 4 | M / medium |
 | A4b | 2 | 2 | S / medium |
-| A5 | 2 rendered surfaces (template and mirror per skill), their manifest checksums, and 1 test file | 3 | M / low |
-| A6 | 1 rendered surface (template and mirror), its manifest checksum, and 1 test file | 2 | S / low |
+| A5 | 1 rendered-surface triple (shipment-reconcile template, mirror, and manifest checksum line); no new test file | 0 (existing doc tests stay green) | M / low |
+| A5b | 1 rendered-surface triple (operational-closure template, mirror, and manifest checksum line); no new test file | 0 (existing doc tests stay green) | S / low |
+| A5c | 1 test file | 3 | S / low |
+| A6 | 1 rendered-surface triple (Ship template, mirror, and manifest checksum line); no new test file | 0 (existing Ship tests stay green) | S / low |
+| A6b | 1 test file | 2 | XS / low |
 | A7 | 2 | 2 checks (no new test) | S / low |
 
 ### A1 — Evidence record contract: shape, path, and selection consistency (read-only)
@@ -1803,13 +1806,20 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
   `harness-surface:harness-architect`.
 * **Posture:** test-first. **Size:** S. **Complexity:** medium.
 
-### A5 — Skill templates and mirrors route CASCADE through the command
+### A5 — shipment-reconcile skill routes CASCADE through the command (template and mirror)
 
+Copilot PR #481 T9 split the former six-file A5 into this unit (the
+shipment-reconcile skill), A5b (the operational-closure skill), and A5c (the
+doc assertions for both).
+
+* **Goal:** route every shipment close through `autoharness shipment
+  cascade-close` in the shipment-reconcile skill (template and mirror).
 * **Files:** `templates/skills/shipment-reconcile/SKILL.md.tmpl`,
-  `.github/skills/shipment-reconcile/SKILL.md`,
-  `templates/skills/operational-closure/SKILL.md.tmpl`,
-  `.github/skills/operational-closure/SKILL.md`, and `.autoharness/harness-manifest.yaml`
-  (only the checksums and notes of those two entries).
+  `.github/skills/shipment-reconcile/SKILL.md`, and that entry's checksum
+  and note line in `.autoharness/harness-manifest.yaml`. The template, its
+  installed mirror, and the mirror's manifest checksum are one atomic
+  rendered-surface triple: existing parity and checksum-coherence tests fail
+  if any one changes without the other two, so they cannot be split further.
 * **Changes:**
   * shipment-reconcile:
     * Step 0(c) (the engine-semantics gate, close-path selection, and the
@@ -1824,7 +1834,7 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
       evidence record instead of from in-session Step 0(c) state, and never
       recomputes them: the selected close path and
       reason from `pre_close.close_path_selection`, the engine decision from
-      `pre_close.engine_semantics` (rebuilt with A1
+      `pre_close.engine_semantics` (rebuilt with A1e
       `engine_semantics_from_record`), the disposition snapshot from
       `pre_close.linked_deliberation_disposition`, and the path baseline from
       `observation_set` (SAFE_CLOSE) or `out_of_manifest_descendants`
@@ -1861,38 +1871,100 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     | either | 2, 4 | HALT. Nothing was mutated. Exit 4 includes an engine re-probe difference and any difference from the `cascade`-selected `--classify-only` record, and is never answered with SAFE_CLOSE. Fix the input, or ask the operator |
     | either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
 
-  * operational-closure: the closure artifact frontmatter gains `close_path` and
-    `close_evidence`, and the evidence JSON is committed with the closure artifact.
-* **Tests (characterization-first, three scenarios):**
-  1. **Structural assertions:** `tests/test_flat_manifest_closure_docs.py`
-     gains assertions that the command, the routing table, the
-     destructive-approval sentence, and the P-005 wording appear in both the
-     template and the mirror. Re-plan additions: Step 0(c) names
-     `--classify-only` and the three `pre_close` fields; the
-     Linked-Deliberation Disposition step's input sentence names the evidence
-     record as its source; and no edited surface places a linked deliberation
-     in `allowed_ids` or `required_ids`.
+  * No edited surface places a linked deliberation in `allowed_ids` or
+    `required_ids`.
+  * The operational-closure frontmatter change (`close_path`,
+    `close_evidence`) is A5b (`192.020-T`), not this unit.
+* **Verifiable outcome (characterization-first, no new test file).** The
+  existing doc tests (`tests/test_flat_manifest_closure_docs.py`,
+  `tests/test_shipment_reconcile_*.py`,
+  `tests/test_linked_deliberation_disposition_consumers.py`, and
+  `tests/test_closure_contract_nondrift.py`) pass before the edit and after
+  it, every wording they pin is preserved, and the full unittest suite is
+  green with the refreshed checksum. The new structural, parity, and
+  nondrift assertions are A5c (`192.021-T`; Copilot PR #481 T9).
+* **Depends on:** A4b (`192.016-T`). **Harness surface:**
+  `harness-surface:none`.
+* **Posture:** characterization-first (run the existing doc tests before
+  editing). **Size:** M. **Complexity:** low.
+
+### A5b — operational-closure skill (template and mirror)
+
+* **Goal:** the operational-closure half of the former A5, split out by
+  Copilot PR #481 T9 (A5 spanned six files).
+* **Files:** `templates/skills/operational-closure/SKILL.md.tmpl`,
+  `.github/skills/operational-closure/SKILL.md`, and that entry's checksum
+  and note line in `.autoharness/harness-manifest.yaml`. This is one atomic
+  rendered-surface triple, like A5's. Test assertions are A5c.
+* **Changes:**
+  * The closure artifact frontmatter gains `close_path` (`cascade` |
+    `safe_close`) and `close_evidence` (the
+    `docs/closure/evidence/{S}-{F}-close-evidence.json` path built by
+    `build_evidence_path`), and the evidence JSON is committed with the
+    closure artifact.
+  * The `### Step 3a: Validate the Closure Artifact with the
+    Closure-Evidence Gate` heading is kept verbatim, and no closure filename
+    is restated outside the contract-derived form.
+  * No edited surface places a linked deliberation in `allowed_ids` or
+    `required_ids`.
+  * Every wording pinned by an existing test is preserved; new assertions
+    land in A5c.
+* **Verifiable outcome (characterization-first, no new test file).** The
+  existing doc tests (`tests/test_flat_manifest_closure_docs.py` and
+  `tests/test_closure_contract_nondrift.py`) pass before the edit and after
+  it, and the full unittest suite is green with the refreshed checksum.
+* **Depends on:** A5 (`192.008-T`). **Harness surface:**
+  `harness-surface:none`.
+* **Posture:** characterization-first (run the existing doc tests before
+  editing). **Size:** S. **Complexity:** low.
+
+### A5c — Closure-routing doc assertions
+
+* **Goal:** the test half of the former A5, split out by Copilot PR #481 T9.
+  It pins the A5 (shipment-reconcile) and A5b (operational-closure) edits.
+* **Files:** `tests/test_flat_manifest_closure_docs.py` (extended). One
+  file.
+* **Tests (three scenarios):**
+  1. **Structural assertions:** in both the template and the mirror, the
+     `cascade-close` command, the routing table, the destructive-approval
+     sentence, and the P-005 wording appear; Step 0(c) names
+     `--classify-only` and the three `pre_close` fields
+     (`engine_semantics`, `close_path_selection`, and
+     `linked_deliberation_disposition`); the Linked-Deliberation Disposition
+     step's input sentence names the evidence record as its source; and no
+     edited surface places a linked deliberation in `allowed_ids` or
+     `required_ids`.
   2. **Rendered parity (AN-F05):** a new parity assertion pins LF-normalized
-     equality between the rendered template and the installed mirror for each
-     edited section (the Step 0(c) block, the Cascade Close Sub-Procedure, and
-     the operational-closure frontmatter block). Existing tests cover only the
-     Output bullet, Step 3a, and the Ship paragraph.
+     equality between the rendered template and the installed mirror for
+     each edited section (the Step 0(c) block, the Cascade Close
+     Sub-Procedure, and the operational-closure frontmatter block). Existing
+     tests cover only the Output bullet, Step 3a, and the Ship paragraph.
   3. **Nondrift pin:** `tests/test_closure_contract_nondrift.py` stays green
-     unchanged. The operational-closure `### Step 3a: Validate the Closure
-     Artifact with the Closure-Evidence Gate` heading is kept verbatim, and no
-     edited surface restates a closure filename outside the contract-derived
-     form.
-* **Depends on:** A4b. **Harness surface:** `harness-surface:none`.
-  Granularity (re-plan cycle-1 R4): each template/mirror pair, with its
-  manifest checksum entry, is one rendered surface, so this unit edits two
-  surfaces plus one test file and has three test scenarios.
-* **Posture:** characterization-first (run the existing doc tests before editing).
-  **Size:** M. **Complexity:** low.
+     unchanged. The operational-closure Step 3a heading is kept verbatim, and
+     no edited surface restates a closure filename outside the
+     contract-derived form.
+
+  The new assertions pass against the A5 and A5b edits and fail if any
+  pinned phrase is removed from either the template or the mirror.
+* **Depends on:** A5b (`192.020-T`). **Harness surface:**
+  `harness-surface:none`.
+* **Posture:** test-after-edit (assertions over the A5 and A5b edits).
+  **Size:** S. **Complexity:** low.
 
 ### A6 — Ship agent P-015 pointer (template and mirror)
 
-* **Files:** `templates/agents/_ship.agent.md.tmpl`, `.github/agents/_ship.agent.md`,
-  and the manifest checksum of that entry.
+Copilot PR #481 T10 split the former four-file A6: the test assertions are
+A6b.
+
+* **Goal:** the Ship agent P-015 post-merge step 2c pointer to
+  `autoharness shipment cascade-close` (template and mirror).
+* **Files:** `templates/agents/_ship.agent.md.tmpl`,
+  `.github/agents/_ship.agent.md`, and that entry's checksum line in
+  `.autoharness/harness-manifest.yaml`. This is one atomic rendered-surface
+  triple: `tests/test_crash_resumption_protocol.py` and
+  `tests/test_checkpoint_payload_contract.py` assert the mirror's manifest
+  checksum, and parity tests compare template and mirror, so the three
+  cannot be split further.
 * **Changes:**
   * In post-merge step 2c, every close starts with `--classify-only`. CASCADE is
     executed only through `autoharness shipment cascade-close`, with the same
@@ -1907,18 +1979,49 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
   * The closure-evidence contract sentence names the new frontmatter keys.
   * Pointer-level only. The routing table lives in the skill, not here.
   * Frontmatter is **not** touched (C owns it).
-* **Tests (characterization-first, two scenarios):**
-  1. **Pointer assertions:** extend the existing Ship structural test that
-     asserts the P-015 pointer, in both files, including the engine-gate and
-     disposition-step names.
+* **Verifiable outcome (characterization-first, no new test file).** The
+  existing Ship tests (`tests/test_ship_safe_close_pointer.py`,
+  `tests/test_closure_contract_nondrift.py`, the manifest-checksum coherence
+  checks in `tests/test_crash_resumption_protocol.py` and
+  `tests/test_checkpoint_payload_contract.py`, and
+  `tests/test_telemetry_ship_lifecycle.py`) pass before the edit and after
+  it, every wording they pin is preserved, and the full unittest suite is
+  green with the refreshed checksum. The `**Closure-evidence contract**`
+  paragraph stays a single line in each file, with the new keys inside it,
+  because
+  `tests/test_closure_contract_nondrift.py::test_template_and_installed_mirror_parity`
+  asserts exactly one such line. The new pointer assertions are A6b
+  (`192.022-T`; Copilot PR #481 T10).
+* **Depends on:** A5c (`192.021-T`; was A5 `192.008-T` before Copilot PR
+  #481 T9/T10). A6 follows the whole A5 family, so the three
+  `harness-manifest.yaml` checksum edits of A5, A5b, and A6 stay serial.
+  **Harness surface:** `harness-surface:none`.
+* **Posture:** characterization-first. **Size:** S. **Complexity:** low.
+
+### A6b — Ship agent step 2c pointer assertions
+
+* **Goal:** the test half of the former A6, split out by Copilot PR #481 T10
+  (A6 spanned four files).
+* **Files:** `tests/test_ship_safe_close_pointer.py` (extended; the existing
+  Ship structural P-015 pointer test). One file.
+* **Tests (two scenarios):**
+  1. **Pointer assertions:** in both `templates/agents/_ship.agent.md.tmpl`
+     and `.github/agents/_ship.agent.md`, step 2c starts every close with
+     `--classify-only`, executes CASCADE only through `autoharness shipment
+     cascade-close`, names the command's engine-semantics gate and the
+     skill's Linked-Deliberation Disposition step, and requires
+     `close_path` plus `close_evidence`.
   2. **Rendered parity (AN-F05):** a rendered-section parity assertion for
      step 2c. The Ship `**Closure-evidence contract**` paragraph stays a
-     single line in each file with rendered template/mirror parity, because
-     `tests/test_closure_contract_nondrift.py::test_template_and_installed_mirror_parity`
-     asserts exactly one such line. The new keys are added inside that same
-     line.
-* **Depends on:** A5. **Harness surface:** `harness-surface:none`.
-* **Posture:** characterization-first. **Size:** S. **Complexity:** low.
+     single line in each file, with template/mirror parity and the new keys
+     inside it.
+
+  The new assertions pass against the A6 edit and fail if a pinned phrase is
+  removed from either file.
+* **Depends on:** A6 (`192.009-T`). **Harness surface:**
+  `harness-surface:none`.
+* **Posture:** test-after-edit (assertions over the A6 edit). **Size:** XS.
+  **Complexity:** low.
 
 ### A7 — Docs: command reference and the portable upstream backlogit request
 
@@ -1954,7 +2057,9 @@ Re-plan cycle-1 R4 moved the CLI wiring and `--json` rendering into A3d.
     1.10.x `pre_close.linked_deliberations` key is not documented.
 * **Tests (two checks, no new test scenario):** markdownlint, and
   `tests/test_docs_frontmatter_decodes.py`.
-* **Depends on:** A3d. **Harness surface:** `harness-surface:none`.
+* **Depends on:** A4b (`192.016-T`; was A3d `192.015-T` before Copilot PR
+  #481 T7, because A7 documents the gate's new `failed_check` values and
+  `warnings[]`). **Harness surface:** `harness-surface:none`.
 * **Posture:** docs-only. **Size:** S. **Complexity:** low.
 
 ## Dependency Graph
