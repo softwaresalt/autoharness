@@ -820,6 +820,23 @@ direct `{{OP_SHIP_SHIPMENT_MCP}}` MCP or `backlogit shipment ship` CLI call is
 a **P-005 deviation**. The command never archives a disposition-set
 deliberation; the Linked-Deliberation Disposition step stays its only
 archiver. The prose below stays the specification the command implements.
+
+**Timeout sizing (192-F).** The mutating run's `--timeout` is 30-3600
+seconds (default 1800). On expiry the command kills the engine mid-cascade
+and exits 6 (`mutation_possible: indeterminate`), so Ship sizes it before
+the run. Let N = |closure_scope(S)| (the manifest items plus the shipment
+record) and compute the budget `B = ceil(1.5 * (F + P * N))` seconds, where
+F and P are the fixed and per-artifact `backlogit shipment ship` costs
+re-derived from the workspace's own backlogit event logs (reference values,
+backlogit 1.11.0: F = 133 s, P = 35 s). If B <= 1800, the default suffices.
+If 1800 < B <= 3600, Ship adds `--timeout B` to the invocation above. If
+B > 3600, Ship does not start the mutating run and HALTs for an operator
+decision; it never invokes the command with a timeout known to be too
+short. Ship stays attached to the run until the command exits and never
+abandons or kills it on an agent-tool wait. For this run the command's
+`--timeout` is the stall bound and the circuit-breaker "Other commands"
+5-minute stall timeout does not apply, because the most specific applicable
+limit governs.
 <!-- cascade-close-routing:END cascade-sub-procedure -->
 
 **Pre-archived manifest members (expected and tolerated)**: before invoking
