@@ -258,5 +258,91 @@ class ArchitecturePointerTests(unittest.TestCase):
         self.assertIn("tuning-guide.md", text)
 
 
+_POLICY_TEMPLATE = "templates/policies/workflow-policies.md.tmpl"
+_POLICY_MIRROR = ".github/policies/workflow-policies.md"
+
+# The pre-B7 P-013.1 / P-013.4 paragraphs, byte-for-byte (MUST statements included).
+_P0131_ORIGINAL = (
+    "Every agent operates at the tier bound to it by the config-driven `model_routing` map in "
+    "`.autoharness/config.yaml`. That binding is resolved at install time into the agent's "
+    "`model_family` / `model_provider` / `reasoning_effort` frontmatter (its effective model) and is "
+    "documented in the agent's persona prose (for example, \"operates at Tier 2 (Standard)\"). An agent "
+    "must not request a lower-capability model than its resolved tier to reduce cost, nor a "
+    "higher-capability model than its resolved tier without following the escalation path in P-013.3."
+)
+_P0134_ORIGINAL = (
+    "Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare "
+    "`max_subagent_tier` as an integer frontmatter field. The agent's base tier is expressed by its "
+    "install-resolved `model_family` / `model_provider` / `reasoning_effort` frontmatter (populated "
+    "from the `model_routing` map) together with the tier selection baked into its template — it is "
+    "not duplicated as a standalone `model_tier` integer. Agents that omit `max_subagent_tier` are "
+    "non-conformant and must be updated before the next harness verification pass."
+)
+_P0131_CLARIFICATION = (
+    "Plugin-distributed agents (those listed in the autoharness `plugin.json` `agents[]`) are shipped "
+    "verbatim and never install-rendered: their tier binding is documented only in their persona prose "
+    "(\"operates at Tier N\"), they run on the operator-selected session model, and the rule above that an "
+    "agent must not request a lower- or higher-capability model than its tier still applies to them."
+)
+_P0134_CLARIFICATION = (
+    "The install-resolved route-value sentence above applies to installed (`tier-routed`) agents only; "
+    "plugin-distributed (`plugin-global`) agents declare `max_subagent_tier` and no route-value "
+    "frontmatter."
+)
+_P013_MUST_SENTENCES = (
+    "An agent must not request a lower-capability model than its resolved tier to reduce cost, nor a "
+    "higher-capability model than its resolved tier without following the escalation path in P-013.3.",
+    "Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare "
+    "`max_subagent_tier` as an integer frontmatter field.",
+    "Agents that omit `max_subagent_tier` are non-conformant and must be updated before the next "
+    "harness verification pass.",
+)
+
+
+def _paragraph(text: str, heading: str) -> str:
+    """Return the first non-empty paragraph under ``heading``."""
+    body = _section(text, heading).strip()
+    return body.split("\n\n", 1)[0].strip()
+
+
+class PluginGlobalPolicyClarificationTests(unittest.TestCase):
+    """B7: P-013.1 / P-013.4 plugin-global clarification in template and mirror."""
+
+    def setUp(self) -> None:
+        self.texts = {rel: _read(rel) for rel in (_POLICY_TEMPLATE, _POLICY_MIRROR)}
+
+    def test_clarifications_present_and_must_sentences_unchanged(self) -> None:
+        cases = (
+            ("### P-013.1 — Resolved Tier Compliance", _P0131_ORIGINAL, _P0131_CLARIFICATION),
+            ("### P-013.4 — Tier Annotation in Agent Definitions", _P0134_ORIGINAL, _P0134_CLARIFICATION),
+        )
+        for rel, text in self.texts.items():
+            for heading, original, clarification in cases:
+                with self.subTest(path=rel, heading=heading):
+                    self.assertEqual(_paragraph(text, heading), f"{original} {clarification}")
+            for sentence in _P013_MUST_SENTENCES:
+                with self.subTest(path=rel, sentence=sentence[:40]):
+                    self.assertIn(sentence, text)
+
+    def test_p013_sections_identical_in_template_and_mirror(self) -> None:
+        for heading in (
+            "### P-013.1 — Resolved Tier Compliance",
+            "### P-013.4 — Tier Annotation in Agent Definitions",
+        ):
+            with self.subTest(heading=heading):
+                template = _section(self.texts[_POLICY_TEMPLATE], heading)
+                mirror = _section(self.texts[_POLICY_MIRROR], heading)
+                self.assertTrue(template.strip())
+                self.assertEqual(template, mirror)
+
+    def test_mirror_manifest_checksum_matches_staged_blob(self) -> None:
+        manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
+        by_path = {item.get("path"): item for item in manifest.get("artifacts") or []}
+        self.assertIn(_POLICY_MIRROR, by_path)
+        self.assertEqual(
+            by_path[_POLICY_MIRROR].get("checksum"), _staged_blob_sha256(_ROOT / _POLICY_MIRROR)
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

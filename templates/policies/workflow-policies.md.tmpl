@@ -380,7 +380,7 @@ P-005 violation event.
 
 ### P-013.1 — Resolved Tier Compliance
 
-Every agent operates at the tier bound to it by the config-driven `model_routing` map in `.autoharness/config.yaml`. That binding is resolved at install time into the agent's `model_family` / `model_provider` / `reasoning_effort` frontmatter (its effective model) and is documented in the agent's persona prose (for example, "operates at Tier 2 (Standard)"). An agent must not request a lower-capability model than its resolved tier to reduce cost, nor a higher-capability model than its resolved tier without following the escalation path in P-013.3.
+Every agent operates at the tier bound to it by the config-driven `model_routing` map in `.autoharness/config.yaml`. That binding is resolved at install time into the agent's `model_family` / `model_provider` / `reasoning_effort` frontmatter (its effective model) and is documented in the agent's persona prose (for example, "operates at Tier 2 (Standard)"). An agent must not request a lower-capability model than its resolved tier to reduce cost, nor a higher-capability model than its resolved tier without following the escalation path in P-013.3. Plugin-distributed agents (those listed in the autoharness `plugin.json` `agents[]`) are shipped verbatim and never install-rendered: their tier binding is documented only in their persona prose ("operates at Tier N"), they run on the operator-selected session model, and the rule above that an agent must not request a lower- or higher-capability model than its tier still applies to them.
 
 ### P-013.2 — Subagent Tier Ceiling
 
@@ -398,7 +398,7 @@ The analyzing tier MUST NOT re-execute the failing operation after its circuit i
 
 ### P-013.4 — Tier Annotation in Agent Definitions
 
-Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `max_subagent_tier` as an integer frontmatter field. The agent's base tier is expressed by its install-resolved `model_family` / `model_provider` / `reasoning_effort` frontmatter (populated from the `model_routing` map) together with the tier selection baked into its template — it is not duplicated as a standalone `model_tier` integer. Agents that omit `max_subagent_tier` are non-conformant and must be updated before the next harness verification pass.
+Every agent definition (installed `.agent.md` or `.agent.md.tmpl`) must declare `max_subagent_tier` as an integer frontmatter field. The agent's base tier is expressed by its install-resolved `model_family` / `model_provider` / `reasoning_effort` frontmatter (populated from the `model_routing` map) together with the tier selection baked into its template — it is not duplicated as a standalone `model_tier` integer. Agents that omit `max_subagent_tier` are non-conformant and must be updated before the next harness verification pass. The install-resolved route-value sentence above applies to installed (`tier-routed`) agents only; plugin-distributed (`plugin-global`) agents declare `max_subagent_tier` and no route-value frontmatter.
 
 **Violation Action**: Record a P-013 violation (via P-005 telemetry) with the specific sub-policy identifier (P-013.1–P-013.4), halt the violating invocation, and surface the violation to the operator.
 
