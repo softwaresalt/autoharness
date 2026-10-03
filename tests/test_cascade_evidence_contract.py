@@ -554,5 +554,78 @@ def _safe_close_with_reason(reason: str) -> dict:
     return record
 
 
+class RedactionCoverageTests(unittest.TestCase):
+    """198-S local review: broadened redaction coverage without false positives."""
+
+    _SECRET = "QZX9secretVALUE9QZX"
+
+    def test_sensitive_formats_are_redacted(self) -> None:
+        s = self._SECRET
+        rows = [
+            ("prefixed env key", f"GITHUB_TOKEN={s}"),
+            ("npm token env", f"export NPM_TOKEN={s}"),
+            ("db password env", f"DB_PASSWORD={s} other"),
+            ("aws secret access key", f"AWS_SECRET_ACCESS_KEY={s}"),
+            ("azure client secret", f"AZURE_CLIENT_SECRET = {s}"),
+            ("dotted config key", f"spring.datasource.password={s}"),
+            ("colon password", f"password: {s}"),
+            ("colon header api key", f"X-Api-Key: {s}"),
+            ("colon quoted value", f"secret: \"{s} with spaces\""),
+            ("json prefixed key", f'{{"github_token": "{s}"}}'),
+            ("json camelCase key", f'{{"accessToken":"{s}"}}'),
+            ("json header key", f'{{"x-api-key" : "{s}"}}'),
+            ("json single-quoted key", f"{{'client_secret': \"{s}\"}}"),
+            ("url userinfo", f"fetching https://user:{s}@example.com/repo.git"),
+            ("url userinfo token user", f"git clone https://x-access-token:{s}@github.com/o/r"),
+            ("aws access key id", "key AKIAIOSFODNN7QZX9ABC found"),
+            (
+                "pem private key block",
+                "before\n-----BEGIN RSA PRIVATE KEY-----\nMIIQZX9secretVALUE9QZX\nabc\n"
+                "-----END RSA PRIVATE KEY-----\nafter",
+            ),
+            ("pem openssh key", f"-----BEGIN OPENSSH PRIVATE KEY-----\n{s}\n-----END OPENSSH PRIVATE KEY-----"),
+            ("pem unterminated (truncated) block", f"-----BEGIN PRIVATE KEY-----\n{s}\n"),
+            ("legacy key=value", f"abc token={s}"),
+            ("legacy json key", f'{{"token": "{s}"}}'),
+        ]
+        for label, text in rows:
+            with self.subTest(label):
+                redacted, applied = redact(text)
+                self.assertTrue(applied, label)
+                self.assertIn(cascade_evidence.REDACTION_MARKER, redacted)
+                self.assertNotIn("QZX9secretVALUE9QZX", redacted)
+                self.assertNotIn("AKIAIOSFODNN7QZX9ABC", redacted)
+                self.assertNotIn("MIIQZX9", redacted)
+                # Redaction is idempotent, so a persisted excerpt stays neutral.
+                self.assertEqual(redact(redacted), (redacted, False))
+        with self.subTest("PEM surroundings and URL host are kept"):
+            redacted, _ = redact(rows[16][1])
+            self.assertTrue(redacted.startswith("before\n"))
+            self.assertTrue(redacted.endswith("\nafter"))
+            self.assertIn("@example.com/repo.git", redact(rows[13][1])[0])
+            self.assertIn("GITHUB_TOKEN=", redact(rows[0][1])[0])
+            self.assertIn('"accessToken":', redact(rows[10][1])[0])
+
+    def test_ordinary_output_is_redaction_neutral(self) -> None:
+        fixtures = Path(__file__).parent / "fixtures" / "backlogit_ship"
+        texts = [path.read_text(encoding="utf-8") for path in sorted(fixtures.glob("*.jsonrpc"))]
+        self.assertTrue(texts)
+        texts += [
+            json.dumps(cascade_record(), indent=2, sort_keys=True),
+            json.dumps(safe_close_record(), indent=2, sort_keys=True),
+            "198-S 192-F 192.001-T 001.001-T 1263B218 PRRT_kwDORzpWpM6oh0SP",
+            "0123456789abcdef0123456789abcdef01234567 cce56634 deadbeef",
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "backlogit 1.11.0 (commit 0b4056f) built 2026-10-02T20:52:49Z",
+            "gate blocked: 001.001-T remains active",
+            "git@github.com:softwaresalt/autoharness.git https://github.com/softwaresalt/autoharness/pull/481",
+            "time 12:30:45 at C:\\Source\\GitHub\\autoharness\\docs\\closure\\evidence",
+            "--message string   merge commit message to record on released artifacts",
+        ]
+        for text in texts:
+            with self.subTest(text=text[:60]):
+                self.assertEqual(redact(text), (text, False))
+
+
 if __name__ == "__main__":
     unittest.main()

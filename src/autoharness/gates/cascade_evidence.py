@@ -95,19 +95,26 @@ _ID_LIST_KEYS: Final = frozenset(
 # Redaction (re-plan cycle-1 R6, R17)
 # ---------------------------------------------------------------------------
 
-_CREDENTIAL_KEYS: Final = (
-    "client_secret",
-    "refresh_token",
-    "access_token",
-    "api_key",
-    "apikey",
-    "password",
-    "secret",
-    "token",
-)
-_CREDENTIAL_KEY_ALTERNATION: Final = "|".join(_CREDENTIAL_KEYS)
+# 198-S local review: a sensitive fragment matches anywhere inside a longer
+# identifier, case-insensitively (``GITHUB_TOKEN``, ``DB_PASSWORD``,
+# ``AWS_SECRET_ACCESS_KEY``, ``accessToken``, ``x-api-key``). The fragments
+# cover the original key set (``token``, ``password``, ``secret``,
+# ``api_key``, ``apikey``, ``access_token``, ``refresh_token``,
+# ``client_secret``).
+_CREDENTIAL_KEY_FRAGMENT: Final = r"(?:secret|token|passw(?:or)?d|api[_-]?key|private[_-]?key)"
+_IDENTIFIER_CHAR: Final = r"[A-Za-z0-9_.\-]"
+_QUOTED_VALUE: Final = r"\"(?:[^\"\\]|\\.)*\""
 
 _REDACTION_RULES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
+    # PEM private-key blocks through END; an unterminated (truncated) block
+    # is redacted to the end of the text.
+    (
+        re.compile(
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----(?:.*?-----END [A-Z0-9 ]*PRIVATE KEY-----|.*\Z)",
+            re.DOTALL,
+        ),
+        REDACTION_MARKER,
+    ),
     # Authorization header values (bearer or basic scheme; the scheme is kept).
     (
         re.compile(
@@ -117,19 +124,28 @@ _REDACTION_RULES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
         rf"\g<1>{REDACTION_MARKER}",
     ),
     (re.compile(r"(\bbearer\s+)[A-Za-z0-9\-._~+/]+=*", re.IGNORECASE), rf"\g<1>{REDACTION_MARKER}"),
-    # Quoted JSON credential keys: the quoted value is redacted through its
-    # closing quote and the key is kept.
+    # URL userinfo with a password (``scheme://user:pass@host``); the scheme
+    # and host are kept.
+    (
+        re.compile(r"\b([a-z][a-z0-9+.\-]*://)[^\s/@:]+:[^\s/@]+@", re.IGNORECASE),
+        rf"\g<1>{REDACTION_MARKER}@",
+    ),
+    # Quoted credential keys (double or single quotes, the fragment anywhere
+    # in the key): the double-quoted value is redacted through its closing
+    # quote and the key is kept.
     (
         re.compile(
-            rf"(\"(?:{_CREDENTIAL_KEY_ALTERNATION})\"\s*:\s*)\"(?:[^\"\\]|\\.)*\"",
+            rf"(([\"'])[^\"'\s]*{_CREDENTIAL_KEY_FRAGMENT}[^\"'\s]*\2\s*[:=]\s*){_QUOTED_VALUE}",
             re.IGNORECASE,
         ),
         rf'\g<1>"{REDACTION_MARKER}"',
     ),
-    # key=value credential pairs over the same shared key set.
+    # Unquoted ``key=value`` / ``key: value`` credential pairs, the fragment
+    # anywhere in the key. The separator never spans a line break.
     (
         re.compile(
-            rf"(\b(?:{_CREDENTIAL_KEY_ALTERNATION})\s*=\s*)[^\s&\"',;]+",
+            rf"(?<!{_IDENTIFIER_CHAR})({_IDENTIFIER_CHAR}*{_CREDENTIAL_KEY_FRAGMENT}{_IDENTIFIER_CHAR}*"
+            rf"[ \t]*[:=][ \t]*)(?:{_QUOTED_VALUE}|'[^'\n]*'|[^\s&\"',;]+)",
             re.IGNORECASE,
         ),
         rf"\g<1>{REDACTION_MARKER}",
@@ -138,6 +154,8 @@ _REDACTION_RULES: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
     (re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"), REDACTION_MARKER),
     # sk- style API keys.
     (re.compile(r"\bsk-[A-Za-z0-9_-]{16,}"), REDACTION_MARKER),
+    # AWS access key IDs.
+    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), REDACTION_MARKER),
 )
 
 
@@ -649,10 +667,15 @@ def disposition_plan_from_record(
 def redact(text: str) -> tuple[str, bool]:
     """Return ``(redacted_text, redaction_applied)`` for one free-text value.
 
-    Covers bearer/basic ``Authorization`` values; ``key=value`` pairs and
-    quoted JSON keys over one shared, case-insensitive credential key set;
-    GitHub ``gh[pousr]_`` and ``github_pat_`` tokens; and ``sk-`` style keys.
-    ``redaction_applied`` is ``True`` only when the text changed. Because the
+    Covers PEM private-key blocks (through ``END``, or to the end of a
+    truncated block); bearer/basic ``Authorization`` values; URL userinfo
+    with a password; ``key=value`` / ``key: value`` pairs and quoted
+    (single- or double-quoted) keys whose name contains a sensitive fragment
+    (``secret``, ``token``, ``password``/``passwd``, ``api_key``/``api-key``/
+    ``apikey``, ``private_key``) anywhere, case-insensitively; GitHub
+    ``gh[pousr]_`` and ``github_pat_`` tokens; ``sk-`` style keys; and AWS
+    ``AKIA``/``ASIA`` access key IDs (198-S local review). Redaction is
+    idempotent. ``redaction_applied`` is ``True`` only when the text changed. Because the
     result is a tuple, a redaction-neutrality check is written
     ``redact(x)[0] == x``.
     """
