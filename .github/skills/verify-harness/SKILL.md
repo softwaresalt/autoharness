@@ -45,6 +45,55 @@ The skill is mandatory for `standard` and `full` presets. It may be skipped for
 * Auto-remediated artifacts (when `auto_remediate` is true)
 * Remaining findings requiring operator review
 
+## Deterministic Checks Consumed
+
+### Deterministic Check: `frontmatter_conformity`
+
+`autoharness verify-workspace` runs the `frontmatter_conformity` targeted check
+over every installed agent (`*.agent.md` in the agent scan directories) and every
+skill root (`.github/skills/*/SKILL.md`), validating each frontmatter block
+against the frontmatter contract in `src/autoharness/frontmatter_contract.py`.
+The result is reported at `targeted_checks.frontmatter_conformity` with `ok`,
+`errors[]`, `info[]`, and a per-file `files{}` map that records each file's
+`class`, `profile`, `checksum_status`, and `findings[]`.
+
+Each file is classified by provenance:
+
+| Class | Provenance | Effect of a blocking finding |
+|---|---|---|
+| `managed-rendered` | Manifest artifact rendered from an autoharness template | Fails the check closed |
+| `managed-community` | Installed community template | Fails the check closed |
+| `managed-source` | autoharness's own source-controlled agent or skill definition (`global agent definition` / `global skill definition`) | Fails the check closed |
+| `workspace-authored` | Not tracked by the manifest (the workspace's own agents and skills) | One advisory `warnings[]` entry of kind `frontmatter-conformity`; never changes `ok` |
+| `unknown-provenance` | Provenance cannot be established | Advisory, like `workspace-authored` |
+
+Managed files fail closed regardless of checksum status (H-B3): a
+`user-modified`, `missing`, or `ignored` checksum does not excuse a
+nonconformant managed file. Workspace-authored files are preserved and
+reported, never rewritten.
+
+Agents are checked against one of two profiles, selected by the autoharness
+`plugin.json` `agents[]` list:
+
+* `tier-routed` — installed agents; require `max_subagent_tier`,
+  `subagent_depth`, and the install-resolved `model_family`, `model_provider`,
+  and `reasoning_effort` route.
+* `plugin-global` — plugin-distributed agents; declare only the tier keys
+  (`max_subagent_tier`, `subagent_depth`) and must not carry any route-value
+  key. They run on the operator's session model.
+
+Skills are leaf executors (P-013.5) and must carry no routing key and no bare
+`model:`. No agent or skill may carry a bare `model:` key.
+
+`FM_UNKNOWN_KEY` is informational only: it appears in the per-file `findings[]`
+and in `info[]`, and never fails the check or emits a warning. Every blocking
+finding also yields a `contract: frontmatter-conformity` entry in
+`migration_proposals[]`, which tune-harness promotes in its Step 1.5c.
+
+Adversarial reviewers treat this check's verdict as authoritative for
+frontmatter key conformity: report a failing `frontmatter_conformity` check as a
+deterministic defect rather than re-deriving key rules by hand.
+
 ## Required Protocol
 
 ### Phase 1: Assemble Review Payload
