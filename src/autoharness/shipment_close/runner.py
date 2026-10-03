@@ -155,7 +155,9 @@ def resolve_backlogit_binary(
     """Resolve the registry's bare-name ``cli.binary`` to a trusted absolute path.
 
     Refuses (exit 2): a non-bare name (checked before any lookup); an
-    unresolved binary; a resolved basename (minus ``.exe`` on Windows) that is
+    unresolved binary; a resolution that is not already absolute (a
+    cwd-relative ``which()`` result is never ``abspath``-ed); a resolved
+    basename (minus ``.exe`` on Windows) that is
     not ``cli.binary``; a resolution inside the workspace root; a symlink or
     reparse point; and on Windows any suffix other than ``.exe``.
     """
@@ -172,7 +174,13 @@ def resolve_backlogit_binary(
         raise PersistError(EXIT_INPUT, f"cli.binary {name!r} is not resolvable on PATH")
     candidate = Path(found)
     if not candidate.is_absolute():
-        candidate = Path(os.path.abspath(candidate))
+        # Never abspath a cwd-relative lookup: it would trust a binary planted
+        # in an attacker-controlled cwd (198-S local review).
+        raise PersistError(
+            EXIT_INPUT,
+            f"refusing a non-absolute PATH resolution for cli.binary {name!r} ({found!r}); "
+            "remove '.'/empty entries from PATH",
+        )
     stem = candidate.name
     if _WINDOWS:
         if candidate.suffix.lower() != ".exe":

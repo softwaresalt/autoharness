@@ -121,6 +121,23 @@ class BinaryTrustTests(unittest.TestCase):
                 self.assertEqual(caught.exception.exit_code, EXIT_INPUT)
 
         refused("unresolved binary", lambda f: None)
+
+        # 198-S local review: a cwd-relative which() result (Windows without
+        # NoDefaultCurrentDirectoryInExePath; '.'/empty PATH entries) is
+        # refused even when a planted binary exists in the cwd.
+        for relative in (f"backlogit{_EXE}", os.path.join(".", f"backlogit{_EXE}")):
+            with self.subTest("a relative which() result", relative=relative):
+                fixture = _Fixture(self)
+                fixture.fake(fixture.fakes, f"backlogit{_EXE}", b"planted\n")
+                previous = os.getcwd()
+                os.chdir(fixture.fakes)
+                try:
+                    with self.assertRaises(PersistError) as caught:
+                        resolve_backlogit_binary(fixture.root, which=mock.Mock(return_value=relative))
+                finally:
+                    os.chdir(previous)
+                self.assertEqual(caught.exception.exit_code, EXIT_INPUT)
+                self.assertIn("absolute", str(caught.exception))
         refused("a fake binary inside the workspace root", lambda f: f.fake(f.root, f"backlogit{_EXE}"))
         refused("a resolved basename that differs", lambda f: f.fake(f.fakes, f"python{_EXE}"))
         refused("a resolved basename with a different prefix", lambda f: f.fake(f.fakes, f"backlogit2{_EXE}"))
