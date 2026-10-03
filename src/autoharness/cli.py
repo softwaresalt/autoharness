@@ -294,6 +294,11 @@ through no symlink or junction, and must validate against the declared
 close_path as the record's selected close path. When the artifact carries
 merge_commit, the record's merge_commit_sha must equal it (absent: a
 warning). SAFE_CLOSE without a valid safe_close-selected record fails.
+Last, for safe_close, every recorded observation-set entry must still be at
+its recorded backlog path and location with its recorded SHA-256 (path
+containment checked before any read), and every entry recorded missing must
+still be missing (failed_check close_evidence); an empty observation set
+passes with a vacuous-check warning.
 
 `dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any
 path. It is existence-guarded (zero shipments -> empty report, exit 0) and
@@ -1881,6 +1886,80 @@ def _check_close_path_requirement(
             "closure artifact has no merge_commit key; the evidence record's merge_commit_sha "
             "was not cross-checked"
         )
+    if close_path == "safe_close":
+        problem = _recheck_observation_set(record, root, warnings)
+        if problem is not None:
+            return "close_evidence", f"SAFE_CLOSE observation-set re-check failed: {problem}"
+    return None
+
+
+_OBSERVATION_RECORD_MAX_BYTES = 2 * 1024 * 1024
+
+
+def _recheck_observation_set(record: dict, root: Path, warnings: list[str]) -> str | None:
+    """Re-check a validated ``safe_close`` record's observation set (plan unit A4b); a problem or None.
+
+    Every located entry must still be at exactly its recorded path and
+    location with its recorded SHA-256 (raw bytes); every ``location: missing``
+    entry must still resolve to no record. Each path is checked before any
+    byte is read: its first segment must be the detected backlog root, then
+    ``_check_path_containment``. Disposition-set deliberations are re-checked
+    only where A2b put them in the set (UNVERIFIED engine; re-plan cycle-2
+    C2-1); no disposition outcome is ever read and no stranded warning is
+    emitted (cycle-1 R2). An empty set passes with a vacuous-check warning.
+    """
+    import hashlib
+
+    # Private-name rule (re-plan cycle-2 C2-4): the shipment_closure names are
+    # imported lazily, never at module top.
+    from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
+    from autoharness.gates.shipment_closure import (
+        _check_path_containment,
+        _read_artifact_record,
+    )
+
+    entries = record["pre_close"]["observation_set"]  # shape guaranteed by validate_evidence_record
+    if not entries:
+        warnings.append(
+            "the SAFE_CLOSE observation set is empty, so the observation-set re-check was "
+            "vacuous (no out-of-scope parent, sibling, or descendant was observed)"
+        )
+        return None
+    try:
+        backlog_dir = resolve_backlog_root(root)
+    except BacklogUnavailableError as exc:
+        return f"the workspace backlog root cannot be detected: {exc}"
+    for entry in entries:
+        artifact_id = entry["id"]
+        if entry["location"] == "missing":
+            try:
+                resolved = _read_artifact_record(backlog_dir, artifact_id)
+            except BacklogUnavailableError as exc:
+                return f"entry {artifact_id!r} recorded missing cannot be resolved safely: {exc}"
+            if resolved is not None:
+                return f"entry {artifact_id!r} was recorded missing but now resolves to a record"
+            continue
+        path = entry["path"]
+        segments = path.split("/")
+        if segments[0] != backlog_dir.name:
+            return (
+                f"entry {artifact_id!r} path '{path}' is not under the detected backlog root "
+                f"'{backlog_dir.name}'; nothing was read"
+            )
+        if len(segments) < 3 or segments[1] != entry["location"]:
+            return (
+                f"entry {artifact_id!r} path '{path}' is not at its recorded location "
+                f"{entry['location']!r}; nothing was read"
+            )
+        reason = _check_path_containment(root.joinpath(*segments), backlog_dir)
+        if reason is not None:
+            return f"entry {artifact_id!r} path '{path}' fails containment ({reason}); nothing was read"
+        try:
+            raw = _read_contained_regular_file(root, path, backlog_dir, _OBSERVATION_RECORD_MAX_BYTES)
+        except ValueError as exc:
+            return f"entry {artifact_id!r} is no longer at its recorded location: {exc}"
+        if hashlib.sha256(raw).hexdigest() != entry["sha256"]:
+            return f"entry {artifact_id!r} at '{path}' changed since the pre-close baseline (SHA-256 differs)"
     return None
 
 
