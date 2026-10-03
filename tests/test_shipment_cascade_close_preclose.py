@@ -108,7 +108,8 @@ def _task_only_fixture(test: unittest.TestCase, *, deliberation_status: str = "a
 def _classify(backlog: Path, feature_id: str, version: str = "1.11.0", **kwargs: object):
     probe = mock.Mock(return_value=_probe(version))
     with mock.patch.object(preclose, "probe_engine_semantics", probe):
-        result = run_classify_only(backlog.parent, _SHIPMENT, feature_id, kwargs.pop("sha", _SHA), resolved=_RESOLVED)
+        sha = kwargs.pop("sha", _SHA)
+        result = run_classify_only(backlog.parent, _SHIPMENT, feature_id, sha, resolved=_RESOLVED, **kwargs)
     return result, probe
 
 
@@ -296,6 +297,42 @@ class LockPrecedenceTests(unittest.TestCase):
         classify.assert_not_called()
         probe.assert_not_called()
         self.assertEqual(path.read_bytes(), before)
+
+    def test_replace_pre_close_takeover(self) -> None:
+        """Plain --classify-only is no-clobber; --replace-pre-close replaces through the A1b takeover (192.015-T)."""
+
+        backlog = _task_only_fixture(self)
+        with self.subTest("--replace-pre-close with no existing record writes a new one"):
+            first, _ = _classify(backlog, "610-F", replace_pre_close=True)
+            self.assertEqual(first.exit_code, EXIT_SAFE_CLOSE_SELECTED, first.message)
+            self.assertEqual(first.classifier_verdict, "SAFE_CLOSE")
+            self.assertEqual(first.engine_verdict, "VERIFIED")
+        path = build_evidence_path(backlog.parent, _SHIPMENT, "610-F")
+        before = path.read_bytes()
+        prior_run_id = json.loads(before)["run_id"]
+
+        with self.subTest("plain --classify-only refuses an existing record byte-identically"):
+            plain, probe = _classify(backlog, "610-F")
+            self.assertEqual(plain.exit_code, EXIT_INPUT, plain.message)
+            self.assertIn("already exists", plain.message)
+            probe.assert_not_called()
+            self.assertEqual(path.read_bytes(), before)
+
+        with self.subTest("--replace-pre-close replaces it and binds the new run_id"):
+            replaced, _ = _classify(backlog, "610-F", replace_pre_close=True)
+            self.assertEqual(replaced.exit_code, EXIT_SAFE_CLOSE_SELECTED, replaced.message)
+            record = _record(backlog, "610-F")
+            self.assertEqual(record["phase"], "pre_close")
+            self.assertNotEqual(record["run_id"], prior_run_id)
+
+        with self.subTest("--replace-pre-close never replaces an invoking record"):
+            invoking = dict(record, phase="invoking")
+            path.write_text(json.dumps(invoking) + "\n", encoding="utf-8")
+            frozen = path.read_bytes()
+            refused, probe = _classify(backlog, "610-F", replace_pre_close=True)
+            self.assertEqual(refused.exit_code, EXIT_LOCKED, refused.message)
+            probe.assert_not_called()
+            self.assertEqual(path.read_bytes(), frozen)
 
 
 if __name__ == "__main__":

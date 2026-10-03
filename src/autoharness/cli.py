@@ -47,7 +47,8 @@ Usage:
   autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
   autoharness gate dag-readiness  Read-only ready-set/critical-path/downstream-dependents report
   autoharness gate closure-evidence  Write-time validation of a post-merge closure artifact
-  autoharness telemetry begin   Create a pre-execution telemetry context artifact
+  autoharness shipment cascade-close  Evidence-capturing CASCADE close (see `autoharness shipment --help`)
+  autoharness telemetry begin    Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -1920,6 +1921,281 @@ def _gate_closure_evidence_command(rest: list[str]) -> None:
         sys.exit(payload["exit_code"])
 
 
+SHIPMENT_USAGE = """\
+autoharness shipment — evidence-capturing shipment close (192-F)
+
+Subcommands:
+  cascade-close  Classify, and when selected run, a CASCADE close through backlogit,
+                 capturing a durable evidence record at
+                 docs/closure/evidence/{S}-{F}-close-evidence.json.
+
+Usage:
+  autoharness shipment cascade-close --shipment <S> --feature <F> --sha <merge_sha>
+                        --message <text> --author <name> [--timeout <seconds>]
+                        [--workspace <path>] [--json]
+  autoharness shipment cascade-close --classify-only [--replace-pre-close]
+                        --shipment <S> --feature <F> --sha <merge_sha>
+                        [--workspace <path>] [--json]
+
+Modes:
+  mutating mode (no --classify-only): DESTRUCTIVE. Invokes `backlogit shipment ship`
+      only when the selected close path is CASCADE (classifier CASCADE and engine
+      VERIFIED); otherwise it records the verdict and exits 3 without invoking
+      anything. Needs the same operator approval as a direct `shipment ship` call.
+  plain --classify-only: no-clobber, and read-only apart from creating a new
+      evidence record. An existing pre_close record exits 2 and is left untouched.
+  --classify-only --replace-pre-close: DESTRUCTIVE. Overwrites an existing
+      pre_close record (through the pre_close takeover) and needs operator
+      approval. --replace-pre-close is accepted only together with --classify-only.
+
+cascade-close options:
+  --shipment <S>      Shipment ID (e.g. 198-S). Required.
+  --feature <F>       Covering feature ID (e.g. 192-F). Required.
+  --sha <merge_sha>   Merge commit SHA, 40 lowercase hex characters. Required.
+  --message <text>    Ship message (mutating mode only; required there).
+  --author <name>     Ship author (mutating mode only; required there).
+  --timeout <secs>    `shipment ship` timeout, 30-900 seconds (mutating mode only).
+                      Default: 120.
+  --classify-only     Classify and record the verdict; never invoke the cascade.
+  --replace-pre-close With --classify-only only: replace an existing pre_close record.
+  --workspace, -w     Workspace root. Default: .
+  --json              Emit one JSON object: mode, exit_code, evidence_path,
+                      phase_written, classifier_verdict, engine_verdict,
+                      selected_close_path, mutation_possible (no | yes |
+                      indeterminate | unknown), postcondition_verdict, failures[],
+                      operator_action (none | review_required).
+
+Exit codes:
+  0  mutating: all postconditions passed; --classify-only: CASCADE selected.
+  2  input, I/O, no-clobber refusal, planning error, or pre-invocation write failure.
+  3  the selected close path is not CASCADE; verdict recorded, nothing invoked.
+  4  pre-invocation revalidation drift; nothing invoked. Never answer with SAFE_CLOSE.
+  5  a postcondition failed (operator review).
+  6  backlogit exited non-zero, timed out, or its output did not parse (operator review).
+  7  an existing lock or invoking record; nothing invoked (operator review).
+  8  the post-close evidence write failed after invocation (operator review).
+Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
+cascade-close, calling `backlogit shipment ship` directly, or substituting
+SAFE_CLOSE until an operator reviews the backlog state and the record.
+"""
+
+_CASCADE_CLOSE_VALUE_FLAGS = (
+    "--shipment",
+    "--feature",
+    "--sha",
+    "--message",
+    "--author",
+    "--timeout",
+    "--workspace",
+    "-w",
+)
+_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json")
+# Mutation possibility per exit code (plan A3 exit-code table). Exit 0 is "yes"
+# only for the mutating mode; --classify-only never invokes the cascade.
+_CASCADE_CLOSE_MUTATION = {
+    0: "yes",
+    2: "no",
+    3: "no",
+    4: "no",
+    5: "yes",
+    6: "indeterminate",
+    7: "unknown",
+    8: "yes",
+}
+_CASCADE_CLOSE_NO_REVIEW = frozenset({0, 2, 3})
+
+
+def _cascade_close_mode(args: list[str]) -> str:
+    if "--classify-only" in args:
+        return "replace_pre_close" if "--replace-pre-close" in args else "classify_only"
+    return "mutating"
+
+
+def _parse_cascade_close_args(args: list[str]) -> dict:
+    """Parse `autoharness shipment cascade-close` arguments (192.015-T); ValueError exits 2."""
+    from autoharness.shipment_close.persist import PersistError
+    from autoharness.shipment_close.runner import (
+        DEFAULT_TIMEOUT_SECONDS,
+        validate_timeout,
+    )
+
+    values: dict[str, str] = {}
+    flags: set[str] = set()
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in _CASCADE_CLOSE_VALUE_FLAGS:
+            key = "--workspace" if arg == "-w" else arg
+            if key in values:
+                raise ValueError(f"duplicate cascade-close argument: {arg}")
+            index += 1
+            if index >= len(args) or args[index] in _CASCADE_CLOSE_VALUE_FLAGS + _CASCADE_CLOSE_BOOL_FLAGS:
+                raise ValueError(f"Missing value for {arg}")
+            values[key] = args[index]
+        elif arg in _CASCADE_CLOSE_BOOL_FLAGS:
+            if arg in flags:
+                raise ValueError(f"duplicate cascade-close argument: {arg}")
+            flags.add(arg)
+        else:
+            raise ValueError(f"Unknown shipment cascade-close argument: {arg}")
+        index += 1
+
+    for required in ("--shipment", "--feature", "--sha"):
+        if required not in values:
+            raise ValueError(f"shipment cascade-close requires {required}")
+    classify_only = "--classify-only" in flags
+    if "--replace-pre-close" in flags and not classify_only:
+        raise ValueError("--replace-pre-close is accepted only together with --classify-only")
+    if classify_only:
+        stray = [flag for flag in ("--message", "--author", "--timeout") if flag in values]
+        if stray:
+            raise ValueError(f"{', '.join(stray)} cannot be combined with --classify-only")
+    else:
+        for required in ("--message", "--author"):
+            if required not in values:
+                raise ValueError(f"the mutating cascade-close mode requires {required}")
+    timeout = DEFAULT_TIMEOUT_SECONDS
+    if "--timeout" in values:
+        text = values["--timeout"]
+        if not text.isascii() or not text.isdigit():
+            raise ValueError(f"--timeout must be an integer number of seconds (got {text!r})")
+        try:
+            timeout = validate_timeout(int(text))
+        except PersistError as exc:
+            raise ValueError(str(exc)) from exc
+    return {
+        "mode": _cascade_close_mode(args),
+        "shipment": values["--shipment"],
+        "feature": values["--feature"],
+        "sha": values["--sha"],
+        "message": values.get("--message"),
+        "author": values.get("--author"),
+        "timeout": timeout,
+        "workspace": Path(values.get("--workspace", ".")),
+        "classify_only": classify_only,
+        "replace_pre_close": "--replace-pre-close" in flags,
+        "emit_json": "--json" in flags,
+    }
+
+
+def _cascade_close_payload(mode: str, exit_code: int, message: str, result: object | None = None) -> dict:
+    """Render the A3d `--json` object (AN-F06) from a mode outcome, or from an input failure."""
+
+    def field(name: str) -> object:
+        return getattr(result, name, None) if result is not None else None
+
+    evidence_path = field("evidence_path")
+    failures = [str(failure) for failure in (field("failures") or ())]
+    if exit_code not in (0, 3) and message and message not in failures:
+        failures.append(message)
+    if mode == "mutating":
+        mutation = _CASCADE_CLOSE_MUTATION.get(exit_code, "unknown")
+        phase_written = field("phase_written")
+    else:
+        mutation = "no" if exit_code in (0, 2, 3, 4) else "unknown"
+        phase_written = "pre_close" if exit_code in (0, 3) and evidence_path is not None else None
+    if exit_code == 2:
+        mutation = "no"  # every post-invocation write failure is exit 8
+    return {
+        "mode": mode,
+        "exit_code": exit_code,
+        "evidence_path": str(evidence_path) if evidence_path is not None else None,
+        "phase_written": phase_written,
+        "classifier_verdict": field("classifier_verdict"),
+        "engine_verdict": field("engine_verdict"),
+        "selected_close_path": field("selected_close_path"),
+        "mutation_possible": mutation,
+        "postcondition_verdict": field("postcondition_verdict"),
+        "failures": failures,
+        "operator_action": "none" if exit_code in _CASCADE_CLOSE_NO_REVIEW else "review_required",
+    }
+
+
+def _emit_cascade_close(payload: dict, message: str, emit_json: bool) -> None:
+    if emit_json:
+        print(json.dumps(payload, indent=2))
+    else:
+        stream = sys.stdout if payload["exit_code"] in (0, 3) else sys.stderr
+        print(f"cascade-close ({payload['mode']}) — exit {payload['exit_code']}: {message}", file=stream)
+        if payload["evidence_path"]:
+            print(f"evidence: {payload['evidence_path']}", file=stream)
+    if payload["exit_code"]:
+        sys.exit(payload["exit_code"])
+
+
+def _shipment_cascade_close_command(rest: list[str]) -> None:
+    """Run `autoharness shipment cascade-close` (192.015-T, plan unit A3d)."""
+    index = 0
+    while index < len(rest):
+        if rest[index] in ("help", "--help", "-h"):
+            print(SHIPMENT_USAGE)
+            return
+        index += 2 if rest[index] in _CASCADE_CLOSE_VALUE_FLAGS else 1
+
+    emit_json = "--json" in rest
+    try:
+        parsed = _parse_cascade_close_args(rest)
+    except ValueError as exc:
+        message = str(exc)
+        if emit_json:
+            print(json.dumps(_cascade_close_payload(_cascade_close_mode(rest), 2, message), indent=2))
+        else:
+            print(message, file=sys.stderr)
+        print(SHIPMENT_USAGE, file=sys.stderr)
+        sys.exit(2)
+
+    # Lazy imports: the module attributes are the test seams, and an import
+    # failure here never breaks any unrelated command.
+    from autoharness.shipment_close import command as cascade_command
+    from autoharness.shipment_close import preclose as cascade_preclose
+    from autoharness.shipment_close import runner as cascade_runner
+    from autoharness.shipment_close.persist import PersistError
+
+    mode = parsed["mode"]
+    try:
+        resolved = cascade_runner.resolve_backlogit_binary(parsed["workspace"])
+    except PersistError as exc:
+        exit_code = exc.exit_code if exc.exit_code == 2 else 2
+        _emit_cascade_close(_cascade_close_payload(mode, exit_code, str(exc)), str(exc), parsed["emit_json"])
+        return
+    if parsed["classify_only"]:
+        result = cascade_preclose.run_classify_only(
+            parsed["workspace"],
+            parsed["shipment"],
+            parsed["feature"],
+            parsed["sha"],
+            resolved=resolved,
+            replace_pre_close=parsed["replace_pre_close"],
+        )
+    else:
+        result = cascade_command.run_cascade_close(
+            parsed["workspace"],
+            parsed["shipment"],
+            parsed["feature"],
+            parsed["sha"],
+            message=parsed["message"],
+            author=parsed["author"],
+            resolved=resolved,
+            timeout=parsed["timeout"],
+        )
+    payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
+    _emit_cascade_close(payload, result.message, parsed["emit_json"])
+
+
+def _shipment_command(args: list[str]) -> None:
+    """Dispatch `autoharness shipment <subcommand>`."""
+    if not args or args[0] in ("help", "--help", "-h"):
+        print(SHIPMENT_USAGE)
+        return
+    subcommand = args[0]
+    if subcommand == "cascade-close":
+        _shipment_cascade_close_command(args[1:])
+        return
+    print(f"Unknown shipment subcommand: {subcommand}", file=sys.stderr)
+    print(SHIPMENT_USAGE, file=sys.stderr)
+    sys.exit(2)
+
+
 TELEMETRY_USAGE = """\
 autoharness telemetry — pre-execution context, epoch recording, and tool events
 
@@ -3186,6 +3462,8 @@ def main(argv: list[str] | None = None) -> None:
         _verify_workspace_command(args[1:])
     elif command == "gate":
         _gate_command(args[1:])
+    elif command == "shipment":
+        _shipment_command(args[1:])
     elif command == "telemetry":
         _telemetry_command(args[1:])
     elif command == "eval":

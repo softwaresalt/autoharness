@@ -61,6 +61,7 @@ from autoharness.shipment_close.engine_probe import probe_engine_semantics
 from autoharness.shipment_close.observation import LocatedRecord, compute_observation_set, locate_record
 from autoharness.shipment_close.persist import (
     MODE_CLASSIFY_ONLY,
+    MODE_REPLACE_PRE_CLOSE,
     PersistError,
     acquire_pair_lock,
     check_existing_record,
@@ -123,6 +124,8 @@ class ClassifyOnlyResult:
     message: str
     evidence_path: Path | None = None
     selected_close_path: str | None = None
+    classifier_verdict: str | None = None
+    engine_verdict: str | None = None
 
 
 def validate_preclose_inputs(shipment_id: object, feature_id: object, merge_commit_sha: object) -> None:
@@ -376,8 +379,17 @@ def run_classify_only(
     *,
     resolved: ResolvedBinary,
     run_id: str | None = None,
+    replace_pre_close: bool = False,
 ) -> ClassifyOnlyResult:
-    """``--classify-only``: write one ``pre_close`` verdict record; exit 0 (CASCADE) or 3 (SAFE_CLOSE)."""
+    """``--classify-only``: write one ``pre_close`` verdict record; exit 0 (CASCADE) or 3 (SAFE_CLOSE).
+
+    Plain ``--classify-only`` is no-clobber: an existing ``pre_close`` record
+    exits 2. ``replace_pre_close`` (``--classify-only --replace-pre-close``,
+    destructive and operator-approved) replaces an existing ``pre_close``
+    record only through the A1b pre_close takeover, keyed on the ``run_id``
+    the existing-record check returned under this lock hold (Copilot PR #481
+    T6). An ``invoking`` or ``post_close`` record is never replaced.
+    """
 
     try:
         validate_preclose_inputs(shipment_id, feature_id, merge_commit_sha)
@@ -389,13 +401,15 @@ def run_classify_only(
     except PersistError as exc:
         return ClassifyOnlyResult(exc.exit_code, str(exc))
     try:
-        check_existing_record(lock, mode=MODE_CLASSIFY_ONLY)  # before any classification (AN-F02)
+        mode = MODE_REPLACE_PRE_CLOSE if replace_pre_close else MODE_CLASSIFY_ONLY
+        existing = check_existing_record(lock, mode=mode)  # before any classification (AN-F02)
         snapshot = run_preclose(workspace, shipment_id, feature_id, resolved=resolved)
         record = build_pre_close_record(snapshot, merge_commit_sha=merge_commit_sha, run_id=owner)
         problems = _record_problems(record, snapshot)
         if problems:
             raise PreCloseError(f"the verdict record fails validation: {problems}")
-        write_evidence_atomic(lock.evidence_path, record, owner_run_id=owner)
+        takeover = existing.get("run_id") if existing is not None else None
+        write_evidence_atomic(lock.evidence_path, record, owner_run_id=owner, takeover_from_run_id=takeover)
     except (PreCloseError, PersistError) as exc:
         return ClassifyOnlyResult(exc.exit_code, str(exc))
     except CascadeEvidenceError as exc:
@@ -409,4 +423,6 @@ def run_classify_only(
         f"selected {selected.value} ({snapshot.selection[1]})",
         evidence_path=lock.evidence_path,
         selected_close_path=selected.value,
+        classifier_verdict=snapshot.classifier.close_path.name,
+        engine_verdict=snapshot.engine.verdict.value,
     )
