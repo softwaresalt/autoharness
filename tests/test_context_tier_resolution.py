@@ -13,9 +13,11 @@ Covers the resolver and the derivation half of plan unit C2
   * schema parity (H-C5): the schema ``contextTier`` enum equals
     ``["", *CONTEXT_TIER_VALUES]``.
 
-The escalation-resolution half (collapsed ``ESCALATION_CONTEXT_TIER``, the
-role-scoped overlay, per_role ``resolved_context_tier``, frontmatter
-validation) is C2b (194.014-T), which extends this module.
+The escalation-resolution half (C2b, 194.014-T) is also covered here: the
+collapsed ``ESCALATION_CONTEXT_TIER`` (flat -> tier3 -> default), the
+role-scoped overlay, per_role ``resolved_context_tier`` (nested context_tier
+-> flat only when flat is the selected source -> tier3 -> default), the
+unchanged same-route tuple (D-C3), and frontmatter ``context_tier`` validation.
 """
 
 from __future__ import annotations
@@ -26,6 +28,12 @@ from pathlib import Path
 
 from autoharness.frontmatter_contract import CONTEXT_TIER_VALUES, ROUTE_VALUE_KEYS
 from autoharness.verify_workspace import (
+    _add_escalation_route_resolution_check,
+    _add_frontmatter_model_routing_check,
+    _compose_artifact_variables,
+    _derive_escalation_prose_variables,
+    _effective_escalation_context_tier_for_role,
+    _effective_escalation_route_for_role,
     _derive_orchestrator_route_variables,
     _derive_raw_escalation_variables,
     _derive_role_route_variables,
@@ -208,6 +216,145 @@ class RawEscalationContextTierTests(unittest.TestCase):
         )
         self.assertEqual(raw["STAGE_ESCALATION_CONTEXT_TIER"], "")
         self.assertEqual(raw["SHIP_ESCALATION_CONTEXT_TIER"], "")
+
+
+# ---------------------------------------------------------------------------
+# C2b (194.014-T): escalation context_tier resolution, compose overlay,
+# per_role resolved_context_tier, and frontmatter context_tier validation.
+# ---------------------------------------------------------------------------
+
+
+def _escalation_check(model_routing: dict) -> dict:
+    report: dict = {"targeted_checks": {}}
+    _add_escalation_route_resolution_check(
+        report,
+        "escalation_route_resolution",
+        {"model_routing": model_routing},
+        stage_installed=True,
+        ship_installed=True,
+    )
+    return report["targeted_checks"]["escalation_route_resolution"]
+
+
+class EscalationContextTierTests(unittest.TestCase):
+    def test_base_escalation_context_tier_flat_then_tier3_then_default(self) -> None:
+        flat = _derive_escalation_prose_variables(
+            {"tier3": {"model": "m3", "context_tier": "default"}, "escalation": {"context_tier": "long_context"}}
+        )
+        self.assertEqual(flat["ESCALATION_CONTEXT_TIER"], "long_context")
+        via_tier3 = _derive_escalation_prose_variables(
+            {"tier3": {"model": "m3", "context_tier": "long_context"}, "escalation": {"model_family": "e"}}
+        )
+        self.assertEqual(via_tier3["ESCALATION_CONTEXT_TIER"], "long_context")
+        self.assertEqual(_derive_escalation_prose_variables({})["ESCALATION_CONTEXT_TIER"], "default")
+
+    def test_nested_escalation_never_falls_back_to_flat(self) -> None:
+        """D-C2: when the nested route is the selected source, the flat
+        context_tier is never read -- the tail is tier3 -> "default"."""
+        model_routing = {
+            "tier3": {"model": "m3"},
+            "escalation": {"context_tier": "long_context"},
+            "ship": {"escalation": {"model_family": "nested-e"}},
+        }
+        self.assertEqual(_effective_escalation_context_tier_for_role(model_routing, "ship"), "default")
+        composed = _compose_artifact_variables(
+            _derive_escalation_prose_variables(model_routing), model_routing, "ship"
+        )
+        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "default")
+        check = _escalation_check(model_routing)
+        self.assertEqual(check["per_role"]["ship"]["source"], "nested")
+        self.assertEqual(check["per_role"]["ship"]["resolved_context_tier"], "default")
+        # Nested selected with a tier3 value: tier3 wins over the flat value.
+        model_routing["tier3"] = {"model": "m3", "context_tier": "default"}
+        model_routing["escalation"] = {"context_tier": "long_context"}
+        self.assertEqual(_effective_escalation_context_tier_for_role(model_routing, "ship"), "default")
+        # Stage (no nested override) selects the flat source and reads it.
+        self.assertEqual(_effective_escalation_context_tier_for_role(model_routing, "stage"), "long_context")
+
+    def test_nested_context_tier_only_keeps_legacy_flat_source(self) -> None:
+        """INV-C4: a nested block declaring only context_tier never selects
+        the nested source and never triggers the H2 ambiguity."""
+        model_routing = {
+            "tier3": {"model": "m3", "model_family": "m3"},
+            "escalation": {"model_family": "flat-e", "model_provider": "openai", "reasoning_effort": "xhigh"},
+            "ship": {"model_family": "s", "escalation": {"context_tier": "long_context"}},
+        }
+        check = _escalation_check(model_routing)
+        self.assertFalse(check["ambiguous"])
+        ship = check["per_role"]["ship"]
+        self.assertEqual(ship["source"], "legacy_flat")
+        self.assertEqual(ship["resolved_family"], "flat-e")
+        self.assertEqual(ship["resolved_context_tier"], "long_context")
+        self.assertEqual(check["per_role"]["stage"]["resolved_context_tier"], "default")
+        base = _derive_escalation_prose_variables(model_routing)
+        self.assertEqual(base["ESCALATION_CONTEXT_TIER"], "default")
+        ship_vars = _compose_artifact_variables(base, model_routing, "ship")
+        self.assertEqual(ship_vars["ESCALATION_FAMILY"], "flat-e")
+        self.assertEqual(ship_vars["ESCALATION_CONTEXT_TIER"], "long_context")
+        stage_vars = _compose_artifact_variables(base, model_routing, "stage")
+        self.assertEqual(stage_vars["ESCALATION_CONTEXT_TIER"], "default")
+        self.assertNotIn("ESCALATION_CONTEXT_TIER", _compose_artifact_variables({}, model_routing, None))
+        # The route 3-tuple contract is unchanged.
+        self.assertEqual(
+            _effective_escalation_route_for_role(model_routing, "ship"), ("flat-e", "openai", "xhigh")
+        )
+
+    def test_same_route_with_different_context_tier_is_still_degraded(self) -> None:
+        """D-C3: the is_same_route tuple is (family, provider, effort) only;
+        a differing context_tier is not a genuine escalation."""
+        route = {"model_family": "f", "model_provider": "p", "reasoning_effort": "high"}
+        model_routing = {
+            "tier3": {"model": "m3"},
+            "ship": {
+                **route,
+                "context_tier": "default",
+                "escalation": {**route, "context_tier": "long_context"},
+            },
+        }
+        check = _escalation_check(model_routing)
+        ship = check["per_role"]["ship"]
+        self.assertTrue(ship["escalation_degraded"])
+        self.assertEqual(ship["resolved_context_tier"], "long_context")
+        self.assertFalse(check["ok"])
+        self.assertTrue(any("ESCALATION_DEGRADED" in error for error in check["errors"]))
+
+
+class FrontmatterContextTierCheckTests(unittest.TestCase):
+    def _run(self, context_tier_line: str | None) -> dict:
+        import tempfile
+
+        lines = ["---", "name: ship", "model_family: claude-opus-5.5", "model_provider: anthropic"]
+        if context_tier_line is not None:
+            lines.append(context_tier_line)
+        lines += ["---", "", "# Ship", ""]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "_ship.agent.md"
+            path.write_text("\n".join(lines), encoding="utf-8")
+            report: dict = {"targeted_checks": {}}
+            _add_frontmatter_model_routing_check(report, "fm", path)
+        return report["targeted_checks"]["fm"]
+
+    def test_absent_context_tier_passes(self) -> None:
+        self.assertTrue(self._run(None)["ok"])
+
+    def test_valid_context_tier_values_pass(self) -> None:
+        for value in CONTEXT_TIER_VALUES:
+            with self.subTest(value=value):
+                self.assertTrue(self._run(f"context_tier: {value}")["ok"])
+
+    def test_invalid_context_tier_fails(self) -> None:
+        for line in (
+            'context_tier: ""',
+            "context_tier:",
+            "context_tier: huge",
+            "context_tier: 1",
+            "context_tier: [long_context]",
+            'context_tier: "{{SHIP_CONTEXT_TIER}}"',
+        ):
+            with self.subTest(line=line):
+                check = self._run(line)
+                self.assertFalse(check["ok"], check)
+                self.assertTrue(any("context_tier" in error for error in check["errors"]), check)
 
 
 if __name__ == "__main__":

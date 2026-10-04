@@ -2497,6 +2497,33 @@ def _effective_escalation_route_for_role(
     return str(family), str(provider), str(effort)
 
 
+def _effective_escalation_context_tier_for_role(model_routing: dict[str, Any], role: str) -> str:
+    """Resolve the EFFECTIVE escalation `context_tier` for one role (194-F,
+    C2b, H-C2): `<role>.escalation.context_tier` -> the flat
+    `escalation.context_tier` ONLY when the flat route is the selected source
+    -> `tier3.context_tier` -> `"default"`. Source selection reuses the
+    unchanged three-field `_escalation_route_has_any_field` predicate, so a
+    nested block declaring only `context_tier` never selects the nested
+    source (INV-C4); when the nested route IS selected, the flat route is
+    never read (D-C2). Shared by `_compose_artifact_variables` and
+    `_add_escalation_route_resolution_check` so the render and the check
+    cannot diverge (PY-F1)."""
+    role_block = model_routing.get(role) or {}
+    if not isinstance(role_block, dict):
+        role_block = {}
+    nested = role_block.get("escalation") or {}
+    if not isinstance(nested, dict):
+        nested = {}
+    nested_value = nested.get("context_tier")
+    if isinstance(nested_value, str) and nested_value.strip():
+        return nested_value
+    flat = model_routing.get("escalation") or {}
+    if not isinstance(flat, dict):
+        flat = {}
+    source_route = {} if _escalation_route_has_any_field(nested) else flat
+    return _resolve_context_tier(source_route, _tier_fallback_dict(model_routing, "tier3"))
+
+
 def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive the BASE (role-neutral) `{{ESCALATION_FAMILY}}`/`{{ESCALATION_PROVIDER}}`/
     `{{ESCALATION_REASONING_EFFORT}}` collapsed prose triple: legacy flat
@@ -2519,6 +2546,8 @@ def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[st
         "ESCALATION_FAMILY": str(family),
         "ESCALATION_PROVIDER": str(provider),
         "ESCALATION_REASONING_EFFORT": str(effort),
+        # 194-F/C2b: resolved (never empty) flat -> tier3 -> "default".
+        "ESCALATION_CONTEXT_TIER": _resolve_context_tier(flat, tier3_fallback),
     }
 
 
@@ -2737,7 +2766,8 @@ def _compose_artifact_variables(
     base_variables: dict[str, str], model_routing: dict[str, Any], artifact_role: str | None
 ) -> dict[str, str]:
     """142.007-T: return a NEW mapping = `base_variables` overlaid with the
-    role-scoped collapsed `{{ESCALATION_*}}` prose triple, WITHOUT mutating
+    role-scoped collapsed `{{ESCALATION_*}}` prose triple (plus, 194-F/C2b,
+    the role-scoped `{{ESCALATION_CONTEXT_TIER}}`), WITHOUT mutating
     `base_variables` (the same base is reused across every artifact in the
     render loop, design constraint 1/3). Only the collapsed prose triple is
     role-scoped -- the raw pass-through families
@@ -2752,6 +2782,9 @@ def _compose_artifact_variables(
     composed["ESCALATION_FAMILY"] = family
     composed["ESCALATION_PROVIDER"] = provider
     composed["ESCALATION_REASONING_EFFORT"] = effort
+    composed["ESCALATION_CONTEXT_TIER"] = _effective_escalation_context_tier_for_role(
+        model_routing, artifact_role
+    )
     return composed
 
 
@@ -3251,6 +3284,19 @@ def _add_frontmatter_model_routing_check(
         )
     elif isinstance(provider_value, str) and "{{" in provider_value and "}}" in provider_value:
         errors.append(f"unresolved placeholder in model_provider: {provider_value!r}")
+
+    # 194-F/C2b: context_tier is optional (older installs pass), but when
+    # present it must be a resolved value in fc.CONTEXT_TIER_VALUES; "" means
+    # unset/inherit and is legal only in config, never in rendered frontmatter.
+    if "context_tier" in frontmatter:
+        tier_value = frontmatter.get("context_tier")
+        if isinstance(tier_value, str) and "{{" in tier_value and "}}" in tier_value:
+            errors.append(f"unresolved placeholder in context_tier: {tier_value!r}")
+        elif not isinstance(tier_value, str) or tier_value not in fc.CONTEXT_TIER_VALUES:
+            errors.append(
+                f"invalid field: context_tier must be one of "
+                f"{list(fc.CONTEXT_TIER_VALUES)} when present (got {tier_value!r})"
+            )
 
     report["targeted_checks"][key] = {
         "path": str(file_path),
@@ -4300,6 +4346,9 @@ def _add_escalation_route_resolution_check(
         # own route/tier nor the escalation target declares it) carries no
         # signal either way and must not manufacture a false mismatch --
         # only an explicit, resolved value on BOTH sides can disagree.
+        # 194-F/C2b (D-C3): context_tier is deliberately NOT part of this
+        # tuple -- a same family/provider/effort escalation that differs only
+        # in context_tier is still a same-route no-op.
         provider_conflicts = bool(role_provider) and bool(effective_provider) and role_provider != effective_provider
         effort_conflicts = bool(role_effort) and bool(effective_effort) and role_effort != effective_effort
         is_same_route = (
@@ -4318,6 +4367,7 @@ def _add_escalation_route_resolution_check(
             "resolved_family": effective_family,
             "resolved_provider": effective_provider,
             "resolved_reasoning_effort": effective_effort,
+            "resolved_context_tier": _effective_escalation_context_tier_for_role(model_routing, role),
             "role_route_family": role_family,
             "role_route_provider": role_provider,
             "role_route_reasoning_effort": role_effort,
