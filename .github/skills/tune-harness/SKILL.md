@@ -474,6 +474,35 @@ Apply these rules to every key-level action:
    checkout). Then re-run `verify-workspace`
    to confirm the `frontmatter_conformity` check no longer reports the file.
 
+#### Step 1.5d: Ship Route Default Proposal
+
+The install-harness Step 1.2 fresh-install Ship seed gives new workspaces a
+generic Ship route. Tune may surface that route to an existing workspace as an
+informational, opt-in "new generic Ship default available" proposal. It does
+so **only** when `model_routing.ship` declares no non-empty `model_family` in
+the Phase 0b operator configuration: either the `ship` key is absent, or its
+`model_family` is unset or empty.
+
+* An explicitly declared Ship route is an operator override. When
+  `model_routing.ship.model_family` is a non-empty string, tune never proposes
+  replacing it. This exemption covers this repository, whose Ship route is
+  operator-pinned.
+* The Step 3.4 config write-back of install-harness stores the resolved
+  `{{SHIP_FAMILY}}`. After any install, a Ship family inherited from `tier2` is
+  therefore indistinguishable from an operator choice. Tune treats every
+  non-empty value as an operator override and never tries to tell an inherited
+  family from a chosen one. Existing workspaces normally never see this
+  proposal. That is the intended no-silent-change posture.
+* The proposal is report-only: tune never auto-applies it, and `auto_apply`
+  does not change that. The proposal names the seed route defined in
+  install-harness Step 1.2 (it does not copy the seed values) and tells the
+  operator to edit `model_routing.ship` in `.autoharness/config.yaml` to adopt
+  it. The operator re-runs install or tune after that edit.
+* This step reads only `model_routing.ship`. It never proposes changes to
+  `context_tier` or any other sub-field of an explicitly declared Ship route,
+  and it never touches the `stage`, `orchestrator`, `escalation`, or tier
+  routes.
+
 #### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
 Compare the installed preset, primary stack pack, additive stack packs, install
@@ -837,6 +866,10 @@ and verifier `severity: P2` to tune `priority: P1` / `category: degrading`
 (the verifier's severity labels are not tune priorities), and preserve the
 complete payload listed in Step 1.5c. Proposals that need per-proposal operator
 approval (INV-B1) remain review-gated and are never auto-applied.
+
+Map a Step 1.5d Ship route default proposal to `priority: P2` /
+`category: growth`, and mark it with `source: ship-route-default`. It is
+informational and opt-in, and it is never auto-applied.
 
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can
