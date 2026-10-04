@@ -7,7 +7,7 @@ merge_commit: 30095385a58b7d8db0ee4f1295b08262410fe560
 reviewed_head: 1c5c379e
 date: 2026-10-03
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 close_path: cascade
 close_evidence: docs/closure/evidence/199-S-193-F-close-evidence.json
 ---
@@ -49,9 +49,9 @@ Source deliberation: `037-DL`.
 | Mutating `cascade-close` | Exit 0, `postcondition_verdict: pass`, 563 s |
 | INV-12 disposition | `DISPOSITION_COMPLETE` |
 | Post-mode reconcile | `PROCEED` |
-| Closure index resync | `CLOSURE_INDEX_SYNC_OK` (`backlogit sync`: `Indexed 1698 artifacts` after the final backlog mutation) |
-| Closure-evidence gate | Pending finalization of the compaction status |
-| Full unit suite | Pending |
+| Closure index resync | `CLOSURE_INDEX_SYNC_OK` (`backlogit sync`: `Indexed 1698 artifacts` after the cascade; re-run after the follow-up stash entries, the final backlog mutation: `Indexed 1704 artifacts`) |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/199-S-193-F-post-merge-closure.md --shipment 199-S --json`: exit 0 with `compaction_status: done` (the earlier `pending` run failed only `frontmatter_predicate`, as expected) |
+| Full unit suite | `Ran 2945 tests`, `OK (skipped=54)` on `chore/199-s-closure` |
 
 ## Validator Evidence / Runtime Verification
 
@@ -169,7 +169,8 @@ change to plan, decision, review, or spike artifacts (P-010).
 
 ## Verification
 
-Pending: the full unit suite on the closure branch.
+`$env:PYTHONPATH='src'; python -m unittest discover -s tests` (venv Python) on
+the closure branch: `Ran 2945 tests in 423.231s`, `OK (skipped=54)`, exit 0.
 
 ## Follow-Up Items
 
@@ -210,6 +211,18 @@ All follow-ups are active stash entries. Stage owns triage.
 
 ## Compaction Status (P-020)
 
-`pending`. `compact-context` (`target: all`) runs next, after this closure's
-session memory was written to
-`docs/memory/2026-10-03-ship-199-s-193-f-closure-session.md`.
+`done`. `compact-context` ran with `target: all` after this closure's
+session memory was written.
+
+* **Assessment**: `docs/memory` held 178 files (about 1311 KB), which
+  exceeds the generic thresholds in aggregate.
+* **Candidates**: the run was a bounded Tier-1 pass over this release unit.
+  The single 199-S memory (the 2026-10-03 closure session) was consolidated
+  into
+  `docs/memory/compacted/2026-10-03-ship-199-s-193-f-full-lifecycle-compacted.md`.
+  The verbose original is under `docs/archive/memory/`.
+* **Excluded**:
+  * other release units' memories, which are out of scope for this bounded
+    run
+  * plans, because Stage owns that work (P-010)
+  * closure records, which are fresh (under `threshold_days`)
