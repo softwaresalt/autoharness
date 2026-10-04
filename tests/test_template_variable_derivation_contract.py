@@ -98,90 +98,90 @@ DERIVE_TO_EMPTY_STRING = "DERIVE-TO-EMPTY-STRING"
 # fallback/default chain (tier fallback, PATH-chain, or literal default)
 # other than a bare empty default -- used by the AC0a guard test below.
 VARIABLE_CLASSIFICATION: dict[str, tuple[str, str, bool]] = {
-    # --- model_routing tier family (SKILL.md rows 415-426, amendment B6) ---
-    "MODEL_ROUTING_TIER1": (RESOLVED_FROM_SOURCE, "SKILL.md row 415 (config.model_routing.tier1.model, object or legacy-string form)", True),
-    "MODEL_ROUTING_TIER2": (RESOLVED_FROM_SOURCE, "SKILL.md row 416 (config.model_routing.tier2.model, object or legacy-string form)", True),
-    "MODEL_ROUTING_TIER3": (RESOLVED_FROM_SOURCE, "SKILL.md row 417 (config.model_routing.tier3.model, object or legacy-string form)", True),
-    "TIER_1_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 418 (config.model_routing.tier1.reasoning_effort)", False),
-    "TIER_1_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 419 (config.model_routing.tier1.model_provider)", False),
-    "TIER_1_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 420 (config.model_routing.tier1.model_family, default gpt-5.4-mini)", True),
-    "TIER_2_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 421 (config.model_routing.tier2.reasoning_effort)", False),
-    "TIER_2_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 422 (config.model_routing.tier2.model_provider)", False),
-    "TIER_2_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 423 (config.model_routing.tier2.model_family, default claude-sonnet-5)", True),
-    "TIER_3_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 424 (config.model_routing.tier3.reasoning_effort)", False),
-    "TIER_3_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 425 (config.model_routing.tier3.model_provider)", False),
-    "TIER_3_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 426 (config.model_routing.tier3.model_family, default claude-opus-5)", True),
-    # --- orchestrator route (SKILL.md rows 427-429, amendment B6) ---
-    "ORCHESTRATOR_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 427 (fallback {{TIER_2_REASONING_EFFORT}})", True),
-    "ORCHESTRATOR_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 428 (fallback {{TIER_2_PROVIDER}})", True),
-    "ORCHESTRATOR_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 429 (own default gpt-5.4, does NOT fall back to tier2)", True),
-    # --- role routes (SKILL.md rows 430-435, P-013.5, corrected review-fix cycle 1) ---
-    "STAGE_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 430 (fallback {{TIER_3_REASONING_EFFORT}})", True),
-    "STAGE_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 431 (fallback {{TIER_3_PROVIDER}})", True),
-    "STAGE_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 432 (fallback {{TIER_3_FAMILY}})", True),
-    "SHIP_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 433 (fallback {{TIER_2_REASONING_EFFORT}})", True),
-    "SHIP_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 434 (fallback {{TIER_2_PROVIDER}})", True),
-    "SHIP_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 435 (fallback {{TIER_2_FAMILY}})", True),
-    # --- collapsed escalation prose triple (SKILL.md rows 436-438, F02FD596, prose-only) ---
-    "ESCALATION_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 436 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
-    "ESCALATION_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 437 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
-    "ESCALATION_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 438 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
-    # --- RAW escalation pass-through (SKILL.md rows 439-447, constraint C3) ---
-    "LEGACY_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 439 (raw, NOT resolved/fallback)", False),
-    "LEGACY_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 440 (raw, NOT resolved/fallback)", False),
-    "LEGACY_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 441 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 442 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 443 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 444 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 445 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 446 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 447 (raw, NOT resolved/fallback)", False),
-    # --- context_tier family (SKILL.md rows 448-457, 194-F C3a; resolved rows end at `default`, raw rows stay empty) ---
-    "TIER_1_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 448 (config.model_routing.tier1.context_tier, default default)", True),
-    "TIER_2_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 449 (config.model_routing.tier2.context_tier, default default)", True),
-    "TIER_3_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 450 (config.model_routing.tier3.context_tier, default default)", True),
-    "ORCHESTRATOR_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 451 (fallback {{TIER_2_CONTEXT_TIER}}, then default)", True),
-    "STAGE_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 452 (fallback {{TIER_3_CONTEXT_TIER}}, then default)", True),
-    "SHIP_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 453 (fallback {{TIER_2_CONTEXT_TIER}}, then default)", True),
-    "ESCALATION_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 454 (nested -> legacy flat when selected -> tier3 -> default, prose-only)", True),
-    "LEGACY_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 455 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 456 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 457 (raw, NOT resolved/fallback)", False),
-    # --- anchor review (SKILL.md rows 458-460) ---
-    "ANCHOR_REVIEW_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 458 (default openai)", True),
-    "ANCHOR_REVIEW_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 459 (default gpt-5.6-sol)", True),
-    "ANCHOR_REVIEW_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 460 (default high)", True),
-    # --- install-shape / config write-back family (SKILL.md rows 399-403, 471, 478-481) ---
-    "INSTALL_PRESET": (RESOLVED_FROM_SOURCE, "SKILL.md row 399 (config.preset, default standard)", True),
-    "PRIMARY_STACK_PACK": (RESOLVED_FROM_SOURCE, "SKILL.md row 400 (config.primary_stack_pack, default web-app)", True),
-    "STACK_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 401 (config.stack_packs, YAML list)", True),
-    "INSTALL_LAYERS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 402 (config.install_layers, YAML list)", True),
-    "CAPABILITY_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 403 (config.capability_packs, YAML list)", True),
-    "HARNESS_OVERRIDES_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 471 (config.overrides map, default {})", True),
-    "COPILOT_CLI_ARGS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 478 (config.ai_tools.copilot_cli.args, PowerShell-quoted)", True),
-    "COPILOT_CLI_ARGS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 479 (config.ai_tools.copilot_cli.args, POSIX-quoted)", True),
-    "COPILOT_CLI_ARGS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 478-479 sibling (same config.ai_tools.copilot_cli.args source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
-    "ENABLED_SIDECARS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 480 (derived from enabled capability packs, PowerShell-quoted)", True),
-    "ENABLED_SIDECARS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 481 (derived from enabled capability packs, POSIX-quoted)", True),
-    "ENABLED_SIDECARS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 480-481 sibling (same enabled-capability-packs source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
-    # --- graphtor-docs (SKILL.md rows 516-517 / 885-886 / 1099) ---
-    "GRAPHTOR_SOURCES_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 516/885 (ordered on-disk candidate chain, default .graphtor/config/sources.yaml)", True),
-    "GRAPHTOR_BINARY_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 517/886/1099 (PATH -> local candidate -> literal default graphtor chain, NOT the empty-string branch)", True),
-    # --- profile-derived language/lint/format (SKILL.md rows 108-109, 116, 124-125, 128-129) ---
-    "LANGUAGE_VERSION": (RESOLVED_FROM_SOURCE, "SKILL.md row 108 (languages.version)", False),
-    "LANGUAGE_NOTES": (RESOLVED_FROM_SOURCE, "SKILL.md row 109 (synthesized from language profile)", False),
-    "FORMAT_CHECK_COMMAND": (RESOLVED_FROM_SOURCE, "SKILL.md row 116 (format.check_command)", False),
-    "FORMATTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 124 (format.tool)", False),
-    "LINTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 125 (lint.tool)", False),
-    "ERROR_PATTERN": (RESOLVED_FROM_SOURCE, "SKILL.md row 128 (language-specific error handling idiom)", False),
-    "DOC_COMMENT_STYLE": (RESOLVED_FROM_SOURCE, "SKILL.md row 129 (language-specific doc-comment convention)", False),
+    # --- model_routing tier family (SKILL.md rows 435-446, amendment B6) ---
+    "MODEL_ROUTING_TIER1": (RESOLVED_FROM_SOURCE, "SKILL.md row 435 (config.model_routing.tier1.model, object or legacy-string form)", True),
+    "MODEL_ROUTING_TIER2": (RESOLVED_FROM_SOURCE, "SKILL.md row 436 (config.model_routing.tier2.model, object or legacy-string form)", True),
+    "MODEL_ROUTING_TIER3": (RESOLVED_FROM_SOURCE, "SKILL.md row 437 (config.model_routing.tier3.model, object or legacy-string form)", True),
+    "TIER_1_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 438 (config.model_routing.tier1.reasoning_effort)", False),
+    "TIER_1_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 439 (config.model_routing.tier1.model_provider)", False),
+    "TIER_1_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 440 (config.model_routing.tier1.model_family, default gpt-5.4-mini)", True),
+    "TIER_2_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 441 (config.model_routing.tier2.reasoning_effort)", False),
+    "TIER_2_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 442 (config.model_routing.tier2.model_provider)", False),
+    "TIER_2_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 443 (config.model_routing.tier2.model_family, default claude-sonnet-5)", True),
+    "TIER_3_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 444 (config.model_routing.tier3.reasoning_effort)", False),
+    "TIER_3_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 445 (config.model_routing.tier3.model_provider)", False),
+    "TIER_3_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 446 (config.model_routing.tier3.model_family, default claude-opus-5)", True),
+    # --- orchestrator route (SKILL.md rows 447-449, amendment B6) ---
+    "ORCHESTRATOR_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 447 (fallback {{TIER_2_REASONING_EFFORT}})", True),
+    "ORCHESTRATOR_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 448 (fallback {{TIER_2_PROVIDER}})", True),
+    "ORCHESTRATOR_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 449 (own default gpt-5.4, does NOT fall back to tier2)", True),
+    # --- role routes (SKILL.md rows 450-455, P-013.5, corrected review-fix cycle 1) ---
+    "STAGE_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 450 (fallback {{TIER_3_REASONING_EFFORT}})", True),
+    "STAGE_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 451 (fallback {{TIER_3_PROVIDER}})", True),
+    "STAGE_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 452 (fallback {{TIER_3_FAMILY}})", True),
+    "SHIP_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 453 (fallback {{TIER_2_REASONING_EFFORT}})", True),
+    "SHIP_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 454 (fallback {{TIER_2_PROVIDER}})", True),
+    "SHIP_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 455 (fallback {{TIER_2_FAMILY}})", True),
+    # --- collapsed escalation prose triple (SKILL.md rows 456-458, F02FD596, prose-only) ---
+    "ESCALATION_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 456 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
+    "ESCALATION_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 457 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
+    "ESCALATION_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 458 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
+    # --- RAW escalation pass-through (SKILL.md rows 459-467, constraint C3) ---
+    "LEGACY_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 459 (raw, NOT resolved/fallback)", False),
+    "LEGACY_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 460 (raw, NOT resolved/fallback)", False),
+    "LEGACY_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 461 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 462 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 463 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 464 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 465 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 466 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 467 (raw, NOT resolved/fallback)", False),
+    # --- context_tier family (SKILL.md rows 468-477, 214-F C3a; resolved rows end at `default`, raw rows stay empty) ---
+    "TIER_1_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 468 (config.model_routing.tier1.context_tier, default default)", True),
+    "TIER_2_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 469 (config.model_routing.tier2.context_tier, default default)", True),
+    "TIER_3_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 470 (config.model_routing.tier3.context_tier, default default)", True),
+    "ORCHESTRATOR_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 471 (fallback {{TIER_2_CONTEXT_TIER}}, then default)", True),
+    "STAGE_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 472 (fallback {{TIER_3_CONTEXT_TIER}}, then default)", True),
+    "SHIP_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 473 (fallback {{TIER_2_CONTEXT_TIER}}, then default)", True),
+    "ESCALATION_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 474 (nested -> legacy flat when selected -> tier3 -> default, prose-only)", True),
+    "LEGACY_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 475 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 476 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 477 (raw, NOT resolved/fallback)", False),
+    # --- anchor review (SKILL.md rows 478-480) ---
+    "ANCHOR_REVIEW_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 478 (default openai)", True),
+    "ANCHOR_REVIEW_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 479 (default gpt-5.6-sol)", True),
+    "ANCHOR_REVIEW_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 480 (default high)", True),
+    # --- install-shape / config write-back family (SKILL.md rows 419-423, 491, 498-501) ---
+    "INSTALL_PRESET": (RESOLVED_FROM_SOURCE, "SKILL.md row 419 (config.preset, default standard)", True),
+    "PRIMARY_STACK_PACK": (RESOLVED_FROM_SOURCE, "SKILL.md row 420 (config.primary_stack_pack, default web-app)", True),
+    "STACK_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 421 (config.stack_packs, YAML list)", True),
+    "INSTALL_LAYERS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 422 (config.install_layers, YAML list)", True),
+    "CAPABILITY_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 423 (config.capability_packs, YAML list)", True),
+    "HARNESS_OVERRIDES_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 491 (config.overrides map, default {})", True),
+    "COPILOT_CLI_ARGS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 498 (config.ai_tools.copilot_cli.args, PowerShell-quoted)", True),
+    "COPILOT_CLI_ARGS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 499 (config.ai_tools.copilot_cli.args, POSIX-quoted)", True),
+    "COPILOT_CLI_ARGS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 498-499 sibling (same config.ai_tools.copilot_cli.args source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
+    "ENABLED_SIDECARS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 500 (derived from enabled capability packs, PowerShell-quoted)", True),
+    "ENABLED_SIDECARS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 501 (derived from enabled capability packs, POSIX-quoted)", True),
+    "ENABLED_SIDECARS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 500-501 sibling (same enabled-capability-packs source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
+    # --- graphtor-docs (SKILL.md rows 536-537 / 905-906 / 1119) ---
+    "GRAPHTOR_SOURCES_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 536/905 (ordered on-disk candidate chain, default .graphtor/config/sources.yaml)", True),
+    "GRAPHTOR_BINARY_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 537/906/1119 (PATH -> local candidate -> literal default graphtor chain, NOT the empty-string branch)", True),
+    # --- profile-derived language/lint/format (SKILL.md rows 128-129, 136, 144-145, 148-149) ---
+    "LANGUAGE_VERSION": (RESOLVED_FROM_SOURCE, "SKILL.md row 128 (languages.version)", False),
+    "LANGUAGE_NOTES": (RESOLVED_FROM_SOURCE, "SKILL.md row 129 (synthesized from language profile)", False),
+    "FORMAT_CHECK_COMMAND": (RESOLVED_FROM_SOURCE, "SKILL.md row 136 (format.check_command)", False),
+    "FORMATTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 144 (format.tool)", False),
+    "LINTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 145 (lint.tool)", False),
+    "ERROR_PATTERN": (RESOLVED_FROM_SOURCE, "SKILL.md row 148 (language-specific error handling idiom)", False),
+    "DOC_COMMENT_STYLE": (RESOLVED_FROM_SOURCE, "SKILL.md row 149 (language-specific doc-comment convention)", False),
     # --- misc config (no dedicated SKILL.md row; schema-documented defaults) ---
     "STRICT_SAFETY_ENABLED": (RESOLVED_FROM_SOURCE, "schemas/harness-config.schema.json strict_safety.enabled (default false); SKILL.md carries no dedicated row", True),
-    "CONTINUOUS_LEARNING_CAPTURE_HOOKS": (RESOLVED_FROM_SOURCE, "SKILL.md row 412 (config.continuous_learning.capture_hooks, default false)", True),
-    "CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 413 (config.continuous_learning.environment_adapter, default none)", True),
-    "CONTINUOUS_LEARNING_PROMOTION_THRESHOLD": (RESOLVED_FROM_SOURCE, "SKILL.md row 414 (config.continuous_learning.promotion_threshold, default 3)", True),
-    # --- DEFAULT_BRANCH: same resolved concept as {{CI_DEFAULT_BRANCH}} (SKILL.md row 157); no dedicated {{DEFAULT_BRANCH}} row exists ---
-    "DEFAULT_BRANCH": (RESOLVED_FROM_SOURCE, "SKILL.md row 157 ({{CI_DEFAULT_BRANCH}} resolution methodology: git symbolic-ref -> gh CLI -> never guess main; {{DEFAULT_BRANCH}} denotes the identical resolved concept for agent/policy/skill templates)", True),
+    "CONTINUOUS_LEARNING_CAPTURE_HOOKS": (RESOLVED_FROM_SOURCE, "SKILL.md row 432 (config.continuous_learning.capture_hooks, default false)", True),
+    "CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 433 (config.continuous_learning.environment_adapter, default none)", True),
+    "CONTINUOUS_LEARNING_PROMOTION_THRESHOLD": (RESOLVED_FROM_SOURCE, "SKILL.md row 434 (config.continuous_learning.promotion_threshold, default 3)", True),
+    # --- DEFAULT_BRANCH: same resolved concept as {{CI_DEFAULT_BRANCH}} (SKILL.md row 177); no dedicated {{DEFAULT_BRANCH}} row exists ---
+    "DEFAULT_BRANCH": (RESOLVED_FROM_SOURCE, "SKILL.md row 177 ({{CI_DEFAULT_BRANCH}} resolution methodology: git symbolic-ref -> gh CLI -> never guess main; {{DEFAULT_BRANCH}} denotes the identical resolved concept for agent/policy/skill templates)", True),
 }
 
 
@@ -899,7 +899,7 @@ class ProfileDerivedMiscConfigTests(unittest.TestCase):
         DEFAULT_BRANCH would remove the placeholder from every consuming
         template (e.g. rendering the literal broken command "git checkout "
         with a trailing space) while the zero-unresolved sweep reports
-        success over detectably-broken output. SKILL.md row 156's "never
+        success over detectably-broken output. SKILL.md row 177's "never
         guess main... halt installation" contract requires this variable be
         left as a DETECTABLE unresolved placeholder when it cannot
         legitimately resolve, not silently defaulted to empty."""

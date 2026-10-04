@@ -48,6 +48,8 @@ Verify that `workspace_path` is NOT inside `autoharness_home` and vice versa. If
 
 All template reads in subsequent phases use `{autoharness_home}/templates/` as the base path. All artifact writes use `{workspace_path}` as the base path.
 
+**First-install snapshot**: at install start, before Step 1.2 and therefore before Step 3.3 creates the manifest, record `first_install = not exists(.autoharness/harness-manifest.yaml)` for the target workspace. Every later step (including the Step 1.2 fresh-install Ship seed) reads this snapshot and must never re-probe the manifest.
+
 #### Step 1.0c: Enforce Branch Safety for Install Output
 
 If `workspace_path` is a Git repository, determine the current branch and the
@@ -95,6 +97,24 @@ If `workspace_path` equals `autoharness_home` (flagged in Step 1.0), check the n
 * If `distribution.is_global_tool` is absent or `false`, halt and report: "Target workspace is the autoharness installation itself and is not configured as a globally-distributed tool. Select a different target workspace."
 
 #### Step 1.2: Compute Template Variables
+
+**Fresh-install Ship seed (H-C3)**: apply this rule first in Step 1.2, before any `{{SHIP_*}}` variable is derived. It is an install-flow rule, not a variable-table default.
+
+* **Trigger**: the Step 1.0 `first_install` snapshot is true, **and** the operator-supplied input has no `model_routing.ship` key at all (a missing `.autoharness/config.yaml`, or a config without a `ship` key), **and** `config.overrides` sets none of `SHIP_FAMILY`, `SHIP_PROVIDER`, `SHIP_REASONING_EFFORT`, or `SHIP_CONTEXT_TIER`.
+* A `SHIP_*` template-variable override is an operator Ship choice: it suppresses the seed entirely and is applied by Step 1.0b item 7 as usual.
+* An explicitly present `ship` block is an operator choice and is honored as written, even when all its fields are empty: it resolves through the normal Ship → Tier 2 fallback and no seed value is mixed in.
+* **Action**: when the trigger holds, set the in-memory route to exactly these four values, then derive `{{SHIP_*}}` from it and report the seed in the Step 4.6 installation summary:
+
+```yaml
+model_routing:
+  ship:
+    model_provider: openai
+    model_family: gpt-6-luna
+    reasoning_effort: xhigh
+    context_tier: long_context
+```
+
+Step 3.4 then writes the seeded route back to `.autoharness/config.yaml`, so every later install, verify, and tune reads an explicit Ship route and the seed is never re-applied. The seed values live in this skill only: no template carries them as literals and the Python derivation has no seed constant.
 
 Derive all template variables from the profile. The variable resolution table defines how profile fields map to template placeholders:
 
@@ -1623,6 +1643,7 @@ Write (or update) `.autoharness/config.yaml` using the `harness-config.yaml.tmpl
 
 * If an operator config existed, preserve all operator-provided values and fill in defaults for omitted fields. When the installer discovers values that differ from the operator's explicit choices (e.g., new capability packs auto-detected), the operator's explicit values win — discovered values are recorded in a separate `_discovered` comment block for the tuner to surface later. This includes both the legacy flat escalation override (`{{LEGACY_ESCALATION_FAMILY}}`/`{{LEGACY_ESCALATION_PROVIDER}}`/`{{LEGACY_ESCALATION_REASONING_EFFORT}}`) AND the nested per-role escalation overrides (`{{STAGE_ESCALATION_FAMILY}}`/`{{STAGE_ESCALATION_PROVIDER}}`/`{{STAGE_ESCALATION_REASONING_EFFORT}}` and their Ship equivalents, F02FD596): read each set directly from its own raw storage path (`config.model_routing.escalation.*` for the legacy flat set; `config.model_routing.stage.escalation.*` / `config.model_routing.ship.escalation.*` for the nested sets — no fallback resolution for any of them) and write each back verbatim into its own always-rendered block in `harness-config.yaml.tmpl` (the flat `escalation` block, and the `stage.escalation` / `ship.escalation` blocks respectively). These three raw variable sets are distinct storage slots from the acting-role-collapsed `{{ESCALATION_FAMILY}}`/`{{ESCALATION_PROVIDER}}`/`{{ESCALATION_REASONING_EFFORT}}` variables used only for `escalation-protocol.instructions.md` prose — **never** use the acting-role-collapsed variables to populate any raw config block, and never let a re-render/tune conflate or drop a distinct legacy-flat, Stage-only, or Ship-only override into another block. Populating the flat block from the nested-first-resolved collapsed variable was exactly the bug this raw three-way split fixes (Copilot review round 3, PR #316) — it would silently copy a nested-only override into the flat block on re-render, producing the H2 both-present ambiguity.
 * If no operator config existed, write a complete config with all schema defaults and discovered values
+* When the Step 1.2 fresh-install Ship seed fired, write the seeded `model_routing.ship` route explicitly so later install, verify, and tune runs read it as an operator-visible Ship route and never re-apply the seed
 * The resolved config serves as input for future `tune-harness` runs and enables the tuner to detect configuration drift
 
 The installed config includes: `schema_version`, `preset`,
@@ -1829,6 +1850,7 @@ Primitives installed: selected subset / 10
 Preset: {{PRESET}}
 Install layers: {{INSTALL_LAYERS_OR_NONE}}
 Capability packs: {{CAPABILITY_PACKS_OR_NONE}}
+Ship route seed: applied (Step 1.2 fresh-install Ship seed) | not applied
 
 Artifacts created:
   Instructions:    {{count}}
