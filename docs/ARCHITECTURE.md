@@ -9,6 +9,10 @@ description: High-level autoharness architecture and ownership boundaries.
 
 autoharness is a globally installed agent harness framework. It is operated from an autoharness home that contains templates, schemas, instructions, skills, policies, prompts, and documentation. Target workspaces receive generated harness artifacts and workspace-local state only.
 
+## Frontmatter Contract
+
+The agent and skill frontmatter contract lives in `src/autoharness/frontmatter_contract.py`: the key sets per profile (`tier-routed` and `plugin-global` agents, and skills), the finding codes, and a deterministic parser. It is read-only and imports no verify or tune code. `verify_workspace` consumes it for the `frontmatter_conformity` targeted check and its migration proposals, and the template conformity test consumes it in template mode. See the [Tuning Guide](tuning-guide.md#agent-and-skill-frontmatter-contract) for the key tables and migration semantics.
+
 ## Telemetry Ownership
 
 autoharness owns the local epoch time-series telemetry contract, local SQLite/JSONL sinks, reader normalization, aggregation formulas, report helpers, and eval-facing summary inputs. It records immutable `ExecutionEpoch v1.1` snapshots at task-close boundaries and reports over those persisted epochs.

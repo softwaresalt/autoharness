@@ -8,15 +8,17 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 from collections import Counter
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
 from jsonschema import Draft7Validator
 
+from autoharness import frontmatter_contract as fc
 from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
@@ -3250,6 +3252,701 @@ def _add_frontmatter_model_routing_check(
     }
 
 
+# ---------------------------------------------------------------------------
+# 193-F B2a: agent and skill frontmatter conformity (helpers)
+#
+# Plan: docs/plans/2026-09-27-agent-skill-frontmatter-conformity-plan.md (### B2a).
+# These helpers back `_add_frontmatter_conformity_check`. They are read-only:
+# nothing here writes, and no escaping target's bytes are ever read.
+# ---------------------------------------------------------------------------
+
+# Positive allowlist of manifest labels for autoharness's own source-controlled
+# agent/skill definitions (AN-F4). They never render, but they are managed.
+AUTOHARNESS_SOURCE_LABELS = frozenset({"global agent definition", "global skill definition"})
+
+FC_CLASS_MANAGED_RENDERED = "managed-rendered"
+FC_CLASS_MANAGED_COMMUNITY = "managed-community"
+FC_CLASS_MANAGED_SOURCE = "managed-source"
+FC_CLASS_WORKSPACE_AUTHORED = "workspace-authored"
+FC_CLASS_UNKNOWN_PROVENANCE = "unknown-provenance"
+FC_MANAGED_CLASSES = frozenset(
+    {FC_CLASS_MANAGED_RENDERED, FC_CLASS_MANAGED_COMMUNITY, FC_CLASS_MANAGED_SOURCE}
+)
+FC_WARNING_KIND = "frontmatter-conformity"
+FC_PLUGIN_WARNING_KIND = "frontmatter-conformity-plugin-json"
+FC_SKILL_PROFILE = "skill"
+
+
+def _fc_normalize_relative(path_text: Any) -> str:
+    """Normalize a workspace-relative path to a POSIX string for comparison."""
+    text = str(path_text).replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    return PurePosixPath(text).as_posix() if text else ""
+
+
+def _fc_read_bytes(path: Path) -> bytes:
+    """Single read seam for the conformity check (tests assert it is not called)."""
+    return path.read_bytes()
+
+
+def _fc_is_link_or_reparse(path: Path) -> bool:
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    attributes = getattr(st, "st_file_attributes", 0) or 0
+    return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+
+
+def _fc_resolve_contained(workspace_path: Path, file_path: Path) -> Path | None:
+    """Resolve ``file_path`` and return it only when it stays inside the workspace.
+
+    Containment is checked before any read (AS-F5). Returns ``None`` for an
+    escaping (or unresolvable) path; the caller must not read it.
+    """
+    try:
+        root = workspace_path.resolve()
+        resolved = file_path.resolve()
+    except (OSError, RuntimeError):
+        return None
+    if resolved == root or not resolved.is_relative_to(root):
+        return None
+    return resolved
+
+
+def _fc_build_provenance_index(
+    workspace_path: Path, autoharness_home: Path, manifest: Any
+) -> dict[str, dict[str, Any]]:
+    """Map normalized workspace-relative paths to their artifact class (H-B2, AN-F4, AS-F7)."""
+    index: dict[str, dict[str, Any]] = {}
+    if not isinstance(manifest, dict):
+        return index
+    try:
+        templates_root = (autoharness_home / "templates").resolve()
+    except (OSError, RuntimeError):
+        templates_root = None
+
+    artifacts = manifest.get("artifacts")
+    for artifact in artifacts if isinstance(artifacts, list) else []:
+        if not isinstance(artifact, dict):
+            continue
+        rel = _fc_normalize_relative(artifact.get("path", ""))
+        if not rel or rel in index:
+            continue
+        label = str(artifact.get("template", ""))
+        entry: dict[str, Any] = {
+            "tracked": True,
+            "origin": "artifact",
+            "template": label,
+            "source_path": None,
+        }
+        if label in AUTOHARNESS_SOURCE_LABELS:
+            entry["class"] = FC_CLASS_MANAGED_SOURCE
+        elif label in WORKSPACE_SOURCE_TEMPLATES:
+            entry["class"] = FC_CLASS_WORKSPACE_AUTHORED
+        else:
+            entry["class"] = FC_CLASS_UNKNOWN_PROVENANCE
+            source_path, mode = _resolve_source_template(autoharness_home, workspace_path, artifact)
+            if source_path is not None and mode in ("template", "copy") and templates_root is not None:
+                try:
+                    resolved_source = source_path.resolve()
+                    contained = resolved_source.is_relative_to(templates_root) and resolved_source.is_file()
+                except (OSError, RuntimeError):
+                    contained = False
+                if contained:
+                    # Ownership evidence: an existing source inside templates/.
+                    entry["class"] = FC_CLASS_MANAGED_RENDERED
+                    entry["source_path"] = str(resolved_source)
+                    entry["render_mode"] = mode
+        index[rel] = entry
+
+    community = manifest.get("community_templates")
+    for item in community if isinstance(community, list) else []:
+        if not isinstance(item, dict):
+            continue
+        rel = _fc_normalize_relative(item.get("installed_path", ""))
+        if not rel or rel in index:
+            continue
+        index[rel] = {
+            "tracked": True,
+            "origin": "community",
+            "class": FC_CLASS_MANAGED_COMMUNITY,
+            "template": str(item.get("template_id", "")),
+            "template_path": str(item.get("template_path", "")),
+            "installed_checksum": _normalize_signal_text(item.get("installed_checksum")),
+            "source_checksum": _normalize_signal_text(item.get("source_checksum")),
+            "source_path": None,
+        }
+    return index
+
+
+def _fc_classify(rel: str, index: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Return the provenance entry for ``rel``; untracked paths are workspace-authored."""
+    entry = index.get(_fc_normalize_relative(rel))
+    if entry is not None:
+        return entry
+    return {"tracked": False, "origin": None, "class": FC_CLASS_WORKSPACE_AUTHORED, "source_path": None}
+
+
+def _fc_load_plugin_agents(
+    workspace_path: Path, manifest: Any
+) -> tuple[frozenset[str], list[dict[str, Any]]]:
+    """Return the plugin-global agent set and any plugin.json warnings (AN-F8, PY-F5).
+
+    ``plugin-global`` applies only when autoharness verifies itself
+    (``install_mode: self-install``), the workspace-root ``plugin.json`` names
+    ``autoharness``, and the agent is listed in its ``agents[]``. ``plugin.json``
+    is read only when it is a regular, non-symlink, non-reparse-point file
+    inside the workspace (PR #460 review); otherwise, and when it is invalid,
+    one warning is returned and the set is empty (fail-safe to tier-routed).
+    """
+    empty: frozenset[str] = frozenset()
+    if not isinstance(manifest, dict) or manifest.get("install_mode") != "self-install":
+        return empty, []
+    plugin_path = workspace_path / "plugin.json"
+    if not os.path.lexists(plugin_path):
+        return empty, []
+
+    def _warn(reason: str) -> tuple[frozenset[str], list[dict[str, Any]]]:
+        return empty, [
+            {
+                "kind": FC_PLUGIN_WARNING_KIND,
+                "path": "plugin.json",
+                "message": (
+                    f"plugin.json {reason}; plugin-agent set treated as empty, so listed "
+                    "agents are held to the tier-routed frontmatter profile."
+                ),
+            }
+        ]
+
+    if _fc_is_link_or_reparse(plugin_path):
+        return _warn("is a symlink or reparse point and was not read")
+    try:
+        st = os.lstat(plugin_path)
+    except OSError as exc:
+        return _warn(f"could not be inspected ({type(exc).__name__})")
+    if not stat.S_ISREG(st.st_mode):
+        return _warn("is not a regular file and was not read")
+    if _fc_resolve_contained(workspace_path, plugin_path) is None:
+        return _warn("resolves outside the workspace and was not read")
+    try:
+        data = json.loads(_fc_read_bytes(plugin_path).decode("utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        return _warn(f"is unreadable or invalid JSON ({type(exc).__name__})")
+    if not isinstance(data, dict):
+        return _warn("is not a JSON object")
+    if data.get("name") != "autoharness":
+        return empty, []
+    agents = data.get("agents", [])
+    if not isinstance(agents, list) or not all(isinstance(item, str) for item in agents):
+        return _warn("has an invalid agents[] (expected a list of strings)")
+    return frozenset(_fc_normalize_relative(item) for item in agents), []
+
+
+def _fc_scan_roots(workspace_path: Path, profile: Any) -> list[Path]:
+    """Return the agent scan dirs plus ``.github/skills`` (deduplicated, in order)."""
+    roots = list(_resolve_agent_scan_dirs(workspace_path, profile))
+    skills_root = workspace_path / ".github" / "skills"
+    if skills_root not in roots:
+        roots.append(skills_root)
+    return roots
+
+
+def _fc_escaped_scan_roots(workspace_path: Path, profile: Any) -> list[str]:
+    """Return workspace-relative scan roots that exist but resolve outside the workspace.
+
+    A scan root (for example a symlinked or junctioned ``.github/agents``) is
+    validated before traversal so an external tree is never enumerated. The
+    caller fails closed on every returned root.
+    """
+    escaped: list[str] = []
+    for root in _fc_scan_roots(workspace_path, profile):
+        if not os.path.lexists(root):
+            continue
+        if _fc_resolve_contained(workspace_path, root) is None:
+            escaped.append(_fc_normalize_relative(_relative_workspace_path(workspace_path, root)))
+    return escaped
+
+
+def _fc_enumerate_targets(workspace_path: Path, profile: Any) -> list[dict[str, Any]]:
+    """Enumerate scan targets in sorted, deterministic order (H-B7, AN-F9).
+
+    Agents: ``*.agent.md`` under every ``_resolve_agent_scan_dirs`` directory.
+    Skills: ``.github/skills/*/SKILL.md`` (skill roots only). A missing
+    directory contributes zero files. A scan root that resolves outside the
+    workspace is never traversed (see ``_fc_escaped_scan_roots``).
+    """
+    targets: dict[str, dict[str, Any]] = {}
+    for scan_dir in _resolve_agent_scan_dirs(workspace_path, profile):
+        if not scan_dir.is_dir() or _fc_resolve_contained(workspace_path, scan_dir) is None:
+            continue
+        for path in scan_dir.rglob("*.agent.md"):
+            if not (path.is_file() or path.is_symlink()):
+                continue
+            rel = _fc_normalize_relative(_relative_workspace_path(workspace_path, path))
+            targets.setdefault(rel, {"path": path, "rel": rel, "kind": "agent", "skill_dir": None})
+    skills_root = workspace_path / ".github" / "skills"
+    if skills_root.is_dir() and _fc_resolve_contained(workspace_path, skills_root) is not None:
+        for skill_dir in skills_root.iterdir():
+            if not skill_dir.is_dir():
+                continue
+            path = skill_dir / "SKILL.md"
+            if not (path.is_file() or path.is_symlink()):
+                continue
+            rel = _fc_normalize_relative(_relative_workspace_path(workspace_path, path))
+            targets.setdefault(
+                rel, {"path": path, "rel": rel, "kind": "skill", "skill_dir": skill_dir.name}
+            )
+    return [targets[rel] for rel in sorted(targets)]
+
+
+def _fc_evaluate_target(
+    workspace_path: Path,
+    target: dict[str, Any],
+    provenance: dict[str, dict[str, Any]],
+    plugin_agents: frozenset[str],
+    checksum_lookup: dict[str, str],
+) -> dict[str, Any]:
+    """Evaluate one scan target: classify, contain, read, and check (H-B7, PY-F2).
+
+    Returns a record ``{rel, kind, class, profile, checksum_status, findings,
+    managed, skipped, warning, entry, raw}``. An escaping managed path gets
+    ``FM_PATH_ESCAPE``; an escaping non-managed path is skipped with a
+    warning. Neither is read. Any ``Exception`` while reading/checking becomes
+    ``FM_PARSE_ERROR`` carrying the exception type name.
+    """
+    rel = target["rel"]
+    entry = _fc_classify(rel, provenance)
+    artifact_class = entry["class"]
+    managed = artifact_class in FC_MANAGED_CLASSES
+    if target["kind"] == "agent":
+        profile_name = fc.agent_profile_for(rel, plugin_agents)
+    else:
+        profile_name = FC_SKILL_PROFILE
+    if not entry["tracked"]:
+        checksum_status = "untracked"
+    elif entry["origin"] == "artifact":
+        checksum_status = checksum_lookup.get(rel, "unknown")
+    else:
+        checksum_status = "not-read"
+    record: dict[str, Any] = {
+        "rel": rel,
+        "kind": target["kind"],
+        "skill_dir": target.get("skill_dir"),
+        "class": artifact_class,
+        "profile": profile_name,
+        "checksum_status": checksum_status,
+        "findings": [],
+        "managed": managed,
+        "skipped": False,
+        "warning": None,
+        "entry": entry,
+        "raw": None,
+    }
+
+    resolved = _fc_resolve_contained(workspace_path, target["path"])
+    if resolved is None:
+        if managed:
+            record["findings"] = [
+                fc.Finding(
+                    fc.FM_PATH_ESCAPE,
+                    "",
+                    "managed file resolves outside the workspace; not read",
+                )
+            ]
+        else:
+            record["skipped"] = True
+            record["warning"] = {
+                "kind": FC_WARNING_KIND,
+                "path": rel,
+                "class": artifact_class,
+                "codes": [fc.FM_PATH_ESCAPE],
+                "message": (
+                    f"Skipped {target['kind']} frontmatter conformity check: path resolves "
+                    "outside the workspace and was not read."
+                ),
+            }
+        return record
+
+    try:
+        raw = _fc_read_bytes(resolved)
+        record["raw"] = raw
+        if entry["origin"] == "community":
+            expected = entry.get("installed_checksum") or ""
+            if not expected:
+                record["checksum_status"] = "checksum-untracked"
+            elif _sha256_bytes(raw) == expected:
+                record["checksum_status"] = "unchanged"
+            else:
+                record["checksum_status"] = "user-modified"
+        parsed = fc.parse_frontmatter(raw, fc.MODE_INSTALLED)
+        if target["kind"] == "agent":
+            findings = fc.check_agent(parsed, profile_name, fc.MODE_INSTALLED)
+        else:
+            findings = fc.check_skill(parsed, target["skill_dir"], fc.MODE_INSTALLED)
+    except Exception as exc:  # noqa: BLE001 - per-file guard (PY-F2); never BaseException
+        findings = [
+            fc.Finding(
+                fc.FM_PARSE_ERROR,
+                "",
+                f"frontmatter check failed: {type(exc).__name__}: {exc}",
+            )
+        ]
+    record["findings"] = list(findings)
+    return record
+
+
+def _fc_finding_line(rel: str, finding: Any) -> str:
+    return f"{rel}: {finding.code} {finding.key}".rstrip()
+
+
+# ---------------------------------------------------------------------------
+# 193-F B2b: frontmatter-conformity migration proposals
+# ---------------------------------------------------------------------------
+
+FC_CONTRACT = "frontmatter-conformity"
+FC_TO_VERSION = "fc-1"
+_FC_CLASS_STATUS = {
+    FC_CLASS_MANAGED_RENDERED: ("nonconformant-managed", "P1"),
+    FC_CLASS_MANAGED_COMMUNITY: ("nonconformant-managed", "P1"),
+    FC_CLASS_MANAGED_SOURCE: ("nonconformant-managed", "P1"),
+    FC_CLASS_WORKSPACE_AUTHORED: ("nonconformant-workspace", "P2"),
+    FC_CLASS_UNKNOWN_PROVENANCE: ("nonconformant-unknown", "P2"),
+}
+_FC_AUTO_ACTIONS = frozenset({"rerender", "reinstall-community"})
+_FC_CITATION_SKILL = (
+    "P-013.5: skills are leaf executors that inherit the invoking agent's route; "
+    "no routing keys and no bare model"
+)
+_FC_CITATION_PLUGIN_GLOBAL = (
+    "P-013.4: plugin-global agents declare tier keys only and run on the operator's "
+    "session model; no route-value keys and no bare model"
+)
+_FC_CITATION_TIER_ROUTED = (
+    "P-013.4/P-013.5: tier-routed agents declare max_subagent_tier, subagent_depth and the "
+    "model_family/model_provider/reasoning_effort route; no bare model"
+)
+
+
+def _fc_check_bytes(raw: bytes, record: dict[str, Any]) -> list[Any]:
+    parsed = fc.parse_frontmatter(raw, fc.MODE_INSTALLED)
+    if record["kind"] == "agent":
+        return fc.check_agent(parsed, record["profile"], fc.MODE_INSTALLED)
+    return fc.check_skill(parsed, record["skill_dir"], fc.MODE_INSTALLED)
+
+
+def _fc_contained_community_source(autoharness_home: Path, template_rel: str) -> Path | None:
+    """Resolve a community ``template_path``; ``None`` unless it is an existing file in templates/ (AS-F9)."""
+    text = str(template_rel or "")
+    if not text or text.startswith(("/", "\\")) or ".." in re.split(r"[\\/]", text):
+        return None
+    if Path(text).anchor:
+        return None
+    try:
+        templates_root = (autoharness_home / "templates").resolve()
+        candidate = (autoharness_home / text).resolve()
+    except (OSError, RuntimeError):
+        return None
+    if not candidate.is_relative_to(templates_root) or not candidate.is_file():
+        return None
+    return candidate
+
+
+def _fc_rendered_candidate(
+    record: dict[str, Any],
+    report: dict[str, Any],
+    autoharness_home: Path,
+    variables: dict[str, str],
+    model_routing: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate the rendered source candidate in installed mode (AS-F8, AN-F10).
+
+    managed-rendered: the staged render verify already wrote. managed-community:
+    an in-memory render of the contained ``template_path`` (nothing written;
+    an escaping path is never read). Returns ``{status, findings, template_path,
+    reason}`` with status ``pass`` | ``fail`` | ``unproducible`` | ``not-applicable``.
+    """
+    entry = record["entry"]
+    result: dict[str, Any] = {"status": "not-applicable", "findings": [], "template_path": None, "reason": ""}
+    try:
+        if record["class"] == FC_CLASS_MANAGED_RENDERED:
+            result["template_path"] = entry.get("source_path")
+            rendered = {
+                _fc_normalize_relative(item.get("path", ""))
+                for item in report.get("rendered") or []
+                if isinstance(item, dict)
+            }
+            staging_dir = report.get("staging_dir")
+            if not staging_dir or record["rel"] not in rendered:
+                result.update(status="unproducible", reason="no staged render candidate was produced")
+                return result
+            raw = _fc_read_bytes(_normalize_stage_path(Path(staging_dir), record["rel"]))
+        elif record["class"] == FC_CLASS_MANAGED_COMMUNITY:
+            template_rel = entry.get("template_path") or ""
+            result["template_path"] = template_rel
+            source = _fc_contained_community_source(autoharness_home, template_rel)
+            if source is None:
+                result.update(
+                    status="unproducible",
+                    reason=(
+                        "community template_path fails containment (must be a relative path to an "
+                        "existing file inside autoharness_home/templates/); not read"
+                    ),
+                )
+                return result
+            composed = _compose_artifact_variables(
+                variables, model_routing, _resolve_artifact_role(record["rel"])
+            )
+            text = _fc_read_bytes(source).decode("utf-8")
+            raw = _render_template(text, composed).encode("utf-8")
+        else:
+            return result
+        blocking = [item for item in _fc_check_bytes(raw, record) if not item.informational]
+    except Exception as exc:  # noqa: BLE001 - an unproducible candidate is source-repair, never a crash
+        result.update(status="unproducible", reason=f"{type(exc).__name__}: {exc}")
+        return result
+    result["findings"] = blocking
+    result["status"] = "fail" if blocking else "pass"
+    return result
+
+
+def _fc_parsed_data(record: dict[str, Any]) -> dict[str, Any]:
+    raw = record.get("raw")
+    if raw is None:
+        return {}
+    try:
+        parsed = fc.parse_frontmatter(raw, fc.MODE_INSTALLED)
+    except Exception:  # noqa: BLE001 - proposal shaping must never crash verify
+        return {}
+    return parsed.data or {}
+
+
+def _fc_valid_skill_dir_name(record: dict[str, Any]) -> str | None:
+    """Return the skill directory name when it is itself a valid skill ``name``, else ``None``.
+
+    Proposing an invalid directory name as the ``name`` value would only
+    trade one FM_TYPE_INVALID for another, so the proposal value is null and
+    the operator chooses (the directory or the name must change).
+    """
+    skill_dir = record.get("skill_dir")
+    if (
+        isinstance(skill_dir, str)
+        and len(skill_dir) <= fc.SKILL_NAME_MAX_LENGTH
+        and fc.SKILL_NAME_PATTERN.match(skill_dir)
+    ):
+        return skill_dir
+    return None
+
+
+def _fc_build_proposals(record: dict[str, Any], candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    """Apply ordered action rules 1-8 (first match wins) to each blocking finding (B2b)."""
+    blocking = [item for item in record["findings"] if not item.informational]
+    if not blocking:
+        return []
+    status, severity = _FC_CLASS_STATUS[record["class"]]
+    file_codes = sorted({item.code for item in blocking})
+    if record["kind"] == "skill":
+        citation = _FC_CITATION_SKILL
+    elif record["profile"] == fc.PROFILE_PLUGIN_GLOBAL:
+        citation = _FC_CITATION_PLUGIN_GLOBAL
+    else:
+        citation = _FC_CITATION_TIER_ROUTED
+    data = _fc_parsed_data(record)
+    is_skill = record["kind"] == "skill"
+    tier_routed = record["kind"] == "agent" and record["profile"] == fc.PROFILE_TIER_ROUTED
+    # Rule 1 applies to rendered/community sources; an escaping path is never re-rendered through.
+    regen_class = (
+        record["class"] in (FC_CLASS_MANAGED_RENDERED, FC_CLASS_MANAGED_COMMUNITY)
+        and fc.FM_PATH_ESCAPE not in file_codes
+    )
+    candidate_status = candidate.get("status")
+    regenerate = regen_class and candidate_status == "pass" and record["checksum_status"] == "unchanged"
+    source_repair = regen_class and candidate_status in ("fail", "unproducible")
+    key_level = not (regenerate or source_repair)
+    # A rule-2 migrate-key already targets model_family; do not also propose add-key for it.
+    migrates_model = key_level and tier_routed and fc.FM_BARE_MODEL in file_codes and (
+        not isinstance(data.get("model"), str) or data.get("model") != data.get("model_family")
+    )
+
+    proposals: list[dict[str, Any]] = []
+    for finding in blocking:
+        extra: dict[str, Any] = {}
+        to_keys: list[str] = []
+        value: Any = None
+        key = finding.key
+        if regenerate:  # rule 1
+            action = "rerender" if record["class"] == FC_CLASS_MANAGED_RENDERED else "reinstall-community"
+        elif source_repair:  # rule 1
+            action = "source-repair"
+            extra = {
+                "template_path": candidate.get("template_path"),
+                "candidate_findings": [f"{item.code} {item.key}".rstrip() for item in candidate.get("findings", [])],
+                "candidate_reason": candidate.get("reason", ""),
+            }
+        elif finding.code == fc.FM_BARE_MODEL and tier_routed:  # rule 2
+            model = data.get("model")
+            family = data.get("model_family")
+            if isinstance(model, str) and "model_family" not in data:
+                action, to_keys, value = "migrate-key", ["model_family"], model
+            elif isinstance(model, str) and model == family:
+                action = "remove-key"
+            else:
+                action, to_keys = "migrate-key", ["model_family"]
+        elif finding.code == fc.FM_BARE_MODEL:  # rule 3 (skill or plugin-global)
+            action = "remove-key"
+        elif finding.code == fc.FM_FORBIDDEN_KEY:  # rule 4
+            action = "remove-key"
+        elif finding.code == fc.FM_MISSING_REQUIRED:  # rule 5
+            if migrates_model and key == "model_family":
+                continue
+            action, to_keys = "add-key", [key]
+            if is_skill and key == "name":
+                value = _fc_valid_skill_dir_name(record)
+        elif finding.code == fc.FM_TYPE_INVALID:  # rule 6
+            action, to_keys = "replace-value", [key]
+            if is_skill and key == "name" and isinstance(data.get("name"), str):
+                value = _fc_valid_skill_dir_name(record)
+        elif finding.code == fc.FM_UNRESOLVED_PLACEHOLDER:  # rule 7
+            action, to_keys = "replace-value", [key]
+        else:  # rule 8: FM_PARSE_ERROR, FM_PATH_ESCAPE
+            action = "manual-fix"
+        manual_review = action not in _FC_AUTO_ACTIONS
+        from_key = key or None
+        evidence = {
+            "codes": [finding.code],
+            "file_codes": file_codes,
+            "citation": citation,
+            "finding": finding.message,
+            **extra,
+        }
+        summary = (
+            f"{record['rel']}: {action} {from_key or '-'} -> [{', '.join(to_keys)}]"
+            + (" [manual review]" if manual_review else "")
+        )
+        proposals.append(
+            {
+                "contract": FC_CONTRACT,
+                "path": record["rel"],
+                "from_version": None,
+                "to_version": FC_TO_VERSION,
+                "status": status,
+                "severity": severity,
+                "changed_fields": sorted({item for item in [from_key, *to_keys] if item}),
+                "action": action,
+                "manual_review": manual_review,
+                "evidence": evidence,
+                "code": finding.code,
+                "from_key": from_key,
+                "to_keys": to_keys,
+                "value": value,
+                "summary": summary,
+            }
+        )
+    return proposals
+
+
+def _add_frontmatter_conformity_check(
+    report: dict[str, Any],
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: Any,
+    profile: Any,
+    variables: dict[str, str] | None = None,
+    model_routing: dict[str, Any] | None = None,
+) -> None:
+    """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
+
+    Registered once, after the artifact checksum and staging-render loop
+    (AN-F10). Managed files (rendered, community, source) with a
+    non-informational finding fail closed whatever their checksum status
+    (H-B3); workspace-authored and unknown-provenance files produce one
+    advisory ``warnings[]`` entry each and never change ``ok``.
+    ``FM_UNKNOWN_KEY`` appears only in per-file ``findings[]`` and ``info[]``
+    (INV-B4). The legacy pipeline-agent checks are untouched (INV-B3).
+    Every blocking finding also yields a ``frontmatter-conformity`` migration
+    proposal (B2b; ``variables``/``model_routing`` feed the in-memory
+    community render candidate). Writes nothing.
+    """
+    provenance = _fc_build_provenance_index(workspace_path, autoharness_home, manifest)
+    plugin_agents, plugin_warnings = _fc_load_plugin_agents(workspace_path, manifest)
+    report["warnings"].extend(plugin_warnings)
+    checksum_lookup = {
+        _fc_normalize_relative(item.get("path", "")): str(item.get("status", ""))
+        for item in report.get("checksum_scan") or []
+        if isinstance(item, dict)
+    }
+
+    ok = True
+    errors: list[str] = []
+    info: list[str] = []
+    files: dict[str, dict[str, Any]] = {}
+    for root_rel in _fc_escaped_scan_roots(workspace_path, profile):
+        ok = False
+        errors.append(
+            f"{root_rel}: {fc.FM_PATH_ESCAPE} scan root resolves outside the workspace; not traversed"
+        )
+    for target in _fc_enumerate_targets(workspace_path, profile):
+        record = _fc_evaluate_target(workspace_path, target, provenance, plugin_agents, checksum_lookup)
+        rel = record["rel"]
+        if record["skipped"]:
+            report["warnings"].append(record["warning"])
+            continue
+        findings = record["findings"]
+        files[rel] = {
+            "class": record["class"],
+            "profile": record["profile"],
+            "checksum_status": record["checksum_status"],
+            "findings": [
+                {
+                    "code": item.code,
+                    "key": item.key,
+                    "message": item.message,
+                    "informational": item.informational,
+                }
+                for item in findings
+            ],
+        }
+        info.extend(_fc_finding_line(rel, item) for item in findings if item.informational)
+        blocking = [item for item in findings if not item.informational]
+        if not blocking:
+            continue
+        candidate = _fc_rendered_candidate(
+            record,
+            report,
+            autoharness_home,
+            variables or {},
+            model_routing if isinstance(model_routing, dict) else {},
+        )
+        report.setdefault("migration_proposals", []).extend(_fc_build_proposals(record, candidate))
+        if record["managed"]:
+            ok = False
+            errors.extend(_fc_finding_line(rel, item) for item in blocking)
+        else:
+            codes = sorted({item.code for item in blocking})
+            report["warnings"].append(
+                {
+                    "kind": FC_WARNING_KIND,
+                    "path": rel,
+                    "class": record["class"],
+                    "codes": codes,
+                    "message": (
+                        f"{record['class']} {record['kind']} frontmatter is nonconformant "
+                        f"({', '.join(codes)}); advisory only, see migration proposals."
+                    ),
+                }
+            )
+
+    report["targeted_checks"]["frontmatter_conformity"] = {
+        "ok": ok,
+        "errors": errors,
+        "info": info,
+        "files": files,
+    }
+
+
 def _add_orchestrator_invocation_routing_directive_check(
     report: dict[str, Any],
     key: str,
@@ -4711,6 +5408,8 @@ def _write_markdown_report(report: dict[str, Any], markdown_path: Path) -> None:
                 lines.append(f"  errors: {'; '.join(check['errors'])}")
             elif check.get("reason"):
                 lines.append(f"  reason: {check['reason']}")
+            if check.get("info"):
+                lines.append(f"  info: {'; '.join(check['info'])}")
     else:
         lines.append("none")
 
@@ -5057,6 +5756,19 @@ def verify_workspace(
             }
         )
         report["unresolved"].extend(_find_unresolved_placeholders(stage_path))
+
+    # 193-F B2a: agent/skill frontmatter conformity. Registered once, AFTER the
+    # artifact checksum and staging-render loop so staged render candidates
+    # exist (AN-F10). Rollback: remove this single call.
+    _add_frontmatter_conformity_check(
+        report,
+        workspace_path,
+        autoharness_home,
+        manifest,
+        profile,
+        variables=variables,
+        model_routing=_model_routing_for_composition,
+    )
 
     if profile_path.exists() and profile:
         _add_runtime_validation_profile_check(

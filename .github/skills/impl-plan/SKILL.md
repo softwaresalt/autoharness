@@ -1,4 +1,5 @@
 ---
+name: impl-plan
 description: "Transform feature or chore descriptions and requirements into structured implementation plans grounded in repo patterns and research"
 ---
 

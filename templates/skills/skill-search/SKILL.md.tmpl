@@ -1,4 +1,5 @@
 ---
+name: skill-search
 description: "Dynamic skill discovery — search available skills by keyword instead of loading all skill definitions into the system prompt"
 ---
 

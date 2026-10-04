@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Frontmatter conformity (193-F / 199-S)**: `autoharness verify-workspace` now
+  checks the YAML frontmatter of every agent (`*.agent.md` under `.github/agents/`
+  and a configured `distribution.local_agents_dir`) and every skill root
+  (`.github/skills/*/SKILL.md`) against the shared contract in
+  `autoharness.frontmatter_contract`, reported as
+  `targeted_checks.frontmatter_conformity`. Verify now **fails closed** on managed
+  agent and skill frontmatter nonconformity (manifest-rendered, community, and
+  autoharness-source artifacts — for example a bare `model:` key, a routing key on a
+  skill, a missing skill `name:`, or a missing tier/route key on a tier-routed
+  agent), whatever the artifact's checksum status. Workspace-authored and
+  unknown-provenance files are advisory only: one `frontmatter-conformity` warning
+  per file, never a failure. The remediation is a re-render (or community
+  reinstall) of an unchanged managed file, or the emitted
+  `frontmatter-conformity` migration proposal; every proposal other than
+  `rerender` / `reinstall-community` requires operator review. A previously green
+  install can therefore go red when a managed artifact is genuinely nonconformant.
+- The agent and skill templates edited for this contract (18 skill templates gain
+  `name:`, and the community `adr-generator` agent gains tier-routed keys) cause
+  **expected template drift** in target workspaces on the next tune — for community
+  templates this surfaces as `source_checksum` drift. Re-render to adopt the
+  conformant templates.
+
 ## 1.5.0 - 2026-08-30
 
 ### Added

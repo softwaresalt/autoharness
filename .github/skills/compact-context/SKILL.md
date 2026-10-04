@@ -1,4 +1,5 @@
 ---
+name: compact-context
 description: "Compact and consolidate memory, plan, and tracking artifacts into durable summaries in docs/ — mandatory workflow step, not advisory"
 ---
 

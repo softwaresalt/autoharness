@@ -1,4 +1,5 @@
 ---
+name: file-lock
 description: "Acquire and release file-level locks to prevent concurrent modifications during multi-agent or human+agent workflows"
 ---
 

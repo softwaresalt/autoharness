@@ -1,4 +1,5 @@
 ---
+name: install-harness
 description: "Multi-phase installation workflow that composes harness primitives from templates into a target workspace based on its discovered profile"
 ---
 

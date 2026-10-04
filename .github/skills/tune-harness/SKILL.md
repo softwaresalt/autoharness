@@ -1,4 +1,5 @@
 ---
+name: tune-harness
 description: "Maintenance and tuning workflow that iteratively adapts an installed agent harness to match the current state of a codebase as it evolves"
 ---
 
@@ -411,7 +412,69 @@ canonical version to be installed:
    `changed_fields`, `matched_by`, `agent_id`, and `evidence` in the tuning
    report so the migration is auditable.
 
+#### Step 1.5c: Frontmatter Conformity Migration
 
+`verify-workspace` validates every installed agent and skill frontmatter block
+against the frontmatter contract (`src/autoharness/frontmatter_contract.py`)
+through its `frontmatter_conformity` targeted check, and emits one
+`contract: frontmatter-conformity` migration proposal per blocking finding.
+Promote each of those proposals into the tuning proposal set directly — do not
+re-derive them by re-parsing the frontmatter.
+
+Preserve the **complete** proposal payload in the tuning report (AN-F1): the
+Step 0b.2 field set (`contract`, `from_version`, `to_version`, `status`,
+`severity`, `changed_fields`, `action`, and `evidence`) plus the
+conformity-specific fields `path`, `code`, `from_key`, `to_keys`, `value`,
+`manual_review`, and `summary`.
+
+Map severity as follows:
+
+| Verifier `severity` / `status` | Source class | Drift category (tune priority) |
+|---|---|---|
+| `P1` / `nonconformant-managed` | managed-rendered, managed-community, or managed-source | **Breaking** (P0) |
+| `P2` / `nonconformant-workspace` or `nonconformant-unknown` | workspace-authored or unknown provenance | **Degrading** (P1) |
+
+Each proposal carries exactly one `action`. Apply it with these semantics:
+
+| `action` | Execution |
+|---|---|
+| `rerender` | Use the normal managed re-render path for the installed artifact (Phase 4). |
+| `reinstall-community` | Use the existing community-template reinstall path, and refresh **both** the `installed_checksum` and the `source_checksum` of the `community_templates[]` entry, so the next verify reports neither a conformity finding nor community drift (AS-F7). |
+| `source-repair` | Report-only. Name the defective autoharness template from `evidence.template_path`; the fix belongs in the autoharness template, not in the workspace. |
+| `manual-fix` | Report-only (parse errors and path escapes). |
+| `migrate-key` | Single-key frontmatter edit that preserves the body: move `from_key` to the key in `to_keys`. |
+| `remove-key` | Single-key frontmatter edit that preserves the body: delete `from_key`. |
+| `add-key` | Single-key frontmatter edit that preserves the body: add the key in `to_keys` with `value`. |
+| `replace-value` | Single-key frontmatter edit that preserves the body: set the key in `to_keys` to `value`. |
+
+Apply these rules to every key-level action:
+
+1. Back up the file before any edit, and change only the one frontmatter key the
+   proposal names. Never rewrite the body or reorder other keys.
+2. A `null` `value` means the verifier cannot know the correct value. The
+   operator must supply one before the proposal is applied; never guess it.
+3. `migrate-key` and `remove-key` proposals are never applied without
+   per-proposal operator approval (INV-B1). The same per-proposal operator
+   approval applies to every `manual_review: true` proposal, and to every
+   proposal against a workspace-authored or user-modified file, whatever its
+   action. Workspace-authored agents (such as a project's own review persona)
+   are preserved and reported, never rewritten automatically.
+4. A bare `model:` → `model_family` migration never invents `model_provider`.
+   When the agent also needs a provider, the operator supplies it through a
+   separate `add-key` proposal with an operator-supplied `value`.
+5. A skill that carries routing keys or a bare `model:` receives a `remove-key`
+   proposal citing the P-013.5 leaf-executor rule: skills inherit the invoking
+   agent's route and declare no routing keys of their own.
+6. After an applied edit, keep the file's LF line endings and refresh the
+   artifact's manifest checksum as the SHA-256 of the file's raw working-tree
+   bytes: the `verify-workspace` checksum scan hashes those raw bytes with no
+   CRLF-to-LF normalization, so a CRLF working copy reports `user-modified`
+   (pin checksummed artifacts to LF, for example with a `.gitattributes`
+   `text eol=lf` rule, so the raw bytes equal the LF-normalized blob on every
+   checkout). Then re-run `verify-workspace`
+   to confirm the `frontmatter_conformity` check no longer reports the file.
+
+#### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
 Compare the installed preset, primary stack pack, additive stack packs, install
 layers, and capability packs in `.autoharness/harness-manifest.yaml` against the
@@ -765,6 +828,15 @@ Map `verify-workspace` `contract: agent-identity` proposals the same way (per
 Step 1.5b): promote them directly rather than re-deriving, mark them with
 `source: agent-identity`, and preserve their `from_path`, `to_path`, `from_name`,
 `to_name`, and `changed_fields` so pipeline-agent renames stay auditable.
+
+Map `verify-workspace` `contract: frontmatter-conformity` proposals the same way
+(per Step 1.5c): promote them directly, mark them with
+`source: frontmatter-conformity`, map verifier `severity: P1` /
+`status: nonconformant-managed` to tune `priority: P0` / `category: breaking`
+and verifier `severity: P2` to tune `priority: P1` / `category: degrading`
+(the verifier's severity labels are not tune priorities), and preserve the
+complete payload listed in Step 1.5c. Proposals that need per-proposal operator
+approval (INV-B1) remain review-gated and are never auto-applied.
 
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can

@@ -3,6 +3,7 @@ name: Auto-MergeInstall
 description: "Discovers target workspace characteristics and composes a customized agent harness from universal primitive templates"
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, todo
+max_subagent_tier: 2
 subagent_depth: 2
 ---
 
@@ -221,4 +222,6 @@ This agent operates at **Tier 2 (Standard)** — it performs structured composit
 
 ## Subagent Depth
 
-Maximum 1 hop. This agent invokes skills (workspace-discovery, install-harness) but those skills do not spawn further subagents.
+Maximum 2 hops. This agent invokes skills (workspace-discovery, install-harness),
+and install-harness invokes verify-harness, which dispatches reviewer subagents
+(up to Tier 3) as leaf executors.

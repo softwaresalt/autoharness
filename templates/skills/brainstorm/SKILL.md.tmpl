@@ -1,4 +1,5 @@
 ---
+name: brainstorm
 description: "Front-door requirements intake — frame the problem, elicit stable requirements, define success criteria and scope, separate blocking from deferred questions, and hand a durable requirements artifact to impl-plan before any implementation"
 ---
 

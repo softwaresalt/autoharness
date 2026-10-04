@@ -1,4 +1,5 @@
 ---
+name: operational-closure
 description: "Produce release-readiness, releasability evidence, monitoring, rollback, and feedback artifacts that close the loop after implementation and verification"
 ---
 
