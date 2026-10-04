@@ -77,7 +77,7 @@ TIER_KEYS: frozenset[str] = frozenset({"max_subagent_tier", "subagent_depth"})
 REVIEW_ROUTE_KEY_PATTERN = r"^(anchor|alt)_review_(family|provider|reasoning_effort)$"
 
 ROUTE_VALUE_KEYS: frozenset[str] = frozenset(
-    {"model_family", "model_provider", "reasoning_effort"}
+    {"model_family", "model_provider", "reasoning_effort", "context_tier"}
     | {
         f"{prefix}_review_{suffix}"
         for prefix in ("anchor", "alt")
@@ -86,6 +86,13 @@ ROUTE_VALUE_KEYS: frozenset[str] = frozenset(
 )
 
 BARE_MODEL_KEY = "model"
+
+# Resolved ``context_tier`` values (194-F, H-C5): the single enum source. The
+# config schema's ``contextTier`` enum is ``["", *CONTEXT_TIER_VALUES]``, where
+# ``""`` means unset/inherit and is legal only in config, never in rendered
+# frontmatter. ``context_tier`` is a ``ROUTE_VALUE_KEYS`` member (C5a,
+# 194.007-T): optional on tier-routed agents, forbidden elsewhere.
+CONTEXT_TIER_VALUES: tuple[str, ...] = ("default", "long_context")
 
 _AGENT_IDENTITY_KEYS = frozenset({"name", "description"})
 _AGENT_BASE_ROUTE_KEYS = frozenset({"model_family", "model_provider", "reasoning_effort"})
@@ -170,10 +177,16 @@ def has_blocking_findings(findings: Iterable[Finding]) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Validators (per-key registry; Plan C adds context_tier here)
+# Validators (per-key registry)
 # ---------------------------------------------------------------------------
 
 Validator = Callable[[Any], "str | None"]
+
+
+def _context_tier(value: Any) -> str | None:
+    if not isinstance(value, str) or value not in CONTEXT_TIER_VALUES:
+        return f"expected one of {list(CONTEXT_TIER_VALUES)}, got {type(value).__name__}: {value!r}"
+    return None
 
 
 def _non_empty_string(value: Any) -> str | None:
@@ -221,6 +234,7 @@ VALIDATORS: dict[str, Validator] = {
     "alt_review_family": _string,
     "alt_review_provider": _string,
     "alt_review_reasoning_effort": _string,
+    "context_tier": _context_tier,
 }
 
 
@@ -566,6 +580,7 @@ def agent_profile_for(path: Path | str, plugin_agents: Iterable[str]) -> str:
 __all__ = [
     "AGENT_PROFILES",
     "BARE_MODEL_KEY",
+    "CONTEXT_TIER_VALUES",
     "FM_BARE_MODEL",
     "FM_FORBIDDEN_KEY",
     "FM_MISSING_REQUIRED",

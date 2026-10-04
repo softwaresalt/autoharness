@@ -8,19 +8,24 @@ selecting the agent profile from the root ``plugin.json`` ``agents[]`` via
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import re
 import tempfile
 import unittest
+import unittest.mock as _mock
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 from autoharness.frontmatter_contract import (
+    CONTEXT_TIER_VALUES,
     MODE_INSTALLED,
     MODE_TEMPLATE,
     PROFILE_PLUGIN_GLOBAL,
+    PROFILE_TIER_ROUTED,
     ROUTE_VALUE_KEYS,
     agent_profile_for,
     check_agent,
@@ -41,6 +46,62 @@ _PLUGIN_GLOBAL_AGENTS = (
 )
 _TIER_STATEMENT = re.compile(r"operates at \*\*Tier (\d+)")
 _PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}")
+_FAMILY_PLACEHOLDER = re.compile(r"^\{\{([A-Z0-9_]+)_FAMILY\}\}$")
+
+# 194-F C5b (194.008-T): the 19 tier-routed agent templates that gain a
+# route-prefix-matched ``context_tier`` placeholder. The Ship and Stage pipeline
+# templates bind role variables in C4a and are not part of this set.
+_C4A_PIPELINE_TEMPLATES = (
+    "templates/agents/_ship.agent.md.tmpl",
+    "templates/agents/_stage.agent.md.tmpl",
+)
+_C5B_TEMPLATES = (
+    "templates/agents/_orchestrator.agent.md.tmpl",
+    "templates/agents/adversarial-review.agent.md.tmpl",
+    "templates/agents/language-engineer.agent.md.tmpl",
+    "templates/agents/prompt-builder.agent.md.tmpl",
+    "templates/agents/security-sentinel.agent.md.tmpl",
+    "templates/agents/research/learnings-researcher.agent.md.tmpl",
+    "templates/agents/review/agent-native-parity-reviewer.agent.md.tmpl",
+    "templates/agents/review/architecture-strategist.agent.md.tmpl",
+    "templates/agents/review/concurrency-reviewer.agent.md.tmpl",
+    "templates/agents/review/constitution-reviewer.agent.md.tmpl",
+    "templates/agents/review/correctness-reviewer.agent.md.tmpl",
+    "templates/agents/review/maintainability-reviewer.agent.md.tmpl",
+    "templates/agents/review/schema-cli-docs-coupling-reviewer.agent.md.tmpl",
+    "templates/agents/review/scope-boundary-auditor.agent.md.tmpl",
+    "templates/agents/review/security-lens-reviewer.agent.md.tmpl",
+    "templates/agents/review/security-reviewer.agent.md.tmpl",
+    "templates/agents/review/technology-reviewer.agent.md.tmpl",
+    "templates/agents/review/template-integrity-reviewer.agent.md.tmpl",
+    "templates/community/agents/adr-generator.agent.md.tmpl",
+)
+_CONFIG_DOGFOOD = "dogfood"
+_CONFIG_ROLELESS = "role-less"
+
+# 194-F C5c (194.009-T): the 14 installed tier-routed agent mirrors that gain
+# ``context_tier: "default"``. The Ship and Stage mirrors carry role-bound values
+# from C4a, and the plugin-global agents carry no route values (DA-3).
+_C4A_PIPELINE_MIRRORS = (
+    ".github/agents/_ship.agent.md",
+    ".github/agents/_stage.agent.md",
+)
+_C5C_MIRRORS = (
+    ".github/agents/_orchestrator.agent.md",
+    ".github/agents/subagents/agent-native-parity-reviewer.agent.md",
+    ".github/agents/subagents/architecture-strategist.agent.md",
+    ".github/agents/subagents/concurrency-reviewer.agent.md",
+    ".github/agents/subagents/constitution-reviewer.agent.md",
+    ".github/agents/subagents/correctness-reviewer.agent.md",
+    ".github/agents/subagents/learnings-researcher.agent.md",
+    ".github/agents/subagents/maintainability-reviewer.agent.md",
+    ".github/agents/subagents/python-reviewer.agent.md",
+    ".github/agents/subagents/schema-cli-docs-coupling-reviewer.agent.md",
+    ".github/agents/subagents/scope-boundary-auditor.agent.md",
+    ".github/agents/subagents/security-lens-reviewer.agent.md",
+    ".github/agents/subagents/security-reviewer.agent.md",
+    ".github/agents/subagents/template-integrity-reviewer.agent.md",
+)
 
 
 def _rel(path: Path) -> str:
@@ -145,7 +206,7 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
     def test_adr_generator_renders_conformant(self) -> None:
         """H-B9: TIER_2_* resolve for a community agent and the render passes installed mode."""
         content = _ADR_GENERATOR.read_text(encoding="utf-8")
-        for variable in ("TIER_2_FAMILY", "TIER_2_PROVIDER", "TIER_2_REASONING_EFFORT"):
+        for variable in ("TIER_2_FAMILY", "TIER_2_PROVIDER", "TIER_2_REASONING_EFFORT", "TIER_2_CONTEXT_TIER"):
             self.assertTrue("{{" + variable + "}}" in content, f"adr-generator lacks {{{{{variable}}}}}")
         configs = {
             "default": {},
@@ -175,6 +236,7 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
                     self.assertEqual(parsed.data["max_subagent_tier"], 2)
                     self.assertEqual(parsed.data["subagent_depth"], 0)
                     self.assertEqual(parsed.data["model_family"], "claude-sonnet-5")
+                    self.assertEqual(parsed.data["context_tier"], "default")
                     if label == "explicit":
                         self.assertEqual(parsed.data["model_provider"], "anthropic")
                     checked.append(label)
@@ -186,6 +248,157 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
         self.assertEqual(lines[0], "---")
         self.assertTrue(lines[1].startswith("# Source: "))
         self.assertTrue(lines[2].startswith("# License: "))
+
+
+def _frontmatter_block(text: str) -> str:
+    return text.replace("\r\n", "\n").split("\n---", 1)[0]
+
+
+def _load_autoharness(name: str) -> dict[str, Any]:
+    return yaml.safe_load((_ROOT / ".autoharness" / name).read_text(encoding="utf-8")) or {}
+
+
+def _context_tier_config(label: str) -> dict[str, Any]:
+    """Dogfood config, or the same config with every role route removed (role-less)."""
+    config = copy.deepcopy(_load_autoharness("config.yaml"))
+    routing = config.setdefault("model_routing", {})
+    if label == _CONFIG_ROLELESS:
+        for role in ("orchestrator", "stage", "ship"):
+            routing.pop(role, None)
+    elif label != _CONFIG_DOGFOOD:
+        raise ValueError(label)
+    return config
+
+
+def _route_prefix(template: Path) -> str:
+    data = read_frontmatter(template, MODE_TEMPLATE).data
+    match = _FAMILY_PLACEHOLDER.match(str(data.get("model_family", "")))
+    if match is None:
+        raise AssertionError(f"{_rel(template)}: model_family is not a {{{{*_FAMILY}}}} placeholder")
+    return match.group(1)
+
+
+class ContextTierTemplateTests(unittest.TestCase):
+    """194-F C5b (194.008-T): tier-routed agent templates carry ``context_tier``."""
+
+    def _tier_routed_templates(self) -> list[Path]:
+        plugin_agents = _plugin_agents()
+        return [
+            path
+            for path in sorted((_ROOT / "templates").rglob("*.agent.md.tmpl"))
+            if agent_profile_for(_rel(path), plugin_agents) == PROFILE_TIER_ROUTED
+        ]
+
+    def test_c5b_template_set_is_every_non_pipeline_tier_routed_template(self) -> None:
+        rels = {_rel(path) for path in self._tier_routed_templates()}
+        self.assertEqual(len(_C5B_TEMPLATES), 19)
+        self.assertEqual(rels - set(_C4A_PIPELINE_TEMPLATES), set(_C5B_TEMPLATES))
+
+    def test_context_tier_matches_model_family_route_prefix(self) -> None:
+        """AN-F8: TIER_n_CONTEXT_TIER for TIER_n_FAMILY, ORCHESTRATOR_CONTEXT_TIER for ORCHESTRATOR_FAMILY."""
+        templates = self._tier_routed_templates()
+        self.assertTrue(templates)
+        for path in templates:
+            with self.subTest(template=_rel(path)):
+                prefix = _route_prefix(path)
+                lines = _frontmatter_block(path.read_text(encoding="utf-8")).split("\n")
+                self.assertIn(f'context_tier: "{{{{{prefix}_CONTEXT_TIER}}}}"', lines)
+                tier_lines = [line for line in lines if line.startswith("context_tier:")]
+                self.assertEqual(len(tier_lines), 1, tier_lines)
+
+    def test_plugin_global_agents_carry_no_context_tier(self) -> None:
+        for rel in _PLUGIN_GLOBAL_AGENTS:
+            with self.subTest(agent=rel):
+                parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
+                self.assertIsNone(parsed.error)
+                self.assertNotIn("context_tier", parsed.data)
+                self.assertNotIn("context_tier", _frontmatter_block((_ROOT / rel).read_text(encoding="utf-8")))
+
+    def test_rendered_candidates_pass_installed_mode(self) -> None:
+        """H-C6: render each C5b template under the dogfood and role-less configs.
+
+        Only the rendered frontmatter must be free of ``{{...}}``; body placeholders
+        follow the existing exempt-exemplar rules (AN-F8).
+        """
+        manifest = _load_autoharness("harness-manifest.yaml")
+        profile = _load_autoharness("workspace-profile.yaml")
+        registry = _load_autoharness("backlog-registry.yaml")
+        checked: list[tuple[str, str]] = []
+        for label in (_CONFIG_DOGFOOD, _CONFIG_ROLELESS):
+            config = _context_tier_config(label)
+            with _mock.patch("autoharness.verify_workspace._resolve_default_branch", return_value="main"):
+                variables = _derive_template_variables(_ROOT, manifest, config, profile, registry)
+            # install-harness documents an empty-string default for ALT_REVIEW_*
+            # when config.model_routing.alt_review is unset.
+            variables.setdefault("ALT_REVIEW_PROVIDER", "")
+            variables.setdefault("ALT_REVIEW_FAMILY", "")
+            for rel in _C5B_TEMPLATES:
+                with self.subTest(config=label, template=rel):
+                    path = _ROOT / rel
+                    prefix = _route_prefix(path)
+                    rendered = _render_template(path.read_text(encoding="utf-8"), variables)
+                    self.assertEqual(_PLACEHOLDER.findall(_frontmatter_block(rendered)), [])
+                    parsed = parse_frontmatter(rendered, MODE_INSTALLED)
+                    self.assertIsNone(parsed.error)
+                    self.assertEqual(parsed.data.get("context_tier"), variables[f"{prefix}_CONTEXT_TIER"])
+                    self.assertIn(parsed.data.get("context_tier"), CONTEXT_TIER_VALUES)
+                    findings = check_agent(parsed, PROFILE_TIER_ROUTED, MODE_INSTALLED)
+                    self.assertFalse(has_blocking_findings(findings), findings)
+                    checked.append((label, rel))
+        self.assertEqual(len(checked), 2 * len(_C5B_TEMPLATES))
+
+
+class ContextTierInstalledMirrorTests(unittest.TestCase):
+    """194-F C5c (194.009-T): installed tier-routed mirrors carry ``context_tier: "default"``."""
+
+    def _manifest_by_path(self) -> dict[str, dict[str, Any]]:
+        manifest = _load_autoharness("harness-manifest.yaml")
+        return {str(item.get("path")): item for item in manifest.get("artifacts") or []}
+
+    def test_c5c_mirror_set_is_every_non_pipeline_tier_routed_mirror(self) -> None:
+        plugin_agents = _plugin_agents()
+        rels = {
+            _rel(path)
+            for path in sorted((_ROOT / ".github" / "agents").rglob("*.agent.md"))
+            if agent_profile_for(_rel(path), plugin_agents) == PROFILE_TIER_ROUTED
+        }
+        self.assertEqual(len(_C5C_MIRRORS), 14)
+        self.assertEqual(rels - set(_C4A_PIPELINE_MIRRORS), set(_C5C_MIRRORS))
+
+    def test_mirrors_carry_default_context_tier_after_model_family(self) -> None:
+        for rel in _C5C_MIRRORS:
+            with self.subTest(mirror=rel):
+                lines = _frontmatter_block((_ROOT / rel).read_text(encoding="utf-8")).split("\n")
+                tier_lines = [line for line in lines if line.startswith("context_tier:")]
+                self.assertEqual(tier_lines, ['context_tier: "default"'])
+                family_index = next(i for i, line in enumerate(lines) if line.startswith("model_family:"))
+                self.assertEqual(lines[family_index + 1], 'context_tier: "default"')
+                parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
+                self.assertIsNone(parsed.error)
+                self.assertEqual(parsed.data.get("context_tier"), "default")
+
+    def test_mirror_value_is_resolved_value_under_repository_config(self) -> None:
+        """C7: the mirror value equals the template's route-prefix variable under the dogfood config."""
+        by_path = self._manifest_by_path()
+        manifest = _load_autoharness("harness-manifest.yaml")
+        profile = _load_autoharness("workspace-profile.yaml")
+        registry = _load_autoharness("backlog-registry.yaml")
+        config = _context_tier_config(_CONFIG_DOGFOOD)
+        with _mock.patch("autoharness.verify_workspace._resolve_default_branch", return_value="main"):
+            variables = _derive_template_variables(_ROOT, manifest, config, profile, registry)
+        for rel in _C5C_MIRRORS:
+            with self.subTest(mirror=rel):
+                template = _ROOT / "templates" / str(by_path[rel]["template"])
+                prefix = _route_prefix(template)
+                parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
+                self.assertEqual(parsed.data.get("context_tier"), variables[f"{prefix}_CONTEXT_TIER"])
+
+    def test_mirror_manifest_checksums_match_staged_blobs(self) -> None:
+        by_path = self._manifest_by_path()
+        for rel in _C5C_MIRRORS:
+            with self.subTest(mirror=rel):
+                self.assertIn(rel, by_path)
+                self.assertEqual(by_path[rel].get("checksum"), _staged_blob_sha256(_ROOT / rel))
 
 
 class SkillFrontmatterConformityTests(unittest.TestCase):

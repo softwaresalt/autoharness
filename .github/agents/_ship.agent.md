@@ -8,6 +8,7 @@ max_subagent_tier: 3
 reasoning_effort: "high"
 model_provider: "anthropic"
 model_family: "claude-opus-5.5"
+context_tier: "long_context"
 subagent_depth: 2
 ---
 
@@ -865,6 +866,17 @@ operator-halt checkpoint:
    session's resolved value, and MUST NOT invent a last-known-good fallback.
    This is the config-resolved successor to ad hoc "suggest a frontier-tier
    model" prose — the route is now declared, not improvised.
+   Separately, the escalation `context_tier` resolves to `default`
+   (nested `ship.escalation.context_tier` -> legacy flat
+   `escalation.context_tier` only when the flat route is the selected
+   source -> `tier3.context_tier` -> `default`).
+   This workspace declares no escalation `context_tier` at any level.
+   Record it in the compiled payload's separate
+   `resolved_escalation_context_tier` field — it is not part of the
+   `resolved_escalation_route` tuple and is excluded from the same-route
+   guard. When the runtime cannot honor a non-`default` escalation
+   `context_tier`, record `ROUTING_DEGRADED: context_tier` and hand off at
+   the default context; this never blocks the handoff.
 3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
    equals this agent's own role route tuple (P-013.5) — Ship currently
    operates at `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`

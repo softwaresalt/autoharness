@@ -2342,7 +2342,8 @@ def _tier_fallback_dict(model_routing: dict[str, Any], tier_key: str) -> dict[st
 def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive the nine MODEL_ROUTING_TIER*/TIER_*_FAMILY/PROVIDER/REASONING_EFFORT
     variables (SKILL.md rows 414-425), normalising the polymorphic scalar-vs-
-    mapping `model_routing.tier1/tier2/tier3` shape (amendment B6)."""
+    mapping `model_routing.tier1/tier2/tier3` shape (amendment B6), plus
+    TIER_*_CONTEXT_TIER (194-F, C2; a legacy string tier gives `"default"`)."""
     variables: dict[str, str] = {}
     tier_defaults = {
         "tier1": ("MODEL_ROUTING_TIER1", "TIER_1", "gpt-5.4-mini"),
@@ -2359,14 +2360,17 @@ def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str
         variables[f"{prefix}_FAMILY"] = str(family_value)
         variables[f"{prefix}_PROVIDER"] = str(provider_value)
         variables[f"{prefix}_REASONING_EFFORT"] = str(effort_value)
+        variables[f"{prefix}_CONTEXT_TIER"] = _resolve_context_tier(tier_dict, None)
     return variables
 
 
 def _derive_orchestrator_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive ORCHESTRATOR_FAMILY/PROVIDER/REASONING_EFFORT (SKILL.md rows
-    426-428, amendment B6, corrected review-fix cycle 1). Scalar-form
-    `orchestrator` populates ONLY `model_family`; provider/effort ALWAYS fall
-    back to tier2 (never to empty), while `ORCHESTRATOR_FAMILY` keeps its OWN
+    426-428, amendment B6, corrected review-fix cycle 1) and
+    ORCHESTRATOR_CONTEXT_TIER (194-F, C2). Scalar-form
+    `orchestrator` populates ONLY `model_family`; provider/effort/context_tier
+    ALWAYS fall back to tier2 (provider/effort never to empty; context_tier
+    ends at `"default"`), while `ORCHESTRATOR_FAMILY` keeps its OWN
     `gpt-5.4` default and does NOT fall back to tier2."""
     orchestrator = model_routing.get("orchestrator")
     if isinstance(orchestrator, str) and orchestrator.strip():
@@ -2385,13 +2389,15 @@ def _derive_orchestrator_route_variables(model_routing: dict[str, Any]) -> dict[
         "ORCHESTRATOR_FAMILY": str(family),
         "ORCHESTRATOR_PROVIDER": str(provider),
         "ORCHESTRATOR_REASONING_EFFORT": str(effort),
+        "ORCHESTRATOR_CONTEXT_TIER": _resolve_context_tier(route, tier2_fallback),
     }
 
 
 def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive STAGE_*/SHIP_* (SKILL.md rows 429-434): RESOLVED-FROM-SOURCE with
     the P-013.5 per-sub-field tier fallback applied (stage -> tier3, ship ->
-    tier2). Reuses `_resolve_role_route_field`/`ROLE_ROUTE_TIER_FALLBACK`
+    tier2), plus STAGE_/SHIP_CONTEXT_TIER (194-F, C2; ends at `"default"`).
+    Reuses `_resolve_role_route_field`/`ROLE_ROUTE_TIER_FALLBACK`
     (defined later in this module) so this can never diverge from the
     installed-output verification check."""
     variables: dict[str, str] = {}
@@ -2407,6 +2413,7 @@ def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str
         variables[f"{prefix}_FAMILY"] = str(family)
         variables[f"{prefix}_PROVIDER"] = str(provider)
         variables[f"{prefix}_REASONING_EFFORT"] = str(effort)
+        variables[f"{prefix}_CONTEXT_TIER"] = _resolve_context_tier(route, tier_fallback)
     return variables
 
 
@@ -2424,31 +2431,31 @@ def _raw_escalation_field(route: Any, field: str) -> str:
 
 
 def _derive_raw_escalation_variables(model_routing: dict[str, Any]) -> dict[str, str]:
-    """Derive the nine RAW escalation pass-through variables (constraint C3):
+    """Derive the twelve RAW escalation pass-through variables (constraint C3):
     LEGACY_ESCALATION_* mirrors the flat `model_routing.escalation` block
     verbatim; STAGE_ESCALATION_*/SHIP_ESCALATION_* mirror the nested
-    `model_routing.<role>.escalation` blocks verbatim. Every one of these
+    `model_routing.<role>.escalation` blocks verbatim (including the
+    `*_ESCALATION_CONTEXT_TIER` members added by 194-F/C2, H-C1, which exist
+    only for the config write-back). Every one of these
     DERIVES TO THE EMPTY STRING when its own raw field is unset -- they never
     read a fallback chain and are never populated from the collapsed
     `{{ESCALATION_*}}` value (that would reproduce the H2 flat+nested
     ambiguity PR #316 round 3 fixed)."""
-    variables: dict[str, str] = {}
-    flat = model_routing.get("escalation") or {}
-    for field, suffix in (
+    raw_fields = (
         ("model_family", "FAMILY"),
         ("model_provider", "PROVIDER"),
         ("reasoning_effort", "REASONING_EFFORT"),
-    ):
+        ("context_tier", "CONTEXT_TIER"),
+    )
+    variables: dict[str, str] = {}
+    flat = model_routing.get("escalation") or {}
+    for field, suffix in raw_fields:
         variables[f"LEGACY_ESCALATION_{suffix}"] = _raw_escalation_field(flat, field)
     for role in ("stage", "ship"):
         role_block = model_routing.get(role) or {}
         nested = role_block.get("escalation") if isinstance(role_block, dict) else None
         prefix = role.upper()
-        for field, suffix in (
-            ("model_family", "FAMILY"),
-            ("model_provider", "PROVIDER"),
-            ("reasoning_effort", "REASONING_EFFORT"),
-        ):
+        for field, suffix in raw_fields:
             variables[f"{prefix}_ESCALATION_{suffix}"] = _raw_escalation_field(nested, field)
     return variables
 
@@ -2490,6 +2497,33 @@ def _effective_escalation_route_for_role(
     return str(family), str(provider), str(effort)
 
 
+def _effective_escalation_context_tier_for_role(model_routing: dict[str, Any], role: str) -> str:
+    """Resolve the EFFECTIVE escalation `context_tier` for one role (194-F,
+    C2b, H-C2): `<role>.escalation.context_tier` -> the flat
+    `escalation.context_tier` ONLY when the flat route is the selected source
+    -> `tier3.context_tier` -> `"default"`. Source selection reuses the
+    unchanged three-field `_escalation_route_has_any_field` predicate, so a
+    nested block declaring only `context_tier` never selects the nested
+    source (INV-C4); when the nested route IS selected, the flat route is
+    never read (D-C2). Shared by `_compose_artifact_variables` and
+    `_add_escalation_route_resolution_check` so the render and the check
+    cannot diverge (PY-F1)."""
+    role_block = model_routing.get(role) or {}
+    if not isinstance(role_block, dict):
+        role_block = {}
+    nested = role_block.get("escalation") or {}
+    if not isinstance(nested, dict):
+        nested = {}
+    nested_value = nested.get("context_tier")
+    if isinstance(nested_value, str) and nested_value.strip():
+        return nested_value
+    flat = model_routing.get("escalation") or {}
+    if not isinstance(flat, dict):
+        flat = {}
+    source_route = {} if _escalation_route_has_any_field(nested) else flat
+    return _resolve_context_tier(source_route, _tier_fallback_dict(model_routing, "tier3"))
+
+
 def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive the BASE (role-neutral) `{{ESCALATION_FAMILY}}`/`{{ESCALATION_PROVIDER}}`/
     `{{ESCALATION_REASONING_EFFORT}}` collapsed prose triple: legacy flat
@@ -2512,6 +2546,8 @@ def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[st
         "ESCALATION_FAMILY": str(family),
         "ESCALATION_PROVIDER": str(provider),
         "ESCALATION_REASONING_EFFORT": str(effort),
+        # 194-F/C2b: resolved (never empty) flat -> tier3 -> "default".
+        "ESCALATION_CONTEXT_TIER": _resolve_context_tier(flat, tier3_fallback),
     }
 
 
@@ -2726,26 +2762,167 @@ def _resolve_artifact_role(relative_path: str) -> str | None:
     return artifact_role_map.get(relative_path)
 
 
+_ROLE_COMPOSED_ESCALATION_VARIABLES = (
+    "ESCALATION_FAMILY",
+    "ESCALATION_PROVIDER",
+    "ESCALATION_REASONING_EFFORT",
+    "ESCALATION_CONTEXT_TIER",
+)
+
+# Raw escalation storage variables mirror the config verbatim, so "" (unset)
+# is a legal override value for them only.
+_RAW_ESCALATION_CONTEXT_TIER_VARIABLES = frozenset(
+    {
+        "LEGACY_ESCALATION_CONTEXT_TIER",
+        "STAGE_ESCALATION_CONTEXT_TIER",
+        "SHIP_ESCALATION_CONTEXT_TIER",
+    }
+)
+
+
+def _context_tier_override_error(name: str, value: Any) -> str | None:
+    """194-F: `config.overrides` values are only schema-checked as strings, so a
+    `*_CONTEXT_TIER` override must be re-validated against the enum before it is
+    applied. Returns an error message, or None when the override is acceptable
+    (including every non-`*_CONTEXT_TIER` variable)."""
+    if not name.endswith("_CONTEXT_TIER"):
+        return None
+    if value == "" and name in _RAW_ESCALATION_CONTEXT_TIER_VARIABLES:
+        return None
+    if fc.VALIDATORS["context_tier"](value) is None:
+        return None
+    return (
+        f"config.overrides.{name} must be one of {list(fc.CONTEXT_TIER_VALUES)}"
+        f" (got {value!r})"
+    )
+
+
 def _compose_artifact_variables(
-    base_variables: dict[str, str], model_routing: dict[str, Any], artifact_role: str | None
+    base_variables: dict[str, str],
+    model_routing: dict[str, Any],
+    artifact_role: str | None,
+    *,
+    config_authoritative: bool = True,
+    overrides: Any = None,
 ) -> dict[str, str]:
     """142.007-T: return a NEW mapping = `base_variables` overlaid with the
-    role-scoped collapsed `{{ESCALATION_*}}` prose triple, WITHOUT mutating
+    role-scoped collapsed `{{ESCALATION_*}}` prose triple (plus, 194-F/C2b,
+    the role-scoped `{{ESCALATION_CONTEXT_TIER}}`), WITHOUT mutating
     `base_variables` (the same base is reused across every artifact in the
     render loop, design constraint 1/3). Only the collapsed prose triple is
     role-scoped -- the raw pass-through families
     (`{{LEGACY_ESCALATION_*}}`/`{{STAGE_ESCALATION_*}}`/`{{SHIP_ESCALATION_*}}`)
     are already global/raw in `base_variables` and are returned unchanged
     (design constraint 3). Artifacts with no resolved role (`artifact_role is
-    None`) get the base map back unchanged (design constraint 4)."""
-    if artifact_role is None:
+    None`) get the base map back unchanged (design constraint 4).
+
+    194-F (C2b/C4b precedence): the role overlay applies only when the live
+    config is authoritative; otherwise the base map (manifest-first) is
+    returned unchanged. When it applies, `config.overrides[<VAR>]` for the
+    four role-composed escalation variables wins over the role-derived value,
+    matching `_authoritative_route_variables`."""
+    if artifact_role is None or not config_authoritative:
         return base_variables
     family, provider, effort = _effective_escalation_route_for_role(model_routing, artifact_role)
     composed = dict(base_variables)
     composed["ESCALATION_FAMILY"] = family
     composed["ESCALATION_PROVIDER"] = provider
     composed["ESCALATION_REASONING_EFFORT"] = effort
+    composed["ESCALATION_CONTEXT_TIER"] = _effective_escalation_context_tier_for_role(
+        model_routing, artifact_role
+    )
+    if isinstance(overrides, dict):
+        for name in _ROLE_COMPOSED_ESCALATION_VARIABLES:
+            value = overrides.get(name)
+            if value is not None and _context_tier_override_error(name, value) is None:
+                composed[name] = str(value)
     return composed
+
+
+def _route_family_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """194.006-T (C4b): the route family -- every variable returned by the
+    tier, orchestrator, role, raw-escalation and escalation-prose derivers
+    (including the `*_CONTEXT_TIER` members) -- derived from `model_routing`.
+    Anchor-review variables are NOT route-family members."""
+    variables: dict[str, str] = {}
+    for derive in (
+        _derive_tier_route_variables,
+        _derive_orchestrator_route_variables,
+        _derive_role_route_variables,
+        _derive_raw_escalation_variables,
+        _derive_escalation_prose_variables,
+    ):
+        variables.update(derive(model_routing))
+    return variables
+
+
+def _authoritative_route_variables(config: dict[str, Any]) -> dict[str, str]:
+    """194.006-T (C4b): the authoritative route-family values for an
+    authoritative config: `config.overrides[<VAR>]` (AS-F9) over the
+    config-derived value."""
+    model_routing = config.get("model_routing") or {}
+    if not isinstance(model_routing, dict):
+        model_routing = {}
+    variables = _route_family_variables(model_routing)
+    overrides = config.get("overrides") or {}
+    if isinstance(overrides, dict):
+        for name in variables:
+            value = overrides.get(name)
+            if value is not None and _context_tier_override_error(name, value) is None:
+                variables[name] = str(value)
+    return variables
+
+
+def _add_context_tier_override_check(
+    report: dict[str, Any],
+    key: str,
+    config: dict[str, Any],
+) -> None:
+    """194-F: fail closed when `config.overrides` sets a `*_CONTEXT_TIER`
+    variable outside the enum. The invalid value is never rendered (the
+    compose paths skip it), but it must not pass verification silently."""
+    overrides = config.get("overrides")
+    errors: list[str] = []
+    if isinstance(overrides, dict):
+        for name, value in sorted(overrides.items(), key=lambda item: str(item[0])):
+            error = _context_tier_override_error(str(name), value)
+            if error is not None:
+                errors.append(error)
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+    }
+
+
+def _route_variable_stale_warnings(
+    manifest: dict[str, Any], config: dict[str, Any], manifest_path: str
+) -> list[dict[str, Any]]:
+    """194.006-T (C4b): one non-fatal `ROUTE_VARIABLE_STALE` warning per
+    route-family variable whose `variables_used` record differs from its
+    authoritative config value. Call only with an authoritative config."""
+    authoritative = _authoritative_route_variables(config)
+    warnings: list[dict[str, Any]] = []
+    variables_used = manifest.get("variables_used")
+    if not isinstance(variables_used, dict):
+        return warnings
+    for name, recorded in variables_used.items():
+        name = str(name)
+        if recorded is None or name not in authoritative:
+            continue
+        if str(recorded) == authoritative[name]:
+            continue
+        warnings.append(
+            {
+                "kind": "route-variable-stale",
+                "path": manifest_path,
+                "field": name,
+                "rule": f"ROUTE_VARIABLE_STALE:{name}",
+                "message": (
+                    f"ROUTE_VARIABLE_STALE: {name} recorded={recorded} config={authoritative[name]}"
+                ),
+            }
+        )
+    return warnings
 
 
 def _derive_template_variables(
@@ -2754,7 +2931,15 @@ def _derive_template_variables(
     config: dict[str, Any],
     profile: dict[str, Any],
     registry: dict[str, Any],
+    *,
+    config_authoritative: bool = False,
 ) -> dict[str, str]:
+    """Derive the global template-variable map for verify's staged render.
+
+    `config_authoritative` (194.006-T, C4b) is computed by the caller from
+    the config load result. When true, route-family variables follow
+    `config.overrides` > config-derived (assigned over `variables_used`);
+    otherwise every variable keeps manifest-first precedence."""
     variables = {
         str(key): str(value)
         for key, value in (manifest.get("variables_used") or {}).items()
@@ -2781,16 +2966,12 @@ def _derive_template_variables(
     model_routing = config.get("model_routing") or {}
     if not isinstance(model_routing, dict):
         model_routing = {}
-    for _var_name, _var_value in _derive_tier_route_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_orchestrator_route_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_role_route_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_raw_escalation_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_escalation_prose_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
+    if config_authoritative:
+        # 194.006-T (C4b, P-013.5): the live config is authoritative for routing.
+        variables.update(_authoritative_route_variables(config))
+    else:
+        for _var_name, _var_value in _route_family_variables(model_routing).items():
+            variables.setdefault(_var_name, _var_value)
     for _var_name, _var_value in _derive_anchor_review_variables(model_routing).items():
         variables.setdefault(_var_name, _var_value)
 
@@ -3245,6 +3426,19 @@ def _add_frontmatter_model_routing_check(
     elif isinstance(provider_value, str) and "{{" in provider_value and "}}" in provider_value:
         errors.append(f"unresolved placeholder in model_provider: {provider_value!r}")
 
+    # 194-F/C2b: context_tier is optional (older installs pass), but when
+    # present it must be a resolved value in fc.CONTEXT_TIER_VALUES; "" means
+    # unset/inherit and is legal only in config, never in rendered frontmatter.
+    if "context_tier" in frontmatter:
+        tier_value = frontmatter.get("context_tier")
+        if isinstance(tier_value, str) and "{{" in tier_value and "}}" in tier_value:
+            errors.append(f"unresolved placeholder in context_tier: {tier_value!r}")
+        elif fc.VALIDATORS["context_tier"](tier_value) is not None:
+            errors.append(
+                f"invalid field: context_tier must be one of "
+                f"{list(fc.CONTEXT_TIER_VALUES)} when present (got {tier_value!r})"
+            )
+
     report["targeted_checks"][key] = {
         "path": str(file_path),
         "ok": not errors,
@@ -3661,6 +3855,9 @@ def _fc_rendered_candidate(
     autoharness_home: Path,
     variables: dict[str, str],
     model_routing: dict[str, Any],
+    *,
+    config_authoritative: bool = True,
+    overrides: Any = None,
 ) -> dict[str, Any]:
     """Validate the rendered source candidate in installed mode (AS-F8, AN-F10).
 
@@ -3698,7 +3895,11 @@ def _fc_rendered_candidate(
                 )
                 return result
             composed = _compose_artifact_variables(
-                variables, model_routing, _resolve_artifact_role(record["rel"])
+                variables,
+                model_routing,
+                _resolve_artifact_role(record["rel"]),
+                config_authoritative=config_authoritative,
+                overrides=overrides,
             )
             text = _fc_read_bytes(source).decode("utf-8")
             raw = _render_template(text, composed).encode("utf-8")
@@ -3856,6 +4057,9 @@ def _add_frontmatter_conformity_check(
     profile: Any,
     variables: dict[str, str] | None = None,
     model_routing: dict[str, Any] | None = None,
+    *,
+    config_authoritative: bool = True,
+    overrides: Any = None,
 ) -> None:
     """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
 
@@ -3919,6 +4123,8 @@ def _add_frontmatter_conformity_check(
             autoharness_home,
             variables or {},
             model_routing if isinstance(model_routing, dict) else {},
+            config_authoritative=config_authoritative,
+            overrides=overrides,
         )
         report.setdefault("migration_proposals", []).extend(_fc_build_proposals(record, candidate))
         if record["managed"]:
@@ -3947,6 +4153,31 @@ def _add_frontmatter_conformity_check(
     }
 
 
+_ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^ {0,3}#{1,6}\s", re.MULTILINE)
+_ORCHESTRATOR_DIRECTIVE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_CONTEXT_TIER_DIRECTIVE_TOKENS = ("context_tier", "ROUTING_DEGRADED: context_tier")
+
+
+def _next_heading_outside_fence(content: str, start: int) -> int | None:
+    """Offset of the first ATX heading line at or after ``start`` that is not
+    inside a fenced code block (so a ``# comment`` in a shell fence never ends
+    the window), or None when there is none."""
+    fence: str | None = None
+    offset = 0
+    for line in content.splitlines(keepends=True):
+        fence_match = _ORCHESTRATOR_DIRECTIVE_FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence) and not line.strip()[len(marker):]:
+                fence = None
+        elif fence is None and offset >= start and _ORCHESTRATOR_DIRECTIVE_HEADING_RE.match(line):
+            return offset
+        offset += len(line)
+    return None
+
+
 def _add_orchestrator_invocation_routing_directive_check(
     report: dict[str, Any],
     key: str,
@@ -3966,7 +4197,16 @@ def _add_orchestrator_invocation_routing_directive_check(
     for a distinct ROUTING_DEGRADED between them, so this scoping is not
     satisfiable by summary text alone. The Ship side is checked from its
     first mention to end-of-file (a looser bound is sufficient there because
-    the narrow Stage-side bound is what defeats the summary-only attack)."""
+    the narrow Stage-side bound is what defeats the summary-only attack).
+
+    194-F C6a: each site must additionally declare `context_tier` and its
+    `ROUTING_DEGRADED: context_tier` fallback inside a bounded window -- the
+    Stage window above, and a Ship window from the first
+    "config.model_routing.ship" up to the next ATX heading line outside a
+    fenced code block (any level, `^ {0,3}#{1,6}\\s`) or EOF, so the later
+    "## Model Routing" P-013.5
+    summary can never satisfy the Ship site. The whole-tail ROUTING_DEGRADED
+    scoping is unchanged."""
     if not file_path.exists():
         report["targeted_checks"][key] = {
             "path": str(file_path),
@@ -4009,6 +4249,22 @@ def _add_orchestrator_invocation_routing_directive_check(
                     "Ship invocation site (config.model_routing.ship "
                     "onward) does not declare a ROUTING_DEGRADED fallback"
                 )
+            # 194-F C6a (AN-F6/AS-F7): each invocation site must also carry
+            # the context_tier override and its ROUTING_DEGRADED: context_tier
+            # fallback inside a BOUNDED window. The Ship window ends at the
+            # next ATX heading line (^ {0,3}#{1,6}\s, any level) or EOF, so a
+            # later "## Model Routing" summary can never satisfy the Ship site.
+            heading_offset = _next_heading_outside_fence(content, ship_idx)
+            ship_window = content[ship_idx : heading_offset if heading_offset is not None else len(content)]
+            for site, window in (("Stage", stage_section), ("Ship", ship_window)):
+                for token in _CONTEXT_TIER_DIRECTIVE_TOKENS:
+                    if token not in window:
+                        scoping_errors.append(
+                            f"{site} invocation site does not declare "
+                            f"{token} inside its bounded window -- the "
+                            "per-step context_tier directive may have been "
+                            "removed while an unrelated summary mention remains"
+                        )
 
     report["targeted_checks"][key] = {
         "path": str(file_path),
@@ -4022,10 +4278,12 @@ def _resolve_role_route_field(
     route: dict[str, Any], tier_fallback: Any, field: str
 ) -> Any:
     """Resolve a single role-route field (model_family/model_provider/
-    reasoning_effort) with per-field fallback to the tier route. A tier route
-    may be a legacy plain model-identifier string (treated as `model` and
-    `model_family`) or an object with model/model_family/model_provider/
-    reasoning_effort."""
+    reasoning_effort/context_tier) with per-field fallback to the tier route.
+    A tier route may be a legacy plain model-identifier string (treated as
+    `model` and `model_family`) or an object with model/model_family/
+    model_provider/reasoning_effort/context_tier. The resolution is
+    field-generic; `_resolve_context_tier` adds the `"default"` terminal
+    value for `context_tier`."""
     value = route.get(field) if isinstance(route, dict) else None
     if isinstance(value, str) and value.strip():
         return value
@@ -4043,6 +4301,17 @@ def _resolve_role_route_field(
         # the model_family fallback when model_family itself is unset.
         fallback_value = tier_dict.get("model")
     return fallback_value
+
+
+def _resolve_context_tier(route: Any, tier_fallback: Any) -> str:
+    """Resolve a route's `context_tier` (194-F, C2): the route's own value,
+    then the fallback tier's value, then `"default"`. An empty string means
+    unset/inherit. A legacy plain-string tier carries no `context_tier`, so it
+    gives `"default"`. The result is never empty."""
+    value = _resolve_role_route_field(route, tier_fallback, "context_tier")
+    if isinstance(value, str) and value.strip():
+        return value
+    return "default"
 
 
 # Role -> fallback tier mapping for P-013.5 role-route resolution. Stage is a
@@ -4280,6 +4549,9 @@ def _add_escalation_route_resolution_check(
         # own route/tier nor the escalation target declares it) carries no
         # signal either way and must not manufacture a false mismatch --
         # only an explicit, resolved value on BOTH sides can disagree.
+        # 194-F/C2b (D-C3): context_tier is deliberately NOT part of this
+        # tuple -- a same family/provider/effort escalation that differs only
+        # in context_tier is still a same-route no-op.
         provider_conflicts = bool(role_provider) and bool(effective_provider) and role_provider != effective_provider
         effort_conflicts = bool(role_effort) and bool(effective_effort) and role_effort != effective_effort
         is_same_route = (
@@ -4298,6 +4570,7 @@ def _add_escalation_route_resolution_check(
             "resolved_family": effective_family,
             "resolved_provider": effective_provider,
             "resolved_reasoning_effort": effective_effort,
+            "resolved_context_tier": _effective_escalation_context_tier_for_role(model_routing, role),
             "role_route_family": role_family,
             "role_route_provider": role_provider,
             "role_route_reasoning_effort": role_effort,
@@ -5587,10 +5860,39 @@ def verify_workspace(
         if str(pack) in SUPPORTED_CAPABILITY_PACKS
     ]
 
-    variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
+    # 194.006-T (C4b): authoritative config = exists, parses to a non-empty
+    # mapping that declares a `model_routing` mapping, and raised no
+    # invalid-config-yaml strict-schema blocker. A config without a
+    # `model_routing` mapping has no routing to be authoritative about, so
+    # built-in defaults must not overwrite recorded route variables (A1).
+    config_authoritative = (
+        config_path.exists()
+        and isinstance(config, dict)
+        and bool(config)
+        and isinstance(config.get("model_routing"), dict)
+        and not any(
+            blocker.get("kind") == "invalid-config-yaml"
+            for blocker in report["strict_schema_blockers"]
+        )
+    )
+    variables = _derive_template_variables(
+        workspace_path,
+        manifest,
+        config,
+        profile,
+        registry,
+        config_authoritative=config_authoritative,
+    )
+    if config_authoritative:
+        report["warnings"].extend(
+            _route_variable_stale_warnings(
+                manifest, config, ".autoharness/harness-manifest.yaml"
+            )
+        )
     _model_routing_for_composition = config.get("model_routing") or {}
     if not isinstance(_model_routing_for_composition, dict):
         _model_routing_for_composition = {}
+    _overrides_for_composition = config.get("overrides") if config_authoritative else None
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
@@ -5741,7 +6043,11 @@ def verify_workspace(
             # the renderer varies by resolved role.
             artifact_role = _resolve_artifact_role(relative_path)
             artifact_variables = _compose_artifact_variables(
-                variables, _model_routing_for_composition, artifact_role
+                variables,
+                _model_routing_for_composition,
+                artifact_role,
+                config_authoritative=config_authoritative,
+                overrides=_overrides_for_composition,
             )
             stage_path.write_text(_render_template(source_content, artifact_variables), encoding="utf-8")
             render_mode = "rendered"
@@ -5768,6 +6074,8 @@ def verify_workspace(
         profile,
         variables=variables,
         model_routing=_model_routing_for_composition,
+        config_authoritative=config_authoritative,
+        overrides=_overrides_for_composition,
     )
 
     if profile_path.exists() and profile:
@@ -5986,6 +6294,14 @@ def verify_workspace(
         )
         if has_explicit_role_route or has_tier_fallback_foundation:
             _add_role_route_resolution_check(report, "role_route_resolution", config)
+
+    # 194-F: registered only when config.overrides sets a *_CONTEXT_TIER
+    # variable, so configs without such overrides gain no new check key.
+    _config_overrides = config.get("overrides") if isinstance(config, dict) else None
+    if isinstance(_config_overrides, dict) and any(
+        str(name).endswith("_CONTEXT_TIER") for name in _config_overrides
+    ):
+        _add_context_tier_override_check(report, "context_tier_overrides", config)
 
     # P-013.6: escalation route resolution + same-route ESCALATION_DEGRADED
     # detection (106.007-T). Evaluated under the same opt-in gating as

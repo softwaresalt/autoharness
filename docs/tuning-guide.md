@@ -175,8 +175,9 @@ Review these fields from the JSON report before proposing tune changes:
 * `migration_proposals[]` — upgrade, backfill, and normalization proposals
 * `warnings[]` — compatibility drift evidence, including grouped summaries when repeated findings collapse into fewer warning rows
 
-Current public contracts are `1.0.0`, but autoharness also recognizes `0.9.0`
-as a known legacy version for config, workspace profile, and harness manifest.
+The current config contract is `1.1.0`; the workspace profile and harness
+manifest contracts are `1.0.0`. autoharness also recognizes `0.9.0` as a known
+legacy version for all three, and `1.0.0` as a known legacy config version.
 Those workspaces should generate explicit upgrade proposals instead of being
 treated as unknown-contract failures.
 
@@ -205,8 +206,8 @@ single definition.
 | Constant | Keys |
 |---|---|
 | `TIER_KEYS` | `max_subagent_tier`, `subagent_depth` |
-| `ROUTE_VALUE_KEYS` | `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
-| `routing_keys()` | `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| `ROUTE_VALUE_KEYS` | `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| `routing_keys()` | `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
 
 The shared routing-key set is the union of `TIER_KEYS` and `ROUTE_VALUE_KEYS`.
 It is computed at call time by `routing_keys()` rather than stored as a
@@ -218,9 +219,9 @@ agent or skill.
 
 | Artifact | Required keys | Optional keys | Forbidden keys |
 |---|---|---|---|
-| Agent, `tier-routed` | `name`, `description`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` | `model` |
-| Agent, `plugin-global` | `name`, `description`, `max_subagent_tier`, `subagent_depth` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target` | `model`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
-| Skill | `name`, `description` | `argument-hint`, `input`, `license`, `compatibility`, `metadata`, `allowed-tools` | `model`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| Agent, `tier-routed` | `name`, `description`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` | `model` |
+| Agent, `plugin-global` | `name`, `description`, `max_subagent_tier`, `subagent_depth` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target` | `model`, `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| Skill | `name`, `description` | `argument-hint`, `input`, `license`, `compatibility`, `metadata`, `allowed-tools` | `model`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
 
 An agent is checked against the `plugin-global` profile only when all of the
 following hold; every other agent is `tier-routed`:
@@ -250,6 +251,9 @@ Value rules:
 * `name`, `description`, and `model_family` are non-empty strings. The
   provider, reasoning-effort, `anchor_review_family`, and `alt_review_family`
   keys are strings and may be empty.
+* `context_tier` is optional on a `tier-routed` agent and, when present, is
+  exactly `default` or `long_context`. An empty value (`""`, which means
+  unset/inherit in config) is never valid in frontmatter.
 * A skill's `name` equals its directory name, matches
   `^[a-z0-9]+(-[a-z0-9]+)*$`, and is at most 64 characters long.
 * An installed artifact must not contain an unresolved `{{...}}` placeholder.
@@ -315,6 +319,111 @@ tune-harness promotes these in Step 1.5c:
   file need per-proposal operator approval;
 * a bare `model:` → `model_family` migration never invents `model_provider`;
   a missing provider is supplied by the operator.
+
+## Model Routing and Context Tier
+
+Each `model_routing` route in `.autoharness/config.yaml` (`tier1`, `tier2`,
+`tier3`, `orchestrator`, `stage`, `ship`, and the escalation routes) may carry
+an optional `context_tier` beside `model_family`, `model_provider`, and
+`reasoning_effort`. The frontmatter key sets and value rules for `context_tier`
+are defined in the [Agent and Skill Frontmatter Contract](#agent-and-skill-frontmatter-contract)
+tables above; this section covers how the value is resolved and used.
+
+### Values and Fallback
+
+`context_tier` is a provider- and environment-agnostic capacity class:
+
+* `default` — the runtime's normal context window;
+* `long_context` — a larger context window, where the runtime offers one;
+* `""` (empty) or an absent key — unset; in config only, this means "inherit".
+  An empty value is never valid in agent frontmatter.
+
+Resolution is per sub-field, like the other route fields:
+
+* `tier1`, `tier2`, and `tier3` resolve an unset value, or a legacy string-form
+  tier, to `default`.
+* `ship` falls back to `tier2`, then `default`. `stage` falls back to `tier3`,
+  then `default`. `orchestrator` (object form) falls back to `tier2`, then
+  `default`. The plain-string `orchestrator` form (for example
+  `orchestrator: "gpt-5.4"`) carries no `context_tier`, so it also resolves
+  from `tier2`, then `default`.
+* The install write-back stores each resolved role value in config, so an
+  inherited value becomes explicit after install.
+
+Declaring `context_tier` anywhere in config requires `schema_version: "1.1.0"`;
+the `1.0.0` config schema rejects the key.
+
+### Escalation Variables: Raw Versus Resolved
+
+The escalation route has one resolved variable and three raw variables:
+
+| Variable | Kind | Source |
+|---|---|---|
+| `{{ESCALATION_CONTEXT_TIER}}` | resolved | the acting role's nested `<role>.escalation.context_tier`, else the legacy flat `escalation.context_tier` (only when the flat route is the selected escalation source), else `tier3`, else `default` |
+| `{{LEGACY_ESCALATION_CONTEXT_TIER}}` | raw | `model_routing.escalation.context_tier`, as written |
+| `{{STAGE_ESCALATION_CONTEXT_TIER}}` | raw | `model_routing.stage.escalation.context_tier`, as written |
+| `{{SHIP_ESCALATION_CONTEXT_TIER}}` | raw | `model_routing.ship.escalation.context_tier`, as written |
+
+The resolved variable is prose-only guidance for the escalation handoff. The raw
+variables are never resolved or defaulted: they exist so the config write-back
+preserves exactly what the operator declared, and escalation inheritance keeps
+working after install. A nested escalation block that declares only
+`context_tier` never selects the nested source on its own.
+
+### Runtime Behavior
+
+* The Orchestrator declares the resolved `context_tier` in the Stage and Ship
+  invocation override. When the runtime cannot honor a non-`default` tier, the
+  agent records `ROUTING_DEGRADED: context_tier` and proceeds at the default
+  context without halting.
+* The escalation handoff records the escalation tier in its own
+  `resolved_escalation_context_tier` field. It is not part of the resolved
+  escalation route tuple, so it is excluded from the same-route guard: two
+  routes that differ only in `context_tier` are still the same route, and an
+  unhonored tier never declares `ESCALATION_DEGRADED`.
+* Plugin-distributed (`plugin-global`) agents, such as `auto-tune` and
+  `auto-mergeinstall`, carry no `context_tier` and run on the operator's
+  session model. `context_tier` applies only to installed `tier-routed` agents.
+
+### Verification and Migration
+
+* When the config is valid and `model_routing` is a mapping, `verify-workspace`
+  treats the live config as authoritative for route variables. Precedence is
+  `config.overrides`, then config, then the manifest's recorded
+  `variables_used`.
+* When a manifest-recorded route variable differs from that authoritative value,
+  verify emits a non-fatal `ROUTE_VARIABLE_STALE:<VAR>` warning. It means the
+  manifest snapshot is out of date, not that routing is broken. To clear it,
+  re-run install or apply a tune re-render so `variables_used` is refreshed.
+* The Orchestrator invocation directive check now requires `context_tier` and
+  `ROUTING_DEGRADED: context_tier` at both the Stage and Ship invocation steps.
+  An `_orchestrator.agent.md` rendered before this release fails that check
+  until it is re-rendered through tune.
+
+### Ship Route Default
+
+On a first install, install-harness applies the fresh-install Ship seed
+(install-harness Step 1.2). The seed fires only when the target has no harness
+manifest yet, the operator input has no `model_routing.ship` key at all, and no
+`SHIP_*` template-variable override is set. The seeded route, including its
+`context_tier`, is then written back to config, so later installs, verifies, and
+tunes read it as an explicit Ship route and never re-apply the seed.
+
+Tune follows a no-silent-change posture for existing workspaces (tune-harness
+Step 1.5d):
+
+* tune surfaces an informational, opt-in "new generic Ship default available"
+  proposal only when `model_routing.ship` declares no non-empty
+  `model_family`;
+* an explicitly declared Ship route is an operator override, and tune never
+  proposes replacing it. Because the install write-back stores the resolved
+  Ship family, every non-empty value counts as an override, so existing
+  workspaces normally never see the proposal;
+* tune never auto-applies the proposal, even with `auto_apply`.
+
+To adopt the new generic Ship default in an existing workspace, edit
+`model_routing.ship` in `.autoharness/config.yaml` to the seed route documented
+in install-harness Step 1.2, then re-run install or tune.
 
 ## Manual Tuning
 

@@ -48,7 +48,7 @@ Before running the installer, you can create an operator configuration file to t
 ```bash
 mkdir -p .autoharness
 cat > .autoharness/config.yaml <<'EOF'
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 preset: standard
 primary_stack_pack: api-service
 stack_packs:
@@ -108,7 +108,7 @@ The config file controls:
 | `docs.root` | `docs` | Where durable knowledge artifacts live |
 | `continuous_learning` | `{directory: ".autoharness/continuous-learning"}` | Repo-local observation and learned-artifact settings for the optional continuous-learning pack |
 | `model_routing` | `{tier1: "gpt-5.4-mini"}` | Model preferences per tier |
-| `model_routing.stage` / `.ship` | `{stage: {model_family: "claude-opus-5", model_provider: "anthropic"}, ship: {model_family: "claude-sonnet-5", model_provider: "anthropic"}}` | Optional first-class role routes for the Stage/Ship agents (P-013.5, invocation-time model-routing enforcement). Absent/empty sub-fields fall back per-field to `tier3` (Stage) / `tier2` (Ship). Resolved at install time into installer variables `STAGE_FAMILY`/`STAGE_PROVIDER`/`STAGE_REASONING_EFFORT` and `SHIP_FAMILY`/`SHIP_PROVIDER`/`SHIP_REASONING_EFFORT` — see the variable table in `.github/skills/install-harness/SKILL.md` for the full source/default/fallback mapping. |
+| `model_routing.stage` / `.ship` | `{stage: {model_family: "claude-opus-5", model_provider: "anthropic"}, ship: {model_family: "claude-sonnet-5", model_provider: "anthropic"}}` | Optional first-class role routes for the Stage/Ship agents (P-013.5, invocation-time model-routing enforcement). On a first install with no `model_routing.ship` key and no `SHIP_*` override, the fresh-install Ship seed supplies the Ship route and is written back to config (see install-harness Step 1.2 and [Ship Route Default](tuning-guide.md#ship-route-default)). Otherwise, absent/empty sub-fields fall back per-field to `tier3` (Stage) / `tier2` (Ship); `context_tier` ends at `default`. Resolved at install time into installer variables `STAGE_FAMILY`/`STAGE_PROVIDER`/`STAGE_REASONING_EFFORT`/`STAGE_CONTEXT_TIER` and `SHIP_FAMILY`/`SHIP_PROVIDER`/`SHIP_REASONING_EFFORT`/`SHIP_CONTEXT_TIER` — see the variable table in `.github/skills/install-harness/SKILL.md` for the full source/default/fallback mapping. Declaring `context_tier` on any route requires `schema_version: "1.1.0"`. |
 | `overrides` | `{PROJECT_NAME: "my-app"}` | Explicit template variable overrides |
 
 The installer and tuner both read this file. When tuning, changes to `config.yaml` are treated as intentional configuration updates (not drift) and are prioritized in the tuning report.

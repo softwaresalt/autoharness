@@ -151,6 +151,8 @@ Do not silently collapse unknown contracts into generic schema failures. Unknown
 
 When `verify-workspace` already emitted a matching entry in `migration_proposals[]`, promote that entry directly into the tuning proposal set instead of rewriting it from scratch. Preserve its `contract`, `from_version`, `to_version`, `status`, `severity`, `changed_fields`, `action`, and `evidence` fields so later tuning reports and closure mining can track contract migrations deterministically.
 
+**Route-variable staleness**: A `warnings[]` entry with `kind: route-variable-stale` (rule `ROUTE_VARIABLE_STALE:<VAR>`) means the manifest's recorded `variables_used` value for a route variable differs from the live config, which verify treats as authoritative. It is non-fatal: classify it as **Cosmetic** when installed artifacts already match the config, or **Degrading** when rendered agent frontmatter still carries the recorded value. Remediation: refresh `variables_used` by re-installing or applying a tune re-render.
+
 **Config-entry backfill**: When a map object in the config (e.g., `backlog.suffix_map`, `docs.subdirectories`) is present but missing entries that the schema defines with defaults, generate a backfill proposal that:
 
 1. Adds the missing entries using the schema default values
@@ -473,6 +475,34 @@ Apply these rules to every key-level action:
    `text eol=lf` rule, so the raw bytes equal the LF-normalized blob on every
    checkout). Then re-run `verify-workspace`
    to confirm the `frontmatter_conformity` check no longer reports the file.
+
+#### Step 1.5d: Ship Route Default Proposal
+
+The install-harness Step 1.2 fresh-install Ship seed gives new workspaces a
+generic Ship route. Tune may surface that route to an existing workspace as an
+informational, opt-in "new generic Ship default available" proposal. It does
+so **only** when `model_routing.ship` declares no non-empty `model_family` in
+the Phase 0b operator configuration: either the `ship` key is absent, or its
+`model_family` is unset or empty.
+
+* An explicitly declared Ship route is an operator override. When
+  `model_routing.ship.model_family` is a non-empty string, tune never proposes
+  replacing it.
+* The Step 3.4 config write-back of install-harness stores the resolved
+  `{{SHIP_FAMILY}}`. After any install, a Ship family inherited from `tier2` is
+  therefore indistinguishable from an operator choice. Tune treats every
+  non-empty value as an operator override and never tries to tell an inherited
+  family from a chosen one. Existing workspaces normally never see this
+  proposal. That is the intended no-silent-change posture.
+* The proposal is report-only: tune never auto-applies it, and `auto_apply`
+  does not change that. The proposal names the seed route defined in
+  install-harness Step 1.2 (it does not copy the seed values) and tells the
+  operator to edit `model_routing.ship` in `.autoharness/config.yaml` to adopt
+  it. The operator re-runs install or tune after that edit.
+* This step reads only `model_routing.ship`. It never proposes changes to
+  `context_tier` or any other sub-field of an explicitly declared Ship route,
+  and it never touches the `stage`, `orchestrator`, `escalation`, or tier
+  routes.
 
 #### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
@@ -837,6 +867,10 @@ and verifier `severity: P2` to tune `priority: P1` / `category: degrading`
 (the verifier's severity labels are not tune priorities), and preserve the
 complete payload listed in Step 1.5c. Proposals that need per-proposal operator
 approval (INV-B1) remain review-gated and are never auto-applied.
+
+Map a Step 1.5d Ship route default proposal to `priority: P2` /
+`category: growth`, and mark it with `source: ship-route-default`. It is
+informational and opt-in, and it is never auto-applied.
 
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can

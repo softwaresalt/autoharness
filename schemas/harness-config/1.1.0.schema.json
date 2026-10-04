@@ -24,6 +24,11 @@
           "properties": { "reasoning_effort": { "type": "string", "minLength": 1, "pattern": "\\S" } }
         }
       ]
+    },
+    "contextTier": {
+      "type": "string",
+      "enum": ["", "default", "long_context"],
+      "description": "194-F (D-C1): optional, provider- and environment-agnostic context-capacity class for a route. Empty string means unset/inherit (per-field fallback: role -> tier -> 'default'; nested escalation -> tier3 -> 'default'). Not a member of nonEmptyRouteFields, so it never participates in the both-present escalation ambiguity (D-C3)."
     }
   },
   "properties": {
@@ -410,6 +415,9 @@
                     "gpt-5.4-mini",
                     "claude-haiku-4.5"
                   ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
                 }
               }
             }
@@ -464,6 +472,9 @@
                     "gpt-5.2",
                     "claude-sonnet-4"
                   ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
                 }
               }
             }
@@ -518,6 +529,9 @@
                     "gpt-5.4",
                     "claude-opus-4.8"
                   ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
                 }
               }
             }
@@ -570,6 +584,9 @@
                     "gpt-5.4",
                     "claude-sonnet-5"
                   ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
                 }
               }
             }
@@ -602,6 +619,9 @@
                 "xhigh"
               ]
             },
+            "context_tier": {
+              "$ref": "#/definitions/contextTier"
+            },
             "escalation": {
               "type": "object",
               "description": "F02FD596: optional nested per-role escalation route for Stage (P-013.6). When set, Stage's escalation directive resolves to this route in preference to the legacy flat model_routing.escalation; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 (never to the legacy flat route -- an explicit nested override never silently defers to the shared legacy route). MUST NOT coexist with a non-empty legacy flat model_routing.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected.",
@@ -630,6 +650,9 @@
                     "high",
                     "max"
                   ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
                 }
               }
             }
@@ -661,6 +684,9 @@
                 "high"
               ]
             },
+            "context_tier": {
+              "$ref": "#/definitions/contextTier"
+            },
             "escalation": {
               "type": "object",
               "description": "F02FD596: optional nested per-role escalation route for Ship (P-013.6). When set, Ship's escalation directive resolves to this route in preference to the legacy flat model_routing.escalation; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 (never to the legacy flat route -- an explicit nested override never silently defers to the shared legacy route). MUST NOT coexist with a non-empty legacy flat model_routing.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected.",
@@ -689,6 +715,9 @@
                     "high",
                     "max"
                   ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
                 }
               }
             }
@@ -720,6 +749,9 @@
                 "high",
                 "max"
               ]
+            },
+            "context_tier": {
+              "$ref": "#/definitions/contextTier"
             }
           }
         },
