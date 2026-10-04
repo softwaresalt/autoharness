@@ -855,3 +855,31 @@ mapping, in its section "Operator rulings (2026-09-27T22:50-07:00)".
 * **Backlog.** Tasks `194.005-T` (C4a) and `194.012-T` (C7) were amended in place, and
   the 200-S manifest is unchanged. The feature description of `194-F` and its DoD
   release-note line were updated to match.
+
+## Pre-Claim Drift Amendments (2026-10-04)
+
+Stage re-checked shipment 200-S against `main` at `300d0716`, after 192-F and 193-F
+landed. The design holds (verdict **MINOR_NOTES_ONLY**). Four task bodies were amended
+in place, under Stage authority, so that a literal execution keeps landed pins green:
+
+1. **C1 (`194.001-T`):** also edit `schemas/harness-config/1.1.0.schema.json` in
+   lockstep (byte-identical to the root minus `$id`), and add `context_tier` to the
+   nested-escalation property set in `tests/test_escalation_hierarchy_schema.py`.
+   `1.0.0.schema.json` stays untouched. D-C5 stands: the 1.1.0 mirror is edited in
+   place, with no 1.2.0 mirror.
+2. **C5a (`194.007-T`):** C5a owns the `docs/tuning-guide.md`
+   `## Agent and Skill Frontmatter Contract` tables and the `context_tier` value rule.
+   It flips `test_routing_key_constants` to `assertIn` and rewrites the B->C extension
+   test to assert live behaviour.
+3. **C6a (`194.010-T`):** update the `_write_minimal_verify_workspace_fixture` Step 1
+   and Step 2 bodies in `tests/test_verify_workspace.py`. All
+   `PluginGlobalPolicyClarificationTests` pass unmodified (§ P-013.5 is byte-identical
+   between template and mirror, and case (d) stays verbatim). The Ship window ends at
+   the next `^#{2,4} ` heading or EOF, and the version row is 1.30.0.
+4. **C8 (`194.013-T`):** C8 must not edit the tuning-guide contract section, which
+   C5a owns. It documents `context_tier` in a new `##` section, and tune-harness
+   Step 1.5c and B5's Step 2.2 tokens stay intact.
+
+C2 (`194.002-T`) is split into C2a and C2b for the 2-hour granularity rule. Full
+record: `docs/reviews/2026-09-27-context-tier-model-routing-plan-review.md`,
+§ Pre-claim drift check 2026-10-04.
