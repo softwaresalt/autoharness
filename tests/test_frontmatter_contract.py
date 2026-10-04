@@ -381,6 +381,15 @@ class AgentCheckTests(unittest.TestCase):
         lines = _replace(lines, "reasoning_effort", 'reasoning_effort: ""')
         self.assertEqual(self._check(lines), [])
 
+    def test_empty_review_route_families_allowed_but_typed(self) -> None:
+        for key in ("alt_review_family", "anchor_review_family"):
+            with self.subTest(key=key):
+                self.assertEqual(self._check(_TIER_ROUTED_BASE + [f'{key}: ""']), [])
+                self.assertEqual(
+                    _codes(self._check(_TIER_ROUTED_BASE + [f"{key}: 42"])),
+                    [(FM_TYPE_INVALID, key)],
+                )
+
     def test_unknown_key_informational_only(self) -> None:
         findings = self._check(_TIER_ROUTED_BASE + ["color: blue"])
         self.assertEqual(_codes(findings), [(FM_UNKNOWN_KEY, "color")])

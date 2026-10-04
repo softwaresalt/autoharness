@@ -211,10 +211,13 @@ VALIDATORS: dict[str, Validator] = {
     "model_family": _non_empty_string,
     "model_provider": _string,
     "reasoning_effort": _string,
-    "anchor_review_family": _non_empty_string,
+    # Review-route families may legitimately render empty (e.g. adversarial-review
+    # with no alternate/anchor reviewer configured), so they share the
+    # string-typed, empty-allowed rule of the provider keys.
+    "anchor_review_family": _string,
     "anchor_review_provider": _string,
     "anchor_review_reasoning_effort": _string,
-    "alt_review_family": _non_empty_string,
+    "alt_review_family": _string,
     "alt_review_provider": _string,
     "alt_review_reasoning_effort": _string,
 }

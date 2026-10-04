@@ -34,6 +34,7 @@ from autoharness.verify_workspace import _derive_template_variables, _render_tem
 _ROOT = Path(__file__).resolve().parents[1]
 _MANIFEST = _ROOT / ".autoharness" / "harness-manifest.yaml"
 _ADR_GENERATOR = _ROOT / "templates" / "community" / "agents" / "adr-generator.agent.md.tmpl"
+_ADVERSARIAL_REVIEW = _ROOT / "templates" / "agents" / "adversarial-review.agent.md.tmpl"
 _PLUGIN_GLOBAL_AGENTS = (
     ".github/agents/auto-tune.agent.md",
     ".github/agents/auto-mergeinstall.agent.md",
@@ -121,6 +122,26 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
             with self.subTest(agent=rel):
                 self.assertIn(rel, by_path)
                 self.assertEqual(by_path[rel].get("checksum"), _staged_blob_sha256(_ROOT / rel))
+
+    def test_adversarial_review_renders_conformant_with_empty_config(self) -> None:
+        """Empty config renders empty alt/anchor review routes; installed mode must accept them."""
+        content = _ADVERSARIAL_REVIEW.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmp:
+            variables = _derive_template_variables(Path(tmp), {}, {}, {}, {})
+        # install-harness documents an empty-string default for the ALT_REVIEW_*
+        # variables when config.model_routing.alt_review is unset.
+        variables.setdefault("ALT_REVIEW_PROVIDER", "")
+        variables.setdefault("ALT_REVIEW_FAMILY", "")
+        rendered = _render_template(content, variables)
+        self.assertEqual(_PLACEHOLDER.findall(rendered.split("\n---", 1)[0]), [])
+        parsed = parse_frontmatter(rendered, MODE_INSTALLED)
+        self.assertIsNone(parsed.error)
+        empty_review_keys = [
+            key for key in ("alt_review_family", "anchor_review_family") if parsed.data.get(key) == ""
+        ]
+        self.assertTrue(empty_review_keys, "expected at least one review family to render empty")
+        findings = check_agent(parsed, "tier-routed", MODE_INSTALLED)
+        self.assertFalse(has_blocking_findings(findings), findings)
 
     def test_adr_generator_renders_conformant(self) -> None:
         """H-B9: TIER_2_* resolve for a community agent and the render passes installed mode."""
