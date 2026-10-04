@@ -212,3 +212,74 @@ not reopen any finding above:
   to 4), which covers H-C2 to H-C5. C4b and C6b stand as reviewed design unless
   overridden before Ship claims 200-S.
 * Tasks `194.005-T` and `194.012-T` carry the same wording.
+
+## Pre-claim drift check 2026-10-04
+
+Stage (P-017 dark mode) re-checked all 13 tasks of shipment 200-S against `main` at
+base SHA `300d0716`, after 192-F and 193-F landed. Overall verdict:
+**MINOR_NOTES_ONLY**. The plan design holds; no re-plan or re-review is needed. Four
+task bodies received mechanical, Stage-authority amendments so that a literal
+execution does not turn landed pins red or duplicate ownership.
+
+| Task | Unit | Verdict | Disposition |
+|---|---|---|---|
+| `194.001-T` | C1 schema `contextTier` | MINOR | Amended (amendment 1) |
+| `194.002-T` | C2 derivation + verify | EXECUTABLE (G-flag) | Split into C2a/C2b for granularity |
+| `194.003-T` | C3a installer table + config template | MINOR | Ship claim-time notes |
+| `194.004-T` | C3b fresh-install Ship seed | EXECUTABLE | Ship claim-time notes |
+| `194.005-T` | C4a role-bound Ship/Stage templates + mirrors | EXECUTABLE | Ship claim-time notes |
+| `194.006-T` | C4b config-authoritative route variables | MINOR | Ship claim-time notes |
+| `194.007-T` | C5a frontmatter contract extension | MATERIAL | Amended (amendment 2) |
+| `194.008-T` | C5b 19 tier-routed templates | EXECUTABLE | None |
+| `194.009-T` | C5c 14 installed mirrors | EXECUTABLE | None |
+| `194.010-T` | C6a P-013.5 + Orchestrator directive check | MATERIAL | Amended (amendment 3) |
+| `194.011-T` | C6b P-013.6 escalation `context_tier` | MINOR | Ship claim-time notes |
+| `194.012-T` | C7 dogfood config + Ship-pin test | EXECUTABLE | Ship claim-time notes |
+| `194.013-T` | C8 tune guidance + docs | MATERIAL | Amended (amendment 4) |
+
+192-F affects no unit beyond rebase (Ship template and mirror bodies only).
+
+### Task-body amendments
+
+1. **`194.001-T` (C1):** Files gain `schemas/harness-config/1.1.0.schema.json`, edited
+   in lockstep so it stays byte-identical to the root schema minus `$id`
+   (`tests/test_anchor_review_routing.py`). The dogfood config validates against this
+   `additionalProperties: false` mirror, so a root-only edit would reject C4a's Ship
+   `context_tier: long_context`. `test_stage_and_ship_declare_nested_escalation_property`
+   adds `context_tier` to its expected set. `1.0.0.schema.json` stays untouched.
+2. **`194.007-T` (C5a):** Files gain `docs/tuning-guide.md`, limited to
+   `## Agent and Skill Frontmatter Contract`. C5a adds `context_tier` to the
+   `ROUTE_VALUE_KEYS` and `routing_keys()` rows, the tier-routed Optional, plugin-global
+   Forbidden and Skill Forbidden cells, and a Value-rules bullet. It also flips
+   `test_routing_key_constants` to `assertIn` and rewrites
+   `test_b_to_c_extension_via_route_value_keys` to assert live behaviour.
+3. **`194.010-T` (C6a):** Files gain `tests/test_verify_workspace.py` (the
+   `_write_minimal_verify_workspace_fixture` Step 1 and Step 2 bodies). The B7
+   acceptance line is replaced: all `PluginGlobalPolicyClarificationTests` pass
+   unmodified, § P-013.5 stays byte-identical between template and mirror, and
+   fail-closed case (d) stays verbatim with its terminal period. The Ship window ends at
+   the next `^#{2,4} ` heading or EOF, and the version-history row is 1.30.0. Background:
+   199-S commit `89793226` extended B7 into § P-013.5.
+4. **`194.013-T` (C8):** C8 must not edit the tuning-guide contract section (C5a owns
+   it). It documents `context_tier` and the Ship-default posture in a new `##` section,
+   adds no row labelled like a contract-table row, and keeps tune-harness Step 1.5c and
+   B5's Step 2.2 tokens intact. Acceptance adds
+   `tests/test_frontmatter_conformity_guidance.py` passing unmodified.
+
+`194.002-T` was split into C2a/C2b for the 2-hour granularity rule (separate commit).
+
+### Ship claim-time notes
+
+* Re-derive row numbers and checksums at claim in `194.003-T` to `194.006-T`.
+* Expect informational `FM_UNKNOWN_KEY context_tier` findings between C4a and C5a.
+* C6a: keep the `3. **Resolve Ship's routed model` delimiter unchanged in template and
+  mirror (`tests/test_pipeline_topology_gate_agent_wiring.py`).
+* C6b: keep the pinned `resolved_escalation_route` handoff phrases, avoid
+  retry/re-run/re-dispatch wording in escalation sections, and optionally add a 1.31.0
+  version row.
+* C7: use a temporary `staging_dir`; optionally add `subagent_depth` parity.
+
+### Operator decisions
+
+Operator decisions: none blocking; D-C5 stands as confirmed 2026-09-27 (the
+1.2.0-mirror alternative is not adopted).
