@@ -29,7 +29,11 @@
   `autoharness verify-workspace` resolves route precedence from the config
   (`config.overrides` > `config.model_routing` > manifest `variables_used`) and
   emits a `ROUTE_VARIABLE_STALE` warning when the manifest's recorded route
-  variables disagree with the config. Remediate with a tune re-render.
+  variables disagree with the config. Remediate with a tune re-render. A
+  `config.overrides` entry for a `*_CONTEXT_TIER` variable outside
+  `default`/`long_context` (empty is allowed only for the raw
+  `*_ESCALATION_CONTEXT_TIER` variables) fails the `context_tier_overrides`
+  check and is never rendered.
 - **Stricter Orchestrator directive check (194-F / 200-S)**: verify now requires
   `context_tier` and `ROUTING_DEGRADED: context_tier` inside both the Stage and
   Ship invocation-site windows of the installed `_orchestrator` agent. An

@@ -2769,6 +2769,33 @@ _ROLE_COMPOSED_ESCALATION_VARIABLES = (
     "ESCALATION_CONTEXT_TIER",
 )
 
+# Raw escalation storage variables mirror the config verbatim, so "" (unset)
+# is a legal override value for them only.
+_RAW_ESCALATION_CONTEXT_TIER_VARIABLES = frozenset(
+    {
+        "LEGACY_ESCALATION_CONTEXT_TIER",
+        "STAGE_ESCALATION_CONTEXT_TIER",
+        "SHIP_ESCALATION_CONTEXT_TIER",
+    }
+)
+
+
+def _context_tier_override_error(name: str, value: Any) -> str | None:
+    """194-F: `config.overrides` values are only schema-checked as strings, so a
+    `*_CONTEXT_TIER` override must be re-validated against the enum before it is
+    applied. Returns an error message, or None when the override is acceptable
+    (including every non-`*_CONTEXT_TIER` variable)."""
+    if not name.endswith("_CONTEXT_TIER"):
+        return None
+    if value == "" and name in _RAW_ESCALATION_CONTEXT_TIER_VARIABLES:
+        return None
+    if fc.VALIDATORS["context_tier"](value) is None:
+        return None
+    return (
+        f"config.overrides.{name} must be one of {list(fc.CONTEXT_TIER_VALUES)}"
+        f" (got {value!r})"
+    )
+
 
 def _compose_artifact_variables(
     base_variables: dict[str, str],
@@ -2807,7 +2834,7 @@ def _compose_artifact_variables(
     if isinstance(overrides, dict):
         for name in _ROLE_COMPOSED_ESCALATION_VARIABLES:
             value = overrides.get(name)
-            if value is not None:
+            if value is not None and _context_tier_override_error(name, value) is None:
                 composed[name] = str(value)
     return composed
 
@@ -2841,9 +2868,30 @@ def _authoritative_route_variables(config: dict[str, Any]) -> dict[str, str]:
     if isinstance(overrides, dict):
         for name in variables:
             value = overrides.get(name)
-            if value is not None:
+            if value is not None and _context_tier_override_error(name, value) is None:
                 variables[name] = str(value)
     return variables
+
+
+def _add_context_tier_override_check(
+    report: dict[str, Any],
+    key: str,
+    config: dict[str, Any],
+) -> None:
+    """194-F: fail closed when `config.overrides` sets a `*_CONTEXT_TIER`
+    variable outside the enum. The invalid value is never rendered (the
+    compose paths skip it), but it must not pass verification silently."""
+    overrides = config.get("overrides")
+    errors: list[str] = []
+    if isinstance(overrides, dict):
+        for name, value in sorted(overrides.items(), key=lambda item: str(item[0])):
+            error = _context_tier_override_error(str(name), value)
+            if error is not None:
+                errors.append(error)
+    report["targeted_checks"][key] = {
+        "ok": not errors,
+        "errors": errors,
+    }
 
 
 def _route_variable_stale_warnings(
@@ -6246,6 +6294,14 @@ def verify_workspace(
         )
         if has_explicit_role_route or has_tier_fallback_foundation:
             _add_role_route_resolution_check(report, "role_route_resolution", config)
+
+    # 194-F: registered only when config.overrides sets a *_CONTEXT_TIER
+    # variable, so configs without such overrides gain no new check key.
+    _config_overrides = config.get("overrides") if isinstance(config, dict) else None
+    if isinstance(_config_overrides, dict) and any(
+        str(name).endswith("_CONTEXT_TIER") for name in _config_overrides
+    ):
+        _add_context_tier_override_check(report, "context_tier_overrides", config)
 
     # P-013.6: escalation route resolution + same-route ESCALATION_DEGRADED
     # detection (106.007-T). Evaluated under the same opt-in gating as

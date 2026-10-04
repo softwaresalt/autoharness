@@ -193,11 +193,31 @@ class ComposeArtifactVariablesTests(unittest.TestCase):
             _ROUTING,
             "ship",
             config_authoritative=True,
-            overrides={"ESCALATION_CONTEXT_TIER": "ovr-tier", "ESCALATION_PROVIDER": "ovr-prov"},
+            overrides={"ESCALATION_CONTEXT_TIER": "long_context", "ESCALATION_PROVIDER": "ovr-prov"},
         )
-        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "ovr-tier")
+        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "long_context")
         self.assertEqual(composed["ESCALATION_PROVIDER"], "ovr-prov")
         self.assertNotEqual(composed["ESCALATION_FAMILY"], "recorded-esc")
+
+    def test_invalid_context_tier_override_is_not_applied(self) -> None:
+        composed = _compose_artifact_variables(
+            dict(self._BASE),
+            _ROUTING,
+            "ship",
+            config_authoritative=True,
+            overrides={"ESCALATION_CONTEXT_TIER": "not-an-enum-value"},
+        )
+        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "default")
+
+    def test_empty_context_tier_override_is_not_applied_to_prose_variable(self) -> None:
+        composed = _compose_artifact_variables(
+            dict(self._BASE),
+            _ROUTING,
+            "ship",
+            config_authoritative=True,
+            overrides={"ESCALATION_CONTEXT_TIER": ""},
+        )
+        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "default")
 
     def test_non_authoritative_skips_role_overlay(self) -> None:
         base = dict(self._BASE)
@@ -368,12 +388,38 @@ class VerifyWorkspaceStagedRenderTests(unittest.TestCase):
 
     def test_escalation_context_tier_override_survives_ship_role_overlay(self) -> None:
         # A2: config.overrides wins for the role-composed escalation variables.
-        _, rendered, _ = self._run(
-            None, config=_config(overrides={"ESCALATION_CONTEXT_TIER": "long_context_override"})
+        report, rendered, _ = self._run(
+            None, config=_config(overrides={"ESCALATION_CONTEXT_TIER": "long_context"})
         )
-        self.assertIn(
-            "escalation `context_tier` resolves to `long_context_override`", rendered
+        self.assertIn("escalation `context_tier` resolves to `long_context`", rendered)
+        self.assertTrue(report["targeted_checks"]["context_tier_overrides"]["ok"])
+
+    def test_invalid_context_tier_override_fails_closed_and_is_not_rendered(self) -> None:
+        report, rendered, _ = self._run(
+            None,
+            config=_config(
+                overrides={
+                    "ESCALATION_CONTEXT_TIER": "not-an-enum-value",
+                    "SHIP_CONTEXT_TIER": "huge-tier-xyz",
+                }
+            ),
         )
+        check = report["targeted_checks"]["context_tier_overrides"]
+        self.assertFalse(check["ok"])
+        self.assertEqual(len(check["errors"]), 2, check["errors"])
+        self.assertNotIn("not-an-enum-value", rendered)
+        self.assertNotIn("huge-tier-xyz", rendered)
+        self.assertIn("escalation `context_tier` resolves to `default`", rendered)
+
+    def test_empty_raw_escalation_context_tier_override_is_accepted(self) -> None:
+        report, _, _ = self._run(
+            None, config=_config(overrides={"SHIP_ESCALATION_CONTEXT_TIER": ""})
+        )
+        self.assertTrue(report["targeted_checks"]["context_tier_overrides"]["ok"])
+
+    def test_no_context_tier_override_registers_no_check(self) -> None:
+        report, _, _ = self._run(None, config=_config(overrides={"SHIP_FAMILY": "custom-x"}))
+        self.assertNotIn("context_tier_overrides", report["targeted_checks"])
 
     def test_escalation_family_override_survives_ship_role_overlay(self) -> None:
         _, rendered, _ = self._run(None, config=_config(overrides={"ESCALATION_FAMILY": "custom-esc"}))
