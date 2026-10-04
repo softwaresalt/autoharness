@@ -202,6 +202,28 @@ class TuningGuideContextTierTests(unittest.TestCase):
         self.assertRegex(self.flat, r"[Nn]ever auto-appl")
         self.assertIn("edit `model_routing.ship`", self.flat)
 
+    def test_documents_verification_and_migration(self) -> None:
+        # Review-fix batch B2/B5.
+        self.assertIn("`ROUTE_VARIABLE_STALE:<VAR>`", self.flat)
+        self.assertIn("non-fatal", self.flat)
+        self.assertIn("`variables_used`", self.flat)
+        self.assertIn("`config.overrides`, then config, then the manifest", self.flat)
+        self.assertIn('requires `schema_version: "1.1.0"`', self.flat)
+        self.assertIn("plain-string `orchestrator` form", self.flat)
+        self.assertIn("rendered before this release fails that check", self.flat)
+
+
+class GettingStartedRoleRouteTests(unittest.TestCase):
+    """Review-fix batch B3: the getting-started role-route row covers the seed and context tiers."""
+
+    def test_role_route_row(self) -> None:
+        text = _read("docs/getting-started.md")
+        row = next(line for line in text.split("\n") if line.startswith("| `model_routing.stage` / `.ship` |"))
+        for token in ("fresh-install Ship seed", "no `model_routing.ship` key", "install-harness Step 1.2",
+                      "`STAGE_CONTEXT_TIER`", "`SHIP_CONTEXT_TIER`", '`schema_version: "1.1.0"`'):
+            self.assertIn(token, row)
+        self.assertIn('schema_version: "1.1.0"\npreset: standard', text)
+
 
 if __name__ == "__main__":
     unittest.main()

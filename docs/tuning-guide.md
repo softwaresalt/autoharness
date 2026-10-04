@@ -175,8 +175,9 @@ Review these fields from the JSON report before proposing tune changes:
 * `migration_proposals[]` — upgrade, backfill, and normalization proposals
 * `warnings[]` — compatibility drift evidence, including grouped summaries when repeated findings collapse into fewer warning rows
 
-Current public contracts are `1.0.0`, but autoharness also recognizes `0.9.0`
-as a known legacy version for config, workspace profile, and harness manifest.
+The current config contract is `1.1.0`; the workspace profile and harness
+manifest contracts are `1.0.0`. autoharness also recognizes `0.9.0` as a known
+legacy version for all three, and `1.0.0` as a known legacy config version.
 Those workspaces should generate explicit upgrade proposals instead of being
 treated as unknown-contract failures.
 
@@ -343,9 +344,14 @@ Resolution is per sub-field, like the other route fields:
   tier, to `default`.
 * `ship` falls back to `tier2`, then `default`. `stage` falls back to `tier3`,
   then `default`. `orchestrator` (object form) falls back to `tier2`, then
-  `default`.
+  `default`. The plain-string `orchestrator` form (for example
+  `orchestrator: "gpt-5.4"`) carries no `context_tier`, so it also resolves
+  from `tier2`, then `default`.
 * The install write-back stores each resolved role value in config, so an
   inherited value becomes explicit after install.
+
+Declaring `context_tier` anywhere in config requires `schema_version: "1.1.0"`;
+the `1.0.0` config schema rejects the key.
 
 ### Escalation Variables: Raw Versus Resolved
 
@@ -378,6 +384,21 @@ working after install. A nested escalation block that declares only
 * Plugin-distributed (`plugin-global`) agents, such as `auto-tune` and
   `auto-mergeinstall`, carry no `context_tier` and run on the operator's
   session model. `context_tier` applies only to installed `tier-routed` agents.
+
+### Verification and Migration
+
+* When the config is valid and `model_routing` is a mapping, `verify-workspace`
+  treats the live config as authoritative for route variables. Precedence is
+  `config.overrides`, then config, then the manifest's recorded
+  `variables_used`.
+* When a manifest-recorded route variable differs from that authoritative value,
+  verify emits a non-fatal `ROUTE_VARIABLE_STALE:<VAR>` warning. It means the
+  manifest snapshot is out of date, not that routing is broken. To clear it,
+  re-run install or apply a tune re-render so `variables_used` is refreshed.
+* The Orchestrator invocation directive check now requires `context_tier` and
+  `ROUTING_DEGRADED: context_tier` at both the Stage and Ship invocation steps.
+  An `_orchestrator.agent.md` rendered before this release fails that check
+  until it is re-rendered through tune.
 
 ### Ship Route Default
 
