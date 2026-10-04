@@ -247,8 +247,8 @@ Value rules:
 
 * `max_subagent_tier` is an integer from 1 to 3, and `subagent_depth` is a
   non-negative integer.
-* `name`, `description`, `model_family`, `anchor_review_family`, and
-  `alt_review_family` are non-empty strings. The provider and reasoning-effort
+* `name`, `description`, and `model_family` are non-empty strings. The
+  provider, reasoning-effort, `anchor_review_family`, and `alt_review_family`
   keys are strings and may be empty.
 * A skill's `name` equals its directory name, matches
   `^[a-z0-9]+(-[a-z0-9]+)*$`, and is at most 64 characters long.
