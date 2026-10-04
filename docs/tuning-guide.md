@@ -205,8 +205,8 @@ single definition.
 | Constant | Keys |
 |---|---|
 | `TIER_KEYS` | `max_subagent_tier`, `subagent_depth` |
-| `ROUTE_VALUE_KEYS` | `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
-| `routing_keys()` | `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| `ROUTE_VALUE_KEYS` | `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| `routing_keys()` | `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
 
 The shared routing-key set is the union of `TIER_KEYS` and `ROUTE_VALUE_KEYS`.
 It is computed at call time by `routing_keys()` rather than stored as a
@@ -218,9 +218,9 @@ agent or skill.
 
 | Artifact | Required keys | Optional keys | Forbidden keys |
 |---|---|---|---|
-| Agent, `tier-routed` | `name`, `description`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` | `model` |
-| Agent, `plugin-global` | `name`, `description`, `max_subagent_tier`, `subagent_depth` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target` | `model`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
-| Skill | `name`, `description` | `argument-hint`, `input`, `license`, `compatibility`, `metadata`, `allowed-tools` | `model`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| Agent, `tier-routed` | `name`, `description`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` | `model` |
+| Agent, `plugin-global` | `name`, `description`, `max_subagent_tier`, `subagent_depth` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target` | `model`, `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
+| Skill | `name`, `description` | `argument-hint`, `input`, `license`, `compatibility`, `metadata`, `allowed-tools` | `model`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `context_tier`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
 
 An agent is checked against the `plugin-global` profile only when all of the
 following hold; every other agent is `tier-routed`:
@@ -250,6 +250,9 @@ Value rules:
 * `name`, `description`, and `model_family` are non-empty strings. The
   provider, reasoning-effort, `anchor_review_family`, and `alt_review_family`
   keys are strings and may be empty.
+* `context_tier` is optional on a `tier-routed` agent and, when present, is
+  exactly `default` or `long_context`. An empty value (`""`, which means
+  unset/inherit in config) is never valid in frontmatter.
 * A skill's `name` equals its directory name, matches
   `^[a-z0-9]+(-[a-z0-9]+)*$`, and is at most 64 characters long.
 * An installed artifact must not contain an unresolved `{{...}}` placeholder.

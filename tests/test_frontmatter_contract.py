@@ -9,7 +9,6 @@ import dataclasses
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from autoharness import frontmatter_contract as fc
 from autoharness.frontmatter_contract import (
@@ -98,7 +97,10 @@ class KeySetTests(unittest.TestCase):
                 self.assertIn(key, fc.ROUTE_VALUE_KEYS)
                 self.assertRegex(key, fc.REVIEW_ROUTE_KEY_PATTERN)
         self.assertEqual(fc.routing_keys(), fc.TIER_KEYS | fc.ROUTE_VALUE_KEYS)
-        self.assertNotIn("context_tier", fc.ROUTE_VALUE_KEYS)
+        # 194.007-T (C5a): context_tier joins ROUTE_VALUE_KEYS and only there.
+        self.assertIn("context_tier", fc.ROUTE_VALUE_KEYS)
+        self.assertNotIn("context_tier", fc.TIER_KEYS)
+        self.assertIn("context_tier", fc.VALIDATORS)
 
     def test_tier_routed_profile(self) -> None:
         sets = agent_key_sets(PROFILE_TIER_ROUTED)
@@ -148,38 +150,86 @@ class KeySetTests(unittest.TestCase):
             agent_key_sets("bogus")
 
     def test_b_to_c_extension_via_route_value_keys(self) -> None:
-        """AS-F6: one edit to ROUTE_VALUE_KEYS extends every profile at call time."""
-        extended = fc.ROUTE_VALUE_KEYS | {"context_tier"}
-        with mock.patch.object(fc, "ROUTE_VALUE_KEYS", extended):
-            tier_routed = check_agent(
-                parse_frontmatter(_doc(_TIER_ROUTED_BASE + ["context_tier: long_context"]), MODE_INSTALLED),
-                PROFILE_TIER_ROUTED,
-                MODE_INSTALLED,
-            )
-            self.assertEqual(tier_routed, [])
-            self.assertIn("context_tier", agent_key_sets(PROFILE_TIER_ROUTED).optional)
+        """AS-F6 / C5a: the single ROUTE_VALUE_KEYS edit extends every profile live."""
+        self.assertIn("context_tier", agent_key_sets(PROFILE_TIER_ROUTED).optional)
+        self.assertNotIn("context_tier", agent_key_sets(PROFILE_TIER_ROUTED).required)
+        self.assertIn("context_tier", agent_key_sets(PROFILE_PLUGIN_GLOBAL).forbidden)
+        self.assertIn("context_tier", skill_key_sets().forbidden)
 
-            plugin = check_agent(
-                parse_frontmatter(_doc(_PLUGIN_GLOBAL_BASE + ["context_tier: long_context"]), MODE_INSTALLED),
-                PROFILE_PLUGIN_GLOBAL,
-                MODE_INSTALLED,
-            )
-            self.assertEqual(_codes(plugin), [(FM_FORBIDDEN_KEY, "context_tier")])
-
-            skill = check_skill(
-                parse_frontmatter(_doc(_SKILL_BASE + ["context_tier: long_context"]), MODE_INSTALLED),
-                "build-feature",
-                MODE_INSTALLED,
-            )
-            self.assertEqual(_codes(skill), [(FM_FORBIDDEN_KEY, "context_tier")])
-        # Outside the patch the extension key is unknown again (informational only).
-        after = check_agent(
+        tier_routed = check_agent(
             parse_frontmatter(_doc(_TIER_ROUTED_BASE + ["context_tier: long_context"]), MODE_INSTALLED),
             PROFILE_TIER_ROUTED,
             MODE_INSTALLED,
         )
-        self.assertEqual(_codes(after), [(FM_UNKNOWN_KEY, "context_tier")])
-        self.assertTrue(after[0].informational)
+        self.assertEqual(tier_routed, [])
+
+        plugin = check_agent(
+            parse_frontmatter(_doc(_PLUGIN_GLOBAL_BASE + ["context_tier: long_context"]), MODE_INSTALLED),
+            PROFILE_PLUGIN_GLOBAL,
+            MODE_INSTALLED,
+        )
+        self.assertEqual(_codes(plugin), [(FM_FORBIDDEN_KEY, "context_tier")])
+
+        skill = check_skill(
+            parse_frontmatter(_doc(_SKILL_BASE + ["context_tier: long_context"]), MODE_INSTALLED),
+            "build-feature",
+            MODE_INSTALLED,
+        )
+        self.assertEqual(_codes(skill), [(FM_FORBIDDEN_KEY, "context_tier")])
+
+
+class ContextTierContractTests(unittest.TestCase):
+    """194.007-T (C5a): context_tier is an optional, enum-validated route-value key."""
+
+    def _tier_routed(self, extra: list[str], mode: str = MODE_INSTALLED) -> list[Finding]:
+        return check_agent(parse_frontmatter(_doc(_TIER_ROUTED_BASE + extra), mode), PROFILE_TIER_ROUTED, mode)
+
+    def test_tier_routed_without_context_tier_passes(self) -> None:
+        self.assertEqual(self._tier_routed([]), [])
+
+    def test_tier_routed_with_each_enum_value_passes(self) -> None:
+        for value in fc.CONTEXT_TIER_VALUES:
+            with self.subTest(value=value):
+                self.assertEqual(self._tier_routed([f'context_tier: "{value}"']), [])
+
+    def test_invalid_values_are_type_invalid(self) -> None:
+        for line in ("context_tier: huge", 'context_tier: ""', "context_tier: 3", "context_tier: [default]"):
+            with self.subTest(line=line):
+                findings = self._tier_routed([line])
+                self.assertEqual(_codes(findings), [(FM_TYPE_INVALID, "context_tier")])
+                self.assertTrue(has_blocking_findings(findings))
+
+    def test_validator_registered_in_registry(self) -> None:
+        validator = fc.VALIDATORS["context_tier"]
+        for value in fc.CONTEXT_TIER_VALUES:
+            self.assertIsNone(validator(value))
+        for value in ("huge", "", None, 1, "Default"):
+            with self.subTest(value=value):
+                self.assertIsNotNone(validator(value))
+
+    def test_plugin_global_with_context_tier_is_forbidden(self) -> None:
+        findings = check_agent(
+            parse_frontmatter(_doc(_PLUGIN_GLOBAL_BASE + ["context_tier: default"]), MODE_INSTALLED),
+            PROFILE_PLUGIN_GLOBAL,
+            MODE_INSTALLED,
+        )
+        self.assertEqual(_codes(findings), [(FM_FORBIDDEN_KEY, "context_tier")])
+
+    def test_skill_with_context_tier_is_forbidden(self) -> None:
+        findings = check_skill(
+            parse_frontmatter(_doc(_SKILL_BASE + ["context_tier: default"]), MODE_INSTALLED),
+            "build-feature",
+            MODE_INSTALLED,
+        )
+        self.assertEqual(_codes(findings), [(FM_FORBIDDEN_KEY, "context_tier")])
+
+    def test_template_mode_placeholder_skips_enum_check(self) -> None:
+        findings = self._tier_routed(['context_tier: "{{TIER_2_CONTEXT_TIER}}"'], MODE_TEMPLATE)
+        self.assertEqual(findings, [])
+
+    def test_installed_mode_placeholder_is_unresolved(self) -> None:
+        findings = self._tier_routed(['context_tier: "{{TIER_2_CONTEXT_TIER}}"'], MODE_INSTALLED)
+        self.assertEqual(_codes(findings), [(FM_UNRESOLVED_PLACEHOLDER, "context_tier")])
 
 
 class ParseFrontmatterTests(unittest.TestCase):

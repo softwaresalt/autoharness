@@ -68,9 +68,9 @@ class ContextTierValuesTests(unittest.TestCase):
                     ["", *CONTEXT_TIER_VALUES],
                 )
 
-    def test_context_tier_not_yet_a_route_value_key(self) -> None:
-        """C2a must not extend the frontmatter contract; that is C5a (194.007-T)."""
-        self.assertNotIn("context_tier", ROUTE_VALUE_KEYS)
+    def test_context_tier_is_a_route_value_key(self) -> None:
+        """C5a (194.007-T) extends the frontmatter contract with context_tier."""
+        self.assertIn("context_tier", ROUTE_VALUE_KEYS)
 
 
 class ResolveContextTierTests(unittest.TestCase):
