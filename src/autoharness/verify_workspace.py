@@ -4106,7 +4106,28 @@ def _add_frontmatter_conformity_check(
 
 
 _ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^ {0,3}#{1,6}\s", re.MULTILINE)
+_ORCHESTRATOR_DIRECTIVE_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _CONTEXT_TIER_DIRECTIVE_TOKENS = ("context_tier", "ROUTING_DEGRADED: context_tier")
+
+
+def _next_heading_outside_fence(content: str, start: int) -> int | None:
+    """Offset of the first ATX heading line at or after ``start`` that is not
+    inside a fenced code block (so a ``# comment`` in a shell fence never ends
+    the window), or None when there is none."""
+    fence: str | None = None
+    offset = 0
+    for line in content.splitlines(keepends=True):
+        fence_match = _ORCHESTRATOR_DIRECTIVE_FENCE_RE.match(line)
+        if fence_match:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence) and not line.strip()[len(marker):]:
+                fence = None
+        elif fence is None and offset >= start and _ORCHESTRATOR_DIRECTIVE_HEADING_RE.match(line):
+            return offset
+        offset += len(line)
+    return None
 
 
 def _add_orchestrator_invocation_routing_directive_check(
@@ -4133,8 +4154,9 @@ def _add_orchestrator_invocation_routing_directive_check(
     194-F C6a: each site must additionally declare `context_tier` and its
     `ROUTING_DEGRADED: context_tier` fallback inside a bounded window -- the
     Stage window above, and a Ship window from the first
-    "config.model_routing.ship" up to the next ATX heading line (any level,
-    `^ {0,3}#{1,6}\\s`) or EOF, so the later "## Model Routing" P-013.5
+    "config.model_routing.ship" up to the next ATX heading line outside a
+    fenced code block (any level, `^ {0,3}#{1,6}\\s`) or EOF, so the later
+    "## Model Routing" P-013.5
     summary can never satisfy the Ship site. The whole-tail ROUTING_DEGRADED
     scoping is unchanged."""
     if not file_path.exists():
@@ -4184,8 +4206,8 @@ def _add_orchestrator_invocation_routing_directive_check(
             # fallback inside a BOUNDED window. The Ship window ends at the
             # next ATX heading line (^ {0,3}#{1,6}\s, any level) or EOF, so a
             # later "## Model Routing" summary can never satisfy the Ship site.
-            heading = _ORCHESTRATOR_DIRECTIVE_HEADING_RE.search(content, ship_idx)
-            ship_window = content[ship_idx : heading.start() if heading else len(content)]
+            heading_offset = _next_heading_outside_fence(content, ship_idx)
+            ship_window = content[ship_idx : heading_offset if heading_offset is not None else len(content)]
             for site, window in (("Stage", stage_section), ("Ship", ship_window)):
                 for token in _CONTEXT_TIER_DIRECTIVE_TOKENS:
                     if token not in window:

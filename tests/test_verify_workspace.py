@@ -4307,6 +4307,18 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     check["scoping_errors"],
                 )
 
+    def test_c6a_ship_window_ignores_hash_lines_inside_code_fences(self) -> None:
+        """A heading-like `# comment` line inside a fenced code block in the
+        Ship step does not end the Ship window early."""
+        ship = self._C6A_SHIP_FULL.replace(
+            "override. Emit ROUTING_DEGRADED",
+            "override.\n\n```bash\n# resolve the ship route\nautoharness gate\n```\n\n~~~\n## not a heading\n~~~\n\nEmit ROUTING_DEGRADED",
+        )
+        self.assertIn("```bash\n# resolve", ship)
+        check = self._c6a_directive_check(self._C6A_STAGE_FULL + ship + self._C6A_TAIL)
+        self.assertTrue(check["ok"], check)
+        self.assertEqual(check["scoping_errors"], [])
+
     def test_c6a_summary_only_document_fails(self) -> None:
         """A4: a document whose only routing text is the ## Model Routing
         summary (no per-step invocation directives) fails the check."""
