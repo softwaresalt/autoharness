@@ -466,7 +466,7 @@ before any P-013.5 invocation-time resolution above is performed:
 1. **Re-read fresh**: read `.autoharness/config.yaml` directly from disk. Never
    reuse a value carried over in conversation context from a previous session,
    and never treat the frontmatter `model_family`/`model_provider`/
-   `reasoning_effort` baked into `.github/agents/*.agent.md` as the live source
+   `reasoning_effort`/`context_tier` baked into `.github/agents/*.agent.md` as the live source
    of truth — those frontmatter values are install-time DEFAULTS/documentation
    only (H8); the authoritative value is always this session's fresh config
    read.
@@ -535,20 +535,25 @@ model_routing:
     model_family: "{{ORCHESTRATOR_FAMILY}}"
     model_provider: "{{ORCHESTRATOR_PROVIDER}}"
     reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
+    context_tier: "{{ORCHESTRATOR_CONTEXT_TIER}}"
   tier2:
     model: "{{TIER_2_FAMILY}}"
     model_family: "{{TIER_2_FAMILY}}"
+    context_tier: "{{TIER_2_CONTEXT_TIER}}"
   tier3:
     model: "{{TIER_3_FAMILY}}"
     model_family: "{{TIER_3_FAMILY}}"
+    context_tier: "{{TIER_3_CONTEXT_TIER}}"
   stage:
     model_family: "{{STAGE_FAMILY}}"
     model_provider: "{{STAGE_PROVIDER}}"
     reasoning_effort: "{{STAGE_REASONING_EFFORT}}"
+    context_tier: "{{STAGE_CONTEXT_TIER}}"
   ship:
     model_family: "{{SHIP_FAMILY}}"
     model_provider: "{{SHIP_PROVIDER}}"
     reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
+    context_tier: "{{SHIP_CONTEXT_TIER}}"
 ```
 
 An installed workspace resolves each placeholder to concrete values (for

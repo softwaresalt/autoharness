@@ -68,7 +68,7 @@ model_routing:
     reasoning_effort: "{{TIER_1_REASONING_EFFORT}}"  # Leave empty to use model default
     model_provider: "{{TIER_1_PROVIDER}}"       # e.g., openai, anthropic — leave empty for default
     model_family: "{{TIER_1_FAMILY}}"           # Resolved into Tier 1 agent frontmatter
-    # context_tier: default | long_context ("" = inherit). Route and role
+    # The context_tier field takes default | long_context ("" = inherit). Route and role
     # blocks are written back with their RESOLVED value, so any inheritance
     # becomes explicit once, at install; escalation blocks stay raw.
     context_tier: "{{TIER_1_CONTEXT_TIER}}"

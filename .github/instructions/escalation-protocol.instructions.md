@@ -105,7 +105,10 @@ The escalation route resolves via a role-scoped precedence:
    per-field to `model_routing.tier3`. This workspace's `tier3` is a mapping
    (`model_family = claude-opus-5.5`, `model_provider = anthropic`,
    `reasoning_effort = high`), so provider and reasoning effort resolve to
-   those values rather than empty via fallback.
+   those values rather than empty via fallback. An unresolved escalation
+   `context_tier` falls back the same way, per field, to
+   `model_routing.tier3.context_tier`, and then to the terminal default
+   `default` when `tier3` declares none.
 
 This mirrors the P-013.5 `stage`/`ship` role-route fallback pattern: a
 targeted override, never a parallel tier taxonomy.

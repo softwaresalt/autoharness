@@ -2,8 +2,45 @@
 
 ## Unreleased
 
+### Added
+
+- **`context_tier` on model routes and agent frontmatter (194-F / 200-S)**: every
+  `model_routing` route (`tier1`/`tier2`/`tier3`, `orchestrator`, `stage`, `ship`,
+  the legacy flat `escalation`, and nested `<role>.escalation`) and tier-routed
+  agent frontmatter accept an optional `context_tier` (`default` |
+  `long_context`), a provider-agnostic context-capacity class. It falls back per
+  field like the other route fields and resolves to `default` when unset; a
+  runtime that cannot honor a non-`default` tier records
+  `ROUTING_DEGRADED: context_tier` and continues at the default context.
+- **Fresh-install Ship route seed (194-F / 200-S)**: `install-harness` seeds a
+  `model_routing.ship` route on a fresh install whose config has no `ship` key.
+  An existing `ship` route is never overwritten.
+
 ### Changed
 
+- **Ship/Stage frontmatter bound to role variables (194-F / 200-S)**:
+  `_ship.agent.md.tmpl` and `_stage.agent.md.tmpl` now render their
+  `model_family` / `model_provider` / `reasoning_effort` / `context_tier` from the
+  `SHIP_*` / `STAGE_*` role variables (falling back per field to tier2 / tier3).
+  Output is unchanged for workspaces without a role route; a workspace with a
+  `stage` or `ship` route sees its installed agent frontmatter change on the next
+  re-render.
+- **Config-authoritative route verification (194-F / 200-S)**:
+  `autoharness verify-workspace` resolves route precedence from the config
+  (`config.overrides` > `config.model_routing` > manifest `variables_used`) and
+  emits a `ROUTE_VARIABLE_STALE` warning when the manifest's recorded route
+  variables disagree with the config. Remediate with a tune re-render.
+- **Stricter Orchestrator directive check (194-F / 200-S)**: verify now requires
+  `context_tier` and `ROUTING_DEGRADED: context_tier` inside both the Stage and
+  Ship invocation-site windows of the installed `_orchestrator` agent. An
+  `_orchestrator` installed by an earlier release **fails verification** until a
+  tune re-render adopts the updated template.
+- **harness-config schema 1.1.0 edited in place (194-F / 200-S, decision D-C5)**:
+  the additive `context_tier` field was added to the existing 1.1.0 schema with
+  no `schema_version` bump, so configs without it stay valid. A config written by
+  this release that uses `context_tier` requires autoharness at or above this
+  release; earlier releases' strict 1.1.0 validation can reject it under the same
+  `schema_version` identifier.
 - **Ship `max_subagent_tier` (194-F / 200-S)**: the Ship agent template
   (`templates/agents/_ship.agent.md.tmpl`) now declares `max_subagent_tier: 3`
   (was `2`), matching the installed Ship mirror (operator ruling 5b). Every newly

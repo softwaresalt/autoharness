@@ -106,6 +106,9 @@ The escalation route resolves via a role-scoped precedence:
 3. **Tier3 fallback**: any field still unresolved after (1)/(2) falls back
    per-field to `model_routing.tier3`
    (`{{TIER_3_FAMILY}}` / `{{TIER_3_PROVIDER}}` / `{{TIER_3_REASONING_EFFORT}}`).
+   An unresolved escalation `context_tier` falls back the same way, per field,
+   to `model_routing.tier3.context_tier`, and then to the terminal default
+   `default` when `tier3` declares none.
 
 This mirrors the P-013.5 `stage`/`ship` role-route fallback pattern: a
 targeted override, never a parallel tier taxonomy.
@@ -117,7 +120,6 @@ fail closed — a schema-level constraint rejects this shape where expressible,
 and the loader/verification layer enforces the same rule as a backstop.
 Never auto-pick a winner; migrate fully to nested per-role escalation, or
 remove the nested override(s), to resolve the ambiguity.
-
 
 ## `ESCALATION_DEGRADED` (canonical definition — defined once, referenced elsewhere)
 

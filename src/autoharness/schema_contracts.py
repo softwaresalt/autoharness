@@ -88,6 +88,11 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         # to validate against the untouched 1.0.0 contract (no nested
         # escalation override available); adopting nested per-role
         # escalation requires bumping schema_version to 1.1.0.
+        # D-C5 exception (194-F/200-S): the optional, additive `context_tier`
+        # route/frontmatter field was added to the already-published 1.1.0
+        # schema IN PLACE (no 1.2.0 bump; configs without the field stay
+        # valid). A config that uses context_tier therefore requires an
+        # autoharness release that ships this 1.1.0 revision.
         "current_version": "1.1.0",
         "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
