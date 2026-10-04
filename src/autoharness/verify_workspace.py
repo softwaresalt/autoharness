@@ -2854,7 +2854,10 @@ def _route_variable_stale_warnings(
     authoritative config value. Call only with an authoritative config."""
     authoritative = _authoritative_route_variables(config)
     warnings: list[dict[str, Any]] = []
-    for name, recorded in (manifest.get("variables_used") or {}).items():
+    variables_used = manifest.get("variables_used")
+    if not isinstance(variables_used, dict):
+        return warnings
+    for name, recorded in variables_used.items():
         name = str(name)
         if recorded is None or name not in authoritative:
             continue
@@ -3382,7 +3385,7 @@ def _add_frontmatter_model_routing_check(
         tier_value = frontmatter.get("context_tier")
         if isinstance(tier_value, str) and "{{" in tier_value and "}}" in tier_value:
             errors.append(f"unresolved placeholder in context_tier: {tier_value!r}")
-        elif not isinstance(tier_value, str) or tier_value not in fc.CONTEXT_TIER_VALUES:
+        elif fc.VALIDATORS["context_tier"](tier_value) is not None:
             errors.append(
                 f"invalid field: context_tier must be one of "
                 f"{list(fc.CONTEXT_TIER_VALUES)} when present (got {tier_value!r})"
@@ -4102,7 +4105,7 @@ def _add_frontmatter_conformity_check(
     }
 
 
-_ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^#{2,4} ", re.MULTILINE)
+_ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^ {0,3}#{1,6}\s", re.MULTILINE)
 _CONTEXT_TIER_DIRECTIVE_TOKENS = ("context_tier", "ROUTING_DEGRADED: context_tier")
 
 
@@ -4130,9 +4133,10 @@ def _add_orchestrator_invocation_routing_directive_check(
     194-F C6a: each site must additionally declare `context_tier` and its
     `ROUTING_DEGRADED: context_tier` fallback inside a bounded window -- the
     Stage window above, and a Ship window from the first
-    "config.model_routing.ship" up to the next `^#{2,4} ` heading line (or
-    EOF), so the later "## Model Routing" P-013.5 summary can never satisfy
-    the Ship site. The whole-tail ROUTING_DEGRADED scoping is unchanged."""
+    "config.model_routing.ship" up to the next ATX heading line (any level,
+    `^ {0,3}#{1,6}\\s`) or EOF, so the later "## Model Routing" P-013.5
+    summary can never satisfy the Ship site. The whole-tail ROUTING_DEGRADED
+    scoping is unchanged."""
     if not file_path.exists():
         report["targeted_checks"][key] = {
             "path": str(file_path),
@@ -4178,8 +4182,8 @@ def _add_orchestrator_invocation_routing_directive_check(
             # 194-F C6a (AN-F6/AS-F7): each invocation site must also carry
             # the context_tier override and its ROUTING_DEGRADED: context_tier
             # fallback inside a BOUNDED window. The Ship window ends at the
-            # next Markdown heading line (^#{2,4} ) or EOF, so a later
-            # "## Model Routing" summary can never satisfy the Ship site.
+            # next ATX heading line (^ {0,3}#{1,6}\s, any level) or EOF, so a
+            # later "## Model Routing" summary can never satisfy the Ship site.
             heading = _ORCHESTRATOR_DIRECTIVE_HEADING_RE.search(content, ship_idx)
             ship_window = content[ship_idx : heading.start() if heading else len(content)]
             for site, window in (("Stage", stage_section), ("Ship", ship_window)):
@@ -5812,7 +5816,7 @@ def verify_workspace(
     if config_authoritative:
         report["warnings"].extend(
             _route_variable_stale_warnings(
-                manifest, config, str(Path(".autoharness") / "harness-manifest.yaml")
+                manifest, config, ".autoharness/harness-manifest.yaml"
             )
         )
     _model_routing_for_composition = config.get("model_routing") or {}

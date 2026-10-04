@@ -580,6 +580,7 @@ def agent_profile_for(path: Path | str, plugin_agents: Iterable[str]) -> str:
 __all__ = [
     "AGENT_PROFILES",
     "BARE_MODEL_KEY",
+    "CONTEXT_TIER_VALUES",
     "FM_BARE_MODEL",
     "FM_FORBIDDEN_KEY",
     "FM_MISSING_REQUIRED",

@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import re
 import unittest
+import unittest.mock as _mock
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +82,10 @@ def _seed_block(text: str) -> str:
 
 def _load_live_fixtures() -> tuple[dict, dict, dict, dict]:
     autoharness_dir = _REPO_ROOT / ".autoharness"
-    load = lambda name: yaml.safe_load((autoharness_dir / name).read_text(encoding="utf-8"))
+
+    def load(name: str) -> Any:
+        return yaml.safe_load((autoharness_dir / name).read_text(encoding="utf-8"))
+
     return (
         load("harness-manifest.yaml"),
         load("config.yaml"),
@@ -94,7 +98,8 @@ def _variables_for(model_routing: dict[str, Any]) -> dict[str, str]:
     manifest, config, profile, registry = _load_live_fixtures()
     config = dict(config)
     config["model_routing"] = model_routing
-    return _derive_template_variables(_REPO_ROOT, manifest, config, profile, registry)
+    with _mock.patch("autoharness.verify_workspace._resolve_default_branch", return_value="main"):
+        return _derive_template_variables(_REPO_ROOT, manifest, config, profile, registry)
 
 
 _TIERS = {

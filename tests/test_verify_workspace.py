@@ -4291,6 +4291,29 @@ class VerifyWorkspaceTests(unittest.TestCase):
         check = self._c6a_directive_check(self._C6A_STAGE_FULL + self._C6A_SHIP_NO_TIER)
         self.assertFalse(check["ok"], check)
 
+    def test_c6a_ship_window_bounded_by_any_atx_heading_level(self) -> None:
+        """A4: the Ship window ends at ANY ATX heading (levels 1-6, up to three
+        leading spaces), so a summary under `#`, `#####`, `######` or an
+        indented `   ##` heading can never satisfy the Ship site."""
+        summary_body = self._C6A_TAIL.split("## Model Routing\n\n", 1)[1]
+        for heading in ("# Model Routing", "##### Model Routing", "###### Model Routing", "   ## Model Routing"):
+            with self.subTest(heading=heading):
+                check = self._c6a_directive_check(
+                    self._C6A_STAGE_FULL + self._C6A_SHIP_NO_TIER + heading + "\n\n" + summary_body
+                )
+                self.assertFalse(check["ok"], check)
+                self.assertTrue(
+                    any("Ship" in e and "context_tier" in e for e in check["scoping_errors"]),
+                    check["scoping_errors"],
+                )
+
+    def test_c6a_summary_only_document_fails(self) -> None:
+        """A4: a document whose only routing text is the ## Model Routing
+        summary (no per-step invocation directives) fails the check."""
+        check = self._c6a_directive_check(self._C6A_TAIL)
+        self.assertFalse(check["ok"], check)
+        self.assertTrue(check["scoping_errors"], check)
+
     def test_c6a_directive_passes_on_repository_template_and_mirror(self) -> None:
         """C6a: the directive check passes on the updated installed mirror
         (and on the template body, whose placeholders are frontmatter-only)."""

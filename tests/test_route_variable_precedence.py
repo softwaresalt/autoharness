@@ -90,6 +90,12 @@ def _derive(manifest: dict[str, Any], config: dict[str, Any], **kwargs: Any) -> 
         return _derive_template_variables(_ROOT, manifest, config, {}, {}, **kwargs)
 
 
+def _without_date(variables: dict[str, str]) -> dict[str, str]:
+    """Drop the wall-clock DATE so equality comparisons cannot straddle a UTC
+    midnight between two derivations."""
+    return {name: value for name, value in variables.items() if name != "DATE"}
+
+
 def _model_family(rendered: str) -> str:
     match = re.search(r'^model_family:\s*"?([^"\n]+)"?\s*$', rendered, re.MULTILINE)
     if match is None:
@@ -171,8 +177,8 @@ class DeriveTemplateVariablesPrecedenceTests(unittest.TestCase):
     def test_no_recorded_route_variables_render_identically(self) -> None:
         manifest = _manifest({"PRIMARY_LANGUAGE": "Haskell"})
         self.assertEqual(
-            _derive(manifest, _config(), config_authoritative=True),
-            _derive(manifest, _config(), config_authoritative=False),
+            _without_date(_derive(manifest, _config(), config_authoritative=True)),
+            _without_date(_derive(manifest, _config(), config_authoritative=False)),
         )
 
 
@@ -242,6 +248,13 @@ class RouteVariableStaleWarningTests(unittest.TestCase):
         warnings = _route_variable_stale_warnings(manifest, _config(), ".autoharness/harness-manifest.yaml")
         self.assertEqual(len({warning["rule"] for warning in warnings}), 2)
 
+    def test_non_mapping_variables_used_yields_no_warning(self) -> None:
+        manifest = _manifest()
+        manifest["variables_used"] = ["SHIP_FAMILY"]
+        self.assertEqual(
+            _route_variable_stale_warnings(manifest, _config(), ".autoharness/harness-manifest.yaml"), []
+        )
+
     def test_dogfood_records_no_route_variables(self) -> None:
         manifest = yaml.safe_load((_ROOT / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))
         config = yaml.safe_load((_ROOT / ".autoharness" / "config.yaml").read_text(encoding="utf-8"))
@@ -249,8 +262,8 @@ class RouteVariableStaleWarningTests(unittest.TestCase):
             _route_variable_stale_warnings(manifest, config, ".autoharness/harness-manifest.yaml"), []
         )
         self.assertEqual(
-            _derive(manifest, config, config_authoritative=True),
-            _derive(manifest, config, config_authoritative=False),
+            _without_date(_derive(manifest, config, config_authoritative=True)),
+            _without_date(_derive(manifest, config, config_authoritative=False)),
         )
 
 
@@ -309,7 +322,11 @@ class VerifyWorkspaceStagedRenderTests(unittest.TestCase):
         self.assertEqual(_model_family(rendered), "custom-x")
 
     def test_no_recorded_route_variables_no_warning_byte_identical(self) -> None:
-        report, rendered, workspace = self._run({"PRIMARY_LANGUAGE": "Haskell"}, config=_config())
+        # DATE is pinned via variables_used (manifest-first) so the staged
+        # render and the legacy render cannot straddle a UTC midnight.
+        report, rendered, workspace = self._run(
+            {"PRIMARY_LANGUAGE": "Haskell", "DATE": "2026-10-04"}, config=_config()
+        )
         self.assertEqual(_stale_messages(report), [])
         manifest = yaml.safe_load((workspace / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))
         config = _config()

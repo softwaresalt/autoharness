@@ -155,7 +155,9 @@ class VerifyWorkspaceShipPinTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        with tempfile.TemporaryDirectory() as staging_dir:
+        with tempfile.TemporaryDirectory() as staging_dir, _mock.patch(
+            "autoharness.verify_workspace._resolve_default_branch", return_value="main"
+        ):
             cls.report = verify_workspace(_ROOT, _ROOT, staging_dir=Path(staging_dir))
 
     def test_role_route_resolution_ok(self) -> None:
