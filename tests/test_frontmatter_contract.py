@@ -303,6 +303,18 @@ class ParseFrontmatterTests(unittest.TestCase):
         self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
         self.assertIn("anchors/aliases", parsed.error.message)
 
+    def test_inline_merge_key_rejected(self) -> None:
+        parsed = parse_frontmatter(
+            _doc(_SKILL_BASE + ["input:", "  <<: {model_family: fam}"]), MODE_INSTALLED
+        )
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+        self.assertIn("merge keys", parsed.error.message)
+
+    def test_top_level_inline_merge_key_rejected(self) -> None:
+        parsed = parse_frontmatter(_doc(_SKILL_BASE + ["<<: {model_family: fam}"]), MODE_INSTALLED)
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+        self.assertIn("merge keys", parsed.error.message)
+
     def test_self_referential_alias_rejected(self) -> None:
         parsed = parse_frontmatter(_doc(_SKILL_BASE + ["input: &loop", "  self: *loop"]), MODE_INSTALLED)
         self.assertEqual(parsed.error.code, FM_PARSE_ERROR)

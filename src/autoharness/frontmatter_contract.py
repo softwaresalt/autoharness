@@ -241,6 +241,13 @@ class _AliasForbiddenError(yaml.YAMLError):
     pass
 
 
+class _MergeKeyForbiddenError(yaml.YAMLError):
+    pass
+
+
+_MERGE_TAG = "tag:yaml.org,2002:merge"
+
+
 class _UniqueKeySafeLoader(yaml.SafeLoader):
     """A ``yaml.SafeLoader`` that rejects repeated keys (PY-F1) and anchors/aliases.
 
@@ -263,6 +270,13 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
 
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
         if isinstance(node, yaml.MappingNode):
+            # Reject merge keys before flatten_mapping() can expand them, so
+            # merged values never satisfy keys the frontmatter did not declare.
+            for key_node, _value_node in node.value:
+                if key_node.tag == _MERGE_TAG:
+                    raise _MergeKeyForbiddenError(
+                        f"merge key '<<' at line {key_node.start_mark.line + 1}"
+                    )
             self.flatten_mapping(node)
             seen: set[Any] = set()
             for key_node, _value_node in node.value:
@@ -406,6 +420,8 @@ def parse_frontmatter(text: str | bytes, mode: str) -> ParsedFrontmatter:
         return _parse_error(mode, f"duplicate key: {exc}")
     except _AliasForbiddenError as exc:
         return _parse_error(mode, f"YAML anchors/aliases are not allowed: {exc}")
+    except _MergeKeyForbiddenError as exc:
+        return _parse_error(mode, f"YAML merge keys are not allowed: {exc}")
     except yaml.YAMLError as exc:
         return _parse_error(mode, f"invalid YAML: {exc}")
     except RecursionError:
