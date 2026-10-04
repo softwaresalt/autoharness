@@ -22,6 +22,7 @@ Design notes (plan ``docs/plans/2026-09-27-agent-skill-frontmatter-conformity-pl
 from __future__ import annotations
 
 import re
+import secrets
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -230,15 +231,35 @@ VALIDATORS: dict[str, Validator] = {
 _PLACEHOLDER_TOKEN = re.compile(r"\{\{\s*[A-Za-z_][A-Za-z0-9_.\-]*\s*\}\}")
 _PLACEHOLDER_ANY = re.compile(r"\{\{.*?\}\}", re.S)
 _SENTINEL_PREFIX = "AHFMPLACEHOLDER"
-_SENTINEL_PATTERN = re.compile(_SENTINEL_PREFIX + r"(\d+)X")
 
 
 class _DuplicateKeyError(yaml.YAMLError):
     pass
 
 
+class _AliasForbiddenError(yaml.YAMLError):
+    pass
+
+
 class _UniqueKeySafeLoader(yaml.SafeLoader):
-    """A ``yaml.SafeLoader`` whose mapping constructor rejects repeated keys (PY-F1)."""
+    """A ``yaml.SafeLoader`` that rejects repeated keys (PY-F1) and anchors/aliases.
+
+    Frontmatter has no legitimate use for anchors or aliases, and aliases
+    enable billion-laughs style expansion and self-referential structures, so
+    any anchor or alias event is a parse error.
+    """
+
+    def compose_node(self, parent: Any, index: Any) -> Any:
+        event = self.peek_event()
+        if isinstance(event, yaml.AliasEvent):
+            raise _AliasForbiddenError(
+                f"alias '*{event.anchor}' at line {event.start_mark.line + 1}"
+            )
+        if getattr(event, "anchor", None) is not None:
+            raise _AliasForbiddenError(
+                f"anchor '&{event.anchor}' at line {event.start_mark.line + 1}"
+            )
+        return super().compose_node(parent, index)
 
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
         if isinstance(node, yaml.MappingNode):
@@ -287,13 +308,19 @@ def _parse_error(mode: str, reason: str) -> ParsedFrontmatter:
     )
 
 
-def _restore(value: Any, tokens: list[str]) -> Any:
+def _restore(value: Any, tokens: list[str], pattern: re.Pattern[str]) -> Any:
     if isinstance(value, str):
-        return _SENTINEL_PATTERN.sub(lambda match: tokens[int(match.group(1))], value)
+
+        def _token(match: re.Match[str]) -> str:
+            index = int(match.group(1))
+            # Bounds-checked: text that merely resembles a sentinel stays verbatim.
+            return tokens[index] if index < len(tokens) else match.group(0)
+
+        return pattern.sub(_token, value)
     if isinstance(value, dict):
-        return {_restore(key, tokens): _restore(item, tokens) for key, item in value.items()}
+        return {_restore(key, tokens, pattern): _restore(item, tokens, pattern) for key, item in value.items()}
     if isinstance(value, list):
-        return [_restore(item, tokens) for item in value]
+        return [_restore(item, tokens, pattern) for item in value]
     return value
 
 
@@ -317,17 +344,20 @@ def parse_frontmatter(text: str | bytes, mode: str) -> ParsedFrontmatter:
     """Parse the leading YAML frontmatter block of ``text`` deterministically (H-B6).
 
     Never raises for malformed input: missing, unclosed, invalid,
-    duplicate-key, non-mapping, and undecodable frontmatter each return a
-    :class:`ParsedFrontmatter` whose ``error`` is an ``FM_PARSE_ERROR``
-    finding with a sub-reason. Only ``UnicodeDecodeError`` and
-    ``yaml.YAMLError`` are caught; anything else is a programming error.
+    duplicate-key, anchor/alias-bearing, too-deeply-nested, non-mapping, and
+    undecodable frontmatter each return a :class:`ParsedFrontmatter` whose
+    ``error`` is an ``FM_PARSE_ERROR`` finding with a sub-reason. Only
+    ``UnicodeDecodeError``, ``yaml.YAMLError``, and ``RecursionError`` are
+    caught; anything else is a programming error.
 
     Placeholder tokens (``{{NAME}}``) are replaced with an inert sentinel
-    before the YAML load in both modes (so an unquoted leading placeholder
-    does not parse as a flow mapping) and restored verbatim afterwards; the
-    keys carrying one are recorded in ``placeholder_keys``. ``mode`` is
-    recorded on the result and decides, in :func:`check_agent` /
-    :func:`check_skill`, whether those keys are tolerated or rejected.
+    carrying a per-call random nonce before the YAML load in both modes (so an
+    unquoted leading placeholder does not parse as a flow mapping, and literal
+    sentinel-like text in the input is never mistaken for one) and restored
+    verbatim afterwards; the keys carrying one are recorded in
+    ``placeholder_keys``. ``mode`` is recorded on the result and decides, in
+    :func:`check_agent` / :func:`check_skill`, whether those keys are
+    tolerated or rejected.
     """
     _validate_mode(mode)
     if isinstance(text, (bytes, bytearray)):
@@ -352,18 +382,32 @@ def parse_frontmatter(text: str | bytes, mode: str) -> ParsedFrontmatter:
 
     block = "\n".join(lines[1:closing_index])
     tokens: list[str] = []
+    token_index: dict[str, int] = {}
+    sentinel_prefix = f"{_SENTINEL_PREFIX}{secrets.token_hex(8)}N"
+    while sentinel_prefix in block:  # pragma: no cover - 64-bit nonce collision
+        sentinel_prefix = f"{_SENTINEL_PREFIX}{secrets.token_hex(8)}N"
+    sentinel_pattern = re.compile(re.escape(sentinel_prefix) + r"(\d+)X")
 
     def _substitute(match: re.Match[str]) -> str:
-        tokens.append(match.group(0))
-        return f"{_SENTINEL_PREFIX}{len(tokens) - 1}X"
+        token = match.group(0)
+        index = token_index.get(token)
+        if index is None:
+            index = len(tokens)
+            tokens.append(token)
+            token_index[token] = index
+        return f"{sentinel_prefix}{index}X"
 
     block = _PLACEHOLDER_TOKEN.sub(_substitute, block)
     try:
         loaded = yaml.load(block, Loader=_UniqueKeySafeLoader)  # noqa: S506 - SafeLoader subclass
     except _DuplicateKeyError as exc:
         return _parse_error(mode, f"duplicate key: {exc}")
+    except _AliasForbiddenError as exc:
+        return _parse_error(mode, f"YAML anchors/aliases are not allowed: {exc}")
     except yaml.YAMLError as exc:
         return _parse_error(mode, f"invalid YAML: {exc}")
+    except RecursionError:
+        return _parse_error(mode, "frontmatter is nested too deeply")
 
     if loaded is None:
         loaded = {}
@@ -373,8 +417,12 @@ def parse_frontmatter(text: str | bytes, mode: str) -> ParsedFrontmatter:
     if non_string_keys:
         return _parse_error(mode, f"non-string top-level key(s): {non_string_keys!r}")
 
-    data = _restore(loaded, tokens)
-    return ParsedFrontmatter(data=data, mode=mode, placeholder_keys=_placeholder_keys(data))
+    try:
+        data = _restore(loaded, tokens, sentinel_pattern)
+        placeholder_keys = _placeholder_keys(data)
+    except RecursionError:
+        return _parse_error(mode, "frontmatter is nested too deeply")
+    return ParsedFrontmatter(data=data, mode=mode, placeholder_keys=placeholder_keys)
 
 
 def read_frontmatter(path: Path | str, mode: str) -> ParsedFrontmatter:

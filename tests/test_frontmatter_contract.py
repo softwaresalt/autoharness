@@ -281,6 +281,61 @@ class ParseFrontmatterTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_frontmatter(_doc(_SKILL_BASE), "bogus")
 
+    def test_alias_rejected(self) -> None:
+        parsed = parse_frontmatter(
+            _doc(_SKILL_BASE + ["input:", "  a: &shared hello", "  b: *shared"]), MODE_INSTALLED
+        )
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+        self.assertIn("anchors/aliases", parsed.error.message)
+
+    def test_merge_key_alias_rejected(self) -> None:
+        parsed = parse_frontmatter(
+            _doc(_SKILL_BASE + ["base: &b {x: 1}", "input:", "  <<: *b"]), MODE_INSTALLED
+        )
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+        self.assertIn("anchors/aliases", parsed.error.message)
+
+    def test_self_referential_alias_rejected(self) -> None:
+        parsed = parse_frontmatter(_doc(_SKILL_BASE + ["input: &loop", "  self: *loop"]), MODE_INSTALLED)
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+        self.assertIn("anchors/aliases", parsed.error.message)
+
+    def test_billion_laughs_alias_rejected(self) -> None:
+        lines = _SKILL_BASE + ['a: &a ["x","x","x","x","x","x","x","x","x"]']
+        for level in "bcdefghi":
+            prev = chr(ord(level) - 1)
+            lines.append(f"{level}: &{level} [" + ",".join([f"*{prev}"] * 9) + "]")
+        parsed = parse_frontmatter(_doc(lines), MODE_INSTALLED)
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+
+    def test_deep_nesting_is_parse_error_not_crash(self) -> None:
+        depth = 20000
+        parsed = parse_frontmatter(_doc(_SKILL_BASE + ["input: " + "[" * depth + "]" * depth]), MODE_INSTALLED)
+        self.assertIsNotNone(parsed.error)
+        self.assertEqual(parsed.error.code, FM_PARSE_ERROR)
+
+    def test_literal_sentinel_marker_text_preserved(self) -> None:
+        for literal in ("AHFMPLACEHOLDER0X", "AHFMPLACEHOLDER7X", "AHFMPLACEHOLDER99999X"):
+            with self.subTest(literal=literal):
+                parsed = parse_frontmatter(
+                    _doc(_SKILL_BASE + [f'argument-hint: "{literal} {{{{ARG}}}}"']), MODE_TEMPLATE
+                )
+                self.assertIsNone(parsed.error)
+                self.assertEqual(parsed.data["argument-hint"], f"{literal} {{{{ARG}}}}")
+                self.assertIn("argument-hint", parsed.placeholder_keys)
+
+    def test_repeated_and_distinct_placeholders_restore_correctly(self) -> None:
+        lines = [
+            'name: "{{NAME}}"',
+            'description: "{{DESC}} for {{NAME}} and {{ NAME }}"',
+            'argument-hint: "{{DESC}}"',
+        ]
+        parsed = parse_frontmatter(_doc(lines), MODE_TEMPLATE)
+        self.assertIsNone(parsed.error)
+        self.assertEqual(parsed.data["name"], "{{NAME}}")
+        self.assertEqual(parsed.data["description"], "{{DESC}} for {{NAME}} and {{ NAME }}")
+        self.assertEqual(parsed.data["argument-hint"], "{{DESC}}")
+
 
 class PlaceholderTests(unittest.TestCase):
     def test_quoted_placeholder_template_mode_allowed(self) -> None:
