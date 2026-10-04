@@ -157,13 +157,13 @@ artifacts:
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "d1d3dc38186b56966f08d1f36f7f84272055a1c9bfc739afd85d43980a214a35"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 199-S review fix (plugin-global max_subagent_tier: 3 for verify-harness Tier 3 Reviewer A, no route-value keys)"
+    checksum: "038256541ac61d0946c3f468aaf18c2c2532ea5fe756c2cf1fa8d36a3c35e034"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 199-S/193.002-T (plugin-global max_subagent_tier: 2, no route-value keys); 199-S review fix rewords Subagent Depth prose"
   - path: ".github/agents/auto-tune.agent.md"
     primitive: 4
     template: "global agent definition"
-    checksum: "b53f5e61b0bc0685fa8984ae9bdd9b028e0625f35c5c3cba4a0ee9a8a0ad0ba4"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 199-S review fix (plugin-global max_subagent_tier: 3 for verify-harness Tier 3 Reviewer A, no route-value keys)"
+    checksum: "933cd3fba3e43c7f51b37137475ef94f6ac20c1fa71303893834275c03728b87"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 199-S/193.002-T (plugin-global max_subagent_tier: 2, no route-value keys); 199-S review fix rewords Subagent Depth prose"
   - path: ".github/skills/install-harness/SKILL.md"
     primitive: 4
     template: "global skill definition"
