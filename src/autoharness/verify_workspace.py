@@ -2342,7 +2342,8 @@ def _tier_fallback_dict(model_routing: dict[str, Any], tier_key: str) -> dict[st
 def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive the nine MODEL_ROUTING_TIER*/TIER_*_FAMILY/PROVIDER/REASONING_EFFORT
     variables (SKILL.md rows 414-425), normalising the polymorphic scalar-vs-
-    mapping `model_routing.tier1/tier2/tier3` shape (amendment B6)."""
+    mapping `model_routing.tier1/tier2/tier3` shape (amendment B6), plus
+    TIER_*_CONTEXT_TIER (194-F, C2; a legacy string tier gives `"default"`)."""
     variables: dict[str, str] = {}
     tier_defaults = {
         "tier1": ("MODEL_ROUTING_TIER1", "TIER_1", "gpt-5.4-mini"),
@@ -2359,14 +2360,17 @@ def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str
         variables[f"{prefix}_FAMILY"] = str(family_value)
         variables[f"{prefix}_PROVIDER"] = str(provider_value)
         variables[f"{prefix}_REASONING_EFFORT"] = str(effort_value)
+        variables[f"{prefix}_CONTEXT_TIER"] = _resolve_context_tier(tier_dict, None)
     return variables
 
 
 def _derive_orchestrator_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive ORCHESTRATOR_FAMILY/PROVIDER/REASONING_EFFORT (SKILL.md rows
-    426-428, amendment B6, corrected review-fix cycle 1). Scalar-form
-    `orchestrator` populates ONLY `model_family`; provider/effort ALWAYS fall
-    back to tier2 (never to empty), while `ORCHESTRATOR_FAMILY` keeps its OWN
+    426-428, amendment B6, corrected review-fix cycle 1) and
+    ORCHESTRATOR_CONTEXT_TIER (194-F, C2). Scalar-form
+    `orchestrator` populates ONLY `model_family`; provider/effort/context_tier
+    ALWAYS fall back to tier2 (provider/effort never to empty; context_tier
+    ends at `"default"`), while `ORCHESTRATOR_FAMILY` keeps its OWN
     `gpt-5.4` default and does NOT fall back to tier2."""
     orchestrator = model_routing.get("orchestrator")
     if isinstance(orchestrator, str) and orchestrator.strip():
@@ -2385,13 +2389,15 @@ def _derive_orchestrator_route_variables(model_routing: dict[str, Any]) -> dict[
         "ORCHESTRATOR_FAMILY": str(family),
         "ORCHESTRATOR_PROVIDER": str(provider),
         "ORCHESTRATOR_REASONING_EFFORT": str(effort),
+        "ORCHESTRATOR_CONTEXT_TIER": _resolve_context_tier(route, tier2_fallback),
     }
 
 
 def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """Derive STAGE_*/SHIP_* (SKILL.md rows 429-434): RESOLVED-FROM-SOURCE with
     the P-013.5 per-sub-field tier fallback applied (stage -> tier3, ship ->
-    tier2). Reuses `_resolve_role_route_field`/`ROLE_ROUTE_TIER_FALLBACK`
+    tier2), plus STAGE_/SHIP_CONTEXT_TIER (194-F, C2; ends at `"default"`).
+    Reuses `_resolve_role_route_field`/`ROLE_ROUTE_TIER_FALLBACK`
     (defined later in this module) so this can never diverge from the
     installed-output verification check."""
     variables: dict[str, str] = {}
@@ -2407,6 +2413,7 @@ def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str
         variables[f"{prefix}_FAMILY"] = str(family)
         variables[f"{prefix}_PROVIDER"] = str(provider)
         variables[f"{prefix}_REASONING_EFFORT"] = str(effort)
+        variables[f"{prefix}_CONTEXT_TIER"] = _resolve_context_tier(route, tier_fallback)
     return variables
 
 
@@ -2424,31 +2431,31 @@ def _raw_escalation_field(route: Any, field: str) -> str:
 
 
 def _derive_raw_escalation_variables(model_routing: dict[str, Any]) -> dict[str, str]:
-    """Derive the nine RAW escalation pass-through variables (constraint C3):
+    """Derive the twelve RAW escalation pass-through variables (constraint C3):
     LEGACY_ESCALATION_* mirrors the flat `model_routing.escalation` block
     verbatim; STAGE_ESCALATION_*/SHIP_ESCALATION_* mirror the nested
-    `model_routing.<role>.escalation` blocks verbatim. Every one of these
+    `model_routing.<role>.escalation` blocks verbatim (including the
+    `*_ESCALATION_CONTEXT_TIER` members added by 194-F/C2, H-C1, which exist
+    only for the config write-back). Every one of these
     DERIVES TO THE EMPTY STRING when its own raw field is unset -- they never
     read a fallback chain and are never populated from the collapsed
     `{{ESCALATION_*}}` value (that would reproduce the H2 flat+nested
     ambiguity PR #316 round 3 fixed)."""
-    variables: dict[str, str] = {}
-    flat = model_routing.get("escalation") or {}
-    for field, suffix in (
+    raw_fields = (
         ("model_family", "FAMILY"),
         ("model_provider", "PROVIDER"),
         ("reasoning_effort", "REASONING_EFFORT"),
-    ):
+        ("context_tier", "CONTEXT_TIER"),
+    )
+    variables: dict[str, str] = {}
+    flat = model_routing.get("escalation") or {}
+    for field, suffix in raw_fields:
         variables[f"LEGACY_ESCALATION_{suffix}"] = _raw_escalation_field(flat, field)
     for role in ("stage", "ship"):
         role_block = model_routing.get(role) or {}
         nested = role_block.get("escalation") if isinstance(role_block, dict) else None
         prefix = role.upper()
-        for field, suffix in (
-            ("model_family", "FAMILY"),
-            ("model_provider", "PROVIDER"),
-            ("reasoning_effort", "REASONING_EFFORT"),
-        ):
+        for field, suffix in raw_fields:
             variables[f"{prefix}_ESCALATION_{suffix}"] = _raw_escalation_field(nested, field)
     return variables
 
@@ -4022,10 +4029,12 @@ def _resolve_role_route_field(
     route: dict[str, Any], tier_fallback: Any, field: str
 ) -> Any:
     """Resolve a single role-route field (model_family/model_provider/
-    reasoning_effort) with per-field fallback to the tier route. A tier route
-    may be a legacy plain model-identifier string (treated as `model` and
-    `model_family`) or an object with model/model_family/model_provider/
-    reasoning_effort."""
+    reasoning_effort/context_tier) with per-field fallback to the tier route.
+    A tier route may be a legacy plain model-identifier string (treated as
+    `model` and `model_family`) or an object with model/model_family/
+    model_provider/reasoning_effort/context_tier. The resolution is
+    field-generic; `_resolve_context_tier` adds the `"default"` terminal
+    value for `context_tier`."""
     value = route.get(field) if isinstance(route, dict) else None
     if isinstance(value, str) and value.strip():
         return value
@@ -4043,6 +4052,17 @@ def _resolve_role_route_field(
         # the model_family fallback when model_family itself is unset.
         fallback_value = tier_dict.get("model")
     return fallback_value
+
+
+def _resolve_context_tier(route: Any, tier_fallback: Any) -> str:
+    """Resolve a route's `context_tier` (194-F, C2): the route's own value,
+    then the fallback tier's value, then `"default"`. An empty string means
+    unset/inherit. A legacy plain-string tier carries no `context_tier`, so it
+    gives `"default"`. The result is never empty."""
+    value = _resolve_role_route_field(route, tier_fallback, "context_tier")
+    if isinstance(value, str) and value.strip():
+        return value
+    return "default"
 
 
 # Role -> fallback tier mapping for P-013.5 role-route resolution. Stage is a

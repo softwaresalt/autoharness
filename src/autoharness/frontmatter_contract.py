@@ -87,6 +87,12 @@ ROUTE_VALUE_KEYS: frozenset[str] = frozenset(
 
 BARE_MODEL_KEY = "model"
 
+# Resolved ``context_tier`` values (194-F, H-C5): the single enum source. The
+# config schema's ``contextTier`` enum is ``["", *CONTEXT_TIER_VALUES]``, where
+# ``""`` means unset/inherit and is legal only in config, never in rendered
+# frontmatter. ``context_tier`` joins ``ROUTE_VALUE_KEYS`` in C5a (194.007-T).
+CONTEXT_TIER_VALUES: tuple[str, ...] = ("default", "long_context")
+
 _AGENT_IDENTITY_KEYS = frozenset({"name", "description"})
 _AGENT_BASE_ROUTE_KEYS = frozenset({"model_family", "model_provider", "reasoning_effort"})
 _AGENT_NON_ROUTING_OPTIONAL = frozenset(
