@@ -2788,13 +2788,83 @@ def _compose_artifact_variables(
     return composed
 
 
+def _route_family_variables(model_routing: dict[str, Any]) -> dict[str, str]:
+    """194.006-T (C4b): the route family -- every variable returned by the
+    tier, orchestrator, role, raw-escalation and escalation-prose derivers
+    (including the `*_CONTEXT_TIER` members) -- derived from `model_routing`.
+    Anchor-review variables are NOT route-family members."""
+    variables: dict[str, str] = {}
+    for derive in (
+        _derive_tier_route_variables,
+        _derive_orchestrator_route_variables,
+        _derive_role_route_variables,
+        _derive_raw_escalation_variables,
+        _derive_escalation_prose_variables,
+    ):
+        variables.update(derive(model_routing))
+    return variables
+
+
+def _authoritative_route_variables(config: dict[str, Any]) -> dict[str, str]:
+    """194.006-T (C4b): the authoritative route-family values for an
+    authoritative config: `config.overrides[<VAR>]` (AS-F9) over the
+    config-derived value."""
+    model_routing = config.get("model_routing") or {}
+    if not isinstance(model_routing, dict):
+        model_routing = {}
+    variables = _route_family_variables(model_routing)
+    overrides = config.get("overrides") or {}
+    if isinstance(overrides, dict):
+        for name in variables:
+            value = overrides.get(name)
+            if value is not None:
+                variables[name] = str(value)
+    return variables
+
+
+def _route_variable_stale_warnings(
+    manifest: dict[str, Any], config: dict[str, Any], manifest_path: str
+) -> list[dict[str, Any]]:
+    """194.006-T (C4b): one non-fatal `ROUTE_VARIABLE_STALE` warning per
+    route-family variable whose `variables_used` record differs from its
+    authoritative config value. Call only with an authoritative config."""
+    authoritative = _authoritative_route_variables(config)
+    warnings: list[dict[str, Any]] = []
+    for name, recorded in (manifest.get("variables_used") or {}).items():
+        name = str(name)
+        if recorded is None or name not in authoritative:
+            continue
+        if str(recorded) == authoritative[name]:
+            continue
+        warnings.append(
+            {
+                "kind": "route-variable-stale",
+                "path": manifest_path,
+                "field": name,
+                "rule": f"ROUTE_VARIABLE_STALE:{name}",
+                "message": (
+                    f"ROUTE_VARIABLE_STALE: {name} recorded={recorded} config={authoritative[name]}"
+                ),
+            }
+        )
+    return warnings
+
+
 def _derive_template_variables(
     workspace_path: Path,
     manifest: dict[str, Any],
     config: dict[str, Any],
     profile: dict[str, Any],
     registry: dict[str, Any],
+    *,
+    config_authoritative: bool = False,
 ) -> dict[str, str]:
+    """Derive the global template-variable map for verify's staged render.
+
+    `config_authoritative` (194.006-T, C4b) is computed by the caller from
+    the config load result. When true, route-family variables follow
+    `config.overrides` > config-derived (assigned over `variables_used`);
+    otherwise every variable keeps manifest-first precedence."""
     variables = {
         str(key): str(value)
         for key, value in (manifest.get("variables_used") or {}).items()
@@ -2821,16 +2891,12 @@ def _derive_template_variables(
     model_routing = config.get("model_routing") or {}
     if not isinstance(model_routing, dict):
         model_routing = {}
-    for _var_name, _var_value in _derive_tier_route_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_orchestrator_route_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_role_route_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_raw_escalation_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
-    for _var_name, _var_value in _derive_escalation_prose_variables(model_routing).items():
-        variables.setdefault(_var_name, _var_value)
+    if config_authoritative:
+        # 194.006-T (C4b, P-013.5): the live config is authoritative for routing.
+        variables.update(_authoritative_route_variables(config))
+    else:
+        for _var_name, _var_value in _route_family_variables(model_routing).items():
+            variables.setdefault(_var_name, _var_value)
     for _var_name, _var_value in _derive_anchor_review_variables(model_routing).items():
         variables.setdefault(_var_name, _var_value)
 
@@ -5657,7 +5723,31 @@ def verify_workspace(
         if str(pack) in SUPPORTED_CAPABILITY_PACKS
     ]
 
-    variables = _derive_template_variables(workspace_path, manifest, config, profile, registry)
+    # 194.006-T (C4b): authoritative config = exists, parses to a non-empty
+    # mapping, and raised no invalid-config-yaml strict-schema blocker.
+    config_authoritative = (
+        config_path.exists()
+        and isinstance(config, dict)
+        and bool(config)
+        and not any(
+            blocker.get("kind") == "invalid-config-yaml"
+            for blocker in report["strict_schema_blockers"]
+        )
+    )
+    variables = _derive_template_variables(
+        workspace_path,
+        manifest,
+        config,
+        profile,
+        registry,
+        config_authoritative=config_authoritative,
+    )
+    if config_authoritative:
+        report["warnings"].extend(
+            _route_variable_stale_warnings(
+                manifest, config, str(Path(".autoharness") / "harness-manifest.yaml")
+            )
+        )
     _model_routing_for_composition = config.get("model_routing") or {}
     if not isinstance(_model_routing_for_composition, dict):
         _model_routing_for_composition = {}
