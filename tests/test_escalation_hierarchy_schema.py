@@ -48,7 +48,7 @@ class NestedEscalationSchemaTests(unittest.TestCase):
             self.assertFalse(escalation_schema.get("additionalProperties", True))
             self.assertEqual(
                 set(escalation_schema["properties"]),
-                {"model_provider", "model_family", "reasoning_effort"},
+                {"model_provider", "model_family", "reasoning_effort", "context_tier"},
             )
 
     def test_legacy_flat_escalation_key_still_present_h9(self) -> None:
