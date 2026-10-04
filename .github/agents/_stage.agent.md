@@ -545,6 +545,17 @@ before falling back to the operator-halt checkpoint:
    schema-failing config — Stage MUST NOT continue on a stale/baked route
    carried over from this file's frontmatter or a prior session's resolved
    value, and MUST NOT invent a last-known-good fallback.
+   Separately, the escalation `context_tier` resolves to `default`
+   (nested `stage.escalation.context_tier` -> legacy flat
+   `escalation.context_tier` only when the flat route is the selected
+   source -> `tier3.context_tier` -> `default`).
+   This workspace declares no escalation `context_tier` at any level.
+   Record it in the compiled payload's separate
+   `resolved_escalation_context_tier` field — it is not part of the
+   `resolved_escalation_route` tuple and is excluded from the same-route
+   guard. When the runtime cannot honor a non-`default` escalation
+   `context_tier`, record `ROUTING_DEGRADED: context_tier` and hand off at
+   the default context; this never blocks the handoff.
 3. **Same-route guard (role-scoped, H3)**: Stage's explicit role route
    (`claude-opus-5.5`) is identical to this workspace's `tier3` family. If the
    `escalation` route were ever unset (or reset to an unset/matching value),

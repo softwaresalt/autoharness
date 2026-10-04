@@ -79,6 +79,7 @@ payload containing the following fields before handing off and halting:
 | `evidence_path` | Path to any structured telemetry evidence backing the failure (when telemetry is enabled), aligned with `schemas/tool-telemetry-event.schema.json#evidence_path`. Absent/empty when telemetry is disabled — this is not itself a failure condition. |
 | `resumption_checkpoint_ref` | A reference (checkpoint filename, memory doc path, or backlog comment) that lets the resolved escalation route (or the operator) resume the unit of work without losing state. |
 | `resolved_escalation_route` | The `(model_family, model_provider, reasoning_effort)` tuple actually resolved for this handoff, per the Escalation Route Resolution section below. Recorded here — not merely resolved in-memory — so a handoff consumer has a contract-defined route on which to run the promised independent analysis without re-deriving the resolution precedence itself. Present only when the resolution is not `ESCALATION_DEGRADED` (see below); a degraded route is never recorded in this field. |
+| `resolved_escalation_context_tier` | The escalation `context_tier` resolved for this handoff — a provider- and environment-agnostic capacity class (`default` or `long_context`) — recorded as its own field, never as a fourth member of the `resolved_escalation_route` tuple, so the same-route guard and every tuple consumer are unchanged. It resolves on the same source selection as the route: the acting role's nested `<role>.escalation.context_tier`, else the legacy flat `escalation.context_tier` only when the flat route is the selected source, else `tier3.context_tier`, else `default`. When the runtime cannot honor a non-`default` value, the agent records `ROUTING_DEGRADED: context_tier` and hands off at the default context; this never declares `ESCALATION_DEGRADED` and never blocks the handoff. Present whenever `resolved_escalation_route` is present. |
 
 ## Escalation Route Resolution (P-013.6 / F02FD596 nested per-role hierarchy)
 
@@ -137,6 +138,13 @@ remove the nested override(s), to resolve the ambiguity.
    `tier3` would "escalate" to an identical model, which is not a real
    escalation.
 
+`context_tier` is excluded from the same-route comparison: the compared tuple
+stays `(model_family, model_provider, reasoning_effort)`, so two routes that
+differ only in `context_tier` are still a same-route no-op. An escalation
+`context_tier` the runtime cannot honor is never a cause of
+`ESCALATION_DEGRADED`: the agent records `ROUTING_DEGRADED: context_tier`
+and the handoff proceeds at the default context without being blocked.
+
 When `ESCALATION_DEGRADED` is declared, the halting agent MUST fall back to its
 existing **operator-halt** path (the Stop Conditions escalation prompt already
 defined in its own agent template) rather than proceeding as though escalation
@@ -147,8 +155,9 @@ templates.
 ## Terminal Engram Handoff
 
 When the resolved route is available and not degraded, the halting agent
-records the route in the payload's `resolved_escalation_route` field, hands
-the compiled payload to engram for asynchronous or operator review, and
+records the route in the payload's `resolved_escalation_route` field,
+records the resolved escalation `context_tier` in the separate
+`resolved_escalation_context_tier` field, hands the compiled payload to engram for asynchronous or operator review, and
 halts. It MUST NOT re-execute the failing
 operation after its circuit is open. The handoff is for asynchronous or
 operator review, not a fourth attempt. This handoff is
