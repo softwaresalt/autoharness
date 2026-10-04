@@ -79,6 +79,30 @@ _C5B_TEMPLATES = (
 _CONFIG_DOGFOOD = "dogfood"
 _CONFIG_ROLELESS = "role-less"
 
+# 194-F C5c (194.009-T): the 14 installed tier-routed agent mirrors that gain
+# ``context_tier: "default"``. The Ship and Stage mirrors carry role-bound values
+# from C4a, and the plugin-global agents carry no route values (DA-3).
+_C4A_PIPELINE_MIRRORS = (
+    ".github/agents/_ship.agent.md",
+    ".github/agents/_stage.agent.md",
+)
+_C5C_MIRRORS = (
+    ".github/agents/_orchestrator.agent.md",
+    ".github/agents/subagents/agent-native-parity-reviewer.agent.md",
+    ".github/agents/subagents/architecture-strategist.agent.md",
+    ".github/agents/subagents/concurrency-reviewer.agent.md",
+    ".github/agents/subagents/constitution-reviewer.agent.md",
+    ".github/agents/subagents/correctness-reviewer.agent.md",
+    ".github/agents/subagents/learnings-researcher.agent.md",
+    ".github/agents/subagents/maintainability-reviewer.agent.md",
+    ".github/agents/subagents/python-reviewer.agent.md",
+    ".github/agents/subagents/schema-cli-docs-coupling-reviewer.agent.md",
+    ".github/agents/subagents/scope-boundary-auditor.agent.md",
+    ".github/agents/subagents/security-lens-reviewer.agent.md",
+    ".github/agents/subagents/security-reviewer.agent.md",
+    ".github/agents/subagents/template-integrity-reviewer.agent.md",
+)
+
 
 def _rel(path: Path) -> str:
     return path.relative_to(_ROOT).as_posix()
@@ -322,6 +346,59 @@ class ContextTierTemplateTests(unittest.TestCase):
                     self.assertFalse(has_blocking_findings(findings), findings)
                     checked.append((label, rel))
         self.assertEqual(len(checked), 2 * len(_C5B_TEMPLATES))
+
+
+class ContextTierInstalledMirrorTests(unittest.TestCase):
+    """194-F C5c (194.009-T): installed tier-routed mirrors carry ``context_tier: "default"``."""
+
+    def _manifest_by_path(self) -> dict[str, dict[str, Any]]:
+        manifest = _load_autoharness("harness-manifest.yaml")
+        return {str(item.get("path")): item for item in manifest.get("artifacts") or []}
+
+    def test_c5c_mirror_set_is_every_non_pipeline_tier_routed_mirror(self) -> None:
+        plugin_agents = _plugin_agents()
+        rels = {
+            _rel(path)
+            for path in sorted((_ROOT / ".github" / "agents").rglob("*.agent.md"))
+            if agent_profile_for(_rel(path), plugin_agents) == PROFILE_TIER_ROUTED
+        }
+        self.assertEqual(len(_C5C_MIRRORS), 14)
+        self.assertEqual(rels - set(_C4A_PIPELINE_MIRRORS), set(_C5C_MIRRORS))
+
+    def test_mirrors_carry_default_context_tier_after_model_family(self) -> None:
+        for rel in _C5C_MIRRORS:
+            with self.subTest(mirror=rel):
+                lines = _frontmatter_block((_ROOT / rel).read_text(encoding="utf-8")).split("\n")
+                tier_lines = [line for line in lines if line.startswith("context_tier:")]
+                self.assertEqual(tier_lines, ['context_tier: "default"'])
+                family_index = next(i for i, line in enumerate(lines) if line.startswith("model_family:"))
+                self.assertEqual(lines[family_index + 1], 'context_tier: "default"')
+                parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
+                self.assertIsNone(parsed.error)
+                self.assertEqual(parsed.data.get("context_tier"), "default")
+
+    def test_mirror_value_is_resolved_value_under_repository_config(self) -> None:
+        """C7: the mirror value equals the template's route-prefix variable under the dogfood config."""
+        by_path = self._manifest_by_path()
+        manifest = _load_autoharness("harness-manifest.yaml")
+        profile = _load_autoharness("workspace-profile.yaml")
+        registry = _load_autoharness("backlog-registry.yaml")
+        config = _context_tier_config(_CONFIG_DOGFOOD)
+        with _mock.patch("autoharness.verify_workspace._resolve_default_branch", return_value="main"):
+            variables = _derive_template_variables(_ROOT, manifest, config, profile, registry)
+        for rel in _C5C_MIRRORS:
+            with self.subTest(mirror=rel):
+                template = _ROOT / "templates" / str(by_path[rel]["template"])
+                prefix = _route_prefix(template)
+                parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
+                self.assertEqual(parsed.data.get("context_tier"), variables[f"{prefix}_CONTEXT_TIER"])
+
+    def test_mirror_manifest_checksums_match_staged_blobs(self) -> None:
+        by_path = self._manifest_by_path()
+        for rel in _C5C_MIRRORS:
+            with self.subTest(mirror=rel):
+                self.assertIn(rel, by_path)
+                self.assertEqual(by_path[rel].get("checksum"), _staged_blob_sha256(_ROOT / rel))
 
 
 class SkillFrontmatterConformityTests(unittest.TestCase):

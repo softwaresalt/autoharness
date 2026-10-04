@@ -7,6 +7,7 @@ max_subagent_tier: 2
 reasoning_effort: ""
 model_provider: ""
 model_family: "claude-sonnet-5"
+context_tier: "default"
 subagent_depth: 0
 ---
 
