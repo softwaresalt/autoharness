@@ -1,9 +1,110 @@
 {
   "feature_id": "193-F",
+  "invocation": {
+    "argv_redacted": [
+      "C:\\Tools\\backlogit.EXE",
+      "--no-update-check",
+      "--jsonrpc",
+      "--cwd",
+      "C:\\Source\\GitHub\\autoharness",
+      "shipment",
+      "ship",
+      "199-S",
+      "--sha",
+      "30095385a58b7d8db0ee4f1295b08262410fe560",
+      "--message",
+      "Merge pull request #487 from softwaresalt/feat/199-s-frontmatter-conformity",
+      "--author",
+      "Derek Williams <42183845+softwaresalt@users.noreply.github.com>"
+    ],
+    "exit_code": 0,
+    "finished_at": "2026-10-04T06:21:03.655029Z",
+    "mutation_state": "completed",
+    "started_at": "2026-10-04T06:12:03.858579Z",
+    "stderr": {
+      "capture_truncated": false,
+      "excerpt": "time=2026-10-03T23:12:03.902-07:00 level=INFO msg=\"shipment command invoked\" operation=shipment-ship shipment_id=199-S\ntime=2026-10-03T23:12:03.905-07:00 level=INFO msg=\"INFO config loaded package=config workspace=C:\\\\Source\\\\GitHub\\\\autoharness\\\\.backlogit\"\ntime=2026-10-03T23:12:03.922-07:00 level=INFO msg=\"workspace initialized\" storage_root=C:\\Source\\GitHub\\autoharness\\.backlogit auto_recover=true duration_ms=20\ntime=2026-10-03T23:14:06.491-07:00 level=INFO msg=\"shipment status changed\" shipment_id=199-S new_status=shipped\ntime=2026-10-03T23:14:06.512-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=199-S artifact_type=shipment\ntime=2026-10-03T23:16:08.113-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.004.001-ST artifact_type=subtask\ntime=2026-10-03T23:16:33.196-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.004.002-ST artifact_type=subtask\ntime=2026-10-03T23:16:58.663-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.001-T artifact_type=task\ntime=2026-10-03T23:17:24.214-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.002-T artifact_type=task\ntime=2026-10-03T23:17:49.213-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.003-T artifact_type=task\ntime=2026-10-03T23:18:14.615-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.004-T artifact_type=task\ntime=2026-10-03T23:18:39.855-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.005-T artifact_type=task\ntime=2026-10-03T23:19:04.458-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.006-T artifact_type=task\ntime=2026-10-03T23:19:29.919-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.007-T artifact_type=task\ntime=2026-10-03T23:19:54.192-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193.008-T artifact_type=task\ntime=2026-10-03T23:20:28.931-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=193-F artifact_type=feature\ntime=2026-10-03T23:21:03.273-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=199-S artifact_type=shipment\ntime=2026-10-03T23:21:03.646-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=199-S artifact_type=shipment\n",
+      "redaction_applied": false,
+      "sha256": "50d5342725eb55ff96a2b8a809e9cd5daa4306b7bca2eae5d9c33171fb824863",
+      "total_bytes": 2269,
+      "total_lines": 18
+    },
+    "stdout": {
+      "capture_truncated": false,
+      "excerpt": "{\"jsonrpc\":\"2.0\",\"id\":\"backlogit shipment ship\",\"result\":{\"archived_ids\":[\"193.004.001-ST\",\"193.004.002-ST\",\"193.001-T\",\"193.002-T\",\"193.003-T\",\"193.004-T\",\"193.005-T\",\"193.006-T\",\"193.007-T\",\"193.008-T\",\"193-F\",\"199-S\"],\"commit_sha\":\"30095385a58b7d8db0ee4f1295b08262410fe560\",\"returned_ids\":[],\"shipment_id\":\"199-S\",\"shipment_status\":\"shipped\"}}\n",
+      "redaction_applied": false,
+      "sha256": "3d95bd5ed48cefc0d7452f7cb1d5387653a84ffe954ee0fe05014be15bff0fe4",
+      "total_bytes": 347,
+      "total_lines": 1
+    },
+    "timed_out": false
+  },
   "merge_commit_sha": "30095385a58b7d8db0ee4f1295b08262410fe560",
-  "phase": "pre_close",
+  "phase": "post_close",
+  "post_close": {
+    "allowed_ids": [
+      "193-F",
+      "193.001-T",
+      "193.002-T",
+      "193.003-T",
+      "193.004-T",
+      "193.004.001-ST",
+      "193.004.002-ST",
+      "193.005-T",
+      "193.006-T",
+      "193.007-T",
+      "193.008-T",
+      "199-S"
+    ],
+    "baseline_invariant": true,
+    "disposition_byte_identical": true,
+    "failures": [],
+    "linked_deliberation_drift": [],
+    "missing_required": [],
+    "parent_id_preserved": true,
+    "parse_error": null,
+    "parsed_result": {
+      "archived_ids": [
+        "193-F",
+        "193.001-T",
+        "193.002-T",
+        "193.003-T",
+        "193.004-T",
+        "193.004.001-ST",
+        "193.004.002-ST",
+        "193.005-T",
+        "193.006-T",
+        "193.007-T",
+        "193.008-T",
+        "199-S"
+      ],
+      "commit_sha": "30095385a58b7d8db0ee4f1295b08262410fe560",
+      "returned_ids": [],
+      "shipment_id": "199-S",
+      "shipment_status": "shipped"
+    },
+    "postcondition_verdict": "pass",
+    "required_ids": [
+      "193-F",
+      "193.001-T",
+      "193.002-T",
+      "193.003-T",
+      "193.004-T",
+      "193.004.001-ST",
+      "193.004.002-ST",
+      "193.005-T",
+      "193.006-T",
+      "193.007-T",
+      "193.008-T",
+      "199-S"
+    ],
+    "shipment_archived_shipped": true,
+    "shipment_record_archived_status": "shipped",
+    "shipment_record_status": "archived",
+    "unexpected_archived": []
+  },
   "pre_close": {
-    "captured_at": "2026-10-04T06:11:05Z",
+    "captured_at": "2026-10-04T06:11:55Z",
     "classifier_reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted",
     "classifier_verdict": "CASCADE",
     "close_path_selection": {
@@ -162,7 +263,7 @@
       "sha256": "5299a91fe66f0752085556547594ca0de430ed60ff3edde061eeed467c64b383"
     }
   },
-  "run_id": "3dcfe1d4160d471f9c3f23ff26c0acab",
+  "run_id": "d3c88114c31d43bdbe2dcadde2f3c960",
   "schema_version": 1,
   "shipment_id": "199-S",
   "tool": {
