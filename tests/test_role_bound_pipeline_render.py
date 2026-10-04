@@ -19,9 +19,8 @@ which is the durable Ship pin. Covers:
   * the dogfood config's explicit Ship route declares ``long_context`` and the
     manifest records the refreshed checksums and ``config_hash``.
 
-``max_subagent_tier`` is deliberately NOT changed by this unit: the operator
-held it at its current values (Ship template 2, Ship mirror 3, Stage 3) while
-the ceiling conflict is deliberated (stash 9F6AC6B3), superseding ruling 5b.
+Operator ruling 5b (2026-09-27T22:50-07:00): the Ship template's
+``max_subagent_tier`` is 3, matching the Ship mirror; Stage stays 3.
 """
 
 from __future__ import annotations
@@ -190,11 +189,11 @@ class RenderedCandidateTests(unittest.TestCase):
                 data = self._parsed("stage", label).data
                 self.assertEqual(tuple(data[key] for key in _ROUTE_KEYS), expected)
 
-    def test_max_subagent_tier_unchanged(self) -> None:
-        """Operator hold (stash 9F6AC6B3): ruling 5b's Ship 2 -> 3 is not applied."""
+    def test_max_subagent_tier_ship_three_stage_unchanged(self) -> None:
+        """Operator ruling 5b: rendered Ship max_subagent_tier is 3; Stage unchanged."""
         for label in self._EXPECTED_SHIP:
             with self.subTest(config=label):
-                self.assertEqual(self._parsed("ship", label).data["max_subagent_tier"], 2)
+                self.assertEqual(self._parsed("ship", label).data["max_subagent_tier"], 3)
                 self.assertEqual(self._parsed("stage", label).data["max_subagent_tier"], 3)
 
     def test_rendered_frontmatter_passes_b1_installed_mode(self) -> None:

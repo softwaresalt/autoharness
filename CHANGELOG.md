@@ -4,6 +4,11 @@
 
 ### Changed
 
+- **Ship `max_subagent_tier` (194-F / 200-S)**: the Ship agent template
+  (`templates/agents/_ship.agent.md.tmpl`) now declares `max_subagent_tier: 3`
+  (was `2`), matching the installed Ship mirror (operator ruling 5b). Every newly
+  rendered Ship agent gets `3`; existing installs see expected template drift on
+  the next tune.
 - **Frontmatter conformity (193-F / 199-S)**: `autoharness verify-workspace` now
   checks the YAML frontmatter of every agent (`*.agent.md` under `.github/agents/`
   and a configured `distribution.local_agents_dir`) and every skill root
