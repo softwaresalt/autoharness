@@ -59,13 +59,28 @@ Community templates use the same conventions as first-party templates:
 ## Source attribution
 
 Each template file should include a comment in its YAML frontmatter
-identifying the community source:
+identifying the community source. Community agent templates are installed as
+`tier-routed` agents, so their frontmatter must also carry the full tier-routed
+key set required by the frontmatter-conformity contract: `name`,
+`description`, `max_subagent_tier`, `subagent_depth`, `model_family`,
+`model_provider`, and `reasoning_effort` (route values as `{{TIER_N_*}}`
+placeholders, resolved at install time). A bare `model:` key is forbidden, and
+unknown keys such as `title` are reported. Community skill templates declare
+only `name` and `description` and carry no routing keys. See the
+[Agent and Skill Frontmatter Contract](../../docs/tuning-guide.md#agent-and-skill-frontmatter-contract)
+section of the tuning guide for the authoritative key sets.
 
 ```yaml
 ---
 # Source: references/awesome-copilot/agents/example.agent.md
 # License: MIT
-title: Example Agent
+name: Example Agent
+description: 'One-sentence summary of what the agent does.'
+max_subagent_tier: 2
+subagent_depth: 0
+model_family: "{{TIER_2_FAMILY}}"
+model_provider: "{{TIER_2_PROVIDER}}"
+reasoning_effort: "{{TIER_2_REASONING_EFFORT}}"
 ---
 ```
 
