@@ -2762,8 +2762,21 @@ def _resolve_artifact_role(relative_path: str) -> str | None:
     return artifact_role_map.get(relative_path)
 
 
+_ROLE_COMPOSED_ESCALATION_VARIABLES = (
+    "ESCALATION_FAMILY",
+    "ESCALATION_PROVIDER",
+    "ESCALATION_REASONING_EFFORT",
+    "ESCALATION_CONTEXT_TIER",
+)
+
+
 def _compose_artifact_variables(
-    base_variables: dict[str, str], model_routing: dict[str, Any], artifact_role: str | None
+    base_variables: dict[str, str],
+    model_routing: dict[str, Any],
+    artifact_role: str | None,
+    *,
+    config_authoritative: bool = True,
+    overrides: Any = None,
 ) -> dict[str, str]:
     """142.007-T: return a NEW mapping = `base_variables` overlaid with the
     role-scoped collapsed `{{ESCALATION_*}}` prose triple (plus, 194-F/C2b,
@@ -2774,8 +2787,14 @@ def _compose_artifact_variables(
     (`{{LEGACY_ESCALATION_*}}`/`{{STAGE_ESCALATION_*}}`/`{{SHIP_ESCALATION_*}}`)
     are already global/raw in `base_variables` and are returned unchanged
     (design constraint 3). Artifacts with no resolved role (`artifact_role is
-    None`) get the base map back unchanged (design constraint 4)."""
-    if artifact_role is None:
+    None`) get the base map back unchanged (design constraint 4).
+
+    194-F (C2b/C4b precedence): the role overlay applies only when the live
+    config is authoritative; otherwise the base map (manifest-first) is
+    returned unchanged. When it applies, `config.overrides[<VAR>]` for the
+    four role-composed escalation variables wins over the role-derived value,
+    matching `_authoritative_route_variables`."""
+    if artifact_role is None or not config_authoritative:
         return base_variables
     family, provider, effort = _effective_escalation_route_for_role(model_routing, artifact_role)
     composed = dict(base_variables)
@@ -2785,6 +2804,11 @@ def _compose_artifact_variables(
     composed["ESCALATION_CONTEXT_TIER"] = _effective_escalation_context_tier_for_role(
         model_routing, artifact_role
     )
+    if isinstance(overrides, dict):
+        for name in _ROLE_COMPOSED_ESCALATION_VARIABLES:
+            value = overrides.get(name)
+            if value is not None:
+                composed[name] = str(value)
     return composed
 
 
@@ -3780,6 +3804,9 @@ def _fc_rendered_candidate(
     autoharness_home: Path,
     variables: dict[str, str],
     model_routing: dict[str, Any],
+    *,
+    config_authoritative: bool = True,
+    overrides: Any = None,
 ) -> dict[str, Any]:
     """Validate the rendered source candidate in installed mode (AS-F8, AN-F10).
 
@@ -3817,7 +3844,11 @@ def _fc_rendered_candidate(
                 )
                 return result
             composed = _compose_artifact_variables(
-                variables, model_routing, _resolve_artifact_role(record["rel"])
+                variables,
+                model_routing,
+                _resolve_artifact_role(record["rel"]),
+                config_authoritative=config_authoritative,
+                overrides=overrides,
             )
             text = _fc_read_bytes(source).decode("utf-8")
             raw = _render_template(text, composed).encode("utf-8")
@@ -3975,6 +4006,9 @@ def _add_frontmatter_conformity_check(
     profile: Any,
     variables: dict[str, str] | None = None,
     model_routing: dict[str, Any] | None = None,
+    *,
+    config_authoritative: bool = True,
+    overrides: Any = None,
 ) -> None:
     """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
 
@@ -4038,6 +4072,8 @@ def _add_frontmatter_conformity_check(
             autoharness_home,
             variables or {},
             model_routing if isinstance(model_routing, dict) else {},
+            config_authoritative=config_authoritative,
+            overrides=overrides,
         )
         report.setdefault("migration_proposals", []).extend(_fc_build_proposals(record, candidate))
         if record["managed"]:
@@ -5751,11 +5787,15 @@ def verify_workspace(
     ]
 
     # 194.006-T (C4b): authoritative config = exists, parses to a non-empty
-    # mapping, and raised no invalid-config-yaml strict-schema blocker.
+    # mapping that declares a `model_routing` mapping, and raised no
+    # invalid-config-yaml strict-schema blocker. A config without a
+    # `model_routing` mapping has no routing to be authoritative about, so
+    # built-in defaults must not overwrite recorded route variables (A1).
     config_authoritative = (
         config_path.exists()
         and isinstance(config, dict)
         and bool(config)
+        and isinstance(config.get("model_routing"), dict)
         and not any(
             blocker.get("kind") == "invalid-config-yaml"
             for blocker in report["strict_schema_blockers"]
@@ -5778,6 +5818,7 @@ def verify_workspace(
     _model_routing_for_composition = config.get("model_routing") or {}
     if not isinstance(_model_routing_for_composition, dict):
         _model_routing_for_composition = {}
+    _overrides_for_composition = config.get("overrides") if config_authoritative else None
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
@@ -5928,7 +5969,11 @@ def verify_workspace(
             # the renderer varies by resolved role.
             artifact_role = _resolve_artifact_role(relative_path)
             artifact_variables = _compose_artifact_variables(
-                variables, _model_routing_for_composition, artifact_role
+                variables,
+                _model_routing_for_composition,
+                artifact_role,
+                config_authoritative=config_authoritative,
+                overrides=_overrides_for_composition,
             )
             stage_path.write_text(_render_template(source_content, artifact_variables), encoding="utf-8")
             render_mode = "rendered"
@@ -5955,6 +6000,8 @@ def verify_workspace(
         profile,
         variables=variables,
         model_routing=_model_routing_for_composition,
+        config_authoritative=config_authoritative,
+        overrides=_overrides_for_composition,
     )
 
     if profile_path.exists() and profile:

@@ -176,6 +176,43 @@ class DeriveTemplateVariablesPrecedenceTests(unittest.TestCase):
         )
 
 
+class ComposeArtifactVariablesTests(unittest.TestCase):
+    """A2: role overlay honors overrides and is skipped when not authoritative."""
+
+    _BASE = {"ESCALATION_FAMILY": "recorded-esc", "ESCALATION_CONTEXT_TIER": "recorded-tier", "X": "y"}
+
+    def test_overrides_win_after_role_overlay(self) -> None:
+        composed = _compose_artifact_variables(
+            dict(self._BASE),
+            _ROUTING,
+            "ship",
+            config_authoritative=True,
+            overrides={"ESCALATION_CONTEXT_TIER": "ovr-tier", "ESCALATION_PROVIDER": "ovr-prov"},
+        )
+        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "ovr-tier")
+        self.assertEqual(composed["ESCALATION_PROVIDER"], "ovr-prov")
+        self.assertNotEqual(composed["ESCALATION_FAMILY"], "recorded-esc")
+
+    def test_non_authoritative_skips_role_overlay(self) -> None:
+        base = dict(self._BASE)
+        composed = _compose_artifact_variables(
+            base, _ROUTING, "ship", config_authoritative=False, overrides={"ESCALATION_FAMILY": "ignored"}
+        )
+        self.assertEqual(composed, self._BASE)
+
+    def test_authoritative_overlay_unchanged_without_overrides(self) -> None:
+        composed = _compose_artifact_variables(dict(self._BASE), _ROUTING, "ship", config_authoritative=True)
+        self.assertEqual(composed["ESCALATION_CONTEXT_TIER"], "default")
+        self.assertEqual(composed["X"], "y")
+
+    def test_base_mapping_not_mutated(self) -> None:
+        base = dict(self._BASE)
+        _compose_artifact_variables(
+            base, _ROUTING, "ship", config_authoritative=True, overrides={"ESCALATION_FAMILY": "o"}
+        )
+        self.assertEqual(base, self._BASE)
+
+
 class RouteVariableStaleWarningTests(unittest.TestCase):
     def test_exactly_one_warning_for_one_stale_variable(self) -> None:
         manifest = _manifest({"SHIP_FAMILY": "claude-sonnet-5", "SHIP_PROVIDER": "anthropic"})
@@ -288,6 +325,51 @@ class VerifyWorkspaceStagedRenderTests(unittest.TestCase):
         report, rendered, _ = self._run({"SHIP_FAMILY": "claude-opus-5.5"}, config=None)
         self.assertEqual(_model_family(rendered), "claude-opus-5.5")
         self.assertEqual(_stale_messages(report), [])
+
+    def test_config_without_model_routing_is_not_authoritative(self) -> None:
+        # A1: a parseable config that declares no model_routing mapping must not
+        # let built-in defaults overwrite recorded route variables.
+        report, rendered, _ = self._run(
+            {"SHIP_FAMILY": "claude-opus-5.5"},
+            config={"schema_version": "1.0.0", "capability_packs": []},
+        )
+        self.assertEqual(_model_family(rendered), "claude-opus-5.5")
+        self.assertEqual(_stale_messages(report), [])
+
+    def test_config_with_non_mapping_model_routing_is_not_authoritative(self) -> None:
+        report, rendered, _ = self._run(
+            {"SHIP_FAMILY": "claude-opus-5.5"},
+            config={"schema_version": "1.0.0", "model_routing": ["not", "a", "mapping"]},
+        )
+        self.assertEqual(_model_family(rendered), "claude-opus-5.5")
+        self.assertEqual(_stale_messages(report), [])
+
+    def test_config_with_model_routing_mapping_is_authoritative(self) -> None:
+        report, rendered, _ = self._run({"SHIP_FAMILY": "claude-sonnet-5"}, config=_config())
+        self.assertEqual(_model_family(rendered), "claude-opus-5.5")
+        self.assertEqual(len(_stale_messages(report)), 1)
+
+    def test_escalation_context_tier_override_survives_ship_role_overlay(self) -> None:
+        # A2: config.overrides wins for the role-composed escalation variables.
+        _, rendered, _ = self._run(
+            None, config=_config(overrides={"ESCALATION_CONTEXT_TIER": "long_context_override"})
+        )
+        self.assertIn(
+            "escalation `context_tier` resolves to `long_context_override`", rendered
+        )
+
+    def test_escalation_family_override_survives_ship_role_overlay(self) -> None:
+        _, rendered, _ = self._run(None, config=_config(overrides={"ESCALATION_FAMILY": "custom-esc"}))
+        self.assertIn("`custom-esc`", rendered)
+
+    def test_manifest_only_keeps_recorded_escalation_variables(self) -> None:
+        # A2: with no authoritative config the role overlay is skipped, so the
+        # manifest-recorded escalation prose is kept (manifest-first).
+        _, rendered, _ = self._run(
+            {"ESCALATION_FAMILY": "recorded-esc", "ESCALATION_CONTEXT_TIER": "recorded-tier"}, config=None
+        )
+        self.assertIn("`recorded-esc`", rendered)
+        self.assertIn("escalation `context_tier` resolves to `recorded-tier`", rendered)
 
     def test_invalid_config_keeps_manifest_first_without_warning(self) -> None:
         report, rendered, _ = self._run(
