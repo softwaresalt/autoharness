@@ -401,6 +401,21 @@ class ContextTierInstallerContractTests(unittest.TestCase):
         actual = hashlib.sha256(_INSTALL_HARNESS_SKILL.read_bytes()).hexdigest()
         self.assertEqual(entries[0]["checksum"], actual)
 
+    def test_skill_prose_covers_context_tier_write_back_and_fallback(self) -> None:
+        """Review-fix batch B4: Step 3.4 raw/resolved write-back, Step 2.2 item 6,
+        the role-route `default` terminal exception, and the plain-string orchestrator."""
+        flat = re.sub(r"\s+", " ", _INSTALL_HARNESS_SKILL.read_text(encoding="utf-8"))
+        step34 = flat[flat.index("#### Step 3.4: Write Resolved Configuration"):flat.index("### Phase 4: Verification")]
+        for name in _RAW_CONTEXT_TIER_VARIABLES:
+            with self.subTest(raw=name):
+                self.assertIn(f"{{{{{name}}}}}", step34)
+        self.assertIn("`{{ESCALATION_CONTEXT_TIER}}` variables used only for agent", step34)
+        self.assertIn("are written back resolved", step34)
+        step22 = flat[flat.index("#### Step 2.2: Instruction Layer"):flat.index("#### Step 2.3:")]
+        self.assertIn("`{{ESCALATION_REASONING_EFFORT}}`, and `{{ESCALATION_CONTEXT_TIER}}` before rendering", step22)
+        self.assertIn("The one exception is `context_tier`", flat)
+        self.assertIn("`{{ORCHESTRATOR_CONTEXT_TIER}}` resolves from `tier2.context_tier` and then the literal `default`", flat)
+
 
 # ---------------------------------------------------------------------------
 # 142.001-T Step 2 -- BLOCKING MEASUREMENT (023-DL R1 / amendment B1): clean

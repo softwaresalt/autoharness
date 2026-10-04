@@ -107,8 +107,21 @@ class TuneSkillShipDefaultProposalTests(unittest.TestCase):
         self.assertRegex(self.flat, r"[Nn]ever auto-appl")
         self.assertIn("`auto_apply`", self.flat)
 
-    def test_binding_ship_route_of_this_repository_is_covered(self) -> None:
-        self.assertIn("this repository", self.flat)
+    def test_exemption_is_generic_not_dogfood_specific(self) -> None:
+        # Review-fix batch B5: the installed skill ships to every workspace, so
+        # the exemption is stated generically (any non-empty Ship family) and
+        # never names the autoharness repository's own pinned route.
+        self.assertNotIn("this repository", self.flat)
+        self.assertIn("`model_routing.ship.model_family` is a non-empty string", self.flat)
+
+    def test_step_0b2_classifies_route_variable_stale(self) -> None:
+        # Review-fix batch B5: Step 0b.2 classifies the verify ROUTE_VARIABLE_STALE warning.
+        flat = _flat(_section(self.text, "#### Step 0b.2: Schema-Contract Scan"))
+        self.assertIn("`kind: route-variable-stale`", flat)
+        self.assertIn("ROUTE_VARIABLE_STALE:<VAR>", flat)
+        self.assertIn("non-fatal", flat)
+        self.assertIn("variables_used", flat)
+        self.assertRegex(flat, r"re-install")
 
     def test_step_22_maps_the_proposal_source(self) -> None:
         step22 = _flat(_section(self.text, _STEP_22))

@@ -151,6 +151,8 @@ Do not silently collapse unknown contracts into generic schema failures. Unknown
 
 When `verify-workspace` already emitted a matching entry in `migration_proposals[]`, promote that entry directly into the tuning proposal set instead of rewriting it from scratch. Preserve its `contract`, `from_version`, `to_version`, `status`, `severity`, `changed_fields`, `action`, and `evidence` fields so later tuning reports and closure mining can track contract migrations deterministically.
 
+**Route-variable staleness**: A `warnings[]` entry with `kind: route-variable-stale` (rule `ROUTE_VARIABLE_STALE:<VAR>`) means the manifest's recorded `variables_used` value for a route variable differs from the live config, which verify treats as authoritative. It is non-fatal: classify it as **Cosmetic** when installed artifacts already match the config, or **Degrading** when rendered agent frontmatter still carries the recorded value. Remediation: refresh `variables_used` by re-installing or applying a tune re-render.
+
 **Config-entry backfill**: When a map object in the config (e.g., `backlog.suffix_map`, `docs.subdirectories`) is present but missing entries that the schema defines with defaults, generate a backfill proposal that:
 
 1. Adds the missing entries using the schema default values
@@ -485,8 +487,7 @@ the Phase 0b operator configuration: either the `ship` key is absent, or its
 
 * An explicitly declared Ship route is an operator override. When
   `model_routing.ship.model_family` is a non-empty string, tune never proposes
-  replacing it. This exemption covers this repository, whose Ship route is
-  operator-pinned.
+  replacing it.
 * The Step 3.4 config write-back of install-harness stores the resolved
   `{{SHIP_FAMILY}}`. After any install, a Ship family inherited from `tier2` is
   therefore indistinguishable from an operator choice. Tune treats every
