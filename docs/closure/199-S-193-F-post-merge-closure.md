@@ -55,10 +55,38 @@ Source deliberation: `037-DL`.
 
 ## Validator Evidence / Runtime Verification
 
-There is no runtime validator surface. The change is a verification module,
-a `verify` check, template and installed-artifact frontmatter, skill and
-policy text, and tests. The `frontmatter_conformity` check runs as part of
-`autoharness verify` and the unit suite.
+B2a and B2b change the `autoharness verify-workspace` runtime surface, so the
+plan's five runtime proofs (H-B11) were run against the merged code. The
+working-tree install (`pip install -e .` at `30095385`) was used.
+
+* **How proofs ran**: each proof called `.venv\Scripts\autoharness.exe
+  verify-workspace --workspace <ws> --autoharness-home <repo> --staging-dir
+  <ws>\..\staging --json`.
+* **Scratch location**: the scratch workspaces were placed in the
+  Git-ignored, workspace-contained `.proof-scratch/199-closure-proofs/`
+  rather than the OS temp directory, to satisfy constitution Principle IV
+  (CLI workspace containment). They were left in place, not deleted.
+* **What was asserted**: assertions target
+  `targeted_checks.frontmatter_conformity`, the `frontmatter-conformity`
+  `warnings[]`, and `migration_proposals[]`. Exit code 1 is recorded for
+  information only. Scratch workspaces lack the pipeline agents, so legacy
+  checks fail there independently (AS-F1).
+
+| # | Scenario | Exit | `frontmatter_conformity` result | Plan expectation |
+|---|---|---|---|---|
+| 1 | This repository (`--workspace` = repo root), compared with the pre-B2a baseline `.proof-scratch/193-baseline-20261003T0230/baseline.json` | 1 | `ok: true`, 37 files, `errors: []`; failing checks now = baseline (10 pre-existing legacy guidance checks), `new_failures: []` | `ok: true`, no new overall failure: **met** |
+| 2 | Hand-written agent with `model: gpt-x` (no manifest entry) | 1 | `ok: true`, 1 file, 1 `frontmatter-conformity` warning; proposal `migrate-key` `FM_BARE_MODEL` `model` → `["model_family"]` value `gpt-x` with no provider key (plus advisory `add-key` proposals for the other missing keys) | `ok: true`, one warning, `migrate-key` without provider: **met** |
+| 3 | Manifest-tracked skill `.github/skills/tune-harness/SKILL.md` gains `model_family: fam` | 1 | `ok: false`, `errors: [".github/skills/tune-harness/SKILL.md: FM_FORBIDDEN_KEY model_family"]`; proposal `remove-key` `model_family`, `manual_review: true` | `ok: false`, `remove-key` with `manual_review: true`: **met** |
+| 4 | Manifest-tracked, checksum-unchanged `correctness-reviewer` agent rendered from its template minus `model_family` | 1 | `ok: false`, `errors: [".github/agents/subagents/correctness-reviewer.agent.md: FM_MISSING_REQUIRED model_family"]`; proposal `rerender` `FM_MISSING_REQUIRED`, `manual_review: false` | `ok: false`, `rerender` proposal: **met** |
+| 5 | Scratch workspace with no `.github/agents` | 1 | `ok: true`, 0 files, no errors, no proposals | `ok: true`, zero files: **met** |
+
+Proof 4 first runs once as a pre-render setup step: it renders the template
+into staging, then installs the staged text minus `model_family` with a
+matching checksum. That setup run's `FM_PARSE_ERROR` is for the placeholder
+file and is not an assertion. The full JSON outputs are in the ignored
+`.proof-scratch/199-closure-proofs/` and `.proof-scratch/proofs-199-closure.out`.
+Runtime verification: **PASSED**. `RUNTIME_VERIFICATION_BLOCKED` does not
+apply.
 
 ## Closure Path
 
