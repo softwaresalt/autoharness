@@ -24,6 +24,11 @@
       "type": ["string", "null"],
       "description": "Absolute path to the autoharness installation used for this install run. Enables the tuner to locate templates for drift detection."
     },
+    "install_mode": {
+      "type": "string",
+      "description": "Optional install-mode marker. The value \"self-install\" records that autoharness installed its harness into its own source repository; verify-workspace's frontmatter_conformity check selects the plugin-global agent profile only when this is \"self-install\" (and the workspace-root plugin.json names autoharness and lists the agent in agents[]). Absent or any other value means a regular target-workspace install, and every agent is held to the tier-routed profile.",
+      "examples": ["self-install"]
+    },
     "profile_hash": {
       "type": "string",
       "description": "SHA-256 of the workspace profile used during installation"

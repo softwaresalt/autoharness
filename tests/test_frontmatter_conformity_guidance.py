@@ -332,8 +332,6 @@ class PluginGlobalPolicyClarificationTests(unittest.TestCase):
                     self.assertIn(sentence, text)
 
     def test_tier_keys_named_match_contract_module(self) -> None:
-        from autoharness import frontmatter_contract as fc
-
         self.assertEqual(fc.TIER_KEYS, frozenset({"max_subagent_tier", "subagent_depth"}))
         for rel, text in self.texts.items():
             with self.subTest(path=rel):
@@ -365,6 +363,40 @@ class PluginGlobalPolicyClarificationTests(unittest.TestCase):
         self.assertIn(_POLICY_MIRROR, by_path)
         self.assertEqual(
             by_path[_POLICY_MIRROR].get("checksum"), _staged_blob_sha256(_ROOT / _POLICY_MIRROR)
+        )
+
+
+class ManifestSchemaInstallModeTests(unittest.TestCase):
+    """``install_mode`` (read by the plugin-global gate) is a declared manifest property."""
+
+    _SCHEMAS = (
+        "schemas/harness-manifest.schema.json",
+        "schemas/harness-manifest/1.0.0.schema.json",
+    )
+
+    def test_schemas_declare_install_mode(self) -> None:
+        import json
+
+        for rel in self._SCHEMAS:
+            with self.subTest(path=rel):
+                schema = json.loads(_read(rel))
+                prop = schema["properties"].get("install_mode")
+                self.assertIsNotNone(prop)
+                self.assertEqual(prop["type"], "string")
+                self.assertIn("self-install", prop["description"])
+                self.assertNotIn("install_mode", schema.get("required", []))
+
+    def test_dogfood_manifest_install_mode_validates(self) -> None:
+        import json
+
+        import jsonschema
+
+        schema = json.loads(_read(self._SCHEMAS[0]))
+        manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
+        self.assertEqual(manifest.get("install_mode"), "self-install")
+        jsonschema.validate(
+            {"install_mode": manifest["install_mode"]},
+            {"type": "object", "properties": {"install_mode": schema["properties"]["install_mode"]}},
         )
 
 
