@@ -163,6 +163,7 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
         # Community template variables are recorded in variables_used by install-harness
         # when the operator selects the community template (install-harness Step 1.3a).
         manifest = {"variables_used": {"ADR_DIRECTORY": "docs/adrs"}}
+        checked: list[str] = []
         with tempfile.TemporaryDirectory() as tmp:
             for label, config in configs.items():
                 with self.subTest(config=label):
@@ -175,7 +176,11 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
                     self.assertEqual(parsed.data["max_subagent_tier"], 2)
                     self.assertEqual(parsed.data["subagent_depth"], 0)
                     self.assertEqual(parsed.data["model_family"], "claude-sonnet-5")
-            self.assertEqual(parsed.data["model_provider"], "anthropic")
+                    if label == "explicit":
+                        self.assertEqual(parsed.data["model_provider"], "anthropic")
+                    checked.append(label)
+        # Guard against a vacuous pass: every config must have been rendered and checked.
+        self.assertEqual(checked, list(configs))
 
     def test_adr_generator_keeps_attribution_comments_inside_frontmatter(self) -> None:
         lines = _ADR_GENERATOR.read_text(encoding="utf-8").replace("\r\n", "\n").split("\n")

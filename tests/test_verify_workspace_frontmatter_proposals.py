@@ -394,6 +394,20 @@ class KeyLevelRuleTests(_Fixture):
         proposal = self.one(self.run_verify(), ".github/skills/tune-harness/SKILL.md")
         self.assertEqual((proposal["action"], proposal["value"], proposal["manual_review"]), ("add-key", "tune-harness", True))
 
+    def test_invalid_skill_dir_name_proposes_null_value(self) -> None:
+        cases = (
+            ("Bad_Dir", None, "add-key"),
+            ("Bad_Dir2", "bad-dir2", "replace-value"),
+        )
+        for directory, name, action in cases:
+            with self.subTest(directory=directory):
+                rel = f".github/skills/{directory}/SKILL.md"
+                self.write(rel, _skill(name))
+                proposals = [p for p in self.proposals(self.run_verify()) if p["path"] == rel and p["from_key"] == "name"]
+                self.assertEqual(len(proposals), 1, proposals)
+                self.assertEqual(proposals[0]["action"], action)
+                self.assertIsNone(proposals[0]["value"])
+
     def test_informational_only_file_gets_no_proposal(self) -> None:
         self.write(".github/agents/a.agent.md", _agent(extra="custom_key: 1\n"))
         self.assertEqual(self.proposals(self.run_verify()), [])

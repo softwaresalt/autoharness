@@ -3698,6 +3698,23 @@ def _fc_parsed_data(record: dict[str, Any]) -> dict[str, Any]:
     return parsed.data or {}
 
 
+def _fc_valid_skill_dir_name(record: dict[str, Any]) -> str | None:
+    """Return the skill directory name when it is itself a valid skill ``name``, else ``None``.
+
+    Proposing an invalid directory name as the ``name`` value would only
+    trade one FM_TYPE_INVALID for another, so the proposal value is null and
+    the operator chooses (the directory or the name must change).
+    """
+    skill_dir = record.get("skill_dir")
+    if (
+        isinstance(skill_dir, str)
+        and len(skill_dir) <= fc.SKILL_NAME_MAX_LENGTH
+        and fc.SKILL_NAME_PATTERN.match(skill_dir)
+    ):
+        return skill_dir
+    return None
+
+
 def _fc_build_proposals(record: dict[str, Any], candidate: dict[str, Any]) -> list[dict[str, Any]]:
     """Apply ordered action rules 1-8 (first match wins) to each blocking finding (B2b)."""
     blocking = [item for item in record["findings"] if not item.informational]
@@ -3761,11 +3778,11 @@ def _fc_build_proposals(record: dict[str, Any], candidate: dict[str, Any]) -> li
                 continue
             action, to_keys = "add-key", [key]
             if is_skill and key == "name":
-                value = record["skill_dir"]
+                value = _fc_valid_skill_dir_name(record)
         elif finding.code == fc.FM_TYPE_INVALID:  # rule 6
             action, to_keys = "replace-value", [key]
             if is_skill and key == "name" and isinstance(data.get("name"), str):
-                value = record["skill_dir"]
+                value = _fc_valid_skill_dir_name(record)
         elif finding.code == fc.FM_UNRESOLVED_PLACEHOLDER:  # rule 7
             action, to_keys = "replace-value", [key]
         else:  # rule 8: FM_PARSE_ERROR, FM_PATH_ESCAPE

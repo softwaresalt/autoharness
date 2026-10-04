@@ -370,7 +370,9 @@ def parse_frontmatter(text: str | bytes, mode: str) -> ParsedFrontmatter:
     text = text.replace("\r\n", "\n")
 
     lines = text.split("\n")
-    if not lines or lines[0] != "---":
+    # Opening and closing delimiters share one rule: exactly '---' plus optional
+    # trailing spaces/tabs (a '----' line is never a delimiter).
+    if not lines or lines[0].rstrip(" \t") != "---":
         return _parse_error(mode, "missing opening '---' delimiter on the first line")
     closing_index = None
     for index in range(1, len(lines)):

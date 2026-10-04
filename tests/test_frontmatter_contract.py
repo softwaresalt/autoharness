@@ -5,6 +5,7 @@ Plan: docs/plans/2026-09-27-agent-skill-frontmatter-conformity-plan.md section B
 
 from __future__ import annotations
 
+import dataclasses
 import tempfile
 import unittest
 from pathlib import Path
@@ -200,6 +201,13 @@ class ParseFrontmatterTests(unittest.TestCase):
     def test_closing_delimiter_trailing_whitespace_allowed(self) -> None:
         text = "---\n" + "\n".join(_SKILL_BASE) + "\n---   \nbody\n"
         self.assertIsNone(parse_frontmatter(text, MODE_INSTALLED).error)
+
+    def test_opening_delimiter_trailing_whitespace_allowed(self) -> None:
+        for opening in ("--- ", "---\t", "---  \t"):
+            with self.subTest(opening=opening):
+                text = opening + "\n" + "\n".join(_SKILL_BASE) + "\n---\nbody\n"
+                self.assertIsNone(parse_frontmatter(text, MODE_INSTALLED).error)
+        self.assertIsNotNone(parse_frontmatter(" ---\nname: x\n---\n", MODE_INSTALLED).error)
 
     def test_four_dash_line_is_not_a_closing_delimiter(self) -> None:
         text = "---\n" + "\n".join(_SKILL_BASE) + "\n----\nbody\n"
@@ -464,7 +472,7 @@ class AgentCheckTests(unittest.TestCase):
                 (FM_UNKNOWN_KEY, "zeta"),
             ],
         )
-        with self.assertRaises(Exception):
+        with self.assertRaises(dataclasses.FrozenInstanceError):
             findings[0].code = "X"  # type: ignore[misc]
         self.assertTrue(has_blocking_findings(findings))
 
