@@ -100,7 +100,8 @@ class AgentFrontmatterConformityTests(unittest.TestCase):
                 self.assertEqual(agent_profile_for(rel, plugin_agents), PROFILE_PLUGIN_GLOBAL)
                 parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
                 self.assertIsNone(parsed.error)
-                self.assertEqual(parsed.data.get("max_subagent_tier"), 2)
+                # Tier 3: verify-harness dispatches its Tier 3 Reviewer A.
+                self.assertEqual(parsed.data.get("max_subagent_tier"), 3)
                 self.assertEqual(parsed.data.get("subagent_depth"), 2)
                 self.assertFalse(set(parsed.data) & ROUTE_VALUE_KEYS)
 
