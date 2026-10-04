@@ -880,6 +880,7 @@ in place, under Stage authority, so that a literal execution keeps landed pins g
    C5a owns. It documents `context_tier` in a new `##` section, and tune-harness
    Step 1.5c and B5's Step 2.2 tokens stay intact.
 
-C2 (`194.002-T`) is split into C2a and C2b for the 2-hour granularity rule. Full
+C2 (`194.002-T`) is split into C2a (`194.002-T`) and C2b (`194.014-T`) for the 2-hour
+granularity rule. Full
 record: `docs/reviews/2026-09-27-context-tier-model-routing-plan-review.md`,
 § Pre-claim drift check 2026-10-04.

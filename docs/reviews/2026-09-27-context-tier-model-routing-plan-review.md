@@ -266,7 +266,9 @@ execution does not turn landed pins red or duplicate ownership.
    B5's Step 2.2 tokens intact. Acceptance adds
    `tests/test_frontmatter_conformity_guidance.py` passing unmodified.
 
-`194.002-T` was split into C2a/C2b for the 2-hour granularity rule (separate commit).
+`194.002-T` was split into C2a/C2b for the 2-hour granularity rule (separate commit):
+C2a stays `194.002-T`; C2b is the new `194.014-T` (blocked by `194.002-T`, blocks
+`194.003-T`).
 
 ### Ship claim-time notes
 
