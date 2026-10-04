@@ -4,7 +4,7 @@ tuned_at: "2026-07-09T20:21:26+00:00"
 autoharness_version: "1.4.11"
 autoharness_home: null
 profile_hash: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
-config_hash: "191ac1dd3ab02ea4115e013dee10be000c89c6f6eeb769c049ab4972b8d3deb6"
+config_hash: "29a25c19ee1ed627be54fc7188965ddca8d07fee6d79244e0d499892eace5d82"
 install_preset: "full"
 install_mode: "self-install"
 primary_stack_pack: "cli-tool"
@@ -107,7 +107,7 @@ artifacts:
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "191ac1dd3ab02ea4115e013dee10be000c89c6f6eeb769c049ab4972b8d3deb6"
+    checksum: "29a25c19ee1ed627be54fc7188965ddca8d07fee6d79244e0d499892eace5d82"
     note: "checksum refreshed 2026-09-25 for an operator-approved model-routing change (orchestrator and ship routes set to claude-opus-5.5/anthropic/high, matching stage; route comments corrected), which also records the previously unrecorded 89b0db6d routing change; computed from the LF-normalized staged git blob `git cat-file blob :<path>`; checksum refreshed 157-S/149-F PR #420 Copilot review round 6 fix: det:D-ART/ART-01@1's applies_when.changed_paths_any now also matches the default `.backlog/**` root (previously matched only the legacy `.backlogit/**` path, so a default-`.backlog/`-rooted change was marked not_applicable before the fixed producer ever ran); no detector behavior/schema_version change otherwise. Checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>` per the procedure established in 115-S; checksum refreshed 200-S/194.005-T (194-F C4a, operator ruling 5a: model_routing.ship gains context_tier: \"long_context\", the durable Ship pin; no other key changes; top-level config_hash refreshed to the same raw-blob SHA-256); checksum computed from the LF-normalized staged git blob `git cat-file blob :<path>`"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
