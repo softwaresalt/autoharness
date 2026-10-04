@@ -4066,6 +4066,10 @@ def _add_frontmatter_conformity_check(
     }
 
 
+_ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^#{2,4} ", re.MULTILINE)
+_CONTEXT_TIER_DIRECTIVE_TOKENS = ("context_tier", "ROUTING_DEGRADED: context_tier")
+
+
 def _add_orchestrator_invocation_routing_directive_check(
     report: dict[str, Any],
     key: str,
@@ -4085,7 +4089,14 @@ def _add_orchestrator_invocation_routing_directive_check(
     for a distinct ROUTING_DEGRADED between them, so this scoping is not
     satisfiable by summary text alone. The Ship side is checked from its
     first mention to end-of-file (a looser bound is sufficient there because
-    the narrow Stage-side bound is what defeats the summary-only attack)."""
+    the narrow Stage-side bound is what defeats the summary-only attack).
+
+    194-F C6a: each site must additionally declare `context_tier` and its
+    `ROUTING_DEGRADED: context_tier` fallback inside a bounded window -- the
+    Stage window above, and a Ship window from the first
+    "config.model_routing.ship" up to the next `^#{2,4} ` heading line (or
+    EOF), so the later "## Model Routing" P-013.5 summary can never satisfy
+    the Ship site. The whole-tail ROUTING_DEGRADED scoping is unchanged."""
     if not file_path.exists():
         report["targeted_checks"][key] = {
             "path": str(file_path),
@@ -4128,6 +4139,22 @@ def _add_orchestrator_invocation_routing_directive_check(
                     "Ship invocation site (config.model_routing.ship "
                     "onward) does not declare a ROUTING_DEGRADED fallback"
                 )
+            # 194-F C6a (AN-F6/AS-F7): each invocation site must also carry
+            # the context_tier override and its ROUTING_DEGRADED: context_tier
+            # fallback inside a BOUNDED window. The Ship window ends at the
+            # next Markdown heading line (^#{2,4} ) or EOF, so a later
+            # "## Model Routing" summary can never satisfy the Ship site.
+            heading = _ORCHESTRATOR_DIRECTIVE_HEADING_RE.search(content, ship_idx)
+            ship_window = content[ship_idx : heading.start() if heading else len(content)]
+            for site, window in (("Stage", stage_section), ("Ship", ship_window)):
+                for token in _CONTEXT_TIER_DIRECTIVE_TOKENS:
+                    if token not in window:
+                        scoping_errors.append(
+                            f"{site} invocation site does not declare "
+                            f"{token} inside its bounded window -- the "
+                            "per-step context_tier directive may have been "
+                            "removed while an unrelated summary mention remains"
+                        )
 
     report["targeted_checks"][key] = {
         "path": str(file_path),

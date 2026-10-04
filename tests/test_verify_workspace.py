@@ -3830,14 +3830,18 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "# Orchestrator\n\n"
             "### Step 1: Route to Stage\n\n"
             "Resolve routed model (P-013.5): resolve config.model_routing.stage "
-            "(fallback tier3) and declare the resolved model_family/model_provider "
-            "as the invocation override when invoking Stage. Emit ROUTING_DEGRADED "
-            "when the runtime cannot honor a per-invocation override.\n\n"
+            "(fallback tier3) and declare the resolved model_family/model_provider/"
+            "context_tier as the invocation override when invoking Stage. Emit "
+            "ROUTING_DEGRADED when the runtime cannot honor a per-invocation override; "
+            "when it cannot honor a non-default context_tier, record "
+            "ROUTING_DEGRADED: context_tier and proceed at the default context.\n\n"
             "### Step 2: Route to Ship\n\n"
             "Resolve routed model (P-013.5): resolve config.model_routing.ship "
-            "(fallback tier2) and declare the resolved model_family/model_provider "
-            "as the invocation override when invoking Ship. Emit ROUTING_DEGRADED "
-            "when the runtime cannot honor a per-invocation override.\n"
+            "(fallback tier2) and declare the resolved model_family/model_provider/"
+            "context_tier as the invocation override when invoking Ship. Emit "
+            "ROUTING_DEGRADED when the runtime cannot honor a per-invocation override; "
+            "when it cannot honor a non-default context_tier, record "
+            "ROUTING_DEGRADED: context_tier and proceed at the default context.\n"
             f"{orchestrator_extra_body}",
             encoding="utf-8",
         )
@@ -4157,6 +4161,155 @@ class VerifyWorkspaceTests(unittest.TestCase):
         check = report["targeted_checks"]["role_route_resolution"]
         self.assertTrue(check["ok"], f"expected fallback resolution to pass: {check}")
         self.assertEqual(check.get("errors", []), [])
+
+    # -- 194-F C6a (194.010-T): context_tier at BOTH bounded invocation sites --
+
+    _C6A_FRONTMATTER = (
+        "---\n"
+        "name: _Orchestrator\n"
+        "max_subagent_tier: 3\n"
+        'reasoning_effort: "high"\n'
+        'model_provider: "openai"\n'
+        'model_family: "gpt-5.6-sol"\n'
+        "---\n\n"
+        "# Orchestrator\n\n"
+        "Invocation routing follows P-013.5.\n\n"
+    )
+    _C6A_STAGE_FULL = (
+        "### Step 1: Route to Stage\n\n"
+        "Resolve config.model_routing.stage (fallback tier3) and declare the "
+        "resolved model_family/model_provider/context_tier as the invocation "
+        "override. Emit ROUTING_DEGRADED when a per-invocation override cannot "
+        "be honored; record ROUTING_DEGRADED: context_tier and proceed at the "
+        "default context when a non-default context_tier cannot be honored.\n\n"
+    )
+    _C6A_STAGE_NO_TIER = (
+        "### Step 1: Route to Stage\n\n"
+        "Resolve config.model_routing.stage (fallback tier3) and declare the "
+        "resolved model_family/model_provider as the invocation override. Emit "
+        "ROUTING_DEGRADED when a per-invocation override cannot be honored.\n\n"
+    )
+    _C6A_SHIP_FULL = (
+        "### Step 2: Route to Ship\n\n"
+        "Resolve config.model_routing.ship (fallback tier2) and declare the "
+        "resolved model_family/model_provider/context_tier as the invocation "
+        "override. Emit ROUTING_DEGRADED when a per-invocation override cannot "
+        "be honored; record ROUTING_DEGRADED: context_tier and proceed at the "
+        "default context when a non-default context_tier cannot be honored.\n\n"
+    )
+    _C6A_SHIP_NO_TIER = (
+        "### Step 2: Route to Ship\n\n"
+        "Resolve config.model_routing.ship (fallback tier2) and declare the "
+        "resolved model_family/model_provider as the invocation override. Emit "
+        "ROUTING_DEGRADED when a per-invocation override cannot be honored.\n\n"
+    )
+    _C6A_TAIL = (
+        "### Step 3: Iteration Decision\n\n"
+        "Re-assess state.\n\n"
+        "## Model Routing\n\n"
+        "**P-013.5**: Steps 1 and 2 above each resolve "
+        "`config.model_routing.stage` / `config.model_routing.ship` including "
+        "`context_tier`, and this agent records `ROUTING_DEGRADED: context_tier` "
+        "when the runtime cannot honor a non-default context tier.\n"
+    )
+
+    def _c6a_directive_check(self, body: str) -> dict:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            workspace = root / "workspace"
+            self._write_minimal_verify_workspace_fixture(workspace, autoharness_home)
+            (workspace / ".github" / "agents" / "_orchestrator.agent.md").write_text(
+                self._C6A_FRONTMATTER + body, encoding="utf-8"
+            )
+            report = verify_workspace(workspace, autoharness_home)
+            return report["targeted_checks"]["orchestrator_invocation_routing_directive"]
+
+    def test_c6a_directive_passes_with_context_tier_at_both_sites(self) -> None:
+        """C6a: both bounded windows carry context_tier and its
+        ROUTING_DEGRADED: context_tier fallback, with a following heading
+        (the Ship window ends at the next ^#{2,4} heading)."""
+        check = self._c6a_directive_check(
+            self._C6A_STAGE_FULL + self._C6A_SHIP_FULL + self._C6A_TAIL
+        )
+        self.assertTrue(check["ok"], check)
+        self.assertEqual(check["scoping_errors"], [])
+
+    def test_c6a_directive_flags_context_tier_removed_from_stage_window_only(self) -> None:
+        """C6a (AN-F6/AS-F7): removing context_tier from the Stage window only
+        fails with a scoping error, even though Ship and the summary keep it."""
+        check = self._c6a_directive_check(
+            self._C6A_STAGE_NO_TIER + self._C6A_SHIP_FULL + self._C6A_TAIL
+        )
+        self.assertFalse(check["ok"], check)
+        self.assertEqual(check["missing"], [])
+        self.assertTrue(
+            any("Stage" in e and "context_tier" in e for e in check["scoping_errors"]),
+            check["scoping_errors"],
+        )
+        self.assertFalse(
+            any("Ship" in e and "context_tier" in e for e in check["scoping_errors"]),
+            check["scoping_errors"],
+        )
+
+    def test_c6a_directive_flags_degraded_context_tier_removed_from_stage_window(self) -> None:
+        """C6a: context_tier present in the Stage window but its
+        ROUTING_DEGRADED: context_tier fallback absent is still a scoping error."""
+        stage = self._C6A_STAGE_FULL.replace(
+            "record ROUTING_DEGRADED: context_tier and proceed", "proceed"
+        )
+        self.assertIn("context_tier", stage)
+        self.assertNotIn("ROUTING_DEGRADED: context_tier", stage)
+        check = self._c6a_directive_check(stage + self._C6A_SHIP_FULL + self._C6A_TAIL)
+        self.assertFalse(check["ok"], check)
+        self.assertTrue(
+            any("Stage" in e and "ROUTING_DEGRADED: context_tier" in e for e in check["scoping_errors"]),
+            check["scoping_errors"],
+        )
+
+    def test_c6a_directive_flags_context_tier_removed_from_ship_step_but_summary_kept(self) -> None:
+        """C6a (AN-F6/AS-F7): removing context_tier from the Ship invocation
+        step only, while the later ## Model Routing summary still mentions
+        context_tier and ROUTING_DEGRADED: context_tier, fails with a scoping
+        error -- the Ship window ends at the next heading, so the summary can
+        never satisfy the Ship site."""
+        check = self._c6a_directive_check(
+            self._C6A_STAGE_FULL + self._C6A_SHIP_NO_TIER + self._C6A_TAIL
+        )
+        self.assertFalse(check["ok"], check)
+        self.assertEqual(check["missing"], [])
+        self.assertTrue(
+            any("Ship" in e and "context_tier" in e for e in check["scoping_errors"]),
+            check["scoping_errors"],
+        )
+
+    def test_c6a_ship_window_extends_to_eof_when_no_heading_follows(self) -> None:
+        """C6a drift amendment: with no heading after the Ship step, the Ship
+        window runs to EOF (the shared fixture shape)."""
+        check = self._c6a_directive_check(self._C6A_STAGE_FULL + self._C6A_SHIP_FULL)
+        self.assertTrue(check["ok"], check)
+        check = self._c6a_directive_check(self._C6A_STAGE_FULL + self._C6A_SHIP_NO_TIER)
+        self.assertFalse(check["ok"], check)
+
+    def test_c6a_directive_passes_on_repository_template_and_mirror(self) -> None:
+        """C6a: the directive check passes on the updated installed mirror
+        (and on the template body, whose placeholders are frontmatter-only)."""
+        from autoharness.verify_workspace import (
+            _add_orchestrator_invocation_routing_directive_check,
+        )
+
+        repo_root = Path(__file__).resolve().parents[1]
+        for rel in (
+            ".github/agents/_orchestrator.agent.md",
+            "templates/agents/_orchestrator.agent.md.tmpl",
+        ):
+            with self.subTest(path=rel):
+                report: dict = {"targeted_checks": {}}
+                _add_orchestrator_invocation_routing_directive_check(
+                    report, "directive", repo_root / rel
+                )
+                check = report["targeted_checks"]["directive"]
+                self.assertTrue(check["ok"], check)
 
     def test_role_route_resolution_helper_fails_when_unresolvable(self) -> None:
         """P-013.5 fail-closed: when neither the role route nor its tier
