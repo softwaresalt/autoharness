@@ -287,7 +287,14 @@ _P0131_CLARIFICATION = (
 _P0134_CLARIFICATION = (
     "The install-resolved route-value sentence above applies to installed (`tier-routed`) agents only; "
     "plugin-distributed (`plugin-global`) agents declare `max_subagent_tier` and no route-value "
-    "frontmatter."
+    "frontmatter. The tier keys the frontmatter-conformity contract "
+    "(`src/autoharness/frontmatter_contract.py` `TIER_KEYS`) requires in both profiles are "
+    "`max_subagent_tier` and `subagent_depth` (a non-negative integer)."
+)
+_P0135_FC_CASE = (
+    "(d) the verify-workspace `frontmatter_conformity` check fails because an autoharness-managed "
+    "agent or skill definition violates the frontmatter-conformity contract (workspace-authored and "
+    "unknown-provenance definitions are reported as advisory warnings, not failures)."
 )
 _P013_MUST_SENTENCES = (
     "An agent must not request a lower-capability model than its resolved tier to reduce cost, nor a "
@@ -324,10 +331,27 @@ class PluginGlobalPolicyClarificationTests(unittest.TestCase):
                 with self.subTest(path=rel, sentence=sentence[:40]):
                     self.assertIn(sentence, text)
 
+    def test_tier_keys_named_match_contract_module(self) -> None:
+        from autoharness import frontmatter_contract as fc
+
+        self.assertEqual(fc.TIER_KEYS, frozenset({"max_subagent_tier", "subagent_depth"}))
+        for rel, text in self.texts.items():
+            with self.subTest(path=rel):
+                self.assertIn(_P0134_CLARIFICATION, text)
+
+    def test_p0135_fail_closed_list_names_frontmatter_conformity(self) -> None:
+        heading = "### P-013.5 — Invocation-Time Model-Routing Enforcement"
+        for rel, text in self.texts.items():
+            with self.subTest(path=rel):
+                section = _normalized(_section(text, heading))
+                self.assertIn("**Fail-closed verification**", section)
+                self.assertIn(_P0135_FC_CASE, section)
+
     def test_p013_sections_identical_in_template_and_mirror(self) -> None:
         for heading in (
             "### P-013.1 — Resolved Tier Compliance",
             "### P-013.4 — Tier Annotation in Agent Definitions",
+            "### P-013.5 — Invocation-Time Model-Routing Enforcement",
         ):
             with self.subTest(heading=heading):
                 template = _section(self.texts[_POLICY_TEMPLATE], heading)
