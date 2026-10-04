@@ -182,7 +182,7 @@ artifacts:
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"
-    checksum: "1347ae86c858feb4c1f977ee09be6c323bdac5bb57a4889449c3002da0513a8d"
+    checksum: "d3328638f1838ef1cbf92d192c8100b35cf76aab740185244b7dab220d9dd0a8"
     note: "pre-existing, source-controlled global artifact; checksum refreshed 199-S/193.003-T (skill name: frontmatter key); checksum refreshed 199-S/193.006-T (frontmatter_conformity deterministic check documented); checksum refreshed again 199-S/193.007-T (checksum-status wording aligned with the tuning guide)"
   - path: ".github/skills/compact-context/SKILL.md"
     primitive: 1

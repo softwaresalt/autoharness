@@ -222,8 +222,24 @@ agent or skill.
 | Agent, `plugin-global` | `name`, `description`, `max_subagent_tier`, `subagent_depth` | `id`, `maturity`, `tools`, `argument-hint`, `handoffs`, `target` | `model`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
 | Skill | `name`, `description` | `argument-hint`, `input`, `license`, `compatibility`, `metadata`, `allowed-tools` | `model`, `max_subagent_tier`, `subagent_depth`, `model_family`, `model_provider`, `reasoning_effort`, `anchor_review_family`, `anchor_review_provider`, `anchor_review_reasoning_effort`, `alt_review_family`, `alt_review_provider`, `alt_review_reasoning_effort` |
 
-An agent listed in the autoharness root `plugin.json` `agents[]` is checked
-against the `plugin-global` profile; every other agent is `tier-routed`.
+An agent is checked against the `plugin-global` profile only when all of the
+following hold; every other agent is `tier-routed`:
+
+* the harness manifest records `install_mode: "self-install"` (autoharness
+  verifying its own source repository);
+* the workspace-root `plugin.json` is a regular file inside the workspace —
+  not a symlink or reparse point — that parses as a JSON object;
+* its `name` is exactly `autoharness`; and
+* its `agents[]` (a list of strings) lists the agent's workspace-relative path.
+
+When `plugin.json` is a symlink or reparse point, is not a regular file,
+resolves outside the workspace, is unreadable or invalid JSON, is not a JSON
+object, or has a malformed `agents[]`, verify does not trust it: it emits one
+`frontmatter-conformity-plugin-json` warning and treats the plugin-agent set as
+empty, so every agent fails safe to `tier-routed`. A missing `plugin.json`, a
+different `name`, or any other `install_mode` selects `tier-routed` silently,
+with no warning.
+
 Skills are leaf executors (P-013.5): they inherit the invoking agent's route
 and carry no routing key.
 
@@ -257,11 +273,11 @@ decides how a nonconformant file is reported:
 
 | Class | Provenance | Verify outcome | Tune migration |
 |---|---|---|---|
-| `managed-rendered` | Rendered from an autoharness template | Fails closed | `rerender`, or `source-repair` when the template itself is defective |
-| `managed-community` | Installed community template | Fails closed | `reinstall-community`, or `source-repair` |
-| `managed-source` | autoharness's own source-controlled global agent or skill definition | Fails closed | Single-key frontmatter edits |
-| `workspace-authored` | Not tracked by the harness manifest | Advisory warning; never fails verification | Single-key edits, only with per-proposal operator approval |
-| `unknown-provenance` | Provenance cannot be established | Advisory warning | Single-key edits, only with per-proposal operator approval |
+| `managed-rendered` | Manifest `artifacts[]` entry whose source template resolves to an existing file inside autoharness `templates/` | Fails closed | `rerender`, or `source-repair` when the template itself is defective (see the preconditions below) |
+| `managed-community` | `community_templates[]` entry (matched by `installed_path`) | Fails closed | `reinstall-community`, or `source-repair` |
+| `managed-source` | `artifacts[]` entry labeled `global agent definition` or `global skill definition` (autoharness's own source-controlled definitions) | Fails closed | Single-key frontmatter edits |
+| `workspace-authored` | Not tracked by the harness manifest (`artifacts[]` or `community_templates[]`), or an `artifacts[]` entry labeled `workspace merge install` or `workspace deliberation template` | Advisory warning; never fails verification | Single-key edits, only with per-proposal operator approval |
+| `unknown-provenance` | `artifacts[]` entry with any other label whose source template does not resolve to an existing file inside autoharness `templates/` | Advisory warning | Single-key edits, only with per-proposal operator approval |
 
 Managed files fail closed regardless of checksum status: a `user-modified` or
 `ignored` checksum does not excuse a nonconformant managed file.
@@ -274,7 +290,8 @@ time.
 ### Frontmatter Migration
 
 Every blocking finding yields a `contract: frontmatter-conformity` entry in
-`migration_proposals[]`. tune-harness promotes these in Step 1.5c:
+`migration_proposals[]` with `from_version: null` and `to_version: fc-1`.
+tune-harness promotes these in Step 1.5c:
 
 * managed findings (`severity: P1`) are **Breaking** drift, and
   workspace-authored or unknown-provenance findings (`severity: P2`) are
@@ -284,6 +301,13 @@ Every blocking finding yields a `contract: frontmatter-conformity` entry in
   `replace-value`. `source-repair` and `manual-fix` are report-only, and the
   four key-level actions edit a single frontmatter key while preserving the
   body;
+* `rerender` (managed-rendered) and `reinstall-community` (managed-community)
+  are proposed only when the file has no path-escape finding, its checksum
+  status is `unchanged`, and the freshly rendered source candidate passes the
+  conformity check. When that candidate fails the check or cannot be produced,
+  the action is `source-repair`, naming the defective template, whatever the
+  checksum status. When the candidate passes but the file is not `unchanged`
+  (for example `user-modified`), key-level actions are proposed instead;
 * `reinstall-community` refreshes both the `installed_checksum` and the
   `source_checksum` of the community-template entry;
 * `migrate-key` and `remove-key` proposals, every `manual_review: true`
