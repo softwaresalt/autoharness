@@ -22,7 +22,9 @@ full-suite ambient-cwd decoupling fix.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -96,87 +98,98 @@ DERIVE_TO_EMPTY_STRING = "DERIVE-TO-EMPTY-STRING"
 # fallback/default chain (tier fallback, PATH-chain, or literal default)
 # other than a bare empty default -- used by the AC0a guard test below.
 VARIABLE_CLASSIFICATION: dict[str, tuple[str, str, bool]] = {
-    # --- model_routing tier family (SKILL.md rows 414-425, amendment B6) ---
-    "MODEL_ROUTING_TIER1": (RESOLVED_FROM_SOURCE, "SKILL.md row 414 (config.model_routing.tier1.model, object or legacy-string form)", True),
-    "MODEL_ROUTING_TIER2": (RESOLVED_FROM_SOURCE, "SKILL.md row 415 (config.model_routing.tier2.model, object or legacy-string form)", True),
-    "MODEL_ROUTING_TIER3": (RESOLVED_FROM_SOURCE, "SKILL.md row 416 (config.model_routing.tier3.model, object or legacy-string form)", True),
-    "TIER_1_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 417 (config.model_routing.tier1.reasoning_effort)", False),
-    "TIER_1_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 418 (config.model_routing.tier1.model_provider)", False),
-    "TIER_1_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 419 (config.model_routing.tier1.model_family, default gpt-5.4-mini)", True),
-    "TIER_2_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 420 (config.model_routing.tier2.reasoning_effort)", False),
-    "TIER_2_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 421 (config.model_routing.tier2.model_provider)", False),
-    "TIER_2_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 422 (config.model_routing.tier2.model_family, default claude-sonnet-5)", True),
-    "TIER_3_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 423 (config.model_routing.tier3.reasoning_effort)", False),
-    "TIER_3_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 424 (config.model_routing.tier3.model_provider)", False),
-    "TIER_3_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 425 (config.model_routing.tier3.model_family, default claude-opus-5)", True),
-    # --- orchestrator route (SKILL.md rows 426-428, amendment B6) ---
-    "ORCHESTRATOR_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 426 (fallback {{TIER_2_REASONING_EFFORT}})", True),
-    "ORCHESTRATOR_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 427 (fallback {{TIER_2_PROVIDER}})", True),
-    "ORCHESTRATOR_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 428 (own default gpt-5.4, does NOT fall back to tier2)", True),
-    # --- role routes (SKILL.md rows 429-434, P-013.5, corrected review-fix cycle 1) ---
-    "STAGE_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 429 (fallback {{TIER_3_REASONING_EFFORT}})", True),
-    "STAGE_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 430 (fallback {{TIER_3_PROVIDER}})", True),
-    "STAGE_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 431 (fallback {{TIER_3_FAMILY}})", True),
-    "SHIP_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 432 (fallback {{TIER_2_REASONING_EFFORT}})", True),
-    "SHIP_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 433 (fallback {{TIER_2_PROVIDER}})", True),
-    "SHIP_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 434 (fallback {{TIER_2_FAMILY}})", True),
-    # --- collapsed escalation prose triple (SKILL.md rows 435-437, F02FD596, prose-only) ---
-    "ESCALATION_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 435 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
-    "ESCALATION_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 436 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
-    "ESCALATION_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 437 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
-    # --- RAW escalation pass-through (SKILL.md rows 438-446, constraint C3) ---
-    "LEGACY_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 438 (raw, NOT resolved/fallback)", False),
-    "LEGACY_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 439 (raw, NOT resolved/fallback)", False),
-    "LEGACY_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 440 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 441 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 442 (raw, NOT resolved/fallback)", False),
-    "STAGE_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 443 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 444 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 445 (raw, NOT resolved/fallback)", False),
-    "SHIP_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 446 (raw, NOT resolved/fallback)", False),
-    # --- anchor review (SKILL.md rows 447-449) ---
-    "ANCHOR_REVIEW_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 447 (default openai)", True),
-    "ANCHOR_REVIEW_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 448 (default gpt-5.6-sol)", True),
-    "ANCHOR_REVIEW_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 449 (default high)", True),
-    # --- install-shape / config write-back family (SKILL.md rows 398-402, 460, 467-470) ---
-    "INSTALL_PRESET": (RESOLVED_FROM_SOURCE, "SKILL.md row 398 (config.preset, default standard)", True),
-    "PRIMARY_STACK_PACK": (RESOLVED_FROM_SOURCE, "SKILL.md row 399 (config.primary_stack_pack, default web-app)", True),
-    "STACK_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 400 (config.stack_packs, YAML list)", True),
-    "INSTALL_LAYERS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 401 (config.install_layers, YAML list)", True),
-    "CAPABILITY_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 402 (config.capability_packs, YAML list)", True),
-    "HARNESS_OVERRIDES_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 460 (config.overrides map, default {})", True),
-    "COPILOT_CLI_ARGS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 467 (config.ai_tools.copilot_cli.args, PowerShell-quoted)", True),
-    "COPILOT_CLI_ARGS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 468 (config.ai_tools.copilot_cli.args, POSIX-quoted)", True),
-    "COPILOT_CLI_ARGS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 467-468 sibling (same config.ai_tools.copilot_cli.args source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
-    "ENABLED_SIDECARS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 469 (derived from enabled capability packs, PowerShell-quoted)", True),
-    "ENABLED_SIDECARS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 470 (derived from enabled capability packs, POSIX-quoted)", True),
-    "ENABLED_SIDECARS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 469-470 sibling (same enabled-capability-packs source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
-    # --- graphtor-docs (SKILL.md rows 505-506 / 874-875 / 1088) ---
-    "GRAPHTOR_SOURCES_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 505/874 (ordered on-disk candidate chain, default .graphtor/config/sources.yaml)", True),
-    "GRAPHTOR_BINARY_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 506/875/1088 (PATH -> local candidate -> literal default graphtor chain, NOT the empty-string branch)", True),
-    # --- profile-derived language/lint/format (SKILL.md rows 107-108, 115, 123-124, 127-128) ---
-    "LANGUAGE_VERSION": (RESOLVED_FROM_SOURCE, "SKILL.md row 107 (languages.version)", False),
-    "LANGUAGE_NOTES": (RESOLVED_FROM_SOURCE, "SKILL.md row 108 (synthesized from language profile)", False),
-    "FORMAT_CHECK_COMMAND": (RESOLVED_FROM_SOURCE, "SKILL.md row 115 (format.check_command)", False),
-    "FORMATTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 123 (format.tool)", False),
-    "LINTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 124 (lint.tool)", False),
-    "ERROR_PATTERN": (RESOLVED_FROM_SOURCE, "SKILL.md row 127 (language-specific error handling idiom)", False),
-    "DOC_COMMENT_STYLE": (RESOLVED_FROM_SOURCE, "SKILL.md row 128 (language-specific doc-comment convention)", False),
+    # --- model_routing tier family (SKILL.md rows 415-426, amendment B6) ---
+    "MODEL_ROUTING_TIER1": (RESOLVED_FROM_SOURCE, "SKILL.md row 415 (config.model_routing.tier1.model, object or legacy-string form)", True),
+    "MODEL_ROUTING_TIER2": (RESOLVED_FROM_SOURCE, "SKILL.md row 416 (config.model_routing.tier2.model, object or legacy-string form)", True),
+    "MODEL_ROUTING_TIER3": (RESOLVED_FROM_SOURCE, "SKILL.md row 417 (config.model_routing.tier3.model, object or legacy-string form)", True),
+    "TIER_1_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 418 (config.model_routing.tier1.reasoning_effort)", False),
+    "TIER_1_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 419 (config.model_routing.tier1.model_provider)", False),
+    "TIER_1_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 420 (config.model_routing.tier1.model_family, default gpt-5.4-mini)", True),
+    "TIER_2_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 421 (config.model_routing.tier2.reasoning_effort)", False),
+    "TIER_2_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 422 (config.model_routing.tier2.model_provider)", False),
+    "TIER_2_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 423 (config.model_routing.tier2.model_family, default claude-sonnet-5)", True),
+    "TIER_3_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 424 (config.model_routing.tier3.reasoning_effort)", False),
+    "TIER_3_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 425 (config.model_routing.tier3.model_provider)", False),
+    "TIER_3_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 426 (config.model_routing.tier3.model_family, default claude-opus-5)", True),
+    # --- orchestrator route (SKILL.md rows 427-429, amendment B6) ---
+    "ORCHESTRATOR_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 427 (fallback {{TIER_2_REASONING_EFFORT}})", True),
+    "ORCHESTRATOR_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 428 (fallback {{TIER_2_PROVIDER}})", True),
+    "ORCHESTRATOR_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 429 (own default gpt-5.4, does NOT fall back to tier2)", True),
+    # --- role routes (SKILL.md rows 430-435, P-013.5, corrected review-fix cycle 1) ---
+    "STAGE_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 430 (fallback {{TIER_3_REASONING_EFFORT}})", True),
+    "STAGE_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 431 (fallback {{TIER_3_PROVIDER}})", True),
+    "STAGE_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 432 (fallback {{TIER_3_FAMILY}})", True),
+    "SHIP_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 433 (fallback {{TIER_2_REASONING_EFFORT}})", True),
+    "SHIP_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 434 (fallback {{TIER_2_PROVIDER}})", True),
+    "SHIP_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 435 (fallback {{TIER_2_FAMILY}})", True),
+    # --- collapsed escalation prose triple (SKILL.md rows 436-438, F02FD596, prose-only) ---
+    "ESCALATION_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 436 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
+    "ESCALATION_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 437 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
+    "ESCALATION_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 438 (nested -> legacy flat -> tier3 per-field, prose-only)", True),
+    # --- RAW escalation pass-through (SKILL.md rows 439-447, constraint C3) ---
+    "LEGACY_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 439 (raw, NOT resolved/fallback)", False),
+    "LEGACY_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 440 (raw, NOT resolved/fallback)", False),
+    "LEGACY_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 441 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 442 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 443 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 444 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_REASONING_EFFORT": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 445 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_PROVIDER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 446 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_FAMILY": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 447 (raw, NOT resolved/fallback)", False),
+    # --- context_tier family (SKILL.md rows 448-457, 194-F C3a; resolved rows end at `default`, raw rows stay empty) ---
+    "TIER_1_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 448 (config.model_routing.tier1.context_tier, default default)", True),
+    "TIER_2_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 449 (config.model_routing.tier2.context_tier, default default)", True),
+    "TIER_3_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 450 (config.model_routing.tier3.context_tier, default default)", True),
+    "ORCHESTRATOR_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 451 (fallback {{TIER_2_CONTEXT_TIER}}, then default)", True),
+    "STAGE_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 452 (fallback {{TIER_3_CONTEXT_TIER}}, then default)", True),
+    "SHIP_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 453 (fallback {{TIER_2_CONTEXT_TIER}}, then default)", True),
+    "ESCALATION_CONTEXT_TIER": (RESOLVED_FROM_SOURCE, "SKILL.md row 454 (nested -> legacy flat when selected -> tier3 -> default, prose-only)", True),
+    "LEGACY_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 455 (raw, NOT resolved/fallback)", False),
+    "STAGE_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 456 (raw, NOT resolved/fallback)", False),
+    "SHIP_ESCALATION_CONTEXT_TIER": (DERIVE_TO_EMPTY_STRING, "SKILL.md row 457 (raw, NOT resolved/fallback)", False),
+    # --- anchor review (SKILL.md rows 458-460) ---
+    "ANCHOR_REVIEW_PROVIDER": (RESOLVED_FROM_SOURCE, "SKILL.md row 458 (default openai)", True),
+    "ANCHOR_REVIEW_FAMILY": (RESOLVED_FROM_SOURCE, "SKILL.md row 459 (default gpt-5.6-sol)", True),
+    "ANCHOR_REVIEW_REASONING_EFFORT": (RESOLVED_FROM_SOURCE, "SKILL.md row 460 (default high)", True),
+    # --- install-shape / config write-back family (SKILL.md rows 399-403, 471, 478-481) ---
+    "INSTALL_PRESET": (RESOLVED_FROM_SOURCE, "SKILL.md row 399 (config.preset, default standard)", True),
+    "PRIMARY_STACK_PACK": (RESOLVED_FROM_SOURCE, "SKILL.md row 400 (config.primary_stack_pack, default web-app)", True),
+    "STACK_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 401 (config.stack_packs, YAML list)", True),
+    "INSTALL_LAYERS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 402 (config.install_layers, YAML list)", True),
+    "CAPABILITY_PACKS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 403 (config.capability_packs, YAML list)", True),
+    "HARNESS_OVERRIDES_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md row 471 (config.overrides map, default {})", True),
+    "COPILOT_CLI_ARGS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 478 (config.ai_tools.copilot_cli.args, PowerShell-quoted)", True),
+    "COPILOT_CLI_ARGS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 479 (config.ai_tools.copilot_cli.args, POSIX-quoted)", True),
+    "COPILOT_CLI_ARGS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 478-479 sibling (same config.ai_tools.copilot_cli.args source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
+    "ENABLED_SIDECARS_PS1": (RESOLVED_FROM_SOURCE, "SKILL.md row 480 (derived from enabled capability packs, PowerShell-quoted)", True),
+    "ENABLED_SIDECARS_SH": (RESOLVED_FROM_SOURCE, "SKILL.md row 481 (derived from enabled capability packs, POSIX-quoted)", True),
+    "ENABLED_SIDECARS_YAML": (RESOLVED_FROM_SOURCE, "SKILL.md rows 480-481 sibling (same enabled-capability-packs source, YAML-list-rendered; SKILL.md documents no dedicated YAML row)", True),
+    # --- graphtor-docs (SKILL.md rows 516-517 / 885-886 / 1099) ---
+    "GRAPHTOR_SOURCES_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 516/885 (ordered on-disk candidate chain, default .graphtor/config/sources.yaml)", True),
+    "GRAPHTOR_BINARY_PATH": (RESOLVED_FROM_SOURCE, "SKILL.md rows 517/886/1099 (PATH -> local candidate -> literal default graphtor chain, NOT the empty-string branch)", True),
+    # --- profile-derived language/lint/format (SKILL.md rows 108-109, 116, 124-125, 128-129) ---
+    "LANGUAGE_VERSION": (RESOLVED_FROM_SOURCE, "SKILL.md row 108 (languages.version)", False),
+    "LANGUAGE_NOTES": (RESOLVED_FROM_SOURCE, "SKILL.md row 109 (synthesized from language profile)", False),
+    "FORMAT_CHECK_COMMAND": (RESOLVED_FROM_SOURCE, "SKILL.md row 116 (format.check_command)", False),
+    "FORMATTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 124 (format.tool)", False),
+    "LINTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 125 (lint.tool)", False),
+    "ERROR_PATTERN": (RESOLVED_FROM_SOURCE, "SKILL.md row 128 (language-specific error handling idiom)", False),
+    "DOC_COMMENT_STYLE": (RESOLVED_FROM_SOURCE, "SKILL.md row 129 (language-specific doc-comment convention)", False),
     # --- misc config (no dedicated SKILL.md row; schema-documented defaults) ---
     "STRICT_SAFETY_ENABLED": (RESOLVED_FROM_SOURCE, "schemas/harness-config.schema.json strict_safety.enabled (default false); SKILL.md carries no dedicated row", True),
-    "CONTINUOUS_LEARNING_CAPTURE_HOOKS": (RESOLVED_FROM_SOURCE, "SKILL.md row 411 (config.continuous_learning.capture_hooks, default false)", True),
-    "CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 412 (config.continuous_learning.environment_adapter, default none)", True),
-    "CONTINUOUS_LEARNING_PROMOTION_THRESHOLD": (RESOLVED_FROM_SOURCE, "SKILL.md row 413 (config.continuous_learning.promotion_threshold, default 3)", True),
-    # --- DEFAULT_BRANCH: same resolved concept as {{CI_DEFAULT_BRANCH}} (SKILL.md row 156); no dedicated {{DEFAULT_BRANCH}} row exists ---
-    "DEFAULT_BRANCH": (RESOLVED_FROM_SOURCE, "SKILL.md row 156 ({{CI_DEFAULT_BRANCH}} resolution methodology: git symbolic-ref -> gh CLI -> never guess main; {{DEFAULT_BRANCH}} denotes the identical resolved concept for agent/policy/skill templates)", True),
+    "CONTINUOUS_LEARNING_CAPTURE_HOOKS": (RESOLVED_FROM_SOURCE, "SKILL.md row 412 (config.continuous_learning.capture_hooks, default false)", True),
+    "CONTINUOUS_LEARNING_ENVIRONMENT_ADAPTER": (RESOLVED_FROM_SOURCE, "SKILL.md row 413 (config.continuous_learning.environment_adapter, default none)", True),
+    "CONTINUOUS_LEARNING_PROMOTION_THRESHOLD": (RESOLVED_FROM_SOURCE, "SKILL.md row 414 (config.continuous_learning.promotion_threshold, default 3)", True),
+    # --- DEFAULT_BRANCH: same resolved concept as {{CI_DEFAULT_BRANCH}} (SKILL.md row 157); no dedicated {{DEFAULT_BRANCH}} row exists ---
+    "DEFAULT_BRANCH": (RESOLVED_FROM_SOURCE, "SKILL.md row 157 ({{CI_DEFAULT_BRANCH}} resolution methodology: git symbolic-ref -> gh CLI -> never guess main; {{DEFAULT_BRANCH}} denotes the identical resolved concept for agent/policy/skill templates)", True),
 }
 
 
 class ClassificationTableTests(unittest.TestCase):
     """142.001-T Step 1 / AC0a."""
 
-    def test_classification_table_covers_all_62_variables(self) -> None:
-        self.assertEqual(len(VARIABLE_CLASSIFICATION), 62)
+    def test_classification_table_covers_all_72_variables(self) -> None:
+        self.assertEqual(len(VARIABLE_CLASSIFICATION), 72)
 
     def test_every_entry_has_a_cited_source_row(self) -> None:
         """AC0a: every variable cites a resolution-table row -- either a
@@ -215,6 +228,7 @@ class ClassificationTableTests(unittest.TestCase):
             "LEGACY_ESCALATION_FAMILY", "LEGACY_ESCALATION_PROVIDER", "LEGACY_ESCALATION_REASONING_EFFORT",
             "STAGE_ESCALATION_FAMILY", "STAGE_ESCALATION_PROVIDER", "STAGE_ESCALATION_REASONING_EFFORT",
             "SHIP_ESCALATION_FAMILY", "SHIP_ESCALATION_PROVIDER", "SHIP_ESCALATION_REASONING_EFFORT",
+            "LEGACY_ESCALATION_CONTEXT_TIER", "STAGE_ESCALATION_CONTEXT_TIER", "SHIP_ESCALATION_CONTEXT_TIER",
         }
         self.assertEqual(derive_empty, expected)
 
@@ -228,9 +242,170 @@ class ClassificationTableTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 194.003-T (C3a) -- context_tier installer contract: SKILL.md variable-table
+# rows, harness-config.yaml.tmpl write-back materialization (AS-F8), the
+# INV-C3 placeholder discipline, and the install-harness manifest checksum.
+# ---------------------------------------------------------------------------
+
+_INSTALL_HARNESS_SKILL = _REPO_ROOT / ".github/skills/install-harness/SKILL.md"
+_CONFIG_TEMPLATE = _REPO_ROOT / "templates/harness-config.yaml.tmpl"
+
+_RESOLVED_CONTEXT_TIER_VARIABLES = (
+    "TIER_1_CONTEXT_TIER", "TIER_2_CONTEXT_TIER", "TIER_3_CONTEXT_TIER",
+    "ORCHESTRATOR_CONTEXT_TIER", "STAGE_CONTEXT_TIER", "SHIP_CONTEXT_TIER",
+    "ESCALATION_CONTEXT_TIER",
+)
+_RAW_CONTEXT_TIER_VARIABLES = (
+    "LEGACY_ESCALATION_CONTEXT_TIER", "STAGE_ESCALATION_CONTEXT_TIER", "SHIP_ESCALATION_CONTEXT_TIER",
+)
+
+_CONTEXT_TIER_KEY_LINE = re.compile(r"^\s*context_tier\s*:(?P<value>.*)$")
+_CONTEXT_TIER_PLACEHOLDER_VALUE = re.compile(r'^\s*"\{\{[A-Z0-9_]+_CONTEXT_TIER\}\}"\s*(?:#.*)?$')
+
+
+def _skill_variable_rows() -> dict[str, list[str]]:
+    """Map each `{{NAME}}` variable-table row in install-harness SKILL.md to
+    its cells (source, default, description)."""
+    rows: dict[str, list[str]] = {}
+    for line in _INSTALL_HARNESS_SKILL.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^\| `\{\{([A-Z0-9_]+)\}\}` \|(.*)\|\s*$", line)
+        if match:
+            rows.setdefault(match.group(1), [cell.strip() for cell in match.group(2).split(" | ")])
+    return rows
+
+
+def _render_config_template(model_routing: dict[str, Any]) -> dict[str, Any]:
+    manifest, config, profile, registry = _load_live_fixtures()
+    config = dict(config)
+    config["model_routing"] = model_routing
+    variables = _derive_template_variables(_REPO_ROOT, manifest, config, profile, registry)
+    rendered = _render_template(_CONFIG_TEMPLATE.read_text(encoding="utf-8"), variables)
+    return yaml.safe_load(rendered)
+
+
+class ContextTierInstallerContractTests(unittest.TestCase):
+    """194.003-T acceptance criteria."""
+
+    def test_every_emitted_context_tier_variable_is_classified(self) -> None:
+        emitted = {name for name in _live_variables() if name.endswith("_CONTEXT_TIER")}
+        expected = set(_RESOLVED_CONTEXT_TIER_VARIABLES) | set(_RAW_CONTEXT_TIER_VARIABLES)
+        self.assertEqual(emitted, expected)
+        for name in expected:
+            with self.subTest(variable=name):
+                self.assertIn(name, VARIABLE_CLASSIFICATION)
+
+    def test_every_dedicated_row_citation_has_a_skill_md_row(self) -> None:
+        """A classified variable that cites a `SKILL.md row N` must have that
+        row in the install-harness variable table (a missing row fails). A
+        shared-concept citation (`row N ({{OTHER}} ...`) must find OTHER's row."""
+        rows = _skill_variable_rows()
+        for name, (_classification, citation, _has_fallback) in VARIABLE_CLASSIFICATION.items():
+            match = re.match(r"^SKILL\.md row \d+ \((?:\{\{([A-Z0-9_]+)\}\} )?", citation)
+            if not match:
+                continue
+            cited = match.group(1) or name
+            with self.subTest(variable=name):
+                self.assertIn(cited, rows, f"install-harness SKILL.md has no `{{{{{cited}}}}}` row")
+
+    def test_resolved_context_tier_rows_default_to_default(self) -> None:
+        rows = _skill_variable_rows()
+        for name in _RESOLVED_CONTEXT_TIER_VARIABLES:
+            with self.subTest(variable=name):
+                source, default = rows[name][0], rows[name][1]
+                self.assertIn("context_tier", source)
+                self.assertEqual(default, "`default`")
+                self.assertEqual(VARIABLE_CLASSIFICATION[name][0], RESOLVED_FROM_SOURCE)
+
+    def test_raw_context_tier_rows_are_empty_and_derive_to_empty_string(self) -> None:
+        rows = _skill_variable_rows()
+        for name in _RAW_CONTEXT_TIER_VARIABLES:
+            with self.subTest(variable=name):
+                source, default = rows[name][0], rows[name][1]
+                self.assertIn("context_tier` (raw, NOT resolved/fallback)", source)
+                self.assertEqual(default, "_(empty)_")
+                self.assertEqual(VARIABLE_CLASSIFICATION[name][0], DERIVE_TO_EMPTY_STRING)
+
+    def test_ship_family_row_keeps_its_claude_sonnet_5_default(self) -> None:
+        """Existing-config fallback is unchanged (Ship -> tier2)."""
+        rows = _skill_variable_rows()
+        self.assertEqual(rows["SHIP_FAMILY"][1], "`claude-sonnet-5`")
+        self.assertIn("fallback `{{TIER_2_FAMILY}}`", rows["SHIP_FAMILY"][0])
+
+    def test_write_back_materializes_resolved_route_tiers_and_keeps_raw_escalation(self) -> None:
+        """AS-F8 round trip: an empty ship.context_tier inheriting
+        tier2.context_tier: long_context is written back explicitly, while
+        every escalation block keeps its raw (empty) context_tier."""
+        parsed = _render_config_template(
+            {
+                "tier1": {"model": "gpt-5.4-mini", "model_family": "gpt-5.4-mini"},
+                "tier2": {"model": "claude-sonnet-5", "model_family": "claude-sonnet-5", "context_tier": "long_context"},
+                "tier3": {"model": "claude-opus-5", "model_family": "claude-opus-5"},
+                "ship": {"model_family": "", "context_tier": ""},
+                "stage": {"model_family": ""},
+            }
+        )
+        routing = parsed["model_routing"]
+        self.assertEqual(routing["ship"]["context_tier"], "long_context")
+        self.assertEqual(routing["tier2"]["context_tier"], "long_context")
+        self.assertEqual(routing["orchestrator"]["context_tier"], "long_context")
+        self.assertEqual(routing["tier1"]["context_tier"], "default")
+        self.assertEqual(routing["tier3"]["context_tier"], "default")
+        self.assertEqual(routing["stage"]["context_tier"], "default")
+        self.assertEqual(routing["escalation"]["context_tier"], "")
+        self.assertEqual(routing["stage"]["escalation"]["context_tier"], "")
+        self.assertEqual(routing["ship"]["escalation"]["context_tier"], "")
+
+    def test_write_back_passes_raw_escalation_context_tier_through_verbatim(self) -> None:
+        parsed = _render_config_template(
+            {
+                "tier3": {"model": "claude-opus-5", "model_family": "claude-opus-5", "context_tier": "long_context"},
+                "ship": {"escalation": {"model_family": "gpt-6-sol", "context_tier": "long_context"}},
+            }
+        )
+        routing = parsed["model_routing"]
+        self.assertEqual(routing["ship"]["escalation"]["context_tier"], "long_context")
+        self.assertEqual(routing["stage"]["escalation"]["context_tier"], "")
+        self.assertEqual(routing["escalation"]["context_tier"], "")
+
+    def test_config_template_declares_context_tier_on_every_route_block(self) -> None:
+        text = _CONFIG_TEMPLATE.read_text(encoding="utf-8")
+        for variable in _RESOLVED_CONTEXT_TIER_VARIABLES + _RAW_CONTEXT_TIER_VARIABLES:
+            if variable == "ESCALATION_CONTEXT_TIER":
+                # Prose-only collapsed value; never written into config storage.
+                self.assertNotIn("{{ESCALATION_CONTEXT_TIER}}", text)
+                continue
+            with self.subTest(variable=variable):
+                self.assertEqual(text.count(f'context_tier: "{{{{{variable}}}}}"'), 1)
+
+    def test_every_template_context_tier_line_is_a_placeholder(self) -> None:
+        """INV-C3: no `context_tier:` key line in templates/**/*.tmpl carries a
+        literal value."""
+        seen = 0
+        for template_path in sorted((_REPO_ROOT / "templates").rglob("*.tmpl")):
+            for number, line in enumerate(template_path.read_text(encoding="utf-8").splitlines(), start=1):
+                match = _CONTEXT_TIER_KEY_LINE.match(line)
+                if not match:
+                    continue
+                seen += 1
+                with self.subTest(template=str(template_path.relative_to(_REPO_ROOT)), line=number):
+                    self.assertRegex(match.group("value"), _CONTEXT_TIER_PLACEHOLDER_VALUE)
+        self.assertGreaterEqual(seen, 9)
+
+    def test_install_harness_manifest_entry_is_unchanged(self) -> None:
+        manifest = yaml.safe_load((_REPO_ROOT / ".autoharness/harness-manifest.yaml").read_text(encoding="utf-8"))
+        entries = [
+            artifact for artifact in manifest["artifacts"]
+            if isinstance(artifact, dict) and artifact.get("path") == ".github/skills/install-harness/SKILL.md"
+        ]
+        self.assertEqual(len(entries), 1)
+        actual = hashlib.sha256(_INSTALL_HARNESS_SKILL.read_bytes()).hexdigest()
+        self.assertEqual(entries[0]["checksum"], actual)
+
+
+# ---------------------------------------------------------------------------
 # 142.001-T Step 2 -- BLOCKING MEASUREMENT (023-DL R1 / amendment B1): clean
 # pair intersection. Recorded EXPLICITLY as empty (verified below by scanning
-# the four templates for any of the 62 variable placeholders).
+# the four templates for any of the classified variable placeholders).
 # ---------------------------------------------------------------------------
 
 CLEAN_PAIR_TEMPLATES = (

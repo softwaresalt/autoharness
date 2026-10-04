@@ -68,20 +68,27 @@ model_routing:
     reasoning_effort: "{{TIER_1_REASONING_EFFORT}}"  # Leave empty to use model default
     model_provider: "{{TIER_1_PROVIDER}}"       # e.g., openai, anthropic — leave empty for default
     model_family: "{{TIER_1_FAMILY}}"           # Resolved into Tier 1 agent frontmatter
+    # context_tier: default | long_context ("" = inherit). Route and role
+    # blocks are written back with their RESOLVED value, so any inheritance
+    # becomes explicit once, at install; escalation blocks stay raw.
+    context_tier: "{{TIER_1_CONTEXT_TIER}}"
   tier2:
     model: {{MODEL_ROUTING_TIER2}}              # Standard: orchestration, code, review (e.g., claude-sonnet-5)
     reasoning_effort: "{{TIER_2_REASONING_EFFORT}}"
     model_provider: "{{TIER_2_PROVIDER}}"
     model_family: "{{TIER_2_FAMILY}}"
+    context_tier: "{{TIER_2_CONTEXT_TIER}}"     # default | long_context
   tier3:
     model: {{MODEL_ROUTING_TIER3}}              # Frontier: planning, architecture, analysis (e.g., claude-opus-5)
     reasoning_effort: "{{TIER_3_REASONING_EFFORT}}"
     model_provider: "{{TIER_3_PROVIDER}}"
     model_family: "{{TIER_3_FAMILY}}"
+    context_tier: "{{TIER_3_CONTEXT_TIER}}"     # default | long_context
   orchestrator:
     model_family: "{{ORCHESTRATOR_FAMILY}}"     # Orchestrator model override (default: gpt-5.4)
     reasoning_effort: "{{ORCHESTRATOR_REASONING_EFFORT}}"
     model_provider: "{{ORCHESTRATOR_PROVIDER}}"
+    context_tier: "{{ORCHESTRATOR_CONTEXT_TIER}}"  # Falls back to tier2, then default
   # P-013.5: optional role routes for Stage/Ship invocation-time model routing.
   # Absent/empty sub-fields fall back to tier3 (stage) / tier2 (ship) — do not
   # remove this block to "disable" routing; leave sub-fields empty instead.
@@ -89,6 +96,7 @@ model_routing:
     model_family: "{{STAGE_FAMILY}}"             # Stage role route (falls back to tier3 when empty)
     model_provider: "{{STAGE_PROVIDER}}"
     reasoning_effort: "{{STAGE_REASONING_EFFORT}}"
+    context_tier: "{{STAGE_CONTEXT_TIER}}"       # Falls back to tier3, then default
     # F02FD596: optional nested per-role escalation override for Stage.
     # Takes precedence over the legacy flat model_routing.escalation below;
     # missing sub-fields fall back per-field to tier3 (never to the legacy
@@ -101,10 +109,12 @@ model_routing:
       model_family: "{{STAGE_ESCALATION_FAMILY}}"
       model_provider: "{{STAGE_ESCALATION_PROVIDER}}"
       reasoning_effort: "{{STAGE_ESCALATION_REASONING_EFFORT}}"
+      context_tier: "{{STAGE_ESCALATION_CONTEXT_TIER}}"  # Raw; empty inherits at resolution time
   ship:
     model_family: "{{SHIP_FAMILY}}"               # Ship role route (falls back to tier2 when empty)
     model_provider: "{{SHIP_PROVIDER}}"
     reasoning_effort: "{{SHIP_REASONING_EFFORT}}"
+    context_tier: "{{SHIP_CONTEXT_TIER}}"         # Falls back to tier2, then default
     # F02FD596: optional nested per-role escalation override for Ship. Same
     # precedence/ambiguity/always-rendered rules as Stage's nested
     # escalation above.
@@ -112,6 +122,7 @@ model_routing:
       model_family: "{{SHIP_ESCALATION_FAMILY}}"
       model_provider: "{{SHIP_ESCALATION_PROVIDER}}"
       reasoning_effort: "{{SHIP_ESCALATION_REASONING_EFFORT}}"
+      context_tier: "{{SHIP_ESCALATION_CONTEXT_TIER}}"   # Raw; empty inherits at resolution time
   # P-013.6: optional escalation route for telemetry-driven auto-escalation.
   # Absent/empty sub-fields fall back per-field to tier3. If the resolved
   # route equals a declared role route's resolved route, that is
@@ -128,6 +139,7 @@ model_routing:
     model_family: "{{LEGACY_ESCALATION_FAMILY}}"          # Escalation route (falls back to tier3 when empty)
     model_provider: "{{LEGACY_ESCALATION_PROVIDER}}"
     reasoning_effort: "{{LEGACY_ESCALATION_REASONING_EFFORT}}"
+    context_tier: "{{LEGACY_ESCALATION_CONTEXT_TIER}}"    # Raw; empty inherits at resolution time
   anchor_review:
     model_provider: "{{ANCHOR_REVIEW_PROVIDER}}"       # Anchor reviewer provider (default: openai)
     model_family: "{{ANCHOR_REVIEW_FAMILY}}"           # Anchor reviewer family (default: gpt-5.6-sol)
