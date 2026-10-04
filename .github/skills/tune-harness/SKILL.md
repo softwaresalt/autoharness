@@ -465,9 +465,14 @@ Apply these rules to every key-level action:
 5. A skill that carries routing keys or a bare `model:` receives a `remove-key`
    proposal citing the P-013.5 leaf-executor rule: skills inherit the invoking
    agent's route and declare no routing keys of their own.
-6. After an applied edit, refresh the artifact's manifest checksum from the
-   LF-normalized staged blob, then re-run `verify-workspace` to confirm the
-   `frontmatter_conformity` check no longer reports the file.
+6. After an applied edit, keep the file's LF line endings and refresh the
+   artifact's manifest checksum as the SHA-256 of the file's raw working-tree
+   bytes: the `verify-workspace` checksum scan hashes those raw bytes with no
+   CRLF-to-LF normalization, so a CRLF working copy reports `user-modified`
+   (pin checksummed artifacts to LF, for example with a `.gitattributes`
+   `text eol=lf` rule, so the raw bytes equal the LF-normalized blob on every
+   checkout). Then re-run `verify-workspace`
+   to confirm the `frontmatter_conformity` check no longer reports the file.
 
 #### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
