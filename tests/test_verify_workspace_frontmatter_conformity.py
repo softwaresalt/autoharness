@@ -377,6 +377,24 @@ class ScanTargetEnumerationTests(unittest.TestCase):
         os.symlink(outside, link)
         self.assertIsNone(vw._fc_resolve_contained(self.env.workspace, link))
 
+    @unittest.skipUnless(_SYMLINKS, _SYMLINK_SKIP)
+    def test_escaping_scan_root_is_reported_and_not_traversed(self) -> None:
+        outside = self.env.root / "outside-agents"
+        (outside / "deep").mkdir(parents=True)
+        (outside / "deep" / "x.agent.md").write_text(CONFORMANT_AGENT, encoding="utf-8")
+        (self.env.ws / ".github").mkdir(parents=True)
+        os.symlink(outside, self.env.ws / ".github" / "agents", target_is_directory=True)
+        with mock.patch.object(Path, "rglob", side_effect=AssertionError("traversed")) as walker:
+            targets = vw._fc_enumerate_targets(self.env.workspace, {})
+        walker.assert_not_called()
+        self.assertEqual(targets, [])
+        self.assertEqual(vw._fc_escaped_scan_roots(self.env.workspace, {}), [".github/agents"])
+
+    def test_contained_scan_roots_are_not_reported(self) -> None:
+        self.env.write(".github/agents/x.agent.md", CONFORMANT_AGENT)
+        self.env.write(".github/skills/alpha/SKILL.md", _skill("alpha"))
+        self.assertEqual(vw._fc_escaped_scan_roots(self.env.workspace, {}), [])
+
 
 # ---------------------------------------------------------------------------
 # B2a.1 — per-file evaluation (resolve-then-contain, never read escaping bytes)
@@ -695,6 +713,21 @@ class FrontmatterConformityCheckTests(_VerifyFixture):
         check = self.check(self.run_verify())
         self.assertFalse(check["ok"])
         self.assertIn(".github/agents/managed.agent.md: FM_PATH_ESCAPE", check["errors"])
+
+    @unittest.skipUnless(_SYMLINKS, _SYMLINK_SKIP)
+    def test_escaping_scan_root_fails_closed(self) -> None:
+        outside = self.env.root / "outside-skills"
+        (outside / "alpha").mkdir(parents=True)
+        (outside / "alpha" / "SKILL.md").write_text(_skill("alpha"), encoding="utf-8")
+        (self.env.ws / ".github").mkdir(parents=True, exist_ok=True)
+        os.symlink(outside, self.env.ws / ".github" / "skills", target_is_directory=True)
+        check = self.check(self.run_verify())
+        self.assertFalse(check["ok"])
+        self.assertIn(
+            ".github/skills: FM_PATH_ESCAPE scan root resolves outside the workspace; not traversed",
+            check["errors"],
+        )
+        self.assertNotIn(".github/skills/alpha/SKILL.md", check["files"])
 
     def test_undecodable_file_gives_parse_error_without_crashing(self) -> None:
         # Full verify path with an undecodable managed skill (the pre-existing

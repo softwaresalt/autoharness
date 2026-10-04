@@ -3446,16 +3446,42 @@ def _fc_load_plugin_agents(
     return frozenset(_fc_normalize_relative(item) for item in agents), []
 
 
+def _fc_scan_roots(workspace_path: Path, profile: Any) -> list[Path]:
+    """Return the agent scan dirs plus ``.github/skills`` (deduplicated, in order)."""
+    roots = list(_resolve_agent_scan_dirs(workspace_path, profile))
+    skills_root = workspace_path / ".github" / "skills"
+    if skills_root not in roots:
+        roots.append(skills_root)
+    return roots
+
+
+def _fc_escaped_scan_roots(workspace_path: Path, profile: Any) -> list[str]:
+    """Return workspace-relative scan roots that exist but resolve outside the workspace.
+
+    A scan root (for example a symlinked or junctioned ``.github/agents``) is
+    validated before traversal so an external tree is never enumerated. The
+    caller fails closed on every returned root.
+    """
+    escaped: list[str] = []
+    for root in _fc_scan_roots(workspace_path, profile):
+        if not os.path.lexists(root):
+            continue
+        if _fc_resolve_contained(workspace_path, root) is None:
+            escaped.append(_fc_normalize_relative(_relative_workspace_path(workspace_path, root)))
+    return escaped
+
+
 def _fc_enumerate_targets(workspace_path: Path, profile: Any) -> list[dict[str, Any]]:
     """Enumerate scan targets in sorted, deterministic order (H-B7, AN-F9).
 
     Agents: ``*.agent.md`` under every ``_resolve_agent_scan_dirs`` directory.
     Skills: ``.github/skills/*/SKILL.md`` (skill roots only). A missing
-    directory contributes zero files.
+    directory contributes zero files. A scan root that resolves outside the
+    workspace is never traversed (see ``_fc_escaped_scan_roots``).
     """
     targets: dict[str, dict[str, Any]] = {}
     for scan_dir in _resolve_agent_scan_dirs(workspace_path, profile):
-        if not scan_dir.is_dir():
+        if not scan_dir.is_dir() or _fc_resolve_contained(workspace_path, scan_dir) is None:
             continue
         for path in scan_dir.rglob("*.agent.md"):
             if not (path.is_file() or path.is_symlink()):
@@ -3463,7 +3489,7 @@ def _fc_enumerate_targets(workspace_path: Path, profile: Any) -> list[dict[str, 
             rel = _fc_normalize_relative(_relative_workspace_path(workspace_path, path))
             targets.setdefault(rel, {"path": path, "rel": rel, "kind": "agent", "skill_dir": None})
     skills_root = workspace_path / ".github" / "skills"
-    if skills_root.is_dir():
+    if skills_root.is_dir() and _fc_resolve_contained(workspace_path, skills_root) is not None:
         for skill_dir in skills_root.iterdir():
             if not skill_dir.is_dir():
                 continue
@@ -3857,6 +3883,11 @@ def _add_frontmatter_conformity_check(
     errors: list[str] = []
     info: list[str] = []
     files: dict[str, dict[str, Any]] = {}
+    for root_rel in _fc_escaped_scan_roots(workspace_path, profile):
+        ok = False
+        errors.append(
+            f"{root_rel}: {fc.FM_PATH_ESCAPE} scan root resolves outside the workspace; not traversed"
+        )
     for target in _fc_enumerate_targets(workspace_path, profile):
         record = _fc_evaluate_target(workspace_path, target, provenance, plugin_agents, checksum_lookup)
         rel = record["rel"]
