@@ -257,18 +257,23 @@ class IsContainedTests(unittest.TestCase):
 
 
 class AutoharnessRootEscapeTests(unittest.TestCase):
-    """A ``.autoharness`` that itself resolves outside the workspace is never a trust root."""
+    """``.autoharness`` must be the workspace's own directory, never a link elsewhere."""
 
-    def test_autoharness_root_link_outside_workspace_rejected(self) -> None:
+    def _escape_tree(self, target_name: str) -> tuple[Path, bytes]:
         tree = Path(tempfile.mkdtemp(prefix="ahlc-c2-root-"))
         self.addCleanup(shutil.rmtree, tree, True)
         ws = tree / "ws"
-        ws.mkdir()
+        (ws / "docs").mkdir(parents=True)
         outside = tree / "ws-outside"
         outside.mkdir()
         token = b"AHLC-C2-ROOT-SENTINEL-" + os.urandom(8).hex().encode()
-        (outside / "m.yaml").write_bytes(token)
-        make_directory_link(ws / ".autoharness", outside)
+        target = outside if target_name == "outside" else ws / "docs"
+        (target / "m.yaml").write_bytes(token)
+        make_directory_link(ws / ".autoharness", target)
+        return ws, token
+
+    def test_autoharness_root_link_outside_workspace_rejected(self) -> None:
+        ws, token = self._escape_tree("outside")
         reader = open_reader(workspace_root=str(ws))
         for root, relative_path in (
             (TrustRoot.AUTOHARNESS, "m.yaml"),
@@ -280,6 +285,16 @@ class AutoharnessRootEscapeTests(unittest.TestCase):
                 self.assertIsNone(result.data)
                 self.assertNotIn(token.decode(), repr(result))
         self.assertEqual(reader.usage.files_claimed, 2)
+        lexical = reader.read_bytes(TrustRoot.AUTOHARNESS, "../m.yaml")
+        self.assertIs(lexical.error, ReadErrorCode.LEXICAL_INVALID)
+        self.assertEqual(reader.usage.files_claimed, 2)
+
+    def test_autoharness_root_link_onto_workspace_directory_rejected(self) -> None:
+        ws, _token = self._escape_tree("docs")
+        reader = open_reader(workspace_root=str(ws))
+        result = reader.read_bytes(TrustRoot.AUTOHARNESS, "m.yaml")
+        self.assertIs(result.error, ReadErrorCode.OUTSIDE_TRUST_ROOT)
+        self.assertIsNone(result.data)
 
 
 if __name__ == "__main__":

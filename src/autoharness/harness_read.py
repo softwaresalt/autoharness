@@ -197,12 +197,19 @@ class Reader:
             raise TypeError("limits must be a ReadLimits")
         self._limits = limits
         workspace = os.path.realpath(os.fspath(workspace_root))
-        autoharness = os.path.realpath(os.path.join(workspace, ".autoharness"))
+        autoharness_path = os.path.join(workspace, ".autoharness")
+        autoharness = os.path.realpath(autoharness_path)
         self._roots: dict[TrustRoot, str | None] = {
             TrustRoot.WORKSPACE: workspace,
-            # A .autoharness that resolves outside the workspace is not a trust
-            # root: every request through it is OUTSIDE_TRUST_ROOT.
-            TrustRoot.AUTOHARNESS: autoharness if _is_contained(workspace, autoharness) else None,
+            # .autoharness must be the workspace's own directory, not a link: a
+            # .autoharness that resolves anywhere else (outside the workspace,
+            # or onto another workspace directory) is not a trust root, and
+            # every request through it is OUTSIDE_TRUST_ROOT.
+            TrustRoot.AUTOHARNESS: (
+                autoharness
+                if os.path.normcase(autoharness) == os.path.normcase(autoharness_path)
+                else None
+            ),
         }
         self._files_claimed = 0
         self._bytes_reserved = 0
@@ -258,13 +265,15 @@ class Reader:
             return _failure(ReadErrorCode.PATH_NOT_FOUND, display_path)
         except OSError:
             return _failure(ReadErrorCode.IO, display_path)
+        result = _failure(ReadErrorCode.IO, display_path)
         try:
             result = self._read_open_file(fd, display_path)
         finally:
             try:
                 os.close(fd)
             except OSError:
-                result = _failure(ReadErrorCode.IO, display_path)
+                if result.error is None:
+                    result = _failure(ReadErrorCode.IO, display_path)
         return result
 
     def _read_open_file(self, fd: int, display_path: str) -> ReadResult:
