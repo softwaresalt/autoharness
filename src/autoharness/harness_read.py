@@ -21,7 +21,7 @@ from __future__ import annotations
 import enum
 import os
 import re
-import sys
+import unicodedata
 from dataclasses import dataclass
 
 __all__ = [
@@ -93,17 +93,36 @@ class ReadResult:
     path: str
 
 
-def _red_marker(prefix: str) -> str:
-    # RED-phase scaffold (P-004 Marker Convention): derives <t> from the calling
-    # test method name (its Proof G case ID when the name carries one).
-    frame = sys._getframe(1)
-    while frame is not None:
-        name = frame.f_code.co_name
-        if name.startswith("test_"):
-            match = re.match(r"test_(G\d\d[a-z]?)(?:_|$)", name)
-            return f"{prefix}:{match.group(1) if match else name}"
-        frame = frame.f_back
-    return f"{prefix}:unattributed"
+_REDACTED_PATH = "<redacted>"
+_SEPARATORS = re.compile(r"[\\/]")
+_RESERVED_STEMS = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
+    | {f"{device}{suffix}" for device in ("COM", "LPT") for suffix in "0123456789\u00b9\u00b2\u00b3"}
+)
+
+
+def _lexical_components(relative_path: object) -> tuple[str, ...] | None:
+    """Split a root-relative request into components, or ``None`` when it is lexically invalid.
+
+    The same rules apply on every host and touch no filesystem state: empty;
+    control characters; rooted, absolute, drive, UNC and device-prefix forms;
+    ``..`` in any component (both slash styles); ``:`` anywhere (alternate
+    data streams and drives); reserved device stems with or without an
+    extension; a component ending in a dot or a space.
+    """
+    if not isinstance(relative_path, str) or not relative_path:
+        return None
+    if any(unicodedata.category(character) == "Cc" for character in relative_path):
+        return None
+    if relative_path[0] in "\\/" or ":" in relative_path:
+        return None
+    components = tuple(_SEPARATORS.split(relative_path))
+    for component in components:
+        if component == ".." or component.endswith((".", " ")):
+            return None
+        if component.split(".", 1)[0].rstrip(" ").upper() in _RESERVED_STEMS:
+            return None
+    return components
 
 
 class Reader:
@@ -124,7 +143,17 @@ class Reader:
         return ReadUsage(files_claimed=self._files_claimed, bytes_reserved=self._bytes_reserved)
 
     def read_bytes(self, root: TrustRoot, relative_path: str) -> ReadResult:
-        raise NotImplementedError(_red_marker("AHLC_C1_READ_LEXICAL"))
+        """Read one file under ``root``; every failure returns a closed ``ReadErrorCode``."""
+        if not isinstance(root, TrustRoot):
+            raise TypeError("root must be a TrustRoot")
+        components = _lexical_components(relative_path)
+        if components is None:
+            return ReadResult(data=None, error=ReadErrorCode.LEXICAL_INVALID, path=_REDACTED_PATH)
+        display_path = "/".join(components)
+        if self._files_claimed >= self._limits.max_files:
+            return ReadResult(data=None, error=ReadErrorCode.FILE_COUNT_LIMIT, path=display_path)
+        self._files_claimed += 1
+        raise NotImplementedError("harness_read: resolution lands in 187.002-T")
 
 
 def open_reader(*, workspace_root: str | os.PathLike[str], limits: ReadLimits | None = None) -> Reader:
