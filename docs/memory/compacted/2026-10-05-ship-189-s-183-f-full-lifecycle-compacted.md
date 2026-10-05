@@ -39,14 +39,21 @@ The verbose original is listed in `compacted_from`. Closure record:
 * INV-12 returned `DISPOSITION_COMPLETE` (empty set). Post-mode returned
   `PROCEED`. The lock was released.
 * Source cleanup: there was no `source_stash_id` or
-  `source_deliberation_id`, so nothing was archived.
+  `source_deliberation_id`. The description-only sources `24A85BF8` and
+  `AD3D41FA` were already archived at harvest (2026-09-20), so nothing was
+  archived.
 
 ## Learnings
 
 * For 3 artifacts the cascade child took about 156 s against a 238 s
   unmargined prediction, so the fixed cost is lower for small closures.
-* A lock token does not survive across tool processes. Hand it over in
-  memory or in conversation, never in a file.
+* The lock token is reusable by a later process (release requires it), but
+  shell and environment bindings do not persist between tool calls. Carry
+  the token in memory or in conversation, bind it again for release, and
+  never write it to a file.
+* `.backlogit/stash.jsonl` (active) and `.backlogit/archive/stash.jsonl`
+  (archived) share a file name. Check the full path before treating a stash
+  entry as active.
 * The backlogit CLI has no track-commit command. Call
   `backlogit_track_commit` through a `backlogit mcp` stdio client.
 * `uv run` can fail on a TLS handshake to PyPI. `.venv\Scripts\autoharness.exe`
@@ -55,5 +62,5 @@ The verbose original is listed in `compacted_from`. Closure record:
 ## Follow-Ups
 
 New: `D15F6A93` (operator question: should compound learning run at every
-closure) and `C9E87CE9` (retire the satisfied source stash entries
-`24A85BF8` and `AD3D41FA`).
+closure). `C9E87CE9` was captured in error, because its targets were
+already archived; Stage should dismiss it. No other follow-ups are pending.

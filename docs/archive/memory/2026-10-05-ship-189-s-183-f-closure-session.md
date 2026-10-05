@@ -41,18 +41,27 @@
    * INV-12: `DISPOSITION_COMPLETE` (empty).
    * Post-mode: `PROCEED`. Lock released at `03:38:37Z`.
 7. Source cleanup: 183-F has no `source_stash_id` or
-   `source_deliberation_id`, so nothing was archived. Stash entries
-   `D15F6A93` (the operator-supplied compound-learning text block, copied verbatim) and
-   `C9E87CE9` (retire `24A85BF8` and `AD3D41FA`) were captured.
+   `source_deliberation_id`. Its description-only sources, `24A85BF8` and
+   `AD3D41FA`, were already archived at harvest on 2026-09-20, so nothing
+   was archived. Stash entry `D15F6A93` (the operator-supplied
+   compound-learning text block, copied verbatim) was captured. `C9E87CE9`
+   was captured in error: Ship read the archived `stash.jsonl` as if it were
+   the active one. It stays active for Stage to dismiss.
 
 ## Learnings
 
 * The `cascade-close` child for 3 artifacts took about 156 s. The model
   predicted 238 s unmargined. The fixed cost is lower than 133 s when only
   the shipment and two members change.
-* The lock token cannot outlive a single tool process. Pass it in memory or
-  in conversation; never write it to a file. The phase-C script read it
-  from `LOCK_TOKEN`.
+* The lock token is reusable by a later process; the release step requires
+  that. What does not persist is a shell variable or environment binding,
+  because each tool call is a new process. Carry the captured token in
+  memory or in conversation and bind it again for the release call; never
+  write it to a file. The phase-C script received it through `LOCK_TOKEN`.
+* Two files are named `stash.jsonl`: `.backlogit/stash.jsonl` (active) and
+  `.backlogit/archive/stash.jsonl` (archived). Select-String's `Filename`
+  output cannot tell them apart; check the full path before deciding a
+  stash entry is still active.
 * A `git add` whose pathspec names a removed path (`.backlogit/queue/189-S.md`)
   fails the whole add. Stage only the existing archive paths; the staged
   rename carries the deletion.

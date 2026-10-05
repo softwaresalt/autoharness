@@ -162,7 +162,7 @@ named only in the description text.
 
 | Item | Field | Value | Outcome | reason_code |
 |---|---|---|---|---|
-| `183-F` | `source_stash_id` | (absent) | skipped: no manifest-derived source stash to retire. Description-only sources `24A85BF8` and `AD3D41FA` stay active; follow-up `C9E87CE9` asks Stage to retire them | `no_source_stash_id` |
+| `183-F` | `source_stash_id` | (absent) | skipped: no manifest-derived source stash. Description-only sources `24A85BF8` and `AD3D41FA` were already archived at harvest (`.backlogit/archive/stash.jsonl`, `archived_at` 2026-09-20T21:43:46Z); nothing to retire | `no_source_stash_id` (already archived) |
 | `183-F` | `source_deliberation_id` | (absent) | skipped: no linked deliberation (the disposition set was empty). The decision record is unchanged (P-010) | `no_source_deliberation_id` |
 
 Archived source artifacts: 0 stash entries and 0 deliberations. Ship made no
@@ -190,9 +190,10 @@ change to plan, decision, review, or spike artifacts (P-010).
   `graphtor-mcp-shim-child-stdin-write-error-no-response` tripping again.
 * **Rollback trigger**: the targeted test failing again in a way traceable
   to the synchronization change.
-* **Rollback procedure**: `git revert 622a41a1`, or `git revert -m 1
-  e38ac305` for the PR #457 merge. The backlog state committed by this
-  closure stays valid either way. Individual archived records can be
+* **Rollback procedure**: `git revert 622a41a1` only. Do not revert the
+  PR #457 merge `e38ac305`: it carries many unrelated changes (plans,
+  backlog records, and harness configuration). The backlog state committed
+  by this closure stays valid either way. Individual archived records can be
   restored with `backlogit restore`.
 * **Owner**: operator (softwaresalt). The Ship agent owns closure mechanics.
 * **Validation window**: the next 10 full-suite runs (pre-push or CI) on
@@ -206,8 +207,10 @@ change to plan, decision, review, or spike artifacts (P-010).
 ## Verification
 
 The feature PR's pre-push hook ran the full suite at `4e8ad8bb`:
-`Ran 3143 tests in 552.248s`, `OK (skipped=54)`. The closure branch's own
-pre-push run is recorded in the closure PR's readiness block.
+`Ran 3143 tests in 552.248s`, `OK (skipped=54)`. On the closure branch at
+`e9403215`, the pre-push hook passed all local quality gates. A separate run
+of `$env:PYTHONPATH='src'; .venv\Scripts\python.exe -m unittest discover -s tests`
+gave `Ran 3143 tests in 614.347s`, `OK (skipped=54)`, exit 0.
 
 ## Follow-Up Items
 
@@ -222,11 +225,12 @@ All follow-ups are active stash entries, and Stage owns their triage.
   in the dogfood harness. The operator directed this capture. Ship copied the
   operator-supplied text block verbatim, including its findings and
   proposal, and did not triage it. Priority `medium` was set by the operator.
-* `C9E87CE9` (new, task/low): source stash entries `24A85BF8` and `AD3D41FA`
-  are still active, although their work shipped (`622a41a1`, closed by
-  189-S). Priority `low` is provisional; Stage owns re-prioritization. Stage should
-  retire them, and could have harvest stamp
-  `source_stash_id` so this retirement happens automatically.
+* `C9E87CE9` (new, task/low, **captured in error — dismiss**): it asks Stage
+  to retire `24A85BF8` and `AD3D41FA`, but both were already archived at
+  harvest on 2026-09-20. Ship read the wrong `stash.jsonl` and mistook the
+  archived copy for the active one. The single-write capture rule and P-010
+  forbid Ship from editing or archiving a stash entry, so it stays active
+  for Stage to dismiss as already satisfied. No other action is needed.
 
 ## Residual Risks
 
