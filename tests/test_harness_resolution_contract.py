@@ -40,7 +40,7 @@ MIRROR_SCHEMA_ID = "https://github.com/softwaresalt/autoharness/schemas/harness-
 # SHA-256 of the published 1.0.0 mirror over LF-normalized bytes. A change to the
 # mirror is a new contract version, never an in-place edit
 # (docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md).
-MIRROR_SHA256_LF = "0000000000000000000000000000000000000000000000000000000000000000"
+MIRROR_SHA256_LF = "d6b8f956c5d2cad98d466b6ee5facbaaa78195a75fc293b84bc347502ce4951a"
 
 MARKER = "AHLC_B1_RESOLUTION_CONTRACT"
 
