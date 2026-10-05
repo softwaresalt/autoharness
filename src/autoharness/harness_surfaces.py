@@ -16,17 +16,24 @@ its ordinary-hazard scope (FI-10); this module adds no claim beyond it.
 from __future__ import annotations
 
 import enum
+import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
+from typing import Any
 
-from autoharness.harness_read import ReadErrorCode
+import yaml
+
+from autoharness.harness_read import Reader, ReadErrorCode, TrustRoot
 
 __all__ = [
     "BACKLOG_ROOT_NAMES",
     "Declaration",
+    "MAX_MEMBERS",
+    "NONE_SURFACE",
     "REASON_REGISTRY",
+    "ReadLimitHit",
     "ReadStage",
     "ReasonSpec",
     "ResolutionResult",
@@ -373,19 +380,65 @@ def make_result(
         diagnostics=diagnostics,
     )
 
-# --- B2 (188.002-T) RED-phase stubs -----------------------------------------
 
-_B2 = "AHLC_B2_RECORDS_MEMBERSHIP"
+# --- B2 (188.002-T): backlog root, records, membership and declarations ------
+
+MAX_MEMBERS = 48
+NONE_SURFACE = "none"
+_SURFACE_LABEL = "harness-surface"
+_SURFACE_LABEL_RE = re.compile(r"^harness-surface:([a-z0-9]+(?:-[a-z0-9]+)*)$")
+_ARTIFACT_TYPE_BY_SUFFIX = MappingProxyType({"S": "shipment", "F": "feature", "T": "task"})
+_PRECEDENCE: Mapping[str, int] = MappingProxyType({spec.code: index for index, spec in enumerate(REASON_REGISTRY)})
+
+
+class _DuplicateKeyError(yaml.YAMLError):
+    """A mapping repeats a key."""
+
+
+class _AliasForbiddenError(yaml.YAMLError):
+    """An anchor or alias appears; record and manifest YAML have no use for either."""
+
+
+class _StrictLoader(yaml.SafeLoader):
+    """A ``yaml.SafeLoader`` that rejects duplicate mapping keys, anchors and aliases."""
+
+    def compose_node(self, parent: Any, index: Any) -> Any:
+        event = self.peek_event()
+        if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None) is not None:
+            raise _AliasForbiddenError("anchors and aliases are not accepted")
+        return super().compose_node(parent, index)
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: set[Any] = set()
+        for key_node, _value_node in node.value:
+            key = self.construct_object(key_node, deep=True)
+            try:
+                duplicate = key in seen
+            except TypeError:
+                continue  # unhashable keys are rejected by the base constructor
+            if duplicate:
+                raise _DuplicateKeyError(f"duplicate key {key!r}")
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
+def _load_yaml(text: str) -> Any:
+    """Parse one YAML document with :class:`_StrictLoader` (raises ``yaml.YAMLError``)."""
+    return yaml.load(text, Loader=_StrictLoader)  # noqa: S506 - _StrictLoader is a SafeLoader
 
 
 @dataclass(frozen=True)
 class ReadLimitHit:
+    """The first read-limit error (class 1b): its native code and the stage."""
+
     code: ReadErrorCode
     stage: ReadStage
 
 
 @dataclass(frozen=True)
 class _Records:
+    """Backlog-root, shipment, membership and declaration facts (classes 2 and 3)."""
+
     backlog_root: str | None
     shipment_id: str | None
     facts: tuple[str, ...]
@@ -395,14 +448,203 @@ class _Records:
 
     @property
     def reason_code(self) -> str | None:
+        """The first applicable class 2 or class 3 fact, by listed order."""
         return _first_applicable(self.facts)
 
 
 def _first_applicable(codes: Sequence[str]) -> str | None:
-    raise NotImplementedError(f"{_B2}:test_first_applicable_orders_by_registry")
+    """The code listed first in the registry (``KeyError`` for an unknown code).
+
+    Class 1b selects by first occurrence, not by listed order, so read-limit
+    codes are refused here.
+    """
+    best: tuple[int, str] | None = None
+    for code in codes:
+        rank = _PRECEDENCE[code]
+        if code in _READ_LIMIT_CODE_NAMES:
+            raise ValueError(f"{code} selects by first occurrence")
+        if best is None or rank < best[0]:
+            best = (rank, code)
+    return None if best is None else best[1]
 
 
-def _read_records(reader: object, *, workspace_root: object, shipment_id: object) -> _Records:
-    import os
+def _frontmatter(data: bytes) -> dict[Any, Any] | None:
+    """The YAML frontmatter mapping of a record, or ``None`` when it is not well formed."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    lines = text.replace("\r\n", "\n").split("\n")
+    if not lines or lines[0] != "---":
+        return None
+    try:
+        end = lines.index("---", 1)
+    except ValueError:
+        return None
+    try:
+        loaded = _load_yaml("\n".join(lines[1:end]))
+    except yaml.YAMLError:
+        return None
+    return loaded if isinstance(loaded, dict) else None
 
-    raise NotImplementedError(f"{_B2}:{os.path.basename(os.fspath(workspace_root))}")
+
+def _read_record(
+    reader: Reader, backlog_root: str, item_id: str, stage: ReadStage
+) -> tuple[str, dict[Any, Any] | ReadLimitHit | None]:
+    """Read both exact candidates of one record.
+
+    Returns ``("limit", hit)``, ``("absent" | "ambiguous" | "invalid" | "mismatch", None)``
+    or ``("present", frontmatter)``. The first read-limit error stops all reads.
+    """
+    present: list[bytes] = []
+    invalid = False
+    for folder in ("queue", "archive"):
+        result = reader.read_bytes(TrustRoot.WORKSPACE, f"{backlog_root}/{folder}/{item_id}.md")
+        if result.error is None:
+            present.append(result.data if result.data is not None else b"")
+        elif result.error in _READ_LIMIT_CODES:
+            return "limit", ReadLimitHit(result.error, stage)
+        elif result.error is not ReadErrorCode.PATH_NOT_FOUND:
+            invalid = True
+    if invalid:
+        return "invalid", None
+    if not present:
+        return "absent", None
+    if len(present) > 1:
+        return "ambiguous", None
+    record = _frontmatter(present[0])
+    if record is None:
+        return "invalid", None
+    record_id, artifact_type = record.get("id"), record.get("artifact_type")
+    if not isinstance(record_id, str) or not isinstance(artifact_type, str):
+        return "invalid", None
+    if record_id != item_id or artifact_type != _ARTIFACT_TYPE_BY_SUFFIX[item_id[-1]]:
+        return "mismatch", None
+    return "present", record
+
+
+_SHIPMENT_CODES = MappingProxyType(
+    {
+        "absent": "SHIPMENT_NOT_FOUND",
+        "ambiguous": "SHIPMENT_AMBIGUOUS",
+        "invalid": "SHIPMENT_RECORD_INVALID",
+        "mismatch": "SHIPMENT_ID_MISMATCH",
+    }
+)
+_MEMBER_CODES = MappingProxyType(
+    {
+        "absent": "MEMBER_NOT_FOUND",
+        "ambiguous": "MEMBER_AMBIGUOUS",
+        "invalid": "MEMBER_RECORD_INVALID",
+        "mismatch": "MEMBER_ID_MISMATCH",
+    }
+)
+
+
+def _declaration(labels: Sequence[str]) -> tuple[list[str], str | None]:
+    """Class 3 facts of one task's declaration labels, and its surface when there are none."""
+    declared = [label for label in labels if label == _SURFACE_LABEL or label.startswith(_SURFACE_LABEL + ":")]
+    if not declared:
+        return ["DECLARATION_MISSING"], None
+    facts: list[str] = []
+    matches = [_SURFACE_LABEL_RE.fullmatch(label) for label in declared]
+    if any(match is None for match in matches):
+        facts.append("DECLARATION_MALFORMED")
+    if len(set(declared)) != len(declared):
+        facts.append("DECLARATION_DUPLICATE")
+    surfaces = {match.group(1) for match in matches if match is not None}
+    if len(surfaces) > 1:
+        facts.append("DECLARATION_MIXED")
+    if any(surface != NONE_SURFACE and surface not in SUPPORTED_SURFACES for surface in surfaces):
+        facts.append("SURFACE_UNSUPPORTED")
+    if facts:
+        return facts, None
+    return [], surfaces.pop()
+
+
+def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shipment_id: object) -> _Records:
+    """Classes 2 and 3 for one shipment, read through ``reader``.
+
+    The backlog root is one of two fixed names under ``workspace_root``,
+    probed with ``os.path.isdir`` (a probe is not a file claim); no
+    environment variable or other module selects it. Facts are collected in
+    encounter order without short-circuiting across members; the first
+    read-limit error stops every further read (FI-5).
+    """
+    base = os.fspath(workspace_root)
+    roots = [name for name in BACKLOG_ROOT_NAMES if os.path.isdir(os.path.join(base, name))]
+    facts: list[str] = []
+    backlog_root: str | None = None
+    if not roots:
+        facts.append("BACKLOG_ROOT_NOT_FOUND")
+    elif len(roots) > 1:
+        facts.append("BACKLOG_ROOT_AMBIGUOUS")
+    else:
+        backlog_root = roots[0]
+    valid_id = shipment_id if isinstance(shipment_id, str) and SHIPMENT_ID_RE.fullmatch(shipment_id) else None
+    if valid_id is None:
+        facts.append("SHIPMENT_ID_INVALID")
+
+    def done(read_limit: ReadLimitHit | None = None, declarations: Sequence[Declaration] = ()) -> _Records:
+        ordered = tuple(sorted(declarations, key=lambda item: task_id_sort_key(item.member_id)))
+        surface_ids = tuple(sorted({item.surface_id for item in ordered if item.surface_id in SUPPORTED_SURFACES}))
+        return _Records(backlog_root, valid_id, tuple(facts), ordered, surface_ids, read_limit)
+
+    if facts or backlog_root is None or valid_id is None:
+        return done()
+
+    status, record = _read_record(reader, backlog_root, valid_id, ReadStage.SHIPMENT_CANDIDATE)
+    if isinstance(record, ReadLimitHit):
+        return done(record)
+    if not isinstance(record, dict):
+        facts.append(_SHIPMENT_CODES[status])
+        return done()
+
+    custom_fields = record.get("custom_fields")
+    items = custom_fields.get("items") if isinstance(custom_fields, dict) else None
+    if not isinstance(items, list) or any(not isinstance(item, str) for item in items):
+        facts.append("MEMBERS_INVALID")
+    elif not items:
+        facts.append("MEMBERS_EMPTY")
+    elif len(items) > MAX_MEMBERS:
+        facts.append("MEMBERS_TOO_MANY")
+    if facts:
+        return done()
+
+    lookups: list[str] = []
+    for item in items:
+        match = MEMBER_ID_RE.fullmatch(item)
+        if match is None:
+            facts.append("MEMBER_ID_INVALID")
+        elif match.group(2) not in ("F", "T"):
+            facts.append("MEMBER_KIND_UNSUPPORTED")
+        elif item in lookups:
+            facts.append("MEMBER_DUPLICATE")
+        else:
+            lookups.append(item)
+    if not any(item.endswith("-T") for item in lookups):
+        facts.append("NO_TASK_MEMBERS")
+
+    declarations: list[Declaration] = []
+    for item in lookups:
+        status, member = _read_record(reader, backlog_root, item, ReadStage.MEMBER_CANDIDATE)
+        if isinstance(member, ReadLimitHit):
+            return done(member, declarations)
+        if not isinstance(member, dict):
+            facts.append(_MEMBER_CODES[status])
+            continue
+        labels = member.get("labels")
+        if labels is None:
+            labels = []
+        if not isinstance(labels, list) or any(not isinstance(label, str) for label in labels):
+            facts.append("MEMBER_RECORD_INVALID")
+            continue
+        if item.endswith("-F"):
+            if any(label == _SURFACE_LABEL or label.startswith(_SURFACE_LABEL + ":") for label in labels):
+                facts.append("FEATURE_DECLARES_SURFACE")
+            continue
+        issues, surface = _declaration(labels)
+        facts.extend(issues)
+        if surface is not None:
+            declarations.append(Declaration(item, surface))
+    return done(None, declarations)
