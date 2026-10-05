@@ -35,8 +35,10 @@ engine `VERIFIED`. The closure artifact is
 * **IM-01 evidence.** It comes from the PR's CI step. The job URL is
   printed from `job.check_run_id`. The result: kernel 6.17 azure, ext4 for
   both the checkout and the fixture root, 94 tests OK with 0 skips.
-* **IM-02 evidence.** Windows, NTFS, symlink privilege held, 95 tests OK with
-  3 skips (all in the G31 class).
+* **IM-02 evidence.** Windows, NTFS, symlink privilege held. The evidence of
+  record is the closure-branch run on code identical to the merged head
+  `55e62581`: 97 tests OK with 3 skips (all in the G31 class). The earlier run
+  at `e0d563ab` gave 95 tests.
 
 ## Gates and evidence
 
