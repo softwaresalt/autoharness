@@ -21,6 +21,8 @@ from __future__ import annotations
 import enum
 import os
 import re
+import stat
+import sys
 import unicodedata
 from dataclasses import dataclass
 
@@ -129,6 +131,19 @@ def _lexical_components(relative_path: object) -> tuple[str, ...] | None:
     return components
 
 
+def _red_marker(prefix: str) -> str:
+    # RED-phase scaffold (P-004 Marker Convention): derives <t> from the calling
+    # test method name (its Proof G case ID when the name carries one).
+    frame = sys._getframe(1)
+    while frame is not None:
+        name = frame.f_code.co_name
+        if name.startswith("test_"):
+            match = re.match(r"test_(G\d\d[a-z]?)(?:_|$)", name)
+            return f"{prefix}:{match.group(1) if match else name}"
+        frame = frame.f_back
+    return f"{prefix}:unattributed"
+
+
 def _read_chunk(fd: int, n: int) -> bytes:
     """The only raw read: one unbuffered ``os.read`` of at most ``n`` bytes."""
     return os.read(fd, n)
@@ -211,11 +226,13 @@ class Reader:
         if not _is_contained(root_path, target):
             return ReadResult(data=None, error=ReadErrorCode.OUTSIDE_TRUST_ROOT, path=display_path)
         try:
-            os.stat(target)
+            status = os.stat(target)
         except (FileNotFoundError, NotADirectoryError):
             return ReadResult(data=None, error=ReadErrorCode.PATH_NOT_FOUND, path=display_path)
         except OSError:
             return ReadResult(data=None, error=ReadErrorCode.IO, path=display_path)
+        if not stat.S_ISREG(status.st_mode):
+            raise NotImplementedError(_red_marker("AHLC_C4_READ_NONREGULAR"))
         return self._bounded_read(target, display_path)
 
     def _bounded_read(self, target: str, display_path: str) -> ReadResult:
