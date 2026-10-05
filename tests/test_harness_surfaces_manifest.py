@@ -113,7 +113,16 @@ class ManifestRosterTests(ManifestFixture):
         self.assert_global("MANIFEST_DECODE_INVALID")
 
     def test_manifest_yaml_invalid(self) -> None:
-        for raw in (b"artifacts: [\n", b"a: 1\n---\nb: 2\n", b"x: &a 1\ny: *a\n", b"\t- bad\n:"):
+        for raw in (
+            b"artifacts: [\n",
+            b"a: 1\n---\nb: 2\n",
+            b"x: &a 1\ny: *a\n",
+            b"\t- bad\n:",
+            b"<<: {artifacts: []}\nvariables_used: {}\n",
+            b"artifacts: []\nvariables_used: {}\ncreated: 2026-13-01\n",
+            b"artifacts: []\nvariables_used: {}\nx: " + b"9" * 5000 + b"\n",
+            b"artifacts: []\nvariables_used: {}\nx: " + b"[" * 2000 + b"]" * 2000 + b"\n",
+        ):
             with self.subTest(raw=raw):
                 self.write_manifest(raw=raw)
                 self.assert_global("MANIFEST_YAML_INVALID")
@@ -255,17 +264,64 @@ class ManifestRosterTests(ManifestFixture):
                 self.assertEqual(result.read_limit, hs.ReadLimitHit(code, stage))
                 self.assertEqual((result.global_code, result.rows), (None, ()))
                 self.assertEqual(reader.usage.files_claimed, claimed)
+        # Byte limits after the manifest prove no later read (FI-5): the installed
+        # file is never claimed after a template byte limit.
+        manifest_size = (self.ws / ".autoharness" / "harness-manifest.yaml").stat().st_size
+        self.template_path.write_bytes(TEMPLATE_TEXT.encode("utf-8") + b"pad\n" * 2048)
+        for limits, code in (
+            (ReadLimits(max_file_bytes=manifest_size + 64), ReadErrorCode.FILE_SIZE_LIMIT),
+            (ReadLimits(max_total_bytes=manifest_size + 64), ReadErrorCode.TOTAL_SIZE_LIMIT),
+        ):
+            with self.subTest(code=code, stage="template bytes"):
+                result, reader = self.classify(limits=limits)
+                self.assertEqual(result.read_limit, hs.ReadLimitHit(code, hs.ReadStage.TEMPLATE))
+                self.assertEqual(reader.usage.files_claimed, 2)
+
+
+class ManifestReviewFixTests(ManifestFixture):
+    """Local-review fixes (194-S): bounded rendering and total classification."""
+
+    def test_chained_variables_render_is_bounded(self) -> None:
+        # Each value names the next variable 64 times: unbounded sequential rendering
+        # grows to 64**3 * 40 characters (over 10 MB), past the 4 MiB per-file read
+        # bound, so no installed file the reader can read could ever match it.
+        variables = {
+            **VARIABLES,
+            "TEST_COMMAND": "{{V1}}" * 64,
+            "V1": "{{V2}}" * 64,
+            "V2": "{{V3}}" * 64,
+            "V3": "y" * 40,
+        }
+        self.write_manifest(self.manifest(variables=variables))
+        self.assert_row("TEMPLATE_UNREADABLE", "INVALID")
+
+    def test_render_within_bound_still_classifies(self) -> None:
+        variables = {**VARIABLES, "TEST_COMMAND": "{{V1}}" * 4, "V1": "make test"}
+        self.write_manifest(self.manifest(variables=variables))
+        self.assert_row("RENDER_MISMATCH", "STALE")
+
+    def test_surrogate_variable_is_a_render_mismatch(self) -> None:
+        raw = (
+            b"artifacts:\n- path: " + INSTALLED.encode() + b"\n  template: " + TEMPLATE.encode()
+            + b"\n  checksum: '" + hashlib.sha256(RENDERED).hexdigest().encode() + b"'\n"
+            + b'variables_used:\n  SKILL_NAME: "\\uD800"\n  TEST_COMMAND: make test\n'
+        )
+        self.write_manifest(raw=raw)
+        self.assert_row("RENDER_MISMATCH", "STALE")
+
+
+class ManifestRosterStructuralTests(unittest.TestCase):
+    def test_structural_roster_markers_pairwise_distinct(self) -> None:
+        names = [name for name in dir(ManifestRosterTests) if name.startswith("test_")]
+        markers = [f"{MARKER}:{name}" for name in names]
+        self.assertEqual(len(names), 20)
+        self.assertEqual(len(set(markers)), len(markers))
+        self.assertFalse(any(name.startswith("test_structural_") for name in names))
 
 
 class RendererAliasStructuralTests(unittest.TestCase):
     def test_structural_render_template_alias(self) -> None:
         self.assertIs(verify_workspace.render_template, verify_workspace._render_template)
-
-    def test_structural_roster_markers_pairwise_distinct(self) -> None:
-        names = [name for name in dir(ManifestRosterTests) if name.startswith("test_")]
-        markers = [f"{MARKER}:{name}" for name in names]
-        self.assertEqual(len(set(markers)), len(markers))
-        self.assertFalse(any(name.startswith("test_structural_") for name in names))
 
 
 if __name__ == "__main__":

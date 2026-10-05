@@ -548,5 +548,121 @@ class ResultContractRosterTests(unittest.TestCase):
                 self.assertEqual(list(validator.iter_errors(document)), [])
 
 
+class ResultContractReviewFixTests(unittest.TestCase):
+    """Local-review fixes (194-S): make_result output and the schema agree; direct construction is checked."""
+
+    def build(self, code: str, **overrides: Any) -> hs.ResolutionResult:
+        row_state = SURFACE_ROW_STATES.get(code)
+        arguments: dict[str, Any] = {
+            "shipment_id": None if code == "SHIPMENT_ID_INVALID" else "12-S",
+            "backlog_root": None if code in ROOT_CODES else ".backlog",
+            "inputs_sha256": DIGEST,
+            "surfaces": ()
+            if row_state is None
+            else (hs.SurfaceRow(**SURFACE_ROW, state=hs.SurfaceState[row_state], reason_code=code),),
+            "declarations": (hs.Declaration("2-T", "none"), hs.Declaration("10-T", "harness-architect")),
+            "diagnostics": ()
+            if code not in READ_LIMIT_CODES
+            else hs.read_limit_diagnostics(ReadErrorCode[code], hs.ReadStage.SURFACE_RECHECK),
+        }
+        arguments.update(overrides)
+        return hs.make_result(code, **arguments)
+
+    def test_make_result_output_validates_against_mirror(self) -> None:
+        validator = Draft202012Validator(load_schema(MIRROR_SCHEMA))
+        for code, *_rest in parse_candidate():
+            variants: list[dict[str, Any]] = [{}, {"backlog_root": ".backlogit"}] if code not in ROOT_CODES else [
+                {"shipment_id": None},
+                {"shipment_id": "3-S"},
+            ]
+            for overrides in variants:
+                with self.subTest(code=code, overrides=overrides):
+                    document = self.build(code, **overrides).to_document()
+                    self.assertEqual(list(validator.iter_errors(document)), [])
+
+    def test_contract_rejects_wrong_element_types_and_unknown_surfaces(self) -> None:
+        row = hs.SurfaceRow(**SURFACE_ROW, state=hs.SurfaceState.STALE, reason_code="CHECKSUM_MISMATCH")
+        rejected: list[tuple[str, str, dict[str, Any]]] = [
+            ("row is a dict", "CHECKSUM_MISMATCH", {"surfaces": (dict(SURFACE_ROW),)}),
+            ("declaration is a tuple", "NO_SURFACES_REQUIRED", {"declarations": (("2-T", "none"),)}),
+            ("unsupported declared surface", "NO_SURFACES_REQUIRED", {"declarations": (hs.Declaration("2-T", "bogus"),)}),
+            ("diagnostic not a string", "NO_SURFACES_REQUIRED", {"diagnostics": (3,)}),
+            ("unhashable code", "CHECKSUM_MISMATCH", {"surfaces": (row,)}),
+        ]
+        for label, code, overrides in rejected:
+            with self.subTest(rejected=label), self.assertRaises(ValueError):
+                if label == "unhashable code":
+                    hs.make_result(["CHECKSUM_MISMATCH"], shipment_id="1-S", backlog_root=".backlog",  # type: ignore[arg-type]
+                                   inputs_sha256=DIGEST, surfaces=(row,))
+                else:
+                    self.build(code, **overrides)
+
+    def test_direct_construction_is_checked(self) -> None:
+        valid = self.build("ALL_SURFACES_PRESENT")
+        self.assertEqual(hs.ResolutionResult(**vars(valid)), valid)
+        for field, value in (
+            ("state", hs.ResolutionState.NO_HARNESS),
+            ("exit_code", 1),
+            ("schema_version", "1.1.0"),
+            ("surfaces", ()),
+            ("inputs_sha256", "x"),
+        ):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                hs.ResolutionResult(**{**vars(valid), field: value})
+        listed = hs.ResolutionResult(**{**vars(valid), "diagnostics": [], "declarations": list(valid.declarations)})
+        self.assertIsInstance(listed.diagnostics, tuple)
+        self.assertIsInstance(listed.declarations, tuple)
+        hash(listed)
+
+
+class SchemaRuntimeCouplingStructuralTests(unittest.TestCase):
+    """The closed schema enums and every branch, rebuilt from test-local constants."""
+
+    def test_structural_closed_enums_match_runtime_constants(self) -> None:
+        properties = load_schema(MIRROR_SCHEMA)["properties"]
+        self.assertEqual(properties["backlog_root"]["enum"], [*hs.BACKLOG_ROOT_NAMES, None])
+        row = properties["surfaces"]["items"]["properties"]
+        self.assertEqual(row["surface_id"]["enum"], list(hs.SUPPORTED_SURFACES))
+        self.assertEqual(row["installed_path"]["enum"], [s.installed_path for s in hs.SUPPORTED_SURFACES.values()])
+        self.assertEqual(row["template"]["enum"], [s.template for s in hs.SUPPORTED_SURFACES.values()])
+        self.assertEqual(row["reason_code"]["enum"], [s.code for s in hs.REASON_REGISTRY if s.surface_state])
+        self.assertEqual(properties["shipment_id"], {"type": ["string", "null"], "pattern": "^[0-9]+-S$"})
+
+    def test_structural_every_branch_equals_expected(self) -> None:
+        def expected(code: str, state: str, exit_code: int) -> dict[str, Any]:
+            props: dict[str, Any] = {
+                "reason_code": {"const": code},
+                "state": {"const": state},
+                "exit_code": {"const": exit_code},
+            }
+            if code == "SHIPMENT_ID_INVALID":
+                props["shipment_id"] = {"const": None}
+            elif code not in ROOT_CODES:
+                props["shipment_id"] = {"type": "string"}
+            props["backlog_root"] = {"const": None} if code in ROOT_CODES else {"type": "string"}
+            row_state = SURFACE_ROW_STATES.get(code)
+            props["surfaces"] = {"maxItems": 0} if row_state is None else {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {"properties": {"state": {"const": row_state}, "reason_code": {"const": code}}},
+            }
+            if code in READ_LIMIT_CODES:
+                props["diagnostics"] = {
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {"enum": [f"read_error_code={code}"] + [f"read_stage={t}" for t in READ_STAGE_TOKENS.values()]},
+                    "allOf": [
+                        {"contains": {"const": f"read_error_code={code}"}, "minContains": 1, "maxContains": 1},
+                        {"contains": {"pattern": "^read_stage="}, "minContains": 1, "maxContains": 1},
+                    ],
+                }
+            else:
+                props["diagnostics"] = {"not": {"contains": {"pattern": "^read_(error_code|stage)="}}}
+            return {"properties": props}
+
+        branches = load_schema(MIRROR_SCHEMA)["oneOf"]
+        self.assertEqual(branches, [expected(code, state, exit_code) for code, _c, state, exit_code in parse_candidate()])
+
+
 if __name__ == "__main__":
     unittest.main()

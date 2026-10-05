@@ -150,6 +150,12 @@ class RecordsRosterTests(RecordsFixture):
             "alias": b"---\nid: &a 7-S\nartifact_type: shipment\ntitle: *a\n---\n",
             "missing id": b"---\nartifact_type: shipment\ncustom_fields:\n  items: ['1-T']\n---\n",
             "non-string type": b"---\nid: 7-S\nartifact_type: 3\n---\n",
+            "bad timestamp": b"---\nid: 7-S\nartifact_type: shipment\ncreated: 2026-13-01\n---\n",
+            "deep nesting": b"---\nid: 7-S\nartifact_type: shipment\nx: " + b"[" * 2000 + b"]" * 2000 + b"\n---\n",
+            "oversized integer": b"---\nid: 7-S\nartifact_type: shipment\nx: " + b"9" * 5000 + b"\n---\n",
+            "merge key": b"---\n<<: {id: 7-S}\nartifact_type: shipment\n---\n",
+            "byte order mark": b"\xef\xbb\xbf---\nid: 7-S\nartifact_type: shipment\ncustom_fields:\n  items: ['1-T']\n---\n",
+            "delimiter trailing space": b"--- \nid: 7-S\nartifact_type: shipment\ncustom_fields:\n  items: ['1-T']\n---\n",
             "directory": None,
         }
         self.task("1-T")
@@ -226,9 +232,11 @@ class RecordsRosterTests(RecordsFixture):
         self.assert_code("MEMBER_ID_INVALID")
 
     def test_member_kind_unsupported(self) -> None:
-        self.shipment(["1-T", "4-S", "5-B"])
+        self.shipment(["1-T", "4-S", "5-B", "1.2-ST", "3-DL"])
         self.task("1-T")
-        self.assert_code("MEMBER_KIND_UNSUPPORTED")
+        outcome = self.assert_code("MEMBER_KIND_UNSUPPORTED")
+        self.assertEqual(outcome.facts.count("MEMBER_KIND_UNSUPPORTED"), 4)
+        self.assertNotIn("MEMBER_ID_INVALID", outcome.facts)
 
     def test_member_duplicate(self) -> None:
         self.shipment(["1-T", "1-T"])
@@ -403,6 +411,16 @@ class RecordsRosterTests(RecordsFixture):
         outcome, reader = self.read(limits=ReadLimits(max_file_bytes=8))
         self.assertEqual(outcome.read_limit, hs.ReadLimitHit(ReadErrorCode.FILE_SIZE_LIMIT, hs.ReadStage.SHIPMENT_CANDIDATE))
         self.assertEqual(reader.usage.files_claimed, 1)
+        # Byte limits at the member stage prove no later read: neither 1-T's archive
+        # candidate nor 2-T is claimed after the first read-limit error (FI-5).
+        shipment_size = (self.backlog / "queue" / "7-S.md").stat().st_size
+        self.task("1-T", title="x" * 4096)
+        outcome, reader = self.read(limits=ReadLimits(max_file_bytes=shipment_size + 64))
+        self.assertEqual(outcome.read_limit, hs.ReadLimitHit(ReadErrorCode.FILE_SIZE_LIMIT, hs.ReadStage.MEMBER_CANDIDATE))
+        self.assertEqual(reader.usage.files_claimed, 3)
+        outcome, reader = self.read(limits=ReadLimits(max_total_bytes=shipment_size + 64))
+        self.assertEqual(outcome.read_limit, hs.ReadLimitHit(ReadErrorCode.TOTAL_SIZE_LIMIT, hs.ReadStage.MEMBER_CANDIDATE))
+        self.assertEqual(reader.usage.files_claimed, 3)
 
 
 class FirstApplicableRosterTests(unittest.TestCase):
@@ -425,6 +443,7 @@ class RosterStructuralTests(unittest.TestCase):
             if name.startswith("test_")
         ]
         markers = [f"{MARKER}:{name}" for name in names]
+        self.assertEqual(len(names), 32)
         self.assertEqual(len(set(markers)), len(markers))
         self.assertFalse(any(name.startswith("test_structural_") for name in names))
 

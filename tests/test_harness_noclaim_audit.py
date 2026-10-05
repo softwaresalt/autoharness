@@ -44,8 +44,8 @@ FLOOR: tuple[str, ...] = (
 
 # (repo-relative POSIX path, SHA-256 of the normalized unit) -> "non-claim".
 # C5 adds no entry: harness_read.py has no detector hit outside the required
-# sentence (confirmed by local review). B1 (188.001-T) adds no entry:
-# harness_surfaces.py has no detector hit (confirmed by local review).
+# sentence (confirmed by local review). B1-B3 (188.001-T..188.003-T) add no
+# entry: harness_surfaces.py has no detector hit (confirmed by 194-S local review).
 LEDGER: dict[tuple[str, str], str] = {}
 
 REQUIRED_SENTENCE = (
