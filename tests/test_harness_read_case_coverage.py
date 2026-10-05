@@ -23,6 +23,8 @@ import unittest
 from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
+# Keep in sync with the module list of the "Linux-native containment gate
+# (IM-01)" step in .github/workflows/ci.yml (that step adds the audit module).
 CONTAINMENT_MODULES = (
     "test_harness_read_lexical.py",
     "test_harness_read_containment.py",
@@ -34,7 +36,7 @@ CASE_NAME = re.compile(r"^test_(G\d\d)[a-z]?(?:_|$)")
 LINUX_ONLY_IDS = frozenset({"G31"})
 
 
-def _host_skip_decorators(node: ast.FunctionDef) -> list[str]:
+def _host_skip_decorators(node: ast.FunctionDef | ast.ClassDef) -> list[str]:
     found = []
     for decorator in node.decorator_list:
         target = decorator.func if isinstance(decorator, ast.Call) else decorator
@@ -44,17 +46,39 @@ def _host_skip_decorators(node: ast.FunctionDef) -> list[str]:
     return found
 
 
+def _in_body_skips(node: ast.FunctionDef) -> list[str]:
+    """Direct ``skipTest`` calls in a test body (``require_symlinks`` is the recorded privilege skip)."""
+    return [
+        ast.unparse(call)
+        for call in ast.walk(node)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Attribute)
+        and call.func.attr == "skipTest"
+    ]
+
+
 def collect_case_tests() -> dict[str, list[tuple[str, list[str]]]]:
-    """Map each case ID to its ``(module::test name, host-skip decorators)`` entries."""
+    """Map each case ID to its ``(module::Class.test, host conditions)`` entries.
+
+    Only test methods defined directly in a module-level class count; a host
+    condition is a skip decorator on the method or its class, or a direct
+    ``skipTest`` call in the method body.
+    """
     by_case: dict[str, list[tuple[str, list[str]]]] = {}
     for module in CONTAINMENT_MODULES:
         tree = ast.parse((TESTS_DIR / module).read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef):
+        for cls in tree.body:
+            if not isinstance(cls, ast.ClassDef):
+                continue
+            class_conditions = _host_skip_decorators(cls)
+            for node in cls.body:
+                if not isinstance(node, ast.FunctionDef):
+                    continue
                 match = CASE_NAME.match(node.name)
                 if match:
+                    conditions = class_conditions + _host_skip_decorators(node) + _in_body_skips(node)
                     by_case.setdefault(match.group(1), []).append(
-                        (f"{module}::{node.name}", _host_skip_decorators(node))
+                        (f"{module}::{cls.name}.{node.name}", conditions)
                     )
     return by_case
 

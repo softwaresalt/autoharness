@@ -12,8 +12,11 @@ directory-symlink analogue and the same expected code, and the upper-case root
 case G21a is a case-sensitivity check (``PATH_NOT_FOUND``). G30 (directory
 targets) is verified by C4's module.
 
-Roster (P-004, Marker Convention): every test in this module; each reaches the
-RED-phase stub with its own marker ``AHLC_C2_READ_CONTAINMENT:<t>``.
+Roster (P-004, Marker Convention): every test in this module as of the C2 RED
+commit; each reached the RED-phase stub with its own marker
+``AHLC_C2_READ_CONTAINMENT:<t>``. ``AutoharnessRootEscapeTests`` and
+``test_is_contained_compares_normcase_forms`` were added by the shipment's
+local review, after GREEN.
 """
 
 from __future__ import annotations
@@ -36,12 +39,18 @@ _ERROR_PRIVILEGE_NOT_HELD = 1314
 
 
 def make_directory_link(link: Path, target: Path) -> None:
-    """Windows: a directory junction via ``mklink /J``. Linux: a directory symlink analogue."""
+    """Windows: a directory junction via ``mklink /J``. Linux: a directory symlink analogue.
+
+    Kept in sync with the copy in ``test_harness_read_nonregular.py`` (each task's
+    file budget names its own test module).
+    """
     if IS_WINDOWS:
         completed = subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(link), str(target)],
             capture_output=True,
             text=True,
+            encoding="oem",
+            errors="replace",
             check=False,
         )
         if completed.returncode != 0:
@@ -74,6 +83,7 @@ class ContainmentFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.mkdtemp(prefix="ahlc-c2-")
+        cls.addClassCleanup(shutil.rmtree, cls._tmp, True)
         cls.tree = Path(cls._tmp)
         ws = cls.tree / "ws"
         cls.ws = ws
@@ -105,17 +115,15 @@ class ContainmentFixture(unittest.TestCase):
         cls.symlink_skip_reason = reason
 
         cls.ws_upper = cls.tree / "WS"
-        if not IS_WINDOWS:
-            # Case-sensitive filesystem: the differently cased spelling names a
-            # distinct directory that holds no docs/in.txt but does hold an
-            # outward link, so G21a is PATH_NOT_FOUND and G21b still escapes.
+        # Probe the filesystem rather than the OS: on a case-insensitive volume the
+        # differently cased spelling is the same directory (G21a accepts); on a
+        # case-sensitive one it names a distinct directory that holds no
+        # docs/in.txt but does hold an outward link, so G21a is PATH_NOT_FOUND
+        # and G21b still escapes.
+        cls.case_insensitive = cls.ws_upper.exists()
+        if not cls.case_insensitive:
             cls.ws_upper.mkdir()
             make_directory_link(cls.ws_upper / "j-out", outside)
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        shutil.rmtree(cls._tmp, ignore_errors=True)
-
     def read(self, root: TrustRoot, relative_path: str, *, workspace: Path | None = None):
         reader = open_reader(workspace_root=str(workspace or self.ws))
         result = reader.read_bytes(root, relative_path)
@@ -176,7 +184,7 @@ class ContainmentCaseTests(ContainmentFixture):
 
     def test_G21a_upper_case_root_spelling(self) -> None:
         result = self.read(self.W, "docs/in.txt", workspace=self.ws_upper)
-        if IS_WINDOWS:
+        if self.case_insensitive:
             self.assert_ok(result, IN_BYTES)
         else:
             self.assert_error(result, ReadErrorCode.PATH_NOT_FOUND)
@@ -225,7 +233,16 @@ class IsContainedTests(unittest.TestCase):
     """The private ``_is_contained`` patch point: ``commonpath`` over ``normcase``."""
 
     def test_is_contained_cross_drive_is_false_without_raising(self) -> None:
+        # Windows: different drives make commonpath raise ValueError. POSIX: both
+        # spellings are relative names with nothing in common.
         self.assertFalse(harness_read._is_contained("C:\\ws", "D:\\x"))
+
+    def test_is_contained_compares_normcase_forms(self) -> None:
+        base = os.path.abspath(tempfile.gettempdir())
+        root = os.path.join(base, "Ws")
+        target = os.path.join(base, "wS", "x")
+        case_folds = os.path.normcase("Ws") == os.path.normcase("wS")
+        self.assertIs(harness_read._is_contained(root, target), case_folds)
 
     def test_is_contained_rejects_string_prefix_sibling(self) -> None:
         base = os.path.abspath(tempfile.gettempdir())
@@ -237,6 +254,32 @@ class IsContainedTests(unittest.TestCase):
     def test_is_contained_mixed_absolute_and_relative_is_false(self) -> None:
         root = os.path.abspath(tempfile.gettempdir())
         self.assertFalse(harness_read._is_contained(root, "relative" + os.sep + "x"))
+
+
+class AutoharnessRootEscapeTests(unittest.TestCase):
+    """A ``.autoharness`` that itself resolves outside the workspace is never a trust root."""
+
+    def test_autoharness_root_link_outside_workspace_rejected(self) -> None:
+        tree = Path(tempfile.mkdtemp(prefix="ahlc-c2-root-"))
+        self.addCleanup(shutil.rmtree, tree, True)
+        ws = tree / "ws"
+        ws.mkdir()
+        outside = tree / "ws-outside"
+        outside.mkdir()
+        token = b"AHLC-C2-ROOT-SENTINEL-" + os.urandom(8).hex().encode()
+        (outside / "m.yaml").write_bytes(token)
+        make_directory_link(ws / ".autoharness", outside)
+        reader = open_reader(workspace_root=str(ws))
+        for root, relative_path in (
+            (TrustRoot.AUTOHARNESS, "m.yaml"),
+            (TrustRoot.WORKSPACE, ".autoharness/m.yaml"),
+        ):
+            with self.subTest(root=root):
+                result = reader.read_bytes(root, relative_path)
+                self.assertIs(result.error, ReadErrorCode.OUTSIDE_TRUST_ROOT)
+                self.assertIsNone(result.data)
+                self.assertNotIn(token.decode(), repr(result))
+        self.assertEqual(reader.usage.files_claimed, 2)
 
 
 if __name__ == "__main__":

@@ -9,9 +9,9 @@ case ID, and must return ``LEXICAL_INVALID`` with zero resolve calls (a spy on
 directories; no module function is patched.
 
 Roster (P-004, Marker Convention): every ``test_G..`` method and every
-``test_lexical_..`` method; each reaches the RED-phase stub with its own marker
-``AHLC_C1_READ_LEXICAL:<t>``. The ``test_structural_..`` methods (API and
-docstring) reach no stub and are recorded outside the roster.
+``test_lexical_..`` method; each reached the RED-phase stub with its own marker
+``AHLC_C1_READ_LEXICAL:<t>`` at the C1 RED commit. The ``test_structural_..``
+methods (API and docstring) reach no stub and are recorded outside the roster.
 """
 
 from __future__ import annotations
@@ -246,6 +246,13 @@ class StructuralApiTests(unittest.TestCase):
         for value in (limits, ReadUsage(), ReadResult(data=b"", error=None, path="x")):
             with self.assertRaises(dataclasses.FrozenInstanceError):
                 setattr(value, dataclasses.fields(value)[0].name, None)
+
+    def test_structural_result_requires_exactly_one_outcome(self) -> None:
+        ReadResult(data=b"", error=None, path="x")
+        ReadResult(data=None, error=ReadErrorCode.IO, path="x")
+        for data, error in ((None, None), (b"x", ReadErrorCode.IO)):
+            with self.subTest(data=data, error=error), self.assertRaises(ValueError):
+                ReadResult(data=data, error=error, path="x")
 
     def test_structural_limits_reject_invalid_values(self) -> None:
         for kwargs in (

@@ -87,11 +87,23 @@ class ReadUsage:
 
 @dataclass(frozen=True)
 class ReadResult:
-    """``data`` on success only; otherwise ``error`` with a root-relative, redacted ``path``."""
+    """``data`` on success only; otherwise ``error`` with a root-relative, redacted ``path``.
+
+    Exactly one of ``data`` and ``error`` is set; test success with
+    ``error is None`` (an empty file succeeds with ``data == b""``).
+    """
 
     data: bytes | None
     error: ReadErrorCode | None
     path: str
+
+    def __post_init__(self) -> None:
+        if (self.data is None) == (self.error is None):
+            raise ValueError("exactly one of data and error must be set")
+
+
+def _failure(code: ReadErrorCode, path: str) -> ReadResult:
+    return ReadResult(data=None, error=code, path=path)
 
 
 _REDACTED_PATH = "<redacted>"
@@ -173,7 +185,10 @@ def _is_contained(root: str, target: str) -> bool:
 
 
 class Reader:
-    """Reads bounded bytes from files under the two trust roots of one workspace."""
+    """Reads bounded bytes from files under the two trust roots of one workspace.
+
+    One reader serves one resolution on one thread; it is not thread-safe.
+    """
 
     def __init__(self, *, workspace_root: str | os.PathLike[str], limits: ReadLimits | None = None) -> None:
         if limits is None:
@@ -182,92 +197,116 @@ class Reader:
             raise TypeError("limits must be a ReadLimits")
         self._limits = limits
         workspace = os.path.realpath(os.fspath(workspace_root))
-        self._roots = {
+        autoharness = os.path.realpath(os.path.join(workspace, ".autoharness"))
+        self._roots: dict[TrustRoot, str | None] = {
             TrustRoot.WORKSPACE: workspace,
-            TrustRoot.AUTOHARNESS: os.path.realpath(os.path.join(workspace, ".autoharness")),
+            # A .autoharness that resolves outside the workspace is not a trust
+            # root: every request through it is OUTSIDE_TRUST_ROOT.
+            TrustRoot.AUTOHARNESS: autoharness if _is_contained(workspace, autoharness) else None,
         }
         self._files_claimed = 0
         self._bytes_reserved = 0
 
     @property
     def usage(self) -> ReadUsage:
+        """Snapshot of file claims and byte reservations; neither ever decreases.
+
+        ``bytes_reserved`` may exceed ``max_total_bytes`` by at most one byte,
+        when a file grows past its reservation and the overshoot is charged.
+        """
         return ReadUsage(files_claimed=self._files_claimed, bytes_reserved=self._bytes_reserved)
 
     def read_bytes(self, root: TrustRoot, relative_path: str) -> ReadResult:
-        """Read one file under ``root``; every failure returns a closed ``ReadErrorCode``."""
+        """Read one file under ``root``.
+
+        Every read failure returns a closed ``ReadErrorCode`` (a non-``str``
+        ``relative_path`` is ``LEXICAL_INVALID``); passing a ``root`` that is
+        not a ``TrustRoot`` is a programming error and raises ``TypeError``.
+        """
         if not isinstance(root, TrustRoot):
             raise TypeError("root must be a TrustRoot")
         components = _lexical_components(relative_path)
         if components is None:
-            return ReadResult(data=None, error=ReadErrorCode.LEXICAL_INVALID, path=_REDACTED_PATH)
+            return _failure(ReadErrorCode.LEXICAL_INVALID, _REDACTED_PATH)
         display_path = "/".join(components)
         if self._files_claimed >= self._limits.max_files:
-            return ReadResult(data=None, error=ReadErrorCode.FILE_COUNT_LIMIT, path=display_path)
+            return _failure(ReadErrorCode.FILE_COUNT_LIMIT, display_path)
         self._files_claimed += 1
         root_path = self._roots[root]
+        if root_path is None:
+            return _failure(ReadErrorCode.OUTSIDE_TRUST_ROOT, display_path)
         try:
             target = _resolve(os.path.join(root_path, *components))
         except (OSError, ValueError):
-            return ReadResult(data=None, error=ReadErrorCode.IO, path=display_path)
+            return _failure(ReadErrorCode.IO, display_path)
         if not _is_contained(root_path, target):
-            return ReadResult(data=None, error=ReadErrorCode.OUTSIDE_TRUST_ROOT, path=display_path)
+            return _failure(ReadErrorCode.OUTSIDE_TRUST_ROOT, display_path)
         try:
             status = os.stat(target)
         except (FileNotFoundError, NotADirectoryError):
-            return ReadResult(data=None, error=ReadErrorCode.PATH_NOT_FOUND, path=display_path)
+            return _failure(ReadErrorCode.PATH_NOT_FOUND, display_path)
         except OSError:
-            return ReadResult(data=None, error=ReadErrorCode.IO, path=display_path)
+            return _failure(ReadErrorCode.IO, display_path)
         if not stat.S_ISREG(status.st_mode):
-            return ReadResult(data=None, error=ReadErrorCode.NOT_REGULAR_FILE, path=display_path)
+            return _failure(ReadErrorCode.NOT_REGULAR_FILE, display_path)
         return self._bounded_read(target, display_path)
 
     def _bounded_read(self, target: str, display_path: str) -> ReadResult:
-        def fail(code: ReadErrorCode) -> ReadResult:
-            return ReadResult(data=None, error=code, path=display_path)
-
         try:
             fd = os.open(target, _OPEN_FLAGS)
         except (FileNotFoundError, NotADirectoryError):
-            return fail(ReadErrorCode.PATH_NOT_FOUND)
+            return _failure(ReadErrorCode.PATH_NOT_FOUND, display_path)
         except OSError:
-            return fail(ReadErrorCode.IO)
+            return _failure(ReadErrorCode.IO, display_path)
         try:
-            try:
-                status = os.fstat(fd)
-            except OSError:
-                return fail(ReadErrorCode.IO)
-            if not stat.S_ISREG(status.st_mode):
-                return fail(ReadErrorCode.NOT_REGULAR_FILE)
-            size = status.st_size
-            limits = self._limits
-            remaining = limits.max_total_bytes - self._bytes_reserved
-            if size > limits.max_file_bytes:
-                return fail(ReadErrorCode.FILE_SIZE_LIMIT)
-            if size > remaining:
-                return fail(ReadErrorCode.TOTAL_SIZE_LIMIT)
-            self._bytes_reserved += size
-            charged = size
-            bound = min(limits.max_file_bytes, remaining) + 1
-            chunks: list[bytes] = []
-            held = 0
-            while True:
-                try:
-                    chunk = _read_chunk(fd, min(bound - held, _CHUNK_BYTES))
-                except OSError:
-                    return fail(ReadErrorCode.IO)
-                if not chunk:
-                    return ReadResult(data=b"".join(chunks), error=None, path=display_path)
-                chunks.append(chunk)
-                held += len(chunk)
-                if held > charged:
-                    self._bytes_reserved += held - charged
-                    charged = held
-                    if held > limits.max_file_bytes:
-                        return fail(ReadErrorCode.FILE_SIZE_LIMIT)
-                    if self._bytes_reserved > limits.max_total_bytes:
-                        return fail(ReadErrorCode.TOTAL_SIZE_LIMIT)
+            result = self._read_open_file(fd, display_path)
         finally:
-            os.close(fd)
+            try:
+                os.close(fd)
+            except OSError:
+                result = _failure(ReadErrorCode.IO, display_path)
+        return result
+
+    def _read_open_file(self, fd: int, display_path: str) -> ReadResult:
+        try:
+            status = os.fstat(fd)
+        except OSError:
+            return _failure(ReadErrorCode.IO, display_path)
+        if not stat.S_ISREG(status.st_mode):
+            return _failure(ReadErrorCode.NOT_REGULAR_FILE, display_path)
+        size = status.st_size
+        limits = self._limits
+        remaining = limits.max_total_bytes - self._bytes_reserved
+        if size > limits.max_file_bytes:
+            return _failure(ReadErrorCode.FILE_SIZE_LIMIT, display_path)
+        if size > remaining:
+            return _failure(ReadErrorCode.TOTAL_SIZE_LIMIT, display_path)
+        self._bytes_reserved += size
+        charged = size
+        bound = min(limits.max_file_bytes, remaining) + 1
+        chunks: list[bytes] = []
+        held = 0
+        # Termination: ``charged`` starts at ``size`` <= ``bound - 1``, so once
+        # ``held`` reaches ``bound`` it exceeds ``charged``, and the charge below
+        # puts ``held`` over ``max_file_bytes`` or the total over
+        # ``max_total_bytes``. Every request is therefore at least one byte, and
+        # an empty chunk always means end of file.
+        while True:
+            try:
+                chunk = _read_chunk(fd, min(bound - held, _CHUNK_BYTES))
+            except OSError:
+                return _failure(ReadErrorCode.IO, display_path)
+            if not chunk:
+                return ReadResult(data=b"".join(chunks), error=None, path=display_path)
+            chunks.append(chunk)
+            held += len(chunk)
+            if held > charged:
+                self._bytes_reserved += held - charged
+                charged = held
+                if held > limits.max_file_bytes:
+                    return _failure(ReadErrorCode.FILE_SIZE_LIMIT, display_path)
+                if self._bytes_reserved > limits.max_total_bytes:
+                    return _failure(ReadErrorCode.TOTAL_SIZE_LIMIT, display_path)
 
 
 def open_reader(*, workspace_root: str | os.PathLike[str], limits: ReadLimits | None = None) -> Reader:

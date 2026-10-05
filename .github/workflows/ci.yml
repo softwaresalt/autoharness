@@ -103,10 +103,19 @@ jobs:
       # here; it is not the P-004 canonical command and never RED evidence.
       - name: Linux-native containment gate (IM-01)
         shell: bash
+        timeout-minutes: 10
+        env:
+          # Empty when the runner does not expose the job's check-run ID; Ship then
+          # records the job URL from the Actions API.
+          JOB_CHECK_RUN_ID: ${{ job.check_run_id }}
         run: |
           set -euo pipefail
           export TMPDIR="$RUNNER_TEMP"
-          echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT} job: ${GITHUB_JOB}"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          echo "run: ${run_url}/attempts/${GITHUB_RUN_ATTEMPT} job: ${GITHUB_JOB}"
+          if [ -n "${JOB_CHECK_RUN_ID}" ]; then
+            echo "job url: ${run_url}/job/${JOB_CHECK_RUN_ID}"
+          fi
           echo "runner os: ${RUNNER_OS}"
           python -c "import platform; print('platform.system():', platform.system())"
           echo "kernel (uname -r): $(uname -r)"
@@ -127,6 +136,8 @@ jobs:
             esac
           done
           log="$RUNNER_TEMP/im01-containment-unittest.log"
+          # Module list: keep in sync with CONTAINMENT_MODULES in
+          # tests/test_harness_read_case_coverage.py (plus the audit module).
           set +e
           PYTHONPATH=src python -m unittest -v \
             tests.test_harness_read_lexical \
@@ -141,7 +152,7 @@ jobs:
             echo "::error::containment modules failed (exit ${status})"
             exit 1
           fi
-          summary="$(grep -E '^(OK|FAILED)' "$log" | tail -n 1)"
+          summary="$(grep -E '^(OK|FAILED)' "$log" | tail -n 1 || true)"
           echo "unittest summary: ${summary}"
           if [ "$summary" != "OK" ] || grep -q 'skipped=' "$log"; then
             echo "::error::the summary must be a plain OK with no skipped tests"

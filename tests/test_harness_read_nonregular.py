@@ -11,10 +11,12 @@ G31a is the Proof G FIFO row, and G31b and G31c are the C4 device-node checks
 (``/dev`` as the workspace root, and an in-root link to ``/dev/null``, where
 containment precedes the regular-file check).
 
-Roster (P-004, Marker Convention): G30a, G30b, G31a and G31b, each with its own
-marker ``AHLC_C4_READ_NONREGULAR:<t>``. G31c, G32a and G32b are
+Roster (P-004, Marker Convention): G30a, G30b, G31a and G31b, each of which
+reached the RED-phase stub with its own marker ``AHLC_C4_READ_NONREGULAR:<t>``
+at the C4 RED commit (G31a and G31b on Linux). G31c, G32a and G32b are
 characterization tests (outside the roster): they pin behavior C2 already
-provides and may pass before C4.
+provides and may pass before C4. G31b and G31c are the C4 device-node checks,
+filed under the Linux-only G31 class; they are not Proof G rows.
 """
 
 from __future__ import annotations
@@ -36,11 +38,18 @@ LINUX_ONLY = "NOT_APPLICABLE_ON_WINDOWS: Linux special files (G31 class)"
 
 
 def make_directory_link(link: Path, target: Path) -> None:
+    """Windows: a directory junction via ``mklink /J``. Linux: a directory symlink analogue.
+
+    Kept in sync with the copy in ``test_harness_read_containment.py`` (each task's
+    file budget names its own test module).
+    """
     if IS_WINDOWS:
         completed = subprocess.run(
             ["cmd", "/c", "mklink", "/J", str(link), str(target)],
             capture_output=True,
             text=True,
+            encoding="oem",
+            errors="replace",
             check=False,
         )
         if completed.returncode != 0:
@@ -81,12 +90,11 @@ class NonRegularCaseTests(NonRegularFixture):
             raise AssertionError("reading a FIFO did not return within 10 seconds")
 
         previous = signal.signal(signal.SIGALRM, expire)
+        self.addCleanup(signal.signal, signal.SIGALRM, previous)
+        self.addCleanup(signal.setitimer, signal.ITIMER_REAL, 0)
         signal.setitimer(signal.ITIMER_REAL, 10)
-        try:
-            result = self.read("fifo")
-        finally:
-            signal.setitimer(signal.ITIMER_REAL, 0)
-            signal.signal(signal.SIGALRM, previous)
+        result = self.read("fifo")
+        signal.setitimer(signal.ITIMER_REAL, 0)
         self.assert_error(result, ReadErrorCode.NOT_REGULAR_FILE)
 
     @unittest.skipIf(IS_WINDOWS, LINUX_ONLY)

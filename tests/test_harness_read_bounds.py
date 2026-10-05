@@ -8,8 +8,9 @@ Proof G cases G25 to G29 run on each host over a real temporary tree with a
 private ``_read_chunk(fd, n)`` patch point; the open counter spies on
 ``os.open`` only. Every failure returns an explicit code and no bytes.
 
-Roster (P-004, Marker Convention): every test in this module; each reaches the
-RED-phase stub with its own marker ``AHLC_C3_READ_BOUNDS:<t>``.
+Roster (P-004, Marker Convention): every test in this module; each reached the
+RED-phase stub with its own marker ``AHLC_C3_READ_BOUNDS:<t>`` at the C3 RED
+commit.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ class BoundsFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._tmp = tempfile.mkdtemp(prefix="ahlc-c3-")
+        cls.addClassCleanup(shutil.rmtree, cls._tmp, True)
         ws = Path(cls._tmp) / "ws"
         cls.ws = ws
         files = {
@@ -55,10 +57,6 @@ class BoundsFixture(unittest.TestCase):
             path = ws / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        shutil.rmtree(cls._tmp, ignore_errors=True)
 
     def reader(self, **limits: int):
         return open_reader(workspace_root=str(self.ws), limits=ReadLimits(**limits))
@@ -101,6 +99,8 @@ class BoundedReadCaseTests(BoundsFixture):
             result = self.reader(max_file_bytes=CAP).read_bytes(W, "b/cap1.bin")
         self.assert_error(result, ReadErrorCode.FILE_SIZE_LIMIT)
         self.assertLessEqual(sum(recorder.requests), CAP + 1)
+        # The fstat size check rejects it before any read request.
+        self.assertEqual(recorder.requests, [])
 
     def test_G27_large_file_rejected_after_at_most_cap_plus_one(self) -> None:
         recorder = _ChunkRecorder()
@@ -108,6 +108,7 @@ class BoundedReadCaseTests(BoundsFixture):
             result = self.reader(max_file_bytes=CAP).read_bytes(W, "b/big.bin")
         self.assert_error(result, ReadErrorCode.FILE_SIZE_LIMIT)
         self.assertLessEqual(sum(recorder.requests), CAP + 1)
+        self.assertEqual(recorder.requests, [])
 
     def _total_reader(self):
         return self.reader(max_file_bytes=CAP, max_total_bytes=2 * CAP)
@@ -132,6 +133,7 @@ class BoundedReadCaseTests(BoundsFixture):
             result = reader.read_bytes(W, "t/t3.bin")
         self.assert_error(result, ReadErrorCode.TOTAL_SIZE_LIMIT)
         self.assertLessEqual(sum(recorder.requests), 1)
+        self.assertEqual(recorder.requests, [])
         self.assertEqual(reader.usage.files_claimed, 3)
 
     def _count_sequence(self, accepts: int):

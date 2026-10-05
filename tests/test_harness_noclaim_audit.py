@@ -162,6 +162,8 @@ def audit(
 
 class FloorAuditTests(unittest.TestCase):
     def test_structural_floor_is_closed_repo_relative_posix(self) -> None:
+        # Deliberate tripwire: B1 and D1 extend FLOOR (IM-14-F51) and must edit this
+        # assertion with it.
         self.assertEqual(FLOOR, ("src/autoharness/harness_read.py",))
         for path in FLOOR:
             self.assertNotIn("\\", path)
@@ -227,7 +229,7 @@ class AuditControlTests(unittest.TestCase):
 
     def test_structural_control_split_claims_fail(self) -> None:
         for first, second in (
-            ("race-", "free"),
+            ("race-", "free"),  # fails on the first line alone; the join cannot match
             ("hard-", "link"),
             ("TOC-", "TOU"),
             ("TOC- ", "TOU"),  # IM-14-F57: trailing whitespace after the hyphen
