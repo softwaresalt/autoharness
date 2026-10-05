@@ -7,7 +7,7 @@ merge_commit: 0a6052f94a3d29733bf71cefd757ee686838b1b7
 reviewed_head: 55e62581
 date: 2026-10-05
 closure_status: READY_WITH_CONDITIONS
-compaction_status: pending
+compaction_status: done
 conditions:
     - description: "Consumer release hold continues from 192-S: no release tag or publish may include S(C) while stash entries EC980E56 and 21CDBC0A stay open. S(C) itself has no tag, publish or release-record obligation. The reader has no caller until Unit B (S(B-core)), so it stays inert."
       satisfied: true
@@ -204,4 +204,23 @@ deliberation was mutated. **`recommendation: DISPOSITION_COMPLETE`**.
 
 ## Compaction Status (P-020)
 
-Pending: `compact-context` with `target: all` runs next on this branch.
+`done`. `compact-context` ran with `target: all` after this closure's
+session memory was written.
+
+* **Assessment.** `docs/memory` held 182 files (about 1325 KB). That is
+  above the generic thresholds in aggregate.
+* **Candidates.** This was a bounded, per-merge Tier-1 pass: the P-020 floor
+  for the release unit just closed. The single 193-S session memory was
+  consolidated into
+  `docs/memory/compacted/2026-10-05-ship-193-s-187-f-full-lifecycle-compacted.md`.
+  The verbose original, which holds the IM-14 harvest-commit audit, is in
+  `docs/archive/memory/`.
+* **Not processed in this run.** The reasons are real limits, not freshness:
+  * **Other release units' memories.** These are not owned by this shipment
+    (P-021 C1). The aggregate backlog predates it, as recorded in 192-S.
+  * **Closure records.** They serve as predecessor-closure evidence at their
+    canonical paths.
+  * **Plans.** Stage owns them (P-010).
+* **Report.** 1 file compacted and 1 compacted summary written. 0 plans were
+  consolidated, 0 closure records compacted, and 0 active checkpoints
+  touched. Nothing was deleted.
