@@ -7,7 +7,7 @@ merge_commit: bf43cc0bfc8f8c440ab71cf15da818d5378ad92a
 reviewed_head: 7c051fe9
 date: 2026-10-05
 closure_status: READY_WITH_CONDITIONS
-compaction_status: pending
+compaction_status: done
 conditions:
     - description: "Consumer release hold for the S(A) product templates is recorded and tracked: no release tag may publish templates/policies/workflow-policies.md.tmpl and templates/skills/harness-architect/SKILL.md.tmpl to consumers until EC980E56 (template portability of the Python-unittest RED vocabulary, AGENTS.md Core Rule 2) and 21CDBC0A (template Ship batch caller vs the single-task actor) are dispositioned. 192-S itself carries no tag, publish or release-record obligation."
       satisfied: true
@@ -74,6 +74,8 @@ ran under dark mode (P-017).
 | Mutating `cascade-close` | exit 0, `postcondition_verdict: pass`. The `backlogit shipment ship` child took about 196 s |
 | INV-12 disposition | `DISPOSITION_COMPLETE` (empty disposition set) |
 | Post-mode reconcile | `PROCEED`; lock released |
+| Closure index resync | `CLOSURE_INDEX_SYNC_OK`. `backlogit sync` ran after the last backlog mutation (follow-up `808BAB5E`) and reported `Indexed 1719 artifacts` |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/192-S-186-F-post-merge-closure.md --shipment 192-S --json`. With `compaction_status: pending`, the run failed only `frontmatter_predicate`, as expected. With the finalized status it must exit 0; that run is recorded in the closure PR |
 
 ## Validator Evidence / Runtime Verification
 
@@ -251,5 +253,22 @@ The pre-existing MD001 in P-015 remains tracked by `24BA1B8F`.
 
 ## Compaction Status (P-020)
 
-`pending`. This section is finalized after the mandatory `compact-context`
-run.
+`done`. `compact-context` ran with `target: all` after this closure's
+session memory was written.
+
+* **Assessment**: `docs/memory` held 180 files (about 1317 KB), which is
+  above the generic thresholds in aggregate.
+* **Candidates**: the run was a bounded Tier-1 pass over this release unit
+  only. The single 192-S memory (the 2026-10-05 execution and closure
+  session) was consolidated into
+  `docs/memory/compacted/2026-10-05-ship-192-s-186-f-full-lifecycle-compacted.md`.
+  The verbose original, which holds the full IM-14 harvest-commit audit
+  table, is under `docs/archive/memory/`.
+* **Excluded**:
+  * other release units' memories, which are out of scope for this bounded
+    run
+  * plans, because Stage owns that work (P-010)
+  * closure records, which are fresh (under `threshold_days`)
+* **Report**: 1 file compacted, 1 compacted summary written, 0 plans
+  consolidated, 0 closure records compacted, and 0 active task checkpoints
+  touched. Nothing was deleted.
