@@ -21,6 +21,7 @@ from __future__ import annotations
 import enum
 import os
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass
 
@@ -125,6 +126,23 @@ def _lexical_components(relative_path: object) -> tuple[str, ...] | None:
     return components
 
 
+def _red_marker(prefix: str) -> str:
+    # RED-phase scaffold (P-004 Marker Convention): derives <t> from the calling
+    # test method name (its Proof G case ID when the name carries one).
+    frame = sys._getframe(1)
+    while frame is not None:
+        name = frame.f_code.co_name
+        if name.startswith("test_"):
+            match = re.match(r"test_(G\d\d[a-z]?)(?:_|$)", name)
+            return f"{prefix}:{match.group(1) if match else name}"
+        frame = frame.f_back
+    return f"{prefix}:unattributed"
+
+
+def _is_contained(root: str, target: str) -> bool:
+    raise NotImplementedError(_red_marker("AHLC_C2_READ_CONTAINMENT"))
+
+
 class Reader:
     """Reads bounded bytes from files under the two trust roots of one workspace."""
 
@@ -153,7 +171,7 @@ class Reader:
         if self._files_claimed >= self._limits.max_files:
             return ReadResult(data=None, error=ReadErrorCode.FILE_COUNT_LIMIT, path=display_path)
         self._files_claimed += 1
-        raise NotImplementedError("harness_read: resolution lands in 187.002-T")
+        raise NotImplementedError(_red_marker("AHLC_C2_READ_CONTAINMENT"))
 
 
 def open_reader(*, workspace_root: str | os.PathLike[str], limits: ReadLimits | None = None) -> Reader:
