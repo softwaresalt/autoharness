@@ -7,7 +7,7 @@ merge_commit: a28fb79767612f49f113657444c209a21fd82dd0
 reviewed_head: 4e8ad8bb
 date: 2026-10-05
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 close_path: cascade
 close_evidence: docs/closure/evidence/189-S-183-F-close-evidence.json
 ---
@@ -58,8 +58,8 @@ reviewed HEAD `4e8ad8bb`.
 | Mutating `cascade-close` | Exit 0, `postcondition_verdict: pass`. The `backlogit shipment ship` child took about 156 s |
 | INV-12 disposition | `DISPOSITION_COMPLETE` (empty disposition set) |
 | Post-mode reconcile | `PROCEED` |
-| Closure index resync | Pending (final step) |
-| Closure-evidence gate | Pending (run before each commit of this record) |
+| Closure index resync | `CLOSURE_INDEX_SYNC_OK` (`backlogit sync` after the follow-up stash entries, the final backlog mutation: `Indexed 1713 artifacts`) |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/189-S-183-F-post-merge-closure.md --shipment 189-S --json`: exit 0 with `compaction_status: done` (the earlier `pending` run failed only `frontmatter_predicate`, as expected) |
 
 ## Validator Evidence / Runtime Verification
 
@@ -238,5 +238,21 @@ All follow-ups are active stash entries, and Stage owns their triage.
 
 ## Compaction Status (P-020)
 
-`pending`. `compact-context` (`target: all`) runs after this closure's
-session memory is written.
+`done`. `compact-context` ran with `target: all` after this closure's
+session memory was written.
+
+* **Assessment**: `docs/memory` held 179 files (about 1314 KB), which is
+  above the generic thresholds in aggregate.
+* **Candidates**: the run was a bounded Tier-1 pass over this release unit
+  only. The single 189-S memory (the 2026-10-05 lifecycle and closure
+  session) was consolidated into
+  `docs/memory/compacted/2026-10-05-ship-189-s-183-f-full-lifecycle-compacted.md`.
+  The verbose original is under `docs/archive/memory/`.
+* **Excluded**:
+  * other release units' memories, which are out of scope for this bounded
+    run
+  * plans, because Stage owns that work (P-010)
+  * closure records, which are fresh (under `threshold_days`)
+* **Report**: 1 file compacted, 1 compacted summary written, 0 plans
+  consolidated, 0 closure records compacted, and 0 active task checkpoints
+  touched. Nothing was deleted.
