@@ -16,6 +16,7 @@ its ordinary-hazard scope (FI-10); this module adds no claim beyond it.
 from __future__ import annotations
 
 import enum
+import hashlib
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -25,11 +26,13 @@ from typing import Any
 
 import yaml
 
+from autoharness import verify_workspace
 from autoharness.harness_read import Reader, ReadErrorCode, TrustRoot
 
 __all__ = [
     "BACKLOG_ROOT_NAMES",
     "Declaration",
+    "MANIFEST_PATH",
     "MAX_MEMBERS",
     "NONE_SURFACE",
     "REASON_REGISTRY",
@@ -44,6 +47,7 @@ __all__ = [
     "SurfaceRow",
     "SurfaceSpec",
     "SurfaceState",
+    "TEMPLATES_DIR",
     "make_result",
     "read_limit_diagnostics",
     "reason_spec",
@@ -649,22 +653,132 @@ def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shi
             declarations.append(Declaration(item, surface))
     return done(None, declarations)
 
-# --- B3 (188.003-T) RED-phase stubs -----------------------------------------
 
-_B3 = "AHLC_B3_MANIFEST_CLASSIFY"
+# --- B3 (188.003-T): manifest snapshot and surface classification -----------
+
+MANIFEST_PATH = "harness-manifest.yaml"
+TEMPLATES_DIR = "templates"
+_CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 @dataclass(frozen=True)
 class _Classification:
+    """Class 5 global manifest code, or class 6 to 8 per-surface rows."""
+
     global_code: str | None
     rows: tuple[SurfaceRow, ...]
     read_limit: ReadLimitHit | None
 
     @property
     def reason_code(self) -> str | None:
-        raise NotImplementedError(f"{_B3}:reason_code")
+        """The first applicable class 5 to 8 code, by listed order."""
+        codes = [row.reason_code for row in self.rows]
+        if self.global_code is not None:
+            codes.append(self.global_code)
+        return _first_applicable(codes)
+
+
+def _surface_row(spec: SurfaceSpec, code: str) -> SurfaceRow:
+    state = reason_spec(code).surface_state
+    if state is None:
+        raise ValueError(f"{code} carries no surface row")
+    return SurfaceRow(spec.surface_id, spec.installed_path, spec.template, state, code)
+
+
+def _manifest_snapshot(data: bytes) -> tuple[str | None, list[dict[str, Any]], dict[str, str]]:
+    """One decode and one YAML parse of the manifest: a class 5 code, or its artifacts and variables."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return "MANIFEST_DECODE_INVALID", [], {}
+    try:
+        loaded = _load_yaml(text)
+    except _DuplicateKeyError:
+        return "MANIFEST_DUPLICATE_KEY", [], {}
+    except yaml.YAMLError:
+        return "MANIFEST_YAML_INVALID", [], {}
+    if not isinstance(loaded, dict):
+        return "MANIFEST_SHAPE_INVALID", [], {}
+    artifacts, variables = loaded.get("artifacts"), loaded.get("variables_used")
+    if not isinstance(artifacts, list) or any(
+        not isinstance(entry, dict) or not isinstance(entry.get("path"), str) for entry in artifacts
+    ):
+        return "MANIFEST_SHAPE_INVALID", [], {}
+    if not isinstance(variables, dict) or any(
+        not isinstance(key, str) or not isinstance(value, str) for key, value in variables.items()
+    ):
+        return "MANIFEST_SHAPE_INVALID", [], {}
+    return None, artifacts, variables
+
+
+def _classify_surface(
+    reader: Reader, spec: SurfaceSpec, artifacts: Sequence[dict[str, Any]], variables: Mapping[str, str]
+) -> SurfaceRow | ReadLimitHit:
+    """Classify one supported surface, in plan order; the first read-limit error stops it."""
+    matches = [entry for entry in artifacts if entry["path"] == spec.installed_path]
+    if not matches:
+        return _surface_row(spec, "MANIFEST_ENTRY_NOT_FOUND")
+    if len(matches) > 1:
+        return _surface_row(spec, "MANIFEST_ENTRY_AMBIGUOUS")
+    template, checksum = matches[0].get("template"), matches[0].get("checksum")
+    if isinstance(template, str) and template != spec.template:
+        return _surface_row(spec, "MANIFEST_TEMPLATE_MISMATCH")
+    if not isinstance(template, str) or not (isinstance(checksum, str) and _CHECKSUM_RE.fullmatch(checksum)):
+        return _surface_row(spec, "MANIFEST_ENTRY_INVALID")
+
+    source = reader.read_bytes(TrustRoot.WORKSPACE, f"{TEMPLATES_DIR}/{spec.template}")
+    if source.error in _READ_LIMIT_CODES:
+        return ReadLimitHit(source.error, ReadStage.TEMPLATE)
+    if source.error is ReadErrorCode.PATH_NOT_FOUND:
+        return _surface_row(spec, "TEMPLATE_NOT_FOUND")
+    if source.error is not None or source.data is None:
+        return _surface_row(spec, "TEMPLATE_UNREADABLE")
+    try:
+        text = source.data.decode("utf-8")
+    except UnicodeDecodeError:
+        return _surface_row(spec, "TEMPLATE_UNREADABLE")
+    rendered = verify_workspace.render_template(text.replace("\r\n", "\n"), dict(variables))
+    if verify_workspace.PLACEHOLDER_RE.search(rendered):
+        return _surface_row(spec, "TEMPLATE_VARIABLE_UNRESOLVED")
+
+    installed = reader.read_bytes(TrustRoot.WORKSPACE, spec.installed_path)
+    if installed.error in _READ_LIMIT_CODES:
+        return ReadLimitHit(installed.error, ReadStage.INSTALLED)
+    if installed.error is ReadErrorCode.PATH_NOT_FOUND:
+        return _surface_row(spec, "INSTALLED_NOT_FOUND")
+    if installed.error is not None or installed.data is None:
+        return _surface_row(spec, "INSTALLED_UNREADABLE")
+    if hashlib.sha256(installed.data).hexdigest() != checksum:
+        return _surface_row(spec, "CHECKSUM_MISMATCH")
+    if rendered.encode("utf-8") != installed.data:
+        return _surface_row(spec, "RENDER_MISMATCH")
+    return _surface_row(spec, "ALL_SURFACES_PRESENT")
 
 
 def _classify_surfaces(reader: Reader, *, surface_ids: Sequence[str]) -> _Classification:
-    workspace = reader._roots[TrustRoot.WORKSPACE]  # RED stub only: the request's workspace name
-    raise NotImplementedError(f"{_B3}:{os.path.basename(workspace or '')}")
+    """Classes 5 to 8 for the declared surface union, read through ``reader``.
+
+    Reads nothing when the union is empty. Otherwise one manifest read (under
+    the ``.autoharness`` trust root) and one parse; a global failure emits no
+    per-surface rows. Templates are read from ``<workspace>/templates/``. The
+    first read-limit error stops every further read (FI-5).
+    """
+    if not surface_ids:
+        return _Classification(None, (), None)
+    manifest = reader.read_bytes(TrustRoot.AUTOHARNESS, MANIFEST_PATH)
+    if manifest.error in _READ_LIMIT_CODES:
+        return _Classification(None, (), ReadLimitHit(manifest.error, ReadStage.MANIFEST))
+    if manifest.error is ReadErrorCode.PATH_NOT_FOUND:
+        return _Classification("MANIFEST_NOT_FOUND", (), None)
+    if manifest.error is not None or manifest.data is None:
+        return _Classification("MANIFEST_UNREADABLE", (), None)
+    code, artifacts, variables = _manifest_snapshot(manifest.data)
+    if code is not None:
+        return _Classification(code, (), None)
+    rows: list[SurfaceRow] = []
+    for surface_id in surface_ids:
+        outcome = _classify_surface(reader, SUPPORTED_SURFACES[surface_id], artifacts, variables)
+        if isinstance(outcome, ReadLimitHit):
+            return _Classification(None, (), outcome)
+        rows.append(outcome)
+    return _Classification(None, tuple(rows), None)
