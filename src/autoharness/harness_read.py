@@ -21,7 +21,6 @@ from __future__ import annotations
 import enum
 import os
 import re
-import sys
 import unicodedata
 from dataclasses import dataclass
 
@@ -95,6 +94,10 @@ class ReadResult:
 
 
 _REDACTED_PATH = "<redacted>"
+# Unbuffered binary open on both hosts; O_NONBLOCK keeps a non-regular target
+# from blocking the open on POSIX.
+_OPEN_FLAGS = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
+_CHUNK_BYTES = 64 * 1024
 _SEPARATORS = re.compile(r"[\\/]")
 _RESERVED_STEMS = frozenset(
     {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
@@ -126,21 +129,9 @@ def _lexical_components(relative_path: object) -> tuple[str, ...] | None:
     return components
 
 
-def _red_marker(prefix: str) -> str:
-    # RED-phase scaffold (P-004 Marker Convention): derives <t> from the calling
-    # test method name (its Proof G case ID when the name carries one).
-    frame = sys._getframe(1)
-    while frame is not None:
-        name = frame.f_code.co_name
-        if name.startswith("test_"):
-            match = re.match(r"test_(G\d\d[a-z]?)(?:_|$)", name)
-            return f"{prefix}:{match.group(1) if match else name}"
-        frame = frame.f_back
-    return f"{prefix}:unattributed"
-
-
 def _read_chunk(fd: int, n: int) -> bytes:
-    raise NotImplementedError(_red_marker("AHLC_C3_READ_BOUNDS"))
+    """The only raw read: one unbuffered ``os.read`` of at most ``n`` bytes."""
+    return os.read(fd, n)
 
 
 def _resolve(path: str) -> str:
@@ -228,7 +219,49 @@ class Reader:
         return self._bounded_read(target, display_path)
 
     def _bounded_read(self, target: str, display_path: str) -> ReadResult:
-        raise NotImplementedError(_red_marker("AHLC_C3_READ_BOUNDS"))
+        def fail(code: ReadErrorCode) -> ReadResult:
+            return ReadResult(data=None, error=code, path=display_path)
+
+        try:
+            fd = os.open(target, _OPEN_FLAGS)
+        except (FileNotFoundError, NotADirectoryError):
+            return fail(ReadErrorCode.PATH_NOT_FOUND)
+        except OSError:
+            return fail(ReadErrorCode.IO)
+        try:
+            try:
+                size = os.fstat(fd).st_size
+            except OSError:
+                return fail(ReadErrorCode.IO)
+            limits = self._limits
+            remaining = limits.max_total_bytes - self._bytes_reserved
+            if size > limits.max_file_bytes:
+                return fail(ReadErrorCode.FILE_SIZE_LIMIT)
+            if size > remaining:
+                return fail(ReadErrorCode.TOTAL_SIZE_LIMIT)
+            self._bytes_reserved += size
+            charged = size
+            bound = min(limits.max_file_bytes, remaining) + 1
+            chunks: list[bytes] = []
+            held = 0
+            while True:
+                try:
+                    chunk = _read_chunk(fd, min(bound - held, _CHUNK_BYTES))
+                except OSError:
+                    return fail(ReadErrorCode.IO)
+                if not chunk:
+                    return ReadResult(data=b"".join(chunks), error=None, path=display_path)
+                chunks.append(chunk)
+                held += len(chunk)
+                if held > charged:
+                    self._bytes_reserved += held - charged
+                    charged = held
+                    if held > limits.max_file_bytes:
+                        return fail(ReadErrorCode.FILE_SIZE_LIMIT)
+                    if self._bytes_reserved > limits.max_total_bytes:
+                        return fail(ReadErrorCode.TOTAL_SIZE_LIMIT)
+        finally:
+            os.close(fd)
 
 
 def open_reader(*, workspace_root: str | os.PathLike[str], limits: ReadLimits | None = None) -> Reader:
