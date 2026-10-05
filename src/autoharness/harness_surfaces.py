@@ -372,3 +372,37 @@ def make_result(
         inputs_sha256=inputs_sha256,
         diagnostics=diagnostics,
     )
+
+# --- B2 (188.002-T) RED-phase stubs -----------------------------------------
+
+_B2 = "AHLC_B2_RECORDS_MEMBERSHIP"
+
+
+@dataclass(frozen=True)
+class ReadLimitHit:
+    code: ReadErrorCode
+    stage: ReadStage
+
+
+@dataclass(frozen=True)
+class _Records:
+    backlog_root: str | None
+    shipment_id: str | None
+    facts: tuple[str, ...]
+    declarations: tuple[Declaration, ...]
+    surface_ids: tuple[str, ...]
+    read_limit: ReadLimitHit | None
+
+    @property
+    def reason_code(self) -> str | None:
+        return _first_applicable(self.facts)
+
+
+def _first_applicable(codes: Sequence[str]) -> str | None:
+    raise NotImplementedError(f"{_B2}:test_first_applicable_orders_by_registry")
+
+
+def _read_records(reader: object, *, workspace_root: object, shipment_id: object) -> _Records:
+    import os
+
+    raise NotImplementedError(f"{_B2}:{os.path.basename(os.fspath(workspace_root))}")
