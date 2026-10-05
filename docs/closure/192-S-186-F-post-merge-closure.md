@@ -75,7 +75,7 @@ ran under dark mode (P-017).
 | INV-12 disposition | `DISPOSITION_COMPLETE` (empty disposition set) |
 | Post-mode reconcile | `PROCEED`; lock released |
 | Closure index resync | `CLOSURE_INDEX_SYNC_OK`. `backlogit sync` ran after the last backlog mutation (follow-up `808BAB5E`) and reported `Indexed 1719 artifacts` |
-| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/192-S-186-F-post-merge-closure.md --shipment 192-S --json`. With `compaction_status: pending`, the run failed only `frontmatter_predicate`, as expected. With the finalized status it must exit 0; that run is recorded in the closure PR |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/192-S-186-F-post-merge-closure.md --shipment 192-S --json`. With `compaction_status: pending`, the run failed only `frontmatter_predicate`, as expected. With `compaction_status: done` at the committed closure state, the run exited 0 with `passed: true`, `failed_check: null` and no warnings. It is re-run on every revision of this artifact before commit |
 
 ## Validator Evidence / Runtime Verification
 
@@ -172,8 +172,12 @@ read failures, and `planning_error: null`. `linked_deliberation_drift` was
 
 | Item | Field | Value | Outcome | reason_code |
 |---|---|---|---|---|
-| `186-F` | `source_stash_id` | (absent) | skipped: no manifest-derived source stash to retire | `no_source_stash_id` |
-| `186-F` | `source_deliberation_id` | (absent) | skipped: no linked deliberation (empty disposition set) | `no_source_deliberation_id` |
+| `186-F` | `source_stash_id` | (absent) | `none` | — |
+| `186-F` | `source_deliberation_id` | (absent) | `none` | — |
+
+There is no `source_stash_id` or `source_deliberation_id` on any manifest
+item, and the disposition report has no entries and no unresolved
+references.
 
 Archived source artifacts: 0 stash entries, 0 deliberations. Ship made no
 change to any plan, decision, review or spike artifact (P-010).
@@ -182,9 +186,12 @@ change to any plan, decision, review or spike artifact (P-010).
 
 * **Status: READY_WITH_CONDITIONS.** The self-hosted harness is ready: the
   installed policy and actor text are live and inert until D3 activates Ship
-  harness generation. The single frontmatter condition is satisfied: a
-  consumer release hold is recorded and tracked. The hold itself stays in
-  force until `EC980E56` and `21CDBC0A` are dispositioned:
+  harness generation. The single frontmatter condition is satisfied, and it
+  covers only that the consumer release hold is recorded and tracked. The
+  hold itself is a **live obligation on the next release tag**. Nothing in
+  the repository enforces it mechanically, so release preparation must read
+  it from this record and from the stash entries. It stays in force until
+  `EC980E56` and `21CDBC0A` are dispositioned:
   * `EC980E56`: the product templates carry the plan's Python-unittest RED
     vocabulary. That falls short of the `AGENTS.md` Core Rule 2
     (technology-agnostic templates) for non-Python consumers.
@@ -258,17 +265,28 @@ session memory was written.
 
 * **Assessment**: `docs/memory` held 180 files (about 1317 KB), which is
   above the generic thresholds in aggregate.
-* **Candidates**: the run was a bounded Tier-1 pass over this release unit
-  only. The single 192-S memory (the 2026-10-05 execution and closure
-  session) was consolidated into
+* **Candidates**: this was a bounded, per-merge Tier-1 pass: the P-020
+  floor for the just-closed release unit. The single 192-S memory (the
+  2026-10-05 execution and closure session) was consolidated into
   `docs/memory/compacted/2026-10-05-ship-192-s-186-f-full-lifecycle-compacted.md`.
   The verbose original, which holds the full IM-14 harvest-commit audit
   table, is under `docs/archive/memory/`.
-* **Excluded**:
-  * other release units' memories, which are out of scope for this bounded
-    run
-  * plans, because Stage owns that work (P-010)
-  * closure records, which are fresh (under `threshold_days`)
+* **Not processed in this run** (real limits, not freshness):
+  * **Other release units' memories.** The aggregate backlog over the
+    40-file / 500 KB thresholds predates this unit, and prior per-merge
+    closures (for example 189-S) left it the same way. A full Phase 2 sweep
+    across other units' memories would rewrite and relocate history this
+    shipment does not own, so it is out of scope for this closure
+    (P-021 C1). It stays a pre-existing condition for a dedicated
+    compaction pass.
+  * **Closure records.** Many records in `docs/closure/` are older than
+    `threshold_days` and belong to completed units, so they are nominal
+    candidates. They were not compacted: closure artifacts at their
+    canonical `docs/closure/` paths serve as predecessor-closure evidence
+    for the closure-gated routing (P-001 + P-020) and the closure-evidence
+    gate. Moving or rewriting them in a per-merge run risks breaking those
+    lookups.
+  * **Plans.** Stage owns plans (P-010).
 * **Report**: 1 file compacted, 1 compacted summary written, 0 plans
   consolidated, 0 closure records compacted, and 0 active task checkpoints
   touched. Nothing was deleted.

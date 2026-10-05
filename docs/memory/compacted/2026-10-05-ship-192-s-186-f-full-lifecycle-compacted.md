@@ -40,10 +40,13 @@ harvest-commit audit table. Closure record:
 
 ## Reviews
 
-* Local review (8 personas, including an adversarial design pass): the P1s
-  were a refused list not scoped to the roster, an empty-roster escape, and
-  a missing `src/` limit on the actor exemption. All were fixed. The delta
-  re-review found 0 P0 and 0 P1.
+* Local review (8 personas, including an adversarial design pass): the
+  in-scope P1s were a refused list not scoped to the roster, an empty-roster
+  escape, and a missing `src/` limit on the actor exemption. All in-scope P1s
+  were fixed; the delta re-review found 0 P0 and 0 P1. Two further
+  P1-rated findings were out of scope under P-021 C1 and were deferred, not
+  fixed: template portability (`EC980E56`) and the template Ship batch
+  caller (`21CDBC0A`). These two carry the release hold.
 * Copilot round 1 raised 2 threads, both out of scope: the template Ship
   batch caller (`21CDBC0A`) and template portability under AGENTS.md Core
   Rule 2 (`EC980E56`). Both were declined with their IDs cited and resolved.
@@ -64,8 +67,11 @@ harvest-commit audit table. Closure record:
 * The global `autoharness` 1.5.0 lacks `shipment`. Use
   `.venv\Scripts\autoharness.exe` for `cascade-close` and `closure-evidence`.
 * `READY_WITH_CONDITIONS` needs every `conditions` entry to have
-  `satisfied: true` plus evidence. Record a forward release hold as a
-  satisfied "recorded and tracked" condition, and let stash entries carry it.
+  `satisfied: true` plus evidence, so list only closure-gating conditions.
+  Here the satisfied condition is limited to "hold recorded and tracked".
+  The consumer release hold itself remains a live obligation on the next
+  release tag. Nothing enforces it mechanically, so release preparation must
+  read it from the closure record and the stash entries.
 * AGENTS.md Core Rule 2 conflicts with plan wording that writes
   runner-specific RED vocabulary into product templates. Resolving it needs
   deliberation (`EC980E56`).
