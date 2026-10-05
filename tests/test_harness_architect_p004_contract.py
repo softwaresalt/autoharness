@@ -61,9 +61,53 @@ _POLICY_TEMPLATE = _REPO_ROOT / "templates" / "policies" / "workflow-policies.md
 _CANONICAL_TEST_COMMAND = "PYTHONPATH=src python -m unittest discover -s tests"
 _CANONICAL_BUILD_CHECK_COMMAND = "python -m py_compile src/autoharness/cli.py"
 
+# 192-S / 186-F (Unit A): the Marker Convention, copied verbatim from the
+# "Marker Convention" section of docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md
+# (revision 9, blob b7a77c76). Held here as a constant so a later plan revision
+# cannot silently change what the policy and actor texts are checked against.
+_MARKER_CONVENTION = (
+    "Each task's `Marker` value is a **prefix**. Every roster test `t` has its "
+    "own marker `<prefix>:<t>`, where `<t>` is its Proof G case ID or test "
+    "method name. It reaches a RED-phase stub that raises exactly "
+    '`NotImplementedError("<prefix>:<t>")`. The stub is either per behavior, or '
+    "derives the suffix deterministically from the test's distinct request. "
+    "The harness asserts the roster's markers are pairwise distinct, and the RED "
+    "record maps each roster test to its marker. Two roster tests sharing one "
+    "marker is a cross-test marker, which FI-9 refuses. Structural tests that "
+    "reach no stub (API, docstring, schema parity, pinned hash, alias, audit) "
+    "are recorded outside the roster, like characterization tests."
+)
+
+# IM-14 / PE-SAFETY-06 detector (plan "Non-Claim Audit Inventory"), applied to
+# normalized text: lowercased, `_` and `-` as spaces, whitespace runs collapsed.
+_NON_CLAIM_DETECTOR = re.compile(
+    r"\b(?:rac(?:e[sd]?|ing|y)|toctt?ous?|time of check|hard ?link\w*|symlink ?swap\w*)\b"
+)
+
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _read_lf(path: Path) -> str:
+    """Strict UTF-8 decode with CRLF/CR normalized to LF (the templates are not eol=lf pinned)."""
+    return path.read_bytes().decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _collapse_ws(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _non_claim_hits(text: str) -> list[str]:
+    normalized = re.sub(r"\s+", " ", text.lower().replace("_", " ").replace("-", " "))
+    return [m.group(0) for m in _NON_CLAIM_DETECTOR.finditer(normalized)]
+
+
+def _render_policy(section: str) -> str:
+    """Substitute the policy template placeholders the P-002/P-004 entries use."""
+    return section.replace("{{BUILD_CHECK_COMMAND}}", _CANONICAL_BUILD_CHECK_COMMAND).replace(
+        "{{TEST_COMMAND}}", _CANONICAL_TEST_COMMAND
+    )
 
 
 def _load_manifest() -> dict:
@@ -353,6 +397,119 @@ class PolicyQuantifierCoherenceTests(unittest.TestCase):
         policy_section = _p004_section(_read(_POLICY_REGISTRY)).lower()
         self.assertIn("unexpectedsuccess", actor_section)
         self.assertIn("unexpectedsuccess", policy_section)
+
+    # ------------------------------------------------------------------
+    # 192-S / 186.001-T (A1): P-002 and P-004 per-task expected-RED roster
+    # wording. Each check runs over both the installed policy file and its
+    # source template, over LF-normalized text.
+    # ------------------------------------------------------------------
+
+    _POLICY_SOURCES = {"installed": _POLICY_REGISTRY, "template": _POLICY_TEMPLATE}
+
+    def _p002(self, which: str) -> str:
+        return _p002_section(_read_lf(self._POLICY_SOURCES[which]))
+
+    def _p004(self, which: str) -> str:
+        return _p004_section(_read_lf(self._POLICY_SOURCES[which]))
+
+    def test_p002_scopes_red_obligation_to_current_task_roster(self) -> None:
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                section = self._p002(which)
+                self.assertNotIn("all tests fail", section)
+                self.assertIn("current task's expected-RED roster", section)
+                postcondition = re.search(r"\*\*Postcondition\*\* \(harness-architect\):(.*)", section)
+                self.assertIsNotNone(postcondition, "P-002 harness-architect Postcondition not found")
+                self.assertIn("expected-RED roster", postcondition.group(1))
+                self.assertIn("P-004", postcondition.group(1))
+
+    def test_template_and_installed_p002_agree_after_variable_substitution(self) -> None:
+        self.assertEqual(_render_policy(self._p002("template")), self._p002("installed"))
+
+    def test_p004_defines_roster_excluding_characterization_tests(self) -> None:
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                section = _collapse_ws(self._p004(which))
+                self.assertIn(
+                    "The current task's expected-RED roster is the current task's generated "
+                    "harness tests, excluding characterization tests.",
+                    section,
+                )
+                self.assertIn(
+                    "Characterization tests are recorded separately, outside the roster, and may pass.",
+                    section,
+                )
+
+    def test_p004_red_is_error_with_own_not_implemented_marker_roster_relative(self) -> None:
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                section = _collapse_ws(self._p004(which))
+                self.assertIn(
+                    "RED for a roster test is that test reported as `ERROR` in the canonical "
+                    "command's output with its own unique `NotImplementedError` marker",
+                    section,
+                )
+                self.assertIn("roster-relative (R2)", section)
+                self.assertIn(
+                    "A roster test absent from the named `ERROR` set, or named with a different "
+                    "marker, is refused.",
+                    section,
+                )
+
+    def test_p004_refuses_marker_bearing_assertion_error(self) -> None:
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                section = self._p004(which)
+                refused = section.split("NEVER valid red-phase evidence", 1)
+                self.assertEqual(len(refused), 2, "P-004 refused-outcome list not found")
+                self.assertIn("Marker-bearing `AssertionError`", refused[1])
+
+    def test_p004_harness_surface_none_has_no_roster_and_is_bounded(self) -> None:
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                section = _collapse_ws(self._p004(which))
+                self.assertIn(
+                    "A task declaring `harness-surface:none` has no roster and no RED obligation.",
+                    section,
+                )
+                self.assertIn(
+                    "`harness-surface:none` is allowed only for a task whose file budget contains "
+                    "no Python production module under `src/`.",
+                    section,
+                )
+
+    def test_p004_states_marker_convention_verbatim(self) -> None:
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                self.assertIn(_collapse_ws(_MARKER_CONVENTION), _collapse_ws(self._p004(which)))
+
+    def test_p004_states_canonical_command_verbatim(self) -> None:
+        self.assertIn(f"`{_CANONICAL_TEST_COMMAND}`", self._p004("installed"))
+        self.assertIn("`{{TEST_COMMAND}}`", self._p004("template"))
+        self.assertIn("no added flags such as `-v`", self._p004("installed"))
+
+    def test_template_and_installed_p004_agree_lf_normalized(self) -> None:
+        self.assertEqual(_render_policy(self._p004("template")), self._p004("installed"))
+
+    def test_version_history_records_p002_p004_roster_change(self) -> None:
+        for which, path in self._POLICY_SOURCES.items():
+            with self.subTest(source=which):
+                rows = [
+                    line
+                    for line in _read_lf(path).splitlines()
+                    if line.startswith("| 1.32.0 ")
+                ]
+                self.assertEqual(len(rows), 1, "expected exactly one 1.32.0 version-history row")
+                self.assertIn("P-002", rows[0])
+                self.assertIn("P-004", rows[0])
+                self.assertIn("186.001-T", rows[0])
+
+    def test_p002_and_p004_make_no_race_toctou_or_hardlink_claim(self) -> None:
+        """IM-14: the edited policy entries carry no race, TOCTOU or hardlink-alias wording at all."""
+        for which in self._POLICY_SOURCES:
+            with self.subTest(source=which):
+                self.assertEqual(_non_claim_hits(self._p002(which)), [])
+                self.assertEqual(_non_claim_hits(self._p004(which)), [])
 
 
 if __name__ == "__main__":

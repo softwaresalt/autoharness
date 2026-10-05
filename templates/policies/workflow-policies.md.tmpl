@@ -41,11 +41,11 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Applies To | `ship` (consumer; harness-architect skill is the producer) |
 | Gate Point | Queue building (Step 2) and task claiming (Step 3)           |
 
-**Statement**: The ship agent may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and all tests fail in the red phase.
+**Statement**: The ship agent may only claim and implement a task after the harness-architect has confirmed that the test harness compiles and every test in the current task's expected-RED roster (P-004) fails in the red phase.
 
 **Precondition** (ship): The task carries the `harness-ready` label.
 
-**Postcondition** (harness-architect): The task has `harness-ready` label, the harness compiles (`{{BUILD_CHECK_COMMAND}}`), and all tests fail with expected failure markers.
+**Postcondition** (harness-architect): The task has `harness-ready` label, the harness compiles (`{{BUILD_CHECK_COMMAND}}`), and every test in the current task's expected-RED roster fails with its own expected failure marker, as P-004 defines the roster and its RED evidence. Characterization tests are outside the roster and may pass; a task declaring `harness-surface:none` has no roster and no RED obligation (P-004).
 
 **Enforcement** (ship): Filter ready queue to only tasks carrying the `harness-ready` label.
 
@@ -103,20 +103,41 @@ Agents must read this file at each declared gate point and enforce the relevant 
 | Applies To | `ship` (via harness-architect skill)         |
 | Gate Point | Operator Approval Gate      |
 
-**Statement**: The harness-architect must confirm the red phase for the current task's generated harness tests (compilation succeeds and every generated harness test for the current task fails with its own expected marker) before the `harness-ready` label is applied. This gate is scoped to the current task's generated harness tests, never to the full historical test population that already exists in a healthy repository -- unrelated, previously established tests may continue to pass. Per P-002, only the harness-architect skill applies `harness-ready`; ship never bypasses this gate.
+**Statement**: The harness-architect must confirm the red phase for the current task's expected-RED roster (compilation succeeds and every roster test for the current task fails with its own expected marker) before the `harness-ready` label is applied. This gate is scoped to the current task's expected-RED roster, never to the full historical test population that already exists in a healthy repository -- unrelated, previously established tests may continue to pass. Per P-002, only the harness-architect skill applies `harness-ready`; ship never bypasses this gate.
 
-**Precondition**: All of the following must be true:
+**Expected-RED roster** (per task):
+
+1. **Roster.** The current task's expected-RED roster is the current task's generated harness tests, excluding characterization tests. Characterization tests are recorded separately, outside the roster, and may pass.
+2. **RED (R2).** RED for a roster test is that test reported as `ERROR` in the canonical command's output with its own unique `NotImplementedError` marker (see the Marker Convention below). Attribution is roster-relative (R2): each roster test is checked against the named `ERROR` set by its own marker. A roster test absent from the named `ERROR` set, or named with a different marker, is refused.
+3. **Refused.** A marker-bearing `AssertionError` is never RED; it is refused with the other outcomes listed below.
+4. **`harness-surface:none`.** A task declaring `harness-surface:none` has no roster and no RED obligation. `harness-surface:none` is allowed only for a task whose file budget contains no Python production module under `src/`.
+
+**Marker Convention** (stated verbatim from the Marker Convention section of `docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md`, where FI-9 is the RED-evidence rule this entry states):
+
+Each task's `Marker` value is a **prefix**. Every roster test `t` has its
+own marker `<prefix>:<t>`, where `<t>` is its Proof G case ID or test
+method name. It reaches a RED-phase stub that raises exactly
+`NotImplementedError("<prefix>:<t>")`. The stub is either per behavior, or
+derives the suffix deterministically from the test's distinct request.
+The harness asserts the roster's markers are pairwise distinct, and the RED
+record maps each roster test to its marker. Two roster tests sharing one
+marker is a cross-test marker, which FI-9 refuses. Structural tests that
+reach no stub (API, docstring, schema parity, pinned hash, alias, audit)
+are recorded outside the roster, like characterization tests.
+
+**Precondition** (for a task with an expected-RED roster; a `harness-surface:none` task has none): All of the following must be true:
 
 1. `{{BUILD_CHECK_COMMAND}}` exits 0 -- compilation succeeds, including the newly generated harness tests.
-2. `{{TEST_COMMAND}}` (the canonical whole-suite test command, invoked exactly as resolved with no runner substitution and no scoped/targeted subset) exits non-zero -- because the current task's generated harness tests are red. Unrelated established tests elsewhere in the suite may pass; their passing is not a violation.
-3. Every generated harness test for the current task is discovered by that run AND fails with its own expected failure marker; evaluate each such test individually rather than relying on the aggregate non-zero exit code alone.
+2. `{{TEST_COMMAND}}` (the canonical whole-suite test command, invoked exactly as resolved with no runner substitution, no added flags such as `-v`, and no scoped/targeted subset) exits non-zero -- because the current task's roster tests are red. Unrelated established tests elsewhere in the suite, and the current task's characterization tests, may pass; their passing is not a violation.
+3. Every generated harness test for the current task that is in its expected-RED roster is discovered by that run AND fails with its own expected failure marker -- reported as `ERROR` with its own unique `NotImplementedError` marker; evaluate each such test individually rather than relying on the aggregate non-zero exit code alone.
 
-The following outcomes are NEVER valid red-phase evidence for a generated harness test, and MUST be treated as harness defects requiring a fix before proceeding:
+The following outcomes are NEVER valid red-phase evidence for a roster test, and MUST be treated as harness defects requiring a fix before proceeding:
 
 * Zero-discovery: the run reports zero generated harness tests collected for the current task.
 * Collection/import/syntax errors: the run aborts during collection instead of exercising the generated harness tests.
-* Missing, wrong, or cross-test markers: a generated harness test fails for a reason other than its own expected marker, or is credited with a different test's marker, rather than evaluated individually.
-* Pass, skip, `expectedFailure`, or `unexpectedSuccess`: a generated harness test that passes, is skipped, is marked expected-to-fail, or unexpectedly succeeds counts as no red-phase observation for that test.
+* Missing, wrong, or cross-test markers: a roster test fails for a reason other than its own expected marker, is credited with a different test's marker, or shares its marker with another roster test, rather than evaluated individually.
+* Marker-bearing `AssertionError`: a roster test reported as a failure (`FAIL`) whose `AssertionError` carries its marker is refused; RED requires the test's own `NotImplementedError` marker reported as `ERROR`.
+* Pass, skip, `expectedFailure`, or `unexpectedSuccess`: a roster test that passes, is skipped, is marked expected-to-fail, or unexpectedly succeeds counts as no red-phase observation for that test.
 
 **Postcondition**: The harness manifest records `Compilation: PASS` and `Red Phase: CONFIRMED`.
 
@@ -864,3 +885,4 @@ emitted.
 | 1.29.0  | {{DATE}}     | Corrected P-015  | 204-S (198-F, 195-F slice 3; `docs/decisions/2026-09-29-backlogit-1-11-cascade-linked-deliberation-alignment-deliberation.md`): splits the closure postconditions into the close-path gate (INV-10, evaluated before INV-12 disposition) and the separately sanctioned INV-12 post-gate mutation — Statement sentence, Precondition and Required Check cover every disposition-set record path on CASCADE (the expected-cascade-mutation clause is deleted), two-part Postcondition, `HALT — linked-deliberation disposition failed {id}` under the same approval-gated sequence, P-007 post-mode guard note, INV-7 temporal scope, INV-10 label; item 7's correctly-absent sentence scoped to non-feature manifest members (linked-deliberation wording removed; `collectArchiveCandidateIDs` appends no linked deliberations under 1.11.x), the evidence-class note's two engine propositions (opener cites Proposition (1); `archive_item` stated as a verified-line assumption, also in SAFE_CLOSE reliance), 1.10-era scoping of the engine rationale (placed on item 7's `ShipShipment` forcing clause) and INV-11, and the P-010 INV-12 archival-transition clarification |
 | 1.30.0  | {{DATE}}     | Amended P-013.5  | 200-S (194-F C6a, 194.010-T; `docs/plans/2026-09-27-context-tier-model-routing-plan.md`): the invocation-time directive now carries the resolved `context_tier` (provider- and environment-agnostic capacity classes `default` / `long_context`; no vendor, model, or context size named). When the runtime cannot honor a non-`default` tier the agent records `ROUTING_DEGRADED: context_tier` and proceeds at the default context without halting. Applies to installed `tier-routed` agents only; `plugin-global` agents carry no `context_tier` and run on the operator-selected session model. Fail-closed case (d) is unchanged; the Orchestrator directive check additionally requires `context_tier` and `ROUTING_DEGRADED: context_tier` inside each bounded invocation window (Ship window ends at the next heading or EOF) |
 | 1.31.0  | {{DATE}}     | Amended P-013.6  | 200-S (194-F C6b, 194.011-T; `docs/plans/2026-09-27-context-tier-model-routing-plan.md`): the escalation payload records the resolved escalation `context_tier` in a separate `resolved_escalation_context_tier` field; the `resolved_escalation_route` `(model_family, model_provider, reasoning_effort)` tuple is unchanged. `context_tier` is excluded from the same-route guard, and an unhonorable escalation `context_tier` records `ROUTING_DEGRADED: context_tier` without blocking the handoff (never `ESCALATION_DEGRADED`) |
+| 1.32.0  | {{DATE}}     | Corrected P-002/P-004 | 192-S (186-F A1, 186.001-T; `docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md`, Unit A): P-002's Statement and harness-architect Postcondition scope "all tests fail" to the current task's expected-RED roster, matching P-004. P-004 defines the roster (the current task's generated harness tests, excluding characterization tests, which are recorded separately and may pass), states RED for a roster test as `ERROR` with its own unique `NotImplementedError` marker attributed roster-relatively (R2), adds the marker-bearing `AssertionError` to the refused outcomes, states that a `harness-surface:none` task has no roster and no RED obligation (allowed only when its file budget contains no Python production module under `src/`), and states the Marker Convention verbatim |
