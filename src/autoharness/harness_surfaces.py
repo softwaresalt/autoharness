@@ -648,3 +648,23 @@ def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shi
         if surface is not None:
             declarations.append(Declaration(item, surface))
     return done(None, declarations)
+
+# --- B3 (188.003-T) RED-phase stubs -----------------------------------------
+
+_B3 = "AHLC_B3_MANIFEST_CLASSIFY"
+
+
+@dataclass(frozen=True)
+class _Classification:
+    global_code: str | None
+    rows: tuple[SurfaceRow, ...]
+    read_limit: ReadLimitHit | None
+
+    @property
+    def reason_code(self) -> str | None:
+        raise NotImplementedError(f"{_B3}:reason_code")
+
+
+def _classify_surfaces(reader: Reader, *, surface_ids: Sequence[str]) -> _Classification:
+    workspace = reader._roots[TrustRoot.WORKSPACE]  # RED stub only: the request's workspace name
+    raise NotImplementedError(f"{_B3}:{os.path.basename(workspace or '')}")
