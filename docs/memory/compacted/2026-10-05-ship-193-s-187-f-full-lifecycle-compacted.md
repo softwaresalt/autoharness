@@ -64,5 +64,6 @@ Stash entries:
 * `AC437919`: lexical and resolution extensions
 * `62FBC9A3`: Unit B notes, including the `workspace_root` existence decision
 * `8F4D8A21`: move the IM-01 bash into `scripts/`
+* `15B29E66`: operator cleanup of the WSL2 home scratch
 
 The release hold continues (EC980E56, 21CDBC0A).

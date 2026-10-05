@@ -19,7 +19,7 @@ Windows-only behaviors broke that check.
 
 1. **Dangling links keep the stored spelling.** `tempfile.mkdtemp()` under the
    default `%TEMP%` returns an 8.3 short path such as
-   `C:\Users\DEWILL~1\...`. A symlink created from that path stores the short
+   `C:\Users\USERNA~1\...`. A symlink created from that path stores the short
    form. `realpath` canonicalizes existing paths through
    `GetFinalPathNameByHandle`. For a dangling link, though, it returns the
    stored target verbatim. The root (long form) and the target (short form)
@@ -35,8 +35,9 @@ Windows-only behaviors broke that check.
 
 * **Missing targets.** When `realpath` returns a path that does not exist,
   canonicalize its deepest existing ancestor with `realpath` and re-append the
-  missing tail (`_resolve`). The tail does not exist, so it cannot be a link
-  that escapes.
+  missing tail (`_resolve`). At resolution time the tail names nothing on
+  disk, so it holds no link to follow. This is ordinary input handling, not a
+  defense against concurrent filesystem changes (FI-10).
 * **Containment.** Keep the plan's `commonpath`-over-`normcase` comparison.
   Also require the root's path components to match the target's leading
   components exactly, comparing only the drive case-insensitively

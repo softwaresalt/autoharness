@@ -73,6 +73,10 @@ reviewed HEAD was `55e62581`. The PR ran under dark mode (P-017).
 | CI | Every check passed at `55e62581`: `detect code changes`, `pipeline-topology (ambient)`, `test` and `ci gate` |
 | P-009 / P-016 | Only merge commits are allowed, and the merge commit has two parents. There is one worktree |
 | Merge confirmation | `MERGE_CONFIRMED`: PR #496 merged at 2026-10-05T16:13:54Z as SHA `0a6052f9`, which is an ancestor of `origin/main` |
+| Dark-mode merge authorization (P-017) | `DARK_MODE_MERGE_AUTHORIZED` at 2026-10-05T16:13:52Z. The source was the activation record (`merge_approval_pre_authorized`). Merge strategy: `--merge`, with `--match-head-commit 55e62581`. PR #496 is the scope item. No admin fallback was used |
+| Closure topology gate | `pipeline-topology --phase lifecycle` exited 0 on the closure branch before the close |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/193-S-187-F-post-merge-closure.md --shipment 193-S`. While compaction was pending, only `frontmatter_predicate` failed; after compaction it exited 0 |
+| Index resync | `backlogit sync` (`Indexed 1722 artifacts`) ran after the close and compaction. Result: `CLOSURE_INDEX_SYNC_OK` |
 
 ## Validator Evidence / Runtime Verification
 
@@ -90,15 +94,23 @@ Unit B. The validator evidence consists of the IM-01 and IM-02 runs.
 * The earlier HEAD `82e63cab` (job `111847222748`) shows the same facts with
   93 tests.
 
-**IM-02 (Windows, Ship local run at `e0d563ab`).**
+**IM-02 (Windows, Ship local run).** The evidence of record is the run on the
+closure branch. Its `src/` and `tests/` are identical to the merged PR head
+`55e62581`.
 
 * Host: Windows `10.0.26300`, Python 3.14.3
 * Filesystems: the checkout and `TMP`/`TEMP` (`.proof-scratch/tmp`, which is
   Git-ignored per NOROW-F18) are both NTFS
 * Symlink privilege was held
-* Result: 95 tests `OK (skipped=3)`. The three skips are the Linux-only G31
-  class: G31a is the Proof G FIFO row; G31b and G31c are the C4 device-node
-  checks. Skip accounting holds.
+* Command: `PYTHONPATH=src python -m unittest -v` over the four containment
+  modules plus the audit and coverage modules
+* Result: 97 tests `OK (skipped=3)`
+* The three skips are the Linux-only G31 class: G31a is the Proof G FIFO row;
+  G31b and G31c are the C4 device-node checks. Skip accounting holds.
+* The earlier run at `e0d563ab` gave 95 tests `OK (skipped=3)`.
+* Why Windows shows 97 tests and Linux 94: the coverage module's 3 tests are
+  not in the CI step's module list (IM-14-F26), so no test is left out by
+  host.
 
 ## IM-14 Incremental Residue Text Audit (merge diff)
 
@@ -163,6 +175,7 @@ deliberation was mutated. **`recommendation: DISPOSITION_COMPLETE`**.
 | Item | Field | Value | Outcome |
 |---|---|---|---|
 | `187-F` | `source_stash_id` | (absent) | `none` |
+| `187-F` | `source_deliberation_id` | (absent) | `none` |
 
 ## Releasability Evidence
 
@@ -186,6 +199,7 @@ deliberation was mutated. **`recommendation: DISPOSITION_COMPLETE`**.
 * `62FBC9A3`: Unit B consumption notes, including the decision on whether a
   `workspace_root` must exist. Needs deliberation.
 * `8F4D8A21`: move the IM-01 bash into `scripts/`.
+* `15B29E66`: operator cleanup of the WSL2 home scratch (Principle IV).
 
 ## Residual Risks
 
@@ -197,7 +211,12 @@ deliberation was mutated. **`recommendation: DISPOSITION_COMPLETE`**.
 * **Principle IV deviation (P-005).** Ship left disposable scratch outside the
   worktree, in the WSL2 home directory: `~/ahlc`, `~/ahlc-tmp`, `~/ahlc-full`,
   `~/ahlc-full-tmp`, `~/rt`, `~/rt-bin` and `~/rt-python`. Operator cleanup is
-  pending; removing them needs approval.
+  tracked as stash `15B29E66`; removing them needs approval.
+* **P-002 for 187.005-T.** The `harness-surface:none` evaluation and the
+  `harness-ready` label were recorded after the C5 commit `2ab8b7f6`. The
+  declaration was valid at commit time.
+* **Stale `harness_status`.** `187-F` still shows `harness_status: pending` in
+  its archived custom fields. The field was never updated during execution.
 * **Marker derivation.** RED-phase marker suffixes came from the calling test
   method name, which is a recorded deviation. These stubs existed only in the
   RED commits.
