@@ -21,7 +21,6 @@ from __future__ import annotations
 import enum
 import os
 import re
-import sys
 import unicodedata
 from dataclasses import dataclass
 
@@ -126,21 +125,41 @@ def _lexical_components(relative_path: object) -> tuple[str, ...] | None:
     return components
 
 
-def _red_marker(prefix: str) -> str:
-    # RED-phase scaffold (P-004 Marker Convention): derives <t> from the calling
-    # test method name (its Proof G case ID when the name carries one).
-    frame = sys._getframe(1)
-    while frame is not None:
-        name = frame.f_code.co_name
-        if name.startswith("test_"):
-            match = re.match(r"test_(G\d\d[a-z]?)(?:_|$)", name)
-            return f"{prefix}:{match.group(1) if match else name}"
-        frame = frame.f_back
-    return f"{prefix}:unattributed"
+def _resolve(path: str) -> str:
+    """``os.path.realpath``, with the deepest existing ancestor canonicalized when the target is missing.
+
+    On Windows ``realpath`` returns a dangling link's stored target verbatim,
+    which may spell an in-root directory in another form (for example an 8.3
+    short name); canonicalizing the existing ancestor keeps containment exact.
+    """
+    resolved = os.path.realpath(path)
+    if os.path.exists(resolved):
+        return resolved
+    head, tail = resolved, []
+    while True:
+        parent, name = os.path.split(head)
+        if not name or parent == head:
+            return resolved
+        tail.append(name)
+        head = parent
+        if os.path.exists(head):
+            return os.path.join(os.path.realpath(head), *reversed(tail))
 
 
 def _is_contained(root: str, target: str) -> bool:
-    raise NotImplementedError(_red_marker("AHLC_C2_READ_CONTAINMENT"))
+    """True when resolved ``target`` lies under resolved ``root``.
+
+    Compares ``os.path.commonpath`` over ``os.path.normcase`` forms (so the
+    comparison is case-insensitive on Windows), never a string prefix. A
+    ``ValueError`` (different drives, or mixed absolute and relative forms)
+    means not contained.
+    """
+    root_key = os.path.normcase(root)
+    target_key = os.path.normcase(target)
+    try:
+        return os.path.commonpath([root_key, target_key]) == os.path.commonpath([root_key])
+    except ValueError:
+        return False
 
 
 class Reader:
@@ -152,7 +171,11 @@ class Reader:
         if not isinstance(limits, ReadLimits):
             raise TypeError("limits must be a ReadLimits")
         self._limits = limits
-        self._workspace_root = os.fspath(workspace_root)
+        workspace = os.path.realpath(os.fspath(workspace_root))
+        self._roots = {
+            TrustRoot.WORKSPACE: workspace,
+            TrustRoot.AUTOHARNESS: os.path.realpath(os.path.join(workspace, ".autoharness")),
+        }
         self._files_claimed = 0
         self._bytes_reserved = 0
 
@@ -171,7 +194,26 @@ class Reader:
         if self._files_claimed >= self._limits.max_files:
             return ReadResult(data=None, error=ReadErrorCode.FILE_COUNT_LIMIT, path=display_path)
         self._files_claimed += 1
-        raise NotImplementedError(_red_marker("AHLC_C2_READ_CONTAINMENT"))
+        root_path = self._roots[root]
+        try:
+            target = _resolve(os.path.join(root_path, *components))
+        except (OSError, ValueError):
+            return ReadResult(data=None, error=ReadErrorCode.IO, path=display_path)
+        if not _is_contained(root_path, target):
+            return ReadResult(data=None, error=ReadErrorCode.OUTSIDE_TRUST_ROOT, path=display_path)
+        try:
+            os.stat(target)
+        except (FileNotFoundError, NotADirectoryError):
+            return ReadResult(data=None, error=ReadErrorCode.PATH_NOT_FOUND, path=display_path)
+        except OSError:
+            return ReadResult(data=None, error=ReadErrorCode.IO, path=display_path)
+        # Interim read until 187.003-T replaces it with the bounded read.
+        try:
+            with open(target, "rb") as handle:
+                data = handle.read()
+        except OSError:
+            return ReadResult(data=None, error=ReadErrorCode.IO, path=display_path)
+        return ReadResult(data=data, error=None, path=display_path)
 
 
 def open_reader(*, workspace_root: str | os.PathLike[str], limits: ReadLimits | None = None) -> Reader:
