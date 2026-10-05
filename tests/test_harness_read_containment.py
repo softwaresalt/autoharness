@@ -14,9 +14,10 @@ targets) is verified by C4's module.
 
 Roster (P-004, Marker Convention): every test in this module as of the C2 RED
 commit; each reached the RED-phase stub with its own marker
-``AHLC_C2_READ_CONTAINMENT:<t>``. ``AutoharnessRootEscapeTests`` and
-``test_is_contained_compares_normcase_forms`` were added by the shipment's
-local review, after GREEN.
+``AHLC_C2_READ_CONTAINMENT:<t>``. ``AutoharnessRootEscapeTests``,
+``CaseSensitiveSiblingTests`` and
+``test_is_contained_requires_the_canonical_case_of_the_root`` were added by the
+shipment's local and hosted reviews, after GREEN.
 """
 
 from __future__ import annotations
@@ -237,12 +238,11 @@ class IsContainedTests(unittest.TestCase):
         # spellings are relative names with nothing in common.
         self.assertFalse(harness_read._is_contained("C:\\ws", "D:\\x"))
 
-    def test_is_contained_compares_normcase_forms(self) -> None:
+    def test_is_contained_requires_the_canonical_case_of_the_root(self) -> None:
         base = os.path.abspath(tempfile.gettempdir())
         root = os.path.join(base, "Ws")
-        target = os.path.join(base, "wS", "x")
-        case_folds = os.path.normcase("Ws") == os.path.normcase("wS")
-        self.assertIs(harness_read._is_contained(root, target), case_folds)
+        self.assertTrue(harness_read._is_contained(root, os.path.join(base, "Ws", "x")))
+        self.assertFalse(harness_read._is_contained(root, os.path.join(base, "wS", "x")))
 
     def test_is_contained_rejects_string_prefix_sibling(self) -> None:
         base = os.path.abspath(tempfile.gettempdir())
@@ -295,6 +295,49 @@ class AutoharnessRootEscapeTests(unittest.TestCase):
         result = reader.read_bytes(TrustRoot.AUTOHARNESS, "m.yaml")
         self.assertIs(result.error, ReadErrorCode.OUTSIDE_TRUST_ROOT)
         self.assertIsNone(result.data)
+
+
+class CaseSensitiveSiblingTests(unittest.TestCase):
+    """A sibling that differs only in case is outside the root (PR #496 Copilot review).
+
+    On Windows a directory with per-directory case sensitivity enabled can hold
+    distinct ``ws`` and ``WS``; ``normcase`` alone would conflate them. The
+    portable assertion runs on every host; on Windows the native fixture uses
+    ``fsutil file setCaseSensitiveInfo`` and a ``mklink /J`` junction, and is
+    reduced to the portable assertion only when the host cannot enable case
+    sensitivity.
+    """
+
+    def test_case_sensitive_sibling_is_not_contained(self) -> None:
+        self.assertFalse(harness_read._is_contained("C:\\scope\\ws", "C:\\scope\\WS\\sentinel.txt"))
+        if not IS_WINDOWS:
+            return
+        tree = Path(tempfile.mkdtemp(prefix="ahlc-c2-case-"))
+        self.addCleanup(shutil.rmtree, tree, True)
+        scope = tree / "scope"
+        scope.mkdir()
+        enabled = subprocess.run(
+            ["fsutil", "file", "setCaseSensitiveInfo", str(scope), "enable"],
+            capture_output=True,
+            text=True,
+            encoding="oem",
+            errors="replace",
+            check=False,
+        )
+        if enabled.returncode != 0:
+            return
+        ws = scope / "ws"
+        ws.mkdir()
+        sibling = scope / "WS"
+        sibling.mkdir()
+        token = b"AHLC-C2-CASE-SENTINEL-" + os.urandom(8).hex().encode()
+        (sibling / "sentinel.txt").write_bytes(token)
+        make_directory_link(ws / "j-case", sibling)
+        reader = open_reader(workspace_root=str(ws))
+        result = reader.read_bytes(TrustRoot.WORKSPACE, "j-case/sentinel.txt")
+        self.assertIs(result.error, ReadErrorCode.OUTSIDE_TRUST_ROOT)
+        self.assertIsNone(result.data)
+        self.assertNotIn(token.decode(), repr(result))
 
 
 if __name__ == "__main__":

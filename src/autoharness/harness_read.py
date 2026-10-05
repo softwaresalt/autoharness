@@ -168,20 +168,33 @@ def _resolve(path: str) -> str:
             return os.path.join(os.path.realpath(head), *reversed(tail))
 
 
+def _exact_parts(path: str) -> list[str]:
+    drive, rest = os.path.splitdrive(os.path.normpath(path))
+    if os.path.altsep:
+        rest = rest.replace(os.path.altsep, os.path.sep)
+    return [os.path.normcase(drive), *(part for part in rest.split(os.path.sep) if part)]
+
+
 def _is_contained(root: str, target: str) -> bool:
     """True when resolved ``target`` lies under resolved ``root``.
 
     Compares ``os.path.commonpath`` over ``os.path.normcase`` forms (so the
     comparison is case-insensitive on Windows), never a string prefix. A
     ``ValueError`` (different drives, or mixed absolute and relative forms)
-    means not contained.
+    means not contained. Both arguments are ``realpath`` forms, which carry
+    the on-disk case, so the root's components must also match exactly: on a
+    Windows directory with case sensitivity enabled, ``normcase`` alone would
+    conflate distinct siblings such as ``ws`` and ``WS``.
     """
     root_key = os.path.normcase(root)
     target_key = os.path.normcase(target)
     try:
-        return os.path.commonpath([root_key, target_key]) == os.path.commonpath([root_key])
+        if os.path.commonpath([root_key, target_key]) != os.path.commonpath([root_key]):
+            return False
     except ValueError:
         return False
+    root_parts = _exact_parts(root)
+    return _exact_parts(target)[: len(root_parts)] == root_parts
 
 
 class Reader:
@@ -206,9 +219,7 @@ class Reader:
             # or onto another workspace directory) is not a trust root, and
             # every request through it is OUTSIDE_TRUST_ROOT.
             TrustRoot.AUTOHARNESS: (
-                autoharness
-                if os.path.normcase(autoharness) == os.path.normcase(autoharness_path)
-                else None
+                autoharness if _exact_parts(autoharness) == _exact_parts(autoharness_path) else None
             ),
         }
         self._files_claimed = 0
