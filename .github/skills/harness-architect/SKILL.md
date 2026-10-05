@@ -1,7 +1,7 @@
 ---
 name: harness-architect
 description: "Scaffolds compilable but failing test harnesses for feature and chore tasks"
-argument-hint: "feature=001-{SUFFIX_FEATURE} tasks=001.001-{SUFFIX_TASK},001.002-{SUFFIX_TASK}"
+argument-hint: "feature=001-{SUFFIX_FEATURE} tasks=001.001-{SUFFIX_TASK}"
 input:
   properties:
     feature:
@@ -9,14 +9,15 @@ input:
       description: "Feature or chore ID to scaffold harnesses for"
     tasks:
       type: string
-      description: "Comma-separated task IDs to scaffold (optional, defaults to all ready tasks)"
+      description: "Exactly one current task ID, supplied by the caller (the actor never selects or claims backlog work)"
   required:
     - feature
+    - tasks
 ---
 
 # Harness Architect Skill
 
-Scaffold strict test harnesses for a feature's or chore's ready work items.
+Scaffold a strict test harness for the current task of a feature or chore.
 The output must compile cleanly, fail for the intended not-yet-implemented
 behavior, and leave clear harness commands for downstream build execution.
 
@@ -35,35 +36,40 @@ warn the operator that visibility is degraded and continue locally.
 | Event | Level | Message prefix |
 |---|---|---|
 | Session start | info | `[HARNESS] Starting: feature={input.feature}` |
-| Tasks loaded | info | `[HARNESS] Ready tasks: {task_count}` |
+| Task loaded | info | `[HARNESS] Current task: {task_id}` |
 | Codebase analyzed | info | `[HARNESS] Context gathered: {module_count} modules` |
 | Harness generated | info | `[HARNESS] Generated: {test_file} ({scenario_count} scenarios)` |
 | Compilation check | info | `[HARNESS] Compilation: {result}` |
 | Red phase check | info | `[HARNESS] Red phase: {result}` |
 | Label applied | success | `[HARNESS] harness-ready: {task_id}` |
-| Complete | success | `[HARNESS] Complete: {task_count} tasks harnessed` |
+| Complete | success | `[HARNESS] Complete: {task_id} harnessed` |
 
 ## Inputs
 
 * `${input:feature}`: (Required) Feature or chore ID such as `001-F`
-* `${input:tasks}`: (Optional) Comma-separated task IDs to scaffold.
-  When omitted, use all ready tasks under the feature.
+* `${input:tasks}`: (Required) Exactly one current task ID under the
+  feature, supplied by the caller. See Step 1.
 
 ## Workflow
 
-### Step 1: Claim the ready task set
+### Step 1: Select the current task
 
-1. Load the feature or chore and its ready descendants through backlog
-   query or queue operations.
-2. If `${input:tasks}` is present, restrict the scope to that explicit
-   task set.
-3. Exclude blocked, done, or otherwise non-ready work items.
-4. Preserve the work-item-to-task mapping so each harness can be traced
-   back to the correct backlog item.
+The actor operates on exactly one current task supplied by the caller
+(`${input:tasks}`). The actor never claims backlog work: it claims no
+shipment or task and changes no work-item status. Claiming stays with
+the caller.
+
+1. If `${input:tasks}` names no task, or more than one task, halt and
+   report. The actor never defaults to a ready-task set.
+2. Load the current task through the backlog tool's read operation and
+   confirm that it belongs to `${input:feature}`. If it does not, halt
+   and report.
+3. Preserve the work-item-to-task mapping so the harness can be traced
+   back to the current task.
 
 ### Step 2: Read task intent
 
-1. Read each selected task's title, description, acceptance criteria,
+1. Read the current task's title, description, acceptance criteria,
    and file references.
 2. Pull in feature-level acceptance criteria when task text depends on
    broader feature behavior.
@@ -78,7 +84,7 @@ existing modules, test patterns, and import paths.
 
 ### Step 3: Determine execution posture
 
-For each task, select the appropriate harness strategy:
+For the current task, select the appropriate harness strategy:
 
 | Posture | When to use | Harness pattern |
 |---|---|---|
@@ -86,6 +92,13 @@ For each task, select the appropriate harness strategy:
 | **characterization-first** | Modifying existing behavior | Write tests that capture current behavior then modify |
 | **migration-first** | Moving code between modules | Write tests at the destination, verify source behavior |
 | **spike** | Exploratory with uncertain approach | Write minimal integration test, implement spike, expand tests |
+
+In a characterization-first posture, the characterization tests are
+recorded outside the expected-RED roster: they pin current behavior, may
+pass, and are listed apart from the roster in the Step 6 evidence record
+(P-004). Tests for new or changed behavior remain roster tests, except
+structural tests that reach no stub, which stay outside the roster
+(Marker Convention, Step 5.2).
 
 ### Step 4: Generate failing harness skeletons
 
@@ -130,46 +143,97 @@ own expected failure marker (raise NotImplementedError("...")); evaluate
 each test individually rather than relying on an aggregate non-zero
 exit code.
 
-The following outcomes are NEVER valid red-phase evidence and MUST be
-treated as harness defects requiring a fix before proceeding:
+Here "every generated harness test" means every test in the current
+task's expected-RED roster, as P-004 defines it:
+
+* **Roster**: The current task's expected-RED roster is the current
+  task's generated harness tests, excluding characterization tests.
+  Characterization tests are recorded separately, outside the roster,
+  and may pass. Structural tests that reach no stub are likewise outside
+  the roster (Marker Convention below). A task declaring
+  `harness-surface:none` has no roster and no RED obligation.
+  `harness-surface:none` is allowed only for a task whose file budget
+  contains no Python production module under `src/`; if the current task
+  declares it but its file budget contains one, halt and report without
+  applying `harness-ready`.
+* **RED (R2)**: RED for a roster test is that test reported as `ERROR`
+  in the canonical command's output with its own unique
+  `NotImplementedError` marker. Attribution is roster-relative (R2):
+  each roster test is checked against the named `ERROR` set by its own
+  marker. A roster test absent from the named `ERROR` set, or named
+  with a different marker, is refused.
+
+**Marker Convention** (P-004, stated verbatim from the governing plan,
+where FI-9 is the RED-evidence rule P-004 states and a Proof G case ID is
+that plan's test case identifier):
+
+Each task's `Marker` value is a **prefix**. Every roster test `t` has its
+own marker `<prefix>:<t>`, where `<t>` is its Proof G case ID or test
+method name. It reaches a RED-phase stub that raises exactly
+`NotImplementedError("<prefix>:<t>")`. The stub is either per behavior, or
+derives the suffix deterministically from the test's distinct request.
+The harness asserts the roster's markers are pairwise distinct, and the RED
+record maps each roster test to its marker. Two roster tests sharing one
+marker is a cross-test marker, which FI-9 refuses. Structural tests that
+reach no stub (API, docstring, schema parity, pinned hash, alias, audit)
+are recorded outside the roster, like characterization tests.
+
+The following outcomes are NEVER valid red-phase evidence for a roster
+test and MUST be treated as harness defects requiring a fix before
+proceeding:
 
 * **Zero-discovery**: the test command reports zero tests collected —
   test discovery failed to find the harness at all.
-* **Wrong-reason failure**: a test fails for a reason other than the
-  expected failure marker (a different exception type or message).
+* **Wrong-reason failure**: a roster test fails for a reason other than
+  its own expected failure marker (a different exception type or
+  message).
+* **Marker-bearing `AssertionError`**: a roster test reported as a
+  failure whose `AssertionError` carries its marker is refused; RED
+  requires the test's own `NotImplementedError` marker reported as
+  `ERROR`.
+* **Cross-test marker**: two roster tests sharing one marker, or a
+  roster test credited with another test's marker, is refused.
 * **Collection/import/syntax failure**: the run aborts during
   collection due to an import error, syntax error, or module-load
   failure — this is not the same signal as a running test raising the
   expected marker.
-* **Skip or expected-failure (xfail)**: a test reported as skipped or
-  marked expected-to-fail counts as no observation, not as red
+* **Skip or expected-failure (xfail)**: a roster test reported as
+  skipped or marked expected-to-fail counts as no observation, not as red
   evidence.
-* **Pass or unexpectedSuccess**: a test that passes outright, or is
+* **Pass or unexpectedSuccess**: a roster test that passes outright, or is
   reported as an `unexpectedSuccess` (an `expectedFailure`-decorated
   test that unexpectedly succeeded), is a false positive -- the
   harness does not yet exercise the not-yet-implemented behavior.
 
-If any test exhibits one of these outcomes, fix the harness until
-every test is discovered and fails for the expected reason.
+If any roster test exhibits one of these outcomes, fix the harness until
+every roster test is discovered and is reported as `ERROR` with its own
+marker. Passing characterization tests are not harness defects.
 
-### Step 6: Apply harness-ready label
+### Step 6: Apply harness-ready label to the current task
 
-After both checks pass (P-004 gate satisfied):
+`harness-ready` applies to the current task only. After both checks
+pass for the current task (P-004 gate satisfied):
 
-1. Update each task with `harness-ready` label using the backlog tool's
-   update operation.
+1. Apply the `harness-ready` label to the current task only, using the
+   backlog tool's update operation. Never label another task, the
+   parent feature, or a shipment.
 2. Add an implementation note with the harness command.
-3. Record the harness manifest: `Compilation: PASS`,
+3. Record the per-task harness-ready evidence record: the task ID, the
+   exact command run, its native exit code, each roster test's outcome
+   and marker, and the characterization tests, listed apart from the
+   roster together with any structural tests that reach no stub.
+4. Record the harness manifest: `Compilation: PASS`,
    `Red Phase: CONFIRMED`.
 
 ## Completion Criteria
 
-The skill is complete only when the selected tasks have:
+The skill is complete only when the current task has:
 
 * harness files in the correct modules
 * structural stubs with intentional not-implemented behavior
 * a successful `python -m py_compile src/autoharness/cli.py` result after scaffolding
-* all harness tests failing with the expected marker
+* every roster test reported as `ERROR` with its own marker, and its
+  characterization tests listed apart from the roster
 * clear mapping from backlog task to harness command
 
 ## Guardrails
