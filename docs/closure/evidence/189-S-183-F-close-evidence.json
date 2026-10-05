@@ -1,9 +1,83 @@
 {
   "feature_id": "183-F",
+  "invocation": {
+    "argv_redacted": [
+      "C:\\Tools\\backlogit.EXE",
+      "--no-update-check",
+      "--jsonrpc",
+      "--cwd",
+      "C:\\Source\\GitHub\\autoharness",
+      "shipment",
+      "ship",
+      "189-S",
+      "--sha",
+      "a28fb79767612f49f113657444c209a21fd82dd0",
+      "--message",
+      "Merge pull request #492 from softwaresalt/chore/189-s-ship-23-graphtor-mcp-shim-test-synchronization-repair",
+      "--author",
+      "Derek Williams <42183845+softwaresalt@users.noreply.github.com>"
+    ],
+    "exit_code": 0,
+    "finished_at": "2026-10-05T03:36:52.006272Z",
+    "mutation_state": "completed",
+    "started_at": "2026-10-05T03:34:15.947926Z",
+    "stderr": {
+      "capture_truncated": false,
+      "excerpt": "time=2026-10-04T20:34:15.997-07:00 level=INFO msg=\"shipment command invoked\" operation=shipment-ship shipment_id=189-S\ntime=2026-10-04T20:34:16.000-07:00 level=INFO msg=\"INFO config loaded package=config workspace=C:\\\\Source\\\\GitHub\\\\autoharness\\\\.backlogit\"\ntime=2026-10-04T20:34:16.015-07:00 level=INFO msg=\"workspace initialized\" storage_root=C:\\Source\\GitHub\\autoharness\\.backlogit auto_recover=true duration_ms=17\ntime=2026-10-04T20:35:12.554-07:00 level=INFO msg=\"shipment status changed\" shipment_id=189-S new_status=shipped\ntime=2026-10-04T20:35:12.571-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=189-S artifact_type=shipment\ntime=2026-10-04T20:36:01.532-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=183.001-T artifact_type=task\ntime=2026-10-04T20:36:22.729-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=183-F artifact_type=feature\ntime=2026-10-04T20:36:51.754-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=189-S artifact_type=shipment\ntime=2026-10-04T20:36:51.998-07:00 level=INFO msg=\"index may be stale after mutation\" item_id=189-S artifact_type=shipment\n",
+      "redaction_applied": false,
+      "sha256": "9e80155eb7ddbb064baa45ee94610c5358b42ae0a857f857ec194123c71097ce",
+      "total_bytes": 1146,
+      "total_lines": 9
+    },
+    "stdout": {
+      "capture_truncated": false,
+      "excerpt": "{\"jsonrpc\":\"2.0\",\"id\":\"backlogit shipment ship\",\"result\":{\"archived_ids\":[\"183.001-T\",\"183-F\",\"189-S\"],\"commit_sha\":\"a28fb79767612f49f113657444c209a21fd82dd0\",\"returned_ids\":[],\"shipment_id\":\"189-S\",\"shipment_status\":\"shipped\"}}\n",
+      "redaction_applied": false,
+      "sha256": "eefe914a16739659eacb039d980c5d7f7cc5365f4d527449f2b3fd35bd9b71a0",
+      "total_bytes": 229,
+      "total_lines": 1
+    },
+    "timed_out": false
+  },
   "merge_commit_sha": "a28fb79767612f49f113657444c209a21fd82dd0",
-  "phase": "pre_close",
+  "phase": "post_close",
+  "post_close": {
+    "allowed_ids": [
+      "183-F",
+      "183.001-T",
+      "189-S"
+    ],
+    "baseline_invariant": true,
+    "disposition_byte_identical": true,
+    "failures": [],
+    "linked_deliberation_drift": [],
+    "missing_required": [],
+    "parent_id_preserved": true,
+    "parse_error": null,
+    "parsed_result": {
+      "archived_ids": [
+        "183-F",
+        "183.001-T",
+        "189-S"
+      ],
+      "commit_sha": "a28fb79767612f49f113657444c209a21fd82dd0",
+      "returned_ids": [],
+      "shipment_id": "189-S",
+      "shipment_status": "shipped"
+    },
+    "postcondition_verdict": "pass",
+    "required_ids": [
+      "183-F",
+      "183.001-T",
+      "189-S"
+    ],
+    "shipment_archived_shipped": true,
+    "shipment_record_archived_status": "shipped",
+    "shipment_record_status": "archived",
+    "unexpected_archived": []
+  },
   "pre_close": {
-    "captured_at": "2026-10-05T03:32:36Z",
+    "captured_at": "2026-10-05T03:34:00Z",
     "classifier_reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted",
     "classifier_verdict": "CASCADE",
     "close_path_selection": {
@@ -56,7 +130,7 @@
       "sha256": "a430fb640e05f9fe9b26cdd0fba08f69d474bef0c9bd68d6ab96f50efded2f01"
     }
   },
-  "run_id": "78d619c0e420430a850c87913b11d130",
+  "run_id": "546cca9f17004117b0fd9f22e427bffe",
   "schema_version": 1,
   "shipment_id": "189-S",
   "tool": {
