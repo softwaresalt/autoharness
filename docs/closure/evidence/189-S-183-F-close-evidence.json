@@ -1,0 +1,67 @@
+{
+  "feature_id": "183-F",
+  "merge_commit_sha": "a28fb79767612f49f113657444c209a21fd82dd0",
+  "phase": "pre_close",
+  "pre_close": {
+    "captured_at": "2026-10-05T03:32:36Z",
+    "classifier_reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted",
+    "classifier_verdict": "CASCADE",
+    "close_path_selection": {
+      "reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted; backlogit 1.11.0 (cli) is on verified engine minor line 1.11",
+      "selected_close_path": "cascade"
+    },
+    "engine_semantics": {
+      "invocation_surface": "cli",
+      "minor_line": [
+        1,
+        11
+      ],
+      "probe_surface": "cli",
+      "probed_commit": "131577c",
+      "probed_version": "1.11.0",
+      "reason": "backlogit 1.11.0 (cli) is on verified engine minor line 1.11",
+      "verdict": "VERIFIED"
+    },
+    "linked_deliberation_disposition": {
+      "dispositions": [],
+      "planning_error": null,
+      "read_failures": [],
+      "unresolved_references": []
+    },
+    "manifest_members": [
+      {
+        "artifact_type": "feature",
+        "declared_status": "done",
+        "id": "183-F",
+        "location": "archive",
+        "parent_id": null,
+        "sha256": "e30635ed59be7ebc36723e61eb947307a2b633cc5dd30dd454720dead9772772"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "183.001-T",
+        "location": "archive",
+        "parent_id": "183-F",
+        "sha256": "993a6f20387ba7a2e68c85b6c52746246f62828ebc51b24d2a43372330ee3e56"
+      }
+    ],
+    "out_of_manifest_descendants": [],
+    "qualifying_feature_ids": [
+      "183-F"
+    ],
+    "shipment_record": {
+      "declared_status": "active",
+      "location": "queue",
+      "sha256": "a430fb640e05f9fe9b26cdd0fba08f69d474bef0c9bd68d6ab96f50efded2f01"
+    }
+  },
+  "run_id": "78d619c0e420430a850c87913b11d130",
+  "schema_version": 1,
+  "shipment_id": "189-S",
+  "tool": {
+    "binary_path": "C:\\Tools\\backlogit.EXE",
+    "binary_sha256": "e822756bb661435f7351811c54554ec8e76f69868ca386b6590bb56ae1489f3a",
+    "version_excerpt": "{\n  \"version\": \"1.11.0\",\n  \"current\": \"1.11.0\",\n  \"latest\": \"\",\n  \"update_available\": false,\n  \"update_check\": \"skipped\",\n  \"commit\": \"131577c\",\n  \"build_date\": \"2026-09-29T00:15:25Z\",\n  \"go_version\": \"go1.24.13\"\n}\n"
+  }
+}
