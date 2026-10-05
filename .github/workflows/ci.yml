@@ -91,6 +91,63 @@ jobs:
           python-version: '3.12'
       - name: Install runtime dependencies
         run: python -m pip install --upgrade pip jsonschema PyYAML
+      # IM-01 (P1, non-waivable) Linux-native gate for the Unit C containment
+      # reader (187.005-T, docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md).
+      # Runs the four containment modules plus the non-claim audit on this Linux
+      # runner with the fixture root under RUNNER_TEMP, prints the host facts,
+      # and fails on a non-zero unittest exit, any skipped test, a fixture root
+      # outside RUNNER_TEMP, or a checkout or fixture filesystem that is not
+      # Linux-native (ext2/ext3 covers ext4, xfs or btrfs; tmpfs, overlayfs, 9p
+      # and fuse fail). This step's log is the IM-01 evidence; a green `ci gate`
+      # alone is not, because the `test` job is path-gated. `-v` is used only
+      # here; it is not the P-004 canonical command and never RED evidence.
+      - name: Linux-native containment gate (IM-01)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMPDIR="$RUNNER_TEMP"
+          echo "run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT} job: ${GITHUB_JOB}"
+          echo "runner os: ${RUNNER_OS}"
+          python -c "import platform; print('platform.system():', platform.system())"
+          echo "kernel (uname -r): $(uname -r)"
+          fixture_root="$(python -c 'import tempfile; print(tempfile.gettempdir())')"
+          echo "effective fixture root: ${fixture_root} (RUNNER_TEMP=${RUNNER_TEMP})"
+          case "${fixture_root}/" in
+            "${RUNNER_TEMP}/"*) ;;
+            *) echo "::error::fixture root ${fixture_root} is not under RUNNER_TEMP"; exit 1 ;;
+          esac
+          checkout_fs="$(stat -f -c %T "$GITHUB_WORKSPACE")"
+          fixture_fs="$(stat -f -c %T "$fixture_root")"
+          echo "checkout filesystem: ${checkout_fs} (${GITHUB_WORKSPACE})"
+          echo "fixture root filesystem: ${fixture_fs}"
+          for fs in "$checkout_fs" "$fixture_fs"; do
+            case "$fs" in
+              ext2/ext3|xfs|btrfs) ;;
+              *) echo "::error::filesystem type '${fs}' is not Linux-native"; exit 1 ;;
+            esac
+          done
+          log="$RUNNER_TEMP/im01-containment-unittest.log"
+          set +e
+          PYTHONPATH=src python -m unittest -v \
+            tests.test_harness_read_lexical \
+            tests.test_harness_read_containment \
+            tests.test_harness_read_bounds \
+            tests.test_harness_read_nonregular \
+            tests.test_harness_noclaim_audit 2>&1 | tee "$log"
+          status="${PIPESTATUS[0]}"
+          set -e
+          echo "unittest exit code: ${status}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::containment modules failed (exit ${status})"
+            exit 1
+          fi
+          summary="$(grep -E '^(OK|FAILED)' "$log" | tail -n 1)"
+          echo "unittest summary: ${summary}"
+          if [ "$summary" != "OK" ] || grep -q 'skipped=' "$log"; then
+            echo "::error::the summary must be a plain OK with no skipped tests"
+            exit 1
+          fi
+          echo "IM-01 evidence: Linux-native containment modules passed with zero skips"
       # Pinned, checksum-verified backlogit binary so
       # tests/test_spike_template_docline_frontmatter.py's real-linter
       # acceptance tests (128.002-T) are not silently skipped in CI --
