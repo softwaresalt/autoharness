@@ -502,6 +502,11 @@ class PolicyQuantifierCoherenceTests(unittest.TestCase):
                     "no Python production module under `src/`.",
                     section,
                 )
+                self.assertIn(
+                    "A declaration outside this limit is invalid, and the harness-architect does not "
+                    "apply `harness-ready`.",
+                    section,
+                )
 
     def test_p004_states_marker_convention_verbatim(self) -> None:
         for which in self._POLICY_SOURCES:
@@ -663,7 +668,8 @@ class HarnessArchitectPerTaskSemanticsTests(unittest.TestCase):
                     "outside the expected-RED roster",
                     step,
                 )
-                self.assertIn("Tests for new or changed behavior remain roster tests.", step)
+                self.assertIn("Tests for new or changed behavior remain roster tests, except structural "
+                              "tests that reach no stub, which stay outside the roster", step)
 
     def test_step_5_2_states_roster_rule(self) -> None:
         for which in self._ACTOR_SOURCES:

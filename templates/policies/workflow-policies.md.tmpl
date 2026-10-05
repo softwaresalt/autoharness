@@ -110,7 +110,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 1. **Roster.** The current task's expected-RED roster is the current task's generated harness tests, excluding characterization tests. Characterization tests are recorded separately, outside the roster, and may pass. Structural tests that reach no stub are likewise outside the roster (see the Marker Convention below).
 2. **RED (R2).** RED for a roster test is that test reported as `ERROR` in the canonical command's output with its own unique `NotImplementedError` marker (see the Marker Convention below). Attribution is roster-relative (R2): each roster test is checked against the named `ERROR` set by its own marker. A roster test absent from the named `ERROR` set, or named with a different marker, is refused.
 3. **Refused.** A marker-bearing `AssertionError` is never RED; it is refused with the other outcomes listed below.
-4. **`harness-surface:none`.** A task declaring `harness-surface:none` has no roster and no RED obligation. `harness-surface:none` is allowed only for a task whose file budget contains no Python production module under `src/`.
+4. **`harness-surface:none`.** A task declaring `harness-surface:none` has no roster and no RED obligation. `harness-surface:none` is allowed only for a task whose file budget contains no Python production module under `src/`. A declaration outside this limit is invalid, and the harness-architect does not apply `harness-ready`.
 
 **Marker Convention** (stated verbatim from the governing plan, where FI-9 is the RED-evidence rule this entry states and a Proof G case ID is that plan's test case identifier):
 

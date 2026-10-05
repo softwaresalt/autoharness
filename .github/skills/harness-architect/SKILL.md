@@ -96,7 +96,9 @@ For the current task, select the appropriate harness strategy:
 In a characterization-first posture, the characterization tests are
 recorded outside the expected-RED roster: they pin current behavior, may
 pass, and are listed apart from the roster in the Step 6 evidence record
-(P-004). Tests for new or changed behavior remain roster tests.
+(P-004). Tests for new or changed behavior remain roster tests, except
+structural tests that reach no stub, which stay outside the roster
+(Marker Convention, Step 5.2).
 
 ### Step 4: Generate failing harness skeletons
 
