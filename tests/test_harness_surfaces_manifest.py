@@ -122,6 +122,9 @@ class ManifestRosterTests(ManifestFixture):
             b"artifacts: []\nvariables_used: {}\ncreated: 2026-13-01\n",
             b"artifacts: []\nvariables_used: {}\nx: " + b"9" * 5000 + b"\n",
             b"artifacts: []\nvariables_used: {}\nx: " + b"[" * 2000 + b"]" * 2000 + b"\n",
+            b"artifacts: []\nvariables_used: {}\nx: !!float ''\n",
+            b"artifacts: []\nvariables_used: {}\nx: !!bool maybe\n",
+            b"artifacts: []\nvariables_used: !!map {}\n",
         ):
             with self.subTest(raw=raw):
                 self.write_manifest(raw=raw)
@@ -308,6 +311,24 @@ class ManifestReviewFixTests(ManifestFixture):
         )
         self.write_manifest(raw=raw)
         self.assert_row("RENDER_MISMATCH", "STALE")
+        # Even installed bytes equal to the surrogate-pass encoding are a mismatch:
+        # the render has no strict UTF-8 encoding.
+        surrogate = "# \ud800\n\nRun `make test`.\n".encode("utf-8", "surrogatepass")
+        self.installed_path.write_bytes(surrogate)
+        self.write_manifest(raw=raw.replace(hashlib.sha256(RENDERED).hexdigest().encode(),
+                                            hashlib.sha256(surrogate).hexdigest().encode()))
+        self.assert_row("RENDER_MISMATCH", "STALE")
+
+    def test_render_work_is_bounded(self) -> None:
+        template = "{{A}}" + "x" * (4 * 1024 * 1024 - 16)
+        absent = {f"K{index}": "v" for index in range(70)}
+        self.assertIsNone(hs._bounded_render(template, {**absent, "A": "a"}))
+        self.assertEqual(hs._bounded_render("{{A}}{{B}}", {"A": "{{B}}", "B": "b"}), "bb")
+
+    def test_sexagesimal_scalars_stay_strings(self) -> None:
+        self.assertEqual(hs._load_yaml("x: 1:0:0\ny: 12:30\n"), {"x": "1:0:0", "y": "12:30"})
+        long_value = "1" + ":0" * 200000
+        self.assertEqual(hs._load_yaml("x: " + long_value + "\n"), {"x": long_value})
 
 
 class ManifestRosterStructuralTests(unittest.TestCase):

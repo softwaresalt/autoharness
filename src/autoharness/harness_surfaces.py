@@ -370,7 +370,11 @@ def _check_result(result: ResolutionResult) -> None:
     keys = [task_id_sort_key(member_id) for member_id in member_ids]
     if keys != sorted(keys) or len(set(member_ids)) != len(member_ids):
         raise ValueError("declarations must be unique and sorted by task ID")
-    if any(item.surface_id != NONE_SURFACE and item.surface_id not in SUPPORTED_SURFACES for item in result.declarations):
+    if any(
+        not isinstance(item.surface_id, str)
+        or (item.surface_id != NONE_SURFACE and item.surface_id not in SUPPORTED_SURFACES)
+        for item in result.declarations
+    ):
         raise ValueError("a declaration names a supported surface or none")
 
     if not (isinstance(result.inputs_sha256, str) and _SHA256_HEX_RE.fullmatch(result.inputs_sha256)):
@@ -434,7 +438,7 @@ class _DuplicateKeyError(yaml.YAMLError):
 
 
 class _StructureRejectedError(yaml.YAMLError):
-    """Anchors, aliases, unhashable keys or nesting deeper than ``_MAX_YAML_DEPTH``."""
+    """Anchors, aliases, explicit tags, unhashable keys or nesting deeper than ``_MAX_YAML_DEPTH``."""
 
 
 class _ScalarValueError(yaml.YAMLError):
@@ -447,10 +451,12 @@ _MAX_YAML_DEPTH = 64
 
 
 class _StrictLoader(yaml.SafeLoader):
-    """A ``yaml.SafeLoader`` that rejects duplicate keys, anchors, aliases and deep nesting.
+    """A ``yaml.SafeLoader`` that rejects duplicate keys, anchors, aliases, explicit tags and deep nesting.
 
     Merge keys (``<<``) are rejected too: the safe constructor has no
     constructor for the merge tag when it is checked here, before flattening.
+    Records and the manifest need none of these. Sexagesimal integers
+    (``1:0:0``) stay strings, so a long one costs no big-integer arithmetic.
     """
 
     def __init__(self, stream: Any) -> None:
@@ -461,6 +467,8 @@ class _StrictLoader(yaml.SafeLoader):
         event = self.peek_event()
         if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None) is not None:
             raise _StructureRejectedError("anchors and aliases are not accepted")
+        if getattr(event, "tag", None) is not None:
+            raise _StructureRejectedError("explicit tags are not accepted")
         self._depth += 1
         try:
             if self._depth > _MAX_YAML_DEPTH:
@@ -478,9 +486,19 @@ class _StrictLoader(yaml.SafeLoader):
             except TypeError:
                 raise _StructureRejectedError("unhashable mapping key") from None
             if duplicate:
-                raise _DuplicateKeyError(f"duplicate key {key!r}")
+                raise _DuplicateKeyError(f"duplicate key at line {key_node.start_mark.line + 1}")
             seen.add(key)
         return super().construct_mapping(node, deep=deep)
+
+
+def _construct_int(loader: _StrictLoader, node: yaml.ScalarNode) -> Any:
+    value = loader.construct_scalar(node)
+    if isinstance(value, str) and ":" in value:
+        return value
+    return yaml.SafeLoader.construct_yaml_int(loader, node)
+
+
+_StrictLoader.add_constructor("tag:yaml.org,2002:int", _construct_int)
 
 
 def _load_yaml(text: str) -> Any:
@@ -489,8 +507,8 @@ def _load_yaml(text: str) -> Any:
         return yaml.load(text, Loader=_StrictLoader)  # noqa: S506 - _StrictLoader is a SafeLoader
     except yaml.YAMLError:
         raise
-    except (ValueError, TypeError, OverflowError) as error:
-        raise _ScalarValueError(str(error)) from error
+    except Exception as error:  # noqa: BLE001 - parse boundary: any constructor failure is invalid input
+        raise _ScalarValueError(type(error).__name__) from error
 
 
 @dataclass(frozen=True)
@@ -735,9 +753,12 @@ def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shi
 _MANIFEST_PATH = "harness-manifest.yaml"
 _TEMPLATES_DIR = "templates"
 # A render longer than the FI-2 per-file read bound can never equal an installed
-# file the reader is able to read, so rendering stops there instead of growing
-# without bound through variables whose values name other variables.
+# file the reader is able to read, so rendering stops (fail-closed) once any
+# intermediate render would pass it, instead of growing without bound through
+# variables whose values name other variables. The work budget bounds the
+# per-variable scans of a manifest with very many variables.
 _MAX_RENDER_CHARS = ReadLimits().max_file_bytes
+_MAX_RENDER_WORK = 64 * _MAX_RENDER_CHARS
 
 
 @dataclass(frozen=True)
@@ -794,10 +815,15 @@ def _bounded_render(text: str, variables: Mapping[str, str]) -> str | None:
     """Render ``text`` with the one template grammar, one variable at a time, in mapping order.
 
     Same result as ``verify_workspace.render_template(text, variables)``;
-    ``None`` when the output would exceed ``_MAX_RENDER_CHARS``.
+    ``None`` when an intermediate render would exceed ``_MAX_RENDER_CHARS`` or
+    the scans would exceed ``_MAX_RENDER_WORK`` characters.
     """
     rendered = text
+    work = 0
     for key, value in variables.items():
+        work += len(rendered)
+        if work > _MAX_RENDER_WORK:
+            return None
         token = "{{" + key + "}}"
         occurrences = rendered.count(token)
         if occurrences and len(rendered) + occurrences * (len(value) - len(token)) > _MAX_RENDER_CHARS:
@@ -848,9 +874,12 @@ def _classify_surface(
         return _surface_row(spec, "INSTALLED_UNREADABLE")
     if hashlib.sha256(installed.data).hexdigest() != checksum:
         return _surface_row(spec, "CHECKSUM_MISMATCH")
-    # "surrogatepass": a lone surrogate from a manifest variable cannot raise here;
-    # its bytes are not valid UTF-8, so they never equal the installed bytes.
-    if rendered.encode("utf-8", "surrogatepass") != installed.data:
+    try:
+        rendered_bytes = rendered.encode("utf-8")
+    except UnicodeEncodeError:
+        # A lone surrogate from a manifest variable: the render has no UTF-8 form.
+        return _surface_row(spec, "RENDER_MISMATCH")
+    if rendered_bytes != installed.data:
         return _surface_row(spec, "RENDER_MISMATCH")
     return _surface_row(spec, "ALL_SURFACES_PRESENT")
 

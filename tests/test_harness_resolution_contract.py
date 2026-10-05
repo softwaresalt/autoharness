@@ -586,6 +586,7 @@ class ResultContractReviewFixTests(unittest.TestCase):
             ("row is a dict", "CHECKSUM_MISMATCH", {"surfaces": (dict(SURFACE_ROW),)}),
             ("declaration is a tuple", "NO_SURFACES_REQUIRED", {"declarations": (("2-T", "none"),)}),
             ("unsupported declared surface", "NO_SURFACES_REQUIRED", {"declarations": (hs.Declaration("2-T", "bogus"),)}),
+            ("unhashable declared surface", "NO_SURFACES_REQUIRED", {"declarations": (hs.Declaration("2-T", ["x"]),)}),  # type: ignore[arg-type]
             ("diagnostic not a string", "NO_SURFACES_REQUIRED", {"diagnostics": (3,)}),
             ("unhashable code", "CHECKSUM_MISMATCH", {"surfaces": (row,)}),
         ]
