@@ -107,12 +107,12 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **Expected-RED roster** (per task):
 
-1. **Roster.** The current task's expected-RED roster is the current task's generated harness tests, excluding characterization tests. Characterization tests are recorded separately, outside the roster, and may pass.
+1. **Roster.** The current task's expected-RED roster is the current task's generated harness tests, excluding characterization tests. Characterization tests are recorded separately, outside the roster, and may pass. Structural tests that reach no stub are likewise outside the roster (see the Marker Convention below).
 2. **RED (R2).** RED for a roster test is that test reported as `ERROR` in the canonical command's output with its own unique `NotImplementedError` marker (see the Marker Convention below). Attribution is roster-relative (R2): each roster test is checked against the named `ERROR` set by its own marker. A roster test absent from the named `ERROR` set, or named with a different marker, is refused.
 3. **Refused.** A marker-bearing `AssertionError` is never RED; it is refused with the other outcomes listed below.
 4. **`harness-surface:none`.** A task declaring `harness-surface:none` has no roster and no RED obligation. `harness-surface:none` is allowed only for a task whose file budget contains no Python production module under `src/`.
 
-**Marker Convention** (stated verbatim from the Marker Convention section of `docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md`, where FI-9 is the RED-evidence rule this entry states):
+**Marker Convention** (stated verbatim from the governing plan, where FI-9 is the RED-evidence rule this entry states and a Proof G case ID is that plan's test case identifier):
 
 Each task's `Marker` value is a **prefix**. Every roster test `t` has its
 own marker `<prefix>:<t>`, where `<t>` is its Proof G case ID or test
@@ -125,7 +125,7 @@ marker is a cross-test marker, which FI-9 refuses. Structural tests that
 reach no stub (API, docstring, schema parity, pinned hash, alias, audit)
 are recorded outside the roster, like characterization tests.
 
-**Precondition** (for a task with an expected-RED roster; a `harness-surface:none` task has none): All of the following must be true:
+**Precondition** (every task except a `harness-surface:none` task, which has no roster and no RED obligation): All of the following must be true:
 
 1. `python -m py_compile src/autoharness/cli.py` exits 0 -- compilation succeeds, including the newly generated harness tests.
 2. `PYTHONPATH=src python -m unittest discover -s tests` (the canonical whole-suite test command, invoked exactly as resolved with no runner substitution, no added flags such as `-v`, and no scoped/targeted subset) exits non-zero -- because the current task's roster tests are red. Unrelated established tests elsewhere in the suite, and the current task's characterization tests, may pass; their passing is not a violation.
