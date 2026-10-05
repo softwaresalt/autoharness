@@ -219,10 +219,13 @@ All follow-ups are active stash entries, and Stage owns their triage.
   evaluation, recorded as `compound_status` in closure frontmatter, with
   capture required by named criteria. It also covers periodic
   compound-refresh and installing the compound and compound-refresh skills
-  in the dogfood harness. The text was captured verbatim, without triage.
+  in the dogfood harness. The operator directed this capture. Ship copied the
+  operator-supplied text block verbatim, including its findings and
+  proposal, and did not triage it. Priority `medium` was set by the operator.
 * `C9E87CE9` (new, task/low): source stash entries `24A85BF8` and `AD3D41FA`
   are still active, although their work shipped (`622a41a1`, closed by
-  189-S). Stage should retire them, and could have harvest stamp
+  189-S). Priority `low` is provisional; Stage owns re-prioritization. Stage should
+  retire them, and could have harvest stamp
   `source_stash_id` so this retirement happens automatically.
 
 ## Residual Risks

@@ -42,7 +42,7 @@
    * Post-mode: `PROCEED`. Lock released at `03:38:37Z`.
 7. Source cleanup: 183-F has no `source_stash_id` or
    `source_deliberation_id`, so nothing was archived. Stash entries
-   `D15F6A93` (the operator's compound-learning question, verbatim) and
+   `D15F6A93` (the operator-supplied compound-learning text block, copied verbatim) and
    `C9E87CE9` (retire `24A85BF8` and `AD3D41FA`) were captured.
 
 ## Learnings
