@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import enum
 import hashlib
+import json
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -29,7 +30,7 @@ from typing import Any
 import yaml
 
 from autoharness import verify_workspace
-from autoharness.harness_read import Reader, ReadErrorCode, ReadLimits, TrustRoot
+from autoharness.harness_read import Reader, ReadErrorCode, ReadLimits, ReadResult, TrustRoot
 
 __all__ = [
     "BACKLOG_ROOT_NAMES",
@@ -522,6 +523,38 @@ class ReadLimitHit:
 
 
 @dataclass(frozen=True)
+class _LedgerEntry:
+    """One first-pass read (B4a): what was requested and what the reader returned.
+
+    ``data`` is the raw bytes of a successful read; otherwise ``error`` is the
+    reader's code, so a ``PATH_NOT_FOUND`` entry records a stable absence.
+    ``surface_id`` names the surface of a template or installed read.
+    """
+
+    stage: ReadStage
+    root: TrustRoot
+    path: str
+    data: bytes | None
+    error: ReadErrorCode | None
+    surface_id: str | None = None
+
+
+def _ledgered_read(
+    reader: Reader,
+    ledger: list[_LedgerEntry] | None,
+    root: TrustRoot,
+    path: str,
+    stage: ReadStage,
+    surface_id: str | None = None,
+) -> ReadResult:
+    """Read one file through ``reader`` and append the observation to ``ledger`` (if any)."""
+    result = reader.read_bytes(root, path)
+    if ledger is not None:
+        ledger.append(_LedgerEntry(stage, root, path, result.data, result.error, surface_id))
+    return result
+
+
+@dataclass(frozen=True)
 class _Records:
     """Backlog-root, shipment, membership and declaration facts (classes 2 and 3)."""
 
@@ -586,18 +619,23 @@ class _RecordStatus(enum.Enum):
 
 
 def _read_record(
-    reader: Reader, backlog_root: str, item_id: str, stage: ReadStage
+    reader: Reader,
+    backlog_root: str,
+    item_id: str,
+    stage: ReadStage,
+    ledger: list[_LedgerEntry] | None = None,
 ) -> tuple[_RecordStatus, dict[Any, Any] | ReadLimitHit | None]:
     """Read both exact candidates of one record.
 
     Returns ``(LIMIT, hit)``, ``(PRESENT, frontmatter)`` or ``(status, None)``.
     Both candidates are read (two claims) unless the first read hits a read
-    limit, which stops all reads (FI-5).
+    limit, which stops all reads (FI-5). Each read is appended to ``ledger``
+    when one is given (B4a).
     """
     present: list[bytes] = []
     invalid = False
     for folder in ("queue", "archive"):
-        result = reader.read_bytes(TrustRoot.WORKSPACE, f"{backlog_root}/{folder}/{item_id}.md")
+        result = _ledgered_read(reader, ledger, TrustRoot.WORKSPACE, f"{backlog_root}/{folder}/{item_id}.md", stage)
         if result.data is not None:
             present.append(result.data)
         elif result.error in _READ_LIMIT_CODES:
@@ -660,7 +698,13 @@ def _declaration(labels: Sequence[str]) -> tuple[list[str], str | None]:
     return [], surfaces.pop()
 
 
-def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shipment_id: object) -> _Records:
+def _read_records(
+    reader: Reader,
+    *,
+    workspace_root: str | os.PathLike[str],
+    shipment_id: object,
+    ledger: list[_LedgerEntry] | None = None,
+) -> _Records:
     """Classes 2 and 3 for one shipment, read through ``reader``.
 
     The backlog root is one of two fixed names under ``workspace_root``,
@@ -669,7 +713,8 @@ def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shi
     encounter order without short-circuiting across members; the first
     read-limit error stops every further read (FI-5), and the facts and
     declarations returned with it are only those gathered before the stop.
-    ``reader`` must be opened on the same ``workspace_root``.
+    ``reader`` must be opened on the same ``workspace_root``. Every candidate
+    read, present or absent, is appended to ``ledger`` when one is given.
     """
     base = os.fspath(workspace_root)
     roots = [name for name in BACKLOG_ROOT_NAMES if os.path.isdir(os.path.join(base, name))]
@@ -693,7 +738,7 @@ def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shi
     if facts or backlog_root is None or valid_id is None:
         return done()
 
-    status, record = _read_record(reader, backlog_root, valid_id, ReadStage.SHIPMENT_CANDIDATE)
+    status, record = _read_record(reader, backlog_root, valid_id, ReadStage.SHIPMENT_CANDIDATE, ledger)
     if isinstance(record, ReadLimitHit):
         return done(read_limit=record)
     if not isinstance(record, dict):
@@ -727,7 +772,7 @@ def _read_records(reader: Reader, *, workspace_root: str | os.PathLike[str], shi
 
     declarations: list[Declaration] = []
     for item in lookups:
-        status, member = _read_record(reader, backlog_root, item, ReadStage.MEMBER_CANDIDATE)
+        status, member = _read_record(reader, backlog_root, item, ReadStage.MEMBER_CANDIDATE, ledger)
         if isinstance(member, ReadLimitHit):
             return done(read_limit=member, declarations=declarations)
         if not isinstance(member, dict):
@@ -835,9 +880,16 @@ def _bounded_render(text: str, variables: Mapping[str, str]) -> str | None:
 
 
 def _classify_surface(
-    reader: Reader, spec: SurfaceSpec, artifacts: Sequence[dict[str, Any]], variables: Mapping[str, str]
+    reader: Reader,
+    spec: SurfaceSpec,
+    artifacts: Sequence[dict[str, Any]],
+    variables: Mapping[str, str],
+    ledger: list[_LedgerEntry] | None = None,
 ) -> SurfaceRow | ReadLimitHit:
-    """Classify one supported surface, in plan order; the first read-limit error stops it."""
+    """Classify one supported surface, in plan order; the first read-limit error stops it.
+
+    The template and installed reads are appended to ``ledger`` when one is given.
+    """
     matches = [entry for entry in artifacts if entry["path"] == spec.installed_path]
     if not matches:
         return _surface_row(spec, "MANIFEST_ENTRY_NOT_FOUND")
@@ -849,7 +901,9 @@ def _classify_surface(
     if not isinstance(template, str) or not (isinstance(checksum, str) and _SHA256_HEX_RE.fullmatch(checksum)):
         return _surface_row(spec, "MANIFEST_ENTRY_INVALID")
 
-    source = reader.read_bytes(TrustRoot.WORKSPACE, f"{_TEMPLATES_DIR}/{spec.template}")
+    source = _ledgered_read(
+        reader, ledger, TrustRoot.WORKSPACE, f"{_TEMPLATES_DIR}/{spec.template}", ReadStage.TEMPLATE, spec.surface_id
+    )
     if source.error in _READ_LIMIT_CODES:
         return ReadLimitHit(source.error, ReadStage.TEMPLATE)
     if source.error is ReadErrorCode.PATH_NOT_FOUND:
@@ -867,7 +921,9 @@ def _classify_surface(
     if verify_workspace.PLACEHOLDER_RE.search(rendered):
         return _surface_row(spec, "TEMPLATE_VARIABLE_UNRESOLVED")
 
-    installed = reader.read_bytes(TrustRoot.WORKSPACE, spec.installed_path)
+    installed = _ledgered_read(
+        reader, ledger, TrustRoot.WORKSPACE, spec.installed_path, ReadStage.INSTALLED, spec.surface_id
+    )
     if installed.error in _READ_LIMIT_CODES:
         return ReadLimitHit(installed.error, ReadStage.INSTALLED)
     if installed.error is ReadErrorCode.PATH_NOT_FOUND:
@@ -886,7 +942,9 @@ def _classify_surface(
     return _surface_row(spec, "ALL_SURFACES_PRESENT")
 
 
-def _classify_surfaces(reader: Reader, *, surface_ids: Sequence[str]) -> _Classification:
+def _classify_surfaces(
+    reader: Reader, *, surface_ids: Sequence[str], ledger: list[_LedgerEntry] | None = None
+) -> _Classification:
     """Classes 5 to 8 for the declared surface union, read through ``reader``.
 
     Reads nothing when the union is empty. Otherwise one manifest read (under
@@ -894,11 +952,12 @@ def _classify_surfaces(reader: Reader, *, surface_ids: Sequence[str]) -> _Classi
     per-surface rows. Templates are read from ``<workspace>/templates/``. The
     first read-limit error stops every further read (FI-5); the result then
     carries only that hit, with no rows. ``surface_ids`` must be supported
-    surfaces (``ValueError`` otherwise; records never yield others).
+    surfaces (``ValueError`` otherwise; records never yield others). Every
+    surface read is appended to ``ledger`` when one is given.
     """
     if not surface_ids:
         return _Classification(None, (), None)
-    manifest = reader.read_bytes(TrustRoot.AUTOHARNESS, _MANIFEST_PATH)
+    manifest = _ledgered_read(reader, ledger, TrustRoot.AUTOHARNESS, _MANIFEST_PATH, ReadStage.MANIFEST)
     if manifest.error in _READ_LIMIT_CODES:
         return _Classification(None, (), ReadLimitHit(manifest.error, ReadStage.MANIFEST))
     if manifest.error is ReadErrorCode.PATH_NOT_FOUND:
@@ -913,21 +972,212 @@ def _classify_surfaces(reader: Reader, *, surface_ids: Sequence[str]) -> _Classi
         raise ValueError(f"unsupported surface IDs: {unsupported!r}")
     rows: list[SurfaceRow] = []
     for surface_id in surface_ids:
-        outcome = _classify_surface(reader, SUPPORTED_SURFACES[surface_id], artifacts, variables)
+        outcome = _classify_surface(reader, SUPPORTED_SURFACES[surface_id], artifacts, variables, ledger)
         if isinstance(outcome, ReadLimitHit):
             return _Classification(None, (), outcome)
         rows.append(outcome)
     return _Classification(None, tuple(rows), None)
 
 
-# --- B4a (189.001-T) RED-phase stubs -----------------------------------------
+# --- B4a (189.001-T): observation ledger, recheck and inputs_sha256 ----------
 
-_B4A = "AHLC_B4A_LEDGER_DIGEST"
+# Per first-pass stage: the recheck stage, and the code a recheck that does not
+# complete gives (plan, Unit B reader-error mapping table, "Recheck" row).
+_RECHECK_STAGE: Mapping[ReadStage, ReadStage] = MappingProxyType(
+    {
+        ReadStage.SHIPMENT_CANDIDATE: ReadStage.CANDIDATE_RECHECK,
+        ReadStage.MEMBER_CANDIDATE: ReadStage.CANDIDATE_RECHECK,
+        ReadStage.MANIFEST: ReadStage.SURFACE_RECHECK,
+        ReadStage.TEMPLATE: ReadStage.SURFACE_RECHECK,
+        ReadStage.INSTALLED: ReadStage.SURFACE_RECHECK,
+    }
+)
+_NOT_COMPLETED_CODE: Mapping[ReadStage, str] = MappingProxyType(
+    {
+        ReadStage.SHIPMENT_CANDIDATE: "SHIPMENT_RECORD_INVALID",
+        ReadStage.MEMBER_CANDIDATE: "MEMBER_RECORD_INVALID",
+        ReadStage.MANIFEST: "MANIFEST_UNREADABLE",
+        ReadStage.TEMPLATE: "TEMPLATE_UNREADABLE",
+        ReadStage.INSTALLED: "INSTALLED_UNREADABLE",
+    }
+)
+_INPUT_CHANGED = "INPUT_CHANGED_DURING_RESOLUTION"
 
 
-def _observe(reader: Reader, *, workspace_root: str | os.PathLike[str], shipment_id: object) -> Any:
-    raise NotImplementedError(f"{_B4A}:{os.path.basename(os.fspath(workspace_root))}")
+@dataclass(frozen=True)
+class _RecheckEntry:
+    """One recheck read: the ledger index it re-observes, its recheck stage and its outcome."""
+
+    index: int
+    stage: ReadStage
+    data: bytes | None
+    error: ReadErrorCode | None
 
 
-def _inputs_sha256(observed: Any, projection: Mapping[str, object]) -> str:
-    raise NotImplementedError(f"{_B4A}:_inputs_sha256")
+@dataclass(frozen=True)
+class _Recheck:
+    """The re-observation of the ledger.
+
+    ``facts`` holds ``INPUT_CHANGED_DURING_RESOLUTION`` (class 1) once a
+    completed recheck disagrees, and the original stage's code for each
+    candidate or manifest recheck that did not complete. ``surface_codes``
+    holds ``(surface_id, code)`` for each template or installed recheck that
+    did not complete. ``read_limit`` is the read-limit error that stopped the
+    recheck (FI-5); the entries before it are kept.
+    """
+
+    entries: tuple[_RecheckEntry, ...]
+    changed_stage: ReadStage | None
+    facts: tuple[str, ...]
+    surface_codes: tuple[tuple[str, str], ...]
+    read_limit: ReadLimitHit | None
+
+    @property
+    def reason_code(self) -> str | None:
+        """The first applicable recheck code, by listed order."""
+        return _first_applicable([*self.facts, *(code for _surface_id, code in self.surface_codes)])
+
+
+def _recheck(reader: Reader, ledger: Sequence[_LedgerEntry]) -> _Recheck:
+    """Re-observe every ledger entry, in ledger order, through ``reader`` (new claims).
+
+    A recheck read that returns bytes or ``PATH_NOT_FOUND`` has completed and
+    is compared with the first observation; any difference is a disagreement
+    (class 1). Any other non-limit error means the recheck did not complete:
+    it gives the original stage's code and is never agreement. The first
+    read-limit error stops the recheck (FI-5). A ledger that holds a
+    read-limit error is refused (``ValueError``): no recheck follows one.
+    """
+    if any(entry.error in _READ_LIMIT_CODES for entry in ledger):
+        raise ValueError("no recheck follows a read-limit error (FI-5)")
+    entries: list[_RecheckEntry] = []
+    changed: ReadStage | None = None
+    facts: list[str] = []
+    surface_codes: list[tuple[str, str]] = []
+    for index, first in enumerate(ledger):
+        stage = _RECHECK_STAGE[first.stage]
+        result = reader.read_bytes(first.root, first.path)
+        entries.append(_RecheckEntry(index, stage, result.data, result.error))
+        if result.error in _READ_LIMIT_CODES:
+            hit = ReadLimitHit(result.error, stage)
+            return _Recheck(tuple(entries), changed, tuple(facts), tuple(surface_codes), hit)
+        if result.error is None or result.error is ReadErrorCode.PATH_NOT_FOUND:
+            if (result.data, result.error) != (first.data, first.error) and changed is None:
+                changed = stage
+                facts.append(_INPUT_CHANGED)
+        elif first.surface_id is None:
+            facts.append(_NOT_COMPLETED_CODE[first.stage])
+        else:
+            surface_codes.append((first.surface_id, _NOT_COMPLETED_CODE[first.stage]))
+    return _Recheck(tuple(entries), changed, tuple(facts), tuple(surface_codes), None)
+
+
+@dataclass(frozen=True)
+class _Observed:
+    """What one resolution observed: the request, both phases, the ledger and the recheck.
+
+    ``classification`` is ``None`` when the records phase stopped at a
+    read-limit error; ``recheck`` is ``None`` when either phase did (FI-5).
+    """
+
+    shipment_id: object
+    records: _Records
+    classification: _Classification | None
+    ledger: tuple[_LedgerEntry, ...]
+    recheck: _Recheck | None
+
+
+def _observe(reader: Reader, *, workspace_root: str | os.PathLike[str], shipment_id: object) -> _Observed:
+    """Run the records and surface phases with one ledger, then re-observe the ledger.
+
+    Surfaces are classified whenever the declared surface union is non-empty,
+    also when the records phase found class 2 or 3 facts, so lower-class facts
+    are collected without short-circuiting (IM-04). The first read-limit error
+    stops every further read and recheck request (FI-5). ``reader`` must be
+    opened on ``workspace_root``.
+    """
+    ledger: list[_LedgerEntry] = []
+    records = _read_records(reader, workspace_root=workspace_root, shipment_id=shipment_id, ledger=ledger)
+    if records.read_limit is not None:
+        return _Observed(shipment_id, records, None, tuple(ledger), None)
+    classification = _classify_surfaces(reader, surface_ids=records.surface_ids, ledger=ledger)
+    if classification.read_limit is not None:
+        return _Observed(shipment_id, records, classification, tuple(ledger), None)
+    return _Observed(shipment_id, records, classification, tuple(ledger), _recheck(reader, ledger))
+
+
+_DIGEST_DOMAIN = b"autoharness/harness-resolution/1.0.0/inputs_sha256"
+
+
+def _frame(*parts: bytes) -> bytes:
+    """Each part prefixed with its 8-byte big-endian length; the first part is a tag fixing the arity."""
+    return b"".join(len(part).to_bytes(8, "big") + part for part in parts)
+
+
+def _text(value: str) -> bytes:
+    return value.encode("utf-8", "surrogatepass")
+
+
+def _outcome(data: bytes | None, error: ReadErrorCode | None) -> tuple[bytes, bytes]:
+    if error is None and data is not None:
+        return b"data", data
+    if error is not None and data is None:
+        return b"error", _text(error.value)
+    raise ValueError("exactly one of data and error must be set")
+
+
+def _digest_preimage(observed: _Observed, projection: Mapping[str, object]) -> bytes:
+    """The canonical, domain-separated ``inputs_sha256`` preimage.
+
+    In order: the domain tag; the request (the shipment ID as requested); every
+    ledger entry (stage, root, root-relative path, raw bytes or error code, and
+    surface), so both candidates of each record, stable absence included, and
+    the manifest, template and installed observations are bound; the recheck
+    entries, or that no recheck ran; the normalized declarations (sorted by
+    task ID); and the result projection without ``inputs_sha256``, as
+    canonical JSON. No absolute path is bound, so the same LF bytes give the
+    same digest in any location and on any host.
+    """
+    if "inputs_sha256" in projection:
+        raise ValueError("the result projection excludes inputs_sha256")
+    request = observed.shipment_id
+    parts = [_frame(_DIGEST_DOMAIN)]
+    if isinstance(request, str):
+        parts.append(_frame(b"request", b"str", _text(request)))
+    else:
+        parts.append(_frame(b"request", b"type", _text(type(request).__qualname__)))
+    for entry in observed.ledger:
+        surface = (b"no-surface", b"") if entry.surface_id is None else (b"surface", _text(entry.surface_id))
+        parts.append(
+            _frame(
+                b"read",
+                _text(entry.stage.value),
+                _text(entry.root.value),
+                _text(entry.path),
+                *_outcome(entry.data, entry.error),
+                *surface,
+            )
+        )
+    if observed.recheck is None:
+        parts.append(_frame(b"recheck-not-run"))
+    else:
+        parts.append(_frame(b"recheck", str(len(observed.recheck.entries)).encode("ascii")))
+        for again in observed.recheck.entries:
+            parts.append(
+                _frame(
+                    b"reread",
+                    str(again.index).encode("ascii"),
+                    _text(again.stage.value),
+                    *_outcome(again.data, again.error),
+                )
+            )
+    for item in observed.records.declarations:
+        parts.append(_frame(b"declaration", _text(item.member_id), _text(item.surface_id)))
+    canonical = json.dumps(projection, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
+    parts.append(_frame(b"projection", canonical.encode("ascii")))
+    return b"".join(parts)
+
+
+def _inputs_sha256(observed: _Observed, projection: Mapping[str, object]) -> str:
+    """64 lowercase hex: SHA-256 of :func:`_digest_preimage`."""
+    return hashlib.sha256(_digest_preimage(observed, projection)).hexdigest()

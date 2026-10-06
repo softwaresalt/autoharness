@@ -105,7 +105,7 @@ GOLDEN_PROJECTION: dict[str, Any] = {
     ],
     "diagnostics": [],
 }
-GOLDEN_INPUTS_SHA256 = "0" * 64  # pinned in GREEN from the implementation
+GOLDEN_INPUTS_SHA256 = "37671c73e26cb3963be3b5c33e9d254f894e519e12d32e8e829c9bdaa4dd8606"
 
 
 class ResolverFixture(unittest.TestCase):
@@ -404,7 +404,9 @@ class LedgerDigestRosterTests(ResolverFixture):
         self.assertEqual(observed.recheck.entries, ())
         self.assertEqual(reader.usage.files_claimed, 0)
         self.assertEqual(observed.records.reason_code, "BACKLOG_ROOT_NOT_FOUND")
-        self.assertIsNone(observed.classification)
+        # The surface union is empty: the surface phase reads nothing.
+        self.assertEqual(observed.classification.rows, ())
+        self.assertIsNone(observed.classification.reason_code)
 
 
 class LedgerDigestStructuralTests(unittest.TestCase):
