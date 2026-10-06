@@ -144,17 +144,25 @@ Every RED run: native exit 1, and the only errors or failures are listed here.
   otherwise kept the existing `Unknown command` path (exit 1). Gap
   characterization (CONST-II-F01): the captured-help structural test FAILED
   with exit 1 `Unknown command`; the audit structural tests passed. The
-  local review then moved three of the seven out of the roster, because they
-  reach no CLI stub on their own: `test_all_47_codes_through_resolve_validate_against_the_schema`
-  (characterization: it passes over the green B4b resolver),
-  `test_parse_errors_emit_no_document` and
-  `test_help_prints_to_stdout_and_emits_no_document` (gap characterization:
-  the command did not exist). The RED roster of record is the remaining four:
+  local review then moved three of the seven out of the roster:
+  `test_all_47_codes_through_resolve_validate_against_the_schema` runs the
+  green B4b resolver, and `test_parse_errors_emit_no_document` and
+  `test_help_prints_to_stdout_and_emits_no_document` specify argparse
+  behavior that a stub-raised marker cannot show as missing. All three
+  errored on the stub in the run of record; their pre-B5 characterization
+  outcomes (the 47 codes pass; parse errors and help needed the command) are
+  inferred, not observed. The RED roster of record is the remaining four:
   `test_one_document_per_state_through_the_cli`,
   `test_default_reachable_codes_through_resolve_shipment_and_the_cli`,
   `test_stdout_is_one_document_and_one_lf_in_a_real_process`,
   `test_invalid_shipment_id_is_a_document_not_a_parse_error`, each ERROR with
-  its own marker in that run.
+  its own marker in that run. In that run the first call of the last three
+  was unasserted, and the last two reached their own marker only through it;
+  since the review fix that first call asserts the `ALL_SURFACES_PRESENT`
+  document, which does not change the RED outcome (the stub raised first).
+  The review fix also added three parse-error argv cases (`--workspace ""`,
+  `--work`, `--js`) with the behavior that refuses them; before it, argparse
+  accepted abbreviations and an empty path and wrote a document.
 
 GREEN runs: B4a `Ran 3367 tests OK (skipped=57)`; B4b `Ran 3381 tests OK (skipped=57)`;
 B5 `Ran 3391 tests OK (skipped=57)`; each native exit 0. A test or review
