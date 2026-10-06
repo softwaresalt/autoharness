@@ -918,3 +918,16 @@ def _classify_surfaces(reader: Reader, *, surface_ids: Sequence[str]) -> _Classi
             return _Classification(None, (), outcome)
         rows.append(outcome)
     return _Classification(None, tuple(rows), None)
+
+
+# --- B4a (189.001-T) RED-phase stubs -----------------------------------------
+
+_B4A = "AHLC_B4A_LEDGER_DIGEST"
+
+
+def _observe(reader: Reader, *, workspace_root: str | os.PathLike[str], shipment_id: object) -> Any:
+    raise NotImplementedError(f"{_B4A}:{os.path.basename(os.fspath(workspace_root))}")
+
+
+def _inputs_sha256(observed: Any, projection: Mapping[str, object]) -> str:
+    raise NotImplementedError(f"{_B4A}:_inputs_sha256")
