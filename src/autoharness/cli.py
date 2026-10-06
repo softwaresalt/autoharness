@@ -3691,6 +3691,19 @@ def _setup_codex() -> None:
     print("Run this command again after upgrading autoharness.")
 
 
+
+# --- B5 (189.003-T) RED-phase stub -------------------------------------------
+
+
+def _harness_command(args: list[str]) -> None:
+    if "--workspace" in args[:-1]:
+        workspace = args[args.index("--workspace") + 1]
+        raise NotImplementedError(f"AHLC_B5_CLI_ENVELOPE:{os.path.basename(workspace)}")
+    print("Unknown command: harness", file=sys.stderr)
+    print(USAGE, file=sys.stderr)
+    sys.exit(1)
+
+
 def main(argv: list[str] | None = None) -> None:
     args = argv if argv is not None else sys.argv[1:]
 
@@ -3712,6 +3725,8 @@ def main(argv: list[str] | None = None) -> None:
         _shipment_command(args[1:])
     elif command == "telemetry":
         _telemetry_command(args[1:])
+    elif command == "harness":
+        _harness_command(args[1:])
     elif command == "eval":
         _eval_command(args[1:])
     elif command == "setup-vscode":
