@@ -46,7 +46,22 @@ FLOOR: tuple[str, ...] = (
 # C5 adds no entry: harness_read.py has no detector hit outside the required
 # sentence (confirmed by local review). B1-B3 (188.001-T..188.003-T) add no
 # entry: harness_surfaces.py has no detector hit (confirmed by 194-S local review).
+# B4a-B5 (189.001-T..189.003-T) add no entry (confirmed by 195-S local review).
 LEDGER: dict[tuple[str, str], str] = {}
+
+# IM-14-F51 (B5, 189.003-T): the S(B-entry) residue units. They are not FLOOR
+# entries (FLOOR grows only by B1 and D1). Each falls to the recorded agent text
+# audit (the shipment closure note), once, and is re-opened only when a later
+# commit modifies its lines. The captured help text is checked against DETECTOR
+# by tests/test_harness_resolve_cli.py.
+RESIDUE_UNITS: tuple[str, ...] = (
+    "src/autoharness/cli.py",
+    "tests/test_harness_surfaces_digest.py",
+    "tests/test_harness_surfaces_reducer.py",
+    "tests/test_harness_resolve_cli.py",
+    "tests/test_harness_noclaim_audit.py",
+    "captured text: autoharness harness resolve --help",
+)
 
 REQUIRED_SENTENCE = (
     "This reader makes no race, TOCTOU or hardlink-alias resistance claim."
@@ -178,6 +193,16 @@ class FloorAuditTests(unittest.TestCase):
         for path, _digest in LEDGER:
             self.assertIn(path, FLOOR)
         self.assertTrue(all(value == "non-claim" for value in LEDGER.values()))
+
+    def test_structural_residue_units_are_not_floor_entries(self) -> None:
+        # IM-14-F51: B-entry adds residue units, never FLOOR entries.
+        self.assertEqual(len(set(RESIDUE_UNITS)), len(RESIDUE_UNITS))
+        for unit in RESIDUE_UNITS:
+            self.assertNotIn(unit, FLOOR)
+            if unit.startswith("captured text: "):
+                continue
+            self.assertNotIn("\\", unit)
+            self.assertTrue((REPO_ROOT / unit).is_file(), unit)
 
     def test_structural_floor_audit_passes(self) -> None:
         report = audit(REPO_ROOT, FLOOR, LEDGER)
