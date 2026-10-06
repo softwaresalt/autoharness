@@ -23,14 +23,14 @@ import json
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any
 
 import yaml
 
 from autoharness import verify_workspace
-from autoharness.harness_read import Reader, ReadErrorCode, ReadLimits, ReadResult, TrustRoot
+from autoharness.harness_read import Reader, ReadErrorCode, ReadLimits, ReadResult, ReadUsage, TrustRoot
 
 __all__ = [
     "BACKLOG_ROOT_NAMES",
@@ -1183,19 +1183,95 @@ def _inputs_sha256(observed: _Observed, projection: Mapping[str, object]) -> str
     """64 lowercase hex: SHA-256 of :func:`_digest_preimage`."""
     return hashlib.sha256(_digest_preimage(observed, projection)).hexdigest()
 
-# --- B4b (189.002-T) RED-phase stubs -----------------------------------------
-
-_B4B = "AHLC_B4B_REDUCER_EARLY_RETURN"
+# --- B4b (189.002-T): reducer, early return and resolver entry ---------------
 
 
 def _reduce(observed: _Observed) -> ResolutionResult:
-    raise NotImplementedError(f"{_B4B}:_reduce")
+    """The one result of an observation: class order 1, 1b, then 2 to 8 (FI-6).
+
+    This is the only cross-class selector. Class 1 (a completed recheck that
+    disagreed, also when a read-limit error stopped the recheck after it,
+    FI-5) beats class 1b; class 1b (the first read-limit error in encounter
+    order: records, surfaces, recheck) beats every listed code. Otherwise the
+    first applicable code by listed order is selected among every collected
+    fact: the records phase, the surface phase, the recheck and, for an empty
+    surface union, ``NO_SURFACES_REQUIRED``. A selected code with a surface
+    state carries the row of the surface it was selected for. The digest is
+    computed over the observation and this result's projection.
+    """
+    records, classification, recheck = observed.records, observed.classification, observed.recheck
+    facts: list[str] = list(records.facts)
+    surface_codes: dict[str, list[str]] = {}
+    hits = [records.read_limit]
+    if classification is not None:
+        if classification.global_code is not None:
+            facts.append(classification.global_code)
+        for row in classification.rows:
+            surface_codes.setdefault(row.surface_id, []).append(row.reason_code)
+        hits.append(classification.read_limit)
+    if recheck is not None:
+        facts.extend(recheck.facts)
+        for surface_id, surface_code in recheck.surface_codes:
+            surface_codes.setdefault(surface_id, []).append(surface_code)
+        hits.append(recheck.read_limit)
+    first_hit = next((hit for hit in hits if hit is not None), None)
+
+    rows: tuple[SurfaceRow, ...] = ()
+    diagnostics: tuple[str, ...] = ()
+    code: str | None
+    if _INPUT_CHANGED in facts:
+        code = _INPUT_CHANGED
+    elif first_hit is not None:
+        code = first_hit.code.value
+        diagnostics = read_limit_diagnostics(first_hit.code, first_hit.stage)
+    else:
+        selected = {surface_id: _first_applicable(codes) for surface_id, codes in sorted(surface_codes.items())}
+        candidates = [*facts, *(row_code for row_code in selected.values() if row_code is not None)]
+        if not records.surface_ids:
+            candidates.append("NO_SURFACES_REQUIRED")
+        code = _first_applicable(candidates)
+        if code is None:
+            raise ValueError("an observation without any fact has no result")
+        if reason_spec(code).surface_state is not None:
+            surface_id = next(surface_id for surface_id, row_code in selected.items() if row_code == code)
+            rows = (_surface_row(SUPPORTED_SURFACES[surface_id], code),)
+
+    provisional = make_result(
+        code,
+        shipment_id=records.shipment_id,
+        backlog_root=records.backlog_root,
+        inputs_sha256="0" * 64,
+        surfaces=rows,
+        declarations=records.declarations,
+        diagnostics=diagnostics,
+    )
+    projection = provisional.to_document()
+    del projection["inputs_sha256"]
+    return replace(provisional, inputs_sha256=_inputs_sha256(observed, projection))
 
 
-def _resolve(*, workspace_root: str | os.PathLike[str], shipment_id: object, limits: ReadLimits) -> Any:
-    raise NotImplementedError(f"{_B4B}:{os.path.basename(os.fspath(workspace_root))}")
+def _resolve(
+    *, workspace_root: str | os.PathLike[str], shipment_id: object, limits: ReadLimits
+) -> tuple[ResolutionResult, ReadUsage]:
+    """Resolve one shipment with one reader under ``limits``: the result and the reader's usage.
+
+    ``limits`` is the only B patch point (IM-06): tests pass small limits so
+    every read-limit code is reachable. :func:`resolve_shipment` is the public
+    entry and always passes the FI-2 defaults.
+    """
+    reader = Reader(workspace_root=workspace_root, limits=limits)
+    observed = _observe(reader, workspace_root=workspace_root, shipment_id=shipment_id)
+    return _reduce(observed), reader.usage
 
 
 def resolve_shipment(*, workspace_root: str | os.PathLike[str], shipment_id: object) -> ResolutionResult:
+    """Resolve the harness surfaces of ``shipment_id`` in the workspace at ``workspace_root``.
+
+    One reader with the FI-2 default limits (256 files, 4 MiB per file,
+    32 MiB in all) serves the whole resolution. The result is a
+    ``harness-resolution`` 1.0.0 result (:meth:`ResolutionResult.to_document`);
+    its ``exit_code`` is 0 (``HARNESS_READY``), 1 (``NO_HARNESS``) or 2
+    (``UNRESOLVED``).
+    """
     result, _usage = _resolve(workspace_root=workspace_root, shipment_id=shipment_id, limits=ReadLimits())
     return result

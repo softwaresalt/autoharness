@@ -398,8 +398,15 @@ class ReducerRosterTests(ReducerFixture):
             self.assertEqual(usage, ReadUsage(files_claimed=4, bytes_reserved=0))
         record = self.shipment_record("9.001-T")
         self.write_record("7-S", record)
-        result, _usage = self.resolve(limits=ReadLimits(max_file_bytes=len(record), max_total_bytes=len(record)))
+        # The budget fits the shipment record twice (first pass and recheck), so the
+        # absent member candidates are requested with no byte budget left at the recheck.
+        with self.reads() as calls:
+            result, usage = self.resolve(
+                limits=ReadLimits(max_file_bytes=len(record), max_total_bytes=2 * len(record))
+            )
         self.assertEqual(result.reason_code, "MEMBER_NOT_FOUND")
+        self.assertEqual(usage, ReadUsage(files_claimed=8, bytes_reserved=2 * len(record)))
+        self.assertEqual([call[2] for call in calls].count(ReadErrorCode.PATH_NOT_FOUND), 6)
 
     def test_early_return_issues_no_recheck_after_a_first_pass_read_limit(self) -> None:
         self.assert_baseline()
