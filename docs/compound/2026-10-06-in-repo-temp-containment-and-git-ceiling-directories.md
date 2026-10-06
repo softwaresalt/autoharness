@@ -31,7 +31,10 @@ would repeat the outside-worktree writes this workaround exists to prevent (for
 example in a fresh checkout, or after closure deletes the scratch directory):
 
 ```powershell
-$r = 'C:\Source\GitHub\autoharness\.proof-scratch\<shipment>\tmp'  # git-ignored
+# Run from the repository root of the active checkout; never hard-code a checkout path.
+$root = git rev-parse --show-toplevel
+if ($LASTEXITCODE -ne 0 -or -not $root) { throw 'not inside a git checkout' }
+$r = Join-Path $root '.proof-scratch\<shipment>\tmp'  # git-ignored
 New-Item -ItemType Directory -Force -Path $r -ErrorAction Stop | Out-Null
 if (-not (Test-Path -LiteralPath $r -PathType Container)) { throw "temp dir missing: $r" }
 $env:TEMP = $r; $env:TMP = $r; $env:TMPDIR = $r
