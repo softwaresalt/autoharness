@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -50,6 +51,7 @@ Usage:
   autoharness shipment cascade-close  Evidence-capturing CASCADE close (see `autoharness shipment --help`)
   autoharness telemetry begin    Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
+  autoharness harness resolve   Resolve a shipment's harness surfaces to one JSON document
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
@@ -3692,16 +3694,57 @@ def _setup_codex() -> None:
 
 
 
-# --- B5 (189.003-T) RED-phase stub -------------------------------------------
+# --- harness resolve (B5, 189.003-T) -----------------------------------------
+
+
+def _harness_parser() -> argparse.ArgumentParser:
+    """The ``autoharness harness`` parser (B5, 189.003-T)."""
+    parser = argparse.ArgumentParser(
+        prog="autoharness harness",
+        description="Harness surface resolution for one shipment.",
+    )
+    commands = parser.add_subparsers(dest="harness_command", metavar="{resolve}", required=True)
+    resolve = commands.add_parser(
+        "resolve",
+        help="resolve a shipment's harness surfaces to one JSON document",
+        description=(
+            "Resolve the harness surfaces that a shipment's task members declare and write one "
+            "harness-resolution 1.0.0 JSON document, followed by one newline, to stdout. Once the "
+            "arguments parse, nothing is written to stderr, and the exit status equals the "
+            "document's exit_code: 0 HARNESS_READY, 1 NO_HARNESS, 2 UNRESOLVED. An argument error "
+            "prints usage to stderr, exits 2 and writes no document."
+        ),
+    )
+    resolve.add_argument(
+        "--workspace",
+        required=True,
+        metavar="PATH",
+        help="workspace root holding the backlog (.backlog/ or .backlogit/), .autoharness/ and templates/",
+    )
+    resolve.add_argument("--shipment", required=True, metavar="ID", help="shipment ID, for example 195-S")
+    resolve.add_argument(
+        "--json", required=True, action="store_true", help="write the result as one JSON document (required)"
+    )
+    return parser
 
 
 def _harness_command(args: list[str]) -> None:
-    if "--workspace" in args[:-1]:
-        workspace = args[args.index("--workspace") + 1]
-        raise NotImplementedError(f"AHLC_B5_CLI_ENVELOPE:{os.path.basename(workspace)}")
-    print("Unknown command: harness", file=sys.stderr)
-    print(USAGE, file=sys.stderr)
-    sys.exit(1)
+    """``autoharness harness resolve --workspace <path> --shipment <id> --json``.
+
+    Parse errors and ``--help`` are ordinary argparse (``SystemExit`` 2 with
+    usage on stderr, or help on stdout with 0). After a successful parse the
+    command writes exactly one UTF-8 document and one LF to stdout, writes
+    nothing to stderr (CR-B5) and exits with the document's ``exit_code``.
+    """
+    namespace = _harness_parser().parse_args(args)
+    from autoharness.harness_surfaces import resolve_shipment
+
+    result = resolve_shipment(workspace_root=namespace.workspace, shipment_id=namespace.shipment)
+    document = json.dumps(result.to_document(), separators=(",", ":")).encode("utf-8")
+    sys.stdout.flush()
+    sys.stdout.buffer.write(document + b"\n")
+    sys.stdout.buffer.flush()
+    sys.exit(result.exit_code)
 
 
 def main(argv: list[str] | None = None) -> None:
