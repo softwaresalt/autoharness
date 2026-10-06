@@ -60,9 +60,11 @@ with the `harness resolve` transcript for one fixture per state.
 * Never `open(p, "wb")` and read `p` in the same expression: the truncating
   open runs first. A scratch normalization did this once and emptied two
   uncommitted test files, which were recreated before their RED run.
-* Mutating backlogit CLI commands wrote and then hung on this host; confirm
-  the write on disk and in `.backlogit/logs/<id>.jsonl`, then stop the
-  process (`DF404895`).
+* `backlogit shipment claim` and two of three `backlogit move --status done`
+  calls wrote and then did not exit on this host; `sync`, `stash add` and one
+  `move` returned promptly. Wait for a mutating call normally; only when one
+  has not exited after its write is confirmed on disk and in
+  `.backlogit/logs/<id>.jsonl` stop that process (`DF404895`).
 
 ## Follow-ups
 

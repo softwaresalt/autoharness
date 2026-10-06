@@ -209,8 +209,9 @@ deliberation was mutated. **`recommendation: DISPOSITION_COMPLETE`**.
   operator reference doc and CHANGELOG before the first tag (P-021 deferred).
   Needs deliberation.
 * `7E1BC498`: resolver and test maintainability (P-021 deferred).
-* `DF404895`: mutating backlogit CLI commands write and then do not exit on
-  this host.
+* `DF404895`: `backlogit shipment claim` and two of three task moves wrote
+  and then did not exit on this host (other mutating calls returned; see
+  Residual Risks for the corrected wording).
 * `C4D5B676`: `uv run autoharness` offline failure and the stale global
   install. Needs deliberation.
 * Existing `DB2E092B` also covers `189-F`'s stale `harness_status: pending`.
