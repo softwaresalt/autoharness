@@ -50,6 +50,7 @@ __all__ = [
     "make_result",
     "read_limit_diagnostics",
     "reason_spec",
+    "resolve_shipment",
     "task_id_sort_key",
 ]
 
@@ -1181,3 +1182,20 @@ def _digest_preimage(observed: _Observed, projection: Mapping[str, object]) -> b
 def _inputs_sha256(observed: _Observed, projection: Mapping[str, object]) -> str:
     """64 lowercase hex: SHA-256 of :func:`_digest_preimage`."""
     return hashlib.sha256(_digest_preimage(observed, projection)).hexdigest()
+
+# --- B4b (189.002-T) RED-phase stubs -----------------------------------------
+
+_B4B = "AHLC_B4B_REDUCER_EARLY_RETURN"
+
+
+def _reduce(observed: _Observed) -> ResolutionResult:
+    raise NotImplementedError(f"{_B4B}:_reduce")
+
+
+def _resolve(*, workspace_root: str | os.PathLike[str], shipment_id: object, limits: ReadLimits) -> Any:
+    raise NotImplementedError(f"{_B4B}:{os.path.basename(os.fspath(workspace_root))}")
+
+
+def resolve_shipment(*, workspace_root: str | os.PathLike[str], shipment_id: object) -> ResolutionResult:
+    result, _usage = _resolve(workspace_root=workspace_root, shipment_id=shipment_id, limits=ReadLimits())
+    return result
