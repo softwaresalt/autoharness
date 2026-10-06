@@ -24,10 +24,16 @@ tests, git hooks or `git push`.
 
 ## Solution
 
-Set all four variables in the same PowerShell invocation as the command:
+Set all four variables in the same PowerShell invocation as the command, and
+create the directory first. Python's `tempfile` silently skips a `TEMP`/`TMP`/
+`TMPDIR` that does not exist and falls back to the system temp directory, which
+would repeat the outside-worktree writes this workaround exists to prevent (for
+example in a fresh checkout, or after closure deletes the scratch directory):
 
 ```powershell
 $r = 'C:\Source\GitHub\autoharness\.proof-scratch\<shipment>\tmp'  # git-ignored
+New-Item -ItemType Directory -Force -Path $r -ErrorAction Stop | Out-Null
+if (-not (Test-Path -LiteralPath $r -PathType Container)) { throw "temp dir missing: $r" }
 $env:TEMP = $r; $env:TMP = $r; $env:TMPDIR = $r
 $env:GIT_CEILING_DIRECTORIES = $r
 $env:PYTHONPATH = 'src'
