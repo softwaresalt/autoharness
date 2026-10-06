@@ -143,12 +143,6 @@ class ResolverFixture(unittest.TestCase):
         self.build(ws)
         return ws
 
-    def fresh(self, name: str) -> Path:
-        """Build another complete workspace under the scratch directory."""
-        ws = self.scratch / name
-        self.build(ws)
-        return ws
-
     def path(self, relative: str, ws: Path | None = None) -> Path:
         return (self.ws if ws is None else ws) / relative
 
@@ -429,6 +423,32 @@ class LedgerDigestRosterTests(ResolverFixture):
         # The surface union is empty: the surface phase reads nothing.
         self.assertEqual(observed.classification.rows, ())
         self.assertIsNone(observed.classification.reason_code)
+
+
+class LedgerDigestGoldenCharacterizationTests(ResolverFixture):
+    """More pinned digests, added by the 195-S local review over the green code (outside the roster).
+
+    They pin the preimage frames the roster golden does not reach: no recheck
+    after a first-pass read-limit error, and a request that is not a ``str``.
+    Both values equal the digests of the code before the frame-by-frame
+    hashing refactor.
+    """
+
+    def test_golden_digest_without_a_recheck(self) -> None:
+        observed, _reader = self.observe(limits=ReadLimits(max_files=10))
+        self.assertIsNone(observed.recheck)
+        self.assertEqual(
+            hs._inputs_sha256(observed, GOLDEN_PROJECTION),
+            "9b2e4357c04c4777e2a13dccf368f9124826872d698eef96f25680ddcbd07577",
+        )
+
+    def test_golden_digest_for_a_request_that_is_not_a_string(self) -> None:
+        observed, _reader = self.observe(shipment_id=7)
+        self.assertEqual(observed.ledger, ())
+        self.assertEqual(
+            hs._inputs_sha256(observed, GOLDEN_PROJECTION),
+            "46e30262810ccb8772b1c3b0d3a1c6eb5b917b90388d9a7b0462d69c84860465",
+        )
 
 
 class LedgerDigestStructuralTests(unittest.TestCase):

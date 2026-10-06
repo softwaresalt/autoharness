@@ -264,10 +264,13 @@ class CliFixture(ResolverFixture):
 class CliEnvelopeRosterTests(CliFixture):
     """Expected-RED roster: the ``harness resolve`` document envelope (B5).
 
-    Each roster test first runs the command on its own default workspace and
-    asserts the ``ALL_SURFACES_PRESENT`` document, so in the RED phase (where
-    the CLI stub derived its marker suffix from the ``--workspace`` basename)
-    each reached its own marker ``AHLC_B5_CLI_ENVELOPE:<test>``.
+    Each roster test first runs the command on its own default workspace, so
+    in the RED phase (where the CLI stub derived its marker suffix from the
+    ``--workspace`` basename) each reached its own marker
+    ``AHLC_B5_CLI_ENVELOPE:<test>``. In the RED run of record (76df115c) that
+    first call was unasserted in three of the four tests; since the review fix
+    it asserts the ``ALL_SURFACES_PRESENT`` document. The RED outcome is the
+    same, because the stub raised before any assertion.
     """
 
     def assert_baseline_document(self) -> None:
@@ -341,12 +344,16 @@ class CliEnvelopeRosterTests(CliFixture):
 
 
 class CliEnvelopeCharacterizationTests(CliFixture):
-    """Outside the roster (local review, 195-S): these reach no CLI stub on their own.
+    """Outside the roster (reclassified by the 195-S local review).
 
-    The 47-code test runs ``_resolve`` (green since B4b), and the parse-error
-    and help tests exercise argparse before any resolver call. Before B5 they
-    were characterization (47 codes: passes) and gap characterization
-    (parse errors and help: the ``harness`` command did not exist).
+    The 47-code test runs ``_resolve`` (green since B4b). The parse-error and
+    help tests specify argparse behavior, which a stub-raised marker cannot
+    show as missing. In the RED run of record all three errored on the stub;
+    their characterization outcomes before B5 are inferred, not observed:
+    the 47 codes pass, and parse errors and help needed the ``harness``
+    command. The empty, ``--work`` and ``--js`` argv cases were added with
+    the review fix that refuses them (before it, argparse abbreviations and
+    an empty path were accepted and produced a document).
     """
 
     def test_all_47_codes_through_resolve_validate_against_the_schema(self) -> None:
@@ -384,6 +391,10 @@ class CliEnvelopeCharacterizationTests(CliFixture):
                 self.assertEqual(out, b"")
                 self.assertTrue(err.startswith(b"usage:"), err)
                 self.assertNotIn(b'"schema_version"', err)
+                self.assertIn(b"autoharness harness", err)
+                if "" in argv:  # the empty path is refused while parsing, by the resolve parser
+                    self.assertIn(b"usage: autoharness harness resolve", err)
+                    self.assertIn(b"expected a non-empty path", err)
 
     def test_help_prints_to_stdout_and_emits_no_document(self) -> None:
         for argv in (

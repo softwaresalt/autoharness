@@ -3697,6 +3697,13 @@ def _setup_codex() -> None:
 # --- harness resolve (B5, 189.003-T) -----------------------------------------
 
 
+def _non_empty_path(value: str) -> str:
+    """An argparse ``type`` for ``--workspace``: an empty path is an argument error."""
+    if not value:
+        raise argparse.ArgumentTypeError("expected a non-empty path")
+    return value
+
+
 def _harness_parser() -> argparse.ArgumentParser:
     """The ``autoharness harness`` parser (B5, 189.003-T)."""
     parser = argparse.ArgumentParser(
@@ -3720,6 +3727,7 @@ def _harness_parser() -> argparse.ArgumentParser:
     resolve.add_argument(
         "--workspace",
         required=True,
+        type=_non_empty_path,
         metavar="PATH",
         help="workspace root holding the backlog (.backlog/ or .backlogit/), .autoharness/ and templates/",
     )
@@ -3741,10 +3749,7 @@ def _harness_command(args: list[str]) -> None:
     argument error. Only the document carries a result: an internal failure
     after the parse writes no document, so its exit status carries no state.
     """
-    parser = _harness_parser()
-    namespace = parser.parse_args(args)
-    if not namespace.workspace:
-        parser.error("argument --workspace: expected a non-empty path")
+    namespace = _harness_parser().parse_args(args)
     from autoharness.harness_surfaces import resolve_shipment
 
     result = resolve_shipment(workspace_root=namespace.workspace, shipment_id=namespace.shipment)

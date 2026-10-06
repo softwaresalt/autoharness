@@ -430,8 +430,9 @@ class ReducerRosterTests(ReducerFixture):
 
 # IM-04 pairs whose lower-class fact cannot come first in encounter order, with the reason.
 INFEASIBLE_ORDER: dict[str, str] = {
-    "2 or 3 over 4 to 8": "the records phase (classes 2 and 3) always runs before the surface phase, "
-    "and NO_SURFACES_REQUIRED is derived after both",
+    "3 over 4 to 8": "class 3 facts come only from the records phase, which always runs before the "
+    "surface phase, and NO_SURFACES_REQUIRED is derived after both (no recheck yields a class 3 code)",
+    "2 over 4": "NO_SURFACES_REQUIRED is derived after every phase",
     "4 over 5 to 8": "NO_SURFACES_REQUIRED means an empty surface union, which yields no class 5 to 8 fact",
     "7 over 8": "one supported surface (FI-8) yields one row, and no recheck yields a class 7 code",
 }
@@ -444,6 +445,7 @@ class ReducerPrecedenceCharacterizationTests(ReducerFixture):
     resolution; the higher class is selected and the lower-class fact is still
     collected (no short-circuit). Where it is feasible the lower-class fact
     comes first (class 5 over 6 and 7 through a manifest recheck that does not
+    complete, and class 2 over 5 to 8 through a member recheck that does not
     complete); the infeasible orders are listed in INFEASIBLE_ORDER.
     """
 
@@ -477,23 +479,36 @@ class ReducerPrecedenceCharacterizationTests(ReducerFixture):
         self.record_path("7.002-T", ws=ws).unlink()
         self.assertEqual(self.resolve(ws=ws)[0].reason_code, "MEMBER_NOT_FOUND")
 
-    def test_manifest_class_beats_rows_met_first(self) -> None:
-        for low, low_code in (("c6", "TEMPLATE_VARIABLE_UNRESOLVED"), ("c7", "CHECKSUM_MISMATCH")):
-            with self.subTest(lower=low):
-                ws = self.fresh(f"pair-c5-{low}")
+    def test_recheck_codes_beat_surface_facts_met_first(self) -> None:
+        cases = [
+            ("c5", "c6", "TEMPLATE_VARIABLE_UNRESOLVED", ".autoharness/harness-manifest.yaml", "MANIFEST_UNREADABLE"),
+            ("c5", "c7", "CHECKSUM_MISMATCH", ".autoharness/harness-manifest.yaml", "MANIFEST_UNREADABLE"),
+            ("c2", "c5", "MANIFEST_YAML_INVALID", ".backlogit/queue/7.001-T.md", "MEMBER_RECORD_INVALID"),
+            ("c2", "c6", "TEMPLATE_VARIABLE_UNRESOLVED", ".backlogit/queue/7.001-T.md", "MEMBER_RECORD_INVALID"),
+            ("c2", "c7", "CHECKSUM_MISMATCH", ".backlogit/queue/7.001-T.md", "MEMBER_RECORD_INVALID"),
+        ]
+        for high, low, low_code, target, code in cases:
+            with self.subTest(higher=high, lower=low):
+                ws = self.fresh(f"pair-{high}-{low}-recheck")
                 self.arrange_lower(ws, low)
                 with self.reads() as calls:
                     self.assertEqual(self.resolve(ws=ws)[0].reason_code, low_code)
                 first_pass = len(calls) // 2
-                manifest = self.path(".autoharness/harness-manifest.yaml", ws)
-                with self.reads({first_pass: self.replace_with_directory(manifest)}):
-                    result, _usage = self.resolve(ws=ws)
-                self.assertEqual(result.reason_code, "MANIFEST_UNREADABLE")
+                with self.reads({first_pass: self.replace_with_directory(ws / target)}):
+                    observed = hs._observe(
+                        open_reader(workspace_root=ws), workspace_root=ws, shipment_id=SHIPMENT_ID
+                    )
+                    result = hs._reduce(observed)
+                self.assertEqual(observed.classification.reason_code, low_code)  # met first, still collected
+                self.assertEqual(observed.recheck.facts, (code,))
+                self.assertEqual(result.reason_code, code)
                 self.assertEqual(result.surfaces, ())
 
-    def test_infeasible_orders_are_recorded_with_a_reason(self) -> None:
-        self.assertEqual(set(INFEASIBLE_ORDER), {"2 or 3 over 4 to 8", "4 over 5 to 8", "7 over 8"})
+    def test_infeasible_orders_hold_for_the_recheck_codes(self) -> None:
         self.assertTrue(all(reason for reason in INFEASIBLE_ORDER.values()))
+        recheck_classes = {hs.reason_spec(code).reason_class for _stage, code in hs._RECHECK.values()}
+        # No recheck code is class 3, 4, 7 or 8, so those classes are met only in their own phase.
+        self.assertEqual(recheck_classes, {"2", "5", "6"})
 
 
 class ReducerRosterStructuralTests(unittest.TestCase):
