@@ -105,6 +105,17 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "known_versions": ("0.9.0", "1.0.0"),
         "compatibility_model": "versioned-contract",
     },
+    "harness-resolution": {
+        "contract_name": "harness-resolution",
+        "schema_file": "harness-resolution.schema.json",
+        "versioned_schema_dir": "harness-resolution",
+        # Published by 188.001-T (ship lifecycle Unit B, B1). The 1.0.0 mirror is
+        # never edited in place: a contract change is a new version
+        # (docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md).
+        "current_version": "1.0.0",
+        "known_versions": ("1.0.0",),
+        "compatibility_model": "versioned-contract",
+    },
 }
 
 CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {

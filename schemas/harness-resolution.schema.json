@@ -1,0 +1,1755 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/softwaresalt/autoharness/schemas/harness-resolution.schema.json",
+  "title": "HarnessResolution",
+  "description": "harness-resolution 1.0.0: the result of one shipment harness-surface resolution (docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md, Unit B). Field set of the proven Proof C run 4 fixture schema (FI-7) with declarations as ratified (FI-6 item d). One oneOf branch per reason code binds its state, exit code, surface row and diagnostics. A class 1b read-limit result carries exactly its native read_error_code and one read_stage diagnostic; no other result carries either. shipment_id is null only when the requested ID is syntactically invalid; backlog_root is null only for the two backlog-root codes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "reason_code",
+    "exit_code",
+    "shipment_id",
+    "backlog_root",
+    "surfaces",
+    "declarations",
+    "inputs_sha256",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "state": {
+      "enum": [
+        "HARNESS_READY",
+        "NO_HARNESS",
+        "UNRESOLVED"
+      ]
+    },
+    "reason_code": {
+      "enum": [
+        "INPUT_CHANGED_DURING_RESOLUTION",
+        "FILE_COUNT_LIMIT",
+        "TOTAL_SIZE_LIMIT",
+        "FILE_SIZE_LIMIT",
+        "BACKLOG_ROOT_NOT_FOUND",
+        "BACKLOG_ROOT_AMBIGUOUS",
+        "SHIPMENT_ID_INVALID",
+        "SHIPMENT_NOT_FOUND",
+        "SHIPMENT_AMBIGUOUS",
+        "SHIPMENT_RECORD_INVALID",
+        "SHIPMENT_ID_MISMATCH",
+        "MEMBERS_INVALID",
+        "MEMBERS_EMPTY",
+        "MEMBERS_TOO_MANY",
+        "MEMBER_ID_INVALID",
+        "MEMBER_KIND_UNSUPPORTED",
+        "MEMBER_DUPLICATE",
+        "MEMBER_NOT_FOUND",
+        "MEMBER_AMBIGUOUS",
+        "MEMBER_RECORD_INVALID",
+        "MEMBER_ID_MISMATCH",
+        "NO_TASK_MEMBERS",
+        "FEATURE_DECLARES_SURFACE",
+        "DECLARATION_MISSING",
+        "DECLARATION_MALFORMED",
+        "DECLARATION_DUPLICATE",
+        "DECLARATION_MIXED",
+        "SURFACE_UNSUPPORTED",
+        "NO_SURFACES_REQUIRED",
+        "MANIFEST_NOT_FOUND",
+        "MANIFEST_UNREADABLE",
+        "MANIFEST_DECODE_INVALID",
+        "MANIFEST_YAML_INVALID",
+        "MANIFEST_DUPLICATE_KEY",
+        "MANIFEST_SHAPE_INVALID",
+        "MANIFEST_ENTRY_AMBIGUOUS",
+        "MANIFEST_TEMPLATE_MISMATCH",
+        "MANIFEST_ENTRY_INVALID",
+        "TEMPLATE_NOT_FOUND",
+        "TEMPLATE_UNREADABLE",
+        "TEMPLATE_VARIABLE_UNRESOLVED",
+        "INSTALLED_UNREADABLE",
+        "MANIFEST_ENTRY_NOT_FOUND",
+        "INSTALLED_NOT_FOUND",
+        "CHECKSUM_MISMATCH",
+        "RENDER_MISMATCH",
+        "ALL_SURFACES_PRESENT"
+      ]
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ]
+    },
+    "shipment_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9]+-S$"
+    },
+    "backlog_root": {
+      "enum": [
+        ".backlog",
+        ".backlogit",
+        null
+      ]
+    },
+    "surfaces": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "surface_id",
+          "installed_path",
+          "template",
+          "state",
+          "reason_code"
+        ],
+        "properties": {
+          "surface_id": {
+            "enum": [
+              "harness-architect"
+            ]
+          },
+          "installed_path": {
+            "enum": [
+              ".github/skills/harness-architect/SKILL.md"
+            ]
+          },
+          "template": {
+            "enum": [
+              "skills/harness-architect/SKILL.md.tmpl"
+            ]
+          },
+          "state": {
+            "enum": [
+              "PRESENT",
+              "MISSING",
+              "STALE",
+              "INVALID"
+            ]
+          },
+          "reason_code": {
+            "enum": [
+              "MANIFEST_ENTRY_AMBIGUOUS",
+              "MANIFEST_TEMPLATE_MISMATCH",
+              "MANIFEST_ENTRY_INVALID",
+              "TEMPLATE_NOT_FOUND",
+              "TEMPLATE_UNREADABLE",
+              "TEMPLATE_VARIABLE_UNRESOLVED",
+              "INSTALLED_UNREADABLE",
+              "MANIFEST_ENTRY_NOT_FOUND",
+              "INSTALLED_NOT_FOUND",
+              "CHECKSUM_MISMATCH",
+              "RENDER_MISMATCH",
+              "ALL_SURFACES_PRESENT"
+            ]
+          }
+        }
+      }
+    },
+    "declarations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "member_id",
+          "surface_id"
+        ],
+        "properties": {
+          "member_id": {
+            "type": "string"
+          },
+          "surface_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inputs_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "reason_code": {
+          "const": "INPUT_CHANGED_DURING_RESOLUTION"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "FILE_COUNT_LIMIT"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "enum": [
+              "read_error_code=FILE_COUNT_LIMIT",
+              "read_stage=shipment_queue_or_archive_candidate",
+              "read_stage=member_queue_or_archive_candidate",
+              "read_stage=manifest_read",
+              "read_stage=template_read",
+              "read_stage=installed_file_read",
+              "read_stage=candidate_ledger_recheck",
+              "read_stage=surface_recheck"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "read_error_code=FILE_COUNT_LIMIT"
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "pattern": "^read_stage="
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "TOTAL_SIZE_LIMIT"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "enum": [
+              "read_error_code=TOTAL_SIZE_LIMIT",
+              "read_stage=shipment_queue_or_archive_candidate",
+              "read_stage=member_queue_or_archive_candidate",
+              "read_stage=manifest_read",
+              "read_stage=template_read",
+              "read_stage=installed_file_read",
+              "read_stage=candidate_ledger_recheck",
+              "read_stage=surface_recheck"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "read_error_code=TOTAL_SIZE_LIMIT"
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "pattern": "^read_stage="
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "FILE_SIZE_LIMIT"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "enum": [
+              "read_error_code=FILE_SIZE_LIMIT",
+              "read_stage=shipment_queue_or_archive_candidate",
+              "read_stage=member_queue_or_archive_candidate",
+              "read_stage=manifest_read",
+              "read_stage=template_read",
+              "read_stage=installed_file_read",
+              "read_stage=candidate_ledger_recheck",
+              "read_stage=surface_recheck"
+            ]
+          },
+          "allOf": [
+            {
+              "contains": {
+                "const": "read_error_code=FILE_SIZE_LIMIT"
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "pattern": "^read_stage="
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "BACKLOG_ROOT_NOT_FOUND"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "backlog_root": {
+          "const": null
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "BACKLOG_ROOT_AMBIGUOUS"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "backlog_root": {
+          "const": null
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "SHIPMENT_ID_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "const": null
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "SHIPMENT_NOT_FOUND"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "SHIPMENT_AMBIGUOUS"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "SHIPMENT_RECORD_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "SHIPMENT_ID_MISMATCH"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBERS_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBERS_EMPTY"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBERS_TOO_MANY"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_ID_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_KIND_UNSUPPORTED"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_DUPLICATE"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_NOT_FOUND"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_AMBIGUOUS"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_RECORD_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MEMBER_ID_MISMATCH"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "NO_TASK_MEMBERS"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "FEATURE_DECLARES_SURFACE"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "DECLARATION_MISSING"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "DECLARATION_MALFORMED"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "DECLARATION_DUPLICATE"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "DECLARATION_MIXED"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "SURFACE_UNSUPPORTED"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "NO_SURFACES_REQUIRED"
+        },
+        "state": {
+          "const": "HARNESS_READY"
+        },
+        "exit_code": {
+          "const": 0
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_NOT_FOUND"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_UNREADABLE"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_DECODE_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_YAML_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_DUPLICATE_KEY"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_SHAPE_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "maxItems": 0
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_ENTRY_AMBIGUOUS"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "MANIFEST_ENTRY_AMBIGUOUS"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_TEMPLATE_MISMATCH"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "MANIFEST_TEMPLATE_MISMATCH"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_ENTRY_INVALID"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "MANIFEST_ENTRY_INVALID"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "TEMPLATE_NOT_FOUND"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "TEMPLATE_NOT_FOUND"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "TEMPLATE_UNREADABLE"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "TEMPLATE_UNREADABLE"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "TEMPLATE_VARIABLE_UNRESOLVED"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "TEMPLATE_VARIABLE_UNRESOLVED"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "INSTALLED_UNREADABLE"
+        },
+        "state": {
+          "const": "UNRESOLVED"
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "INVALID"
+              },
+              "reason_code": {
+                "const": "INSTALLED_UNREADABLE"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "MANIFEST_ENTRY_NOT_FOUND"
+        },
+        "state": {
+          "const": "NO_HARNESS"
+        },
+        "exit_code": {
+          "const": 1
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "MISSING"
+              },
+              "reason_code": {
+                "const": "MANIFEST_ENTRY_NOT_FOUND"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "INSTALLED_NOT_FOUND"
+        },
+        "state": {
+          "const": "NO_HARNESS"
+        },
+        "exit_code": {
+          "const": 1
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "MISSING"
+              },
+              "reason_code": {
+                "const": "INSTALLED_NOT_FOUND"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "CHECKSUM_MISMATCH"
+        },
+        "state": {
+          "const": "NO_HARNESS"
+        },
+        "exit_code": {
+          "const": 1
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "STALE"
+              },
+              "reason_code": {
+                "const": "CHECKSUM_MISMATCH"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "RENDER_MISMATCH"
+        },
+        "state": {
+          "const": "NO_HARNESS"
+        },
+        "exit_code": {
+          "const": 1
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "STALE"
+              },
+              "reason_code": {
+                "const": "RENDER_MISMATCH"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "reason_code": {
+          "const": "ALL_SURFACES_PRESENT"
+        },
+        "state": {
+          "const": "HARNESS_READY"
+        },
+        "exit_code": {
+          "const": 0
+        },
+        "shipment_id": {
+          "type": "string"
+        },
+        "backlog_root": {
+          "type": "string"
+        },
+        "surfaces": {
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "properties": {
+              "state": {
+                "const": "PRESENT"
+              },
+              "reason_code": {
+                "const": "ALL_SURFACES_PRESENT"
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "not": {
+            "contains": {
+              "pattern": "^read_(error_code|stage)="
+            }
+          }
+        }
+      }
+    }
+  ]
+}

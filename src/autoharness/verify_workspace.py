@@ -1156,6 +1156,11 @@ def _render_template(content: str, variables: dict[str, str]) -> str:
     return rendered
 
 
+# Public alias of the one template renderer (ship lifecycle B3, 188.003-T): the
+# harness surface resolver renders through this same grammar.
+render_template = _render_template
+
+
 def _find_unresolved_placeholders(file_path: Path) -> list[dict[str, Any]]:
     unresolved: list[dict[str, Any]] = []
     in_code_fence = False
