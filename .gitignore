@@ -15,6 +15,7 @@ docs/scratch/
 .backlogit/*.db-wal
 .backlogit/runtime/
 .backlogit/logs/
+.github/copilot/
 
 # 088-F throwaway compression experiment — brainspace CCR store (never
 # committed; see experiments/088-compression-experiment/README.md). The

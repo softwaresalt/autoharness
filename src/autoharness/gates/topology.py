@@ -710,6 +710,40 @@ class FilesystemTopologyReaders:
             error_key="worktree_porcelain",
         )
 
+    def worktree_dirty_paths(self) -> tuple[str, ...] | None:
+        """Workspace-relative paths whose content differs from ``HEAD``, plus
+        untracked non-ignored files. ``None`` means git could not answer.
+
+        Content-based on purpose: tools that rewrite a file with identical
+        bytes (only the mtime changes) leave ``git status`` reporting a stale
+        ``M`` under ``core.autocrlf``; ``git diff HEAD`` compares content, so
+        such no-op rewrites are not dirt. Read-only -- no index refresh.
+        """
+        self._git_invocation_errors.pop("worktree_cleanliness", None)
+        errors: dict[str, str] = {}
+        tracked = _run_git(
+            ["git", "--no-pager", "diff", "--name-only", "--relative", "-z", "HEAD"],
+            self.workspace,
+            error_sink=errors,
+            error_key="tracked",
+        )
+        untracked = _run_git(
+            ["git", "--no-pager", "ls-files", "--others", "--exclude-standard", "-z"],
+            self.workspace,
+            error_sink=errors,
+            error_key="untracked",
+        )
+        if errors:
+            self._git_invocation_errors["worktree_cleanliness"] = "; ".join(errors.values())
+            return None
+        paths = {path for path in f"{tracked}\0{untracked}".split("\0") if path}
+        return tuple(sorted(paths))
+
+    def carry_forward_prefixes(self) -> tuple[str, ...]:
+        """Path prefixes of tool-owned backlog state that P-011 carries
+        forward into the shipment branch instead of treating as dirt."""
+        return (f"{self.backlog_dir.name}/",)
+
     def read_worktree_marker(self, worktree_path: str) -> str | None:
         marker_path = Path(worktree_path) / '.autoharness' / 'stage-worktree-marker.yaml'
         try:
@@ -896,6 +930,13 @@ def _evaluate_core(
         checks.append(worktree_check)
         if worktree_check.status == "blocked":
             return _blocked_result(topology_input, resolved_phase, target, worktree_check)
+
+        if resolved_phase == "pre_claim":
+            cleanliness_check = _worktree_cleanliness_check(bound_readers)
+            if cleanliness_check is not None:
+                checks.append(cleanliness_check)
+                if cleanliness_check.status == "blocked":
+                    return _blocked_result(topology_input, resolved_phase, target, cleanliness_check)
 
         readiness_check = _shipment_readiness_check(resolved_phase, target, shipments, bound_readers)
         checks.append(readiness_check)
@@ -1204,6 +1245,63 @@ def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
         message="MULTIPLE_IMPLEMENTATION_WORKTREES: topology gate allows exactly one implementation worktree",
         details=details,
     )
+
+
+def _worktree_cleanliness_check(readers: TopologyReaders) -> CheckResult | None:
+    """P-011 clean-before-mutation check with a backlog-state carry-forward class.
+
+    Optional reader capability (duck-typed like ``closure_discovery_for``):
+    readers that do not expose ``worktree_dirty_paths`` and
+    ``carry_forward_prefixes`` produce no check, preserving prior output.
+    Dirty paths under a carry-forward prefix (tool-owned backlog state) pass
+    as ``CARRY_FORWARD_ELIGIBLE``; any other dirty path blocks.
+    """
+    dirty_getter = getattr(readers, "worktree_dirty_paths", None)
+    prefix_getter = getattr(readers, "carry_forward_prefixes", None)
+    if not callable(dirty_getter) or not callable(prefix_getter):
+        return None
+    dirty = dirty_getter()
+    if dirty is None:
+        details: dict[str, Any] = {}
+        git_invocation_error = _collect_git_invocation_error(readers, "worktree_cleanliness")
+        if git_invocation_error:
+            details["git_invocation_error"] = git_invocation_error
+        return CheckResult(
+            name="worktree_cleanliness",
+            status="blocked",
+            token="WORKTREE_STATUS_UNAVAILABLE",
+            message="WORKTREE_STATUS_UNAVAILABLE: could not read worktree status; P-011 cleanliness is unverifiable",
+            details=details,
+        )
+    prefixes = tuple(prefix if prefix.endswith("/") else f"{prefix}/" for prefix in prefix_getter())
+    normalized = sorted({path.replace("\\", "/") for path in dirty})
+    carry_forward = [path for path in normalized if path.startswith(prefixes)]
+    blocking = [path for path in normalized if not path.startswith(prefixes)]
+    details = {"carry_forward_paths": carry_forward, "carry_forward_prefixes": list(prefixes)}
+    if blocking:
+        details["blocking_paths"] = blocking
+        return CheckResult(
+            name="worktree_cleanliness",
+            status="blocked",
+            token="WORKTREE_DIRTY",
+            message=(
+                "WORKTREE_DIRTY: uncommitted changes outside the carry-forward backlog state: "
+                + ", ".join(blocking)
+            ),
+            details=details,
+        )
+    if carry_forward:
+        return CheckResult(
+            name="worktree_cleanliness",
+            status="passed",
+            token="CARRY_FORWARD_ELIGIBLE",
+            message=(
+                "CARRY_FORWARD_ELIGIBLE: only backlog state is uncommitted; commit it as the "
+                "isolated first commit on the shipment branch (P-011)"
+            ),
+            details=details,
+        )
+    return CheckResult(name="worktree_cleanliness", status="passed", token="WORKTREE_CLEAN", details=details)
 
 
 def _shipment_map(shipments: Sequence[ShipmentState]) -> dict[str, ShipmentState]:

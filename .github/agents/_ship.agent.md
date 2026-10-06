@@ -245,16 +245,21 @@ is prohibited (P-001 role separation).
      Classify each worktree as the current worktree, an explicit Stage-owned spike/research worktree, or prohibited/ambiguous. If any non-current worktree is not clearly an allowed Stage spike/research worktree, halt with `WORKTREE_TOPOLOGY_BLOCKED: prohibited or ambiguous parallel worktree detected` and record a P-016/P-005 violation. Ship must not create or use parallel worktrees.
    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `WORKTREE_TOPOLOGY_OK` and `BRANCH_OK: {branch_name}` and proceed.
    - If on `main` (the default branch):
-     a. Verify the worktree is clean:
+     a. Verify the worktree is clean apart from carry-forward backlog state (P-011):
         `git status --short`
-        If any output appears, halt. Do not create a branch from a dirty worktree.
+        The `pre_claim` gate's `worktree_cleanliness` check is authoritative: `WORKTREE_CLEAN` or `CARRY_FORWARD_ELIGIBLE` proceeds; `WORKTREE_DIRTY` or `WORKTREE_STATUS_UNAVAILABLE` halts. Do not create a branch from a worktree dirty outside `.backlogit/`, and never `git stash` dirt to pass this gate.
      b. Switch to the default branch:
         `git checkout main`
      c. Pull latest:
         `git pull`
+        If the pull refuses because carried-forward backlog state conflicts with incoming changes, halt and hand off to the operator.
      d. Create the shipment branch:
         `git checkout -b feat/{feature-slug}` (features) or `git checkout -b chore/{chore-slug}` (chores)
      e. Log `BRANCH_CREATED: {branch_name}`.
+     f. If the gate reported `CARRY_FORWARD_ELIGIBLE`, commit only the listed backlog paths as the isolated first branch commit before the claim:
+        `git add -- .backlogit/`
+        `git commit -m "chore(backlog): carry forward pre-claim backlog state"`
+        Log `CARRY_FORWARD_COMMITTED: {paths}`.
    - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
    - **TOPOLOGY_GATE: pre_claim (immediately before claim)** — immediately before the claim in step 4, this is the `ship_pre_claim` bootstrap-grant consumption site. Reach it only from the contract-valid shipment-branch vantage established by the branch/worktree checks above: `pre_claim` still evaluates `branch_ownership` before `shipment_readiness` and short-circuits, so a `BRANCH_MISMATCH` block is never bootstrap-grant-eligible.

@@ -55,3 +55,10 @@ templates/skills/file-lock/scripts/release_lock.sh text eol=lf
 # was actually installed.
 .github/policies/** text eol=lf
 .github/agents/subagents/** text eol=lf
+
+# Tool-owned backlog state. backlogit writes LF and may rewrite files with
+# identical bytes on read operations; under core.autocrlf=true an unpinned
+# LF working copy keeps `git status` reporting a stale `M` with no content
+# diff, which falsely trips the P-011 clean-worktree gate. Pinning to LF
+# removes the conversion mismatch at its source.
+.backlogit/** text eol=lf
