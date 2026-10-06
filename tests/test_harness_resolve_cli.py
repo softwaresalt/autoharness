@@ -13,13 +13,11 @@ for the read-limit codes), every code reachable with the defaults also through
 ``resolve_shipment`` and the CLI, and every output validates against the B1
 schema. Every fixture is a temporary workspace (IM-10).
 
-In the RED phase the CLI stub derives its marker suffix from the request (the
-basename of the ``--workspace`` argument, a workspace named after the test),
-and every roster test runs the command on its own workspace first, so each
-roster test reaches its own marker ``AHLC_B5_CLI_ENVELOPE:<test>``.
-``CliEnvelopeRosterTests`` is the expected-RED roster; ``test_structural_*``
-tests (the captured help audit and the roster check) reach no stub and are
-outside it.
+``CliEnvelopeRosterTests`` is the expected-RED roster (see its docstring for
+the marker attribution). ``CliEnvelopeCharacterizationTests`` (the 47 codes
+through ``_resolve``, parse errors and help) and the ``test_structural_*``
+tests (the captured help audit and the roster check) reach no CLI stub on
+their own and are outside it (reclassified by the 195-S local review).
 """
 
 from __future__ import annotations
@@ -32,14 +30,17 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator
-from test_harness_noclaim_audit import DETECTOR, normalize
+from _env_patch import patched_environ
+from test_harness_noclaim_audit import audit
 from test_harness_surfaces_digest import (
+    DEFAULT_READS,
     INSTALLED,
     RENDERED,
     SHIPMENT_ID,
@@ -58,7 +59,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = REPO_ROOT / "schemas" / "harness-resolution" / "1.0.0.schema.json"
 VALIDATOR = Draft202012Validator(json.loads(SCHEMA_PATH.read_text(encoding="utf-8")))
 MIB = 1024 * 1024
-FIRST_PASS = 11
+FIRST_PASS = len(DEFAULT_READS)  # first-pass requests of the default fixture
 ALL_CODES = tuple(spec.code for spec in hs.REASON_REGISTRY)
 DEFAULT_REACHABLE = tuple(code for code in ALL_CODES if code != "FILE_COUNT_LIMIT")
 
@@ -89,9 +90,18 @@ def pad_record(data: bytes, size: int) -> bytes:
     return data + b"x" * (size - len(data) - 1) + b"\n"
 
 
+def child_env() -> dict[str, str]:
+    """The environment for a child CLI process: ``src`` first on PYTHONPATH, no stderr-noise switches."""
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("PYTHONWARNINGS", "PYTHONDEVMODE", "PYTHONVERBOSE")}
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(REPO_ROOT / "src"), env.get("PYTHONPATH"))))
+    return env
+
+
 def captured_help() -> bytes:
-    """The captured ``harness resolve --help`` text (a residue unit, IM-14-F51)."""
-    status, out, err = run_cli(["harness", "resolve", "--help"])
+    """The captured ``harness resolve --help`` text at a fixed width (a residue unit, IM-14-F51)."""
+    with patched_environ(COLUMNS="80"):
+        status, out, err = run_cli(["harness", "resolve", "--help"])
     if (status, err) != (0, b""):
         raise AssertionError((status, err))
     return out
@@ -99,11 +109,6 @@ def captured_help() -> bytes:
 
 class CliFixture(ResolverFixture):
     """One arrangement per reason code over the shared resolver fixture."""
-
-    def fresh(self, name: str) -> Path:
-        ws = self.scratch / name
-        self.build(ws)
-        return ws
 
     def arrange(
         self, code: str, ws: Path, defaults: bool = False
@@ -127,10 +132,6 @@ class CliFixture(ResolverFixture):
 
         def task(*labels: str) -> None:
             write("7.002-T", self.task_record("7.002-T", *labels))
-
-        def as_directory(path: Path) -> None:
-            path.unlink()
-            path.mkdir()
 
         def entries(*items: tuple[str, str, str | None]) -> bytes:
             out = b"variables_used:\n  SKILL_NAME: Harness Architect\n  TEST_COMMAND: make test\nartifacts:\n"
@@ -213,7 +214,7 @@ class CliFixture(ResolverFixture):
         elif code == "MANIFEST_NOT_FOUND":
             manifest.unlink()
         elif code == "MANIFEST_UNREADABLE":
-            as_directory(manifest)
+            self.replace_with_directory(manifest)()
         elif code == "MANIFEST_DECODE_INVALID":
             manifest.write_bytes(b"artifacts: []\nnote: \xff\n")
         elif code == "MANIFEST_YAML_INVALID":
@@ -231,11 +232,11 @@ class CliFixture(ResolverFixture):
         elif code == "TEMPLATE_NOT_FOUND":
             template.unlink()
         elif code == "TEMPLATE_UNREADABLE":
-            as_directory(template)
+            self.replace_with_directory(template)()
         elif code == "TEMPLATE_VARIABLE_UNRESOLVED":
             template.write_bytes(b"# {{UNKNOWN_VARIABLE}}\n")
         elif code == "INSTALLED_UNREADABLE":
-            as_directory(installed)
+            self.replace_with_directory(installed)()
         elif code == "MANIFEST_ENTRY_NOT_FOUND":
             manifest.write_bytes(entries((".github/skills/other/SKILL.md", TEMPLATE, None)))
         elif code == "INSTALLED_NOT_FOUND":
@@ -261,12 +262,21 @@ class CliFixture(ResolverFixture):
 
 
 class CliEnvelopeRosterTests(CliFixture):
-    """Expected-RED roster: the ``harness resolve`` envelope and IM-03 (B5 half)."""
+    """Expected-RED roster: the ``harness resolve`` document envelope (B5).
 
-    def test_one_document_per_state_through_the_cli(self) -> None:
-        status, out, err = run_cli(resolve_argv(self.ws))  # RED: this test's own marker
+    Each roster test first runs the command on its own default workspace and
+    asserts the ``ALL_SURFACES_PRESENT`` document, so in the RED phase (where
+    the CLI stub derived its marker suffix from the ``--workspace`` basename)
+    each reached its own marker ``AHLC_B5_CLI_ENVELOPE:<test>``.
+    """
+
+    def assert_baseline_document(self) -> None:
+        status, out, err = run_cli(resolve_argv(self.ws))
         self.assertEqual((status, err), (0, b""))
         self.assert_document(out, "ALL_SURFACES_PRESENT")
+
+    def test_one_document_per_state_through_the_cli(self) -> None:
+        self.assert_baseline_document()
         for code in ("ALL_SURFACES_PRESENT", "CHECKSUM_MISMATCH", "MEMBER_NOT_FOUND"):
             with self.subTest(code=code):
                 ws = self.fresh(f"state-{code}")
@@ -277,23 +287,8 @@ class CliEnvelopeRosterTests(CliFixture):
                 self.assertEqual(status, document["exit_code"])
                 self.assertEqual(document["state"], hs.reason_spec(code).state.value)
 
-    def test_all_47_codes_through_resolve_validate_against_the_schema(self) -> None:
-        run_cli(resolve_argv(self.ws))  # RED: this test's own marker
-        self.assertEqual(len(ALL_CODES), 47)
-        seen = set()
-        for code in ALL_CODES:
-            with self.subTest(code=code):
-                ws = self.fresh(f"resolve-{code}")
-                shipment_id, limits, actions = self.arrange(code, ws)
-                with self.reads(actions):
-                    result, _usage = hs._resolve(workspace_root=ws, shipment_id=shipment_id, limits=limits)
-                self.assertEqual([error.message for error in VALIDATOR.iter_errors(result.to_document())], [])
-                self.assertEqual(result.reason_code, code)
-                seen.add(result.reason_code)
-        self.assertEqual(seen, set(ALL_CODES))
-
     def test_default_reachable_codes_through_resolve_shipment_and_the_cli(self) -> None:
-        run_cli(resolve_argv(self.ws))  # RED: this test's own marker
+        self.assert_baseline_document()
         self.assertEqual(len(DEFAULT_REACHABLE), 46)
         with self.assertRaises(ValueError):
             self.arrange("FILE_COUNT_LIMIT", self.fresh("count"), defaults=True)
@@ -316,9 +311,8 @@ class CliEnvelopeRosterTests(CliFixture):
                 self.assertEqual(document["inputs_sha256"], result.inputs_sha256)
 
     def test_stdout_is_one_document_and_one_lf_in_a_real_process(self) -> None:
-        run_cli(resolve_argv(self.ws))  # RED: this test's own marker
+        self.assert_baseline_document()
         cases = (("ALL_SURFACES_PRESENT", 0), ("INSTALLED_NOT_FOUND", 1), ("SHIPMENT_NOT_FOUND", 2))
-        env = {**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")}
         for code, exit_code in cases:
             with self.subTest(code=code):
                 ws = self.fresh(f"process-{code}")
@@ -326,7 +320,7 @@ class CliEnvelopeRosterTests(CliFixture):
                 completed = subprocess.run(
                     [sys.executable, "-c", "from autoharness.cli import main; main()", *resolve_argv(ws)],
                     capture_output=True,
-                    env=env,
+                    env=child_env(),
                     cwd=str(self.scratch),
                     timeout=120,
                     check=False,
@@ -337,7 +331,7 @@ class CliEnvelopeRosterTests(CliFixture):
                 self.assertEqual(completed.returncode, document["exit_code"])
 
     def test_invalid_shipment_id_is_a_document_not_a_parse_error(self) -> None:
-        run_cli(resolve_argv(self.ws))  # RED: this test's own marker
+        self.assert_baseline_document()
         for shipment_id in ("7S", "../7-S", "", "7-S\n"):
             with self.subTest(shipment_id=shipment_id):
                 status, out, err = run_cli(resolve_argv(self.ws, shipment_id))
@@ -345,13 +339,39 @@ class CliEnvelopeRosterTests(CliFixture):
                 self.assertIsNone(document["shipment_id"])
                 self.assertEqual((status, err), (2, b""))
 
+
+class CliEnvelopeCharacterizationTests(CliFixture):
+    """Outside the roster (local review, 195-S): these reach no CLI stub on their own.
+
+    The 47-code test runs ``_resolve`` (green since B4b), and the parse-error
+    and help tests exercise argparse before any resolver call. Before B5 they
+    were characterization (47 codes: passes) and gap characterization
+    (parse errors and help: the ``harness`` command did not exist).
+    """
+
+    def test_all_47_codes_through_resolve_validate_against_the_schema(self) -> None:
+        self.assertEqual(len(ALL_CODES), 47)
+        seen = set()
+        for code in ALL_CODES:
+            with self.subTest(code=code):
+                ws = self.fresh(f"resolve-{code}")
+                shipment_id, limits, actions = self.arrange(code, ws)
+                with self.reads(actions):
+                    result, _usage = hs._resolve(workspace_root=ws, shipment_id=shipment_id, limits=limits)
+                self.assertEqual([error.message for error in VALIDATOR.iter_errors(result.to_document())], [])
+                self.assertEqual(result.reason_code, code)
+                seen.add(result.reason_code)
+        self.assertEqual(seen, set(ALL_CODES))
+
     def test_parse_errors_emit_no_document(self) -> None:
-        run_cli(resolve_argv(self.ws))  # RED: this test's own marker
         ws = str(self.ws)
         for argv in (
             ["harness", "resolve", "--workspace", ws, "--shipment", SHIPMENT_ID],  # no --json
             ["harness", "resolve", "--workspace", ws, "--json"],  # no --shipment
             ["harness", "resolve", "--shipment", SHIPMENT_ID, "--json"],  # no --workspace
+            ["harness", "resolve", "--workspace", "", "--shipment", SHIPMENT_ID, "--json"],  # empty
+            ["harness", "resolve", "--work", ws, "--shipment", SHIPMENT_ID, "--json"],  # no abbreviations
+            ["harness", "resolve", "--workspace", ws, "--shipment", SHIPMENT_ID, "--js"],
             ["harness", "resolve", "--workspace", ws, "--shipment", SHIPMENT_ID, "--json", "--extra"],
             ["harness", "resolve", "--workspace", ws, "--shipment", SHIPMENT_ID, "--json", "positional"],
             ["harness", "resolve", "--workspace", ws, "--shipment"],
@@ -366,7 +386,6 @@ class CliEnvelopeRosterTests(CliFixture):
                 self.assertNotIn(b'"schema_version"', err)
 
     def test_help_prints_to_stdout_and_emits_no_document(self) -> None:
-        run_cli(resolve_argv(self.ws))  # RED: this test's own marker
         for argv in (
             ["harness", "resolve", "--help"],
             ["harness", "resolve", "--workspace", str(self.ws), "-h"],
@@ -383,22 +402,22 @@ class CliEnvelopeStructuralTests(unittest.TestCase):
     def test_structural_roster_markers_pairwise_distinct(self) -> None:
         names = [name for name in dir(CliEnvelopeRosterTests) if name.startswith("test_")]
         markers = [f"{MARKER}:{name}" for name in names]
-        self.assertEqual(len(names), 7)
+        self.assertEqual(len(names), 4)
         self.assertEqual(len(set(markers)), len(markers))
         self.assertFalse(any(name.startswith("test_structural_") for name in names))
         self.assertEqual([name for name in dir(CliFixture) if name.startswith("test")], [])
 
     def test_structural_captured_help_names_the_options_and_has_no_claim_form(self) -> None:
         # IM-14 / PE-SAFETY-06: the captured 'harness resolve --help' text is a residue
-        # unit (IM-14-F51); the plan's detector finds no claim form in it.
-        text = captured_help().decode("utf-8")
-        for option in ("--workspace", "--shipment", "--json"):
+        # unit (IM-14-F51). It is captured at a fixed width and run through the plan's
+        # audit (lines, space joins and hyphen joins), which must find no claim form.
+        text = captured_help()
+        for option in (b"--workspace", b"--shipment", b"--json"):
             self.assertIn(option, text)
-        lines = text.replace("\r", "").split("\n")
-        for line in lines:
-            self.assertIsNone(DETECTOR.search(normalize(line)), line)
-        for first, second in zip(lines, lines[1:]):
-            self.assertIsNone(DETECTOR.search(normalize(first + " " + second)), (first, second))
+        root = Path(tempfile.mkdtemp(prefix="ahlc-b5-help-"))
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "help.txt").write_bytes(text)
+        self.assertEqual(audit(root, ["help.txt"], ()).failures, [])
 
 
 if __name__ == "__main__":

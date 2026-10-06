@@ -1,13 +1,19 @@
-"""One-entry harness surface resolver: result contract, records and classification.
+"""One-entry harness surface resolver: result contract, records, surfaces, recheck and entry.
 
 Unit B of the ship lifecycle release units plan
 (``docs/plans/2026-09-25-ship-lifecycle-release-units-plan.md``). This module
 publishes the ``harness-resolution`` result contract (schema
 ``schemas/harness-resolution/1.0.0.schema.json``): the three resolution
-states and their exit codes, the diagnostics-only ``ReadStage``, and the
-47-code reason registry in listed order, where the listed order is the
-precedence (FI-6). Class 1b is the exception: among the three read-limit
-codes the first occurrence selects.
+states and their exit codes, ``ReadStage``, and the 47-code reason registry
+in listed order, where the listed order is the precedence (FI-6). Class 1b is
+the exception: among the three read-limit codes the first occurrence selects.
+
+:func:`resolve_shipment` is the public entry. One reader with the FI-2
+default limits serves one resolution: the records phase (B2), the surface
+phase (B3), then a re-observation of every ledgered read (B4a); ``_reduce``
+(B4b) selects the one result and binds ``inputs_sha256`` to every observed
+input. The private ``_resolve`` takes the limits, the only test patch point
+(IM-06).
 
 Every file read goes through one ``harness_read`` reader and inherits its
 ordinary-hazard scope (FI-10); this module adds no claim beyond it. The
@@ -22,7 +28,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 from typing import Any
@@ -84,7 +90,11 @@ class SurfaceState(enum.Enum):
 
 
 class ReadStage(enum.Enum):
-    """Where a read happened (diagnostics only). Values are the diagnostic tokens."""
+    """Where a read happened. Values are the diagnostic tokens.
+
+    In results a stage appears only in class 1b diagnostics. The values are
+    also bound into ``inputs_sha256``, so renaming one changes every digest.
+    """
 
     SHIPMENT_CANDIDATE = "shipment_queue_or_archive_candidate"
     MEMBER_CANDIDATE = "member_queue_or_archive_candidate"
@@ -984,22 +994,13 @@ def _classify_surfaces(
 
 # Per first-pass stage: the recheck stage, and the code a recheck that does not
 # complete gives (plan, Unit B reader-error mapping table, "Recheck" row).
-_RECHECK_STAGE: Mapping[ReadStage, ReadStage] = MappingProxyType(
+_RECHECK: Mapping[ReadStage, tuple[ReadStage, str]] = MappingProxyType(
     {
-        ReadStage.SHIPMENT_CANDIDATE: ReadStage.CANDIDATE_RECHECK,
-        ReadStage.MEMBER_CANDIDATE: ReadStage.CANDIDATE_RECHECK,
-        ReadStage.MANIFEST: ReadStage.SURFACE_RECHECK,
-        ReadStage.TEMPLATE: ReadStage.SURFACE_RECHECK,
-        ReadStage.INSTALLED: ReadStage.SURFACE_RECHECK,
-    }
-)
-_NOT_COMPLETED_CODE: Mapping[ReadStage, str] = MappingProxyType(
-    {
-        ReadStage.SHIPMENT_CANDIDATE: "SHIPMENT_RECORD_INVALID",
-        ReadStage.MEMBER_CANDIDATE: "MEMBER_RECORD_INVALID",
-        ReadStage.MANIFEST: "MANIFEST_UNREADABLE",
-        ReadStage.TEMPLATE: "TEMPLATE_UNREADABLE",
-        ReadStage.INSTALLED: "INSTALLED_UNREADABLE",
+        ReadStage.SHIPMENT_CANDIDATE: (ReadStage.CANDIDATE_RECHECK, "SHIPMENT_RECORD_INVALID"),
+        ReadStage.MEMBER_CANDIDATE: (ReadStage.CANDIDATE_RECHECK, "MEMBER_RECORD_INVALID"),
+        ReadStage.MANIFEST: (ReadStage.SURFACE_RECHECK, "MANIFEST_UNREADABLE"),
+        ReadStage.TEMPLATE: (ReadStage.SURFACE_RECHECK, "TEMPLATE_UNREADABLE"),
+        ReadStage.INSTALLED: (ReadStage.SURFACE_RECHECK, "INSTALLED_UNREADABLE"),
     }
 )
 _INPUT_CHANGED = "INPUT_CHANGED_DURING_RESOLUTION"
@@ -1019,12 +1020,14 @@ class _RecheckEntry:
 class _Recheck:
     """The re-observation of the ledger.
 
-    ``facts`` holds ``INPUT_CHANGED_DURING_RESOLUTION`` (class 1) once a
-    completed recheck disagrees, and the original stage's code for each
-    candidate or manifest recheck that did not complete. ``surface_codes``
-    holds ``(surface_id, code)`` for each template or installed recheck that
-    did not complete. ``read_limit`` is the read-limit error that stopped the
-    recheck (FI-5); the entries before it are kept.
+    ``changed_stage`` is the stage of the first completed recheck that
+    disagreed with its first observation, the one source of class 1
+    (``INPUT_CHANGED_DURING_RESOLUTION``). ``facts`` holds the original
+    stage's code for each candidate or manifest recheck that did not
+    complete, and ``surface_codes`` holds ``(surface_id, code)`` for each
+    template or installed recheck that did not complete. ``read_limit`` is the
+    read-limit error that stopped the recheck (FI-5); the entries before it
+    are kept.
     """
 
     entries: tuple[_RecheckEntry, ...]
@@ -1032,11 +1035,6 @@ class _Recheck:
     facts: tuple[str, ...]
     surface_codes: tuple[tuple[str, str], ...]
     read_limit: ReadLimitHit | None
-
-    @property
-    def reason_code(self) -> str | None:
-        """The first applicable recheck code, by listed order."""
-        return _first_applicable([*self.facts, *(code for _surface_id, code in self.surface_codes)])
 
 
 def _recheck(reader: Reader, ledger: Sequence[_LedgerEntry]) -> _Recheck:
@@ -1056,22 +1054,20 @@ def _recheck(reader: Reader, ledger: Sequence[_LedgerEntry]) -> _Recheck:
     facts: list[str] = []
     surface_codes: list[tuple[str, str]] = []
     for index, first in enumerate(ledger):
-        stage = _RECHECK_STAGE[first.stage]
+        stage, not_completed = _RECHECK[first.stage]
         result = reader.read_bytes(first.root, first.path)
         entries.append(_RecheckEntry(index, stage, result.data, result.error))
         if result.error in _READ_LIMIT_CODES:
             hit = ReadLimitHit(result.error, stage)
             return _Recheck(tuple(entries), changed, tuple(facts), tuple(surface_codes), hit)
         if result.error is None or result.error is ReadErrorCode.PATH_NOT_FOUND:
-            if (result.data, result.error) != (first.data, first.error) and changed is None:
+            if changed is None and (result.data, result.error) != (first.data, first.error):
                 changed = stage
-                facts.append(_INPUT_CHANGED)
         elif first.surface_id is None:
-            facts.append(_NOT_COMPLETED_CODE[first.stage])
+            facts.append(not_completed)
         else:
-            surface_codes.append((first.surface_id, _NOT_COMPLETED_CODE[first.stage]))
+            surface_codes.append((first.surface_id, not_completed))
     return _Recheck(tuple(entries), changed, tuple(facts), tuple(surface_codes), None)
-
 
 @dataclass(frozen=True)
 class _Observed:
@@ -1127,61 +1123,66 @@ def _outcome(data: bytes | None, error: ReadErrorCode | None) -> tuple[bytes, by
     raise ValueError("exactly one of data and error must be set")
 
 
-def _digest_preimage(observed: _Observed, projection: Mapping[str, object]) -> bytes:
-    """The canonical, domain-separated ``inputs_sha256`` preimage.
+def _preimage_parts(observed: _Observed, projection: Mapping[str, object]) -> Iterator[bytes]:
+    """The canonical, domain-separated ``inputs_sha256`` preimage, frame by frame.
 
-    In order: the domain tag; the request (the shipment ID as requested); every
-    ledger entry (stage, root, root-relative path, raw bytes or error code, and
-    surface), so both candidates of each record, stable absence included, and
-    the manifest, template and installed observations are bound; the recheck
-    entries, or that no recheck ran; the normalized declarations (sorted by
-    task ID); and the result projection without ``inputs_sha256``, as
-    canonical JSON. No absolute path is bound, so the same LF bytes give the
-    same digest in any location and on any host.
+    In order: the domain tag; the request (the shipment ID as requested, or
+    only its type name when it is not a ``str``, which never names a valid
+    shipment); every ledger entry (stage, root, root-relative path, raw bytes
+    or error code, and surface), so both candidates of each record, stable
+    absence included, and the manifest, template and installed observations
+    are bound; the recheck entries, or that no recheck ran; the normalized
+    declarations (sorted by task ID); and the result projection without
+    ``inputs_sha256``, as canonical JSON. No absolute path is bound, so the
+    same LF bytes give the same digest in any location and on any host.
     """
     if "inputs_sha256" in projection:
         raise ValueError("the result projection excludes inputs_sha256")
+    yield _frame(_DIGEST_DOMAIN)
     request = observed.shipment_id
-    parts = [_frame(_DIGEST_DOMAIN)]
     if isinstance(request, str):
-        parts.append(_frame(b"request", b"str", _text(request)))
+        yield _frame(b"request", b"str", _text(request))
     else:
-        parts.append(_frame(b"request", b"type", _text(type(request).__qualname__)))
+        yield _frame(b"request", b"type", _text(type(request).__qualname__))
     for entry in observed.ledger:
         surface = (b"no-surface", b"") if entry.surface_id is None else (b"surface", _text(entry.surface_id))
-        parts.append(
-            _frame(
-                b"read",
-                _text(entry.stage.value),
-                _text(entry.root.value),
-                _text(entry.path),
-                *_outcome(entry.data, entry.error),
-                *surface,
-            )
+        yield _frame(
+            b"read",
+            _text(entry.stage.value),
+            _text(entry.root.value),
+            _text(entry.path),
+            *_outcome(entry.data, entry.error),
+            *surface,
         )
     if observed.recheck is None:
-        parts.append(_frame(b"recheck-not-run"))
+        yield _frame(b"recheck-not-run")
     else:
-        parts.append(_frame(b"recheck", str(len(observed.recheck.entries)).encode("ascii")))
+        yield _frame(b"recheck", str(len(observed.recheck.entries)).encode("ascii"))
         for again in observed.recheck.entries:
-            parts.append(
-                _frame(
-                    b"reread",
-                    str(again.index).encode("ascii"),
-                    _text(again.stage.value),
-                    *_outcome(again.data, again.error),
-                )
+            yield _frame(
+                b"reread",
+                str(again.index).encode("ascii"),
+                _text(again.stage.value),
+                *_outcome(again.data, again.error),
             )
     for item in observed.records.declarations:
-        parts.append(_frame(b"declaration", _text(item.member_id), _text(item.surface_id)))
+        yield _frame(b"declaration", _text(item.member_id), _text(item.surface_id))
     canonical = json.dumps(projection, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
-    parts.append(_frame(b"projection", canonical.encode("ascii")))
-    return b"".join(parts)
+    yield _frame(b"projection", canonical.encode("ascii"))
+
+
+def _digest_preimage(observed: _Observed, projection: Mapping[str, object]) -> bytes:
+    """The whole preimage of :func:`_inputs_sha256` (see :func:`_preimage_parts`)."""
+    return b"".join(_preimage_parts(observed, projection))
 
 
 def _inputs_sha256(observed: _Observed, projection: Mapping[str, object]) -> str:
-    """64 lowercase hex: SHA-256 of :func:`_digest_preimage`."""
-    return hashlib.sha256(_digest_preimage(observed, projection)).hexdigest()
+    """64 lowercase hex: SHA-256 of the preimage, hashed frame by frame."""
+    digest = hashlib.sha256()
+    for part in _preimage_parts(observed, projection):
+        digest.update(part)
+    return digest.hexdigest()
+
 
 # --- B4b (189.002-T): reducer, early return and resolver entry ---------------
 
@@ -1189,15 +1190,19 @@ def _inputs_sha256(observed: _Observed, projection: Mapping[str, object]) -> str
 def _reduce(observed: _Observed) -> ResolutionResult:
     """The one result of an observation: class order 1, 1b, then 2 to 8 (FI-6).
 
-    This is the only cross-class selector. Class 1 (a completed recheck that
-    disagreed, also when a read-limit error stopped the recheck after it,
-    FI-5) beats class 1b; class 1b (the first read-limit error in encounter
-    order: records, surfaces, recheck) beats every listed code. Otherwise the
-    first applicable code by listed order is selected among every collected
-    fact: the records phase, the surface phase, the recheck and, for an empty
+    This is the only selector used for results (the phase-local
+    ``reason_code`` properties of the records and surface phases are not).
+    Class 1 (a completed recheck that disagreed, also when a read-limit error
+    stopped the recheck after it, FI-5) beats class 1b; class 1b (the first
+    read-limit error in phase order: records, surfaces, recheck; under FI-5
+    there is at most one) beats every listed code. Otherwise the first
+    applicable code by listed order is selected among every collected fact:
+    the records phase, the surface phase, the recheck and, for an empty
     surface union, ``NO_SURFACES_REQUIRED``. A selected code with a surface
-    state carries the row of the surface it was selected for. The digest is
-    computed over the observation and this result's projection.
+    state carries the row of the surface it was selected for. Declarations
+    are those the records phase gathered; after a class 1 or 1b result they
+    may be incomplete or stale, and the state is ``UNRESOLVED`` either way.
+    The digest is computed over the observation and this result's projection.
     """
     records, classification, recheck = observed.records, observed.classification, observed.recheck
     facts: list[str] = list(records.facts)
@@ -1219,7 +1224,7 @@ def _reduce(observed: _Observed) -> ResolutionResult:
     rows: tuple[SurfaceRow, ...] = ()
     diagnostics: tuple[str, ...] = ()
     code: str | None
-    if _INPUT_CHANGED in facts:
+    if recheck is not None and recheck.changed_stage is not None:
         code = _INPUT_CHANGED
     elif first_hit is not None:
         code = first_hit.code.value
@@ -1233,7 +1238,9 @@ def _reduce(observed: _Observed) -> ResolutionResult:
         if code is None:
             raise ValueError("an observation without any fact has no result")
         if reason_spec(code).surface_state is not None:
-            surface_id = next(surface_id for surface_id, row_code in selected.items() if row_code == code)
+            surface_id = next((sid for sid, row_code in selected.items() if row_code == code), None)
+            if surface_id is None:
+                raise ValueError(f"{code} has a surface state but no surface")
             rows = (_surface_row(SUPPORTED_SURFACES[surface_id], code),)
 
     provisional = make_result(
@@ -1248,7 +1255,6 @@ def _reduce(observed: _Observed) -> ResolutionResult:
     projection = provisional.to_document()
     del projection["inputs_sha256"]
     return replace(provisional, inputs_sha256=_inputs_sha256(observed, projection))
-
 
 def _resolve(
     *, workspace_root: str | os.PathLike[str], shipment_id: object, limits: ReadLimits

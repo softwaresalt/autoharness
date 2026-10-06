@@ -9,12 +9,13 @@ limits)``, whose ``limits`` is the only B patch point (IM-06). The IM-16 and
 IM-04 tests call ``_resolve`` with small ``ReadLimits`` so every read-limit
 code is reachable. Every fixture is a real temporary workspace
 (``ResolverFixture``, shared with the B4a module); no test reads the real
-repository surface (IM-10). In the RED phase the ``_resolve`` stub derives its
-marker suffix from the request (the workspace directory name), and every
-roster test resolves its own workspace first, so each roster test reaches its
-own marker ``AHLC_B4B_REDUCER_EARLY_RETURN:<test>``. ``ReducerRosterTests`` is
-the expected-RED roster; ``test_structural_*`` tests (the API signatures and
-the roster check) reach no stub and are outside it.
+repository surface (IM-10). Every roster test resolves its own workspace
+first, so in the RED phase (where the ``_resolve`` stub derived its marker
+suffix from the workspace directory name) each reached its own marker
+``AHLC_B4B_REDUCER_EARLY_RETURN:<test>``. ``ReducerRosterTests`` is the
+expected-RED roster. ``ReducerPrecedenceCharacterizationTests`` (added by the
+195-S local review over the green reducer) and the ``test_structural_*``
+tests (the API signatures and the roster check) are outside it.
 """
 
 from __future__ import annotations
@@ -55,11 +56,25 @@ STAGE_READ: dict[hs.ReadStage, int] = {
     hs.ReadStage.SURFACE_RECHECK: 20,
 }
 
-# IM-16 (b) infeasible sub-cases, with the reason (asserted by the roster).
-INFEASIBLE = {
-    ("FILE_SIZE_LIMIT", "absent candidate"): "a missing candidate is PATH_NOT_FOUND before any size check or reservation",
-    ("TOTAL_SIZE_LIMIT", "absent candidate"): "a missing candidate is PATH_NOT_FOUND before any size check or reservation",
+# IM-16 (b) infeasible sub-cases, with the reason and the limits that would
+# otherwise raise the code; the roster runs each one.
+INFEASIBLE: dict[tuple[str, str], tuple[str, ReadLimits]] = {
+    ("FILE_SIZE_LIMIT", "absent candidate"): (
+        "a missing candidate is PATH_NOT_FOUND before any size check or reservation",
+        ReadLimits(max_file_bytes=0),
+    ),
+    ("TOTAL_SIZE_LIMIT", "absent candidate"): (
+        "a missing candidate is PATH_NOT_FOUND before any size check or reservation",
+        ReadLimits(max_total_bytes=0),
+    ),
 }
+
+# Byte sizes for the size-limit arrangements: every default fixture file is
+# smaller than SMALL_FILE_BOUND; a target padded to GROWN_FILE exceeds it.
+SMALL_FILE_BOUND = 4 * 1024
+GROWN_FILE = 2 * SMALL_FILE_BOUND
+TOTAL_HEADROOM = 32 * 1024  # fits every recheck read before the grown file
+GROWN_PAST_HEADROOM = 2 * TOTAL_HEADROOM
 
 
 class ReducerFixture(ResolverFixture):
@@ -76,11 +91,6 @@ class ReducerFixture(ResolverFixture):
         self.assertEqual(result.reason_code, "ALL_SURFACES_PRESENT")
         self.assertEqual(usage.files_claimed, 22)
 
-    def fresh(self, name: str) -> Path:
-        ws = self.scratch / name
-        self.build(ws)
-        return ws
-
     def file_for(self, ws: Path, read_index: int) -> Path:
         """The file behind the ``read_index``-th (1-based) request of the default fixture."""
         _stage, root, relative = DEFAULT_READS[(read_index - 1) % FIRST_PASS]
@@ -94,6 +104,7 @@ class ReducerFixture(ResolverFixture):
         return out
 
     def pad(self, path: Path, to: int) -> None:
+        """Append filler so ``path`` holds ``to`` bytes: LF, filler, LF (``#`` keeps YAML a comment)."""
         data = path.read_bytes()
         filler = b"#" if path.name.endswith(".yaml") else b"x"
         path.write_bytes(data + b"\n" + filler * max(0, to - len(data) - 2) + b"\n")
@@ -124,17 +135,16 @@ class ReducerFixture(ResolverFixture):
             sizes = self.sizes(ws)
             before = sum(sizes[(index - 1) % FIRST_PASS] for index in range(1, at))
             return ReadLimits(max_total_bytes=before + sizes[(at - 1) % FIRST_PASS] - 1)
-        bound = 4 * 1024
         if at <= FIRST_PASS:
-            self.pad(target, 2 * bound)
-        return ReadLimits(max_file_bytes=bound)
+            self.pad(target, GROWN_FILE)
+        return ReadLimits(max_file_bytes=SMALL_FILE_BOUND)
 
     def grow_then(self, target: Path, code: ReadErrorCode, then: Callable[[], None]) -> Callable[[], None]:
         """After the first pass: grow ``target`` past the file bound (``FILE_SIZE_LIMIT`` only), then ``then``."""
 
         def action() -> None:
             if code is ReadErrorCode.FILE_SIZE_LIMIT:
-                self.pad(target, 8 * 1024)
+                self.pad(target, GROWN_FILE)
             then()
 
         return action
@@ -287,10 +297,10 @@ class ReducerRosterTests(ReducerFixture):
                     self.assertTrue(next_path.is_file())
                     limits, grow_to = {
                         ReadErrorCode.FILE_COUNT_LIMIT: (ReadLimits(max_files=disagree_at), 0),
-                        ReadErrorCode.FILE_SIZE_LIMIT: (ReadLimits(max_file_bytes=4 * 1024), 8 * 1024),
+                        ReadErrorCode.FILE_SIZE_LIMIT: (ReadLimits(max_file_bytes=SMALL_FILE_BOUND), GROWN_FILE),
                         ReadErrorCode.TOTAL_SIZE_LIMIT: (
-                            ReadLimits(max_total_bytes=sum(self.sizes(ws)) + 32 * 1024),
-                            64 * 1024,
+                            ReadLimits(max_total_bytes=sum(self.sizes(ws)) + TOTAL_HEADROOM),
+                            GROWN_PAST_HEADROOM,
                         ),
                     }[code]
 
@@ -335,12 +345,8 @@ class ReducerRosterTests(ReducerFixture):
         # Infeasible sub-cases: byte codes at an absent candidate.
         ws = self.fresh("im16b-absent")
         self.record_path("7-S", ws=ws).rename(self.record_path("7-S", "archive", ws=ws))
-        for code, limits in (
-            ("FILE_SIZE_LIMIT", ReadLimits(max_file_bytes=0)),
-            ("TOTAL_SIZE_LIMIT", ReadLimits(max_total_bytes=0)),
-        ):
+        for (code, _case), (_reason, limits) in INFEASIBLE.items():
             with self.subTest(infeasible=code):
-                self.assertIn((code, "absent candidate"), INFEASIBLE)
                 with self.reads() as calls:
                     result, _usage = self.resolve(ws=ws, limits=limits)
                 # The absent queue candidate is PATH_NOT_FOUND; the present archive candidate hits the limit.
@@ -420,6 +426,74 @@ class ReducerRosterTests(ReducerFixture):
         result = hs._reduce(observed)
         self.assert_limit(result, ReadErrorCode.FILE_COUNT_LIMIT, hs.ReadStage.INSTALLED)
         self.assertEqual(result.declarations[0], hs.Declaration("7.001-T", "harness-architect"))
+
+
+# IM-04 pairs whose lower-class fact cannot come first in encounter order, with the reason.
+INFEASIBLE_ORDER: dict[str, str] = {
+    "2 or 3 over 4 to 8": "the records phase (classes 2 and 3) always runs before the surface phase, "
+    "and NO_SURFACES_REQUIRED is derived after both",
+    "4 over 5 to 8": "NO_SURFACES_REQUIRED means an empty surface union, which yields no class 5 to 8 fact",
+    "7 over 8": "one supported surface (FI-8) yields one row, and no recheck yields a class 7 code",
+}
+
+
+class ReducerPrecedenceCharacterizationTests(ReducerFixture):
+    """IM-04 precedence pairs not covered by the roster (195-S local review; outside the roster).
+
+    Each case collects a lower-class fact and a higher-class fact in one
+    resolution; the higher class is selected and the lower-class fact is still
+    collected (no short-circuit). Where it is feasible the lower-class fact
+    comes first (class 5 over 6 and 7 through a manifest recheck that does not
+    complete); the infeasible orders are listed in INFEASIBLE_ORDER.
+    """
+
+    def arrange_lower(self, ws: Path, lower: str) -> None:
+        if lower == "c5":
+            self.path(".autoharness/harness-manifest.yaml", ws).write_bytes(b"[\n")
+        elif lower == "c6":
+            self.path("templates/" + TEMPLATE, ws).write_bytes(b"{{MISSING}}\n")
+        elif lower == "c7":
+            self.path(INSTALLED, ws).write_bytes(RENDERED + b"stale\n")
+
+    def test_records_classes_beat_every_surface_class(self) -> None:
+        higher = {
+            "c2": ("MEMBER_NOT_FOUND", lambda ws: self.record_path("7.002-T", ws=ws).unlink()),
+            "c3": ("DECLARATION_MISSING", lambda ws: self.write_record("7.002-T", self.task_record("7.002-T"), ws=ws)),
+        }
+        lower_codes = {"c5": "MANIFEST_YAML_INVALID", "c6": "TEMPLATE_VARIABLE_UNRESOLVED",
+                       "c7": "CHECKSUM_MISMATCH", "c8": "ALL_SURFACES_PRESENT"}
+        for high, (high_code, arrange_high) in higher.items():
+            for low, low_code in lower_codes.items():
+                with self.subTest(higher=high, lower=low):
+                    ws = self.fresh(f"pair-{high}-{low}")
+                    arrange_high(ws)
+                    self.arrange_lower(ws, low)
+                    observed = hs._observe(open_reader(workspace_root=ws), workspace_root=ws, shipment_id=SHIPMENT_ID)
+                    self.assertEqual(observed.classification.reason_code, low_code)  # collected, not short-circuited
+                    self.assertEqual(hs._reduce(observed).reason_code, high_code)
+        # Class 2 over class 4: the union is empty, so NO_SURFACES_REQUIRED is derived too.
+        ws = self.fresh("pair-c2-c4")
+        self.write_record("7.001-T", self.task_record("7.001-T", "harness-surface:none"), ws=ws)
+        self.record_path("7.002-T", ws=ws).unlink()
+        self.assertEqual(self.resolve(ws=ws)[0].reason_code, "MEMBER_NOT_FOUND")
+
+    def test_manifest_class_beats_rows_met_first(self) -> None:
+        for low, low_code in (("c6", "TEMPLATE_VARIABLE_UNRESOLVED"), ("c7", "CHECKSUM_MISMATCH")):
+            with self.subTest(lower=low):
+                ws = self.fresh(f"pair-c5-{low}")
+                self.arrange_lower(ws, low)
+                with self.reads() as calls:
+                    self.assertEqual(self.resolve(ws=ws)[0].reason_code, low_code)
+                first_pass = len(calls) // 2
+                manifest = self.path(".autoharness/harness-manifest.yaml", ws)
+                with self.reads({first_pass: self.replace_with_directory(manifest)}):
+                    result, _usage = self.resolve(ws=ws)
+                self.assertEqual(result.reason_code, "MANIFEST_UNREADABLE")
+                self.assertEqual(result.surfaces, ())
+
+    def test_infeasible_orders_are_recorded_with_a_reason(self) -> None:
+        self.assertEqual(set(INFEASIBLE_ORDER), {"2 or 3 over 4 to 8", "4 over 5 to 8", "7 over 8"})
+        self.assertTrue(all(reason for reason in INFEASIBLE_ORDER.values()))
 
 
 class ReducerRosterStructuralTests(unittest.TestCase):

@@ -8,23 +8,27 @@ workspace_root, shipment_id)``, which runs the records and surface phases with
 a ledger and then re-observes that ledger through the same reader, and
 ``harness_surfaces._inputs_sha256(observed, projection)``. Every fixture is a
 real temporary workspace named after the test method, written with LF bytes;
-no test reads the real repository surface (IM-10). In the RED phase the
-``_observe`` stub derives its marker suffix from that request (the workspace
-directory name), so each roster test reaches its own marker
-``AHLC_B4A_LEDGER_DIGEST:<test>``. ``LedgerDigestRosterTests`` is the
+no test reads the real repository surface (IM-10). Each roster test first
+observes its own workspace, so in the RED phase (where the ``_observe`` stub
+derived its marker suffix from the workspace directory name) each reached its
+own marker ``AHLC_B4A_LEDGER_DIGEST:<test>``. ``LedgerDigestRosterTests`` is the
 expected-RED roster (the golden ``inputs_sha256`` test computes the digest
 through the implementation, so it belongs to it); ``test_structural_*`` tests
 reach no stub and are outside it.
 
 ``ResolverFixture`` is shared with the B4b and B5 test modules. It defines no
-test method, so importing it there adds no test.
+test method, so importing it there adds no test. Its ``reads`` helper wraps
+``harness_read.Reader.read_bytes`` as a call-through spy: it records each
+request and may change fixture files between requests (to arrange a recheck
+disagreement or a later read-limit error), and it never alters what the
+reader returns. It is a test observation hook, not a resolver patch point;
+that stays ``_resolve``'s ``limits`` (IM-06).
 """
 
 from __future__ import annotations
 
 import dataclasses
 import hashlib
-import os
 import shutil
 import tempfile
 import unittest
@@ -133,6 +137,18 @@ class ResolverFixture(unittest.TestCase):
         installed.parent.mkdir(parents=True)
         installed.write_bytes(RENDERED)
 
+    def fresh(self, name: str) -> Path:
+        """Build another complete workspace under the scratch directory."""
+        ws = self.scratch / name
+        self.build(ws)
+        return ws
+
+    def fresh(self, name: str) -> Path:
+        """Build another complete workspace under the scratch directory."""
+        ws = self.scratch / name
+        self.build(ws)
+        return ws
+
     def path(self, relative: str, ws: Path | None = None) -> Path:
         return (self.ws if ws is None else ws) / relative
 
@@ -163,7 +179,10 @@ class ResolverFixture(unittest.TestCase):
 
     @contextmanager
     def reads(self, actions: dict[int, Callable[[], None]] | None = None) -> Iterator[list[Any]]:
-        """Record every reader request; after the n-th (1-based) request run ``actions[n]``."""
+        """Record every reader request; after the n-th (1-based) request run ``actions[n]``.
+
+        Each record is ``(root, relative_path, error, usage after the request)``.
+        """
         calls: list[Any] = []
         original = harness_read.Reader.read_bytes
 
@@ -234,15 +253,16 @@ class LedgerDigestRosterTests(ResolverFixture):
         self.assertEqual(recheck.facts, ())
         self.assertEqual(recheck.surface_codes, ())
         self.assertIsNone(recheck.read_limit)
-        self.assertIsNone(recheck.reason_code)
+        self.assertIsNone(recheck.changed_stage)
+        self.assertEqual(hs._reduce(observed).reason_code, "ALL_SURFACES_PRESENT")
 
     def test_mutated_record_between_read_and_recheck_is_input_changed(self) -> None:
         changed = TASK_RECORDS["7.001-T"].replace(b"B.", b"B changed.")
         with self.reads({11: self.overwrite(self.record_path("7.001-T"), changed)}):
             observed, _reader = self.observe()
         recheck = observed.recheck
-        self.assertEqual(recheck.reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
-        self.assertIn("INPUT_CHANGED_DURING_RESOLUTION", recheck.facts)
+        self.assertEqual(hs._reduce(observed).reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
+        self.assertEqual(recheck.facts, ())
         self.assertEqual(recheck.changed_stage, hs.ReadStage.CANDIDATE_RECHECK)
         # Both observations are bound: the ledger keeps the first, the recheck the second.
         self.assertEqual(observed.ledger[4].data, TASK_RECORDS["7.001-T"])
@@ -252,7 +272,7 @@ class LedgerDigestRosterTests(ResolverFixture):
         with self.reads({11: self.overwrite(self.path(INSTALLED), RENDERED + b"x")}):
             observed, _reader = self.observe()
         self.assertEqual(observed.classification.reason_code, "ALL_SURFACES_PRESENT")
-        self.assertEqual(observed.recheck.reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
+        self.assertEqual(hs._reduce(observed).reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
         self.assertEqual(observed.recheck.changed_stage, hs.ReadStage.SURFACE_RECHECK)
         self.assertEqual(observed.recheck.entries[10].data, RENDERED + b"x")
 
@@ -262,7 +282,8 @@ class LedgerDigestRosterTests(ResolverFixture):
             observed, _reader = self.observe()
         self.assertEqual(outcome(observed.ledger[1]), (None, ReadErrorCode.PATH_NOT_FOUND))
         self.assertEqual(outcome(observed.recheck.entries[1]), (SHIPMENT_RECORD, None))
-        self.assertEqual(observed.recheck.reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
+        self.assertEqual(observed.recheck.changed_stage, hs.ReadStage.CANDIDATE_RECHECK)
+        self.assertEqual(hs._reduce(observed).reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
 
     def test_recheck_not_completed_maps_to_the_original_stage_code(self) -> None:
         # A recheck read that ends in a non-limit, non-absence error has not
@@ -280,7 +301,7 @@ class LedgerDigestRosterTests(ResolverFixture):
         self.assertEqual(recheck.facts, ("MEMBER_RECORD_INVALID",))
         self.assertEqual(recheck.surface_codes, (("harness-architect", "TEMPLATE_UNREADABLE"),))
         self.assertEqual(recheck.entries[6].error, ReadErrorCode.NOT_REGULAR_FILE)
-        self.assertEqual(recheck.reason_code, "MEMBER_RECORD_INVALID")
+        self.assertEqual(hs._reduce(observed).reason_code, "MEMBER_RECORD_INVALID")
 
     def test_recheck_not_completed_manifest_is_manifest_unreadable(self) -> None:
         manifest = self.path(".autoharness/harness-manifest.yaml")
@@ -365,13 +386,14 @@ class LedgerDigestRosterTests(ResolverFixture):
             variants[f"projection.{key}"] = hs._inputs_sha256(observed, projection)
         self.assertEqual([name for name, value in variants.items() if value == base], [])
         self.assertEqual(len(set(variants.values())), len(variants))
+
     def test_digest_binds_first_and_recheck_observations_on_mutation(self) -> None:
         def run(first: bytes, recheck: bytes) -> str:
             path = self.record_path("7.001-T")
             path.write_bytes(first)
             with self.reads({11: self.overwrite(path, recheck)}):
                 observed, _reader = self.observe()
-            self.assertEqual(observed.recheck.reason_code, "INPUT_CHANGED_DURING_RESOLUTION")
+            self.assertEqual(observed.recheck.changed_stage, hs.ReadStage.CANDIDATE_RECHECK)
             return hs._inputs_sha256(observed, GOLDEN_PROJECTION)
 
         original = TASK_RECORDS["7.001-T"]

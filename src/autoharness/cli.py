@@ -3702,11 +3702,13 @@ def _harness_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="autoharness harness",
         description="Harness surface resolution for one shipment.",
+        allow_abbrev=False,
     )
     commands = parser.add_subparsers(dest="harness_command", metavar="{resolve}", required=True)
     resolve = commands.add_parser(
         "resolve",
         help="resolve a shipment's harness surfaces to one JSON document",
+        allow_abbrev=False,
         description=(
             "Resolve the harness surfaces that a shipment's task members declare and write one "
             "harness-resolution 1.0.0 JSON document, followed by one newline, to stdout. Once the "
@@ -3735,8 +3737,14 @@ def _harness_command(args: list[str]) -> None:
     usage on stderr, or help on stdout with 0). After a successful parse the
     command writes exactly one UTF-8 document and one LF to stdout, writes
     nothing to stderr (CR-B5) and exits with the document's ``exit_code``.
+    Options are never abbreviated, and an empty ``--workspace`` is an
+    argument error. Only the document carries a result: an internal failure
+    after the parse writes no document, so its exit status carries no state.
     """
-    namespace = _harness_parser().parse_args(args)
+    parser = _harness_parser()
+    namespace = parser.parse_args(args)
+    if not namespace.workspace:
+        parser.error("argument --workspace: expected a non-empty path")
     from autoharness.harness_surfaces import resolve_shipment
 
     result = resolve_shipment(workspace_root=namespace.workspace, shipment_id=namespace.shipment)
