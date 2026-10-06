@@ -227,9 +227,14 @@ deliberation was mutated. **`recommendation: DISPOSITION_COMPLETE`**.
   should acknowledge these two risks explicitly when triaging those entries.
 * **Stale `harness_status`.** `189-F` keeps `harness_status: pending` in its
   archived custom fields (`DB2E092B`).
-* **backlogit hang.** Mutating backlogit CLI calls had to be stopped after
-  their writes were confirmed (`DF404895`); every transition was verified on
-  disk and in the item logs.
+* **backlogit hang.** `backlogit shipment claim` and two of three
+  `backlogit move --status done` calls had to be stopped after their writes
+  were confirmed (`DF404895`); every transition was verified on disk and in
+  the item logs. Correction to `DF404895`'s wording (Copilot review, PR #501):
+  `backlogit sync` and `backlogit stash add` also mutate (the index and the
+  stash) and returned promptly, as did one `move`, so not every mutating call
+  hangs; the hang was seen on the claim and on two task moves. Ship records the
+  correction here because it does not edit captured stash entries (P-010).
 
 ## Compaction Status (P-020)
 
