@@ -203,6 +203,12 @@ READ_STAGE_TOKENS = {
 }
 READ_LIMIT_CODES = ("FILE_COUNT_LIMIT", "TOTAL_SIZE_LIMIT", "FILE_SIZE_LIMIT")
 ROOT_CODES = ("BACKLOG_ROOT_NOT_FOUND", "BACKLOG_ROOT_AMBIGUOUS")
+
+
+class _IntSubclass(int):
+    """An ``int`` subclass that compares equal to a registry exit code but is not an exact ``int``."""
+
+
 SURFACE_ROW = {
     "surface_id": "harness-architect",
     "installed_path": ".github/skills/harness-architect/SKILL.md",
@@ -604,11 +610,16 @@ class ResultContractReviewFixTests(unittest.TestCase):
         for field, value in (
             ("state", hs.ResolutionState.NO_HARNESS),
             ("exit_code", 1),
+            # Copilot review (PR #498): an integral float, a bool or an int subclass equals the
+            # registry integer but is not the JSON integer token the contract promises.
+            ("exit_code", 0.0),
+            ("exit_code", False),
+            ("exit_code", _IntSubclass(0)),
             ("schema_version", "1.1.0"),
             ("surfaces", ()),
             ("inputs_sha256", "x"),
         ):
-            with self.subTest(field=field), self.assertRaises(ValueError):
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
                 hs.ResolutionResult(**{**vars(valid), field: value})
         listed = hs.ResolutionResult(**{**vars(valid), "diagnostics": [], "declarations": list(valid.declarations)})
         self.assertIsInstance(listed.diagnostics, tuple)

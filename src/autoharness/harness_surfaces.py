@@ -331,7 +331,9 @@ def _check_result(result: ResolutionResult) -> None:
         raise ValueError(f"unknown reason code: {code!r}")
     if result.schema_version != SCHEMA_VERSION:
         raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
-    if result.state is not spec.state or result.exit_code != spec.exit_code or isinstance(result.exit_code, bool):
+    # ``type(...) is int``: an integral float, a bool or an int subclass equals the registry
+    # integer but is not the JSON integer token the contract promises (Copilot review, PR #498).
+    if result.state is not spec.state or type(result.exit_code) is not int or result.exit_code != spec.exit_code:
         raise ValueError(f"{code} requires {spec.state.value} / {spec.exit_code}")
 
     shipment_id, backlog_root = result.shipment_id, result.backlog_root
