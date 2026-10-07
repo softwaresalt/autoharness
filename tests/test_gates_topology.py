@@ -1776,12 +1776,22 @@ class WorktreeCleanlinessTests(unittest.TestCase):
         result = self._pre_claim(dirty_paths=('.backlogit-notes/todo.md',))
         self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
 
+    def test_backslash_in_filename_is_not_treated_as_separator(self) -> None:
+        # git -z output always uses '/', so a backslash is part of a POSIX filename.
+        result = self._pre_claim(dirty_paths=('.backlogit\\outside.md',))
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['.backlogit\\outside.md'])
+        self.assertEqual(check.details['carry_forward_paths'], [])
+
     def test_unreadable_status_fails_closed(self) -> None:
         result = self._pre_claim(dirty_paths=None, git_errors={'worktree_dirty_paths': 'fatal: boom'})
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.primary_token, 'WORKTREE_STATUS_UNAVAILABLE')
         check = _check(result, 'worktree_cleanliness')
         self.assertEqual(check.details['git_invocation_error'], 'fatal: boom')
+        self.assertNotIn('carry_forward_paths', check.details)
+        self.assertNotIn('carry_forward_prefixes', check.details)
 
     def test_dirty_message_is_capped_but_details_keep_every_path(self) -> None:
         paths = tuple(f'src/f{index:02d}.py' for index in range(25))

@@ -1308,7 +1308,9 @@ def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -
             details=details,
         )
     prefixes = tuple(prefix if prefix.endswith("/") else f"{prefix}/" for prefix in prefix_getter())
-    normalized = sorted({path.replace("\\", "/") for path in dirty})
+    # Keep paths exactly as git reported them: -z output always uses "/", so a
+    # backslash is part of a (POSIX) filename and must not become a separator.
+    normalized = sorted(set(dirty))
     carry_forward = [path for path in normalized if path.startswith(prefixes)]
     blocking = [path for path in normalized if not path.startswith(prefixes)]
     details = {"carry_forward_paths": carry_forward, "carry_forward_prefixes": list(prefixes)}

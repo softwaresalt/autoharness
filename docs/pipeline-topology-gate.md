@@ -173,10 +173,14 @@ against the backlog carry-forward prefixes defined by P-011:
 | `WORKTREE_DIRTY` | blocked | Changes exist outside the carry-forward prefixes. The message lists at most 20 paths (`(+N more)`); the full list is in `details.blocking_paths`. |
 | `WORKTREE_STATUS_UNAVAILABLE` | blocked | Worktree status could not be read (git failure, timeout, or the workspace is not the repository top level), so cleanliness is unverifiable. |
 
-The check's `details` always carry `carry_forward_paths` and
-`carry_forward_prefixes`, and add `blocking_paths` when blocked. Readers that do
-not expose worktree status report the check as visibly `skipped` rather than
-silently passing; agents then fall back to `git status --short` per P-011.
+When the worktree status was read (`WORKTREE_CLEAN`, `CARRY_FORWARD_ELIGIBLE`,
+`WORKTREE_DIRTY`), the check's `details` carry `carry_forward_paths` and
+`carry_forward_prefixes`, plus `blocking_paths` for `WORKTREE_DIRTY`. Paths are
+reported exactly as git returned them. `WORKTREE_STATUS_UNAVAILABLE` carries only
+an optional `git_invocation_error`, and a `skipped` result has empty details.
+Readers that do not expose worktree status report the check as visibly `skipped`
+rather than silently passing; agents then fall back to `git status --short` per
+P-011.
 Because the Orchestrator's route-to-Ship `pre_claim` invocation runs the same
 check, a dirty worktree also blocks routing a shipment to Ship.
 
