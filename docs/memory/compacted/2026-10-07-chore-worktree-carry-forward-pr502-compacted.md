@@ -55,6 +55,7 @@ check.
 
 `BB0D15AB` (upstream backlogit no-op rewrite), `E547CB70` (deferred scope
 expansion: catalog references for backlog-md; its provenance was narrowed
-with `stash edit`, which is Stage-only under P-021 C5 — `stash correct` was
-the right operation), and the legacy `docs/memory` backlog over the P-020
+with `stash edit`, which violated the single-write capture invariant — Ship
+may only create a captured entry, so any later change must be handed to Stage
+or the operator, never made by Ship under any command), and the legacy `docs/memory` backlog over the P-020
 thresholds (104 files, 937 KB), captured at this closure as `3A3C72D0`.
