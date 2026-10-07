@@ -282,8 +282,10 @@ build work begins:
    **Scope note (139-F/139.001-T)**: this single-`expected_status` check applies to true
    session-start intake, where every manifest task still shares one uniform status (all
    `{{STATUS_QUEUED}}` pre-claim, or all `{{STATUS_ACTIVE}}` immediately after this session's
-   own claim in item 4 above). `shipment-reconcile`'s `mode: pre` accepts only one
-   `expected_status` value and classifies any other status as `status-mismatch`, so it cannot
+   own claim in item 4 above). At intake, `shipment-reconcile`'s `mode: pre` evaluates every member under its
+   Member-Class Status Contract's `strict-scalar` row (the `qualifying-feature` row applies only to the pre-close
+   invocation): it accepts only one
+   `expected_status` value and classifies any other declared status as `status-mismatch`, so it cannot
    represent a legitimately mixed manifest. Do not invoke this check on a resumed session where
    manifest tasks have already diverged in status from prior partial execution (some
    `{{STATUS_DONE}}`, some `{{STATUS_ACTIVE}}`, some still `{{STATUS_QUEUED}}`) — rely instead
@@ -803,8 +805,10 @@ lifecycle to transition out of. See
    a. **Pre-archive reconciliation gate (mandatory)**: Invoke the `shipment-reconcile`
       skill with `mode: pre`, `shipment_id`, and `expected_status: {{STATUS_DONE}}`.
       This acquires the single-writer lock on `{{BACKLOG_DIRECTORY}}/queue/{shipment_id}.md`
-      (via the `file-lock` skill) and verifies that every manifest item is present in
-      queue with `status: {{STATUS_DONE}}`, and scans for orphan items.
+      (via the `file-lock` skill), judges every manifest item's declared status — wherever the
+      record resides — under the skill's Member-Class Status Contract (its step 2b
+      classification lets a qualifying feature member that is still `{{STATUS_ACTIVE}}` under a
+      `CASCADE` verdict pass instead of halting), and scans for orphan items.
       * If the skill returns `RECONCILE_FAIL`: halt and surface the reconciliation report
         to the operator. Do NOT proceed to step 1.b.
       * If the skill returns `PROCEED`: continue. The lock remains held until post-mode
