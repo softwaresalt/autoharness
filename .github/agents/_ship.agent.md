@@ -257,10 +257,12 @@ is prohibited (P-001 role separation).
         `git checkout -b feat/{feature-slug}` (features) or `git checkout -b chore/{chore-slug}` (chores)
      e. Log `BRANCH_CREATED: {branch_name}` and apply the carry-forward commit below.
    - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
-   - **Carry-forward commit (either branch path above)**: if `pre_claim` reported `CARRY_FORWARD_ELIGIBLE` (or the fallback found only backlog state), confirm `git branch --show-current` is the shipment branch, never `main`, then commit the backlog state alone as the isolated first commit before the claim. The trailing pathspec limits the commit to the backlog directory even if other paths are staged:
-      `git add -- .backlogit/`
-      `git commit -m "chore(backlog): carry forward pre-claim backlog state" -- .backlogit/`
-      Verify with `git show --name-only --no-renames --format= HEAD` that every committed path is under `.backlogit/`; otherwise halt. Log `CARRY_FORWARD_COMMITTED: {paths from git show}`.
+   - **Carry-forward commit (either branch path above)**: confirm `git branch --show-current` is the shipment branch, never `main`. The classification from step a predates the pull and branch switch, so reclassify immediately before staging:
+      `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json`
+      This run is a classification read only: never pass `--bootstrap-grant-invocation` here, and read only its `worktree_cleanliness` check. A blocked result reports only its blocking check, so when another check blocks (for example `shipment_readiness` on a bootstrap-grant shipment) the cleanliness check is absent and the fallback below applies; the immediately-before-claim gate below still decides claim eligibility. `WORKTREE_CLEAN`: nothing to carry forward; skip this commit. `CARRY_FORWARD_ELIGIBLE`: its `details.carry_forward_paths` is the exact path set. `WORKTREE_DIRTY` or `WORKTREE_STATUS_UNAVAILABLE`: halt. Only when the check is absent or `skipped`, run `git status --short --untracked-files=all --no-renames` instead: halt on any path outside `.backlogit/`, skip on empty output, and otherwise use the listed paths as the exact set. Commit exactly that set, and nothing else, as the isolated first commit before the claim:
+      `git add -- {path} ...`
+      `git commit -m "chore(backlog): carry forward pre-claim backlog state" -- {path} ...`
+      Verify with `git show --name-only --no-renames --format= HEAD` that the committed paths equal the exact set; otherwise halt. Log `CARRY_FORWARD_COMMITTED: {paths}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
    - **TOPOLOGY_GATE: pre_claim (immediately before claim)** — immediately before the claim in step 4, this is the `ship_pre_claim` bootstrap-grant consumption site. Reach it only from the contract-valid shipment-branch vantage established by the branch/worktree checks above: `pre_claim` still evaluates `branch_ownership` before `shipment_readiness` and short-circuits, so a `BRANCH_MISMATCH` block is never bootstrap-grant-eligible.
      Before invoking the gate, check for `.autoharness/bootstrap-grants/{shipment_id}.yaml`.
