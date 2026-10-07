@@ -179,8 +179,9 @@ When the worktree status was read (`WORKTREE_CLEAN`, `CARRY_FORWARD_ELIGIBLE`,
 reported exactly as git returned them. `WORKTREE_STATUS_UNAVAILABLE` carries only
 an optional `git_invocation_error`, and a `skipped` result has empty details.
 Readers that do not expose worktree status report the check as visibly `skipped`
-rather than silently passing; agents then fall back to `git status --short` per
-P-011.
+rather than silently passing; agents then fall back to
+`git status --porcelain=v1 -z --untracked-files=all --no-renames` per P-011,
+reading each path verbatim (non-`-z` output C-quotes unusual names).
 Because the Orchestrator's route-to-Ship `pre_claim` invocation runs the same
 check, a dirty worktree also blocks routing a shipment to Ship.
 

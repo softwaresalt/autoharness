@@ -180,6 +180,20 @@ context/token footprint.
 
 ---
 
+### `references/toon`
+
+**Source**: [toon-format/toon](https://github.com/toon-format/toon)
+
+Token-Oriented Object Notation (TOON), a compact, human-readable serialization
+of the JSON data model designed for LLM prompts, with a TypeScript SDK, CLI,
+and benchmarks.
+
+**Best for**: Ideas for shrinking structured data that agents place in
+context (tabular backlog, telemetry, or profile payloads) and for comparing
+encoding token costs against JSON or YAML.
+
+---
+
 ## Keeping references current
 
 The submodule registrations in `.gitmodules` are the index of record for these
