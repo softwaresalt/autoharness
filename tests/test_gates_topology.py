@@ -157,6 +157,9 @@ class _FixtureFilesystemReaders(FilesystemTopologyReaders):
     def worktree_porcelain(self) -> str:
         return self._worktrees
 
+    def worktree_dirty_paths(self):
+        return ()
+
     def read_worktree_marker(self, worktree_path: str):
         return None
 
@@ -1774,9 +1777,19 @@ class WorktreeCleanlinessTests(unittest.TestCase):
         self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
 
     def test_unreadable_status_fails_closed(self) -> None:
-        result = self._pre_claim(dirty_paths=None)
+        result = self._pre_claim(dirty_paths=None, git_errors={'worktree_dirty_paths': 'fatal: boom'})
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.primary_token, 'WORKTREE_STATUS_UNAVAILABLE')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['git_invocation_error'], 'fatal: boom')
+
+    def test_dirty_message_is_capped_but_details_keep_every_path(self) -> None:
+        paths = tuple(f'src/f{index:02d}.py' for index in range(25))
+        result = self._pre_claim(dirty_paths=paths)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], list(paths))
+        self.assertIn('(+5 more)', check.message)
+        self.assertNotIn('src/f24.py', check.message)
 
     def test_dirty_block_short_circuits_before_shipment_readiness(self) -> None:
         result = evaluate(
@@ -1801,13 +1814,14 @@ class WorktreeCleanlinessTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertNotIn('worktree_cleanliness', [check.name for check in result.checks])
 
-    def test_readers_without_capability_keep_prior_check_set(self) -> None:
+    def test_readers_without_capability_report_visible_skip(self) -> None:
         result = evaluate(
             TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
             readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),)),
         )
         self.assertEqual(result.exit_code, 0)
-        self.assertNotIn('worktree_cleanliness', [check.name for check in result.checks])
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('skipped', None))
 
 
 class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
@@ -1825,9 +1839,12 @@ class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             self._git(workspace, 'init', '-q')
+            self._git(workspace, 'config', 'core.autocrlf', 'false')
             (workspace / '.backlogit').mkdir()
             (workspace / '.backlogit' / 'stash.jsonl').write_bytes(b'{"id":"A"}\n')
             (workspace / 'README.md').write_bytes(b'readme\n')
+            (workspace / 'src').mkdir()
+            (workspace / 'src' / 'app.py').write_bytes(b'app = 1\n')
             self._git(workspace, 'add', '.')
             self._git(workspace, 'commit', '-q', '-m', 'init')
             yield workspace
@@ -1849,17 +1866,58 @@ class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
     def test_reports_modified_and_untracked_paths(self) -> None:
         with self._repo() as workspace:
             (workspace / '.backlogit' / 'stash.jsonl').write_bytes(b'{"id":"A"}\n{"id":"B"}\n')
-            (workspace / 'src').mkdir()
             (workspace / 'src' / 'new.py').write_bytes(b'x = 1\n')
             self.assertEqual(
                 FilesystemTopologyReaders(workspace).worktree_dirty_paths(),
                 ('.backlogit/stash.jsonl', 'src/new.py'),
             )
 
+    def test_staged_rename_into_backlog_reports_both_sides(self) -> None:
+        with self._repo() as workspace:
+            self._git(workspace, 'mv', 'src/app.py', '.backlogit/app.py')
+            self.assertEqual(
+                FilesystemTopologyReaders(workspace).worktree_dirty_paths(),
+                ('.backlogit/app.py', 'src/app.py'),
+            )
+
+    def test_staged_change_reverted_in_worktree_is_dirty(self) -> None:
+        with self._repo() as workspace:
+            app = workspace / 'src' / 'app.py'
+            app.write_bytes(b'app = 2\n')
+            self._git(workspace, 'add', 'src/app.py')
+            app.write_bytes(b'app = 1\n')
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_dirty_paths(), ('src/app.py',))
+
+    def test_file_named_head_does_not_make_status_ambiguous(self) -> None:
+        with self._repo() as workspace:
+            (workspace / 'HEAD').write_bytes(b'not a ref\n')
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_dirty_paths(), ('HEAD',))
+
+    def test_workspace_below_repository_top_level_is_unavailable(self) -> None:
+        with self._repo() as workspace:
+            nested = workspace / 'src'
+            (nested / '.backlogit').mkdir()
+            reader = FilesystemTopologyReaders(nested)
+            self.assertIsNone(reader.worktree_dirty_paths())
+            self.assertIn('not the repository top level', reader.git_invocation_error('worktree_dirty_paths'))
+
+    def test_git_timeout_is_unavailable_not_a_crash(self) -> None:
+        with self._repo() as workspace:
+            reader = FilesystemTopologyReaders(workspace)
+            with mock.patch(
+                'autoharness.gates.topology.subprocess.run',
+                side_effect=subprocess.TimeoutExpired(cmd='git', timeout=30),
+            ):
+                self.assertIsNone(reader.worktree_dirty_paths())
+            self.assertIn('TimeoutExpired', reader.git_invocation_error('worktree_dirty_paths'))
+
     def test_non_git_directory_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / '.backlogit').mkdir()
-            self.assertIsNone(FilesystemTopologyReaders(tmp).worktree_dirty_paths())
+            with patched_environ(GIT_CEILING_DIRECTORIES=str(Path(tmp).resolve().parent)):
+                reader = FilesystemTopologyReaders(tmp)
+                self.assertIsNone(reader.worktree_dirty_paths())
+            self.assertTrue(reader.git_invocation_error('worktree_dirty_paths'))
 
 
 class TargetShipmentReadinessTests(unittest.TestCase):

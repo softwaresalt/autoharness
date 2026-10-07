@@ -213,6 +213,7 @@ def _run_git(
     expected_absence_codes: frozenset[int] = frozenset(),
     error_sink: dict[str, str] | None = None,
     error_key: str = "",
+    strip: bool = True,
 ) -> str:
     """Run a git subprocess, returning stdout on success and ``""`` on any
     nonzero exit (return contract UNCHANGED -- A3R).
@@ -248,7 +249,9 @@ def _run_git(
                 stderr_text if stderr_text else f"git exited with status {completed.returncode}"
             )
         return ""
-    return completed.stdout.strip()
+    # ``strip=False`` keeps NUL-delimited (-z) path lists intact: stripping
+    # would trim leading whitespace from the first path.
+    return completed.stdout.strip() if strip else completed.stdout
 
 
 def _frontmatter(path: Path) -> dict[str, Any]:
@@ -453,7 +456,8 @@ class FilesystemTopologyReaders:
         self._backlog_dir: Path | None = None
         # Per-call-site captured git INVOCATION failures (A3R), keyed by the
         # semantic call-site name ("current_branch" / "default_branch" /
-        # "worktree_porcelain"). Populated only on an unexpected nonzero git
+        # "worktree_porcelain" / "worktree_dirty_paths"). Populated only on
+        # an unexpected nonzero git
         # exit; absent otherwise. Consulted via ``git_invocation_error`` by
         # checks that want to surface it in ``CheckResult.details`` without
         # widening ``_run_git``'s own return contract.
@@ -696,7 +700,8 @@ class FilesystemTopologyReaders:
     def git_invocation_error(self, name: str) -> str | None:
         """Return the captured stderr (or exit-code fallback message) for an
         unexpected nonzero git exit at the named call site
-        (``"current_branch"`` / ``"default_branch"`` / ``"worktree_porcelain"``),
+        (``"current_branch"`` / ``"default_branch"`` / ``"worktree_porcelain"`` /
+        ``"worktree_dirty_paths"``),
         or ``None`` if the most recent call at that site succeeded or returned
         a declared expected-absence code."""
         return self._git_invocation_errors.get(name)
@@ -711,33 +716,52 @@ class FilesystemTopologyReaders:
         )
 
     def worktree_dirty_paths(self) -> tuple[str, ...] | None:
-        """Workspace-relative paths whose content differs from ``HEAD``, plus
-        untracked non-ignored files. ``None`` means git could not answer.
+        """Workspace-relative paths whose content differs from ``HEAD`` in
+        the working tree or the index, plus untracked non-ignored files.
+        ``None`` means git could not answer (fail closed).
 
         Content-based on purpose: tools that rewrite a file with identical
         bytes (only the mtime changes) leave ``git status`` reporting a stale
         ``M`` under ``core.autocrlf``; ``git diff HEAD`` compares content, so
-        such no-op rewrites are not dirt. Read-only -- no index refresh.
+        such no-op rewrites are not dirt. No content is mutated; git may
+        refresh the index stat cache (``diff.autoRefreshIndex``, pinned on).
+        Rename detection is off so both sides of a move are reported, and the
+        workspace must be the repository top level so no dirt elsewhere in
+        the worktree is out of view.
         """
-        self._git_invocation_errors.pop("worktree_cleanliness", None)
+        key = "worktree_dirty_paths"
+        self._git_invocation_errors.pop(key, None)
         errors: dict[str, str] = {}
-        tracked = _run_git(
-            ["git", "--no-pager", "diff", "--name-only", "--relative", "-z", "HEAD"],
-            self.workspace,
-            error_sink=errors,
-            error_key="tracked",
-        )
-        untracked = _run_git(
-            ["git", "--no-pager", "ls-files", "--others", "--exclude-standard", "-z"],
-            self.workspace,
-            error_sink=errors,
-            error_key="untracked",
-        )
+        diff_base = [
+            "git", "-c", "diff.autoRefreshIndex=true", "--no-pager", "diff",
+            "--name-only", "--no-renames", "--ignore-submodules=none", "--relative", "-z",
+        ]
+        commands = {
+            "toplevel_prefix": ["git", "rev-parse", "--show-prefix"],
+            "worktree": [*diff_base, "HEAD", "--"],
+            "index": [*diff_base, "--cached", "HEAD", "--"],
+            "untracked": ["git", "--no-pager", "ls-files", "--others", "--exclude-standard", "-z"],
+        }
+        outputs: dict[str, str] = {}
+        try:
+            for name, argv in commands.items():
+                outputs[name] = _run_git(
+                    argv, self.workspace, error_sink=errors, error_key=name, strip=False
+                )
+                if errors:
+                    break
+        except (subprocess.TimeoutExpired, OSError, UnicodeDecodeError) as exc:
+            errors["exception"] = f"{type(exc).__name__}: {exc}"
+        if not errors and outputs["toplevel_prefix"].strip():
+            errors["toplevel_prefix"] = (
+                "workspace is not the repository top level "
+                f"({outputs['toplevel_prefix'].strip()!r}); P-011 cleanliness covers the whole worktree"
+            )
         if errors:
-            self._git_invocation_errors["worktree_cleanliness"] = "; ".join(errors.values())
+            self._git_invocation_errors[key] = "; ".join(errors.values())
             return None
-        paths = {path for path in f"{tracked}\0{untracked}".split("\0") if path}
-        return tuple(sorted(paths))
+        joined = "\0".join(outputs[name] for name in ("worktree", "index", "untracked"))
+        return tuple(sorted({path for path in joined.split("\0") if path}))
 
     def carry_forward_prefixes(self) -> tuple[str, ...]:
         """Path prefixes of tool-owned backlog state that P-011 carries
@@ -931,12 +955,11 @@ def _evaluate_core(
         if worktree_check.status == "blocked":
             return _blocked_result(topology_input, resolved_phase, target, worktree_check)
 
-        if resolved_phase == "pre_claim":
-            cleanliness_check = _worktree_cleanliness_check(bound_readers)
-            if cleanliness_check is not None:
-                checks.append(cleanliness_check)
-                if cleanliness_check.status == "blocked":
-                    return _blocked_result(topology_input, resolved_phase, target, cleanliness_check)
+        cleanliness_check = _worktree_cleanliness_check(resolved_phase, bound_readers)
+        if cleanliness_check is not None:
+            checks.append(cleanliness_check)
+            if cleanliness_check.status == "blocked":
+                return _blocked_result(topology_input, resolved_phase, target, cleanliness_check)
 
         readiness_check = _shipment_readiness_check(resolved_phase, target, shipments, bound_readers)
         checks.append(readiness_check)
@@ -1247,23 +1270,34 @@ def _worktree_uniqueness_check(readers: TopologyReaders) -> CheckResult:
     )
 
 
-def _worktree_cleanliness_check(readers: TopologyReaders) -> CheckResult | None:
+_BLOCKING_PATHS_MESSAGE_LIMIT = 20
+
+
+def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -> CheckResult | None:
     """P-011 clean-before-mutation check with a backlog-state carry-forward class.
 
-    Optional reader capability (duck-typed like ``closure_discovery_for``):
-    readers that do not expose ``worktree_dirty_paths`` and
-    ``carry_forward_prefixes`` produce no check, preserving prior output.
-    Dirty paths under a carry-forward prefix (tool-owned backlog state) pass
-    as ``CARRY_FORWARD_ELIGIBLE``; any other dirty path blocks.
+    Runs at ``pre_claim`` only (``None`` for other phases keeps their check
+    sets unchanged). Optional reader capability (duck-typed like
+    ``closure_discovery_for``): readers that do not expose
+    ``worktree_dirty_paths`` and ``carry_forward_prefixes`` get a visible
+    ``skipped`` result rather than a silent omission. Dirty paths under a
+    carry-forward prefix (tool-owned backlog state) pass as
+    ``CARRY_FORWARD_ELIGIBLE``; any other dirty path blocks.
     """
+    if resolved_phase != "pre_claim":
+        return None
     dirty_getter = getattr(readers, "worktree_dirty_paths", None)
     prefix_getter = getattr(readers, "carry_forward_prefixes", None)
     if not callable(dirty_getter) or not callable(prefix_getter):
-        return None
+        return CheckResult(
+            name="worktree_cleanliness",
+            status="skipped",
+            message="reader does not expose worktree status; P-011 cleanliness not evaluated by this gate",
+        )
     dirty = dirty_getter()
     if dirty is None:
         details: dict[str, Any] = {}
-        git_invocation_error = _collect_git_invocation_error(readers, "worktree_cleanliness")
+        git_invocation_error = _collect_git_invocation_error(readers, "worktree_dirty_paths")
         if git_invocation_error:
             details["git_invocation_error"] = git_invocation_error
         return CheckResult(
@@ -1280,13 +1314,16 @@ def _worktree_cleanliness_check(readers: TopologyReaders) -> CheckResult | None:
     details = {"carry_forward_paths": carry_forward, "carry_forward_prefixes": list(prefixes)}
     if blocking:
         details["blocking_paths"] = blocking
+        shown = blocking[:_BLOCKING_PATHS_MESSAGE_LIMIT]
+        more = len(blocking) - len(shown)
         return CheckResult(
             name="worktree_cleanliness",
             status="blocked",
             token="WORKTREE_DIRTY",
             message=(
                 "WORKTREE_DIRTY: uncommitted changes outside the carry-forward backlog state: "
-                + ", ".join(blocking)
+                + ", ".join(shown)
+                + (f" (+{more} more)" if more else "")
             ),
             details=details,
         )

@@ -34,8 +34,9 @@ and the original intake record
 [`docs/bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md`](bugs/2026-09-11-autoharness-pipeline-topology-numeric-predecessor-bug.md).
 
 The gate is still **fail-closed** for its scoped lifecycle phases. A failed
-active-shipment invariant, branch mismatch, worktree conflict, malformed live
-shipment record, or unmet explicit predecessor **BLOCKS** (exit `1`). The only
+active-shipment invariant, branch mismatch, worktree conflict, dirty worktree
+(`pre_claim`), malformed live shipment record, or unmet explicit predecessor
+**BLOCKS** (exit `1`). The only
 non-blocking non-pass outcome remains the read-only retry-required
 `CLAIM_NOT_OBSERVED` contract (exit `3`) at `post_claim`.
 
@@ -153,9 +154,31 @@ shipments after a claim attempt.
 | Code | Meaning |
 |---|---|
 | `0` | PASS — all checks passed for the resolved phase/target, or an audited `--force`/bootstrap-grant override of a BLOCK. |
-| `1` | BLOCK — the active-shipment invariant, branch ownership, worktree uniqueness, shipment readiness, or backlog read failed for the resolved phase/target. |
+| `1` | BLOCK — the active-shipment invariant, branch ownership, worktree uniqueness, worktree cleanliness, shipment readiness, or backlog read failed for the resolved phase/target. |
 | `2` | Invalid arguments or invalid gate configuration. |
 | `3` | `CLAIM_NOT_OBSERVED` — read-only retry-required outcome. Only reachable at `post_claim` when the target shipment is still `queued` with zero active shipments after a claim attempt. |
+
+## Worktree cleanliness (`pre_claim`)
+
+At `pre_claim` only, the gate runs a `worktree_cleanliness` check after
+`worktree_uniqueness` and before `shipment_readiness`. It reads uncommitted
+worktree and index changes plus untracked files against `HEAD` (renames are not
+collapsed, so both sides of a staged rename are reported) and classifies them
+against the backlog carry-forward prefixes defined by P-011:
+
+| Token | Status | Meaning |
+|---|---|---|
+| `WORKTREE_CLEAN` | passed | No uncommitted or untracked changes. |
+| `CARRY_FORWARD_ELIGIBLE` | passed | Only backlog state is uncommitted; Ship commits it as the first commit on the shipment branch (P-011 carry-forward). |
+| `WORKTREE_DIRTY` | blocked | Changes exist outside the carry-forward prefixes. The message lists at most 20 paths (`(+N more)`); the full list is in `details.blocking_paths`. |
+| `WORKTREE_STATUS_UNAVAILABLE` | blocked | Worktree status could not be read (git failure, timeout, or the workspace is not the repository top level), so cleanliness is unverifiable. |
+
+The check's `details` always carry `carry_forward_paths` and
+`carry_forward_prefixes`, and add `blocking_paths` when blocked. Readers that do
+not expose worktree status report the check as visibly `skipped` rather than
+silently passing; agents then fall back to `git status --short` per P-011.
+Because the Orchestrator's route-to-Ship `pre_claim` invocation runs the same
+check, a dirty worktree also blocks routing a shipment to Ship.
 
 ## DAG-authoritative predecessor derivation (`pre_claim`)
 

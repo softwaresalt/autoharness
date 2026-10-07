@@ -188,11 +188,11 @@ build work begins:
     - Check attached worktrees before logging `BRANCH_OK`, creating a branch, or claiming a shipment:
       `git worktree list --porcelain`
       Classify each worktree as the current worktree, an explicit Stage-owned spike/research worktree, or prohibited/ambiguous. If any non-current worktree is not clearly an allowed Stage spike/research worktree, halt with `WORKTREE_TOPOLOGY_BLOCKED: prohibited or ambiguous parallel worktree detected` and record a P-016/P-005 violation. Ship must not create or use parallel worktrees.
-    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `WORKTREE_TOPOLOGY_OK` and `BRANCH_OK: {branch_name}` and proceed to step 4.
+    - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `WORKTREE_TOPOLOGY_OK` and `BRANCH_OK: {branch_name}`, apply the carry-forward commit below, and proceed to step 4.
     - If on `{{DEFAULT_BRANCH}}` (the default branch):
-      a. Verify the worktree is clean apart from carry-forward backlog state (P-011):
+      a. Verify the worktree is clean apart from carry-forward backlog state (P-011). The `worktree_cleanliness` check in the `pre_claim` JSON above is authoritative: `WORKTREE_CLEAN` or `CARRY_FORWARD_ELIGIBLE` proceeds; `WORKTREE_DIRTY` or `WORKTREE_STATUS_UNAVAILABLE` halts. Only when that check is absent or `skipped` (gate not installed, older gate, or a reader without worktree status), fall back to:
          `git status --short`
-         The `pre_claim` gate's `worktree_cleanliness` check is authoritative: `WORKTREE_CLEAN` or `CARRY_FORWARD_ELIGIBLE` proceeds; `WORKTREE_DIRTY` or `WORKTREE_STATUS_UNAVAILABLE` halts. Do not create a branch from a worktree dirty outside `{{BACKLOG_DIRECTORY}}/`, and never `git stash` dirt to pass this gate.
+         and halt on any path outside `{{BACKLOG_DIRECTORY}}/`; backlog-only output is carry-forward state. Do not create a branch from a worktree dirty outside `{{BACKLOG_DIRECTORY}}/`, and never `git stash` dirt to pass this gate.
       b. Switch to the default branch:
          `git checkout {{DEFAULT_BRANCH}}`
       c. Pull latest:
@@ -201,12 +201,12 @@ build work begins:
       d. Create the shipment branch (use `feat/` for features, `chore/` for chores):
          `git checkout -b feat/{feature-slug}`
          where `{feature-slug}` is derived from the shipment title: lowercase, spaces replaced with hyphens.
-      e. Log `BRANCH_CREATED: {branch_name}`.
-      f. If the gate reported `CARRY_FORWARD_ELIGIBLE`, commit only the listed backlog paths as the isolated first branch commit before the claim:
-         `git add -- {{BACKLOG_DIRECTORY}}/`
-         `git commit -m "chore(backlog): carry forward pre-claim backlog state"`
-         Log `CARRY_FORWARD_COMMITTED: {paths}`.
+      e. Log `BRANCH_CREATED: {branch_name}` and apply the carry-forward commit below.
     - If on an unrelated non-default branch: halt with `BRANCH_MISMATCH: currently on {branch_name} — does not match shipment scope. Checkout the correct branch or create one manually.`
+    - **Carry-forward commit (either branch path above)**: if `pre_claim` reported `CARRY_FORWARD_ELIGIBLE` (or the fallback found only backlog state), confirm `git branch --show-current` is the shipment branch, never `{{DEFAULT_BRANCH}}`, then commit the backlog state alone as the isolated first commit before the claim. The trailing pathspec limits the commit to the backlog directory even if other paths are staged:
+       `git add -- {{BACKLOG_DIRECTORY}}/`
+       `git commit -m "chore(backlog): carry forward pre-claim backlog state" -- {{BACKLOG_DIRECTORY}}/`
+       Verify with `git show --name-only --no-renames --format= HEAD` that every committed path is under `{{BACKLOG_DIRECTORY}}/`; otherwise halt. Log `CARRY_FORWARD_COMMITTED: {paths from git show}`.
     - Note: All git commands above are run as separate sequential steps, not chained.
     - **TOPOLOGY_GATE: pre_claim (immediately before claim)** — immediately before the claim in step 4, this is the `ship_pre_claim` bootstrap-grant consumption site. Reach it only from the contract-valid shipment-branch vantage established by the branch/worktree checks above: `pre_claim` still evaluates `branch_ownership` before `shipment_readiness` and short-circuits, so a `BRANCH_MISMATCH` block is never bootstrap-grant-eligible.
      Before invoking the gate, check for `.autoharness/bootstrap-grants/{shipment_id}.yaml`.
