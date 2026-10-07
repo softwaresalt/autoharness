@@ -49,8 +49,6 @@ src/autoharness/__pycache__/*.pyc
 !.engram/templates/**
 .engram-bkp/
 
-references/
-
 # Local environment files (secrets) — never commit. Only .env.example may be tracked.
 .env
 .env.*
