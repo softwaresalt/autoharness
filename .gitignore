@@ -15,6 +15,7 @@ docs/scratch/
 .backlogit/*.db-wal
 .backlogit/runtime/
 .backlogit/logs/
+.github/copilot/
 
 # 088-F throwaway compression experiment — brainspace CCR store (never
 # committed; see experiments/088-compression-experiment/README.md). The
@@ -47,8 +48,6 @@ src/autoharness/__pycache__/*.pyc
 !.engram/templates/
 !.engram/templates/**
 .engram-bkp/
-
-references/
 
 # Local environment files (secrets) — never commit. Only .env.example may be tracked.
 .env

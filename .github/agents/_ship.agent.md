@@ -243,19 +243,26 @@ is prohibited (P-001 role separation).
    - Check attached worktrees before logging `BRANCH_OK`, creating a branch, or claiming a shipment:
      `git worktree list --porcelain`
      Classify each worktree as the current worktree, an explicit Stage-owned spike/research worktree, or prohibited/ambiguous. If any non-current worktree is not clearly an allowed Stage spike/research worktree, halt with `WORKTREE_TOPOLOGY_BLOCKED: prohibited or ambiguous parallel worktree detected` and record a P-016/P-005 violation. Ship must not create or use parallel worktrees.
-   - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `WORKTREE_TOPOLOGY_OK` and `BRANCH_OK: {branch_name}` and proceed.
+   - If already on a branch matching this shipment (e.g., `feat/{slug}` or `chore/{slug}`): log `WORKTREE_TOPOLOGY_OK` and `BRANCH_OK: {branch_name}`, apply the carry-forward commit below, and proceed.
    - If on `main` (the default branch):
-     a. Verify the worktree is clean:
-        `git status --short`
-        If any output appears, halt. Do not create a branch from a dirty worktree.
+     a. Verify the worktree is clean apart from carry-forward backlog state (P-011). The `worktree_cleanliness` check in the `pre_claim` JSON above is authoritative: `WORKTREE_CLEAN` or `CARRY_FORWARD_ELIGIBLE` proceeds; `WORKTREE_DIRTY` or `WORKTREE_STATUS_UNAVAILABLE` halts. Only when that check is absent or `skipped` (gate not installed, older gate, or a reader without worktree status), fall back to:
+        `git status --porcelain=v1 -z --untracked-files=all --no-renames`
+        Each NUL-terminated record is a two-character status, a space, then the raw path; take the path verbatim from the fourth character, never unquoting or re-splitting it (non-`-z` output C-quotes unusual names). Also halt when a backlog path is both staged and changed again in the working tree (both status columns set, or a staged entry for a path that is also listed as `??`), because staging the working tree would discard its staged content. Halt on any path outside `.backlogit/`; backlog-only output is carry-forward state. Do not create a branch from a worktree dirty outside `.backlogit/`, and never `git stash` dirt to pass this gate.
      b. Switch to the default branch:
         `git checkout main`
      c. Pull latest:
         `git pull`
+        If the pull refuses because carried-forward backlog state conflicts with incoming changes, halt and hand off to the operator.
      d. Create the shipment branch:
         `git checkout -b feat/{feature-slug}` (features) or `git checkout -b chore/{chore-slug}` (chores)
-     e. Log `BRANCH_CREATED: {branch_name}`.
+     e. Log `BRANCH_CREATED: {branch_name}` and apply the carry-forward commit below.
    - If on any other non-shipment branch: halt with `BRANCH_MISMATCH: currently on {branch_name}`.
+   - **Carry-forward commit (either branch path above)**: confirm `git branch --show-current` is the shipment branch, never `main`. The classification from step a predates the pull and branch switch, so reclassify immediately before staging:
+      `autoharness gate pipeline-topology --mode agent --shipment {shipment_id} --phase pre_claim --json`
+      This run is a classification read only: never pass `--bootstrap-grant-invocation` here, and read only its `worktree_cleanliness` check. A blocked result reports only its blocking check, so when another check blocks (for example `shipment_readiness` on a bootstrap-grant shipment) the cleanliness check is absent and the fallback below applies; the immediately-before-claim gate below still decides claim eligibility. `WORKTREE_CLEAN`: nothing to carry forward; skip this commit. `CARRY_FORWARD_ELIGIBLE`: its `details.carry_forward_paths` is the exact path set, and the gate has already ruled out staged content that differs from the working tree (`details.divergent_paths` blocks as `WORKTREE_DIRTY`). `WORKTREE_DIRTY` or `WORKTREE_STATUS_UNAVAILABLE`: halt. Only when the check is absent or `skipped`, run `git status --porcelain=v1 -z --untracked-files=all --no-renames` instead, parsed as in step a: halt on any path outside `.backlogit/`, skip on empty output, and otherwise use the listed raw paths as the exact set. Commit exactly that set, and nothing else, as the isolated first commit before the claim, passing each path verbatim as one argument with literal pathspecs so glob characters in a name match only that file:
+      `git --literal-pathspecs add -- {path} ...`
+      `git --literal-pathspecs commit -m "chore(backlog): carry forward pre-claim backlog state" -- {path} ...`
+      Verify with `git show --name-only --no-renames -z --format= HEAD` (NUL-separated raw paths, ignoring empty entries) that the committed paths equal the exact set byte for byte; otherwise halt. Log `CARRY_FORWARD_COMMITTED: {paths}`.
    - Note: all git commands above are run as separate sequential steps, not chained.
    - **TOPOLOGY_GATE: pre_claim (immediately before claim)** — immediately before the claim in step 4, this is the `ship_pre_claim` bootstrap-grant consumption site. Reach it only from the contract-valid shipment-branch vantage established by the branch/worktree checks above: `pre_claim` still evaluates `branch_ownership` before `shipment_readiness` and short-circuits, so a `BRANCH_MISMATCH` block is never bootstrap-grant-eligible.
      Before invoking the gate, check for `.autoharness/bootstrap-grants/{shipment_id}.yaml`.

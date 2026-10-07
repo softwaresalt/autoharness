@@ -44,3 +44,11 @@
 	path = references/backlog-md
 	url = https://github.com/MrLesk/Backlog.md.git
 	branch = main
+[submodule "references/STE-Pro-Max"]
+	path = references/STE-Pro-Max
+	url = https://github.com/shyamsridhar123/STE-Pro-Max.git
+	branch = main
+[submodule "references/toon"]
+	path = references/toon
+	url = https://github.com/toon-format/toon
+	branch = main

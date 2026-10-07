@@ -157,6 +157,12 @@ class _FixtureFilesystemReaders(FilesystemTopologyReaders):
     def worktree_porcelain(self) -> str:
         return self._worktrees
 
+    def worktree_dirty_paths(self):
+        return ()
+
+    def worktree_divergent_paths(self):
+        return ()
+
     def read_worktree_marker(self, worktree_path: str):
         return None
 
@@ -1723,6 +1729,305 @@ class WorktreeTopologyTests(unittest.TestCase):
         )
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.primary_token, 'MULTIPLE_IMPLEMENTATION_WORKTREES')
+
+
+class _CleanlinessReaders(_FakeReaders):
+    def __init__(self, *args, dirty_paths=(), divergent_paths=(), carry_forward=('.backlogit/',), **kwargs):
+        super().__init__(*args, **kwargs)
+        self._dirty_paths = dirty_paths
+        self._divergent_paths = divergent_paths
+        self._carry_forward = carry_forward
+
+    def worktree_dirty_paths(self):
+        return None if self._dirty_paths is None else tuple(self._dirty_paths)
+
+    def worktree_divergent_paths(self):
+        return None if self._divergent_paths is None else tuple(self._divergent_paths)
+
+    def carry_forward_prefixes(self):
+        return tuple(self._carry_forward)
+
+
+class _NoDivergenceReaders(_FakeReaders):
+    def worktree_dirty_paths(self):
+        return ('.backlogit/stash.jsonl',)
+
+    def carry_forward_prefixes(self):
+        return ('.backlogit/',)
+
+
+class WorktreeCleanlinessTests(unittest.TestCase):
+    def _pre_claim(self, **reader_kwargs):
+        return evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_CleanlinessReaders(shipments=(_shipment('114-S', 'queued'),), **reader_kwargs),
+        )
+
+    def test_clean_worktree_passes_with_clean_token(self) -> None:
+        result = self._pre_claim(dirty_paths=())
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('passed', 'WORKTREE_CLEAN'))
+
+    def test_backlog_state_only_is_carry_forward_eligible(self) -> None:
+        result = self._pre_claim(dirty_paths=('.backlogit/stash.jsonl', '.backlogit/queue/114-S.md'))
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('passed', 'CARRY_FORWARD_ELIGIBLE'))
+        self.assertEqual(
+            check.details['carry_forward_paths'],
+            ['.backlogit/queue/114-S.md', '.backlogit/stash.jsonl'],
+        )
+
+    def test_any_non_carry_forward_path_blocks(self) -> None:
+        result = self._pre_claim(dirty_paths=('.backlogit/stash.jsonl', 'src/app.py'))
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['src/app.py'])
+        self.assertEqual(check.details['carry_forward_paths'], ['.backlogit/stash.jsonl'])
+
+    def test_prefix_match_respects_directory_boundary(self) -> None:
+        result = self._pre_claim(dirty_paths=('.backlogit-notes/todo.md',))
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+
+    def test_backslash_in_filename_is_not_treated_as_separator(self) -> None:
+        # git -z output always uses '/', so a backslash is part of a POSIX filename.
+        result = self._pre_claim(dirty_paths=('.backlogit\\outside.md',))
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['.backlogit\\outside.md'])
+        self.assertEqual(check.details['carry_forward_paths'], [])
+
+    def test_unreadable_status_fails_closed(self) -> None:
+        result = self._pre_claim(dirty_paths=None, git_errors={'worktree_dirty_paths': 'fatal: boom'})
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'WORKTREE_STATUS_UNAVAILABLE')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['git_invocation_error'], 'fatal: boom')
+        self.assertNotIn('carry_forward_paths', check.details)
+        self.assertNotIn('carry_forward_prefixes', check.details)
+
+    def test_dirty_message_is_capped_but_details_keep_every_path(self) -> None:
+        paths = tuple(f'src/f{index:02d}.py' for index in range(25))
+        result = self._pre_claim(dirty_paths=paths)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], list(paths))
+        self.assertIn('(+5 more)', check.message)
+        self.assertNotIn('src/f24.py', check.message)
+
+    def test_dirty_block_short_circuits_before_shipment_readiness(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_CleanlinessReaders(
+                shipments=(_shipment('113-S', 'queued'), _shipment('114-S', 'queued', deps=('113-S',))),
+                dirty_paths=('src/app.py',),
+            ),
+        )
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        self.assertNotIn('shipment_readiness', [check.name for check in result.checks])
+
+    def test_check_only_applies_to_pre_claim(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='lifecycle', target_shipment_id='114-S'),
+            readers=_CleanlinessReaders(
+                shipments=(_shipment('114-S', 'active'),),
+                branch='feat/114-s',
+                dirty_paths=('src/app.py',),
+            ),
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn('worktree_cleanliness', [check.name for check in result.checks])
+
+    def test_readers_without_capability_report_visible_skip(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_FakeReaders(shipments=(_shipment('114-S', 'queued'),)),
+        )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('skipped', None))
+
+    def test_readers_without_divergence_capability_report_visible_skip(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_NoDivergenceReaders(shipments=(_shipment('114-S', 'queued'),)),
+        )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('skipped', None))
+
+    def test_divergent_backlog_path_blocks_carry_forward(self) -> None:
+        result = self._pre_claim(
+            dirty_paths=('.backlogit/queue/114-S.md', '.backlogit/stash.jsonl'),
+            divergent_paths=('.backlogit/stash.jsonl',),
+        )
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['divergent_paths'], ['.backlogit/stash.jsonl'])
+        self.assertNotIn('blocking_paths', check.details)
+        self.assertIn('.backlogit/stash.jsonl', check.message)
+        self.assertIn('staged', check.message)
+
+    def test_divergence_and_outside_dirt_are_both_reported(self) -> None:
+        result = self._pre_claim(
+            dirty_paths=('.backlogit/stash.jsonl', 'src/app.py'),
+            divergent_paths=('.backlogit/stash.jsonl', 'src/app.py'),
+        )
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['src/app.py'])
+        self.assertEqual(check.details['divergent_paths'], ['.backlogit/stash.jsonl'])
+
+    def test_unreadable_divergence_fails_closed(self) -> None:
+        result = self._pre_claim(dirty_paths=('.backlogit/stash.jsonl',), divergent_paths=None)
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'WORKTREE_STATUS_UNAVAILABLE')
+
+
+class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
+    @staticmethod
+    def _git(cwd: Path, *args: str) -> None:
+        subprocess.run(
+            ['git', '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', *args],
+            cwd=cwd,
+            check=True,
+            capture_output=True,
+        )
+
+    @contextmanager
+    def _repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            self._git(workspace, 'init', '-q')
+            self._git(workspace, 'config', 'core.autocrlf', 'false')
+            (workspace / '.backlogit').mkdir()
+            (workspace / '.backlogit' / 'stash.jsonl').write_bytes(b'{"id":"A"}\n')
+            (workspace / 'README.md').write_bytes(b'readme\n')
+            (workspace / 'src').mkdir()
+            (workspace / 'src' / 'app.py').write_bytes(b'app = 1\n')
+            self._git(workspace, 'add', '.')
+            self._git(workspace, 'commit', '-q', '-m', 'init')
+            yield workspace
+
+    def test_clean_repo_reports_no_dirty_paths(self) -> None:
+        with self._repo() as workspace:
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertEqual(reader.worktree_dirty_paths(), ())
+            self.assertEqual(reader.carry_forward_prefixes(), ('.backlogit/',))
+
+    def test_identical_content_rewrite_is_not_dirty(self) -> None:
+        with self._repo() as workspace:
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.write_bytes(stash.read_bytes())
+            later = stash.stat().st_mtime + 120
+            os.utime(stash, (later, later))
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_dirty_paths(), ())
+
+    def test_reports_modified_and_untracked_paths(self) -> None:
+        with self._repo() as workspace:
+            (workspace / '.backlogit' / 'stash.jsonl').write_bytes(b'{"id":"A"}\n{"id":"B"}\n')
+            (workspace / 'src' / 'new.py').write_bytes(b'x = 1\n')
+            self.assertEqual(
+                FilesystemTopologyReaders(workspace).worktree_dirty_paths(),
+                ('.backlogit/stash.jsonl', 'src/new.py'),
+            )
+
+    def test_staged_rename_into_backlog_reports_both_sides(self) -> None:
+        with self._repo() as workspace:
+            self._git(workspace, 'mv', 'src/app.py', '.backlogit/app.py')
+            self.assertEqual(
+                FilesystemTopologyReaders(workspace).worktree_dirty_paths(),
+                ('.backlogit/app.py', 'src/app.py'),
+            )
+
+    def test_staged_change_reverted_in_worktree_is_dirty(self) -> None:
+        with self._repo() as workspace:
+            app = workspace / 'src' / 'app.py'
+            app.write_bytes(b'app = 2\n')
+            self._git(workspace, 'add', 'src/app.py')
+            app.write_bytes(b'app = 1\n')
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_dirty_paths(), ('src/app.py',))
+
+    def _divergent(self, workspace: Path):
+        reader = FilesystemTopologyReaders(workspace)
+        reader.worktree_dirty_paths()
+        return reader.worktree_divergent_paths()
+
+    def test_staged_backlog_change_reverted_in_worktree_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.write_bytes(b'{"id":"B"}\n')
+            self._git(workspace, 'add', '.backlogit/stash.jsonl')
+            stash.write_bytes(b'{"id":"A"}\n')
+            self.assertEqual(self._divergent(workspace), ('.backlogit/stash.jsonl',))
+
+    def test_staged_change_modified_again_in_worktree_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.write_bytes(b'{"id":"B"}\n')
+            self._git(workspace, 'add', '.backlogit/stash.jsonl')
+            stash.write_bytes(b'{"id":"C"}\n')
+            self.assertEqual(self._divergent(workspace), ('.backlogit/stash.jsonl',))
+
+    def test_staged_new_file_deleted_from_worktree_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            new = workspace / '.backlogit' / 'new.md'
+            new.write_bytes(b'new\n')
+            self._git(workspace, 'add', '.backlogit/new.md')
+            new.unlink()
+            self.assertEqual(self._divergent(workspace), ('.backlogit/new.md',))
+
+    def test_staged_deletion_of_present_file_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            self._git(workspace, 'rm', '-q', '--cached', '.backlogit/stash.jsonl')
+            self.assertEqual(self._divergent(workspace), ('.backlogit/stash.jsonl',))
+
+    def test_agreeing_or_single_layer_changes_are_not_divergent(self) -> None:
+        with self._repo() as workspace:
+            (workspace / '.backlogit' / 'stash.jsonl').write_bytes(b'{"id":"B"}\n')
+            self._git(workspace, 'add', '.backlogit/stash.jsonl')
+            (workspace / 'src' / 'app.py').write_bytes(b'app = 2\n')
+            (workspace / '.backlogit' / 'untracked.md').write_bytes(b'u\n')
+            self.assertEqual(self._divergent(workspace), ())
+
+    def test_divergence_is_computed_on_demand_and_unavailable_with_status(self) -> None:
+        with self._repo() as workspace:
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_divergent_paths(), ())
+            nested = FilesystemTopologyReaders(workspace / 'src')
+            self.assertIsNone(nested.worktree_dirty_paths())
+            self.assertIsNone(nested.worktree_divergent_paths())
+
+    def test_file_named_head_does_not_make_status_ambiguous(self) -> None:
+        with self._repo() as workspace:
+            (workspace / 'HEAD').write_bytes(b'not a ref\n')
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_dirty_paths(), ('HEAD',))
+
+    def test_workspace_below_repository_top_level_is_unavailable(self) -> None:
+        with self._repo() as workspace:
+            nested = workspace / 'src'
+            (nested / '.backlogit').mkdir()
+            reader = FilesystemTopologyReaders(nested)
+            self.assertIsNone(reader.worktree_dirty_paths())
+            self.assertIn('not the repository top level', reader.git_invocation_error('worktree_dirty_paths'))
+
+    def test_git_timeout_is_unavailable_not_a_crash(self) -> None:
+        with self._repo() as workspace:
+            reader = FilesystemTopologyReaders(workspace)
+            with mock.patch(
+                'autoharness.gates.topology.subprocess.run',
+                side_effect=subprocess.TimeoutExpired(cmd='git', timeout=30),
+            ):
+                self.assertIsNone(reader.worktree_dirty_paths())
+            self.assertIn('TimeoutExpired', reader.git_invocation_error('worktree_dirty_paths'))
+
+    def test_non_git_directory_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / '.backlogit').mkdir()
+            with patched_environ(GIT_CEILING_DIRECTORIES=str(Path(tmp).resolve().parent)):
+                reader = FilesystemTopologyReaders(tmp)
+                self.assertIsNone(reader.worktree_dirty_paths())
+            self.assertTrue(reader.git_invocation_error('worktree_dirty_paths'))
 
 
 class TargetShipmentReadinessTests(unittest.TestCase):

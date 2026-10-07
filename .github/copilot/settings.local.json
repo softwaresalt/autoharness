@@ -1,7 +1,0 @@
-{
-  "effortLevel": "high",
-  "model": "claude-opus-5.5",
-  "mergeStrategy": "merge",
-  "respectGitignore": false,
-  "includeCoAuthoredBy": true
-}

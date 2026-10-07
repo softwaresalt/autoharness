@@ -180,6 +180,34 @@ context/token footprint.
 
 ---
 
+### `references/STE-Pro-Max`
+
+**Source**: [shyamsridhar123/STE-Pro-Max](https://github.com/shyamsridhar123/STE-Pro-Max)
+
+An agent plugin for GitHub Copilot, Claude Code, and Codex that turns dense
+documents and systems into short briefs, visual explanations, and interactive
+mini-labs, using Simplified Technical English (STE) style writing guidance.
+
+**Best for**: Patterns for clear, concise agent-authored prose and
+explanation skills, and for packaging one skill set across multiple agent
+environments.
+
+---
+
+### `references/toon`
+
+**Source**: [toon-format/toon](https://github.com/toon-format/toon)
+
+Token-Oriented Object Notation (TOON), a compact, human-readable serialization
+of the JSON data model designed for LLM prompts, with a TypeScript SDK, CLI,
+and benchmarks.
+
+**Best for**: Ideas for shrinking structured data that agents place in
+context (tabular backlog, telemetry, or profile payloads) and for comparing
+encoding token costs against JSON or YAML.
+
+---
+
 ## Keeping references current
 
 The submodule registrations in `.gitmodules` are the index of record for these
