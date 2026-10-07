@@ -170,18 +170,20 @@ against the backlog carry-forward prefixes defined by P-011:
 |---|---|---|
 | `WORKTREE_CLEAN` | passed | No uncommitted or untracked changes. |
 | `CARRY_FORWARD_ELIGIBLE` | passed | Only backlog state is uncommitted; Ship commits it as the first commit on the shipment branch (P-011 carry-forward). |
-| `WORKTREE_DIRTY` | blocked | Changes exist outside the carry-forward prefixes. The message lists at most 20 paths (`(+N more)`); the full list is in `details.blocking_paths`. |
+| `WORKTREE_DIRTY` | blocked | Changes exist outside the carry-forward prefixes (`details.blocking_paths`), or a backlog path's staged content differs from both `HEAD` and the working tree (`details.divergent_paths`), so staging the working tree would discard it. The message lists at most 20 paths per group (`(+N more)`); the details keep every path. |
 | `WORKTREE_STATUS_UNAVAILABLE` | blocked | Worktree status could not be read (git failure, timeout, or the workspace is not the repository top level), so cleanliness is unverifiable. |
 
 When the worktree status was read (`WORKTREE_CLEAN`, `CARRY_FORWARD_ELIGIBLE`,
 `WORKTREE_DIRTY`), the check's `details` carry `carry_forward_paths` and
-`carry_forward_prefixes`, plus `blocking_paths` for `WORKTREE_DIRTY`. Paths are
+`carry_forward_prefixes`, plus `blocking_paths` and/or `divergent_paths` for
+`WORKTREE_DIRTY`. Paths are
 reported exactly as git returned them. `WORKTREE_STATUS_UNAVAILABLE` carries only
 an optional `git_invocation_error`, and a `skipped` result has empty details.
 Readers that do not expose worktree status report the check as visibly `skipped`
 rather than silently passing; agents then fall back to
 `git status --porcelain=v1 -z --untracked-files=all --no-renames` per P-011,
-reading each path verbatim (non-`-z` output C-quotes unusual names).
+reading each path verbatim (non-`-z` output C-quotes unusual names) and halting
+when a backlog path is both staged and changed again in the working tree.
 Because the Orchestrator's route-to-Ship `pre_claim` invocation runs the same
 check, a dirty worktree also blocks routing a shipment to Ship.
 

@@ -180,6 +180,20 @@ context/token footprint.
 
 ---
 
+### `references/STE-Pro-Max`
+
+**Source**: [shyamsridhar123/STE-Pro-Max](https://github.com/shyamsridhar123/STE-Pro-Max)
+
+An agent plugin for GitHub Copilot, Claude Code, and Codex that turns dense
+documents and systems into short briefs, visual explanations, and interactive
+mini-labs, using Simplified Technical English (STE) style writing guidance.
+
+**Best for**: Patterns for clear, concise agent-authored prose and
+explanation skills, and for packaging one skill set across multiple agent
+environments.
+
+---
+
 ### `references/toon`
 
 **Source**: [toon-format/toon](https://github.com/toon-format/toon)

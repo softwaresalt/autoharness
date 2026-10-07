@@ -160,6 +160,9 @@ class _FixtureFilesystemReaders(FilesystemTopologyReaders):
     def worktree_dirty_paths(self):
         return ()
 
+    def worktree_divergent_paths(self):
+        return ()
+
     def read_worktree_marker(self, worktree_path: str):
         return None
 
@@ -1729,16 +1732,28 @@ class WorktreeTopologyTests(unittest.TestCase):
 
 
 class _CleanlinessReaders(_FakeReaders):
-    def __init__(self, *args, dirty_paths=(), carry_forward=('.backlogit/',), **kwargs):
+    def __init__(self, *args, dirty_paths=(), divergent_paths=(), carry_forward=('.backlogit/',), **kwargs):
         super().__init__(*args, **kwargs)
         self._dirty_paths = dirty_paths
+        self._divergent_paths = divergent_paths
         self._carry_forward = carry_forward
 
     def worktree_dirty_paths(self):
         return None if self._dirty_paths is None else tuple(self._dirty_paths)
 
+    def worktree_divergent_paths(self):
+        return None if self._divergent_paths is None else tuple(self._divergent_paths)
+
     def carry_forward_prefixes(self):
         return tuple(self._carry_forward)
+
+
+class _NoDivergenceReaders(_FakeReaders):
+    def worktree_dirty_paths(self):
+        return ('.backlogit/stash.jsonl',)
+
+    def carry_forward_prefixes(self):
+        return ('.backlogit/',)
 
 
 class WorktreeCleanlinessTests(unittest.TestCase):
@@ -1833,6 +1848,42 @@ class WorktreeCleanlinessTests(unittest.TestCase):
         check = _check(result, 'worktree_cleanliness')
         self.assertEqual((check.status, check.token), ('skipped', None))
 
+    def test_readers_without_divergence_capability_report_visible_skip(self) -> None:
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=_NoDivergenceReaders(shipments=(_shipment('114-S', 'queued'),)),
+        )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('skipped', None))
+
+    def test_divergent_backlog_path_blocks_carry_forward(self) -> None:
+        result = self._pre_claim(
+            dirty_paths=('.backlogit/queue/114-S.md', '.backlogit/stash.jsonl'),
+            divergent_paths=('.backlogit/stash.jsonl',),
+        )
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['divergent_paths'], ['.backlogit/stash.jsonl'])
+        self.assertNotIn('blocking_paths', check.details)
+        self.assertIn('.backlogit/stash.jsonl', check.message)
+        self.assertIn('staged', check.message)
+
+    def test_divergence_and_outside_dirt_are_both_reported(self) -> None:
+        result = self._pre_claim(
+            dirty_paths=('.backlogit/stash.jsonl', 'src/app.py'),
+            divergent_paths=('.backlogit/stash.jsonl', 'src/app.py'),
+        )
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['src/app.py'])
+        self.assertEqual(check.details['divergent_paths'], ['.backlogit/stash.jsonl'])
+
+    def test_unreadable_divergence_fails_closed(self) -> None:
+        result = self._pre_claim(dirty_paths=('.backlogit/stash.jsonl',), divergent_paths=None)
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.primary_token, 'WORKTREE_STATUS_UNAVAILABLE')
+
 
 class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
     @staticmethod
@@ -1897,6 +1948,55 @@ class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
             self._git(workspace, 'add', 'src/app.py')
             app.write_bytes(b'app = 1\n')
             self.assertEqual(FilesystemTopologyReaders(workspace).worktree_dirty_paths(), ('src/app.py',))
+
+    def _divergent(self, workspace: Path):
+        reader = FilesystemTopologyReaders(workspace)
+        reader.worktree_dirty_paths()
+        return reader.worktree_divergent_paths()
+
+    def test_staged_backlog_change_reverted_in_worktree_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.write_bytes(b'{"id":"B"}\n')
+            self._git(workspace, 'add', '.backlogit/stash.jsonl')
+            stash.write_bytes(b'{"id":"A"}\n')
+            self.assertEqual(self._divergent(workspace), ('.backlogit/stash.jsonl',))
+
+    def test_staged_change_modified_again_in_worktree_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.write_bytes(b'{"id":"B"}\n')
+            self._git(workspace, 'add', '.backlogit/stash.jsonl')
+            stash.write_bytes(b'{"id":"C"}\n')
+            self.assertEqual(self._divergent(workspace), ('.backlogit/stash.jsonl',))
+
+    def test_staged_new_file_deleted_from_worktree_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            new = workspace / '.backlogit' / 'new.md'
+            new.write_bytes(b'new\n')
+            self._git(workspace, 'add', '.backlogit/new.md')
+            new.unlink()
+            self.assertEqual(self._divergent(workspace), ('.backlogit/new.md',))
+
+    def test_staged_deletion_of_present_file_is_divergent(self) -> None:
+        with self._repo() as workspace:
+            self._git(workspace, 'rm', '-q', '--cached', '.backlogit/stash.jsonl')
+            self.assertEqual(self._divergent(workspace), ('.backlogit/stash.jsonl',))
+
+    def test_agreeing_or_single_layer_changes_are_not_divergent(self) -> None:
+        with self._repo() as workspace:
+            (workspace / '.backlogit' / 'stash.jsonl').write_bytes(b'{"id":"B"}\n')
+            self._git(workspace, 'add', '.backlogit/stash.jsonl')
+            (workspace / 'src' / 'app.py').write_bytes(b'app = 2\n')
+            (workspace / '.backlogit' / 'untracked.md').write_bytes(b'u\n')
+            self.assertEqual(self._divergent(workspace), ())
+
+    def test_divergence_is_computed_on_demand_and_unavailable_with_status(self) -> None:
+        with self._repo() as workspace:
+            self.assertEqual(FilesystemTopologyReaders(workspace).worktree_divergent_paths(), ())
+            nested = FilesystemTopologyReaders(workspace / 'src')
+            self.assertIsNone(nested.worktree_dirty_paths())
+            self.assertIsNone(nested.worktree_divergent_paths())
 
     def test_file_named_head_does_not_make_status_ambiguous(self) -> None:
         with self._repo() as workspace:

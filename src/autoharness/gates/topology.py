@@ -740,6 +740,7 @@ class FilesystemTopologyReaders:
             "toplevel_prefix": ["git", "rev-parse", "--show-prefix"],
             "worktree": [*diff_base, "HEAD", "--"],
             "index": [*diff_base, "--cached", "HEAD", "--"],
+            "unstaged": [*diff_base, "--"],
             "untracked": ["git", "--no-pager", "ls-files", "--others", "--exclude-standard", "-z"],
         }
         outputs: dict[str, str] = {}
@@ -759,9 +760,24 @@ class FilesystemTopologyReaders:
             )
         if errors:
             self._git_invocation_errors[key] = "; ".join(errors.values())
+            self._worktree_divergent = None
             return None
-        joined = "\0".join(outputs[name] for name in ("worktree", "index", "untracked"))
-        return tuple(sorted({path for path in joined.split("\0") if path}))
+        layers = {name: {path for path in outputs[name].split("\0") if path} for name in commands}
+        # Staged content that matches neither HEAD nor the working tree (or a
+        # staged deletion of a file still on disk) would be lost by `git add`.
+        self._worktree_divergent = tuple(
+            sorted(layers["index"] & (layers["unstaged"] | layers["untracked"]))
+        )
+        return tuple(sorted(layers["worktree"] | layers["index"] | layers["untracked"]))
+
+    def worktree_divergent_paths(self) -> tuple[str, ...] | None:
+        """Paths from the latest ``worktree_dirty_paths`` read whose staged
+        content differs from both ``HEAD`` and the working tree, so staging
+        the working tree would discard it. Reads status first if needed;
+        ``None`` when status is unavailable (fail closed)."""
+        if not hasattr(self, "_worktree_divergent"):
+            self.worktree_dirty_paths()
+        return self._worktree_divergent
 
     def carry_forward_prefixes(self) -> tuple[str, ...]:
         """Path prefixes of tool-owned backlog state that P-011 carries
@@ -1279,23 +1295,26 @@ def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -
     Runs at ``pre_claim`` only (``None`` for other phases keeps their check
     sets unchanged). Optional reader capability (duck-typed like
     ``closure_discovery_for``): readers that do not expose
-    ``worktree_dirty_paths`` and ``carry_forward_prefixes`` get a visible
-    ``skipped`` result rather than a silent omission. Dirty paths under a
-    carry-forward prefix (tool-owned backlog state) pass as
-    ``CARRY_FORWARD_ELIGIBLE``; any other dirty path blocks.
+    ``worktree_dirty_paths``, ``worktree_divergent_paths``, and
+    ``carry_forward_prefixes`` get a visible ``skipped`` result rather than a
+    silent omission. Dirty paths under a carry-forward prefix (tool-owned
+    backlog state) pass as ``CARRY_FORWARD_ELIGIBLE`` unless their staged
+    content diverges from the working tree; any other dirty path blocks.
     """
     if resolved_phase != "pre_claim":
         return None
     dirty_getter = getattr(readers, "worktree_dirty_paths", None)
+    divergent_getter = getattr(readers, "worktree_divergent_paths", None)
     prefix_getter = getattr(readers, "carry_forward_prefixes", None)
-    if not callable(dirty_getter) or not callable(prefix_getter):
+    if not all(callable(getter) for getter in (dirty_getter, divergent_getter, prefix_getter)):
         return CheckResult(
             name="worktree_cleanliness",
             status="skipped",
             message="reader does not expose worktree status; P-011 cleanliness not evaluated by this gate",
         )
     dirty = dirty_getter()
-    if dirty is None:
+    divergent = divergent_getter() if dirty is not None else None
+    if dirty is None or divergent is None:
         details: dict[str, Any] = {}
         git_invocation_error = _collect_git_invocation_error(readers, "worktree_dirty_paths")
         if git_invocation_error:
@@ -1313,20 +1332,25 @@ def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -
     normalized = sorted(set(dirty))
     carry_forward = [path for path in normalized if path.startswith(prefixes)]
     blocking = [path for path in normalized if not path.startswith(prefixes)]
+    diverged = sorted(set(divergent) & set(carry_forward))
     details = {"carry_forward_paths": carry_forward, "carry_forward_prefixes": list(prefixes)}
-    if blocking:
-        details["blocking_paths"] = blocking
-        shown = blocking[:_BLOCKING_PATHS_MESSAGE_LIMIT]
-        more = len(blocking) - len(shown)
+    if blocking or diverged:
+        reasons: list[str] = []
+        for key, paths, label in (
+            ("blocking_paths", blocking, "uncommitted changes outside the carry-forward backlog state"),
+            ("divergent_paths", diverged, "staged backlog content differs from the working tree and would be lost"),
+        ):
+            if not paths:
+                continue
+            details[key] = paths
+            shown = paths[:_BLOCKING_PATHS_MESSAGE_LIMIT]
+            more = len(paths) - len(shown)
+            reasons.append(f"{label}: " + ", ".join(shown) + (f" (+{more} more)" if more else ""))
         return CheckResult(
             name="worktree_cleanliness",
             status="blocked",
             token="WORKTREE_DIRTY",
-            message=(
-                "WORKTREE_DIRTY: uncommitted changes outside the carry-forward backlog state: "
-                + ", ".join(shown)
-                + (f" (+{more} more)" if more else "")
-            ),
+            message="WORKTREE_DIRTY: " + "; ".join(reasons),
             details=details,
         )
     if carry_forward:
