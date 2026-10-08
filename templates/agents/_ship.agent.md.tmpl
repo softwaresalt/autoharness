@@ -808,16 +808,19 @@ lifecycle to transition out of. See
       (via the `file-lock` skill), judges every manifest item's declared status — wherever the
       record resides — under the skill's Member-Class Status Contract (its step 2b
       classification lets a qualifying feature member that is still `{{STATUS_ACTIVE}}` under a
-      `CASCADE` verdict pass instead of halting), and scans for orphan items. Record the skill's
-      Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) in the body of the closure
-      artifact.
+      `CASCADE` verdict pass instead of halting), and scans for orphan items.
       * If the skill returns `RECONCILE_FAIL`: halt and surface the reconciliation report
         to the operator. Do NOT proceed to step 1.b.
       * If the skill returns `PROCEED`: continue. The lock remains held until post-mode
         completes in step 1.d.
    b. **Safe-close (thin pointer; `shipment-reconcile` is authoritative)**: Invoke the
       `shipment-reconcile` skill with `mode: safe-close`, `shipment_id`, and the
-      `merge_commit_sha`. Keep this agent file at pointer level only — the full,
+      `merge_commit_sha`. Step 0(c) runs inside this call, so pre-mode (step 1.a) has no outcome
+      to record: only after the `mode: safe-close` call returns `CLOSED`, carry the skill's
+      Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) forward and record it in the
+      body of the closure artifact when step 6.2 writes it. A
+      `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` halt yields no outcome to record and stops Ship at
+      step 1.b. Keep this agent file at pointer level only — the full,
       step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and
       must not be re-derived here.
       **Command routing (192-F, pointer only)**: every close, on either path, starts

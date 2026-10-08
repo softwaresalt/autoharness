@@ -389,6 +389,21 @@ class MemberClassContractTextTests(unittest.TestCase):
                 flat = mcc.flatten(path.read_text(encoding="utf-8"))
                 self.assertIn("Step 0(c) agreement-check outcome (`agreed` / `not-applicable`)", flat)
 
+    def test_template_ship_agent_records_the_agreement_outcome_after_safe_close(self) -> None:
+        # Step 0(c) runs inside safe-close (step 1.b), so the recording duty must sit
+        # there; pre-mode (step 1.a) has no agreement-check outcome to record yet.
+        text = (mcc.REPO_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl").read_text(encoding="utf-8")
+        phrase = "Step 0(c) agreement-check outcome (`agreed` / `not-applicable`)"
+        pre_mode = mcc.flatten(
+            mcc.section(text, "a. **Pre-archive reconciliation gate (mandatory)**", "b. **Safe-close (thin pointer")
+        )
+        safe_close = mcc.flatten(mcc.section(text, "b. **Safe-close (thin pointer", "**Command routing (192-F"))
+        self.assertNotIn(phrase, pre_mode)
+        self.assertIn(phrase, safe_close)
+        self.assertIn("after the `mode: safe-close` call returns `CLOSED`", safe_close)
+        self.assertIn("when step 6.2 writes it", safe_close)
+        self.assertIn("`RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` halt yields no outcome to record", safe_close)
+
     def test_step_3_reports_ambiguous_and_unreadable_records_terminally(self) -> None:
         for label, text in mcc.sources():
             step_3 = mcc.flatten(mcc.section(text, "3. **Check each manifest item**", "4. **Orphan scan**"))
