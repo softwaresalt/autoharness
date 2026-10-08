@@ -164,12 +164,21 @@ class QualifyingFeatureGateBehaviourTests(_FixtureTestCase):
         # Two matching records inside queue/ alone are just as ambiguous (C3-01).
         self._fully_covered_root(feature_status="active")
         torn = "900.002-T"
-        self.backlog.add(
-            torn, "task", status="done", location="queue-twice", archive_status="queued", parent_id=_FEATURE
+        # Isolate the case: drop the archive copy `_fully_covered_root()` wrote, so the
+        # only ambiguity left is the pair of records inside queue/.
+        (self.backlog.backlog_dir / "archive" / f"{torn}.md").unlink()
+        # Both copies declare the same status, so this case does not overlap the conflicting-duplicate test.
+        self.backlog.add(torn, "task", status="done", location="queue-twice", parent_id=_FEATURE)
+        records = sorted(
+            path.relative_to(self.backlog.backlog_dir).as_posix()
+            for folder in ("queue", "archive")
+            for path in (self.backlog.backlog_dir / folder).glob(f"{torn}.*")
         )
+        self.assertEqual(records, [f"queue/{torn}.markdown", f"queue/{torn}.md"])
         decision = self._classify()
-        # The real classifier refuses the ambiguous record too.
+        # The real classifier refuses the ambiguous record too, for exactly these two records.
         self.assertIs(decision.close_path, ClosePath.SAFE_CLOSE, decision.reason)
+        self.assertIn(f"{torn!r} resolved to 2 distinct backlog records", decision.reason)
         for label, outcome in self._evaluate(decision=decision).items():
             with self.subTest(source=label):
                 self.assertEqual(outcome.classifications[torn], mcc.STATUS_MISMATCH)
