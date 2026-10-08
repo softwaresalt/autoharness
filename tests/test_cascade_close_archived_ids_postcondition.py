@@ -850,7 +850,7 @@ class SkillRenderedRegionParityTests(unittest.TestCase):
     def test_c_g_u3a_rendered_region_parity(self) -> None:
         self._assert_skill_rendered_region_parity(
             (
-                "      **Declared `status` is read",
+                "      **Declared `status` follows the Member-Class Status Contract's",
                 "      This is the **INV-6 engine-inertness containment gate**",
                 "      `CASCADE` is permitted only when every artifact in the `parent_id`",
                 "      **Engine-semantics gate (P-015 engine-semantics precondition).**",

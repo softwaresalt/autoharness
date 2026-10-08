@@ -330,8 +330,10 @@ is prohibited (P-001 role separation).
     artifact and its checksum verification.)
     **Scope note**: this single-`expected_status` check applies to true session-start intake, where every manifest
     task still shares one uniform status (all `queued` pre-claim, or all `active` immediately after this session's
-    own claim). `shipment-reconcile`'s `mode: pre` accepts only one `expected_status` value and classifies any other
-    status as `status-mismatch`, so it cannot represent a legitimately mixed manifest. Do not invoke this check on a
+    own claim). At intake, `shipment-reconcile`'s `mode: pre` evaluates every member under its Member-Class Status
+    Contract's `strict-scalar` row (the `qualifying-feature` row applies only to the pre-close invocation): it accepts
+    only one `expected_status` value and classifies any other declared status as `status-mismatch`, so it cannot
+    represent a legitimately mixed manifest. Do not invoke this check on a
     resumed session where manifest tasks have already diverged in status from prior partial execution (some `done`,
     some `active`, some still `queued`) — rely instead on the Step 2 executable-task-set derivation's own per-task
     status handling (C1–C6), which is built for exactly that mixed state.
@@ -690,7 +692,11 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    invocation is the shipment-scoped check immediately preceding the safe-close mutation itself.
 2. **Close the shipment via single-artifact safe-close (thin pointer; `shipment-reconcile` is authoritative, NEVER the cascade `backlogit_ship_shipment`, P-015)**:
    Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
-   `merge_commit_sha`. Keep this agent file at pointer level only — the authoritative,
+   `merge_commit_sha`, after its `mode: pre` gate (`expected_status: done`, the pre-close invocation) returns
+   `PROCEED`; that gate judges each manifest member under the skill's Member-Class Status Contract, whose step 2b
+   classification lets a qualifying feature member that is still `active` under a `CASCADE` verdict pass instead of
+   halting. Record the skill's Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) in the body of the
+   closure artifact. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
    not be re-derived here. In this self-hosting repository, `shipment-reconcile` and
    Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,
