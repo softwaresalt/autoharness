@@ -160,6 +160,21 @@ class QualifyingFeatureGateBehaviourTests(_FixtureTestCase):
                 self.assertEqual(outcome.classifications[torn], mcc.STATUS_MISMATCH)
                 self.assertEqual(outcome.recommendation, mcc.HALT)
 
+    def test_same_directory_duplicate_record_halts(self) -> None:
+        # Two matching records inside queue/ alone are just as ambiguous (C3-01).
+        self._fully_covered_root(feature_status="active")
+        torn = "900.002-T"
+        self.backlog.add(
+            torn, "task", status="done", location="queue-twice", archive_status="queued", parent_id=_FEATURE
+        )
+        decision = self._classify()
+        # The real classifier refuses the ambiguous record too.
+        self.assertIs(decision.close_path, ClosePath.SAFE_CLOSE, decision.reason)
+        for label, outcome in self._evaluate(decision=decision).items():
+            with self.subTest(source=label):
+                self.assertEqual(outcome.classifications[torn], mcc.STATUS_MISMATCH)
+                self.assertEqual(outcome.recommendation, mcc.HALT)
+
     def test_unreadable_record_halts_and_the_classifier_falls_back(self) -> None:
         self._fully_covered_root(feature_status="active")
         broken = "900.003-T"
@@ -343,17 +358,36 @@ class MemberClassContractTextTests(unittest.TestCase):
             with self.subTest(source=label):
                 # Durable comparison input: the Pre-Mode report, not in-session state.
                 self.assertIn("in this closure's Pre-Mode report (Pre-Mode step 6)", agreement)
+                # Deterministic identity and comparison (A-15, A-17).
+                self.assertIn("the report whose path the pre-close Pre-Mode run returned within this same lock hold", agreement)
+                self.assertIn("never one selected by file name or timestamp", agreement)
+                self.assertIn("equal as sets", agreement)
+                self.assertIn("a report that cannot be read counts as a difference", agreement)
                 # Both no-relaxation cases, keyed exactly as step 2b records them.
                 self.assertIn("step 2b verdict is `not-evaluated`", agreement)
-                self.assertIn("no Pre-Mode report exists for this closure under the held lock", agreement)
+                self.assertIn("no pre-close Pre-Mode run returned a report within this lock hold", agreement)
                 self.assertIn("standalone safe-close", agreement)
                 self.assertIn("agreement-check: not-applicable", agreement)
                 # The outcome leaves an audit trace.
-                self.assertIn("post-merge closure artifact", agreement)
+                self.assertIn("body of the post-merge closure artifact", agreement)
             premode = mcc.flatten(_premode_section(text))
             with self.subTest(source=label, site="step-2b"):
                 self.assertIn("record the verdict `not-evaluated`", premode)
                 self.assertIn("writes its verdict only to the Pre-Mode report", premode)
+            report = mcc.flatten(mcc.section(text, "6. **Produce report**", "7. **Gate decision**"))
+            with self.subTest(source=label, site="step-6"):
+                self.assertIn("return its path to the caller", report)
+                for key in ("`classifier_verdict`", "`classifier_reason`", "`qualifying_feature_ids`"):
+                    self.assertIn(key, report)
+
+    def test_ship_agent_records_the_agreement_outcome(self) -> None:
+        for path in (
+            mcc.REPO_ROOT / ".github" / "agents" / "_ship.agent.md",
+            mcc.REPO_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl",
+        ):
+            with self.subTest(path=path.name):
+                flat = mcc.flatten(path.read_text(encoding="utf-8"))
+                self.assertIn("Step 0(c) agreement-check outcome (`agreed` / `not-applicable`)", flat)
 
     def test_step_3_reports_ambiguous_and_unreadable_records_terminally(self) -> None:
         for label, text in mcc.sources():
@@ -373,7 +407,7 @@ class MemberClassContractTextTests(unittest.TestCase):
         for label, text in mcc.sources():
             step_3 = mcc.flatten(mcc.section(text, "3. **Check each manifest item**", "4. **Orphan scan**"))
             with self.subTest(source=label):
-                self.assertIn("A record found in both directories", step_3)
+                self.assertIn("More than one matching record", step_3)
                 self.assertIn("cannot be read or parsed", step_3)
                 self.assertIn("never guess which copy or value is authoritative", step_3)
 

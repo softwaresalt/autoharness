@@ -808,7 +808,9 @@ lifecycle to transition out of. See
       (via the `file-lock` skill), judges every manifest item's declared status — wherever the
       record resides — under the skill's Member-Class Status Contract (its step 2b
       classification lets a qualifying feature member that is still `{{STATUS_ACTIVE}}` under a
-      `CASCADE` verdict pass instead of halting), and scans for orphan items.
+      `CASCADE` verdict pass instead of halting), and scans for orphan items. Record the skill's
+      Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) in the body of the closure
+      artifact.
       * If the skill returns `RECONCILE_FAIL`: halt and surface the reconciliation report
         to the operator. Do NOT proceed to step 1.b.
       * If the skill returns `PROCEED`: continue. The lock remains held until post-mode

@@ -204,7 +204,7 @@ class Member:
     artifact_id: str
     artifact_type: str
     status: object
-    location: str | None  # "queue", "archive", "both", "unreadable", or None when missing
+    location: str | None  # "queue", "archive", "both", "queue-twice", "unreadable", or None when missing
 
 
 @dataclass(frozen=True)
@@ -259,7 +259,7 @@ def evaluate_premode(
         if member.location is None:
             classifications[member.artifact_id] = MISSING
             continue
-        if member.location in ("both", "unreadable"):
+        if member.location in ("both", "queue-twice", "unreadable"):
             # Step 3: an ambiguous or unreadable record is never resolved by guessing.
             classifications[member.artifact_id] = STATUS_MISMATCH
             continue
@@ -312,8 +312,10 @@ class FixtureBacklog:
     ) -> None:
         """Write one record.
 
-        ``location="both"`` writes a torn queue + archive pair; ``archive_status``
-        makes the archive copy declare a different status (a conflicting duplicate).
+        ``location="both"`` writes a torn queue + archive pair and
+        ``location="queue-twice"`` writes two matching records inside ``queue/``;
+        ``archive_status`` makes the second copy declare a different status (a
+        conflicting duplicate).
         """
         def render(declared: str) -> str:
             lines = ["---", f"id: {artifact_id}", f"artifact_type: {artifact_type}"]
@@ -323,11 +325,13 @@ class FixtureBacklog:
             lines.extend(["---", f"# {artifact_id}", ""])
             return "\n".join(lines)
 
+        second = render(archive_status or status)
         if location == "both":
             (self.backlog_dir / "queue" / f"{artifact_id}.md").write_text(render(status), encoding="utf-8")
-            (self.backlog_dir / "archive" / f"{artifact_id}.md").write_text(
-                render(archive_status or status), encoding="utf-8"
-            )
+            (self.backlog_dir / "archive" / f"{artifact_id}.md").write_text(second, encoding="utf-8")
+        elif location == "queue-twice":
+            (self.backlog_dir / "queue" / f"{artifact_id}.md").write_text(render(status), encoding="utf-8")
+            (self.backlog_dir / "queue" / f"{artifact_id}.markdown").write_text(second, encoding="utf-8")
         else:
             (self.backlog_dir / location / f"{artifact_id}.md").write_text(render(status), encoding="utf-8")
         self._members[artifact_id] = Member(artifact_id, artifact_type, status, location)

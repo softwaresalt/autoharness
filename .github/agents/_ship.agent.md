@@ -695,7 +695,8 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    `merge_commit_sha`, after its `mode: pre` gate (`expected_status: done`, the pre-close invocation) returns
    `PROCEED`; that gate judges each manifest member under the skill's Member-Class Status Contract, whose step 2b
    classification lets a qualifying feature member that is still `active` under a `CASCADE` verdict pass instead of
-   halting. Keep this agent file at pointer level only — the authoritative,
+   halting. Record the skill's Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) in the body of the
+   closure artifact. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
    not be re-derived here. In this self-hosting repository, `shipment-reconcile` and
    Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,

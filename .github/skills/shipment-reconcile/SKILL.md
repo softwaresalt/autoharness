@@ -390,10 +390,12 @@ mutated or repaired by this mode.
 3. **Check each manifest item** (applies the Member-Class Status Contract in
    the Output section above):
    * Locate the record in `.backlogit/queue/{id}.*` and
-     `.backlogit/archive/{id}.*`. Record the directory that holds it
-     as the item's location label (`queue` or `archive`). If no file exists
-     in either location, classify `missing`. A record found in both
-     directories, or whose frontmatter cannot be read or parsed, is
+     `.backlogit/archive/{id}.*`. Exactly one matching record across
+     both directories is the readable case: record the directory that holds
+     it as the item's location label (`queue` or `archive`). If no file exists
+     in either location, classify `missing`. More than one matching record
+     (in both directories, or twice in one), or a record whose frontmatter
+     cannot be read or parsed, is
      `status-mismatch` with the location label `ambiguous` or `unreadable`
      and its declared status and member class reported as `unavailable`:
      never guess which copy or value is authoritative (Step 0(b) halts on
@@ -446,10 +448,14 @@ mutated or repaired by this mode.
    shipment record or any task.
 
 6. **Produce report** and store at
-   `.backlogit/reconcile/{shipment_id}-{mode}-{timestamp}.md`. The
-   report records step 2b's verdict, its reason string, and the qualifying
-   feature set, and, for every manifest member, its location label, declared
-   status, member class, and classification. An archived qualifying feature
+   `.backlogit/reconcile/{shipment_id}-{mode}-{timestamp}.md`, and
+   return its path to the caller. The report's frontmatter records step 2b's
+   verdict as `classifier_verdict` (`CASCADE`, `SAFE_CLOSE`, or
+   `not-evaluated`), its reason string as `classifier_reason`, and the
+   qualifying feature set as `qualifying_feature_ids` (a sorted list, empty
+   unless `CASCADE`); the body records, for every manifest member, its
+   location label, declared status, member class, and classification. An
+   archived qualifying feature
    appears under `qualifying-feature-pre-archived-anomaly`, and a persisted
    `blocked` shipment record is named as a legacy anomaly.
 
@@ -746,21 +752,25 @@ completion.
       **Pre-Mode step 2b agreement check.** The `--classify-only` run below is
       followed, before acting on any row of its exit-code routing table, by
       this check: compare the evidence record's `pre_close.classifier_verdict`
-      and `pre_close.qualifying_feature_ids` with the step 2b verdict and
-      qualifying feature set in this closure's Pre-Mode report (Pre-Mode step
-      6), written by the pre-close run whose lock this close operation still
-      holds. Any difference halts with
+      and `pre_close.qualifying_feature_ids` with the `classifier_verdict` and
+      `qualifying_feature_ids` in this closure's Pre-Mode report (Pre-Mode step
+      6): exactly the report whose path the pre-close Pre-Mode run returned
+      within this same lock hold, never one selected by file name or
+      timestamp (intake reports share the name shape). The verdicts must be
+      equal and the ID lists equal as sets; a report that cannot be read
+      counts as a difference. Any difference halts with
       `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT`: nothing has been mutated, the
       Pre-Mode member-class decisions no longer rest on the verdict this step
       would act on, and neither path is substituted. When that report's step
       2b verdict is `not-evaluated` (an intake `expected_status`), or no
-      Pre-Mode report exists for this closure under the held lock (a
+      pre-close Pre-Mode run returned a report within this lock hold (a
       standalone safe-close), the `qualifying-feature` row was never applied
       and there is nothing to protect: the outcome is
       `agreement-check: not-applicable` and routing proceeds. Ship records the
-      outcome (`agreed` or `not-applicable`) in the post-merge closure artifact
-      beside `close_path` and `close_evidence`. This step stays
-      authoritative; step 2b is advisory for gating only.
+      outcome (`agreed` or `not-applicable`) in the body of the post-merge
+      closure artifact (Ship Step 5); a standalone or ad-hoc run is always
+      `not-applicable` and needs no record. This step stays authoritative;
+      step 2b is advisory for gating only.
 
       <!-- cascade-close-routing:BEGIN step-0c -->
       **Command routing (192-F): `--classify-only` first, on every close.**
