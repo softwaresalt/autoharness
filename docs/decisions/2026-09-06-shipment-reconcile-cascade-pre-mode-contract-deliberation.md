@@ -14,7 +14,9 @@ plan_hardened: true
 harvested_feature: "161-F"
 harvested_tasks: "161.001-T, 161.002-T, 161.003-T, 161.004-T, 161.005-T, 161.006-T, 161.007-T"
 harvested_shipment: "169-S"
-harvested_shipment_status: "queued — NOT routed to Ship; blocked by open PR #436 / 159-S post-merge closure"
+harvested_shipment_status: "shipped — PR #506 merged as 489e7c3ba7db238f57815fb18cc41541564caaa3 (2026-10-08); post-merge closure docs/closure/169-S-161-F-post-merge-closure.md (closure_status READY, compaction done); 169-S archived (archived_status shipped). Historical: was queued and not routed while PR #436 / 159-S post-merge closure was open."
+status_updated: 2026-10-08
+status_update_ref: "stash 16128302 (Stage bookkeeping, P-010)"
 date: 2026-09-06
 stash_entry: "15A02E21"
 shipment: "159-S"
@@ -693,7 +695,7 @@ This decision is CLOSED and has been carried through the full Stage pipeline in 
 | plan-harden | **Completed and required** — fail-closed gate on an irreversible close path; invariants I-1..I-4 verified against classifier source |
 | plan-review | **PASS** at cycle 2 of 3 (cycle 1 **FAIL**, four P1 findings, all remediated in-plan) |
 | harvest | feature **161-F** + 7 tasks, test-first ordering, two-axis sizing applied |
-| shipment | **169-S**, `queued`, high — **not routed to Ship** |
+| shipment | **169-S**, high — `queued` and not routed to Ship at harvest (2026-09-07); **shipped** 2026-10-08 via PR #506 (merge `489e7c3b`), see the status update below |
 
 ### Two corrections this decision record must carry
 
@@ -720,3 +722,20 @@ surface — materially smaller than this document's original in-scope estimate.
 open. 169-S is additionally the named **P-005 remediation** for the D-1 deviation, so its closure
 record must reference the 159-S deviation record recorded in
 `docs/closure/2026-09-06-159-s-151-f-closure.md`.
+
+### Status Update (2026-10-08) — 169-S shipped
+
+The execution blocker above is historical. 169-S was subsequently routed to Ship and shipped:
+
+* **PR:** #506, merged as `489e7c3ba7db238f57815fb18cc41541564caaa3` (2026-10-08).
+* **Closure:** `docs/closure/169-S-161-F-post-merge-closure.md` — `closure_status: READY`,
+  `compaction_status: done`, `close_path: cascade`, evidence
+  `docs/closure/evidence/169-S-161-F-close-evidence.json`.
+* **Backlog:** 169-S archived with `archived_status: shipped`.
+
+Observed gap, recorded for traceability and not corrected here (closure artifacts are Ship-owned):
+the 169-S closure record does not cite the 159-S D-1 deviation record
+(`docs/closure/2026-09-06-159-s-151-f-closure.md`) as this section required. It names `159-S` only
+as the explicit topology predecessor.
+
+Updated by Stage under stash entry `16128302` (P-010 Planning-row bookkeeping).
