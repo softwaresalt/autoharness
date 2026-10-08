@@ -449,5 +449,26 @@ class MemberClassContractTextTests(unittest.TestCase):
                 self.assertIn(mcc.CLASSIFIER_CONTRACT_HALT, gate)
 
 
+class MemberClassTableParserTests(unittest.TestCase):
+    """The executable reader must refuse an ambiguous table instead of last-row-wins."""
+
+    def test_duplicate_member_class_row_is_rejected(self) -> None:
+        anchor = f"| `{mcc.CLASS_QUALIFYING_FEATURE}`"
+        contradictory = f"| `{mcc.CLASS_QUALIFYING_FEATURE}` | `queued` | | any other value (R-5) |"
+        for label, text in mcc.sources():
+            with self.subTest(source=label):
+                block = mcc.extract_contract_block(text)
+                lines = block.splitlines()
+                index = next((i for i, line in enumerate(lines) if line.strip().startswith(anchor)), None)
+                self.assertIsNotNone(index, f"no {mcc.CLASS_QUALIFYING_FEATURE} row in the {label} contract block")
+                tampered = "\n".join(lines[:index] + [contradictory] + lines[index:])
+                self.assertEqual(
+                    set(mcc.parse_member_class_table(block)),
+                    {mcc.CLASS_QUALIFYING_FEATURE, mcc.CLASS_STRICT_SCALAR},
+                )
+                with self.assertRaisesRegex(ValueError, "duplicate member-class row"):
+                    mcc.parse_member_class_table(tampered)
+
+
 if __name__ == "__main__":
     unittest.main()

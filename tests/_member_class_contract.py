@@ -172,6 +172,9 @@ def parse_member_class_table(block: str) -> dict[str, MemberClassRow]:
         class_tokens = _ticked(cells[0])
         if len(class_tokens) != 1:
             raise ValueError(f"member-class cell must name exactly one class: {cells[0]!r}")
+        member_class = class_tokens[0]
+        if member_class in rows:
+            raise ValueError(f"duplicate member-class row for {member_class!r}: {line!r}")
         matched_tokens = _ticked(cells[1])
         tolerated_tokens = _ticked(cells[2])
         if len(tolerated_tokens) % 2:
@@ -181,7 +184,7 @@ def parse_member_class_table(block: str) -> dict[str, MemberClassRow]:
             for index in range(0, len(tolerated_tokens), 2)
         }
         halt_cell = cells[3]
-        rows[class_tokens[0]] = MemberClassRow(
+        rows[member_class] = MemberClassRow(
             matched=frozenset(t for t in matched_tokens if t != _EXPECTED_STATUS_SENTINEL),
             matched_is_expected_status=_EXPECTED_STATUS_SENTINEL in matched_tokens,
             tolerated=tolerated,
