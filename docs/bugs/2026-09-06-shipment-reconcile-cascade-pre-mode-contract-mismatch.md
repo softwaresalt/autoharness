@@ -1,7 +1,14 @@
 ---
 title: "shipment-reconcile Pre-Mode contradicts the P-015 CASCADE close contract, making every cascade-eligible closure an inevitable HALT"
 description: "Pre-Mode compares every manifest member to a single scalar expected_status (done at closure), but a CASCADE-eligible manifest must contain its qualifying root feature, which is validly active until the cascade itself archives it — so the gate can never be satisfied and closure authorization becomes ambiguous"
-status: "decided — fix authorized 2026-09-07 (Option A); implementation not started"
+status: "fixed — Option A shipped in 169-S / 161-F (PR #506, merge 489e7c3b, 2026-10-08)"
+fixed_date: 2026-10-08
+fixed_in:
+  shipment: "169-S"
+  feature: "161-F"
+  pull_request: 506
+  merge_commit: "489e7c3ba7db238f57815fb18cc41541564caaa3"
+  closure_artifact: "docs/closure/169-S-161-F-post-merge-closure.md"
 severity: "high"
 priority: "high"
 kind: "bug"
