@@ -194,11 +194,14 @@ Stage at harvest), so no retirement was needed. Record bookkeeping that
   `active` qualifying feature, and the agreement check reports `agreed`.
 * **Failure signals.** A `RECONCILE_FAIL_PREMODE_CLASSIFIER_CONTRACT` or
   `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` halt on a manifest the classifier
-  and the Pre-Mode report agree on, or an intake run accepting a mixed manifest.
+  and the Pre-Mode report agree on, or an intake run that accepts a member
+  whose declared status is neither the invocation's `expected_status` nor the
+  tolerated `archived`.
 * **Monitoring.** The next two shipment closures' Pre-Mode reports.
 * **Rollback trigger.** Any failure signal above in either of the next two
-  shipment closures, or an intake Pre-Mode `PROCEED` on a manifest whose
-  members do not share one status.
+  shipment closures, including an intake Pre-Mode `PROCEED` on a member whose
+  declared status is neither the invocation's `expected_status` nor
+  `archived` (a `queued`/`archived` mix is supported, not a regression).
 * **Rollback procedure.** With operator approval, on a revert branch merged
   through a PR with a merge commit (P-009; never a direct commit to `main`):
   `git revert -m 1 --no-commit 489e7c3b`, then
