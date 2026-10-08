@@ -52,3 +52,11 @@
 	path = references/toon
 	url = https://github.com/toon-format/toon
 	branch = main
+[submodule "references/skillopt"]
+	path = references/skillopt
+	url = https://github.com/microsoft/SkillOpt.git
+	branch = main
+[submodule "references/waza"]
+	path = references/waza
+	url = https://github.com/microsoft/waza.git
+	branch = main
