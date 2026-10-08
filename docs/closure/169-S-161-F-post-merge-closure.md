@@ -199,9 +199,16 @@ Stage at harvest), so no retirement was needed. Record bookkeeping that
 * **Rollback trigger.** Any failure signal above in either of the next two
   shipment closures, or an intake Pre-Mode `PROCEED` on a manifest whose
   members do not share one status.
-* **Rollback procedure.** With operator approval, `git revert -m 1 489e7c3b` on
-  a revert branch merged through a PR with a merge commit (P-009; never a
-  direct commit to `main`). No data migration is involved.
+* **Rollback procedure.** With operator approval, on a revert branch merged
+  through a PR with a merge commit (P-009; never a direct commit to `main`):
+  `git revert -m 1 --no-commit 489e7c3b`, then
+  `git restore --source=HEAD --staged --worktree -- .backlogit`, then commit.
+  This reverts only the contract surfaces PR #506 changed (both
+  `shipment-reconcile` skill copies, both Ship agent copies, the tests and
+  the harness-manifest checksums). PR #506 also carried `.backlogit` state (the
+  claim, task completions, stash captures and checkpoints), which this closure
+  has since archived; that backlog and closure state is not rolled back. No
+  data migration is involved.
 * **Owner and validation window.** The operator (`softwaresalt`) owns the
   rollback decision; Ship executes it on request. The window lasts through the
   next two shipment closures.
@@ -229,12 +236,13 @@ From this closure:
   deliberation. Correction to its wording (closure review): it says the
   reference costs underestimate "this host" and that N ≥ ~15 would exceed
   1800 s. The other recorded closures on the same engine line do not support
-  that rate: 200-S (N = 16) took 710 s and 198-S (N = 28) took 985 s. This run
-  looks like an outlier (about 6 minutes passed between the shipment status
-  change at 05:05:55Z and the first task archive at 05:11:48Z). The risk is
-  run-to-run variance near the 1800 s default, not a fixed host rate. Ship
-  records the correction here because it does not edit captured stash entries
-  (P-010).
+  the N ≥ ~15 extrapolation: 200-S (N = 16) ran 710 s against B = 1040 s, and
+  198-S (N = 28) ran 985 s against B = 1670 s. This run was slower throughout:
+  about 6 minutes from the shipment status change (05:05:55Z) to the first
+  task archive (05:11:48Z), against 2.5 to 3.5 minutes, and 37 to 120 s per
+  archived item, against 20 to 29 s. The risk is run-to-run variance near the
+  1800 s default, not a fixed host rate. Ship records the correction here
+  because it does not edit captured stash entries (P-010).
 * `16128302`: decision-record status bookkeeping (Stage).
 * `38D29192`: the copilot-review gate and loop do not see review-body findings.
   Needs deliberation.
@@ -245,8 +253,8 @@ All eleven IDs were confirmed present in `.backlogit/stash.jsonl`.
 
 * **Cascade timeout margin.** The child took 1153 s for N = 9 against a sizing
   of B = 672 s; only the 1800 s default kept it inside the timeout. Earlier
-  closures ran well inside B's rate (200-S: N = 16 in 710 s; 198-S: N = 28 in
-  985 s), so this run was an outlier, but an outlier of this size on a larger
+  closures ran well inside B (200-S: N = 16 in 710 s of B = 1040 s; 198-S:
+  N = 28 in 985 s of B = 1670 s), so this run was an outlier, but an outlier of this size on a larger
   manifest could reach the 1800 s timeout and exit 6 mid-cascade while B says
   the default suffices (`4CB6A1E0`).
 * **Review-body findings.** The P-018 gate passes a current-HEAD review whose
