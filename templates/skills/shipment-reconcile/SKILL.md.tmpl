@@ -362,7 +362,8 @@ mutated or repaired by this mode.
    otherwise — over the manifest loaded in step 2, under the lock acquired in
    step 1. Step 0(c) is the specification; this step does not restate it.
    The in-process run is deliberate: Pre-Mode runs before any closure
-   evidence record exists, persists nothing, and only selects contract rows;
+   evidence record exists, writes its verdict only to the Pre-Mode report
+   (step 6), and only selects contract rows;
    `autoharness shipment cascade-close --classify-only` (Step 0(c)) remains
    the only source of a recorded verdict that a close path acts on.
    Record:
@@ -393,10 +394,13 @@ mutated or repaired by this mode.
      as the item's location label (`queue` or `archive`). If no file exists
      in either location, classify `missing`. A record found in both
      directories, or whose frontmatter cannot be read or parsed, is
-     `status-mismatch`: never guess which copy or value is authoritative
-     (Step 0(b) halts on the same ambiguity).
-   * Read its frontmatter (including `status` and `artifact_type`) from
-     whichever directory holds it. Location never short-circuits this read:
+     `status-mismatch` with the location label `ambiguous` or `unreadable`
+     and its declared status and member class reported as `unavailable`:
+     never guess which copy or value is authoritative (Step 0(b) halts on
+     the same ambiguity). Step 5 aggregates only members whose frontmatter
+     was read; the gate halts on the `status-mismatch` regardless.
+   * Otherwise, read its frontmatter (including `status` and `artifact_type`)
+     from the one directory that holds it. Location never short-circuits this read:
      an archive-resident record is classified by its declared status exactly
      like a queue-resident one.
    * Select the member's class from the step 2b verdict and qualifying
@@ -742,16 +746,21 @@ completion.
       **Pre-Mode step 2b agreement check.** The `--classify-only` run below is
       followed, before acting on any row of its exit-code routing table, by
       this check: compare the evidence record's `pre_close.classifier_verdict`
-      and `pre_close.qualifying_feature_ids` with the verdict and qualifying
-      feature set Pre-Mode step 2b recorded for this closure. Any difference
-      halts with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT`: nothing has been
-      mutated, the Pre-Mode member-class decisions no longer rest on the
-      verdict this step would act on, and neither path is substituted. When
-      no pre-close step 2b verdict exists (a standalone safe-close, or a
-      Pre-Mode run with an intake `expected_status`), the `qualifying-feature`
-      row was never applied and there is nothing to protect: the report
-      records `agreement-check: not-applicable` and routing proceeds. This
-      step stays authoritative; step 2b is advisory for gating only.
+      and `pre_close.qualifying_feature_ids` with the step 2b verdict and
+      qualifying feature set in this closure's Pre-Mode report (Pre-Mode step
+      6), written by the pre-close run whose lock this close operation still
+      holds. Any difference halts with
+      `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT`: nothing has been mutated, the
+      Pre-Mode member-class decisions no longer rest on the verdict this step
+      would act on, and neither path is substituted. When that report's step
+      2b verdict is `not-evaluated` (an intake `expected_status`), or no
+      Pre-Mode report exists for this closure under the held lock (a
+      standalone safe-close), the `qualifying-feature` row was never applied
+      and there is nothing to protect: the outcome is
+      `agreement-check: not-applicable` and routing proceeds. Ship records the
+      outcome (`agreed` or `not-applicable`) in the post-merge closure artifact
+      beside `close_path` and `close_evidence`. This step stays
+      authoritative; step 2b is advisory for gating only.
 
       <!-- cascade-close-routing:BEGIN step-0c -->
       **Command routing (192-F): `--classify-only` first, on every close.**

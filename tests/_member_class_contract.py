@@ -204,7 +204,7 @@ class Member:
     artifact_id: str
     artifact_type: str
     status: object
-    location: str | None  # "queue", "archive", "both" (duplicate), or None when missing
+    location: str | None  # "queue", "archive", "both", "unreadable", or None when missing
 
 
 @dataclass(frozen=True)
@@ -259,8 +259,8 @@ def evaluate_premode(
         if member.location is None:
             classifications[member.artifact_id] = MISSING
             continue
-        if member.location == "both":
-            # Step 3: a record in both directories is never resolved by guessing.
+        if member.location in ("both", "unreadable"):
+            # Step 3: an ambiguous or unreadable record is never resolved by guessing.
             classifications[member.artifact_id] = STATUS_MISMATCH
             continue
         if cascade_scope and member.artifact_type == "feature" and member.artifact_id not in qualifying:
@@ -308,18 +308,36 @@ class FixtureBacklog:
         status: str,
         location: str = "queue",
         parent_id: str | None = None,
+        archive_status: str | None = None,
     ) -> None:
-        """Write one record; ``location="both"`` writes a torn queue + archive pair."""
-        lines = ["---", f"id: {artifact_id}", f"artifact_type: {artifact_type}"]
-        if parent_id is not None:
-            lines.append(f"parent_id: {parent_id}")
-        lines.append(f"status: {status}")
-        lines.extend(["---", f"# {artifact_id}", ""])
-        for folder in (("queue", "archive") if location == "both" else (location,)):
-            (self.backlog_dir / folder / f"{artifact_id}.md").write_text(
-                "\n".join(lines), encoding="utf-8"
+        """Write one record.
+
+        ``location="both"`` writes a torn queue + archive pair; ``archive_status``
+        makes the archive copy declare a different status (a conflicting duplicate).
+        """
+        def render(declared: str) -> str:
+            lines = ["---", f"id: {artifact_id}", f"artifact_type: {artifact_type}"]
+            if parent_id is not None:
+                lines.append(f"parent_id: {parent_id}")
+            lines.append(f"status: {declared}")
+            lines.extend(["---", f"# {artifact_id}", ""])
+            return "\n".join(lines)
+
+        if location == "both":
+            (self.backlog_dir / "queue" / f"{artifact_id}.md").write_text(render(status), encoding="utf-8")
+            (self.backlog_dir / "archive" / f"{artifact_id}.md").write_text(
+                render(archive_status or status), encoding="utf-8"
             )
+        else:
+            (self.backlog_dir / location / f"{artifact_id}.md").write_text(render(status), encoding="utf-8")
         self._members[artifact_id] = Member(artifact_id, artifact_type, status, location)
+
+    def add_unreadable(self, artifact_id: str, *, location: str = "queue") -> None:
+        """Write a record whose frontmatter never closes, so it cannot be parsed."""
+        (self.backlog_dir / location / f"{artifact_id}.md").write_text(
+            f"---\nid: {artifact_id}\nstatus: [unterminated\n", encoding="utf-8"
+        )
+        self._members[artifact_id] = Member(artifact_id, "unknown", None, "unreadable")
 
     def members(self, manifest: Iterable[str]) -> list[Member]:
         return [self._members[item] for item in manifest]

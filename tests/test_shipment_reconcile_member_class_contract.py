@@ -147,6 +147,32 @@ class QualifyingFeatureGateBehaviourTests(_FixtureTestCase):
                 self.assertEqual(outcome.classifications[torn], mcc.STATUS_MISMATCH)
                 self.assertEqual(outcome.recommendation, mcc.HALT)
 
+    def test_conflicting_duplicate_record_halts(self) -> None:
+        # The two copies disagree: neither may be picked as authoritative.
+        self._fully_covered_root(feature_status="active")
+        torn = "900.002-T"
+        self.backlog.add(
+            torn, "task", status="done", location="both", archive_status="queued", parent_id=_FEATURE
+        )
+        decision = self._classify()
+        for label, outcome in self._evaluate(decision=decision).items():
+            with self.subTest(source=label):
+                self.assertEqual(outcome.classifications[torn], mcc.STATUS_MISMATCH)
+                self.assertEqual(outcome.recommendation, mcc.HALT)
+
+    def test_unreadable_record_halts_and_the_classifier_falls_back(self) -> None:
+        self._fully_covered_root(feature_status="active")
+        broken = "900.003-T"
+        self.backlog.add_unreadable(broken)
+        decision = self._classify()
+        # The real classifier cannot parse the record either, so no relaxation applies.
+        self.assertIs(decision.close_path, ClosePath.SAFE_CLOSE, decision.reason)
+        for label, outcome in self._evaluate(decision=decision).items():
+            with self.subTest(source=label):
+                self.assertEqual(outcome.classifications[broken], mcc.STATUS_MISMATCH)
+                self.assertEqual(outcome.classifications[_FEATURE], mcc.STATUS_MISMATCH)
+                self.assertEqual(outcome.recommendation, mcc.HALT)
+
 
 class StrictScalarFallbackTests(_FixtureTestCase):
     """Scenarios (c) and (d): no relaxation without a CASCADE verdict."""
@@ -315,9 +341,27 @@ class MemberClassContractTextTests(unittest.TestCase):
                 mcc.section(text, "**Pre-Mode step 2b agreement check.**", "<!-- cascade-close-routing:BEGIN step-0c -->")
             )
             with self.subTest(source=label):
-                self.assertIn("no pre-close step 2b verdict exists", agreement)
+                # Durable comparison input: the Pre-Mode report, not in-session state.
+                self.assertIn("in this closure's Pre-Mode report (Pre-Mode step 6)", agreement)
+                # Both no-relaxation cases, keyed exactly as step 2b records them.
+                self.assertIn("step 2b verdict is `not-evaluated`", agreement)
+                self.assertIn("no Pre-Mode report exists for this closure under the held lock", agreement)
                 self.assertIn("standalone safe-close", agreement)
                 self.assertIn("agreement-check: not-applicable", agreement)
+                # The outcome leaves an audit trace.
+                self.assertIn("post-merge closure artifact", agreement)
+            premode = mcc.flatten(_premode_section(text))
+            with self.subTest(source=label, site="step-2b"):
+                self.assertIn("record the verdict `not-evaluated`", premode)
+                self.assertIn("writes its verdict only to the Pre-Mode report", premode)
+
+    def test_step_3_reports_ambiguous_and_unreadable_records_terminally(self) -> None:
+        for label, text in mcc.sources():
+            step_3 = mcc.flatten(mcc.section(text, "3. **Check each manifest item**", "4. **Orphan scan**"))
+            with self.subTest(source=label):
+                self.assertIn("the location label `ambiguous` or `unreadable`", step_3)
+                self.assertIn("reported as `unavailable`", step_3)
+                self.assertIn("Step 5 aggregates only members whose frontmatter was read", step_3)
 
     def test_row_selection_follows_the_classifier_verdict(self) -> None:
         for label, text in mcc.sources():
