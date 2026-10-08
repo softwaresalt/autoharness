@@ -116,9 +116,14 @@ verdict, or any classifier error, ambiguity, or unresolved precondition
 recorded as `SAFE_CLOSE`), uses the `strict-scalar` row: the
 single-`expected_status` semantics, unchanged. Row selection follows step
 2b's classifier verdict, not the path Step 0(c) finally selects: if the
-engine-semantics gate then selects `SAFE_CLOSE`, safe-close archives every
-manifest member individually, a qualifying feature included, so a feature
-accepted here is still closed safely.
+engine-semantics gate then selects `SAFE_CLOSE`, safe-close archives the
+manifest members individually, a `queue/`-resident qualifying feature
+included. One known limit remains: Safe-Close step 4 still keys its
+`pre-archived` skip on location, so an `archive/`-resident qualifying
+feature that declares `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}` passes here
+but is skipped there without its own transition. That location-keyed skip
+is pre-existing and deferred to a durable active stash entry local to
+this workspace's own backlog; this contract does not change it.
 
 | Member class | `matched` | Tolerated — reported, never halts | HALT (`status-mismatch`) |
 |---|---|---|---|
