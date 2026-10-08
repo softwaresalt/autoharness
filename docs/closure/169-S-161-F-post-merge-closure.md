@@ -7,7 +7,7 @@ merge_commit: 489e7c3ba7db238f57815fb18cc41541564caaa3
 reviewed_head: c2e6b48e
 date: 2026-10-08
 closure_status: READY
-compaction_status: pending
+compaction_status: done
 close_path: cascade
 close_evidence: docs/closure/evidence/169-S-161-F-close-evidence.json
 ---
@@ -62,7 +62,7 @@ The reviewed HEAD was `c2e6b48e`. The PR ran under dark mode (P-017).
 | Pre-close topology | `pipeline-topology --phase lifecycle` exited 0 on the closure branch before the close (`BRANCH_POST_MERGE_CLOSURE_ELIGIBLE`, `WORKTREE_TOPOLOGY_OK`, predecessor `159-S`, `explicit`) |
 | Merge confirmation | `MERGE_CONFIRMED`: PR #506 merged at 2026-10-08T04:48:32Z as SHA `489e7c3b`, an ancestor of `origin/main` |
 | Dark-mode merge authorization (P-017) | Source: the activation record (`merge_approval_pre_authorized`). Strategy `--merge`. No admin fallback (`admin_fallback_pre_authorized` false) |
-| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/169-S-161-F-post-merge-closure.md --shipment 169-S`: see **Compaction Status** |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/169-S-161-F-post-merge-closure.md --shipment 169-S`: while compaction was pending, only `frontmatter_predicate` failed; after compaction it exited 0 |
 | Index resync | `backlogit sync` after the close, the stash captures and compaction: `CLOSURE_INDEX_SYNC_OK` |
 
 ## Copilot Review Rounds
@@ -225,4 +225,28 @@ All eleven IDs were confirmed present in `.backlogit/stash.jsonl`.
 
 ## Compaction Status (P-020)
 
-`pending`.
+`done`. `compact-context` ran with `target: all` after this closure's
+session memory was written.
+
+* **Assessment.** `docs/memory` held 187 files (about 1340 KB), above the
+  generic thresholds in aggregate.
+* **Candidates.** This was the bounded, per-merge Tier-1 pass: the P-020 floor
+  for the release unit just closed. The single 169-S session memory was
+  consolidated into
+  `docs/memory/compacted/2026-10-08-ship-169-s-161-f-full-lifecycle-compacted.md`;
+  the verbose original is
+  `docs/archive/memory/2026-10-08-ship-169-s-161-f-session.md`.
+* **Not processed in this run:**
+  * **Other release units' memories.** They are not owned by this shipment
+    (P-021 C1).
+  * **Closure records.** They serve as predecessor-closure evidence at their
+    canonical paths.
+  * **Plans.** Stage owns plans (P-010); the 161-F plan is not consolidated by
+    Ship.
+* **Checkpoints.** This closure session created no checkpoint; none is active
+  (101 total, 0 active).
+* **Report.** 1 file compacted and 1 compacted summary written; 0 plans
+  consolidated; 0 closure records compacted; nothing deleted.
+
+The closure-evidence gate failed only `frontmatter_predicate` while compaction
+was `pending`, and exited 0 after compaction was finalized to `done`.
