@@ -93,8 +93,9 @@ class TaskClassNonRegressionTests(_FixtureTestCase):
                 for label, outcome in _evaluate_all(
                     backlog, self._MANIFEST, expected_status="done", decision=decision
                 ).items():
-                    self.assertEqual(outcome.classifications["910.001-T"], expected_class, label)
-                    self.assertEqual(outcome.recommendation, expected_recommendation, label)
+                    with self.subTest(status=status, location=location, source=label):
+                        self.assertEqual(outcome.classifications["910.001-T"], expected_class)
+                        self.assertEqual(outcome.recommendation, expected_recommendation)
 
 
 class DeclaredStatusOverLocationTests(_FixtureTestCase):
@@ -176,6 +177,26 @@ class IntakeNonRegressionTests(_FixtureTestCase):
             with self.subTest(source=label):
                 self.assertEqual(outcome.classifications["930-F"], mcc.STATUS_MISMATCH)
                 self.assertEqual(outcome.recommendation, mcc.HALT)
+
+    def test_resumed_intake_with_a_relocated_done_task_halts(self) -> None:
+        # R-1 consequence, pinned on purpose: location-first Pre-Mode used to pass a
+        # relocated `done` task as `pre-archived` at `active` intake. A resumed session
+        # whose tasks diverged is not an intake case (Ship Step 0.5 scope note).
+        self.backlog.add("930-F", "feature", status="active")
+        self.backlog.add("930.001-T", "task", status="done", location="archive", parent_id="930-F")
+        self.backlog.add("930.002-T", "task", status="active", parent_id="930-F")
+        decision = self._classify(self._MANIFEST)
+        for label, outcome in _evaluate_all(
+            self.backlog, self._MANIFEST, expected_status="active", decision=decision
+        ).items():
+            with self.subTest(source=label):
+                self.assertEqual(outcome.classifications["930.001-T"], mcc.STATUS_MISMATCH)
+                self.assertEqual(outcome.recommendation, mcc.HALT)
+        for label, text in mcc.sources():
+            when_to_use = mcc.flatten(mcc.section(text, "## When to Use", "## Inputs"))
+            with self.subTest(source=label, doc="when-to-use"):
+                self.assertIn("is `status-mismatch` even when its record was relocated to `archive/`", when_to_use)
+                self.assertIn("a resumed session whose tasks have diverged is not an intake case", when_to_use)
 
 
 class Replay159STests(_FixtureTestCase):

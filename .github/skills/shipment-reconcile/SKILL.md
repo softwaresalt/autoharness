@@ -24,7 +24,9 @@ precondition holds, delegates to the Cascade Close Sub-Procedure instead.
 
 ## When to Use
 
-* **Ship Step 6 closure** (mandatory): run `mode: pre`, then `mode: safe-close`
+* **Ship Step 6 closure** (mandatory): run `mode: pre` with
+  `expected_status: done` (the pre-close invocation; any other value skips
+  Pre-Mode step 2b and makes every member strict-scalar), then `mode: safe-close`
   **instead of** the cascade `backlogit_ship_shipment` call, then `mode: post`.
   Safe-close's own Step 0 selects the close path from the machine-checkable
   P-015 classification; it archives manifest item IDs individually and never
@@ -33,7 +35,11 @@ precondition holds, delegates to the Cascade Close Sub-Procedure instead.
   Close Sub-Procedure runs (and is itself independently verified) instead.
 * **Ship Step 0.5** (sanity check): pre-mode at intake with `expected_status: queued`
   (or `active` if the shipment was already claimed in a prior session)
-  to catch Stage-side over-inclusion before any build work begins.
+  to catch Stage-side over-inclusion before any build work begins. At
+  intake every member is strict-scalar, so a `done` member is
+  `status-mismatch` even when its record was relocated to `archive/`; a
+  resumed session whose tasks have diverged is not an intake case (see Ship's
+  Step 0.5 scope note).
 * **Ad-hoc audit**: any time an operator suspects manifest drift.
 * **`mode: detect-mixed-role`** (operator-invoked, READ-ONLY, no lock, no mutation):
   any time an operator wants a diagnostic scan for the queued-with-active-work /
@@ -76,7 +82,10 @@ Every item in the manifest is classified as one of:
 
 > Classification semantics are mode-dependent. Pre-mode checks each item's
 > declared status, wherever the record resides, against its member class;
-> post-mode checks the archive for file presence only.
+> post-mode checks the archive for file presence only. Safe-close step 4 and
+> the Cascade Close Sub-Procedure's pre-archived-member preamble still use
+> `pre-archived` as a location label (the record resides in `archive/`);
+> that usage is unchanged and is not the Pre-Mode class above.
 
 ### Member-Class Status Contract (Pre-Mode; authoritative)
 
@@ -84,16 +93,17 @@ Every item in the manifest is classified as one of:
 This block is the **single authoritative statement** of which declared
 `status` values a manifest member may carry when Pre-Mode step 3 classifies
 it. The per-item classification table above, Safe-Close Step 0(b), and the
-Cascade Close Sub-Procedure apply it by reference and never restate it.
+Cascade Close Sub-Procedure apply it by reference and never restate the
+declared-status rule or the member-class table. (The "not truly archived"
+sentence at Step 0(b) and in the Cascade preamble applies the rule to the
+two-set gate; it is deliberate and pinned there by 147-F.)
 
 **Declared-status rule (R-1).** Declared `status` is read from the record's
 own frontmatter `status` field — never inferred from, nor substituted by,
 which of `queue/`/`archive/` currently holds the record. Location alone is
 never sufficient. Where a record was found (`queue` or `archive`) is recorded
 as a descriptive **location label** beside the declared status, never
-instead of it; a record found in neither directory is `missing`. Pre-Mode
-once classified every archive-resident record as `pre-archived` without
-reading its status: it did not lack this rule, it failed to apply it.
+instead of it; a record found in neither directory is `missing`.
 
 **Member-class selection.** The `qualifying-feature` row applies only to the
 pre-close invocation (`expected_status: done`) under a Pre-Mode step 2b
@@ -104,7 +114,11 @@ position. Every other member, and every member of every other invocation
 (intake with `expected_status: queued` or `active`, a step 2b `SAFE_CLOSE`
 verdict, or any classifier error, ambiguity, or unresolved precondition
 recorded as `SAFE_CLOSE`), uses the `strict-scalar` row: the
-single-`expected_status` semantics, unchanged.
+single-`expected_status` semantics, unchanged. Row selection follows step
+2b's classifier verdict, not the path Step 0(c) finally selects: if the
+engine-semantics gate then selects `SAFE_CLOSE`, safe-close archives every
+manifest member individually, a qualifying feature included, so a feature
+accepted here is still closed safely.
 
 | Member class | `matched` | Tolerated — reported, never halts | HALT (`status-mismatch`) |
 |---|---|---|---|
@@ -128,17 +142,15 @@ classifier contract violation: halt with
 `RECONCILE_FAIL_PREMODE_CLASSIFIER_CONTRACT`. Neither case ever falls through
 to the `strict-scalar` row.
 
-**Shipment record.** The shipment record is not a manifest member and has no
-row here. It is classified only by the Shipment-Record-Status Classification
-below, using exactly its four labels — `record-consistent`,
-`record-queued-with-active-work`, `record-blocked-with-active-work`, and
-`record-blocked-with-done-work` — and no parallel terms. A persisted
-`blocked` shipment record is a reportable anomaly, never a waitable state:
-`blocked` is not a backlogit `ShipmentStatus` constant and has no legal
-outbound transition
-(`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`), so
-the report names it as a legacy dead end whatever its record-scope label,
-and Pre-Mode never waits on, retries, or transitions it.
+**Shipment record.** Not a manifest member, so no row here: it is classified
+only by the Shipment-Record-Status Classification below, with its four labels
+(`record-consistent`, `record-queued-with-active-work`,
+`record-blocked-with-active-work`, `record-blocked-with-done-work`) and no
+parallel terms. Under backlogit, a persisted `blocked` shipment record is a
+reportable anomaly, never a waitable state: backlogit's `ShipmentStatus` has
+no `blocked` constant, so the record has no legal outbound transition
+(`docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`). The
+report names it; Pre-Mode never waits on, retries, or transitions it.
 <!-- member-class-status-contract:END -->
 
 ### Shipment-Record-Status Classification (record scope, distinct from the six per-item classifications above)
@@ -349,6 +361,10 @@ mutated or repaired by this mode.
    check against `.backlogit/queue/` + `.backlogit/archive/`
    otherwise — over the manifest loaded in step 2, under the lock acquired in
    step 1. Step 0(c) is the specification; this step does not restate it.
+   The in-process run is deliberate: Pre-Mode runs before any closure
+   evidence record exists, persists nothing, and only selects contract rows;
+   `autoharness shipment cascade-close --classify-only` (Step 0(c)) remains
+   the only source of a recorded verdict that a close path acts on.
    Record:
    * the verdict, `CASCADE` or `SAFE_CLOSE` (a classifier error, exception,
      or ambiguous result is recorded as `SAFE_CLOSE`);
@@ -372,10 +388,13 @@ mutated or repaired by this mode.
 
 3. **Check each manifest item** (applies the Member-Class Status Contract in
    the Output section above):
-   * Locate the record: `.backlogit/queue/{id}.*` first, then
+   * Locate the record in `.backlogit/queue/{id}.*` and
      `.backlogit/archive/{id}.*`. Record the directory that holds it
      as the item's location label (`queue` or `archive`). If no file exists
-     in either location, classify `missing`.
+     in either location, classify `missing`. A record found in both
+     directories, or whose frontmatter cannot be read or parsed, is
+     `status-mismatch`: never guess which copy or value is authoritative
+     (Step 0(b) halts on the same ambiguity).
    * Read its frontmatter (including `status` and `artifact_type`) from
      whichever directory holds it. Location never short-circuits this read:
      an archive-resident record is classified by its declared status exactly
@@ -720,6 +739,20 @@ completion.
       | `SAFE_CLOSE` | `VERIFIED` | `SAFE_CLOSE`, the classifier's reason |
       | `SAFE_CLOSE` | `UNVERIFIED` | `SAFE_CLOSE`, the classifier's reason |
 
+      **Pre-Mode step 2b agreement check.** The `--classify-only` run below is
+      followed, before acting on any row of its exit-code routing table, by
+      this check: compare the evidence record's `pre_close.classifier_verdict`
+      and `pre_close.qualifying_feature_ids` with the verdict and qualifying
+      feature set Pre-Mode step 2b recorded for this closure. Any difference
+      halts with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT`: nothing has been
+      mutated, the Pre-Mode member-class decisions no longer rest on the
+      verdict this step would act on, and neither path is substituted. When
+      no pre-close step 2b verdict exists (a standalone safe-close, or a
+      Pre-Mode run with an intake `expected_status`), the `qualifying-feature`
+      row was never applied and there is nothing to protect: the report
+      records `agreement-check: not-applicable` and routing proceeds. This
+      step stays authoritative; step 2b is advisory for gating only.
+
       <!-- cascade-close-routing:BEGIN step-0c -->
       **Command routing (192-F): `--classify-only` first, on every close.**
       Every close, on either path, first runs
@@ -773,16 +806,6 @@ completion.
       exits 1, which the last row routes to HALT. Upgrade autoharness before
       closing; there is no hand-run fallback.
       <!-- cascade-close-routing:END step-0c -->
-
-      **Pre-Mode step 2b agreement check.** After the `--classify-only` run
-      and before either path proceeds, compare the evidence record's
-      `pre_close.classifier_verdict` and `pre_close.qualifying_feature_ids`
-      with the verdict and qualifying feature set Pre-Mode step 2b recorded
-      for this closure. Any difference halts with
-      `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT`: nothing has been mutated,
-      the Pre-Mode member-class decisions no longer rest on the verdict this
-      step would act on, and neither path is substituted. This step stays
-      authoritative; step 2b is advisory for gating only.
 
    * **CASCADE selected** → skip directly to the **Cascade Close
      Sub-Procedure** below (reusing the manifest and snapshot from (a)/(b)/(c)
@@ -1850,6 +1873,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * **Negative — baseline-archived observation member**: an observation-set artifact already archived, descoped, or missing at baseline is recorded as baseline state and does **NOT** halt by itself.
 * **Negative — changed during run**: any observation-set location/hash drift relative to baseline halts and enters the D6 sequence: capture evidence -> HALT -> emit P-005 -> request EXPLICIT operator approval -> REVALIDATE -> execute ONLY the approved rollback.
 * **Negative — refused transition with no safe substitution**: if `backlogit move <shipment_id> --status shipped` is refused while Step 0(c) did not select `CASCADE`, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; the cascade op must NOT be substituted.
+* **Negative — step 2b / Step 0(c) classifier disagreement**: the `--classify-only` record's `classifier_verdict` or `qualifying_feature_ids` differs from Pre-Mode step 2b's recorded values; halt with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` before acting on any routing row. Nothing is mutated and no path is substituted.
 * **Negative — non-canonical archived variant**: `Archived`, `ARCHIVED`, or the quoted padded YAML scalar `status: " archived "` all select `SAFE_CLOSE`; exact parsed-scalar matching has no normalization path.
 * **Negative — torn descendant**: any out-of-manifest id that resolves to more than one record selects `SAFE_CLOSE`.
 * **Negative — archive-while-active**: if the shipment record is archived while still `status: active`, producing `archived_status: active`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
@@ -1885,7 +1909,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * Post-mode step 2 archive-checks every disposition `archived` outcome, the step 3 deleted-file guard treats their moves as expected, and retained outcomes never change the step 5 gate
 * The Deterministic Safe-Close Scenario Matrix covers linked-deliberation rows (a)–(f): engine unverified, shared reference, engine drift, description-only mention, torn deliberation, and read error; row (c) halts, row (f) retains snapshot/plan-time read errors without halting but halts on a late containment or invariance failure, and every retained outcome is reported without halting
 * All six item classifications (including `qualifying-feature-pre-archived-anomaly`) are represented in the schema
-* `mode: pre` classifies every manifest item by its declared status, wherever the record resides, under the Member-Class Status Contract; step 2b selects the contract row at the pre-close invocation, and the contract is stated once and referenced everywhere else
+* `mode: pre` classifies every manifest item by its declared status, wherever the record resides, under the Member-Class Status Contract; step 2b selects the contract row at the pre-close invocation, and its declared-status rule and member-class table are stated once and referenced everywhere else
 * Pre-mode adds a shipment-record-status classification (`record-consistent` /
   `record-queued-with-active-work` / `record-blocked-with-active-work` /
   `record-blocked-with-done-work`) comparing the record's own status against its
@@ -1934,7 +1958,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * `.github/agents/_ship.agent.md` — integration points (Step 0.5, Step 6 safe-close)
 * `.github/agents/_stage.agent.md` — scope guard (Step 5.5)
 * `.github/policies/workflow-policies.md` — P-007 archive integrity policy; P-015 single-artifact closure (cascade prohibition) plus the flat-manifest `CASCADE` exception
-* `src/autoharness/gates/shipment_closure.py` — this self-hosting repository's own `classify_shipment_close_path` implementation, reused by Step 0 of Safe-Close Mode
+* `src/autoharness/gates/shipment_closure.py` — this self-hosting repository's own `classify_shipment_close_path` implementation, reused by Step 0 of Safe-Close Mode and, advisory and in-process, by Pre-Mode step 2b
 
 ## Model Routing
 

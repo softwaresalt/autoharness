@@ -127,14 +127,25 @@ class QualifyingFeatureGateBehaviourTests(_FixtureTestCase):
                 decision = classify_shipment_close_path(list(_MANIFEST), backlog.backlog_dir)
                 self.assertIs(decision.close_path, ClosePath.CASCADE, decision.reason)
                 for label, text in mcc.sources():
-                    outcome = mcc.evaluate_premode(
-                        mcc.load_contract(text),
-                        backlog.members(_MANIFEST),
-                        expected_status="done",
-                        decision=decision,
-                    )
-                    self.assertEqual(outcome.recommendation, mcc.HALT, (label, outcome))
-                    self.assertEqual(outcome.classifications[_FEATURE], mcc.STATUS_MISMATCH)
+                    with self.subTest(status=status, source=label):
+                        outcome = mcc.evaluate_premode(
+                            mcc.load_contract(text),
+                            backlog.members(_MANIFEST),
+                            expected_status="done",
+                            decision=decision,
+                        )
+                        self.assertEqual(outcome.recommendation, mcc.HALT, outcome)
+                        self.assertEqual(outcome.classifications[_FEATURE], mcc.STATUS_MISMATCH)
+
+    def test_duplicate_queue_and_archive_record_halts(self) -> None:
+        self._fully_covered_root(feature_status="active")
+        torn = "900.001-T"
+        self.backlog.add(torn, "task", status="done", location="both", parent_id=_FEATURE)
+        decision = self._classify()
+        for label, outcome in self._evaluate(decision=decision).items():
+            with self.subTest(source=label):
+                self.assertEqual(outcome.classifications[torn], mcc.STATUS_MISMATCH)
+                self.assertEqual(outcome.recommendation, mcc.HALT)
 
 
 class StrictScalarFallbackTests(_FixtureTestCase):
@@ -282,15 +293,49 @@ class MemberClassContractTextTests(unittest.TestCase):
             flat = mcc.flatten(text)
             with self.subTest(source=label):
                 self.assertGreaterEqual(flat.count("RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT"), 2)
-                step_0c = mcc.flatten(mcc.section(text, "c. **Classify the close path**", "1. **Load manifest**"))
-                self.assertIn("RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT", step_0c)
-                self.assertIn("pre_close.classifier_verdict", step_0c)
-                self.assertIn("pre_close.qualifying_feature_ids", step_0c)
+                agreement = mcc.flatten(
+                    mcc.section(text, "**Pre-Mode step 2b agreement check.**", "<!-- cascade-close-routing:BEGIN step-0c -->")
+                )
+                self.assertIn("RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT", agreement)
+                self.assertIn("pre_close.classifier_verdict", agreement)
+                self.assertIn("pre_close.qualifying_feature_ids", agreement)
+                self.assertIn("before acting on any row of its exit-code routing table", agreement)
+
+    def test_agreement_check_precedes_the_actionable_routing_table(self) -> None:
+        for label, text in mcc.sources():
+            with self.subTest(source=label):
+                self.assertLess(
+                    text.index("**Pre-Mode step 2b agreement check.**"),
+                    text.index("<!-- cascade-close-routing:BEGIN step-0c -->"),
+                )
+
+    def test_agreement_check_defines_the_no_step_2b_record_case(self) -> None:
+        for label, text in mcc.sources():
+            agreement = mcc.flatten(
+                mcc.section(text, "**Pre-Mode step 2b agreement check.**", "<!-- cascade-close-routing:BEGIN step-0c -->")
+            )
+            with self.subTest(source=label):
+                self.assertIn("no pre-close step 2b verdict exists", agreement)
+                self.assertIn("standalone safe-close", agreement)
+                self.assertIn("agreement-check: not-applicable", agreement)
+
+    def test_row_selection_follows_the_classifier_verdict(self) -> None:
+        for label, text in mcc.sources():
+            block = mcc.flatten(mcc.extract_contract_block(text))
+            with self.subTest(source=label):
+                self.assertIn("Row selection follows step 2b's classifier verdict", block)
+
+    def test_step_3_never_guesses_between_duplicate_or_unreadable_records(self) -> None:
+        for label, text in mcc.sources():
+            step_3 = mcc.flatten(mcc.section(text, "3. **Check each manifest item**", "4. **Orphan scan**"))
+            with self.subTest(source=label):
+                self.assertIn("A record found in both directories", step_3)
+                self.assertIn("cannot be read or parsed", step_3)
+                self.assertIn("never guess which copy or value is authoritative", step_3)
 
     def test_report_contract_records_verdict_reason_set_and_per_item_class(self) -> None:
         for label, text in mcc.sources():
-            premode = mcc.flatten(_premode_section(text))
-            report = premode[premode.index("**Produce report**") :]
+            report = mcc.flatten(mcc.section(text, "6. **Produce report**", "7. **Gate decision**"))
             with self.subTest(source=label):
                 for needle in (
                     "verdict",
@@ -305,8 +350,7 @@ class MemberClassContractTextTests(unittest.TestCase):
 
     def test_gate_decision_proceeds_on_reported_anomaly_and_halts_on_contract_violation(self) -> None:
         for label, text in mcc.sources():
-            premode = mcc.flatten(_premode_section(text))
-            gate = premode[premode.index("**Gate decision**") :]
+            gate = mcc.flatten(mcc.section(text, "7. **Gate decision**:\n", "### Post-Mode"))
             with self.subTest(source=label):
                 self.assertIn(mcc.ANOMALY, gate)
                 self.assertIn(mcc.CLASSIFIER_CONTRACT_HALT, gate)

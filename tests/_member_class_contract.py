@@ -118,9 +118,18 @@ def extract_contract_block(text: str) -> str:
 
 
 def section(text: str, start_heading: str, end_heading: str) -> str:
-    """Text from ``start_heading`` up to (not including) ``end_heading``."""
+    """Text from ``start_heading`` up to (not including) the next ``end_heading``.
+
+    ``start_heading`` must occur exactly once, so a moved, removed or duplicated
+    anchor fails loudly instead of silently binding to the wrong region.
+    """
+    occurrences = text.count(start_heading)
+    if occurrences != 1:
+        raise LookupError(f"start anchor {start_heading!r} occurs {occurrences} times; expected exactly 1")
     start = text.index(start_heading)
-    end = text.index(end_heading, start + len(start_heading))
+    end = text.find(end_heading, start + len(start_heading))
+    if end == -1:
+        raise LookupError(f"end anchor {end_heading!r} not found after {start_heading!r}")
     return text[start:end]
 
 
@@ -195,7 +204,7 @@ class Member:
     artifact_id: str
     artifact_type: str
     status: object
-    location: str | None  # "queue", "archive", or None when missing
+    location: str | None  # "queue", "archive", "both" (duplicate), or None when missing
 
 
 @dataclass(frozen=True)
@@ -216,7 +225,10 @@ def _classify_status(row: MemberClassRow, status: object, expected_status: str) 
         return MATCHED
     if status in row.tolerated:
         return row.tolerated[status]
-    return STATUS_MISMATCH
+    if status in row.halting or row.halts_on_any_other_value:
+        return STATUS_MISMATCH
+    # The table itself leaves this value unspecified: a contract defect, not a pass.
+    raise AssertionError(f"member-class row leaves status {status!r} unspecified (R-5)")
 
 
 def evaluate_premode(
@@ -247,6 +259,10 @@ def evaluate_premode(
         if member.location is None:
             classifications[member.artifact_id] = MISSING
             continue
+        if member.location == "both":
+            # Step 3: a record in both directories is never resolved by guessing.
+            classifications[member.artifact_id] = STATUS_MISMATCH
+            continue
         if cascade_scope and member.artifact_type == "feature" and member.artifact_id not in qualifying:
             # I-1: a feature member outside the qualifying set under CASCADE.
             return PreModeOutcome(HALT, classifications, CLASSIFIER_CONTRACT_HALT)
@@ -266,15 +282,23 @@ def evaluate_premode(
 class FixtureBacklog:
     """An in-repo, git-ignored fixture backlog (Constitution IV containment)."""
 
+    _PREFIX = "member-class-"
+
     def __init__(self) -> None:
-        staging_root = (REPO_ROOT / ".autoharness" / "staging" / "tmp").resolve()
-        self.root = (staging_root / f"member-class-{uuid.uuid4().hex}").resolve()
-        if os.path.commonpath([str(REPO_ROOT), str(self.root)]) != str(REPO_ROOT):
-            raise AssertionError(f"containment violation: {self.root} escapes {REPO_ROOT}")
+        self.staging_root = (REPO_ROOT / ".autoharness" / "staging" / "tmp").resolve()
+        self.root = (self.staging_root / f"{self._PREFIX}{uuid.uuid4().hex}").resolve()
+        self._assert_owned()
         self.backlog_dir = self.root / ".backlogit"
         (self.backlog_dir / "queue").mkdir(parents=True, exist_ok=True)
         (self.backlog_dir / "archive").mkdir(parents=True, exist_ok=True)
         self._members: dict[str, Member] = {}
+
+    def _assert_owned(self) -> None:
+        """The root must be a ``member-class-*`` child of the staging root, nothing wider."""
+        if self.root.parent != self.staging_root or not self.root.name.startswith(self._PREFIX):
+            raise AssertionError(f"containment violation: {self.root} is not a fixture under {self.staging_root}")
+        if os.path.commonpath([str(REPO_ROOT), str(self.root)]) != str(REPO_ROOT):
+            raise AssertionError(f"containment violation: {self.root} escapes {REPO_ROOT}")
 
     def add(
         self,
@@ -285,20 +309,22 @@ class FixtureBacklog:
         location: str = "queue",
         parent_id: str | None = None,
     ) -> None:
+        """Write one record; ``location="both"`` writes a torn queue + archive pair."""
         lines = ["---", f"id: {artifact_id}", f"artifact_type: {artifact_type}"]
         if parent_id is not None:
             lines.append(f"parent_id: {parent_id}")
         lines.append(f"status: {status}")
         lines.extend(["---", f"# {artifact_id}", ""])
-        (self.backlog_dir / location / f"{artifact_id}.md").write_text(
-            "\n".join(lines), encoding="utf-8"
-        )
+        for folder in (("queue", "archive") if location == "both" else (location,)):
+            (self.backlog_dir / folder / f"{artifact_id}.md").write_text(
+                "\n".join(lines), encoding="utf-8"
+            )
         self._members[artifact_id] = Member(artifact_id, artifact_type, status, location)
 
     def members(self, manifest: Iterable[str]) -> list[Member]:
         return [self._members[item] for item in manifest]
 
     def cleanup(self) -> None:
-        if os.path.commonpath([str(REPO_ROOT), str(self.root)]) != str(REPO_ROOT):
-            raise AssertionError(f"refusing to remove {self.root}: outside {REPO_ROOT}")
-        shutil.rmtree(self.root, ignore_errors=True)
+        self._assert_owned()
+        if self.root.exists():
+            shutil.rmtree(self.root)

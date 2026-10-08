@@ -41,7 +41,10 @@ _CONTRACT_REFERENCE = "Member-Class Status Contract"
 
 #: (label, start anchor, end anchor) for every region this shipment edits.
 _TOUCHED_SECTIONS = (
+    ("when-to-use", "## When to Use", "## Inputs"),
+    ("inputs", "## Inputs", "## Output"),
     ("output-and-contract", "## Output", "### Shipment-Record-Status Classification"),
+    ("recommendation-list", "The report ends with a `recommendation`:", "### Mixed-Role Detection Classification"),
     ("pre-mode", "### Pre-Mode", "### Post-Mode"),
     ("safe-close-step-0b", "b. **Snapshot pre-close", "c. **Classify the close path**"),
     ("safe-close-step-0c-agreement", "**Pre-Mode step 2b agreement check.**", "* **CASCADE selected**"),
@@ -55,7 +58,9 @@ _TOUCHED_SECTIONS = (
         "3. **Verify `archived_ids` against",
         "4. **Verify no `parent_id` was cleared**",
     ),
+    ("scenario-matrix", "## Deterministic Safe-Close Scenario Matrix", "## Quality Criteria"),
     ("quality-criteria", "## Quality Criteria", "## Related Artifacts"),
+    ("related-artifacts", "## Related Artifacts", "## Model Routing"),
 )
 
 _ALLOWED_PLACEHOLDER = re.compile(r"^\{\{(STATUS|OP|BACKLOG_DIRECTORY|SUFFIX)[A-Z_]*\}\}$")
