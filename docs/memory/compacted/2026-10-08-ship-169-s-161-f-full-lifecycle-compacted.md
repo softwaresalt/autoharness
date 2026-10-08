@@ -53,8 +53,9 @@ contract. The closure artifact is
   under a "0 open findings" headline, with no thread; read every review body
   (`docs/compound/2026-10-08-copilot-review-body-findings-without-threads.md`,
   gate gap `38D29192`).
-* The cascade child took 1153 s for N = 9 (B = 672 s); the timeout sizing
-  reference underestimates this host (`4CB6A1E0`).
+* The cascade child took 1153 s for N = 9 (B = 672 s), an outlier against
+  earlier closures (198-S: N = 28 in 985 s); run-to-run variance can approach
+  the 1800 s default (`4CB6A1E0`, wording corrected in the closure artifact).
 * After a cascade moves a record, re-derive pathspecs from `git status`: a
   stale `queue/` path made `git add` fail and the first close commit had to be
   amended before push.

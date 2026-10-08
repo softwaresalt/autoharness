@@ -56,8 +56,8 @@ headline, would have merged with four valid findings unaddressed.
   "Previously missed" section. Round 6 (`c2e6b48e`) met both, and only then was
   the PR presented for merge.
 * **Remember that each push re-arms Copilot.** Every fix push starts a new
-  round, and the new round may find something an earlier round missed. Budget
-  the operator's round allowance (here six) up front.
+  round, and the new round may find something an earlier round missed. PR #506
+  needed six rounds; agree the round allowance with the operator up front.
 
 ## Prevention
 

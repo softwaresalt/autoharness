@@ -72,7 +72,7 @@ The reviewed HEAD was `c2e6b48e`. The PR ran under dark mode (P-017).
 | 1 | `84bd37aa` | 1 inline comment (1 thread): defer recording the agreement-check outcome until the check runs | Fixed in `fb68e399`; reply cites the fix; thread resolved |
 | 2 | `fb68e399` | 0 threads; review body "Previously missed (1)": a stale `active` Phase-A checkpoint | Fixed in `b879a045` (superseded checkpoint resolved); PR comment cites the fix |
 | 3 | `b879a045` | 0 threads; "Previously missed (1)": a duplicate member-class row silently overwrote the first in the test reader | Fixed in `24d5fc13` (reject duplicates, regression test, RED captured) |
-| 4 | `24d5fc13` | 0 threads; "Previously missed (1)": a fixture did not isolate the same-directory duplicate | Valid and in scope, raised after the three-cycle limit: Ship held the merge for an operator decision; the operator authorized a cycle extension (recorded in a PR comment); fixed in `0b2c0bc5` |
+| 4 | `24d5fc13` | 0 threads; "Previously missed (1)": a fixture did not isolate the same-directory duplicate | Valid and in scope, raised after the three-cycle limit: Ship held the merge for an operator decision; the operator authorized a cycle extension (recorded in a PR comment); fixed in `0b2c0bc5`, then `a5e571a5` resolved the merge-held Ship checkpoint (`.backlogit/checkpoints/**` only) |
 | 5 | `a5e571a5` | 0 threads; "Previously missed (1)": a sentence overstated the Safe-Close step 4 guarantee | Fixed in `c2e6b48e` (qualified in both skill copies; the step 4 algorithm stays deferred as `D16452D7`) |
 | 6 | `c2e6b48e` | 0 threads, 0 open findings, no "Previously missed" section | Clean; merge presented |
 
@@ -106,14 +106,18 @@ pre-close Pre-Mode run under the new contract on a `CASCADE` manifest:
 `docs/closure/evidence/169-S-161-F-close-evidence.json` (phase `post_close`,
 run `357f5eded7184c8a9cf436a6b960da07`, `merge_commit_sha` `489e7c3b…`).
 
-* **Lock.** `.backlogit/queue/169-S.md` was held from pre-mode
-  (`2026-10-08T05:01:11Z`) through post-mode (released `05:21:54Z`). The whole
-  locked sequence ran in one supervised process so the lock token was never
-  written to disk.
+* **Lock.** `.backlogit/queue/169-S.md` was acquired at
+  `2026-10-08T05:01:11Z`, before pre-mode, and held through post-mode
+  (released `05:21:54Z`). The whole locked sequence ran in one supervised
+  process so the lock token was never written to disk.
 * **Classification.** Classify-only returned `CASCADE` with qualifying root
   `161-F`, no out-of-manifest descendants and engine `VERIFIED` (backlogit
   1.11.0, commit `131577c`, CLI surface).
-* **Agreement check (Step 0(c)).** `agreed`.
+* **Agreement check (Step 0(c)).** `agreed`. The check read the classify-only
+  `pre_close` record (exit 05:01:43Z). The mutating run then replaced
+  `pre_close` with its own revalidation capture (`captured_at` 05:02:03Z),
+  which is the record committed here; its verdict (`CASCADE`) and qualifying
+  set (`[161-F]`) equal the ones the check compared.
 * **Timeout.** N = 9, so B = 672 s; the default `--timeout` (1800 s) applied.
   The `backlogit shipment ship` child ran 1153 s (05:02:17Z to 05:21:30Z),
   about 1.7 × B; see **Residual Risks**. The run was supervised attached until
@@ -126,9 +130,12 @@ run `357f5eded7184c8a9cf436a6b960da07`, `merge_commit_sha` `489e7c3b…`).
   * `returned_ids` `[]`
   * `parent_id_preserved`, `baseline_invariant` and
     `disposition_byte_identical` are all `true`
-  * the shipment is `status: archived`, `archived_status: shipped`; the merge
-    commit is tracked on `169-S` (`commit_tracked`, `489e7c3b`)
-* **Commit.** `8c751c02`.
+  * the shipment is `status: archived`, `archived_status: shipped`, and the
+    archived record carries `commit: 489e7c3b…` (a `commit_tracked` event in
+    `.backlogit/logs/169-S.jsonl`; `parsed_result.commit_sha` in the evidence)
+* **Commit.** `8c751c02`. A first attempt committed only the staged `169-S`
+  rename (a stale `queue/169-S.md` pathspec made `git add` fail) and was
+  amended locally before any push.
 
 Reports:
 
@@ -168,6 +175,18 @@ Stage at harvest), so no retirement was needed. Record bookkeeping that
 ## Releasability Evidence
 
 * **Status.** `READY`. There is no tag, publish or release-record obligation.
+* **Deployment path.** Merge-only: the skill, the Ship pointer and the tests
+  take effect on `main` at `489e7c3b`; nothing is deployed.
+* **Pre-deploy audits.** None apply (no migration, flag, config or access
+  change).
+* **Post-deploy checks.** This closure's own pre-close Pre-Mode run (see
+  Validator Evidence) and the healthy signals below at the next closures.
+* **Risky action record.** One `ProposedAction`: the mutating
+  `autoharness shipment cascade-close` for 169-S (`ActionRisk`: destructive,
+  irreversible archival). Approval path: the P-017 activation record for 169-S
+  with the classifier-selected close path (P-015). `ActionResult`: exit 0,
+  postconditions pass, `CLOSED`. The local amend of the unpushed close commit
+  was covered by the same activation record.
 * **Invariants to preserve.** Intake (`queued`/`active`) Pre-Mode stays
   strict-scalar for every member; any declared status outside a row's cells
   halts; Step 0(c) stays authoritative for the close path.
@@ -177,10 +196,15 @@ Stage at harvest), so no retirement was needed. Record bookkeeping that
   `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` halt on a manifest the classifier
   and the Pre-Mode report agree on, or an intake run accepting a mixed manifest.
 * **Monitoring.** The next two shipment closures' Pre-Mode reports.
-* **Rollback.** Revert merge `489e7c3b` (`git revert -m 1`) with operator
-  approval; no data migration is involved.
-* **Owner and validation window.** Ship owns rollback, with operator approval,
-  through the next two shipment closures.
+* **Rollback trigger.** Any failure signal above in either of the next two
+  shipment closures, or an intake Pre-Mode `PROCEED` on a manifest whose
+  members do not share one status.
+* **Rollback procedure.** With operator approval, `git revert -m 1 489e7c3b` on
+  a revert branch merged through a PR with a merge commit (P-009; never a
+  direct commit to `main`). No data migration is involved.
+* **Owner and validation window.** The operator (`softwaresalt`) owns the
+  rollback decision; Ship executes it on request. The window lasts through the
+  next two shipment closures.
 
 ## Follow-Up Items
 
@@ -189,18 +213,28 @@ From the shipment (P-021 deferred, recorded in PR #506):
 * `675EA40E`: diagram 05 delta, for when the operator publishes the diagram
   set. Needs deliberation.
 * `D16452D7`: Safe-Close step 4 still keys its `pre-archived` skip on location
-  (pre-existing).
+  (pre-existing). Needs deliberation.
 * `814BB949`: hard-coded status literals in the template.
-* `F0F8916F`: an explicit invocation discriminator for `mode: pre`.
-* `A9BABC8B`: re-ground 171-S/163-F plan anchors before it runs.
+* `F0F8916F`: an explicit invocation discriminator for `mode: pre`. Needs
+  deliberation.
+* `A9BABC8B`: re-ground 171-S/163-F plan anchors before it runs. Needs
+  deliberation.
 * `B5AB7D95`: reciprocal cross-references to P-002.7.
 * `D6502107`: a declared input channel for the agreement check.
 * `E1E31E6A`: generic-template wording defects.
 
 From this closure:
 
-* `4CB6A1E0`: the cascade-close timeout sizing reference underestimates this
-  host. Needs deliberation.
+* `4CB6A1E0`: cascade-close timeout sizing against an observed slow run. Needs
+  deliberation. Correction to its wording (closure review): it says the
+  reference costs underestimate "this host" and that N ≥ ~15 would exceed
+  1800 s. The other recorded closures on the same engine line do not support
+  that rate: 200-S (N = 16) took 710 s and 198-S (N = 28) took 985 s. This run
+  looks like an outlier (about 6 minutes passed between the shipment status
+  change at 05:05:55Z and the first task archive at 05:11:48Z). The risk is
+  run-to-run variance near the 1800 s default, not a fixed host rate. Ship
+  records the correction here because it does not edit captured stash entries
+  (P-010).
 * `16128302`: decision-record status bookkeeping (Stage).
 * `38D29192`: the copilot-review gate and loop do not see review-body findings.
   Needs deliberation.
@@ -210,9 +244,11 @@ All eleven IDs were confirmed present in `.backlogit/stash.jsonl`.
 ## Residual Risks
 
 * **Cascade timeout margin.** The child took 1153 s for N = 9 against a sizing
-  of B = 672 s; only the 1800 s default floor kept it inside the timeout. At
-  this host's rate a closure with N ≥ ~15 could time out mid-cascade (exit 6)
-  while B still says the default suffices (`4CB6A1E0`).
+  of B = 672 s; only the 1800 s default kept it inside the timeout. Earlier
+  closures ran well inside B's rate (200-S: N = 16 in 710 s; 198-S: N = 28 in
+  985 s), so this run was an outlier, but an outlier of this size on a larger
+  manifest could reach the 1800 s timeout and exit 6 mid-cascade while B says
+  the default suffices (`4CB6A1E0`).
 * **Review-body findings.** The P-018 gate passes a current-HEAD review whose
   body carries a "Previously missed" finding (`38D29192`); until that changes,
   Ship must read review bodies by hand.

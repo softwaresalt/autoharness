@@ -70,6 +70,20 @@ ways forward are (a) mutating backlog state that Pre-Mode is explicitly forbidde
 becomes ambiguous. An operator authorization scoped to one thing (removing a stale lock) ends up
 being relied upon, implicitly, for something else (overriding a per-item status gate).
 
+## Resolution
+
+Fixed by feature 161-F, shipped in 169-S (PR #506, merge `489e7c3b`; see
+`fixed_in` above and `docs/closure/169-S-161-F-post-merge-closure.md`).
+
+* The member-class matrix that acceptance criterion 2 points to now lives in the
+  Member-Class Status Contract block of `.github/skills/shipment-reconcile/SKILL.md`.
+  `docs/diagrams/05-shipment-reconcile-cascade-premode.mmd` is untracked operator
+  work in progress; its update is deferred as stash `675EA40E`.
+* Acceptance criterion 1 was exercised live by the 169-S closure itself: Pre-Mode
+  returned `PROCEED` with the qualifying feature `161-F` declared `active`.
+* Known remaining limit: Safe-Close step 4 still keys its `pre-archived` skip on
+  location (stash `D16452D7`), as the contract block states.
+
 ## Affected components
 
 | Role | Component | Contract it declares |
