@@ -4,7 +4,8 @@ description: "Implementation plan for the operator's accepted-with-remediation d
 source: "docs/decisions/2026-09-07-step-0c-pre-mutation-guard-reconstruction-disposition.md"
 date: 2026-09-08
 last_revised: 2026-09-10
-status: reviewed
+status: superseded
+superseded_by: "docs/plans/2026-10-08-163f-r2-step-0c-evidence-on-192f-record-plan.md (R2, 2026-10-08) — RQ-1..RQ-3 unchanged; every R1 implementation unit is replaced. The 192-F --classify-only pre_close record discharges RQ-1; do not implement the .backlogit/reconcile/ record, the PRECASCADE_EVIDENCE_ANCHOR event, or the L2 publication step from this file."
 requires_plan_hardening: "yes"
 plan_hardening_status: "hardened"
 plan_review_verdict: "PASS"

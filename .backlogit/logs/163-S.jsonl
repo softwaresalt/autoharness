@@ -3,3 +3,4 @@
 {"timestamp":"2026-08-31T16:24:57.2387669-07:00","actor":"backlogit","item_id":"163-S","event_type":"shipment_item_added","delta":{"item_id":"155.004-T"}}
 {"timestamp":"2026-08-31T16:25:05.2393558-07:00","actor":"backlogit","item_id":"163-S","event_type":"shipment_item_added","delta":{"item_id":"155.008-T"}}
 {"timestamp":"2026-08-31T16:25:08.1583075-07:00","actor":"backlogit","item_id":"163-S","event_type":"shipment_item_added","delta":{"item_id":"155.007-T"}}
+{"timestamp":"2026-10-08T16:34:03.8427501-07:00","actor":"stage","item_id":"163-S","event_type":"comment","delta":{"comment":"Stage: added blocks dependency on 213-S per PR #509 review thread PRRT_kwDORzpWpM6qlied (comment 4225036410). Operator-directed order 208-S -\u003e 209-S -\u003e 210-S -\u003e 211-S -\u003e 212-S -\u003e 171-S -\u003e 213-S runs before this existing ready head; dag-root/priority alone did not establish order."}}
