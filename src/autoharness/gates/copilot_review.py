@@ -4,8 +4,8 @@ When GitHub Copilot review is enabled for a pull request, this gate deterministi
 holds an (admin) merge until (1) Copilot has completed a review for the **current**
 ``headRefOid`` and (2) all Copilot-authored review threads are resolved -- iterating
 across multiple review rounds by construction, because the gate only passes when the
-*latest* HEAD has a completed Copilot review with zero open bot threads.
-
+*latest* HEAD has a completed Copilot review with zero open bot threads and no
+undispositioned review-body finding.
 Design constraints (decision + hardened plan, 2026-07-09):
 
 * The classifier :func:`classify` is a **pure** function of the parsed PR review
@@ -106,12 +106,13 @@ PASS_VERDICTS = frozenset({Verdict.SATISFIED, Verdict.NOT_APPLICABLE})
 
 _VERDICT_MESSAGES = {
     Verdict.SATISFIED: (
-        "Copilot review is complete for the current HEAD and all Copilot-authored "
-        "threads are resolved. Merge may proceed with respect to this gate."
+        "Copilot review is complete for the current HEAD, all Copilot-authored threads are "
+        "resolved, and every Copilot review-body finding is dispositioned. Merge may proceed "
+        "with respect to this gate."
     ),
     Verdict.NOT_APPLICABLE: (
-        "Copilot review is not in play for this PR (no engagement signal and "
-        "enforcement is not 'required'). Gate is not-applicable; merge is not held."
+        "Copilot review is not in play for this PR (enforcement disabled, or no engagement "
+        "signal under 'auto'). Gate is not-applicable; merge is not held."
     ),
     Verdict.WAITING_FOR_REVIEW: (
         "Copilot review is enabled but has not completed for the current HEAD. "
@@ -170,7 +171,12 @@ class BodyFindings:
 # Headline counts are read only at structural positions: inside a <summary> header, on a
 # "### " heading line, or on a bold line. Prose that merely mentions a headline, such as a
 # "What changed in this PR" summary, is not a finding.
-_BODY_HEADLINE_PREFIX = r"(?:<summary>\s*(?:<strong>)?\s*|^ {0,3}(?:###[ \t]+|\*\*)\s*)"
+_BODY_HEADLINE_SHAPE = (
+    r"(?:\d+\s+(?:open\s+findings?|resolved)|previously\s+missed|suppressed\s+comments)"
+)
+# "### " takes exactly one space and the trailing \s* takes the rest. Two overlapping runs
+# of spaces would backtrack quadratically on a long run of spaces after a heading.
+_BODY_HEADLINE_PREFIX = r"(?:<summary>\s*(?:<strong>\s*)?|^[ \t]*(?:###[ \t]|\*\*)\s*)"
 _BODY_PREVIOUSLY_MISSED_RE = re.compile(
     rf"{_BODY_HEADLINE_PREFIX}Previously\s+missed\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
 )
@@ -178,49 +184,67 @@ _BODY_SUPPRESSED_RE = re.compile(
     rf"{_BODY_HEADLINE_PREFIX}Suppressed\s+comments\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
 )
 _BODY_OPEN_FINDINGS_RE = re.compile(
-    rf"{_BODY_HEADLINE_PREFIX}(?<!\d)(\d+)\s+open\s+findings?", re.IGNORECASE | re.MULTILINE
+    rf"{_BODY_HEADLINE_PREFIX}(\d+)\s+open\s+findings?", re.IGNORECASE | re.MULTILINE
 )
+# An anchor resolves a finding only on its own finding line: any anchor on a list-marker line,
+# or an anchor that leads an indented (list-continuation) line. A prose cross-reference inside
+# a continuation does not resolve a finding (fail-closed).
+_BODY_LIST_LINE_RE = re.compile(r"^[ \t]*[-*+][ \t]")
+_BODY_LEADING_ANCHOR_RE = re.compile(r"^[ \t]+\[[^\]\n]*\]\([^)\n]*#discussion_r\d+")
 _BODY_ANCHOR_RE = re.compile(r"#discussion_r\d+")
+# A span ends at a headline-shaped header: a <summary> with <strong>, a <summary> whose text is
+# a headline shape (with or without <strong>), a ### heading line, or a bold count or section
+# headline. A bold location label such as **src/a.py:12** is not a terminator, so anchors below
+# it still belong to the open-findings span.
 _BODY_SECTION_HEADER_RE = re.compile(
-    r"<summary>\s*<strong>|^ {0,3}###[ \t]|^ {0,3}\*\*", re.IGNORECASE | re.MULTILINE
+    r"<summary>\s*<strong>"
+    rf"|<summary>\s*(?={_BODY_HEADLINE_SHAPE})"
+    r"|^[ \t]*###[ \t]"
+    rf"|^[ \t]*\*\*\s*{_BODY_HEADLINE_SHAPE}",
+    re.IGNORECASE | re.MULTILINE,
 )
 _BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
 
-# CommonMark fence rules. An opener is 0 to 3 spaces, then three or more backticks or
-# tildes. A closer uses the same character, is at least as long as the opener, and is
-# indented 0 to 3 spaces. A line indented four or more spaces is literal text, not a fence.
-_FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+# Fence rules. An opener is three or more backticks or tildes at column 0; a backtick opener
+# whose info string contains a backtick is not a fence. The closer uses the same character,
+# is at least as long as the opener, and may be indented 0 to 3 spaces (CommonMark). An
+# opener indented in a list item is not stripped, so headlines inside it still count
+# (fail-closed). An opener with no closer runs to the end of the body and is kept as text.
+_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 _FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 
 
 def _strip_fenced_code(text: str) -> str:
-    """Remove closed fenced code blocks, following the CommonMark fence rules.
+    """Remove closed column-0 fenced code blocks, following the CommonMark fence rules.
 
-    A backtick opener whose info string contains a backtick is not a fence. An opener
-    with no closer is left as text, so the rest of the body still counts (fail-closed).
+    CR and CRLF line endings are normalized first. An opener with no closer is kept together
+    with every later line, so the rest of the body still counts (fail-closed). Linear: each
+    line is scanned by at most one closer search.
     """
-    lines = text.split("\n")
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     kept: list[str] = []
     index = 0
     while index < len(lines):
         opener = _FENCE_OPEN_RE.match(lines[index])
-        if opener is not None and not (opener.group(1)[0] == "`" and "`" in opener.group(2)):
-            fence = opener.group(1)
-            closing = next(
-                (
-                    close
-                    for close in range(index + 1, len(lines))
-                    if (closer := _FENCE_CLOSE_RE.match(lines[close])) is not None
-                    and closer.group(1)[0] == fence[0]
-                    and len(closer.group(1)) >= len(fence)
-                ),
-                None,
-            )
-            if closing is not None:
-                index = closing + 1
-                continue
-        kept.append(lines[index])
-        index += 1
+        if opener is None or (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+            kept.append(lines[index])
+            index += 1
+            continue
+        fence = opener.group(1)
+        close = index + 1
+        while close < len(lines):
+            closer = _FENCE_CLOSE_RE.match(lines[close])
+            if (
+                closer is not None
+                and closer.group(1)[0] == fence[0]
+                and len(closer.group(1)) >= len(fence)
+            ):
+                break
+            close += 1
+        if close == len(lines):
+            kept.extend(lines[index:])
+            break
+        index = close + 1
     return "\n".join(kept)
 
 
@@ -233,10 +257,13 @@ def detect_body_findings(body: str) -> BodyFindings:
     * ``S`` is the largest ``Suppressed comments (N)`` count in the body (the maximum
       over occurrences keeps the detector on the fail-closed side);
     * ``U = max(0, N_open - A)`` where ``N_open`` is the count of each ``N open findings``
-      headline, and ``A`` is the number of ``#discussion_r`` anchors inside that headline's
-      span. ``U`` is the largest such value over all open-findings headlines. Each span
-      ends at the next section header (``<summary><strong>`` or a
-      ``### `` line) or at the end of the body. Nested ``<summary><picture>`` per-finding
+      headline, and ``A`` is the number of distinct ``#discussion_r`` IDs on finding lines
+      (list-marker lines, or indented lines leading with the link) inside that headline's
+      span. ``U`` is the largest such
+      value over all open-findings headlines. A span ends at the next headline-shaped
+      header: a ``<summary>`` whose text is a headline (with or without ``<strong>``), a
+      ``### `` line, or a bold count or section headline.
+      A bold location label is not a terminator. Nested ``<summary><picture>`` per-finding
       blocks are not section headers, so they cannot truncate the span.
 
     The ``resolved since last review``, ``What changed in this PR``, and overview risk
@@ -253,15 +280,20 @@ def detect_body_findings(body: str) -> BodyFindings:
 
     unanchored = 0
     # Each open-findings headline is checked against its own span, which ends at the next
-    # structural headline (summary, heading, or bold line). Anchors count once per distinct
-    # discussion ID, so a repeated link cannot lower the unanchored count.
+    # headline-shaped structural header. Only finding-line anchors count, once per distinct
+    # discussion ID, so a repeated link or a prose link cannot lower the unanchored count.
     for open_match in _BODY_OPEN_FINDINGS_RE.finditer(text):
         n_open = int(open_match.group(1))
         header = _BODY_SECTION_HEADER_RE.search(text, open_match.end())
         span_end = header.start() if header is not None else len(text)
-        span = text[open_match.end() : span_end]
-        anchors = len(set(_BODY_ANCHOR_RE.findall(span)))
-        unanchored = max(unanchored, n_open - anchors)
+        span_lines = text[open_match.end() : span_end].split("\n")
+        anchors = {
+            anchor
+            for line in span_lines
+            if _BODY_LIST_LINE_RE.match(line) or _BODY_LEADING_ANCHOR_RE.match(line)
+            for anchor in _BODY_ANCHOR_RE.findall(line)
+        }
+        unanchored = max(unanchored, n_open - len(anchors))
 
     markers: list[str] = []
     if previously_missed > 0:

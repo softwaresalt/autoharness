@@ -54,19 +54,22 @@ The gate queries GitHub via `gh api graphql` for the PR `headRefOid`, Copilot
 enablement signals (`reviewRequests` / `reviews`, including each review's
 `databaseId` and `body`), review completion **for the current HEAD**, unresolved
 Copilot-authored `reviewThreads`, and the PR conversation `comments(last:100)` with
-their `authorAssociation` (read for disposition markers; a missing or malformed
-connection fails closed on every evaluation, while an individual comment that cannot be
-attributed or is malformed is ignored and cannot clear a finding). All subprocess
+their `authorAssociation` (read for disposition markers; a missing connection, or a comment
+entry that is not an object, fails closed on every evaluation; a comment with an
+unattributable author or a non-string body or association is ignored and cannot clear a
+finding). All subprocess
 invocation is a fixed argv array executed with `shell=False`; the repo slug and
 PR number are validated to reject shell metacharacters before any process runs.
 
 ### Output
 
-The human-readable output prints the verdict and message. It adds these lines when they
-apply:
+The human-readable output begins with `Copilot-review gate — <VERDICT>: PASS` or `BLOCK`
+and the verdict message. It adds these lines when they apply:
 
+* `  unresolved Copilot threads: <count>`, when threads are open.
 * `  undispositioned Copilot review-body findings in reviews: <ids>` and the marker hint,
   only for `UNDISPOSITIONED_BODY_FINDINGS`.
+* `  --force override recorded: <path>`, after an audited `--force`.
 * `  advisory: <message>`, for an advisory (see [Review-Body Findings](#review-body-findings)).
 
 `--json` emits the result object. It includes `verdict`, `enforcement`,
@@ -93,7 +96,7 @@ command.
 
 | Verdict | Result | Meaning |
 |---|---|---|
-| `SATISFIED` | PASS (exit 0) | Copilot review completed for the current HEAD and all Copilot threads are resolved. |
+| `SATISFIED` | PASS (exit 0) | Copilot review completed for the current HEAD, all Copilot threads are resolved, and every Copilot review-body finding is dispositioned (or there are none). |
 | `NOT_APPLICABLE` | PASS (exit 0) | Copilot is not in play — `enforcement: disabled`, or `auto` with no Copilot engagement on the PR. |
 | `WAITING_FOR_REVIEW` | BLOCK (exit 1) | Copilot is engaged but has not completed a review for the current HEAD. |
 | `UNRESOLVED_THREADS` | BLOCK (exit 1) | Review completed but one or more Copilot-authored threads remain unresolved. |
@@ -152,11 +155,17 @@ one such finding under a `0 open findings` headline, and the gate returned
   `Previously missed (N)` count (the maximum over occurrences keeps the detector on
   the fail-closed side).
 * `U = max(0, N_open - A)`. Each `N open finding(s)` headline gives `N_open` and its own
-  span, and `A` is the number of `#discussion_r` anchors inside that span. `U` is the
-  largest value over all headlines. Each span ends at the next section header (a
-  `<summary><strong>` or a `### ` line) or at the
-  end of the body. Nested per-finding `<details><summary><picture>` blocks are not
-  section headers, so they cannot truncate the span.
+  span. `A` is the number of distinct `#discussion_r`   IDs on list-marker lines, or on indented
+    lines that lead with the link,     inside that span, so a prose link does not count. `U` is the largest value over all headlines.
+* **Span ends:** a span ends at the next headline-shaped header: a `<summary>` headline (with or without `<strong>`), a  `### ` line, or a bold count or section headline. A bold location label such as
+  `**src/a.py:12**` does not end a span. Nested `<summary><picture>` per-finding blocks do
+  not end a span.
+* **Fenced code:** a closed fence starting at column 0 is excluded, with a closer of the
+  same character at least as long as the opener, indented 0 to 3 spaces (CommonMark rules).
+    An indented opener is
+  not excluded, so a headline inside it still counts (fail-closed). An unclosed opener
+  keeps the rest of the body. CRLF is normalized first.
+* **Indentation:** a headline indented by any amount still counts (fail-closed).
 * **Not counted:** `resolved since last review`, `What changed in this PR`, the
   overview risk line (for example `Needs a closer look`), and prose that merely
   mentions a headline phrase. Counts are read only at structural positions: inside a
@@ -191,7 +200,8 @@ a follow-up.
   cannot clear a disposition, so it does not make the gate ambiguous.
 * A truncated `comments` connection (`hasPreviousPage`) is not ambiguous by itself.
   It becomes `DETECTION_AMBIGUOUS` only when undispositioned findings remain, because
-  the marker could sit on an unfetched page.
+  the marker could sit on an unfetched page. The remedy is to post a fresh disposition
+  comment for each affected review, so the marker falls within the newest 100 comments.
 * The new check runs only after `completed_for_head()`. A `REVIEW_TIMEOUT` or
   `WAITING_FOR_REVIEW` state is never treated as clean.
 
@@ -225,9 +235,8 @@ pre-merge dependency:
   Copilot-authored thread resolved and every threadless Copilot review-body finding
   dispositioned by a trusted marker comment), or an audited operator `--force` is on
   record.
-* **Violation action** — halt, emit `COPILOT_REVIEW_BLOCK`, and record a P-005
-  telemetry event. `--admin` and dark-mode admin fallback may **never** bypass a
-  `COPILOT_REVIEW_BLOCK`.
+* **Violation action** — halt, record a P-018 violation through P-005 telemetry, and do not
+  merge.   Ship Step 4 (the P-018 gate item) names the `COPILOT_REVIEW_BLOCK`   event. `--admin` and dark-mode admin fallback may **never** bypass a BLOCK verdict.
 
 The gate is wired into the §1.9 pre-merge readiness verification as an additional
 fail-closed check (Check 5), and `COPILOT_REVIEW_BLOCK` is a first-class state in

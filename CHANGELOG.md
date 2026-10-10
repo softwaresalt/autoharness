@@ -29,7 +29,10 @@
   such a review-body-only finding passed as `SATISFIED`. The `--json` output gains
   `undispositioned_body_finding_review_ids` and `advisory`. Rollout: an open PR that
   already handled body findings must post a disposition comment for each affected
-  review before the gate passes; merged PRs are not re-checked.
+  review before the gate passes; merged PRs are not re-checked. A truncated `comments(last:100)` page that still hides
+  a required disposition is `DETECTION_AMBIGUOUS` (BLOCK), and the human message names the
+  cause; the operator action is to post a fresh disposition comment per affected review so
+  the marker sits in the newest 100 comments.
 
 - **Ship/Stage frontmatter bound to role variables (194-F / 200-S)**:
   `_ship.agent.md.tmpl` and `_stage.agent.md.tmpl` now render their

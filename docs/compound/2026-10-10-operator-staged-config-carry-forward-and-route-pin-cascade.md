@@ -2,7 +2,7 @@
 title: "Operator-staged config edits and the route-pin cascade: no carry-forward for non-backlog paths, and a model_routing change must ship with its pins and mirrors"
 problem_type: process-gap
 category: workflow
-root_cause: "The pre-claim topology gate treats any staged or modified path outside .backlogit/ as WORKTREE_DIRTY, and P-011 forbids stashing dirt to pass it, so an operator edit to a non-backlog file such as .autoharness/config.yaml has no supported carry-forward into a shipment. A model_routing change also cascades into route-pin tests, harness-manifest checksums, and the installed Stage and Ship mirror renders; a config commit made alone breaks 16 tests."
+root_cause: "The pre-claim topology gate treats any staged or modified path outside .backlogit/ as WORKTREE_DIRTY, and P-011 forbids stashing dirt to pass it, so an operator edit to a non-backlog file such as .autoharness/config.yaml has no supported carry-forward into a shipment. A model_routing change also cascades into route-pin tests, harness-manifest checksums, and the installed Stage and Ship mirror renders; a config commit made alone fails 16 test outcomes across two modules."
 tags: [p-011, p-016, worktree-cleanliness, carry-forward, model-routing, route-pin, harness-manifest, mirror-render, escalation, pre-push]
 shipment: 208-S
 date: 2026-10-10
@@ -21,14 +21,14 @@ Three things became clear while doing that:
 
 * **No supported carry-forward exists for non-backlog paths.** The pre-claim gate
   reports `WORKTREE_DIRTY` for any staged or modified path. Its only carry-forward
-  prefix is `.backlogit/`. P-011 forbids stashing dirt to pass the gate, so the
-  operator's edit could not be claimed or committed through the normal path.
-* **A routing change cascades.** The same edit broke 16 tests: 15 failures and one
-  error. Five failures and one error came from `tests/test_dogfood_ship_route_pin.py`
-  (6 of 12 tests), and ten failures came from `tests/test_role_bound_pipeline_render.py`
-  (10 of 16 tests). The pins hard-coded the superseded values, the harness-manifest
-  checksums and `config_hash` covered the old bytes, and the installed Stage and Ship
-  mirror frontmatter no longer matched a fresh render of the template.
+  prefix is the resolved backlog directory (`.backlogit/` in this checkout).   P-011 forbids stashing dirt to pass the gate, so the operator's edit could not be claimed or committed through the normal path.
+* **A routing change cascades.** The same edit broke 16 failing outcomes across two test
+  modules: 15 failures and one error. In `tests/test_dogfood_ship_route_pin.py`, 5 failures
+  and 1 error across 12 test methods. In `tests/test_role_bound_pipeline_render.py`, 10
+  failures, which are subtest outcomes spread over 6 of 16 test methods. The pins
+  hard-coded the superseded values, the harness-manifest checksums and `config_hash`
+  covered the old bytes, and the installed Stage and Ship mirror frontmatter no longer
+  matched a fresh render of the template.
 * **Dropping the flat escalation block has a consequence.** With no flat block and no
   nested `stage.escalation`, Stage's escalation route resolves through tier3 to
   `claude-sonnet-5.5`, `anthropic`, `xhigh`. That is Stage's own route, so every
@@ -96,6 +96,16 @@ run the targeted modules while iterating.
   stash `3C19FA0F`.
 * Keep route-provenance comments in the config. The operator's edit removed the
   rulings that explained the earlier pins, so the pins now carry the only record.
+
+## Known stale route surfaces (disclosed, not fixed in this shipment)
+
+Shipment 208-S refreshed the Stage and Ship mirrors only. These surfaces still carry the
+old routes, and no test pins them: the installed Orchestrator frontmatter (capture
+`1F13DF5E`), the installed escalation-protocol instruction, which still says there is no
+nested override and gives the old tier3 values (capture `5493E44F`), and the installed
+Tier-1 and Tier-2 review personas under `.github/agents/subagents/`. The bundle rule
+above applies to them as well. Until they are re-rendered, the config is authoritative
+and these surfaces are stale.
 
 ## Structural follow-ups (captured, not implemented here)
 

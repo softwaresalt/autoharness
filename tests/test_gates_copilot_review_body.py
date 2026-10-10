@@ -16,6 +16,7 @@ No network and no subprocess: the detector is pure.
 from __future__ import annotations
 
 import dataclasses
+import time
 import unittest
 
 from autoharness.gates.copilot_review import (
@@ -340,11 +341,12 @@ class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
 
 
 class BodyFindingsFenceAndSpanEdgeTests(unittest.TestCase):
-    """Markdown fence semantics, indented literals, bold span boundaries, unique anchors.
+    """Markdown fence semantics, indented literals, span boundaries, unique anchors.
 
-    Synthetic rows, each named for the failure it pins. Fence and indentation rows follow
-    CommonMark: 0 to 3 leading spaces for a fence, a closer at least as long as its
-    opener, and an indented line of four or more spaces is literal text, not structure.
+    Synthetic rows, each named for the failure it pins. A fence opener starts at column 0
+    (an indented opener is literal text, so headlines inside it still count: fail-closed).
+    A closer may be indented 0 to 3 spaces, as CommonMark allows, and must be at least as
+    long as its opener. Headline-shaped summaries and headings end an open-findings span.
     """
 
     def test_fence_span_and_indentation_edges(self) -> None:
@@ -363,10 +365,46 @@ class BodyFindingsFenceAndSpanEdgeTests(unittest.TestCase):
                 (),
             ),
             (
-                "indented_four_space_headlines_are_literal",
+                "indented_headlines_count_fail_closed",
                 "    ### Suppressed comments (4)\n\n    **2 open findings**\n\nNormal prose.\n",
+                6,
+                ("suppressed", "unanchored_open"),
+            ),
+            (
+                "list_item_indented_headline_counts",
+                "- Review scope\n\n    **2 open findings**\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "list_nested_fence_does_not_hide_headline",
+                "- item\n  ```\n**2 open findings**\n```\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "unclosed_outer_fence_keeps_the_rest",
+                "```\n~~~\n**2 open findings**\n~~~\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "bold_location_label_does_not_end_the_span",
+                "**2 open findings**\n\n**src/a.py:12**\n- [Guard](#discussion_r1)\n\n**src/b.py:40**\n- [Tighten](#discussion_r2)\n",
                 0,
                 (),
+            ),
+            (
+                "prose_anchor_does_not_cancel_an_unanchored_finding",
+                "**1 open finding**\n\nSee [the earlier thread](#discussion_r5) for context.\n",
+                1,
+                ("unanchored_open",),
+            ),
+            (
+                "crlf_fence_closes_and_headline_counts",
+                "```markdown\r\n### Suppressed comments (1)\r\n```\r\n\r\n**2 open findings**\r\n",
+                2,
+                ("unanchored_open",),
             ),
             (
                 "indented_fence_opener_is_literal_not_a_fence",
@@ -392,12 +430,74 @@ class BodyFindingsFenceAndSpanEdgeTests(unittest.TestCase):
                 2,
                 ("unanchored_open",),
             ),
+            (
+                "plain_summary_resolved_ends_open_span",
+                "**1 open finding**\n\n- Unanchored real finding.\n\n<details>\n"
+                "<summary>1 resolved since last review</summary>\n\n"
+                "- [Resolved](#discussion_r4213707256)\n</details>\n",
+                1,
+                ("unanchored_open",),
+            ),
+            (
+                "indented_closer_ends_fence_before_headline",
+                "```text\nsample\n   ```\n\n**Previously missed (1)**\n\nReal finding.\n```\n",
+                1,
+                ("previously_missed",),
+            ),
+            (
+                "prose_cross_link_on_continuation_does_not_cancel",
+                "**1 open finding**\n\n- Missing null check.\n"
+                "  Related: [earlier](#discussion_r4213707256)\n",
+                1,
+                ("unanchored_open",),
+            ),
+            (
+                "leading_link_on_continuation_cancels",
+                "**1 open finding**\n\n- Missing null check.\n  [Thread](#discussion_r4213707256)\n",
+                0,
+                (),
+            ),
+            (
+                "bare_cr_line_break_starts_a_line",
+                "x\r**2 open findings**\r- item\r",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "backtick_info_string_is_not_a_fence",
+                "```a`b\n**2 open findings**\n```\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "bold_resolved_terminator_ends_open_span",
+                "**2 open findings**\n\n- Unanchored item.\n\n**1 resolved**\n\n"
+                "- [Resolved](#discussion_r9)\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "suppressed_summary_terminator_ends_open_span",
+                "**2 open findings**\n\n- Unanchored item.\n\n<details>\n"
+                "<summary><strong>Suppressed comments (1)</strong></summary>\n\n"
+                "- [s](#discussion_r9)\n",
+                3,
+                ("suppressed", "unanchored_open"),
+            ),
         )
         for label, body, count, markers in cases:
             with self.subTest(case=label):
                 findings = detect_body_findings(body)
                 self.assertEqual(findings.count, count)
                 self.assertEqual(findings.markers, markers)
+
+    def test_long_space_run_after_heading_is_linear_time(self) -> None:
+        # Regression: "### " then a long run of spaces was quadratic in the heading regex
+        # (about 9 s at 20 KB of spaces). Linear parsing must finish far inside the bound.
+        body = "### " + " " * 20000 + "x\n"
+        start = time.perf_counter()
+        detect_body_findings(body)
+        self.assertLess(time.perf_counter() - start, 2.0)
 
 
 if __name__ == "__main__":
