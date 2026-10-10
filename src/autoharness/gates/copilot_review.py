@@ -185,6 +185,9 @@ _BODY_SECTION_HEADER_RE = re.compile(r"<summary>\s*<strong>|^### ", re.IGNORECAS
 _BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
 
 
+_BODY_FENCE_RE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
 def detect_body_findings(body: str) -> BodyFindings:
     """Count threadless findings in one Copilot review body (pure, stdlib ``re``).
 
@@ -203,7 +206,9 @@ def detect_body_findings(body: str) -> BodyFindings:
     The ``resolved since last review``, ``What changed in this PR``, and overview risk
     lines are never counted.
     """
-    text = body or ""
+    # Fenced code blocks are quoted content, not structure: a headline quoted inside one
+    # is not a finding.
+    text = _BODY_FENCE_RE.sub("", body or "")
 
     previously_missed = max(
         (int(m.group(1)) for m in _BODY_PREVIOUSLY_MISSED_RE.finditer(text)), default=0

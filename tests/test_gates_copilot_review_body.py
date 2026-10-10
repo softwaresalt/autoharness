@@ -295,6 +295,25 @@ Adds parsing for Previously missed (1), Suppressed comments (1), and 2 open find
 """
 
 
+# SYNTHETIC: a quoted Markdown block in a fenced code span. The headline lines inside the
+# fence are code, not structure, so the body is 0. A real headline outside the fence counts.
+_FENCED_QUOTE_THEN_REAL = """### 🔵 Needs a closer look
+
+The summary quotes a changed line:
+
+```markdown
+### Suppressed comments (1)
+**2 open findings**
+```
+
+<details>
+<summary><strong>Previously missed (1)</strong></summary>
+
+Real finding outside the fence.
+</details>
+"""
+
+
 class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
     """The open-findings span ends at the next section header; U is the largest count."""
 
@@ -311,6 +330,7 @@ class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
             ("heading_ends_span_before_late_anchor", _HEADING_BOUNDARY, 2, ("unanchored_open",)),
             ("largest_open_count_wins", _MAX_OVER_OCCURRENCES, 2, ("unanchored_open",)),
             ("prose_mentions_are_not_findings", _PROSE_NOT_A_FINDING, 0, ()),
+            ("fenced_quote_ignored_real_headline_counted", _FENCED_QUOTE_THEN_REAL, 1, ("previously_missed",)),
         )
         for label, body, count, markers in cases:
             with self.subTest(case=label):
