@@ -15,6 +15,7 @@ No network and no subprocess: the detector is pure.
 
 from __future__ import annotations
 
+import dataclasses
 import unittest
 
 from autoharness.gates.copilot_review import (
@@ -168,11 +169,11 @@ _NO_MARKERS = "Looks good to me. No findings in this review.\n"
 
 
 class BodyFindingsContractTests(unittest.TestCase):
-    """Structural tests: they reach no stub, so they sit outside the RED roster."""
+    """Structural contract checks for the body detector's dataclass and constants."""
 
     def test_body_findings_is_a_frozen_dataclass(self) -> None:
         findings = BodyFindings(count=0, markers=(), overview_version=None)
-        with self.assertRaises(Exception):
+        with self.assertRaises(dataclasses.FrozenInstanceError):
             findings.count = 1  # type: ignore[misc]
 
     def test_exported_constants_have_the_contract_values(self) -> None:
@@ -181,7 +182,7 @@ class BodyFindingsContractTests(unittest.TestCase):
 
 
 class BodyFindingsCcrOverviewV2Tests(unittest.TestCase):
-    """Roster 1: ``ccr-overview-v2`` bodies."""
+    """``ccr-overview-v2`` bodies."""
 
     def test_ccr_overview_v2_bodies(self) -> None:
         cases = (
@@ -200,7 +201,7 @@ class BodyFindingsCcrOverviewV2Tests(unittest.TestCase):
 
 
 class BodyFindingsLegacyAndUnanchoredTests(unittest.TestCase):
-    """Roster 2: legacy and unanchored bodies."""
+    """Legacy and unanchored bodies."""
 
     def test_legacy_and_unanchored_bodies(self) -> None:
         cases = (
@@ -217,7 +218,7 @@ class BodyFindingsLegacyAndUnanchoredTests(unittest.TestCase):
 
 
 class BodyFindingsVersionAndEmptyTests(unittest.TestCase):
-    """Roster 3: overview version, no-marker, and empty bodies."""
+    """Overview version, no-marker, and empty bodies."""
 
     def test_overview_version_and_empty_bodies(self) -> None:
         cases = (
@@ -231,6 +232,76 @@ class BodyFindingsVersionAndEmptyTests(unittest.TestCase):
                 findings = detect_body_findings(body)
                 self.assertEqual(findings.count, count)
                 self.assertEqual(findings.overview_version, version)
+
+
+# SYNTHETIC: a bare headline, then a "resolved since last review" section whose anchor
+# must not be counted. The span stops at the resolved section's header: U = 1 - 0 = 1.
+_BARE_HEADLINE_RESOLVED_ANCHOR = """**1 open finding**
+
+<details>
+<summary><strong>1 resolved since last review</strong></summary>
+
+- [Defer recording](#discussion_r4213707256)
+</details>
+"""
+
+# SYNTHETIC: 2 open findings, one anchored and one not, then a "Previously missed (1)"
+# header. The span stops at that header: A = 1, U = 1, count = max(0, 1) + 1 = 2.
+_MIXED_ANCHORS_THEN_PM = """<details open>
+<summary><strong>2 open findings</strong></summary>
+
+- [Anchored item](#discussion_r9000000003)
+- Unanchored item with no link
+</details>
+
+<details>
+<summary><strong>Previously missed (1)</strong></summary>
+
+Synthetic.
+"""
+
+# SYNTHETIC: a "### " heading ends the open-findings span before a late anchor, so the
+# late anchor cannot lower U: U = 2 - 0 = 2.
+_HEADING_BOUNDARY = """**2 open findings**
+
+### Next section
+
+[Late anchor](#discussion_r9000000004)
+"""
+
+# SYNTHETIC: an earlier "0 open findings" and a later "2 open findings" with no list.
+# The largest unanchored count wins: U = max(0, 2) = 2.
+_MAX_OVER_OCCURRENCES = """**0 open findings**
+
+Quoted earlier text.
+
+**2 open findings**
+
+No list follows.
+"""
+
+
+class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
+    """The open-findings span ends at the next section header; U is the largest count."""
+
+    def test_span_and_header_rules(self) -> None:
+        cases = (
+            # (label, body, count, markers)
+            ("bare_headline_resolved_anchor_not_counted", _BARE_HEADLINE_RESOLVED_ANCHOR, 1, ("unanchored_open",)),
+            (
+                "anchored_then_unanchored_before_previously_missed",
+                _MIXED_ANCHORS_THEN_PM,
+                2,
+                ("previously_missed", "unanchored_open"),
+            ),
+            ("heading_ends_span_before_late_anchor", _HEADING_BOUNDARY, 2, ("unanchored_open",)),
+            ("largest_open_count_wins", _MAX_OVER_OCCURRENCES, 2, ("unanchored_open",)),
+        )
+        for label, body, count, markers in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.markers, markers)
 
 
 if __name__ == "__main__":

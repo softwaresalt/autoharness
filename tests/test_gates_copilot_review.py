@@ -205,6 +205,7 @@ def _graphql(head=_HEAD, requested=False, reviews=(), threads=()):
                                 "author": {"login": author},
                                 "state": st,
                                 "commit": {"oid": oid},
+                                "body": "",
                             }
                             for author, st, oid in reviews
                         ],
@@ -476,7 +477,7 @@ class ParseHardeningTests(unittest.TestCase):
 
     def test_dismissed_review_does_not_complete_head(self) -> None:
         raw = _pr(reviews={"nodes": [
-            {"author": {"login": COPILOT_LOGIN}, "state": "DISMISSED", "commit": {"oid": _HEAD}}
+            {"author": {"login": COPILOT_LOGIN}, "state": "DISMISSED", "commit": {"oid": _HEAD}, "body": ""}
         ], "pageInfo": {"hasPreviousPage": False}})
         st = parse_graphql_response(raw)
         self.assertTrue(st.parse_ok)
@@ -484,7 +485,7 @@ class ParseHardeningTests(unittest.TestCase):
 
     def test_pending_review_does_not_complete_head(self) -> None:
         raw = _pr(reviews={"nodes": [
-            {"author": {"login": COPILOT_LOGIN}, "state": "PENDING", "commit": {"oid": _HEAD}}
+            {"author": {"login": COPILOT_LOGIN}, "state": "PENDING", "commit": {"oid": _HEAD}, "body": ""}
         ], "pageInfo": {"hasPreviousPage": False}})
         st = parse_graphql_response(raw)
         self.assertTrue(st.parse_ok)
@@ -726,7 +727,7 @@ def _body_pr(review_nodes, comment_nodes=()):
 
 
 class BodyFindingParseTests(unittest.TestCase):
-    """Roster for 201.002-T (RED scaffold): body parse plus trusted-marker parse."""
+    """201-F U2: review-body parse and trusted disposition-marker parse."""
 
     def test_marker_recognition_scopes_trusted_comments(self) -> None:
         review = _copilot_review_node(101, _PM_BODY)
@@ -748,25 +749,52 @@ class BodyFindingParseTests(unittest.TestCase):
             ("missing_association_ignored", [_comment_node("c", _MISSING, marker)], (101,)),
             ("non_string_association_ignored", [_comment_node("c", 7, marker)], (101,)),
             ("trailing_text_is_not_a_marker", [_comment_node("maintainer", "MEMBER", f"{marker} later")], (101,)),
+            ("leading_zero_is_not_canonical", [_comment_node("maintainer", "MEMBER", f"{DISPOSITION_MARKER} 0101")], (101,)),
+            (
+                "non_ascii_digits_are_not_a_marker",
+                [_comment_node("maintainer", "MEMBER", f"{DISPOSITION_MARKER} \u0661\u0660\u0661")],
+                (101,),
+            ),
         )
         for label, comments, expected in cases:
             with self.subTest(case=label):
                 state = parse_graphql_response(_body_pr([review], comments))
                 self.assertEqual(state.undispositioned_body_finding_review_ids, expected)
 
+    def test_null_author_comment_is_skipped_not_ambiguous(self) -> None:
+        # A deleted account's comment cannot clear a disposition, so it is ignored. It
+        # must not wedge a PR into DETECTION_AMBIGUOUS when nothing else is wrong.
+        with self.subTest(case="clean_pr_with_null_author_comment"):
+            null_author = {"author": None, "authorAssociation": "MEMBER", "body": "x"}
+            state = parse_graphql_response(_body_pr([], [null_author]))
+            self.assertTrue(state.parse_ok)
+            self.assertEqual(state.undispositioned_body_finding_review_ids, ())
+        with self.subTest(case="null_author_marker_does_not_clear"):
+            marker_comment = {
+                "author": None,
+                "authorAssociation": "MEMBER",
+                "body": f"{DISPOSITION_MARKER} 101",
+            }
+            state = parse_graphql_response(
+                _body_pr([_copilot_review_node(101, _PM_BODY)], [marker_comment])
+            )
+            self.assertTrue(state.parse_ok)
+            self.assertEqual(state.undispositioned_body_finding_review_ids, (101,))
+
     def test_fail_closed_body_and_comment_shapes(self) -> None:
+        absent_body = _copilot_review_node(101, _PM_BODY)
+        del absent_body["body"]
         cases = (
             ("non_string_body", _body_pr([_copilot_review_node(101, 42)])),
+            ("null_body", _body_pr([_copilot_review_node(101, None)])),
+            ("absent_body", _body_pr([absent_body])),
             ("body_finding_without_int_database_id", _body_pr([_copilot_review_node("101", _PM_BODY)])),
             ("body_finding_with_bool_database_id", _body_pr([_copilot_review_node(True, _PM_BODY)])),
             (
-                "missing_comments_connection",
-                _body_pr([_copilot_review_node(101, _PM_BODY)]),
+                "digit_run_beyond_int_conversion_limit",
+                _body_pr([_copilot_review_node(101, "<strong>Previously missed (" + "9" * 5000 + ")</strong>")]),
             ),
-            (
-                "comment_with_null_author",
-                _body_pr([_copilot_review_node(101, _PM_BODY)], [{"author": None, "authorAssociation": "MEMBER", "body": "x"}]),
-            ),
+            ("missing_comments_connection", _body_pr([_copilot_review_node(101, _PM_BODY)])),
         )
         for label, raw in cases:
             with self.subTest(case=label):
@@ -809,7 +837,7 @@ def _body_state(*, reviews, unresolved=(), comments_complete=True, dispositioned
 
 
 class BodyFindingVerdictTests(unittest.TestCase):
-    """Roster for 201.003-T (RED scaffold): verdict, truncation, and payload."""
+    """201-F U3: verdict, truncation, and payload."""
 
     def test_undispositioned_body_findings_block_after_resolved_threads(self) -> None:
         with self.subTest(case="undispositioned_blocks"):
@@ -847,7 +875,7 @@ class BodyFindingVerdictTests(unittest.TestCase):
 
 
 class BodyFindingVerdictCharacterizationTests(unittest.TestCase):
-    """Characterization (outside the RED roster): pre-existing ordering must hold."""
+    """Characterization: pre-existing ordering and PASS semantics that must hold."""
 
     def test_unresolved_threads_precede_body_findings(self) -> None:
         st = _body_state(reviews=[_finding_review()], unresolved=["T1"])
@@ -872,8 +900,8 @@ class BodyFindingVerdictCharacterizationTests(unittest.TestCase):
                 self.assertEqual(result.exit_code, 0 if verdict in PASS_VERDICTS else 1)
 
 
-class BodyFindingScaffoldContractTests(unittest.TestCase):
-    """Structural tests (reach no stub): the RED scaffold keeps the contract constants."""
+class BodyFindingContractConstantTests(unittest.TestCase):
+    """Structural contract checks for the body-finding constants and dataclass defaults."""
 
     def test_trusted_disposition_associations_is_the_contract_set(self) -> None:
         self.assertEqual(

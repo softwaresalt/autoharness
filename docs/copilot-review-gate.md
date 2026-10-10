@@ -54,9 +54,24 @@ The gate queries GitHub via `gh api graphql` for the PR `headRefOid`, Copilot
 enablement signals (`reviewRequests` / `reviews`, including each review's
 `databaseId` and `body`), review completion **for the current HEAD**, unresolved
 Copilot-authored `reviewThreads`, and the PR conversation `comments(last:100)` with
-their `authorAssociation` (read only for disposition markers). All subprocess
+their `authorAssociation` (read for disposition markers; a missing connection or a
+malformed comment fails closed on every evaluation). All subprocess
 invocation is a fixed argv array executed with `shell=False`; the repo slug and
 PR number are validated to reject shell metacharacters before any process runs.
+
+### Output
+
+The human-readable output prints the verdict and message. It adds these lines when they
+apply:
+
+* `  undispositioned Copilot review-body findings in reviews: <ids>` and the marker hint,
+  only for `UNDISPOSITIONED_BODY_FINDINGS`.
+* `  advisory: <message>`, for an advisory (see [Review-Body Findings](#review-body-findings)).
+
+`--json` emits the result object. It includes `verdict`, `enforcement`,
+`head_ref_oid`, `unresolved_thread_ids`, `undispositioned_body_finding_review_ids`,
+`advisory`, `rounds`, `forced`, `blocked`, `exit_code`, and `message`. It adds
+`force_audit_log` when an audited `--force` applies.
 
 ### Enforcement Modes
 
@@ -83,7 +98,7 @@ command.
 | `UNRESOLVED_THREADS` | BLOCK (exit 1) | Review completed but one or more Copilot-authored threads remain unresolved. |
 | `UNDISPOSITIONED_BODY_FINDINGS` | BLOCK (exit 1) | A completed Copilot review (any round) carries threadless body findings, and no trusted PR comment carries `Copilot-Review-Body-Disposition: <review databaseId>`. See [Review-Body Findings](#review-body-findings). |
 | `REVIEW_TIMEOUT` | BLOCK (exit 1) | `--max-wait` elapsed while still waiting for an engaged reviewer. Logged distinctly, but **still blocks**. |
-| `DETECTION_AMBIGUOUS` | BLOCK (exit 1) | Enablement or HEAD could not be determined (e.g., missing `headRefOid`, malformed response, or API reachable but enablement unknown). |
+| `DETECTION_AMBIGUOUS` | BLOCK (exit 1) | Enablement or HEAD could not be determined (e.g., missing `headRefOid`, malformed response, or API reachable but enablement unknown), or a review-body disposition cannot be confirmed (for example a truncated PR comments page while findings remain undispositioned). |
 | `VERIFY_FAILED` | BLOCK (exit 1) | The GitHub query itself failed (API unreachable / non-zero `gh`). |
 
 `PASS_VERDICTS = {SATISFIED, NOT_APPLICABLE}`. Every other verdict blocks.
@@ -93,7 +108,7 @@ command.
 | Code | Meaning |
 |---|---|
 | `0` | PASS — `SATISFIED`, `NOT_APPLICABLE`, or an audited `--force` override. |
-| `1` | BLOCK — review incomplete, unresolved threads, timeout, ambiguous, or unverifiable. |
+| `1` | BLOCK — review incomplete, unresolved threads, undispositioned review-body findings, timeout, ambiguous, or unverifiable. |
 | `2` | Invalid arguments (bad PR number, malformed `--repo`, unknown flag, bad `--enforcement`). |
 
 ### Bounded Timeout
@@ -155,16 +170,21 @@ text (for example `... 101 later`) does not count. Comments from the Copilot bot
 or from any other association (`NONE`, `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or a
 missing association), are ignored.
 
-*Trust rationale:* on a public repository any user can post a PR comment, but
-resolving a review thread requires write access. Limiting the marker to `OWNER`,
-`MEMBER`, and `COLLABORATOR` gives the same authority, so an outside commenter cannot
-clear a P-018 BLOCK and the Copilot bot cannot clear its own findings.
+*Trust rationale:* on a public repository any user can post a PR comment. The
+`OWNER`, `MEMBER`, and `COLLABORATOR` associations exclude ordinary outside
+commenters, so they cannot clear a P-018 BLOCK, and the Copilot bot cannot clear its
+own findings. This is an **association** check, not a write-permission check:
+`COLLABORATOR` can include read-only outside collaborators, and `MEMBER` can include
+members with read access. A write-permission check on the marker author is tracked as
+a follow-up.
 
 **Fail-closed rules:**
 
-* A non-string review body, a body finding without an integer `databaseId`, a
-  missing `comments` connection, or a comment with an unreadable author gives
-  `DETECTION_AMBIGUOUS`.
+* An absent, null, or non-string review body, a body finding without an integer
+  `databaseId`, a digit run too large to count, or a missing `comments` connection
+  gives `DETECTION_AMBIGUOUS`.
+* A comment with an unreadable author (for example a deleted account) is ignored. It
+  cannot clear a disposition, so it does not make the gate ambiguous.
 * A truncated `comments` connection (`hasPreviousPage`) is not ambiguous by itself.
   It becomes `DETECTION_AMBIGUOUS` only when undispositioned findings remain, because
   the marker could sit on an unfetched page.

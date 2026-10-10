@@ -337,7 +337,7 @@ Exit codes:
      or pipeline-topology PASS/forced; or dag-readiness report (including
      empty/degraded — always non-fatal); or closure-evidence PASS.
   1  at least one matched file failed its gate (blocked), unless advisory; or
-     copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
+     copilot-review BLOCK (review incomplete/unresolved/undispositioned review-body findings/unverifiable/timeout);
      or pipeline-topology BLOCK; or closure-evidence validation failure
      (filename, frontmatter predicate, discoverability, close_path, or
      close_evidence).
@@ -876,17 +876,24 @@ def _audit_copilot_review_force(workspace: Path, result, pr: str, repo: str) -> 
 def _copilot_body_finding_lines(result) -> list[str]:
     """Human-readable lines for undispositioned review-body findings and advisories.
 
-    The IDs name the reviews that still need a trusted disposition comment, and the hint
-    gives the exact marker literal. Advisories are prefixed so they are never mistaken
-    for a verdict line (201-F U4).
+    The ID list and marker hint appear only for the UNDISPOSITIONED_BODY_FINDINGS verdict.
+    A truncated comments page (DETECTION_AMBIGUOUS) carries its cause in the verdict
+    message instead, so the operator is never told to post a marker that may already
+    exist on an unfetched page. Advisories are prefixed so they are never mistaken for
+    a verdict line (201-F U4).
     """
+    from autoharness.gates.copilot_review import DISPOSITION_MARKER, Verdict
+
     lines: list[str] = []
-    if result.undispositioned_body_finding_review_ids:
+    if (
+        result.verdict is Verdict.UNDISPOSITIONED_BODY_FINDINGS
+        and result.undispositioned_body_finding_review_ids
+    ):
         ids = ", ".join(str(review_id) for review_id in result.undispositioned_body_finding_review_ids)
         lines.append(f"  undispositioned Copilot review-body findings in reviews: {ids}")
         lines.append(
-            "  post a PR comment containing 'Copilot-Review-Body-Disposition: <id>' "
-            "after handling each finding"
+            f"  post a PR comment with the whole line '{DISPOSITION_MARKER} <id>' on its own "
+            "after handling each finding (one line per review; trailing text is ignored)"
         )
     lines.extend(f"  advisory: {message}" for message in result.advisory)
     return lines

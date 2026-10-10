@@ -171,7 +171,7 @@ class CopilotReviewVerdictTests(unittest.TestCase):
 
 
 class CopilotReviewBodyFindingRenderTests(unittest.TestCase):
-    """Roster for 201.004-T (RED scaffold): human-readable body-finding rendering."""
+    """Human-readable body-finding rendering and advisories (201-F U4)."""
 
     def test_human_output_renders_ids_hint_and_advisories(self) -> None:
         with self.subTest(case="undispositioned_ids_and_marker_hint"):
@@ -212,7 +212,7 @@ class CopilotReviewBodyFindingRenderTests(unittest.TestCase):
 
 
 class CopilotReviewBodyFindingJsonCharacterizationTests(unittest.TestCase):
-    """Characterization (outside the RED roster): --json already carries the new keys."""
+    """--json already carries the body-finding keys (characterization)."""
 
     def test_json_output_carries_body_finding_keys(self) -> None:
         st = _state(
@@ -227,6 +227,30 @@ class CopilotReviewBodyFindingJsonCharacterizationTests(unittest.TestCase):
         payload = json.loads(out)
         self.assertEqual(payload["undispositioned_body_finding_review_ids"], [5450565731])
         self.assertEqual(payload["advisory"], [])
+
+
+class CopilotReviewTruncatedCommentsRenderTests(unittest.TestCase):
+    """A truncated comments page names its cause and never prints a marker hint."""
+
+    def test_truncated_comments_print_cause_not_marker_hint(self) -> None:
+        st = ReviewState(
+            head_ref_oid=_HEAD,
+            copilot_requested=True,
+            copilot_reviews=(
+                ReviewRecord("COMMENTED", _HEAD, database_id=5, body_findings=1, overview_version=2),
+            ),
+            copilot_unresolved_thread_ids=(),
+            comments_complete=False,
+        )
+        with mock.patch(
+            "autoharness.gates.copilot_review.query_pr_review_state", return_value=st
+        ):
+            out, _, code = _run("gate", "copilot-review", "42", "--repo", "o/n")
+        self.assertEqual(code, 1)
+        self.assertIn("DETECTION_AMBIGUOUS", out)
+        self.assertIn("PR comments page truncated", out)
+        self.assertNotIn("undispositioned Copilot review-body findings", out)
+        self.assertNotIn("Copilot-Review-Body-Disposition:", out)
 
 
 class CopilotReviewForceTests(unittest.TestCase):

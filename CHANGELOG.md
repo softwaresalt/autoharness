@@ -26,7 +26,10 @@
   comment (OWNER, MEMBER, or COLLABORATOR) carries
   `Copilot-Review-Body-Disposition: <review databaseId>`. The PASS set, exit codes,
   enforcement modes, `--max-wait`, and audited `--force` are unchanged. Previously
-  such a review-body-only finding passed as `SATISFIED`.
+  such a review-body-only finding passed as `SATISFIED`. The `--json` output gains
+  `undispositioned_body_finding_review_ids` and `advisory`. Rollout: an open PR that
+  already handled body findings must post a disposition comment for each affected
+  review before the gate passes; merged PRs are not re-checked.
 
 - **Ship/Stage frontmatter bound to role variables (194-F / 200-S)**:
   `_ship.agent.md.tmpl` and `_stage.agent.md.tmpl` now render their

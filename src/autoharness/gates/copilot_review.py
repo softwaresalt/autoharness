@@ -135,8 +135,9 @@ _VERDICT_MESSAGES = {
         "Re-run after review completes, or override with an audited --force."
     ),
     Verdict.DETECTION_AMBIGUOUS: (
-        "The PR review state could not be interpreted unambiguously (missing HEAD or "
-        "malformed GraphQL response). BLOCK (fail-safe) until the state is verifiable."
+        "The PR review state could not be interpreted unambiguously (missing HEAD, a "
+        "malformed GraphQL response, or review-body disposition that cannot be confirmed). "
+        "BLOCK (fail-safe) until the state is verifiable."
     ),
     Verdict.VERIFY_FAILED: (
         "Could not verify Copilot-review state (gh missing, API unreachable, or the "
@@ -146,7 +147,7 @@ _VERDICT_MESSAGES = {
 
 
 # ---------------------------------------------------------------------------
-# Review-body findings (201-F U1, RED scaffold for 201.001-T)
+# Review-body findings (201-F U1)
 # ---------------------------------------------------------------------------
 
 # Literal marker a trusted PR comment carries to disposition one Copilot review body.
@@ -168,7 +169,7 @@ class BodyFindings:
 
 _BODY_PREVIOUSLY_MISSED_RE = re.compile(r"Previously\s+missed\s*\((\d+)\)", re.IGNORECASE)
 _BODY_SUPPRESSED_RE = re.compile(r"Suppressed\s+comments\s*\((\d+)\)", re.IGNORECASE)
-_BODY_OPEN_FINDINGS_RE = re.compile(r"(\d+)\s+open\s+findings?", re.IGNORECASE)
+_BODY_OPEN_FINDINGS_RE = re.compile(r"(?<!\d)(\d+)\s+open\s+findings?", re.IGNORECASE)
 _BODY_ANCHOR_RE = re.compile(r"#discussion_r\d+")
 _BODY_SECTION_HEADER_RE = re.compile(r"<summary>\s*<strong>|^### ", re.IGNORECASE | re.MULTILINE)
 _BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
@@ -199,13 +200,14 @@ def detect_body_findings(body: str) -> BodyFindings:
     suppressed = max((int(m.group(1)) for m in _BODY_SUPPRESSED_RE.finditer(text)), default=0)
 
     unanchored = 0
-    open_match = _BODY_OPEN_FINDINGS_RE.search(text)
-    if open_match is not None:
+    # Each open-findings headline is checked against its own span; the largest
+    # unanchored count wins, which keeps the detector on the fail-closed side.
+    for open_match in _BODY_OPEN_FINDINGS_RE.finditer(text):
         n_open = int(open_match.group(1))
         header = _BODY_SECTION_HEADER_RE.search(text, open_match.end())
         span_end = header.start() if header is not None else len(text)
         anchors = len(_BODY_ANCHOR_RE.findall(text[open_match.end() : span_end]))
-        unanchored = max(0, n_open - anchors)
+        unanchored = max(unanchored, n_open - anchors)
 
     markers: list[str] = []
     if previously_missed > 0:
@@ -283,10 +285,11 @@ class ReviewState:
 # Non-Copilot comment authors whose association may clear a body-finding disposition.
 TRUSTED_DISPOSITION_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
-# An exact disposition line: the literal marker, one integer review databaseId, and
-# nothing else on the line. Trailing text (for example "101 later") never clears a review.
+# An exact disposition line: the literal marker, one canonical ASCII integer review
+# databaseId (no leading zero, no non-ASCII digits), and nothing else on the line.
+# Trailing text (for example "101 later") never clears a review.
 _DISPOSITION_LINE_RE = re.compile(
-    rf"^{re.escape(DISPOSITION_MARKER)}[ \t]*(\d+)[ \t]*\r?$", re.MULTILINE
+    rf"^{re.escape(DISPOSITION_MARKER)}[ \t]*(0|[1-9][0-9]*)[ \t]*\r?$", re.MULTILINE
 )
 
 
@@ -410,11 +413,15 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
         # Review body (201-F U2): None is an empty body; any other non-string is
         # unverifiable and fails closed.
         body = node.get("body")
-        if body is None:
-            body = ""
         if not isinstance(body, str):
+            # GitHub's review body is non-null, so an absent or null body is
+            # unverifiable and fails closed rather than counting as "no findings".
             return _ambiguous()
-        findings = detect_body_findings(body)
+        try:
+            findings = detect_body_findings(body)
+        except ValueError:
+            # A digit run beyond CPython's int-conversion limit cannot be counted.
+            return _ambiguous()
         database_id = node.get("databaseId")
         if isinstance(database_id, bool) or not isinstance(database_id, int):
             database_id = None
@@ -480,7 +487,10 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
     for node in comment_nodes:
         author = _login(node.get("author"))
         if author is None:
-            return _ambiguous()
+            # An unattributable comment (a deleted account) can never be a trusted
+            # disposition, so it is skipped. It does not make the gate ambiguous, which
+            # would wedge every PR on a comment that cannot clear anything.
+            continue
         association = node.get("authorAssociation")
         if author == COPILOT_LOGIN:
             continue
@@ -489,7 +499,10 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
         text = node.get("body")
         if not isinstance(text, str):
             continue
-        dispositioned.update(int(match.group(1)) for match in _DISPOSITION_LINE_RE.finditer(text))
+        try:
+            dispositioned.update(int(match.group(1)) for match in _DISPOSITION_LINE_RE.finditer(text))
+        except ValueError:
+            return _ambiguous()
 
     return ReviewState(
         head_ref_oid=head,
@@ -747,6 +760,13 @@ def query_pr_review_state(
 # ---------------------------------------------------------------------------
 
 
+def _ambiguity_detail(state: ReviewState, verdict: Verdict) -> str:
+    """Operator-facing cause for DETECTION_AMBIGUOUS that a truncated comments page causes."""
+    if verdict is Verdict.DETECTION_AMBIGUOUS and state.parse_ok and not state.comments_complete:
+        return "PR comments page truncated; disposition markers cannot be confirmed"
+    return ""
+
+
 def evaluate(
     pr: int,
     repo: str,
@@ -825,6 +845,7 @@ def evaluate(
                 rounds=rounds,
                 undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
                 advisory=_overview_advisory(state),
+                detail=_ambiguity_detail(state, verdict),
             )
 
         # Review is enabled but not yet complete for HEAD. With no wait budget this
