@@ -10,11 +10,14 @@ No live models, no network, no real subprocess: ``query_fn`` / ``run_fn`` / ``sl
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from autoharness.gates.copilot_review import (
     COPILOT_LOGIN,
+    DISPOSITION_MARKER,
     PASS_VERDICTS,
+    TRUSTED_DISPOSITION_ASSOCIATIONS,
     CopilotReviewResult,
     ReviewRecord,
     ReviewState,
@@ -129,6 +132,8 @@ class ClassifyTests(unittest.TestCase):
 
     def test_only_satisfied_and_na_pass(self) -> None:
         self.assertEqual(PASS_VERDICTS, {Verdict.SATISFIED, Verdict.NOT_APPLICABLE})
+        # 201-F U3 invariant I1: the body-finding BLOCK verdict is never a pass.
+        self.assertNotIn(Verdict.UNDISPOSITIONED_BODY_FINDINGS, PASS_VERDICTS)
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +153,7 @@ class ResultTests(unittest.TestCase):
         for v in (
             Verdict.WAITING_FOR_REVIEW,
             Verdict.UNRESOLVED_THREADS,
+            Verdict.UNDISPOSITIONED_BODY_FINDINGS,
             Verdict.REVIEW_TIMEOUT,
             Verdict.DETECTION_AMBIGUOUS,
             Verdict.VERIFY_FAILED,
@@ -199,6 +205,7 @@ def _graphql(head=_HEAD, requested=False, reviews=(), threads=()):
                                 "author": {"login": author},
                                 "state": st,
                                 "commit": {"oid": oid},
+                                "body": "",
                             }
                             for author, st, oid in reviews
                         ],
@@ -215,6 +222,8 @@ def _graphql(head=_HEAD, requested=False, reviews=(), threads=()):
                         ],
                         "pageInfo": {"hasNextPage": False},
                     },
+                    # 201-F U2: the real query always requests PR conversation comments.
+                    "comments": {"nodes": [], "pageInfo": {"hasPreviousPage": False}},
                 }
             }
         }
@@ -412,12 +421,15 @@ def _pr(**overrides):
 
     Every connection carries an explicit, non-truncated ``pageInfo`` because the real
     GraphQL query always requests one and the parser now fails closed without it.
+    The PR conversation ``comments`` connection (201-F U2) is empty and complete by
+    default.
     """
     pr = {
         "headRefOid": _HEAD,
         "reviewRequests": {"nodes": [], "pageInfo": {"hasNextPage": False}},
         "reviews": {"nodes": [], "pageInfo": {"hasPreviousPage": False}},
         "reviewThreads": {"nodes": [], "pageInfo": {"hasNextPage": False}},
+        "comments": {"nodes": [], "pageInfo": {"hasPreviousPage": False}},
     }
     pr.update(overrides)
     return {"data": {"repository": {"pullRequest": pr}}}
@@ -465,7 +477,7 @@ class ParseHardeningTests(unittest.TestCase):
 
     def test_dismissed_review_does_not_complete_head(self) -> None:
         raw = _pr(reviews={"nodes": [
-            {"author": {"login": COPILOT_LOGIN}, "state": "DISMISSED", "commit": {"oid": _HEAD}}
+            {"author": {"login": COPILOT_LOGIN}, "state": "DISMISSED", "commit": {"oid": _HEAD}, "body": ""}
         ], "pageInfo": {"hasPreviousPage": False}})
         st = parse_graphql_response(raw)
         self.assertTrue(st.parse_ok)
@@ -473,7 +485,7 @@ class ParseHardeningTests(unittest.TestCase):
 
     def test_pending_review_does_not_complete_head(self) -> None:
         raw = _pr(reviews={"nodes": [
-            {"author": {"login": COPILOT_LOGIN}, "state": "PENDING", "commit": {"oid": _HEAD}}
+            {"author": {"login": COPILOT_LOGIN}, "state": "PENDING", "commit": {"oid": _HEAD}, "body": ""}
         ], "pageInfo": {"hasPreviousPage": False}})
         st = parse_graphql_response(raw)
         self.assertTrue(st.parse_ok)
@@ -678,6 +690,229 @@ class EvaluateHardeningTests(unittest.TestCase):
         # Evaluation is purely blocking; only the CLI applies an audited --force.
         with self.assertRaises(TypeError):
             evaluate(1, "owner/name", query_fn=lambda: _state(), forced=True)  # type: ignore[call-arg]
+
+
+# ---------------------------------------------------------------------------
+# 201-F U2: Copilot review bodies and trusted disposition-marker comments
+# ---------------------------------------------------------------------------
+
+_PM_BODY = "<summary><strong>Previously missed (1)</strong></summary>\n\nSynthetic finding.\n"
+
+
+def _copilot_review_node(database_id, body, state="COMMENTED", commit=_HEAD):
+    return {
+        "databaseId": database_id,
+        "author": {"login": COPILOT_LOGIN},
+        "state": state,
+        "commit": {"oid": commit},
+        "body": body,
+    }
+
+
+def _comment_node(login, association, body):
+    node = {"author": {"login": login}, "body": body}
+    if association is not _MISSING:
+        node["authorAssociation"] = association
+    return node
+
+
+_MISSING = object()
+
+
+def _body_pr(review_nodes, comment_nodes=()):
+    return _pr(
+        reviews={"nodes": list(review_nodes), "pageInfo": {"hasPreviousPage": False}},
+        comments={"nodes": list(comment_nodes), "pageInfo": {"hasPreviousPage": False}},
+    )
+
+
+class BodyFindingParseTests(unittest.TestCase):
+    """201-F U2: review-body parse and trusted disposition-marker parse."""
+
+    def test_marker_recognition_scopes_trusted_comments(self) -> None:
+        review = _copilot_review_node(101, _PM_BODY)
+        marker = f"{DISPOSITION_MARKER} 101"
+        cases = (
+            # (label, comment nodes, expected undispositioned review ids)
+            ("no_comments", [], (101,)),
+            ("member_marker_clears", [_comment_node("maintainer", "MEMBER", marker)], ()),
+            ("owner_marker_clears", [_comment_node("owner", "OWNER", marker)], ()),
+            ("collaborator_marker_clears", [_comment_node("collab", "COLLABORATOR", marker)], ()),
+            ("bot_author_cannot_clear", [_comment_node(COPILOT_LOGIN, "MEMBER", marker)], (101,)),
+            ("none_association_ignored", [_comment_node("outsider", "NONE", marker)], (101,)),
+            ("contributor_association_ignored", [_comment_node("c", "CONTRIBUTOR", marker)], (101,)),
+            (
+                "first_time_contributor_ignored",
+                [_comment_node("c", "FIRST_TIME_CONTRIBUTOR", marker)],
+                (101,),
+            ),
+            ("missing_association_ignored", [_comment_node("c", _MISSING, marker)], (101,)),
+            ("non_string_association_ignored", [_comment_node("c", 7, marker)], (101,)),
+            ("trailing_text_is_not_a_marker", [_comment_node("maintainer", "MEMBER", f"{marker} later")], (101,)),
+            ("leading_zero_is_not_canonical", [_comment_node("maintainer", "MEMBER", f"{DISPOSITION_MARKER} 0101")], (101,)),
+            (
+                "non_ascii_digits_are_not_a_marker",
+                [_comment_node("maintainer", "MEMBER", f"{DISPOSITION_MARKER} \u0661\u0660\u0661")],
+                (101,),
+            ),
+        )
+        for label, comments, expected in cases:
+            with self.subTest(case=label):
+                state = parse_graphql_response(_body_pr([review], comments))
+                self.assertEqual(state.undispositioned_body_finding_review_ids, expected)
+
+    def test_null_author_comment_is_skipped_not_ambiguous(self) -> None:
+        # A deleted account's comment cannot clear a disposition, so it is ignored. It
+        # must not wedge a PR into DETECTION_AMBIGUOUS when nothing else is wrong.
+        with self.subTest(case="clean_pr_with_null_author_comment"):
+            null_author = {"author": None, "authorAssociation": "MEMBER", "body": "x"}
+            state = parse_graphql_response(_body_pr([], [null_author]))
+            self.assertTrue(state.parse_ok)
+            self.assertEqual(state.undispositioned_body_finding_review_ids, ())
+        with self.subTest(case="null_author_marker_does_not_clear"):
+            marker_comment = {
+                "author": None,
+                "authorAssociation": "MEMBER",
+                "body": f"{DISPOSITION_MARKER} 101",
+            }
+            state = parse_graphql_response(
+                _body_pr([_copilot_review_node(101, _PM_BODY)], [marker_comment])
+            )
+            self.assertTrue(state.parse_ok)
+            self.assertEqual(state.undispositioned_body_finding_review_ids, (101,))
+
+    def test_fail_closed_body_and_comment_shapes(self) -> None:
+        absent_body = _copilot_review_node(101, _PM_BODY)
+        del absent_body["body"]
+        cases = (
+            ("non_string_body", _body_pr([_copilot_review_node(101, 42)])),
+            ("null_body", _body_pr([_copilot_review_node(101, None)])),
+            ("absent_body", _body_pr([absent_body])),
+            ("body_finding_without_int_database_id", _body_pr([_copilot_review_node("101", _PM_BODY)])),
+            ("body_finding_with_bool_database_id", _body_pr([_copilot_review_node(True, _PM_BODY)])),
+            (
+                "digit_run_beyond_int_conversion_limit",
+                _body_pr([_copilot_review_node(101, "<summary><strong>Previously missed (" + "9" * 5000 + ")</strong></summary>")]),
+            ),
+            ("missing_comments_connection", _body_pr([_copilot_review_node(101, _PM_BODY)])),
+        )
+        for label, raw in cases:
+            with self.subTest(case=label):
+                if label == "missing_comments_connection":
+                    del raw["data"]["repository"]["pullRequest"]["comments"]
+                self.assertFalse(parse_graphql_response(raw).parse_ok)
+
+    def test_review_state_scope_dismissed_and_stale_head(self) -> None:
+        dismissed = _body_pr([_copilot_review_node(101, _PM_BODY, state="DISMISSED")])
+        stale = _body_pr([_copilot_review_node(102, _PM_BODY, commit=_OLD_HEAD)])
+        with self.subTest(case="dismissed_not_counted"):
+            state = parse_graphql_response(dismissed)
+            self.assertTrue(state.parse_ok)
+            self.assertEqual(state.undispositioned_body_finding_review_ids, ())
+        with self.subTest(case="stale_head_commented_counted"):
+            state = parse_graphql_response(stale)
+            self.assertTrue(state.parse_ok)
+            self.assertEqual(state.undispositioned_body_finding_review_ids, (102,))
+
+
+def _finding_review(database_id=101, state="COMMENTED", commit=_HEAD, overview=2):
+    return ReviewRecord(
+        state=state,
+        commit_oid=commit,
+        database_id=database_id,
+        body_findings=1,
+        overview_version=overview,
+    )
+
+
+def _body_state(*, reviews, unresolved=(), comments_complete=True, dispositioned=()):
+    return ReviewState(
+        head_ref_oid=_HEAD,
+        copilot_requested=True,
+        copilot_reviews=tuple(reviews),
+        copilot_unresolved_thread_ids=tuple(unresolved),
+        dispositioned_review_ids=frozenset(dispositioned),
+        comments_complete=comments_complete,
+    )
+
+
+class BodyFindingVerdictTests(unittest.TestCase):
+    """201-F U3: verdict, truncation, and payload."""
+
+    def test_undispositioned_body_findings_block_after_resolved_threads(self) -> None:
+        with self.subTest(case="undispositioned_blocks"):
+            st = _body_state(reviews=[_finding_review()])
+            self.assertEqual(classify(st, "auto"), Verdict.UNDISPOSITIONED_BODY_FINDINGS)
+            result = CopilotReviewResult(
+                Verdict.UNDISPOSITIONED_BODY_FINDINGS,
+                "auto",
+                undispositioned_body_finding_review_ids=(101,),
+            )
+            self.assertTrue(result.blocked)
+            self.assertEqual(result.exit_code, 1)
+        with self.subTest(case="trusted_disposition_clears"):
+            st = _body_state(reviews=[_finding_review()], dispositioned=[101])
+            self.assertEqual(classify(st, "auto"), Verdict.SATISFIED)
+
+    def test_truncated_comments_with_undispositioned_findings_are_ambiguous(self) -> None:
+        st = _body_state(reviews=[_finding_review()], comments_complete=False)
+        self.assertEqual(classify(st, "auto"), Verdict.DETECTION_AMBIGUOUS)
+
+    def test_payload_and_advisory_reach_the_result(self) -> None:
+        with self.subTest(case="overview_v3_advisory"):
+            state = _body_state(reviews=[_finding_review(overview=3)], dispositioned=[101])
+            result = evaluate(1, "owner/name", query_fn=lambda: state, enforcement="auto")
+            self.assertTrue(result.advisory)
+        with self.subTest(case="to_dict_round_trip"):
+            result = CopilotReviewResult(
+                Verdict.UNDISPOSITIONED_BODY_FINDINGS,
+                "auto",
+                undispositioned_body_finding_review_ids=(101,),
+            )
+            payload = json.loads(json.dumps(result.to_dict()))
+            self.assertEqual(payload["undispositioned_body_finding_review_ids"], [101])
+            self.assertIn("advisory", payload)
+
+
+class BodyFindingVerdictCharacterizationTests(unittest.TestCase):
+    """Characterization: pre-existing ordering and PASS semantics that must hold."""
+
+    def test_unresolved_threads_precede_body_findings(self) -> None:
+        st = _body_state(reviews=[_finding_review()], unresolved=["T1"])
+        self.assertEqual(classify(st, "auto"), Verdict.UNRESOLVED_THREADS)
+
+    def test_review_timeout_with_body_findings_stays_timeout(self) -> None:
+        st = _body_state(reviews=[_finding_review(commit=_OLD_HEAD)])
+        self.assertEqual(classify(st, "auto", timed_out=True), Verdict.REVIEW_TIMEOUT)
+
+    def test_empty_undispositioned_with_incomplete_comments_stays_satisfied(self) -> None:
+        st = _body_state(
+            reviews=[ReviewRecord(state="COMMENTED", commit_oid=_HEAD, database_id=101)],
+            comments_complete=False,
+        )
+        self.assertEqual(classify(st, "auto"), Verdict.SATISFIED)
+
+    def test_every_verdict_member_passes_or_blocks(self) -> None:
+        for verdict in Verdict:
+            with self.subTest(verdict=verdict.value):
+                result = CopilotReviewResult(verdict, "auto")
+                self.assertEqual(result.blocked, verdict not in PASS_VERDICTS)
+                self.assertEqual(result.exit_code, 0 if verdict in PASS_VERDICTS else 1)
+
+
+class BodyFindingContractConstantTests(unittest.TestCase):
+    """Structural contract checks for the body-finding constants and dataclass defaults."""
+
+    def test_trusted_disposition_associations_is_the_contract_set(self) -> None:
+        self.assertEqual(
+            TRUSTED_DISPOSITION_ASSOCIATIONS, frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+        )
+
+    def test_review_record_body_fields_default_to_empty(self) -> None:
+        record = ReviewRecord(state="COMMENTED", commit_oid=_HEAD)
+        self.assertIsNone(record.database_id)
+        self.assertEqual(record.body_findings, 0)
+        self.assertIsNone(record.overview_version)
 
 
 if __name__ == "__main__":

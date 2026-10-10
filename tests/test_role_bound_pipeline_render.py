@@ -149,14 +149,14 @@ class RenderedCandidateTests(unittest.TestCase):
     """H-C6: render under three configs and validate as installed frontmatter."""
 
     _EXPECTED_SHIP = {
-        _CONFIG_DOGFOOD: ("claude-opus-5.5", "anthropic", "high", "long_context"),
-        _CONFIG_ROLELESS: ("claude-sonnet-5", "anthropic", "high", "default"),
+        _CONFIG_DOGFOOD: ("claude-haiku-5.5", "anthropic", "xhigh", "long_context"),
+        _CONFIG_ROLELESS: ("claude-sonnet-5.5", "anthropic", "high", "default"),
         _CONFIG_SEED: ("gpt-6-luna", "openai", "xhigh", "long_context"),
     }
     _EXPECTED_STAGE = {
-        _CONFIG_DOGFOOD: ("claude-opus-5.5", "anthropic", "high", "default"),
-        _CONFIG_ROLELESS: ("claude-opus-5.5", "anthropic", "high", "default"),
-        _CONFIG_SEED: ("claude-opus-5.5", "anthropic", "high", "default"),
+        _CONFIG_DOGFOOD: ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
+        _CONFIG_ROLELESS: ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
+        _CONFIG_SEED: ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
     }
 
     @classmethod
@@ -213,7 +213,7 @@ class InstalledMirrorTests(unittest.TestCase):
         data = self._mirror(_SHIP_MIRROR_REL)
         self.assertEqual(
             tuple(data[key] for key in _ROUTE_KEYS),
-            ("claude-opus-5.5", "anthropic", "high", "long_context"),
+            ("claude-haiku-5.5", "anthropic", "xhigh", "long_context"),
         )
         self.assertEqual(data["max_subagent_tier"], 3)
 
@@ -221,7 +221,7 @@ class InstalledMirrorTests(unittest.TestCase):
         data = self._mirror(_STAGE_MIRROR_REL)
         self.assertEqual(
             tuple(data[key] for key in _ROUTE_KEYS),
-            ("claude-opus-5.5", "anthropic", "high", "default"),
+            ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
         )
         self.assertEqual(data["max_subagent_tier"], 3)
 
@@ -247,10 +247,11 @@ class DogfoodConfigAndManifestTests(unittest.TestCase):
     def test_dogfood_ship_route_declares_long_context(self) -> None:
         ship = _load("config.yaml")["model_routing"]["ship"]
         self.assertEqual(ship.get("context_tier"), "long_context")
-        # D-C6 binding: the Ship model route is unchanged.
+        # Operator model_routing edit (2026-10-09, carried forward in 208-S) supersedes
+        # the D-C6 Ship model pin; the route is pinned exactly here.
         self.assertEqual(
             (ship["model_family"], ship["model_provider"], ship["reasoning_effort"]),
-            ("claude-opus-5.5", "anthropic", "high"),
+            ("claude-haiku-5.5", "anthropic", "xhigh"),
         )
 
     def test_manifest_checksums_refreshed(self) -> None:

@@ -170,6 +170,89 @@ class CopilotReviewVerdictTests(unittest.TestCase):
         self.assertTrue(payload["blocked"])
 
 
+class CopilotReviewBodyFindingRenderTests(unittest.TestCase):
+    """Human-readable body-finding rendering and advisories (201-F U4)."""
+
+    def test_human_output_renders_ids_hint_and_advisories(self) -> None:
+        with self.subTest(case="undispositioned_ids_and_marker_hint"):
+            st = _state(
+                requested=True,
+                reviews=[
+                    ReviewRecord(
+                        "COMMENTED",
+                        _HEAD,
+                        database_id=5450565731,
+                        body_findings=1,
+                        overview_version=2,
+                    )
+                ],
+            )
+            with mock.patch(
+                "autoharness.gates.copilot_review.query_pr_review_state", return_value=st
+            ):
+                out, _, code = _run("gate", "copilot-review", "42", "--repo", "o/n")
+            self.assertEqual(code, 1)
+            self.assertIn("undispositioned Copilot review-body findings in reviews: 5450565731", out)
+            self.assertIn("Copilot-Review-Body-Disposition: <id>", out)
+        with self.subTest(case="advisory_prefixed"):
+            st = ReviewState(
+                head_ref_oid=_HEAD,
+                copilot_requested=True,
+                copilot_reviews=(
+                    ReviewRecord("COMMENTED", _HEAD, database_id=7, body_findings=0, overview_version=3),
+                ),
+                copilot_unresolved_thread_ids=(),
+            )
+            with mock.patch(
+                "autoharness.gates.copilot_review.query_pr_review_state", return_value=st
+            ):
+                out, _, code = _run("gate", "copilot-review", "42", "--repo", "o/n")
+            self.assertEqual(code, 0)
+            self.assertIn("  advisory: unrecognized ccr-overview version v3", out)
+
+
+class CopilotReviewBodyFindingJsonCharacterizationTests(unittest.TestCase):
+    """--json already carries the body-finding keys (characterization)."""
+
+    def test_json_output_carries_body_finding_keys(self) -> None:
+        st = _state(
+            requested=True,
+            reviews=[ReviewRecord("COMMENTED", _HEAD, database_id=5450565731, body_findings=1, overview_version=2)],
+        )
+        with mock.patch(
+            "autoharness.gates.copilot_review.query_pr_review_state", return_value=st
+        ):
+            out, _, code = _run("gate", "copilot-review", "42", "--repo", "o/n", "--json")
+        self.assertEqual(code, 1)
+        payload = json.loads(out)
+        self.assertEqual(payload["undispositioned_body_finding_review_ids"], [5450565731])
+        self.assertEqual(payload["advisory"], [])
+
+
+class CopilotReviewTruncatedCommentsRenderTests(unittest.TestCase):
+    """A truncated comments page names its cause and never prints a marker hint."""
+
+    def test_truncated_comments_print_cause_not_marker_hint(self) -> None:
+        st = ReviewState(
+            head_ref_oid=_HEAD,
+            copilot_requested=True,
+            copilot_reviews=(
+                ReviewRecord("COMMENTED", _HEAD, database_id=5, body_findings=1, overview_version=2),
+            ),
+            copilot_unresolved_thread_ids=(),
+            comments_complete=False,
+        )
+        with mock.patch(
+            "autoharness.gates.copilot_review.query_pr_review_state", return_value=st
+        ):
+            out, _, code = _run("gate", "copilot-review", "42", "--repo", "o/n")
+        self.assertEqual(code, 1)
+        self.assertIn("DETECTION_AMBIGUOUS", out)
+        self.assertIn("PR comments page truncated", out)
+        self.assertNotIn("undispositioned Copilot review-body findings", out)
+        self.assertNotIn("Copilot-Review-Body-Disposition:", out)
+
+
 class CopilotReviewForceTests(unittest.TestCase):
     def test_force_overrides_block_and_audits(self) -> None:
         st = _state(requested=True, reviews=[])  # WAITING -> BLOCK

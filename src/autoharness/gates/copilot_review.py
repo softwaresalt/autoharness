@@ -4,8 +4,8 @@ When GitHub Copilot review is enabled for a pull request, this gate deterministi
 holds an (admin) merge until (1) Copilot has completed a review for the **current**
 ``headRefOid`` and (2) all Copilot-authored review threads are resolved -- iterating
 across multiple review rounds by construction, because the gate only passes when the
-*latest* HEAD has a completed Copilot review with zero open bot threads.
-
+*latest* HEAD has a completed Copilot review with zero open bot threads and no
+undispositioned review-body finding.
 Design constraints (decision + hardened plan, 2026-07-09):
 
 * The classifier :func:`classify` is a **pure** function of the parsed PR review
@@ -76,11 +76,13 @@ query($owner:String!,$repo:String!,$pr:Int!){
       reviewRequests(first:100){ nodes{ requestedReviewer{
         __typename ... on Bot{ login } ... on User{ login } } }
         pageInfo{ hasNextPage } }
-      reviews(last:100){ nodes{ author{ login } state commit{ oid } }
+      reviews(last:100){ nodes{ databaseId author{ login } state commit{ oid } body }
         pageInfo{ hasPreviousPage } }
       reviewThreads(first:100){ nodes{ id isResolved
         comments(first:1){ nodes{ author{ login } } } }
         pageInfo{ hasNextPage } }
+      comments(last:100){ nodes{ author{ login } authorAssociation body }
+        pageInfo{ hasPreviousPage } }
     }
   }
 }"""
@@ -93,6 +95,7 @@ class Verdict(enum.Enum):
     NOT_APPLICABLE = "NOT_APPLICABLE"
     WAITING_FOR_REVIEW = "WAITING_FOR_REVIEW"
     UNRESOLVED_THREADS = "UNRESOLVED_THREADS"
+    UNDISPOSITIONED_BODY_FINDINGS = "UNDISPOSITIONED_BODY_FINDINGS"
     REVIEW_TIMEOUT = "REVIEW_TIMEOUT"
     DETECTION_AMBIGUOUS = "DETECTION_AMBIGUOUS"
     VERIFY_FAILED = "VERIFY_FAILED"
@@ -103,12 +106,13 @@ PASS_VERDICTS = frozenset({Verdict.SATISFIED, Verdict.NOT_APPLICABLE})
 
 _VERDICT_MESSAGES = {
     Verdict.SATISFIED: (
-        "Copilot review is complete for the current HEAD and all Copilot-authored "
-        "threads are resolved. Merge may proceed with respect to this gate."
+        "Copilot review is complete for the current HEAD, all Copilot-authored threads are "
+        "resolved, and every Copilot review-body finding is dispositioned. Merge may proceed "
+        "with respect to this gate."
     ),
     Verdict.NOT_APPLICABLE: (
-        "Copilot review is not in play for this PR (no engagement signal and "
-        "enforcement is not 'required'). Gate is not-applicable; merge is not held."
+        "Copilot review is not in play for this PR (enforcement disabled, or no engagement "
+        "signal under 'auto'). Gate is not-applicable; merge is not held."
     ),
     Verdict.WAITING_FOR_REVIEW: (
         "Copilot review is enabled but has not completed for the current HEAD. "
@@ -119,20 +123,193 @@ _VERDICT_MESSAGES = {
         "Copilot-authored review threads are unresolved. BLOCK: address and resolve "
         "every Copilot thread (reply + resolve) before merging."
     ),
+    Verdict.UNDISPOSITIONED_BODY_FINDINGS: (
+        "A completed Copilot review body carries findings with no review thread, and "
+        "no trusted PR comment has dispositioned them. BLOCK: fix each finding, or "
+        "capture it (P-021 C2), or decline it with a rationale; then post a PR comment "
+        "quoting the findings with the line 'Copilot-Review-Body-Disposition: <review "
+        "id>' and re-run."
+    ),
     Verdict.REVIEW_TIMEOUT: (
         "Copilot review is enabled but did not complete for the current HEAD within "
         "the bounded --max-wait window. BLOCK (timeout never equals silent merge). "
         "Re-run after review completes, or override with an audited --force."
     ),
     Verdict.DETECTION_AMBIGUOUS: (
-        "The PR review state could not be interpreted unambiguously (missing HEAD or "
-        "malformed GraphQL response). BLOCK (fail-safe) until the state is verifiable."
+        "The PR review state could not be interpreted unambiguously (missing HEAD, a "
+        "malformed GraphQL response, or review-body disposition that cannot be confirmed). "
+        "BLOCK (fail-safe) until the state is verifiable."
     ),
     Verdict.VERIFY_FAILED: (
         "Could not verify Copilot-review state (gh missing, API unreachable, or the "
         "query failed) and enablement is unknown. BLOCK (fail-safe)."
     ),
 }
+
+
+# ---------------------------------------------------------------------------
+# Review-body findings (201-F U1)
+# ---------------------------------------------------------------------------
+
+# Literal marker a trusted PR comment carries to disposition one Copilot review body.
+DISPOSITION_MARKER = "Copilot-Review-Body-Disposition:"
+
+# The Copilot overview-format version this detector understands. Other versions are
+# still counted best-effort and surfaced as an advisory (OQ-1).
+KNOWN_OVERVIEW_VERSION = 2
+
+
+@dataclass(frozen=True)
+class BodyFindings:
+    """Threadless findings counted in one Copilot review body."""
+
+    count: int
+    markers: tuple[str, ...]
+    overview_version: int | None
+
+
+# Headline counts are read only at structural positions: inside a <summary> header, on a
+# "### " heading line, or on a bold line. Prose that merely mentions a headline, such as a
+# "What changed in this PR" summary, is not a finding.
+_BODY_HEADLINE_SHAPE = (
+    r"(?:\d+\s+(?:open\s+findings?|resolved)|previously\s+missed|suppressed\s+comments)"
+)
+# "### " takes exactly one space and the trailing \s* takes the rest. Two overlapping runs
+# of spaces would backtrack quadratically on a long run of spaces after a heading.
+_BODY_HEADLINE_PREFIX = r"(?:<summary>\s*(?:<strong>\s*)?|^[ \t]*(?:###[ \t]|\*\*)\s*)"
+_BODY_PREVIOUSLY_MISSED_RE = re.compile(
+    rf"{_BODY_HEADLINE_PREFIX}Previously\s+missed\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
+)
+_BODY_SUPPRESSED_RE = re.compile(
+    rf"{_BODY_HEADLINE_PREFIX}Suppressed\s+comments\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
+)
+_BODY_OPEN_FINDINGS_RE = re.compile(
+    rf"{_BODY_HEADLINE_PREFIX}(\d+)\s+open\s+findings?", re.IGNORECASE | re.MULTILINE
+)
+# An anchor resolves a finding only on its own finding line: any anchor on a list-marker line,
+# or an anchor that leads an indented (list-continuation) line. A prose cross-reference inside
+# a continuation does not resolve a finding (fail-closed).
+_BODY_LIST_LINE_RE = re.compile(r"^[ \t]*[-*+][ \t]")
+_BODY_LEADING_ANCHOR_RE = re.compile(r"^[ \t]+\[[^\]\n]*\]\([^)\n]*#discussion_r\d+")
+_BODY_ANCHOR_RE = re.compile(r"#discussion_r\d+")
+# A span ends at a headline-shaped header: a <summary> with <strong>, a <summary> whose text is
+# a headline shape (with or without <strong>), a ### heading line, or a bold count or section
+# headline. A bold location label such as **src/a.py:12** is not a terminator, so anchors below
+# it still belong to the open-findings span.
+_BODY_SECTION_HEADER_RE = re.compile(
+    r"<summary>\s*<strong>"
+    rf"|<summary>\s*(?={_BODY_HEADLINE_SHAPE})"
+    r"|^[ \t]*###[ \t]"
+    rf"|^[ \t]*\*\*\s*{_BODY_HEADLINE_SHAPE}",
+    re.IGNORECASE | re.MULTILINE,
+)
+_BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
+
+# Fence rules. An opener is three or more backticks or tildes at column 0; a backtick opener
+# whose info string contains a backtick is not a fence. The closer uses the same character,
+# is at least as long as the opener, and may be indented 0 to 3 spaces (CommonMark). An
+# opener indented in a list item is not stripped, so headlines inside it still count
+# (fail-closed). An opener with no closer runs to the end of the body and is kept as text.
+_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})(.*)$")
+_FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
+
+
+def _strip_fenced_code(text: str) -> str:
+    """Remove closed column-0 fenced code blocks, following the CommonMark fence rules.
+
+    CR and CRLF line endings are normalized first. An opener with no closer is kept together
+    with every later line, so the rest of the body still counts (fail-closed). Linear: each
+    line is scanned by at most one closer search.
+    """
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    kept: list[str] = []
+    index = 0
+    while index < len(lines):
+        opener = _FENCE_OPEN_RE.match(lines[index])
+        if opener is None or (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+            kept.append(lines[index])
+            index += 1
+            continue
+        fence = opener.group(1)
+        close = index + 1
+        while close < len(lines):
+            closer = _FENCE_CLOSE_RE.match(lines[close])
+            if (
+                closer is not None
+                and closer.group(1)[0] == fence[0]
+                and len(closer.group(1)) >= len(fence)
+            ):
+                break
+            close += 1
+        if close == len(lines):
+            kept.extend(lines[index:])
+            break
+        index = close + 1
+    return "\n".join(kept)
+
+
+def detect_body_findings(body: str) -> BodyFindings:
+    """Count threadless findings in one Copilot review body (pure, stdlib ``re``).
+
+    ``count = max(S, PM) + U``:
+
+    * ``PM`` is the largest ``Previously missed (N)`` count in the body;
+    * ``S`` is the largest ``Suppressed comments (N)`` count in the body (the maximum
+      over occurrences keeps the detector on the fail-closed side);
+    * ``U = max(0, N_open - A)`` where ``N_open`` is the count of each ``N open findings``
+      headline, and ``A`` is the number of distinct ``#discussion_r`` IDs on finding lines
+      (list-marker lines, or indented lines leading with the link) inside that headline's
+      span. ``U`` is the largest such
+      value over all open-findings headlines. A span ends at the next headline-shaped
+      header: a ``<summary>`` whose text is a headline (with or without ``<strong>``), a
+      ``### `` line, or a bold count or section headline.
+      A bold location label is not a terminator. Nested ``<summary><picture>`` per-finding
+      blocks are not section headers, so they cannot truncate the span.
+
+    The ``resolved since last review``, ``What changed in this PR``, and overview risk
+    lines are never counted.
+    """
+    # Fenced code blocks are quoted content, not structure: a headline quoted inside one
+    # is not a finding.
+    text = _strip_fenced_code(body or "")
+
+    previously_missed = max(
+        (int(m.group(1)) for m in _BODY_PREVIOUSLY_MISSED_RE.finditer(text)), default=0
+    )
+    suppressed = max((int(m.group(1)) for m in _BODY_SUPPRESSED_RE.finditer(text)), default=0)
+
+    unanchored = 0
+    # Each open-findings headline is checked against its own span, which ends at the next
+    # headline-shaped structural header. Only finding-line anchors count, once per distinct
+    # discussion ID, so a repeated link or a prose link cannot lower the unanchored count.
+    for open_match in _BODY_OPEN_FINDINGS_RE.finditer(text):
+        n_open = int(open_match.group(1))
+        header = _BODY_SECTION_HEADER_RE.search(text, open_match.end())
+        span_end = header.start() if header is not None else len(text)
+        span_lines = text[open_match.end() : span_end].split("\n")
+        anchors = {
+            anchor
+            for line in span_lines
+            if _BODY_LIST_LINE_RE.match(line) or _BODY_LEADING_ANCHOR_RE.match(line)
+            for anchor in _BODY_ANCHOR_RE.findall(line)
+        }
+        unanchored = max(unanchored, n_open - len(anchors))
+
+    markers: list[str] = []
+    if previously_missed > 0:
+        markers.append("previously_missed")
+    if suppressed > 0:
+        markers.append("suppressed")
+    if unanchored > 0:
+        markers.append("unanchored_open")
+
+    overview = _BODY_OVERVIEW_RE.search(text)
+    return BodyFindings(
+        count=max(suppressed, previously_missed) + unanchored,
+        markers=tuple(markers),
+        overview_version=int(overview.group(1)) if overview is not None else None,
+    )
+
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +323,9 @@ class ReviewRecord:
 
     state: str
     commit_oid: str | None
+    database_id: int | None = None
+    body_findings: int = 0
+    overview_version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +337,21 @@ class ReviewState:
     copilot_reviews: tuple[ReviewRecord, ...]
     copilot_unresolved_thread_ids: tuple[str, ...]
     parse_ok: bool = True
+    dispositioned_review_ids: frozenset[int] = frozenset()
+    comments_complete: bool = True
+
+    @property
+    def undispositioned_body_finding_review_ids(self) -> tuple[int, ...]:
+        """Completed Copilot reviews (any round) with threadless body findings that no
+        trusted PR comment has dispositioned, in review order."""
+        return tuple(
+            review.database_id
+            for review in self.copilot_reviews
+            if review.state in _COMPLETED_STATES
+            and review.body_findings > 0
+            and review.database_id is not None
+            and review.database_id not in self.dispositioned_review_ids
+        )
 
     @property
     def copilot_engaged(self) -> bool:
@@ -171,6 +366,17 @@ class ReviewState:
             r.commit_oid == self.head_ref_oid and r.state in _COMPLETED_STATES
             for r in self.copilot_reviews
         )
+
+
+# Non-Copilot comment authors whose association may clear a body-finding disposition.
+TRUSTED_DISPOSITION_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+
+# An exact disposition line: the literal marker, one canonical ASCII integer review
+# databaseId (no leading zero, no non-ASCII digits), and nothing else on the line.
+# Trailing text (for example "101 later") never clears a review.
+_DISPOSITION_LINE_RE = re.compile(
+    rf"^{re.escape(DISPOSITION_MARKER)}[ \t]*(0|[1-9][0-9]*)[ \t]*\r?$", re.MULTILINE
+)
 
 
 def _login(node: Any) -> str | None:
@@ -290,8 +496,32 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
             return _ambiguous()
         commit = node.get("commit")
         oid = commit.get("oid") if isinstance(commit, Mapping) else None
+        # Review body (201-F U2): GitHub's body is non-null, so an absent, null, or
+        # non-string body is unverifiable and fails closed.
+        body = node.get("body")
+        if not isinstance(body, str):
+            # GitHub's review body is non-null, so an absent or null body is
+            # unverifiable and fails closed rather than counting as "no findings".
+            return _ambiguous()
+        try:
+            findings = detect_body_findings(body)
+        except ValueError:
+            # A digit run beyond CPython's int-conversion limit cannot be counted.
+            return _ambiguous()
+        database_id = node.get("databaseId")
+        if isinstance(database_id, bool) or not isinstance(database_id, int):
+            database_id = None
+        if findings.count > 0 and database_id is None:
+            # A body finding that cannot be dispositioned by review ID is unverifiable.
+            return _ambiguous()
         reviews.append(
-            ReviewRecord(state=state, commit_oid=oid if isinstance(oid, str) else None)
+            ReviewRecord(
+                state=state,
+                commit_oid=oid if isinstance(oid, str) else None,
+                database_id=database_id,
+                body_findings=findings.count,
+                overview_version=findings.overview_version,
+            )
         )
 
     # reviewThreads — must be structurally valid and provably complete; a truncated or
@@ -328,11 +558,45 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
                 return _ambiguous()
             unresolved.append(tid)
 
+    # PR conversation comments (201-F U2). A missing or malformed connection is
+    # unverifiable and fails closed. A comment with an unattributable author (a deleted
+    # account) is skipped, and so is any comment that is not a trusted disposition: only
+    # a non-bot comment with authorAssociation OWNER, MEMBER, or COLLABORATOR can clear a
+    # review-body disposition. Skipping is the fail-closed direction for clearance.
+    comments = _connection(pr, "comments")
+    if comments is None:
+        return _ambiguous()
+    comment_nodes = _strict_nodes(comments)
+    if comment_nodes is None:
+        return _ambiguous()
+    dispositioned: set[int] = set()
+    for node in comment_nodes:
+        author = _login(node.get("author"))
+        if author is None:
+            # An unattributable comment (a deleted account) can never be a trusted
+            # disposition, so it is skipped. It does not make the gate ambiguous, which
+            # would wedge every PR on a comment that cannot clear anything.
+            continue
+        association = node.get("authorAssociation")
+        if author == COPILOT_LOGIN:
+            continue
+        if not isinstance(association, str) or association not in TRUSTED_DISPOSITION_ASSOCIATIONS:
+            continue
+        text = node.get("body")
+        if not isinstance(text, str):
+            continue
+        try:
+            dispositioned.update(int(match.group(1)) for match in _DISPOSITION_LINE_RE.finditer(text))
+        except ValueError:
+            return _ambiguous()
+
     return ReviewState(
         head_ref_oid=head,
         copilot_requested=copilot_requested,
         copilot_reviews=tuple(reviews),
         copilot_unresolved_thread_ids=tuple(unresolved),
+        dispositioned_review_ids=frozenset(dispositioned),
+        comments_complete=_page_complete(comments, "hasPreviousPage"),
     )
 
 
@@ -402,7 +666,35 @@ def classify(
     if state.copilot_unresolved_thread_ids:
         return Verdict.UNRESOLVED_THREADS
 
+    if state.undispositioned_body_finding_review_ids:
+        # Threadless review-body findings with no trusted disposition (201-F U3).
+        # Truncated comments could hide the disposition marker on an unfetched page,
+        # so the verdict is ambiguous rather than a definite block.
+        if not state.comments_complete:
+            return Verdict.DETECTION_AMBIGUOUS
+        return Verdict.UNDISPOSITIONED_BODY_FINDINGS
+
     return Verdict.SATISFIED
+
+
+def _overview_advisory(state: ReviewState) -> tuple[str, ...]:
+    """OQ-1 advisory: a Copilot review body with an unrecognized overview version.
+
+    The verdict is unaffected; the advisory tells an operator that body detection may
+    be incomplete and the review bodies should be read manually.
+    """
+    messages: list[str] = []
+    for review in state.copilot_reviews:
+        version = review.overview_version
+        if version is None or version == KNOWN_OVERVIEW_VERSION:
+            continue
+        message = (
+            f"unrecognized ccr-overview version v{version}: review-body detection may be "
+            "incomplete; read review bodies manually"
+        )
+        if message not in messages:
+            messages.append(message)
+    return tuple(messages)
 
 
 # ---------------------------------------------------------------------------
@@ -421,6 +713,8 @@ class CopilotReviewResult:
     rounds: int = 1
     forced: bool = False
     detail: str = ""
+    undispositioned_body_finding_review_ids: tuple[int, ...] = ()
+    advisory: tuple[str, ...] = ()
 
     @property
     def message(self) -> str:
@@ -452,6 +746,10 @@ class CopilotReviewResult:
             "blocked": self.blocked,
             "exit_code": self.exit_code,
             "message": self.message,
+            "undispositioned_body_finding_review_ids": list(
+                self.undispositioned_body_finding_review_ids
+            ),
+            "advisory": list(self.advisory),
         }
 
 
@@ -501,6 +799,30 @@ def _validate_pr(pr: Any) -> int:
     return value
 
 
+def _decode_gh_output(data: Any, *, strict: bool) -> str:
+    """Decode ``gh`` output as UTF-8 by contract, never with the locale codec.
+
+    Text passes through unchanged, since an injected runner may return it already decoded.
+    With ``strict``, a malformed sequence raises RuntimeError so the caller fails closed to
+    VERIFY_FAILED. Without it, undecodable bytes are replaced, because stderr is diagnostic.
+    """
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError(f"gh output must be bytes or str, not {type(data).__name__}")
+    raw = bytes(data)
+    if not strict:
+        return raw.decode("utf-8", errors="replace")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(
+            f"gh output is not valid UTF-8 ({exc.reason} at byte {exc.start})"
+        ) from exc
+
+
 def query_pr_review_state(
     pr: int,
     repo: str,
@@ -517,17 +839,19 @@ def query_pr_review_state(
     repo = _validate_repo(repo)
     argv = build_query_argv(pr, repo, gh_bin=gh_bin)
     run = run_fn or subprocess.run
+    # gh writes JSON as UTF-8 by contract. Capture raw bytes and decode explicitly: text=True
+    # would use the locale codec (cp1252 on a Windows default locale) and fail on review-body
+    # emoji. Malformed UTF-8 fails closed through RuntimeError, never a codec traceback.
     proc = run(
         argv,
         capture_output=True,
-        text=True,
         shell=False,
         timeout=_COMMAND_TIMEOUT_SECONDS,
     )
+    stderr = _decode_gh_output(getattr(proc, "stderr", b""), strict=False).strip()
     if getattr(proc, "returncode", 1) != 0:
-        stderr = (getattr(proc, "stderr", "") or "").strip()
         raise RuntimeError(stderr or f"gh api graphql failed for {repo}#{pr}")
-    stdout = getattr(proc, "stdout", "") or ""
+    stdout = _decode_gh_output(getattr(proc, "stdout", b""), strict=True)
     try:
         raw = json.loads(stdout)
     except json.JSONDecodeError as exc:
@@ -546,6 +870,13 @@ def query_pr_review_state(
 # ---------------------------------------------------------------------------
 # Bounded poll loop
 # ---------------------------------------------------------------------------
+
+
+def _ambiguity_detail(state: ReviewState, verdict: Verdict) -> str:
+    """Operator-facing cause for DETECTION_AMBIGUOUS that a truncated comments page causes."""
+    if verdict is Verdict.DETECTION_AMBIGUOUS and state.parse_ok and not state.comments_complete:
+        return "PR comments page truncated; disposition markers cannot be confirmed"
+    return ""
 
 
 def evaluate(
@@ -624,6 +955,9 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
+                undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
+                advisory=_overview_advisory(state),
+                detail=_ambiguity_detail(state, verdict),
             )
 
         # Review is enabled but not yet complete for HEAD. With no wait budget this
@@ -636,6 +970,8 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
+                undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
+                advisory=_overview_advisory(state),
             )
         elapsed = clock() - start
         if elapsed >= max_wait:
@@ -647,6 +983,8 @@ def evaluate(
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
                 detail=f"waited {elapsed:.0f}s of {max_wait:.0f}s",
+                undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
+                advisory=_overview_advisory(state),
             )
         # Sleep only for the remaining budget so the advertised bounded wait is
         # honoured: a full poll_interval could otherwise overshoot the window by up to

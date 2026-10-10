@@ -18,6 +18,24 @@
 
 ### Changed
 
+- **Copilot review-body findings gate (201-F, stash 38D29192)**:
+  `autoharness gate copilot-review` now reads each Copilot review's `body` and the
+  PR conversation comments. A completed Copilot review that carries threadless
+  findings (`Previously missed`, `Suppressed comments`, or unanchored open findings)
+  BLOCKS with the new verdict `UNDISPOSITIONED_BODY_FINDINGS` until a trusted PR
+  comment (OWNER, MEMBER, or COLLABORATOR) carries
+  `Copilot-Review-Body-Disposition: <review databaseId>`. The PASS set, exit codes,
+  enforcement modes, `--max-wait`, and audited `--force` are unchanged. Previously
+  such a review-body-only finding passed as `SATISFIED`. The `--json` output gains
+  `undispositioned_body_finding_review_ids` and `advisory`. Rollout: an open PR that
+  already handled body findings must post a disposition comment for each affected
+  review before the gate passes; merged PRs are not re-checked. A truncated `comments(last:100)` page that still hides
+  a required disposition is `DETECTION_AMBIGUOUS` (BLOCK), and the human message names the
+  cause; the operator action is to post a fresh disposition comment per affected review so
+  the marker sits in the newest 100 comments.
+
+- **copilot-review gate decodes `gh` output as UTF-8 (208-S round 8):** the gate read `gh` output with the locale codec, so on a Windows default locale a review body containing a character whose UTF-8 bytes include a byte undefined in cp1252 (for example U+1D4B3) failed closed as `VERIFY_FAILED` on every such PR. Output is now captured as bytes and decoded as UTF-8. Malformed UTF-8 still BLOCKs.
+
 - **Ship/Stage frontmatter bound to role variables (194-F / 200-S)**:
   `_ship.agent.md.tmpl` and `_stage.agent.md.tmpl` now render their
   `model_family` / `model_provider` / `reasoning_effort` / `context_tier` from the

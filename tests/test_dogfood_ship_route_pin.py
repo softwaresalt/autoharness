@@ -1,15 +1,18 @@
-"""194.012-T (C7) -- durable Ship-pin regression test for this repository (binding D-C6).
+"""194.012-T (C7) -- durable Ship-pin regression test for this repository.
 
-Plan unit C7 (docs/plans/2026-09-27-context-tier-model-routing-plan.md). Operator
-rulings: the Ship route stays ``claude-opus-5.5`` / ``anthropic`` / ``high``
-(2026-09-27T13:18:02-07:00, D-C6) and its ``context_tier`` is ``long_context``
-(ruling 5a, 2026-09-27T22:50-07:00); the Ship ``max_subagent_tier`` is 3 in both
-template and mirror (ruling 5b). The pin reads live values and never relies on
-the config comment that cites these rulings.
+Plan unit C7 (docs/plans/2026-09-27-context-tier-model-routing-plan.md). The Ship
+route was originally pinned to ``claude-opus-5.5`` / ``anthropic`` / ``high``
+(D-C6, 2026-09-27T13:18:02-07:00). The operator's model_routing edit of
+2026-10-09, carried forward in shipment 208-S, supersedes that pin: the Ship route
+is now ``claude-haiku-5.5`` / ``anthropic`` / ``xhigh``, with its nested
+``ship.escalation`` set to ``claude-sonnet-5.5`` / ``anthropic`` / ``medium``. Its
+``context_tier`` remains ``long_context`` (ruling 5a, 2026-09-27T22:50-07:00); the
+Ship ``max_subagent_tier`` is 3 in both template and mirror (ruling 5b). The pin
+reads live values and never relies on the config comment that cites these rulings.
 
 Asserts, on the live dogfood workspace:
 
-1. the config Ship route is ``claude-opus-5.5`` / ``anthropic`` / ``high`` /
+1. the config Ship route is ``claude-haiku-5.5`` / ``anthropic`` / ``xhigh`` /
    ``long_context``;
 2. the installed ``_ship.agent.md`` frontmatter matches it on all four routing
    keys and declares ``max_subagent_tier: 3``;
@@ -21,13 +24,14 @@ Asserts, on the live dogfood workspace:
    Ship family/provider/context tier, no ``migration_proposals[]`` entry targets
    the Ship mirror, and no ``ROUTE_VARIABLE_STALE`` warning is raised (C4b);
 5. the Ship escalation route is not ``escalation_degraded`` and its context tier
-   resolves flat ``""`` -> tier3 -> ``default`` (Ship's own ``long_context`` does
-   not flow into escalation, D-C2);
+   resolves to ``default`` (Ship's own ``long_context`` does not flow into
+   escalation, D-C2);
 6. the fresh-install Ship seed trigger (C3b) does not fire here.
 
-It also pins the C7 additive config edit: tier1-3, orchestrator and stage declare
-``context_tier: "default"`` and the flat escalation route declares
-``context_tier: ""``; no nested ``stage.escalation`` / ``ship.escalation`` exists.
+It also pins the config shape after the 2026-10-09 operator edit: tier1-3,
+orchestrator and stage declare ``context_tier: "default"``; the flat ``escalation``
+block is absent; ``ship.escalation`` is pinned exactly; and no ``stage.escalation``
+exists.
 """
 
 from __future__ import annotations
@@ -55,10 +59,18 @@ _SHIP_TEMPLATE = _ROOT / "templates" / "agents" / "_ship.agent.md.tmpl"
 _SHIP_MIRROR_REL = ".github/agents/_ship.agent.md"
 _ROUTE_KEYS = ("model_family", "model_provider", "reasoning_effort", "context_tier")
 _PINNED_SHIP_ROUTE = {
-    "model_family": "claude-opus-5.5",
+    "model_family": "claude-haiku-5.5",
     "model_provider": "anthropic",
-    "reasoning_effort": "high",
+    "reasoning_effort": "xhigh",
     "context_tier": "long_context",
+}
+# Operator model_routing edit (2026-10-09, carried forward in 208-S): nested Ship
+# escalation route. Pinned exactly; a change must update this value deliberately.
+_PINNED_SHIP_ESCALATION = {
+    "model_family": "claude-sonnet-5.5",
+    "model_provider": "anthropic",
+    "reasoning_effort": "medium",
+    "context_tier": "default",
 }
 _PINNED_MAX_SUBAGENT_TIER = 3
 _SHIP_OVERRIDE_KEYS = ("SHIP_FAMILY", "SHIP_PROVIDER", "SHIP_REASONING_EFFORT", "SHIP_CONTEXT_TIER")
@@ -109,16 +121,18 @@ class ConfigShipRouteTests(unittest.TestCase):
             with self.subTest(route=route):
                 self.assertEqual(routing[route].get("context_tier"), "default")
 
-    def test_flat_escalation_declares_empty_context_tier(self) -> None:
-        escalation = _model_routing()["escalation"]
-        self.assertIn("context_tier", escalation)
-        self.assertEqual(escalation["context_tier"], "")
+    def test_flat_escalation_block_is_absent(self) -> None:
+        # Operator model_routing edit (2026-10-09, carried forward in 208-S) removed
+        # the legacy flat escalation block. The escalation route now resolves via the
+        # nested ship override or the tier3 fallback.
+        self.assertNotIn("escalation", _model_routing())
 
-    def test_no_nested_role_escalation_declared(self) -> None:
+    def test_nested_role_escalation_pins(self) -> None:
         routing = _model_routing()
-        for role in ("stage", "ship"):
-            with self.subTest(role=role):
-                self.assertNotIn("escalation", routing[role])
+        with self.subTest(role="stage"):
+            self.assertNotIn("escalation", routing["stage"])
+        with self.subTest(role="ship"):
+            self.assertEqual(routing["ship"]["escalation"], _PINNED_SHIP_ESCALATION)
 
 
 class InstalledShipMirrorTests(unittest.TestCase):
@@ -167,7 +181,7 @@ class VerifyWorkspaceShipPinTests(unittest.TestCase):
 
     def test_derived_ship_variables(self) -> None:
         variables = _base_variables()
-        self.assertEqual(variables["SHIP_FAMILY"], "claude-opus-5.5")
+        self.assertEqual(variables["SHIP_FAMILY"], "claude-haiku-5.5")
         self.assertEqual(variables["SHIP_PROVIDER"], "anthropic")
         self.assertEqual(variables["SHIP_CONTEXT_TIER"], "long_context")
 

@@ -44,7 +44,7 @@ Usage:
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness gate size         Estimate a task's T-shirt size and write it back
-  autoharness gate copilot-review  Fail-closed pre-merge gate: Copilot review complete + threads resolved
+  autoharness gate copilot-review    Fail-closed pre-merge gate: Copilot review complete + threads resolved + body findings dispositioned
   autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
   autoharness gate dag-readiness  Read-only ready-set/critical-path/downstream-dependents report
   autoharness gate closure-evidence  Write-time validation of a post-merge closure artifact
@@ -241,7 +241,12 @@ copilot-review options:
                       to .autoharness/gates/copilot-review-force-audit.log.
   --workspace, -w     Workspace root (for the --force audit log). Default: .
   --gh <path>         Path to the gh executable. Default: gh.
-
+  The gate is FAIL-CLOSED: when Copilot review is enabled and its completion, thread
+  resolution, or review-body disposition is incomplete or unverifiable, it BLOCKS
+  (non-zero). --admin does not bypass it. It PASSES only when review is satisfied for
+  the current HEAD, every review-body finding is dispositioned, the PR is not-applicable,
+  or an audited
+  --force is recorded.
 pipeline-topology options:
   --mode <m>          agent | manual | ci. Default: manual.
   --shipment <id>     Explicit shipment target. Required in agent mode, and
@@ -321,11 +326,6 @@ local to the current checkout, and its worktree uniqueness check is local to the
 current machine/checkout: it detects topology drift, but it is not a lock or
 lease across multiple checkouts or hosts.
 
-This gate is FAIL-CLOSED: when Copilot review is enabled and its completion or
-thread resolution is incomplete or unverifiable, it BLOCKS (non-zero). --admin does
-not bypass it. It PASSES only when review is satisfied for the current HEAD or is
-not-applicable for the PR.
-
 An existing size is never overwritten. A missing backlogit binary, a timeout, or
 a backlogit rejection is a configuration failure, not a task failure — it never
 blocks task execution and exits 0 unless --strict is given.
@@ -337,7 +337,7 @@ Exit codes:
      or pipeline-topology PASS/forced; or dag-readiness report (including
      empty/degraded — always non-fatal); or closure-evidence PASS.
   1  at least one matched file failed its gate (blocked), unless advisory; or
-     copilot-review BLOCK (review incomplete/unresolved/unverifiable/timeout);
+     copilot-review BLOCK (review incomplete/unresolved/undispositioned review-body findings/unverifiable/timeout);
      or pipeline-topology BLOCK; or closure-evidence validation failure
      (filename, frontmatter predicate, discoverability, close_path, or
      close_evidence).
@@ -873,6 +873,32 @@ def _audit_copilot_review_force(workspace: Path, result, pr: str, repo: str) -> 
     return str(audit_path)
 
 
+def _copilot_body_finding_lines(result) -> list[str]:
+    """Human-readable lines for undispositioned review-body findings and advisories.
+
+    The ID list and marker hint appear only for the UNDISPOSITIONED_BODY_FINDINGS verdict.
+    A truncated comments page (DETECTION_AMBIGUOUS) carries its cause in the verdict
+    message instead, so the operator is never told to post a marker that may already
+    exist on an unfetched page. Advisories are prefixed so they are never mistaken for
+    a verdict line (201-F U4).
+    """
+    from autoharness.gates.copilot_review import DISPOSITION_MARKER, Verdict
+
+    lines: list[str] = []
+    if (
+        result.verdict is Verdict.UNDISPOSITIONED_BODY_FINDINGS
+        and result.undispositioned_body_finding_review_ids
+    ):
+        ids = ", ".join(str(review_id) for review_id in result.undispositioned_body_finding_review_ids)
+        lines.append(f"  undispositioned Copilot review-body findings in reviews: {ids}")
+        lines.append(
+            f"  post a PR comment with the whole line '{DISPOSITION_MARKER} <id>' on its own "
+            "after handling each finding (one line per review; trailing text on the line invalidates it)"
+        )
+    lines.extend(f"  advisory: {message}" for message in result.advisory)
+    return lines
+
+
 def _gate_copilot_review_command(rest: list[str]) -> None:
     """Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved."""
     if any(flag in ("help", "--help", "-h") for flag in rest):
@@ -920,6 +946,8 @@ def _gate_copilot_review_command(rest: list[str]) -> None:
         print(f"  {result.message}")
         if result.unresolved_thread_ids:
             print(f"  unresolved Copilot threads: {len(result.unresolved_thread_ids)}")
+        for line in _copilot_body_finding_lines(result):
+            print(line)
         if audit_path:
             print(f"  --force override recorded: {audit_path}")
 

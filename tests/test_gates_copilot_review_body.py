@@ -1,0 +1,516 @@
+"""Tests for the pure Copilot review-body threadless-finding detector (201.001-T / 201-F U1).
+
+A Copilot review can carry a valid finding ONLY in its body (``Previously missed (N)``,
+``Suppressed comments (N)``, or open findings with no ``#discussion_r`` anchor). The
+detector counts those findings as ``max(S, PM) + U``. Fixtures are trimmed verbatim
+excerpts of real Copilot review bodies with icon/image markup removed, except rows
+labelled SYNTHETIC, which cover shapes that have no real example yet.
+
+Sources (read-only ``gh api``): PR #506 reviews 5450344631 (round 1), 5450565731
+(round 2), 5451503039 (round 6); PR #444 review 5177043616 (legacy ``Suppressed
+comments (1)``).
+
+No network and no subprocess: the detector is pure.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import time
+import unittest
+
+from autoharness.gates.copilot_review import (
+    DISPOSITION_MARKER,
+    KNOWN_OVERVIEW_VERSION,
+    BodyFindings,
+    detect_body_findings,
+)
+
+# PR #506 round 2 (review 5450565731): "Previously missed (1)" under a "0 open findings"
+# headline, plus a resolved-since-last-review section whose anchor must not be counted.
+_PR506_ROUND2 = """<!-- ccr-overview-v2 -->
+
+### 🔵 Needs a closer look
+
+The checks govern irreversible archival and need human validation of recovery-state consistency and cross-invocation agreement.
+
+**0 open findings**
+
+<details>
+<summary><strong>1 resolved since last review</strong></summary>
+
+- [Defer recording until the agreement check succeeds](#discussion_r4213707256)
+</details>
+
+<details>
+<summary><strong>Previously missed (1)</strong></summary>
+
+In code that hasn't changed since last review
+
+<details>
+<summary>Refresh or resolve stale checkpoint after task disposition</summary>
+
+`.backlogit/checkpoints/checkpoint-20261008-004836.json:1`
+
+This active checkpoint still lists 161.007-T in `blocked_task` and `tasks_remaining`.
+</details>
+</details>
+
+🧠 **Review effort:** Balanced
+"""
+
+# PR #506 round 1 (review 5450344631): one anchored open finding, which is not a body finding.
+_PR506_ROUND1 = """<!-- ccr-overview-v2 -->
+
+### 🔵 Needs a closer look
+
+Changes to destructive closure preconditions and agreement-check integration require final human validation.
+
+<details open>
+<summary><strong>1 open finding</strong></summary>
+
+- [Defer recording until the agreement check succeeds](#discussion_r4213707256) · New
+</details>
+
+<details>
+<summary><strong>What changed in this PR</strong></summary>
+
+Updates shipment reconciliation so qualifying feature members can pass pre-close checks without weakening task-status validation.
+</details>
+"""
+
+# PR #506 round 6 (review 5451503039): clean.
+_PR506_ROUND6 = """<!-- ccr-overview-v2 -->
+
+### 🔵 Needs a closer look
+
+The change relaxes checks before irreversible archival and retains documented integration risks requiring human acceptance.
+
+**0 open findings**
+
+🧠 **Review effort:** Balanced
+"""
+
+# SYNTHETIC: "2 open findings" with two anchored items, one wrapping a nested
+# per-finding <details><summary><picture> block. The nested summary is not a section
+# header, so the span is not truncated and both anchors are counted: U = 0.
+_SYNTHETIC_NESTED_ANCHORED = """<!-- ccr-overview-v2 -->
+
+### 🔵 Needs a closer look
+
+<details open>
+<summary><strong>2 open findings</strong></summary>
+
+- <details>
+  <summary><picture><img alt="Medium severity"></picture> Guard the empty-page branch</summary>
+
+  Nested per-finding detail that must not end the section.
+  </details>
+  [Guard the empty-page branch](#discussion_r9000000001)
+- [Tighten the timeout branch](#discussion_r9000000002)
+</details>
+"""
+
+# PR #444 review 5177043616: legacy format, "### Suppressed comments (1)" inside Review details.
+_PR444_LEGACY_SUPPRESSED = """### 🟡 Changes recommended
+
+Current-head readiness is stale, and unresolved containment, token-output, and lock-path consistency defects remain.
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (1)
+
+**.autoharness/harness-manifest.yaml:210**
+* The PR currently points at head `08e045a39fbd2a3779027d50d419aee686926b8f`, but its Local Review Readiness block still records an older head. Re-run local review after the remaining fixes land.
+
+- **Files reviewed:** 31/31 changed files
+- **Comments generated:** 7
+- **Review effort level:** Balanced
+</details>
+"""
+
+# SYNTHETIC (legacy shape from the plan): Suppressed comments (5) with a nested
+# Previously missed (2). count = max(S, PM) + U = max(5, 2) + 0 = 5.
+_SYNTHETIC_LEGACY_NESTED = """### Changes recommended
+
+<details>
+<summary>Review details</summary>
+
+### Suppressed comments (5)
+
+<details>
+<summary>Previously missed (2)</summary>
+
+**tests/test_example.py:12**
+* Synthetic finding one.
+
+**tests/test_example.py:40**
+* Synthetic finding two.
+</details>
+</details>
+"""
+
+# SYNTHETIC: unanchored open findings with no list. U = 2 - 0 = 2.
+_SYNTHETIC_UNANCHORED = """<!-- ccr-overview-v2 -->
+
+**2 open findings**
+
+No review thread or anchor follows this headline.
+"""
+
+_OVERVIEW_V3 = """<!-- ccr-overview-v3 -->
+
+### 🔵 Needs a closer look
+
+**0 open findings**
+"""
+
+_NO_MARKERS = "Looks good to me. No findings in this review.\n"
+
+
+class BodyFindingsContractTests(unittest.TestCase):
+    """Structural contract checks for the body detector's dataclass and constants."""
+
+    def test_body_findings_is_a_frozen_dataclass(self) -> None:
+        findings = BodyFindings(count=0, markers=(), overview_version=None)
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            findings.count = 1  # type: ignore[misc]
+
+    def test_exported_constants_have_the_contract_values(self) -> None:
+        self.assertEqual(DISPOSITION_MARKER, "Copilot-Review-Body-Disposition:")
+        self.assertEqual(KNOWN_OVERVIEW_VERSION, 2)
+
+
+class BodyFindingsCcrOverviewV2Tests(unittest.TestCase):
+    """``ccr-overview-v2`` bodies."""
+
+    def test_ccr_overview_v2_bodies(self) -> None:
+        cases = (
+            # (label, body, count, markers, overview_version)
+            ("pr506_round2_previously_missed", _PR506_ROUND2, 1, ("previously_missed",), 2),
+            ("pr506_round1_anchored_open", _PR506_ROUND1, 0, (), 2),
+            ("pr506_round6_clean", _PR506_ROUND6, 0, (), 2),
+            ("synthetic_nested_anchored_open", _SYNTHETIC_NESTED_ANCHORED, 0, (), 2),
+        )
+        for label, body, count, markers, version in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.markers, markers)
+                self.assertEqual(findings.overview_version, version)
+
+
+class BodyFindingsLegacyAndUnanchoredTests(unittest.TestCase):
+    """Legacy and unanchored bodies."""
+
+    def test_legacy_and_unanchored_bodies(self) -> None:
+        cases = (
+            # (label, body, count, markers)
+            ("pr444_legacy_suppressed_1", _PR444_LEGACY_SUPPRESSED, 1, ("suppressed",)),
+            ("synthetic_legacy_nested_5", _SYNTHETIC_LEGACY_NESTED, 5, ("previously_missed", "suppressed")),
+            ("synthetic_unanchored_open_2", _SYNTHETIC_UNANCHORED, 2, ("unanchored_open",)),
+        )
+        for label, body, count, markers in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.markers, markers)
+
+
+class BodyFindingsVersionAndEmptyTests(unittest.TestCase):
+    """Overview version, no-marker, and empty bodies."""
+
+    def test_overview_version_and_empty_bodies(self) -> None:
+        cases = (
+            # (label, body, count, overview_version)
+            ("overview_v3", _OVERVIEW_V3, 0, 3),
+            ("no_markers", _NO_MARKERS, 0, None),
+            ("empty_string", "", 0, None),
+        )
+        for label, body, count, version in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.overview_version, version)
+
+
+# SYNTHETIC: a bare headline, then a "resolved since last review" section whose anchor
+# must not be counted. The span stops at the resolved section's header: U = 1 - 0 = 1.
+_BARE_HEADLINE_RESOLVED_ANCHOR = """**1 open finding**
+
+<details>
+<summary><strong>1 resolved since last review</strong></summary>
+
+- [Defer recording](#discussion_r4213707256)
+</details>
+"""
+
+# SYNTHETIC: 2 open findings, one anchored and one not, then a "Previously missed (1)"
+# header. The span stops at that header: A = 1, U = 1, count = max(0, 1) + 1 = 2.
+_MIXED_ANCHORS_THEN_PM = """<details open>
+<summary><strong>2 open findings</strong></summary>
+
+- [Anchored item](#discussion_r9000000003)
+- Unanchored item with no link
+</details>
+
+<details>
+<summary><strong>Previously missed (1)</strong></summary>
+
+Synthetic.
+"""
+
+# SYNTHETIC: a "### " heading ends the open-findings span before a late anchor, so the
+# late anchor cannot lower U: U = 2 - 0 = 2.
+_HEADING_BOUNDARY = """**2 open findings**
+
+### Next section
+
+[Late anchor](#discussion_r9000000004)
+"""
+
+# SYNTHETIC: an earlier "0 open findings" and a later "2 open findings" with no list.
+# The largest unanchored count wins: U = max(0, 2) = 2.
+_MAX_OVER_OCCURRENCES = """**0 open findings**
+
+Quoted earlier text.
+
+**2 open findings**
+
+No list follows.
+"""
+
+
+# SYNTHETIC: prose that mentions the headline phrases is not a finding. Only structural
+# positions (a <summary> header, a "### " line, or a bold line) count, so this body is 0.
+_PROSE_NOT_A_FINDING = """### 🔵 Needs a closer look
+
+This change adds handling for Previously missed (1) and Suppressed comments (1) text, and for 2 open findings headlines.
+
+<details>
+<summary><strong>What changed in this PR</strong></summary>
+
+Adds parsing for Previously missed (1), Suppressed comments (1), and 2 open findings in review bodies.
+</details>
+"""
+
+
+# SYNTHETIC: a quoted Markdown block in a fenced code span. The headline lines inside the
+# fence are code, not structure, so the body is 0. A real headline outside the fence counts.
+_FENCED_QUOTE_THEN_REAL = """### 🔵 Needs a closer look
+
+The summary quotes a changed line:
+
+```markdown
+### Suppressed comments (1)
+**2 open findings**
+```
+
+<details>
+<summary><strong>Previously missed (1)</strong></summary>
+
+Real finding outside the fence.
+</details>
+"""
+
+
+class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
+    """The open-findings span ends at the next section header; U is the largest count."""
+
+    def test_span_and_header_rules(self) -> None:
+        cases = (
+            # (label, body, count, markers)
+            ("bare_headline_resolved_anchor_not_counted", _BARE_HEADLINE_RESOLVED_ANCHOR, 1, ("unanchored_open",)),
+            (
+                "anchored_then_unanchored_before_previously_missed",
+                _MIXED_ANCHORS_THEN_PM,
+                2,
+                ("previously_missed", "unanchored_open"),
+            ),
+            ("heading_ends_span_before_late_anchor", _HEADING_BOUNDARY, 2, ("unanchored_open",)),
+            ("largest_open_count_wins", _MAX_OVER_OCCURRENCES, 2, ("unanchored_open",)),
+            ("prose_mentions_are_not_findings", _PROSE_NOT_A_FINDING, 0, ()),
+            ("fenced_quote_ignored_real_headline_counted", _FENCED_QUOTE_THEN_REAL, 1, ("previously_missed",)),
+        )
+        for label, body, count, markers in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.markers, markers)
+
+
+class BodyFindingsFenceAndSpanEdgeTests(unittest.TestCase):
+    """Markdown fence semantics, indented literals, span boundaries, unique anchors.
+
+    Synthetic rows, each named for the failure it pins. A fence opener starts at column 0
+    (an indented opener is literal text, so headlines inside it still count: fail-closed).
+    A closer may be indented 0 to 3 spaces, as CommonMark allows, and must be at least as
+    long as its opener. Headline-shaped summaries and headings end an open-findings span.
+    """
+
+    def test_fence_span_and_indentation_edges(self) -> None:
+        cases = (
+            # (label, body, count, markers)
+            (
+                "four_backtick_fence_not_closed_by_three",
+                "````markdown\n### Suppressed comments (1)\n```\n### Suppressed comments (2)\n````\n",
+                0,
+                (),
+            ),
+            (
+                "tilde_fence_closed_by_longer_tilde_run",
+                "~~~\n### Suppressed comments (3)\n~~~~\n\nText after the fence.\n",
+                0,
+                (),
+            ),
+            (
+                "indented_headlines_count_fail_closed",
+                "    ### Suppressed comments (4)\n\n    **2 open findings**\n\nNormal prose.\n",
+                6,
+                ("suppressed", "unanchored_open"),
+            ),
+            (
+                "list_item_indented_headline_counts",
+                "- Review scope\n\n    **2 open findings**\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "list_nested_fence_does_not_hide_headline",
+                "- item\n  ```\n**2 open findings**\n```\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "unclosed_outer_fence_keeps_the_rest",
+                "```\n~~~\n**2 open findings**\n~~~\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "bold_location_label_does_not_end_the_span",
+                "**2 open findings**\n\n**src/a.py:12**\n- [Guard](#discussion_r1)\n\n**src/b.py:40**\n- [Tighten](#discussion_r2)\n",
+                0,
+                (),
+            ),
+            (
+                "prose_anchor_does_not_cancel_an_unanchored_finding",
+                "**1 open finding**\n\nSee [the earlier thread](#discussion_r5) for context.\n",
+                1,
+                ("unanchored_open",),
+            ),
+            (
+                "crlf_fence_closes_and_headline_counts",
+                "```markdown\r\n### Suppressed comments (1)\r\n```\r\n\r\n**2 open findings**\r\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "indented_fence_opener_is_literal_not_a_fence",
+                "    ```\nliteral indented text\n\n<details>\n<summary><strong>Previously missed (2)</strong></summary>\n\nReal finding.\n```\n",
+                2,
+                ("previously_missed",),
+            ),
+            (
+                "unclosed_fence_stays_text_fail_closed",
+                "```\n### Suppressed comments (5)\n",
+                5,
+                ("suppressed",),
+            ),
+            (
+                "bold_headline_bounds_the_open_span",
+                "**2 open findings**\n\n- [a](#discussion_r1)\n- unanchored item\n\n**Previously missed (1)**\n\n- [b](#discussion_r2)\n",
+                2,
+                ("previously_missed", "unanchored_open"),
+            ),
+            (
+                "duplicate_anchor_counts_once",
+                "**3 open findings**\n\n- [a](#discussion_r1)\n- [a again](#discussion_r1)\n- unanchored\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "plain_summary_resolved_ends_open_span",
+                "**1 open finding**\n\n- Unanchored real finding.\n\n<details>\n"
+                "<summary>1 resolved since last review</summary>\n\n"
+                "- [Resolved](#discussion_r4213707256)\n</details>\n",
+                1,
+                ("unanchored_open",),
+            ),
+            (
+                "indented_closer_ends_fence_before_headline",
+                "```text\nsample\n   ```\n\n**Previously missed (1)**\n\nReal finding.\n```\n",
+                1,
+                ("previously_missed",),
+            ),
+            (
+                "prose_cross_link_on_continuation_does_not_cancel",
+                "**1 open finding**\n\n- Missing null check.\n"
+                "  Related: [earlier](#discussion_r4213707256)\n",
+                1,
+                ("unanchored_open",),
+            ),
+            (
+                "leading_link_on_continuation_cancels",
+                "**1 open finding**\n\n- Missing null check.\n  [Thread](#discussion_r4213707256)\n",
+                0,
+                (),
+            ),
+            (
+                "bare_cr_line_break_starts_a_line",
+                "x\r**2 open findings**\r- item\r",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "backtick_info_string_is_not_a_fence",
+                "```a`b\n**2 open findings**\n```\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "bold_resolved_terminator_ends_open_span",
+                "**2 open findings**\n\n- Unanchored item.\n\n**1 resolved**\n\n"
+                "- [Resolved](#discussion_r9)\n",
+                2,
+                ("unanchored_open",),
+            ),
+            (
+                "suppressed_summary_terminator_ends_open_span",
+                "**2 open findings**\n\n- Unanchored item.\n\n<details>\n"
+                "<summary><strong>Suppressed comments (1)</strong></summary>\n\n"
+                "- [s](#discussion_r9)\n",
+                3,
+                ("suppressed", "unanchored_open"),
+            ),
+        )
+        for label, body, count, markers in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.markers, markers)
+
+    def test_long_space_run_after_heading_is_linear_time(self) -> None:
+        # Regression: "### " then a long run of spaces was quadratic in the heading regex
+        # (about 9 s at 20 KB of spaces). Linear parsing must finish far inside the bound.
+        body = "### " + " " * 20000 + "x\n"
+        start = time.perf_counter()
+        detect_body_findings(body)
+        self.assertLess(time.perf_counter() - start, 2.0)
+
+
+class CliUsageLayoutTests(unittest.TestCase):
+    def test_copilot_review_and_pipeline_topology_usage_lines_are_separate(self) -> None:
+        # Regression: a lost newline merged the pipeline-topology command onto the
+        # copilot-review line in top-level --help (Copilot round 6, cli.py:47).
+        from autoharness.cli import USAGE
+
+        self.assertRegex(
+            USAGE,
+            r"(?m)^  autoharness gate copilot-review\b.*\n  autoharness gate pipeline-topology\b",
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
