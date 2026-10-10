@@ -893,7 +893,7 @@ def _copilot_body_finding_lines(result) -> list[str]:
         lines.append(f"  undispositioned Copilot review-body findings in reviews: {ids}")
         lines.append(
             f"  post a PR comment with the whole line '{DISPOSITION_MARKER} <id>' on its own "
-            "after handling each finding (one line per review; trailing text is ignored)"
+            "after handling each finding (one line per review; trailing text on the line invalidates it)"
         )
     lines.extend(f"  advisory: {message}" for message in result.advisory)
     return lines

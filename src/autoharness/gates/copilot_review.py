@@ -183,9 +183,10 @@ def detect_body_findings(body: str) -> BodyFindings:
     * ``PM`` is the largest ``Previously missed (N)`` count in the body;
     * ``S`` is the largest ``Suppressed comments (N)`` count in the body (the maximum
       over occurrences keeps the detector on the fail-closed side);
-    * ``U = max(0, N_open - A)`` where ``N_open`` is the first ``N open findings``
-      count and ``A`` is the number of ``#discussion_r`` anchors inside the open-findings
-      span. The span ends at the next section header (``<summary><strong>`` or a
+    * ``U = max(0, N_open - A)`` where ``N_open`` is the count of each ``N open findings``
+      headline, and ``A`` is the number of ``#discussion_r`` anchors inside that headline's
+      span. ``U`` is the largest such value over all open-findings headlines. Each span
+      ends at the next section header (``<summary><strong>`` or a
       ``### `` line) or at the end of the body. Nested ``<summary><picture>`` per-finding
       blocks are not section headers, so they cannot truncate the span.
 
@@ -410,8 +411,8 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
             return _ambiguous()
         commit = node.get("commit")
         oid = commit.get("oid") if isinstance(commit, Mapping) else None
-        # Review body (201-F U2): None is an empty body; any other non-string is
-        # unverifiable and fails closed.
+        # Review body (201-F U2): GitHub's body is non-null, so an absent, null, or
+        # non-string body is unverifiable and fails closed.
         body = node.get("body")
         if not isinstance(body, str):
             # GitHub's review body is non-null, so an absent or null body is

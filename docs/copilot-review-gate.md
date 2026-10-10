@@ -54,8 +54,9 @@ The gate queries GitHub via `gh api graphql` for the PR `headRefOid`, Copilot
 enablement signals (`reviewRequests` / `reviews`, including each review's
 `databaseId` and `body`), review completion **for the current HEAD**, unresolved
 Copilot-authored `reviewThreads`, and the PR conversation `comments(last:100)` with
-their `authorAssociation` (read for disposition markers; a missing connection or a
-malformed comment fails closed on every evaluation). All subprocess
+their `authorAssociation` (read for disposition markers; a missing or malformed
+connection fails closed on every evaluation, while an individual comment that cannot be
+attributed or is malformed is ignored and cannot clear a finding). All subprocess
 invocation is a fixed argv array executed with `shell=False`; the repo slug and
 PR number are validated to reject shell metacharacters before any process runs.
 
@@ -150,9 +151,10 @@ one such finding under a `0 open findings` headline, and the gate returned
 * `S` is the largest `Suppressed comments (N)` count and `PM` is the largest
   `Previously missed (N)` count (the maximum over occurrences keeps the detector on
   the fail-closed side).
-* `U = max(0, N_open - A)`. `N_open` is the first `N open finding(s)` count, and `A`
-  is the number of `#discussion_r` anchors inside the open-findings span. The span
-  ends at the next section header (a `<summary><strong>` or a `### ` line) or at the
+* `U = max(0, N_open - A)`. Each `N open finding(s)` headline gives `N_open` and its own
+  span, and `A` is the number of `#discussion_r` anchors inside that span. `U` is the
+  largest value over all headlines. Each span ends at the next section header (a
+  `<summary><strong>` or a `### ` line) or at the
   end of the body. Nested per-finding `<details><summary><picture>` blocks are not
   section headers, so they cannot truncate the span.
 * **Not counted:** `resolved since last review`, `What changed in this PR`, and the
