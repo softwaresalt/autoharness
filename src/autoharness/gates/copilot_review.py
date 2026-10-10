@@ -473,11 +473,11 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
                 return _ambiguous()
             unresolved.append(tid)
 
-    # PR conversation comments (201-F U2). A missing or malformed connection, or a
-    # comment with an unreadable author, is unverifiable and fails closed. Only a
-    # trusted comment (author is not the Copilot bot AND authorAssociation is OWNER,
-    # MEMBER, or COLLABORATOR) can clear a review-body disposition; any other comment
-    # is ignored, which is the fail-closed direction.
+    # PR conversation comments (201-F U2). A missing or malformed connection is
+    # unverifiable and fails closed. A comment with an unattributable author (a deleted
+    # account) is skipped, and so is any comment that is not a trusted disposition: only
+    # a non-bot comment with authorAssociation OWNER, MEMBER, or COLLABORATOR can clear a
+    # review-body disposition. Skipping is the fail-closed direction for clearance.
     comments = _connection(pr, "comments")
     if comments is None:
         return _ambiguous()
