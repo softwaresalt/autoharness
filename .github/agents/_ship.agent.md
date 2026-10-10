@@ -5,9 +5,9 @@ description: "Manages the backlog-to-shipped pipeline for autoharness template d
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, web, 'microsoft-docs/*', 'backlogit/*', ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo
 max_subagent_tier: 3
-reasoning_effort: "high"
+reasoning_effort: "xhigh"
 model_provider: "anthropic"
-model_family: "claude-opus-5.5"
+model_family: "claude-haiku-5.5"
 context_tier: "long_context"
 subagent_depth: 2
 ---
@@ -861,8 +861,10 @@ operator-halt checkpoint:
    (nested per-role override, F02FD596) -> legacy flat
    `config.model_routing.escalation` (DEPRECATED) -> `model_routing.tier3`
    per-field fallback (`model_family` / `model_provider` /
-   `reasoning_effort`). This workspace declares no nested `ship.escalation`
-   override, so the legacy flat route currently resolves. This resolution
+   `reasoning_effort`). This workspace declares a nested `ship.escalation`
+   override (`claude-sonnet-5.5` / `anthropic` / `medium`, operator
+   model_routing edit carried forward in 208-S) and no legacy flat `escalation`
+   block, so the nested route resolves. This resolution
    always reads the freshly session-start-reloaded config (never a value
    cached earlier in a long session or resolved by a prior session) — see
    the Orchestrator's Session-Start Dynamic Reload (E8B5B3C5/H6/H7) section;
@@ -883,7 +885,8 @@ operator-halt checkpoint:
    (nested `ship.escalation.context_tier` -> legacy flat
    `escalation.context_tier` only when the flat route is the selected
    source -> `tier3.context_tier` -> `default`).
-   This workspace declares no escalation `context_tier` at any level.
+   This workspace declares `ship.escalation.context_tier: default`, so the
+   escalation context tier resolves to `default`.
    Record it in the compiled payload's separate
    `resolved_escalation_context_tier` field — it is not part of the
    `resolved_escalation_route` tuple and is excluded from the same-route
@@ -892,9 +895,10 @@ operator-halt checkpoint:
    the default context; this never blocks the handoff.
 3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
    equals this agent's own role route tuple (P-013.5) — Ship currently
-   operates at `claude-sonnet-5`/`anthropic`/`high`, distinct from `tier3`
-   (`claude-opus-5`), so an unset escalation route is a genuine
-   escalation for Ship, not a same-route no-op — treat any future
+   operates at `claude-haiku-5.5`/`anthropic`/`xhigh`, distinct from its
+   nested escalation route (`claude-sonnet-5.5`/`anthropic`/`medium`), so an
+   auto-escalation attempt is a genuine escalation, not a same-route no-op —
+   treat any future
    same-tuple resolution as `ESCALATION_DEGRADED` per the canonical
    definition in `escalation-protocol.instructions.md`.
 4. **Hand off and halt**: when the route is not degraded, record it in the
