@@ -44,7 +44,8 @@ Usage:
   autoharness verify-workspace  Deterministically verify an installed workspace harness
   autoharness gate check        Run deterministic validation gates on modified files
   autoharness gate size         Estimate a task's T-shirt size and write it back
-  autoharness gate copilot-review    Fail-closed pre-merge gate: Copilot review complete + threads resolved + body findings dispositioned  autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
+  autoharness gate copilot-review    Fail-closed pre-merge gate: Copilot review complete + threads resolved + body findings dispositioned
+  autoharness gate pipeline-topology  Deterministic shipment/worktree topology gate
   autoharness gate dag-readiness  Read-only ready-set/critical-path/downstream-dependents report
   autoharness gate closure-evidence  Write-time validation of a post-merge closure artifact
   autoharness shipment cascade-close  Evidence-capturing CASCADE close (see `autoharness shipment --help`)

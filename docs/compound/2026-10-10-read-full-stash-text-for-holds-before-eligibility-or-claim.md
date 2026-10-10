@@ -44,9 +44,11 @@ What happened:
 * Copilot flagged the conflict on PR #511 (thread `PRRT_kwDORzpWpM6rB1WB`, left open
   as a merge blocker).
 
-Consequence: 208-S is active and held, the nine tasks are done, PR #511 is a draft,
+Consequence at capture time (historical): 208-S was active and held, the nine tasks were done, PR #511 was a draft,
 and the operator must decide. Accept the weaker rule in writing, direct a Stage
 triage of `3FC709F9`, or abandon and re-queue.
+
+Outcome (2026-10-10T08:09:29Z): the operator accepted the association-only disposition-marker rule in writing for 208-S (PR #511 comment 6095553824) and kept `3FC709F9` as the hardening follow-up. That acceptance lifts the hold on 208-S. PR #511 carries the 208-S implementation. The lesson above still applies: a hold written only as free text stays invisible to gates until someone reads it in full.
 
 ## Root causes
 

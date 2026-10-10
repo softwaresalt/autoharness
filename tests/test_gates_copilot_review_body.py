@@ -500,5 +500,17 @@ class BodyFindingsFenceAndSpanEdgeTests(unittest.TestCase):
         self.assertLess(time.perf_counter() - start, 2.0)
 
 
+class CliUsageLayoutTests(unittest.TestCase):
+    def test_copilot_review_and_pipeline_topology_usage_lines_are_separate(self) -> None:
+        # Regression: a lost newline merged the pipeline-topology command onto the
+        # copilot-review line in top-level --help (Copilot round 6, cli.py:47).
+        from autoharness.cli import USAGE
+
+        self.assertRegex(
+            USAGE,
+            r"(?m)^  autoharness gate copilot-review\b.*\n  autoharness gate pipeline-topology\b",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
