@@ -546,15 +546,15 @@ Both paths preserve identically: the mandatory capture-first ordering, the full 
    default `0`). See `.github/instructions/github-pr-automation.instructions.md` §1.9.4
    Check 5.
    - `SATISFIED` / `NOT_APPLICABLE` (exit 0): Copilot review is complete for the
-     current HEAD with no open Copilot threads, or Copilot is not in play. Proceed.
-   - Any BLOCK verdict — `WAITING_FOR_REVIEW`, `UNRESOLVED_THREADS`,
+     current HEAD with no open Copilot threads and every Copilot review-body finding dispositioned, or Copilot is not in play. Proceed.
+   - Any BLOCK verdict — `WAITING_FOR_REVIEW`, `UNRESOLVED_THREADS`, `UNDISPOSITIONED_BODY_FINDINGS`,
      `REVIEW_TIMEOUT`, `DETECTION_AMBIGUOUS`, `VERIFY_FAILED` (non-zero exit): halt,
      emit `COPILOT_REVIEW_BLOCK` (with PR number, verdict, and current HEAD), and
      record a P-018 event via P-005 telemetry. **`--admin` does NOT bypass this
      block.** Wait for review completion, resolve every Copilot-authored thread,
      then re-run. `REVIEW_TIMEOUT` still blocks; only an explicit, operator-authored,
      audited `autoharness gate copilot-review ... --force` (logged under
-     `.autoharness/gates/`) may override.
+     `.autoharness/gates/`) may override. For `UNDISPOSITIONED_BODY_FINDINGS`, handle each finding per github-pr-automation §1.6.1, post the disposition comment (`Copilot-Review-Body-Disposition: <review id>`), re-run; `--admin` does not bypass it.
    - This gate re-runs whenever the branch HEAD advances (each push re-arms Copilot),
      exactly like the §1.9 readiness gate.
 4. **Runtime validator handoff (NON-NEGOTIABLE)**: When work touches runtime surfaces or rollout-sensitive behavior, read `.autoharness/workspace-profile.yaml` and carry `runtime_validation.validator_manifest` plus `runtime_validation.validation_expectations` into `runtime-verification`. Emit validator evidence for probe outcomes, manual checkpoint evidence, and blocked prerequisites. Never fake unsupported automation.
