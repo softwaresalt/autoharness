@@ -10,6 +10,7 @@ No live models, no network, no real subprocess: ``query_fn`` / ``run_fn`` / ``sl
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from autoharness.gates.copilot_review import (
@@ -131,6 +132,8 @@ class ClassifyTests(unittest.TestCase):
 
     def test_only_satisfied_and_na_pass(self) -> None:
         self.assertEqual(PASS_VERDICTS, {Verdict.SATISFIED, Verdict.NOT_APPLICABLE})
+        # 201-F U3 invariant I1: the body-finding BLOCK verdict is never a pass.
+        self.assertNotIn(Verdict.UNDISPOSITIONED_BODY_FINDINGS, PASS_VERDICTS)
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +153,7 @@ class ResultTests(unittest.TestCase):
         for v in (
             Verdict.WAITING_FOR_REVIEW,
             Verdict.UNRESOLVED_THREADS,
+            Verdict.UNDISPOSITIONED_BODY_FINDINGS,
             Verdict.REVIEW_TIMEOUT,
             Verdict.DETECTION_AMBIGUOUS,
             Verdict.VERIFY_FAILED,
@@ -781,6 +785,91 @@ class BodyFindingParseTests(unittest.TestCase):
             state = parse_graphql_response(stale)
             self.assertTrue(state.parse_ok)
             self.assertEqual(state.undispositioned_body_finding_review_ids, (102,))
+
+
+def _finding_review(database_id=101, state="COMMENTED", commit=_HEAD, overview=2):
+    return ReviewRecord(
+        state=state,
+        commit_oid=commit,
+        database_id=database_id,
+        body_findings=1,
+        overview_version=overview,
+    )
+
+
+def _body_state(*, reviews, unresolved=(), comments_complete=True, dispositioned=()):
+    return ReviewState(
+        head_ref_oid=_HEAD,
+        copilot_requested=True,
+        copilot_reviews=tuple(reviews),
+        copilot_unresolved_thread_ids=tuple(unresolved),
+        dispositioned_review_ids=frozenset(dispositioned),
+        comments_complete=comments_complete,
+    )
+
+
+class BodyFindingVerdictTests(unittest.TestCase):
+    """Roster for 201.003-T (RED scaffold): verdict, truncation, and payload."""
+
+    def test_undispositioned_body_findings_block_after_resolved_threads(self) -> None:
+        with self.subTest(case="undispositioned_blocks"):
+            st = _body_state(reviews=[_finding_review()])
+            self.assertEqual(classify(st, "auto"), Verdict.UNDISPOSITIONED_BODY_FINDINGS)
+            result = CopilotReviewResult(
+                Verdict.UNDISPOSITIONED_BODY_FINDINGS,
+                "auto",
+                undispositioned_body_finding_review_ids=(101,),
+            )
+            self.assertTrue(result.blocked)
+            self.assertEqual(result.exit_code, 1)
+        with self.subTest(case="trusted_disposition_clears"):
+            st = _body_state(reviews=[_finding_review()], dispositioned=[101])
+            self.assertEqual(classify(st, "auto"), Verdict.SATISFIED)
+
+    def test_truncated_comments_with_undispositioned_findings_are_ambiguous(self) -> None:
+        st = _body_state(reviews=[_finding_review()], comments_complete=False)
+        self.assertEqual(classify(st, "auto"), Verdict.DETECTION_AMBIGUOUS)
+
+    def test_payload_and_advisory_reach_the_result(self) -> None:
+        with self.subTest(case="overview_v3_advisory"):
+            state = _body_state(reviews=[_finding_review(overview=3)], dispositioned=[101])
+            result = evaluate(1, "owner/name", query_fn=lambda: state, enforcement="auto")
+            self.assertTrue(result.advisory)
+        with self.subTest(case="to_dict_round_trip"):
+            result = CopilotReviewResult(
+                Verdict.UNDISPOSITIONED_BODY_FINDINGS,
+                "auto",
+                undispositioned_body_finding_review_ids=(101,),
+            )
+            payload = json.loads(json.dumps(result.to_dict()))
+            self.assertEqual(payload["undispositioned_body_finding_review_ids"], [101])
+            self.assertIn("advisory", payload)
+
+
+class BodyFindingVerdictCharacterizationTests(unittest.TestCase):
+    """Characterization (outside the RED roster): pre-existing ordering must hold."""
+
+    def test_unresolved_threads_precede_body_findings(self) -> None:
+        st = _body_state(reviews=[_finding_review()], unresolved=["T1"])
+        self.assertEqual(classify(st, "auto"), Verdict.UNRESOLVED_THREADS)
+
+    def test_review_timeout_with_body_findings_stays_timeout(self) -> None:
+        st = _body_state(reviews=[_finding_review(commit=_OLD_HEAD)])
+        self.assertEqual(classify(st, "auto", timed_out=True), Verdict.REVIEW_TIMEOUT)
+
+    def test_empty_undispositioned_with_incomplete_comments_stays_satisfied(self) -> None:
+        st = _body_state(
+            reviews=[ReviewRecord(state="COMMENTED", commit_oid=_HEAD, database_id=101)],
+            comments_complete=False,
+        )
+        self.assertEqual(classify(st, "auto"), Verdict.SATISFIED)
+
+    def test_every_verdict_member_passes_or_blocks(self) -> None:
+        for verdict in Verdict:
+            with self.subTest(verdict=verdict.value):
+                result = CopilotReviewResult(verdict, "auto")
+                self.assertEqual(result.blocked, verdict not in PASS_VERDICTS)
+                self.assertEqual(result.exit_code, 0 if verdict in PASS_VERDICTS else 1)
 
 
 class BodyFindingScaffoldContractTests(unittest.TestCase):

@@ -95,6 +95,7 @@ class Verdict(enum.Enum):
     NOT_APPLICABLE = "NOT_APPLICABLE"
     WAITING_FOR_REVIEW = "WAITING_FOR_REVIEW"
     UNRESOLVED_THREADS = "UNRESOLVED_THREADS"
+    UNDISPOSITIONED_BODY_FINDINGS = "UNDISPOSITIONED_BODY_FINDINGS"
     REVIEW_TIMEOUT = "REVIEW_TIMEOUT"
     DETECTION_AMBIGUOUS = "DETECTION_AMBIGUOUS"
     VERIFY_FAILED = "VERIFY_FAILED"
@@ -120,6 +121,13 @@ _VERDICT_MESSAGES = {
         "Copilot has completed a review for the current HEAD but one or more "
         "Copilot-authored review threads are unresolved. BLOCK: address and resolve "
         "every Copilot thread (reply + resolve) before merging."
+    ),
+    Verdict.UNDISPOSITIONED_BODY_FINDINGS: (
+        "A completed Copilot review body carries findings with no review thread, and "
+        "no trusted PR comment has dispositioned them. BLOCK: fix each finding, or "
+        "capture it (P-021 C2), or decline it with a rationale; then post a PR comment "
+        "quoting the findings with the line 'Copilot-Review-Body-Disposition: <review "
+        "id>' and re-run."
     ),
     Verdict.REVIEW_TIMEOUT: (
         "Copilot review is enabled but did not complete for the current HEAD within "
@@ -559,7 +567,35 @@ def classify(
     if state.copilot_unresolved_thread_ids:
         return Verdict.UNRESOLVED_THREADS
 
+    if state.undispositioned_body_finding_review_ids:
+        # Threadless review-body findings with no trusted disposition (201-F U3).
+        # Truncated comments could hide the disposition marker on an unfetched page,
+        # so the verdict is ambiguous rather than a definite block.
+        if not state.comments_complete:
+            return Verdict.DETECTION_AMBIGUOUS
+        return Verdict.UNDISPOSITIONED_BODY_FINDINGS
+
     return Verdict.SATISFIED
+
+
+def _overview_advisory(state: ReviewState) -> tuple[str, ...]:
+    """OQ-1 advisory: a Copilot review body with an unrecognized overview version.
+
+    The verdict is unaffected; the advisory tells an operator that body detection may
+    be incomplete and the review bodies should be read manually.
+    """
+    messages: list[str] = []
+    for review in state.copilot_reviews:
+        version = review.overview_version
+        if version is None or version == KNOWN_OVERVIEW_VERSION:
+            continue
+        message = (
+            f"unrecognized ccr-overview version v{version}: review-body detection may be "
+            "incomplete; read review bodies manually"
+        )
+        if message not in messages:
+            messages.append(message)
+    return tuple(messages)
 
 
 # ---------------------------------------------------------------------------
@@ -578,6 +614,8 @@ class CopilotReviewResult:
     rounds: int = 1
     forced: bool = False
     detail: str = ""
+    undispositioned_body_finding_review_ids: tuple[int, ...] = ()
+    advisory: tuple[str, ...] = ()
 
     @property
     def message(self) -> str:
@@ -609,6 +647,10 @@ class CopilotReviewResult:
             "blocked": self.blocked,
             "exit_code": self.exit_code,
             "message": self.message,
+            "undispositioned_body_finding_review_ids": list(
+                self.undispositioned_body_finding_review_ids
+            ),
+            "advisory": list(self.advisory),
         }
 
 
@@ -781,6 +823,8 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
+                undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
+                advisory=_overview_advisory(state),
             )
 
         # Review is enabled but not yet complete for HEAD. With no wait budget this
@@ -793,6 +837,8 @@ def evaluate(
                 head_ref_oid=state.head_ref_oid,
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
+                undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
+                advisory=_overview_advisory(state),
             )
         elapsed = clock() - start
         if elapsed >= max_wait:
@@ -804,6 +850,8 @@ def evaluate(
                 unresolved_thread_ids=state.copilot_unresolved_thread_ids,
                 rounds=rounds,
                 detail=f"waited {elapsed:.0f}s of {max_wait:.0f}s",
+                undispositioned_body_finding_review_ids=state.undispositioned_body_finding_review_ids,
+                advisory=_overview_advisory(state),
             )
         # Sleep only for the remaining budget so the advertised bounded wait is
         # honoured: a full poll_interval could otherwise overshoot the window by up to
