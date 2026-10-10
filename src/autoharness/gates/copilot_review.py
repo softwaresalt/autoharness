@@ -136,6 +136,85 @@ _VERDICT_MESSAGES = {
 
 
 # ---------------------------------------------------------------------------
+# Review-body findings (201-F U1, RED scaffold for 201.001-T)
+# ---------------------------------------------------------------------------
+
+# Literal marker a trusted PR comment carries to disposition one Copilot review body.
+DISPOSITION_MARKER = "Copilot-Review-Body-Disposition:"
+
+# The Copilot overview-format version this detector understands. Other versions are
+# still counted best-effort and surfaced as an advisory (OQ-1).
+KNOWN_OVERVIEW_VERSION = 2
+
+
+@dataclass(frozen=True)
+class BodyFindings:
+    """Threadless findings counted in one Copilot review body."""
+
+    count: int
+    markers: tuple[str, ...]
+    overview_version: int | None
+
+
+_BODY_PREVIOUSLY_MISSED_RE = re.compile(r"Previously\s+missed\s*\((\d+)\)", re.IGNORECASE)
+_BODY_SUPPRESSED_RE = re.compile(r"Suppressed\s+comments\s*\((\d+)\)", re.IGNORECASE)
+_BODY_OPEN_FINDINGS_RE = re.compile(r"(\d+)\s+open\s+findings?", re.IGNORECASE)
+_BODY_ANCHOR_RE = re.compile(r"#discussion_r\d+")
+_BODY_SECTION_HEADER_RE = re.compile(r"<summary>\s*<strong>|^### ", re.IGNORECASE | re.MULTILINE)
+_BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
+
+
+def detect_body_findings(body: str) -> BodyFindings:
+    """Count threadless findings in one Copilot review body (pure, stdlib ``re``).
+
+    ``count = max(S, PM) + U``:
+
+    * ``PM`` is the largest ``Previously missed (N)`` count in the body;
+    * ``S`` is the largest ``Suppressed comments (N)`` count in the body (the maximum
+      over occurrences keeps the detector on the fail-closed side);
+    * ``U = max(0, N_open - A)`` where ``N_open`` is the first ``N open findings``
+      count and ``A`` is the number of ``#discussion_r`` anchors inside the open-findings
+      span. The span ends at the next section header (``<summary><strong>`` or a
+      ``### `` line) or at the end of the body. Nested ``<summary><picture>`` per-finding
+      blocks are not section headers, so they cannot truncate the span.
+
+    The ``resolved since last review``, ``What changed in this PR``, and overview risk
+    lines are never counted.
+    """
+    text = body or ""
+
+    previously_missed = max(
+        (int(m.group(1)) for m in _BODY_PREVIOUSLY_MISSED_RE.finditer(text)), default=0
+    )
+    suppressed = max((int(m.group(1)) for m in _BODY_SUPPRESSED_RE.finditer(text)), default=0)
+
+    unanchored = 0
+    open_match = _BODY_OPEN_FINDINGS_RE.search(text)
+    if open_match is not None:
+        n_open = int(open_match.group(1))
+        header = _BODY_SECTION_HEADER_RE.search(text, open_match.end())
+        span_end = header.start() if header is not None else len(text)
+        anchors = len(_BODY_ANCHOR_RE.findall(text[open_match.end() : span_end]))
+        unanchored = max(0, n_open - anchors)
+
+    markers: list[str] = []
+    if previously_missed > 0:
+        markers.append("previously_missed")
+    if suppressed > 0:
+        markers.append("suppressed")
+    if unanchored > 0:
+        markers.append("unanchored_open")
+
+    overview = _BODY_OVERVIEW_RE.search(text)
+    return BodyFindings(
+        count=max(suppressed, previously_missed) + unanchored,
+        markers=tuple(markers),
+        overview_version=int(overview.group(1)) if overview is not None else None,
+    )
+
+
+
+# ---------------------------------------------------------------------------
 # Parsed review state
 # ---------------------------------------------------------------------------
 
