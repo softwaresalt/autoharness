@@ -799,6 +799,30 @@ def _validate_pr(pr: Any) -> int:
     return value
 
 
+def _decode_gh_output(data: Any, *, strict: bool) -> str:
+    """Decode ``gh`` output as UTF-8 by contract, never with the locale codec.
+
+    Text passes through unchanged, since an injected runner may return it already decoded.
+    With ``strict``, a malformed sequence raises RuntimeError so the caller fails closed to
+    VERIFY_FAILED. Without it, undecodable bytes are replaced, because stderr is diagnostic.
+    """
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError(f"gh output must be bytes or str, not {type(data).__name__}")
+    raw = bytes(data)
+    if not strict:
+        return raw.decode("utf-8", errors="replace")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(
+            f"gh output is not valid UTF-8 ({exc.reason} at byte {exc.start})"
+        ) from exc
+
+
 def query_pr_review_state(
     pr: int,
     repo: str,
@@ -815,17 +839,19 @@ def query_pr_review_state(
     repo = _validate_repo(repo)
     argv = build_query_argv(pr, repo, gh_bin=gh_bin)
     run = run_fn or subprocess.run
+    # gh writes JSON as UTF-8 by contract. Capture raw bytes and decode explicitly: text=True
+    # would use the locale codec (cp1252 on a Windows default locale) and fail on review-body
+    # emoji. Malformed UTF-8 fails closed through RuntimeError, never a codec traceback.
     proc = run(
         argv,
         capture_output=True,
-        text=True,
         shell=False,
         timeout=_COMMAND_TIMEOUT_SECONDS,
     )
+    stderr = _decode_gh_output(getattr(proc, "stderr", b""), strict=False).strip()
     if getattr(proc, "returncode", 1) != 0:
-        stderr = (getattr(proc, "stderr", "") or "").strip()
         raise RuntimeError(stderr or f"gh api graphql failed for {repo}#{pr}")
-    stdout = getattr(proc, "stdout", "") or ""
+    stdout = _decode_gh_output(getattr(proc, "stdout", b""), strict=True)
     try:
         raw = json.loads(stdout)
     except json.JSONDecodeError as exc:

@@ -59,7 +59,7 @@ entry that is not an object, fails closed on every evaluation; a comment with an
 unattributable author or a non-string body or association is ignored and cannot clear a
 finding). All subprocess
 invocation is a fixed argv array executed with `shell=False`; the repo slug and
-PR number are validated to reject shell metacharacters before any process runs.
+PR number are validated to reject shell metacharacters before any process runs. Stdout from `gh` is decoded as strict UTF-8, never with the locale codec, and malformed stdout BLOCKS (`VERIFY_FAILED`). Stderr is diagnostic only.
 
 ### Output
 

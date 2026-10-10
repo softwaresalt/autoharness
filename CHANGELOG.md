@@ -34,6 +34,8 @@
   cause; the operator action is to post a fresh disposition comment per affected review so
   the marker sits in the newest 100 comments.
 
+- **copilot-review gate decodes `gh` output as UTF-8 (208-S round 8):** the gate read `gh` output with the locale codec, so on a Windows default locale a review body containing a character whose UTF-8 bytes include a byte undefined in cp1252 (for example U+1D4B3) failed closed as `VERIFY_FAILED` on every such PR. Output is now captured as bytes and decoded as UTF-8. Malformed UTF-8 still BLOCKs.
+
 - **Ship/Stage frontmatter bound to role variables (194-F / 200-S)**:
   `_ship.agent.md.tmpl` and `_stage.agent.md.tmpl` now render their
   `model_family` / `model_provider` / `reasoning_effort` / `context_tier` from the
