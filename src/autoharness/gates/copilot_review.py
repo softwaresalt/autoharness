@@ -76,11 +76,13 @@ query($owner:String!,$repo:String!,$pr:Int!){
       reviewRequests(first:100){ nodes{ requestedReviewer{
         __typename ... on Bot{ login } ... on User{ login } } }
         pageInfo{ hasNextPage } }
-      reviews(last:100){ nodes{ author{ login } state commit{ oid } }
+      reviews(last:100){ nodes{ databaseId author{ login } state commit{ oid } body }
         pageInfo{ hasPreviousPage } }
       reviewThreads(first:100){ nodes{ id isResolved
         comments(first:1){ nodes{ author{ login } } } }
         pageInfo{ hasNextPage } }
+      comments(last:100){ nodes{ author{ login } authorAssociation body }
+        pageInfo{ hasPreviousPage } }
     }
   }
 }"""
@@ -225,6 +227,9 @@ class ReviewRecord:
 
     state: str
     commit_oid: str | None
+    database_id: int | None = None
+    body_findings: int = 0
+    overview_version: int | None = None
 
 
 @dataclass(frozen=True)
@@ -236,6 +241,21 @@ class ReviewState:
     copilot_reviews: tuple[ReviewRecord, ...]
     copilot_unresolved_thread_ids: tuple[str, ...]
     parse_ok: bool = True
+    dispositioned_review_ids: frozenset[int] = frozenset()
+    comments_complete: bool = True
+
+    @property
+    def undispositioned_body_finding_review_ids(self) -> tuple[int, ...]:
+        """Completed Copilot reviews (any round) with threadless body findings that no
+        trusted PR comment has dispositioned, in review order."""
+        return tuple(
+            review.database_id
+            for review in self.copilot_reviews
+            if review.state in _COMPLETED_STATES
+            and review.body_findings > 0
+            and review.database_id is not None
+            and review.database_id not in self.dispositioned_review_ids
+        )
 
     @property
     def copilot_engaged(self) -> bool:
@@ -250,6 +270,16 @@ class ReviewState:
             r.commit_oid == self.head_ref_oid and r.state in _COMPLETED_STATES
             for r in self.copilot_reviews
         )
+
+
+# Non-Copilot comment authors whose association may clear a body-finding disposition.
+TRUSTED_DISPOSITION_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+
+# An exact disposition line: the literal marker, one integer review databaseId, and
+# nothing else on the line. Trailing text (for example "101 later") never clears a review.
+_DISPOSITION_LINE_RE = re.compile(
+    rf"^{re.escape(DISPOSITION_MARKER)}[ \t]*(\d+)[ \t]*\r?$", re.MULTILINE
+)
 
 
 def _login(node: Any) -> str | None:
@@ -369,8 +399,28 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
             return _ambiguous()
         commit = node.get("commit")
         oid = commit.get("oid") if isinstance(commit, Mapping) else None
+        # Review body (201-F U2): None is an empty body; any other non-string is
+        # unverifiable and fails closed.
+        body = node.get("body")
+        if body is None:
+            body = ""
+        if not isinstance(body, str):
+            return _ambiguous()
+        findings = detect_body_findings(body)
+        database_id = node.get("databaseId")
+        if isinstance(database_id, bool) or not isinstance(database_id, int):
+            database_id = None
+        if findings.count > 0 and database_id is None:
+            # A body finding that cannot be dispositioned by review ID is unverifiable.
+            return _ambiguous()
         reviews.append(
-            ReviewRecord(state=state, commit_oid=oid if isinstance(oid, str) else None)
+            ReviewRecord(
+                state=state,
+                commit_oid=oid if isinstance(oid, str) else None,
+                database_id=database_id,
+                body_findings=findings.count,
+                overview_version=findings.overview_version,
+            )
         )
 
     # reviewThreads — must be structurally valid and provably complete; a truncated or
@@ -407,11 +457,39 @@ def parse_graphql_response(raw: Mapping[str, Any]) -> ReviewState:
                 return _ambiguous()
             unresolved.append(tid)
 
+    # PR conversation comments (201-F U2). A missing or malformed connection, or a
+    # comment with an unreadable author, is unverifiable and fails closed. Only a
+    # trusted comment (author is not the Copilot bot AND authorAssociation is OWNER,
+    # MEMBER, or COLLABORATOR) can clear a review-body disposition; any other comment
+    # is ignored, which is the fail-closed direction.
+    comments = _connection(pr, "comments")
+    if comments is None:
+        return _ambiguous()
+    comment_nodes = _strict_nodes(comments)
+    if comment_nodes is None:
+        return _ambiguous()
+    dispositioned: set[int] = set()
+    for node in comment_nodes:
+        author = _login(node.get("author"))
+        if author is None:
+            return _ambiguous()
+        association = node.get("authorAssociation")
+        if author == COPILOT_LOGIN:
+            continue
+        if not isinstance(association, str) or association not in TRUSTED_DISPOSITION_ASSOCIATIONS:
+            continue
+        text = node.get("body")
+        if not isinstance(text, str):
+            continue
+        dispositioned.update(int(match.group(1)) for match in _DISPOSITION_LINE_RE.finditer(text))
+
     return ReviewState(
         head_ref_oid=head,
         copilot_requested=copilot_requested,
         copilot_reviews=tuple(reviews),
         copilot_unresolved_thread_ids=tuple(unresolved),
+        dispositioned_review_ids=frozenset(dispositioned),
+        comments_complete=_page_complete(comments, "hasPreviousPage"),
     )
 
 
