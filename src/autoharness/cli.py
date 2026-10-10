@@ -873,6 +873,25 @@ def _audit_copilot_review_force(workspace: Path, result, pr: str, repo: str) -> 
     return str(audit_path)
 
 
+def _copilot_body_finding_lines(result) -> list[str]:
+    """Human-readable lines for undispositioned review-body findings and advisories.
+
+    The IDs name the reviews that still need a trusted disposition comment, and the hint
+    gives the exact marker literal. Advisories are prefixed so they are never mistaken
+    for a verdict line (201-F U4).
+    """
+    lines: list[str] = []
+    if result.undispositioned_body_finding_review_ids:
+        ids = ", ".join(str(review_id) for review_id in result.undispositioned_body_finding_review_ids)
+        lines.append(f"  undispositioned Copilot review-body findings in reviews: {ids}")
+        lines.append(
+            "  post a PR comment containing 'Copilot-Review-Body-Disposition: <id>' "
+            "after handling each finding"
+        )
+    lines.extend(f"  advisory: {message}" for message in result.advisory)
+    return lines
+
+
 def _gate_copilot_review_command(rest: list[str]) -> None:
     """Fail-closed pre-merge gate: Copilot review complete for HEAD + threads resolved."""
     if any(flag in ("help", "--help", "-h") for flag in rest):
@@ -920,6 +939,8 @@ def _gate_copilot_review_command(rest: list[str]) -> None:
         print(f"  {result.message}")
         if result.unresolved_thread_ids:
             print(f"  unresolved Copilot threads: {len(result.unresolved_thread_ids)}")
+        for line in _copilot_body_finding_lines(result):
+            print(line)
         if audit_path:
             print(f"  --force override recorded: {audit_path}")
 
