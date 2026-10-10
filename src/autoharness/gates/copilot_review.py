@@ -170,7 +170,7 @@ class BodyFindings:
 # Headline counts are read only at structural positions: inside a <summary> header, on a
 # "### " heading line, or on a bold line. Prose that merely mentions a headline, such as a
 # "What changed in this PR" summary, is not a finding.
-_BODY_HEADLINE_PREFIX = r"(?:<summary>\s*(?:<strong>)?\s*|^[ \t]*(?:###[ \t]+|\*\*)\s*)"
+_BODY_HEADLINE_PREFIX = r"(?:<summary>\s*(?:<strong>)?\s*|^ {0,3}(?:###[ \t]+|\*\*)\s*)"
 _BODY_PREVIOUSLY_MISSED_RE = re.compile(
     rf"{_BODY_HEADLINE_PREFIX}Previously\s+missed\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
 )
@@ -181,11 +181,47 @@ _BODY_OPEN_FINDINGS_RE = re.compile(
     rf"{_BODY_HEADLINE_PREFIX}(?<!\d)(\d+)\s+open\s+findings?", re.IGNORECASE | re.MULTILINE
 )
 _BODY_ANCHOR_RE = re.compile(r"#discussion_r\d+")
-_BODY_SECTION_HEADER_RE = re.compile(r"<summary>\s*<strong>|^### ", re.IGNORECASE | re.MULTILINE)
+_BODY_SECTION_HEADER_RE = re.compile(
+    r"<summary>\s*<strong>|^ {0,3}###[ \t]|^ {0,3}\*\*", re.IGNORECASE | re.MULTILINE
+)
 _BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
 
+# CommonMark fence rules. An opener is 0 to 3 spaces, then three or more backticks or
+# tildes. A closer uses the same character, is at least as long as the opener, and is
+# indented 0 to 3 spaces. A line indented four or more spaces is literal text, not a fence.
+_FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t]*$")
 
-_BODY_FENCE_RE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$", re.MULTILINE | re.DOTALL)
+
+def _strip_fenced_code(text: str) -> str:
+    """Remove closed fenced code blocks, following the CommonMark fence rules.
+
+    A backtick opener whose info string contains a backtick is not a fence. An opener
+    with no closer is left as text, so the rest of the body still counts (fail-closed).
+    """
+    lines = text.split("\n")
+    kept: list[str] = []
+    index = 0
+    while index < len(lines):
+        opener = _FENCE_OPEN_RE.match(lines[index])
+        if opener is not None and not (opener.group(1)[0] == "`" and "`" in opener.group(2)):
+            fence = opener.group(1)
+            closing = next(
+                (
+                    close
+                    for close in range(index + 1, len(lines))
+                    if (closer := _FENCE_CLOSE_RE.match(lines[close])) is not None
+                    and closer.group(1)[0] == fence[0]
+                    and len(closer.group(1)) >= len(fence)
+                ),
+                None,
+            )
+            if closing is not None:
+                index = closing + 1
+                continue
+        kept.append(lines[index])
+        index += 1
+    return "\n".join(kept)
 
 
 def detect_body_findings(body: str) -> BodyFindings:
@@ -208,7 +244,7 @@ def detect_body_findings(body: str) -> BodyFindings:
     """
     # Fenced code blocks are quoted content, not structure: a headline quoted inside one
     # is not a finding.
-    text = _BODY_FENCE_RE.sub("", body or "")
+    text = _strip_fenced_code(body or "")
 
     previously_missed = max(
         (int(m.group(1)) for m in _BODY_PREVIOUSLY_MISSED_RE.finditer(text)), default=0
@@ -216,13 +252,15 @@ def detect_body_findings(body: str) -> BodyFindings:
     suppressed = max((int(m.group(1)) for m in _BODY_SUPPRESSED_RE.finditer(text)), default=0)
 
     unanchored = 0
-    # Each open-findings headline is checked against its own span; the largest
-    # unanchored count wins, which keeps the detector on the fail-closed side.
+    # Each open-findings headline is checked against its own span, which ends at the next
+    # structural headline (summary, heading, or bold line). Anchors count once per distinct
+    # discussion ID, so a repeated link cannot lower the unanchored count.
     for open_match in _BODY_OPEN_FINDINGS_RE.finditer(text):
         n_open = int(open_match.group(1))
         header = _BODY_SECTION_HEADER_RE.search(text, open_match.end())
         span_end = header.start() if header is not None else len(text)
-        anchors = len(_BODY_ANCHOR_RE.findall(text[open_match.end() : span_end]))
+        span = text[open_match.end() : span_end]
+        anchors = len(set(_BODY_ANCHOR_RE.findall(span)))
         unanchored = max(unanchored, n_open - anchors)
 
     markers: list[str] = []

@@ -339,5 +339,66 @@ class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
                 self.assertEqual(findings.markers, markers)
 
 
+class BodyFindingsFenceAndSpanEdgeTests(unittest.TestCase):
+    """Markdown fence semantics, indented literals, bold span boundaries, unique anchors.
+
+    Synthetic rows, each named for the failure it pins. Fence and indentation rows follow
+    CommonMark: 0 to 3 leading spaces for a fence, a closer at least as long as its
+    opener, and an indented line of four or more spaces is literal text, not structure.
+    """
+
+    def test_fence_span_and_indentation_edges(self) -> None:
+        cases = (
+            # (label, body, count, markers)
+            (
+                "four_backtick_fence_not_closed_by_three",
+                "````markdown\n### Suppressed comments (1)\n```\n### Suppressed comments (2)\n````\n",
+                0,
+                (),
+            ),
+            (
+                "tilde_fence_closed_by_longer_tilde_run",
+                "~~~\n### Suppressed comments (3)\n~~~~\n\nText after the fence.\n",
+                0,
+                (),
+            ),
+            (
+                "indented_four_space_headlines_are_literal",
+                "    ### Suppressed comments (4)\n\n    **2 open findings**\n\nNormal prose.\n",
+                0,
+                (),
+            ),
+            (
+                "indented_fence_opener_is_literal_not_a_fence",
+                "    ```\nliteral indented text\n\n<details>\n<summary><strong>Previously missed (2)</strong></summary>\n\nReal finding.\n```\n",
+                2,
+                ("previously_missed",),
+            ),
+            (
+                "unclosed_fence_stays_text_fail_closed",
+                "```\n### Suppressed comments (5)\n",
+                5,
+                ("suppressed",),
+            ),
+            (
+                "bold_headline_bounds_the_open_span",
+                "**2 open findings**\n\n- [a](#discussion_r1)\n- unanchored item\n\n**Previously missed (1)**\n\n- [b](#discussion_r2)\n",
+                2,
+                ("previously_missed", "unanchored_open"),
+            ),
+            (
+                "duplicate_anchor_counts_once",
+                "**3 open findings**\n\n- [a](#discussion_r1)\n- [a again](#discussion_r1)\n- unanchored\n",
+                2,
+                ("unanchored_open",),
+            ),
+        )
+        for label, body, count, markers in cases:
+            with self.subTest(case=label):
+                findings = detect_body_findings(body)
+                self.assertEqual(findings.count, count)
+                self.assertEqual(findings.markers, markers)
+
+
 if __name__ == "__main__":
     unittest.main()
