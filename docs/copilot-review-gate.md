@@ -157,8 +157,10 @@ one such finding under a `0 open findings` headline, and the gate returned
   `<summary><strong>` or a `### ` line) or at the
   end of the body. Nested per-finding `<details><summary><picture>` blocks are not
   section headers, so they cannot truncate the span.
-* **Not counted:** `resolved since last review`, `What changed in this PR`, and the
-  overview risk line (for example `Needs a closer look`).
+* **Not counted:** `resolved since last review`, `What changed in this PR`, the
+  overview risk line (for example `Needs a closer look`), and prose that merely
+  mentions a headline phrase. Counts are read only at structural positions: inside a
+  `<summary>` header, on a `### ` heading line, or on a bold line.
 
 **Review scope:** every completed Copilot review (`COMMENTED`, `APPROVED`, or
 `CHANGES_REQUESTED`) in any round, on any HEAD. `DISMISSED` and `PENDING` reviews are

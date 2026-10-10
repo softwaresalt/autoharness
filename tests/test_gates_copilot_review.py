@@ -792,7 +792,7 @@ class BodyFindingParseTests(unittest.TestCase):
             ("body_finding_with_bool_database_id", _body_pr([_copilot_review_node(True, _PM_BODY)])),
             (
                 "digit_run_beyond_int_conversion_limit",
-                _body_pr([_copilot_review_node(101, "<strong>Previously missed (" + "9" * 5000 + ")</strong>")]),
+                _body_pr([_copilot_review_node(101, "<summary><strong>Previously missed (" + "9" * 5000 + ")</strong></summary>")]),
             ),
             ("missing_comments_connection", _body_pr([_copilot_review_node(101, _PM_BODY)])),
         )

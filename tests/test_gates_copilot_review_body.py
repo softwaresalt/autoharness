@@ -281,6 +281,20 @@ No list follows.
 """
 
 
+# SYNTHETIC: prose that mentions the headline phrases is not a finding. Only structural
+# positions (a <summary> header, a "### " line, or a bold line) count, so this body is 0.
+_PROSE_NOT_A_FINDING = """### 🔵 Needs a closer look
+
+This change adds handling for Previously missed (1) and Suppressed comments (1) text, and for 2 open findings headlines.
+
+<details>
+<summary><strong>What changed in this PR</strong></summary>
+
+Adds parsing for Previously missed (1), Suppressed comments (1), and 2 open findings in review bodies.
+</details>
+"""
+
+
 class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
     """The open-findings span ends at the next section header; U is the largest count."""
 
@@ -296,6 +310,7 @@ class BodyFindingsOpenFindingsSpanTests(unittest.TestCase):
             ),
             ("heading_ends_span_before_late_anchor", _HEADING_BOUNDARY, 2, ("unanchored_open",)),
             ("largest_open_count_wins", _MAX_OVER_OCCURRENCES, 2, ("unanchored_open",)),
+            ("prose_mentions_are_not_findings", _PROSE_NOT_A_FINDING, 0, ()),
         )
         for label, body, count, markers in cases:
             with self.subTest(case=label):

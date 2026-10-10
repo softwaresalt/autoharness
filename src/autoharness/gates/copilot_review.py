@@ -167,9 +167,19 @@ class BodyFindings:
     overview_version: int | None
 
 
-_BODY_PREVIOUSLY_MISSED_RE = re.compile(r"Previously\s+missed\s*\((\d+)\)", re.IGNORECASE)
-_BODY_SUPPRESSED_RE = re.compile(r"Suppressed\s+comments\s*\((\d+)\)", re.IGNORECASE)
-_BODY_OPEN_FINDINGS_RE = re.compile(r"(?<!\d)(\d+)\s+open\s+findings?", re.IGNORECASE)
+# Headline counts are read only at structural positions: inside a <summary> header, on a
+# "### " heading line, or on a bold line. Prose that merely mentions a headline, such as a
+# "What changed in this PR" summary, is not a finding.
+_BODY_HEADLINE_PREFIX = r"(?:<summary>\s*(?:<strong>)?\s*|^[ \t]*(?:###[ \t]+|\*\*)\s*)"
+_BODY_PREVIOUSLY_MISSED_RE = re.compile(
+    rf"{_BODY_HEADLINE_PREFIX}Previously\s+missed\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
+)
+_BODY_SUPPRESSED_RE = re.compile(
+    rf"{_BODY_HEADLINE_PREFIX}Suppressed\s+comments\s*\((\d+)\)", re.IGNORECASE | re.MULTILINE
+)
+_BODY_OPEN_FINDINGS_RE = re.compile(
+    rf"{_BODY_HEADLINE_PREFIX}(?<!\d)(\d+)\s+open\s+findings?", re.IGNORECASE | re.MULTILINE
+)
 _BODY_ANCHOR_RE = re.compile(r"#discussion_r\d+")
 _BODY_SECTION_HEADER_RE = re.compile(r"<summary>\s*<strong>|^### ", re.IGNORECASE | re.MULTILINE)
 _BODY_OVERVIEW_RE = re.compile(r"<!--\s*ccr-overview-v(\d+)\s*-->", re.IGNORECASE)
