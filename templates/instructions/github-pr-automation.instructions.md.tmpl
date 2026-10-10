@@ -52,7 +52,7 @@ required` — shadow review stops being advisory and becomes a **fail-closed
 pre-merge gate**. Merge (including `--admin`) is held until Copilot has completed a
 review for the current `headRefOid` AND every Copilot-authored review thread is
 resolved and every threadless review-body finding is dispositioned (§1.6.1). This is
-enforced deterministically by`autoharness gate copilot-review <pr> --repo <owner/name>` (§1.9.4, Check 5), not by
+enforced deterministically by `autoharness gate copilot-review <pr> --repo <owner/name>` (§1.9.4, Check 5), not by
 prose: a BLOCK verdict is a hard stop that `--admin` does not bypass. The gate is
 not-applicable (PASS) only when `enforcement` is `auto` and Copilot never engaged
 on the PR, or when `enforcement` is `disabled` — this is how "advisory by default"

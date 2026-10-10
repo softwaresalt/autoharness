@@ -157,7 +157,7 @@ one such finding under a `0 open findings` headline, and the gate returned
 * `U = max(0, N_open - A)`. Each `N open finding(s)` headline gives `N_open` and its own
   span. `A` is the number of distinct `#discussion_r`   IDs on list-marker lines, or on indented
     lines that lead with the link,     inside that span, so a prose link does not count. `U` is the largest value over all headlines.
-* **Span ends:** a span ends at the next headline-shaped header: a `<summary>` headline (with or without `<strong>`), a  `### ` line, or a bold count or section headline. A bold location label such as
+* **Span ends:** a span ends at the next headline-shaped header: a `<summary>` headline (with or without `<strong>`), a `### ` line, or a bold count or section headline. A bold location label such as
   `**src/a.py:12**` does not end a span. Nested `<summary><picture>` per-finding blocks do
   not end a span.
 * **Fenced code:** a closed fence starting at column 0 is excluded, with a closer of the

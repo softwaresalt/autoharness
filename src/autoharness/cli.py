@@ -244,8 +244,9 @@ copilot-review options:
   The gate is FAIL-CLOSED: when Copilot review is enabled and its completion, thread
   resolution, or review-body disposition is incomplete or unverifiable, it BLOCKS
   (non-zero). --admin does not bypass it. It PASSES only when review is satisfied for
-  the current HEAD,   every review-body finding is dispositioned, the PR is not-applicable, or an audited
-    --force is recorded.
+  the current HEAD, every review-body finding is dispositioned, the PR is not-applicable,
+  or an audited
+  --force is recorded.
 pipeline-topology options:
   --mode <m>          agent | manual | ci. Default: manual.
   --shipment <id>     Explicit shipment target. Required in agent mode, and
