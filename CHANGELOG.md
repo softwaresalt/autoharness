@@ -18,6 +18,16 @@
 
 ### Changed
 
+- **Copilot review-body findings gate (201-F, stash 38D29192)**:
+  `autoharness gate copilot-review` now reads each Copilot review's `body` and the
+  PR conversation comments. A completed Copilot review that carries threadless
+  findings (`Previously missed`, `Suppressed comments`, or unanchored open findings)
+  BLOCKS with the new verdict `UNDISPOSITIONED_BODY_FINDINGS` until a trusted PR
+  comment (OWNER, MEMBER, or COLLABORATOR) carries
+  `Copilot-Review-Body-Disposition: <review databaseId>`. The PASS set, exit codes,
+  enforcement modes, `--max-wait`, and audited `--force` are unchanged. Previously
+  such a review-body-only finding passed as `SATISFIED`.
+
 - **Ship/Stage frontmatter bound to role variables (194-F / 200-S)**:
   `_ship.agent.md.tmpl` and `_stage.agent.md.tmpl` now render their
   `model_family` / `model_provider` / `reasoning_effort` / `context_tier` from the
