@@ -160,7 +160,7 @@ on `3ef04bac` returned `SATISFIED`.
 | Crash-resumption scan | `backlogit checkpoint list` | 110 records; 0 quarantined; 0 ship-owned `active`; normal startup |
 | P-018 acceptance, default locale | `autoharness gate copilot-review 511 --enforcement auto` | `SATISFIED`, exit 0, head `3ef04bac` |
 | P-018 detection, real bodies | `gate copilot-review 506` and `509` | `UNDISPOSITIONED_BODY_FINDINGS` (BLOCK). PR 506 merged 2026-10-08T04:48:32Z and PR 509 merged 2026-10-09T20:46:02Z, both before the disposition-marker rule was live. PR 509 carries a body-only finding (stash `19FA25D8`). No action is taken on the merged PRs; the verdicts show the gate detects undispositioned body findings |
-| Runtime probe `cli-help` | `uv run --offline autoharness --help` (the declared command with `--offline`) | exit `0`, CLI usage text printed, from the workspace project entrypoint (`file:///C:/Source/GitHub/autoharness`). The online resolver failed on 3 identical attempts (PyPI TLS handshake, network fault), so `--offline` was used. Cross-check: installed `autoharness --help`, exit `0` |
+| Runtime probe `cli-help` | `uv run --offline autoharness --help` (the declared command with `--offline`) | exit `0`, CLI usage text printed, from the workspace project entrypoint (`file:///C:/Source/GitHub/autoharness`). The online resolver failed on 3 identical attempts (PyPI TLS handshake, network fault; the circuit-breaker bound), so the distinct network-free `--offline` invocation was run once. It is not a fourth identical retry of the failing online resolution. Cross-check: installed `autoharness --help`, exit `0` |
 | Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/208-S-201-F-post-merge-closure.md --shipment 208-S` | exit `0` on the final run (`passed: true`, `failed_check: null`, no warnings), with `compaction_status: done` |
 | Full local build | source diff | not applicable: the closure diff (20 files) touches only `.backlogit/`, `docs/closure/`, `docs/memory/`, and `docs/archive/memory/`. No source, test, template, or config changed |
 | Full canonical suite | CI `test` job on PR head | not applicable to this docs-and-backlog diff (no source change). The CI `test` job on PR head `3ef04bac` is `SUCCESS` (see the CI row above) |
@@ -173,8 +173,10 @@ on `3ef04bac` returned `SATISFIED`.
 * Verdict: `PASS`. The declared probe `uv run autoharness --help` was run in
   the `--offline` form, `uv run --offline autoharness --help`, with exit `0`
   and CLI usage text. The online resolver failed on three identical attempts
-  (PyPI TLS handshake, network fault). The `--offline` flag is a disclosed
-  launcher variant. It resolves the build backend and dependencies from the
+  (PyPI TLS handshake, network fault). The `--offline` invocation is a disclosed
+  launcher variant. It was run once, after the three identical online attempts
+  reached the circuit-breaker bound. It is a distinct, network-free invocation,
+  not a fourth identical retry. It resolves the build backend and dependencies from the
   local uv cache and builds this workspace's own project
   (`file:///C:/Source/GitHub/autoharness`). Cross-check: the installed
   `autoharness --help` also exits `0`. `autoharness home` resolves to this

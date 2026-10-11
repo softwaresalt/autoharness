@@ -48,8 +48,10 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
 * `uv run autoharness --help` (the declared `cli-help` probe) failed on three
   identical attempts (PyPI TLS handshake, network). The probe then passed in
   the `--offline` form (`uv run --offline autoharness --help`, exit 0, usage
-  text). The installed entrypoint cross-check also passed. Verdict recorded
-  as `PASS`, with the `--offline` variant disclosed.
+  text), run once as a distinct network-free invocation after the breaker bound
+  on the identical online attempts. It is not a fourth identical retry. The
+  installed entrypoint cross-check also passed. Verdict recorded as `PASS`,
+  with the `--offline` variant disclosed.
 * MCP backlog and GitHub tools were unavailable (TOOL_DEGRADED). The backlogit
   CLI and `gh` were used.
 * Process deviation (disclosed): an earlier Ship session claimed 208-S and
