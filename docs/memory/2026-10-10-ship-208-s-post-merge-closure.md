@@ -1,3 +1,12 @@
+---
+title: "Ship 208-S post-merge closure session (2026-10-10)"
+date: 2026-10-10
+agent: ship
+shipment: 208-S
+feature: 201-F
+doc_type: memory
+---
+
 # Ship 208-S post-merge closure session (2026-10-10)
 
 Fresh-context Ship session that ran the post-merge closure for shipment
