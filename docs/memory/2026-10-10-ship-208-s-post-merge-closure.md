@@ -45,9 +45,11 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
   because the skill-relative `.github/skills/file-lock/scripts/` path does
   not exist. The workspace-root `scripts/acquire_lock.ps1` has a different
   SHA-256. The lock was released with its token (`31A1FEAC` tracks it).
-* `uv run autoharness --help` (the declared `cli-help` probe) failed twice on
-  a PyPI TLS handshake (network). The installed entrypoint (`autoharness home`
-  = this workspace) was used. Verdict recorded as `PASS_WITH_FOLLOW_UP`.
+* `uv run autoharness --help` (the declared `cli-help` probe) failed on three
+  identical attempts (PyPI TLS handshake, network). The probe then passed in
+  the `--offline` form (`uv run --offline autoharness --help`, exit 0, usage
+  text). The installed entrypoint cross-check also passed. Verdict recorded
+  as `PASS`, with the `--offline` variant disclosed.
 * MCP backlog and GitHub tools were unavailable (TOOL_DEGRADED). The backlogit
   CLI and `gh` were used.
 * Process deviation (disclosed): an earlier Ship session claimed 208-S and
