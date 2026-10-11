@@ -180,14 +180,16 @@ on `3ef04bac` returned `SATISFIED`.
   required, and this change has no release or publish obligation (no tag; the
   `CHANGELOG.md` `## Unreleased` entry from 201.005-T is the only release-facing
   note).
-* Post-merge smoke on `main` runs after the closure merge. Its result is
+* Post-merge smoke on `main` runs after the closure merge. Its result will be
   recorded in the closure PR and in the final report.
 
 ## Operational Closure
 
-* `closure_status`: `READY` is the releasability verdict for this
-  docs-and-backlog-only closure. The post-merge smoke on `main` is an
-  observation after the closure merge, not a releasability condition.
+* `closure_status`: `READY` is the releasability verdict for PR #511's change
+  and this docs-and-backlog-only closure. Closure completion is not declared
+  until the closure PR merges and the closure-evidence gate passes after
+  finalization. That is pending at this commit. The post-merge smoke on `main`
+  is an observation after the closure merge, not a releasability condition.
 * Invariants to preserve: P-018 fails closed on undispositioned Copilot
   review-body findings, and `--admin` does not bypass a P-018 BLOCK. The
   disposition marker is trusted only from an association-trusted author
@@ -253,12 +255,12 @@ on `3ef04bac` returned `SATISFIED`.
   closure PR, as stated in the operator's closure brief for this session:
   scope 208-S only; `merge_approval_pre_authorized: true` for the closure PR;
   `admin_fallback_pre_authorized: false`. Closure PR readiness (head, §1.9
-  outcome, Copilot gate result, approval source) is recorded in the closure PR
-  body and the final report.
+  outcome, Copilot gate result, approval source) will be recorded in the
+  closure PR body and the final report.
 * Tools: `TOOL_DEGRADED`. Backlog MCP and GitHub MCP were unavailable, so the
   backlogit CLI (`INDEX_SYNC_OK (CLI fallback)`) and `gh` were used. Intercom was
-  unavailable, so events were emitted as labelled session output and are
-  recorded here and in the closure PR body.
+  unavailable, so events were emitted as labelled session output. They are
+  recorded here and will also appear in the closure PR body.
 
 ## Compaction Status (P-020)
 
