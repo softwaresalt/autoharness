@@ -194,10 +194,11 @@ on `3ef04bac` returned `SATISFIED`.
 ## Operational Closure
 
 * `closure_status`: `READY` is the releasability verdict for PR #511's change
-  and this docs-and-backlog-only closure. Closure completion is not declared
-  until the closure PR merges and the closure-evidence gate passes after
-  finalization. That is pending at this commit. The post-merge smoke on `main`
-  is an observation after the closure merge, not a releasability condition.
+  and this docs-and-backlog-only closure. The closure-evidence gate passed on
+  the finalized artifact (exit `0`, `compaction_status: done`). Merging this
+  closure PR is the only remaining step before closure completion is declared.
+  The post-merge smoke on `main` is an observation after the closure merge,
+  not a releasability condition.
 * Invariants to preserve: P-018 fails closed on undispositioned Copilot
   review-body findings, and `--admin` does not bypass a P-018 BLOCK. The
   disposition marker is trusted only from an association-trusted author
