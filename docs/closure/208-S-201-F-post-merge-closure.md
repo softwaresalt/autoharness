@@ -109,19 +109,26 @@ edited, archived, or harvested. Stash `F373C349` was left for Stage.
 * **(d) Stage same-route escalation.** Stage's escalation resolves to the same
   route as its own tier3 route, so it is an `ESCALATION_DEGRADED` no-op. This
   is tracked as follow-up `3C19FA0F`.
-* **Lock tool deviation (disclosed).** The Pre-Mode lock was acquired with
+* **Lock tool deviation (disclosed, for operator review and acceptance).** The
+  Pre-Mode lock was acquired with
   `.autoharness/staging/scripts/acquire_lock.ps1`, passing `-WorkspaceRoot`
   explicitly. The skill-relative path `.github/skills/file-lock/scripts/` does
   not exist. The workspace-root `scripts/acquire_lock.ps1` differs in SHA-256
   from the staged copy. The lock was released with its token. Follow-up
-  `31A1FEAC` tracks the drift.
+  `31A1FEAC` tracks the drift. No operator approval of this substitution is
+  recorded; the operator should accept or reject it.
 * **Destructive-close authority.** The operator's closure directive for this
-  session, quoted in substance: run the post-merge closure for 208-S, and use
-  `autoharness shipment cascade-close` only when the classifier and engine
-  gates machine-verify CASCADE per P-015. Ship ran `--classify-only` first
-  (CASCADE, engine VERIFIED), then the mutating run under that directive.
-  Intercom was unavailable, so the recorded authority is the operator
-  directive, not a Ship self-clearance.
+  session, verbatim: "Use the P-015 classifier ... to decide SAFE_CLOSE vs
+  CASCADE - never decide from prose ... unless the classifier + engine gates
+  machine-verify CASCADE per P-015 (then `autoharness shipment cascade-close`
+  with its evidence capture ...)". Ship ran `--classify-only` first (CASCADE,
+  engine VERIFIED), then the mutating run under that directive. Intercom was
+  unavailable, so the recorded authority is the operator's directive, not a
+  Ship self-clearance.
+  **Safety mode:** mutating, destructive, run once. Attached async with the
+  2400 s supervision budget (`--timeout 1800`), not killed, no retry, no
+  substitution. The command performed pre-invocation revalidation and its
+  postconditions passed.
 
 ## Review History (PR #511)
 
