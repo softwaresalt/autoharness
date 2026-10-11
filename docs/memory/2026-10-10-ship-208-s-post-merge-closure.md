@@ -50,6 +50,10 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
   = this workspace) was used. Verdict recorded as `PASS_WITH_FOLLOW_UP`.
 * MCP backlog and GitHub tools were unavailable (TOOL_DEGRADED). The backlogit
   CLI and `gh` were used.
+* Process deviation (disclosed): an earlier Ship session claimed 208-S and
+  implemented its tasks before the operator's acceptance of hold 3FC709F9
+  (verbatim decision record: PR #511 comment 6095553824). See the closure
+  artifact, decision (a).
 
 ## Learnings
 
