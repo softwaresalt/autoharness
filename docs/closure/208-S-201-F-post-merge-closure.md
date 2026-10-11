@@ -139,7 +139,7 @@ Copilot review IDs were verified against the GitHub reviews API.
 
 | Round | Review ID | Reviewed commit | Reviewer | Findings and disposition |
 |---|---|---|---|---|
-| 4 | none (hold thread only; no review record) | none | Copilot | Hold thread, resolved after operator acceptance (decision a) |
+| 4 | 5478006254 (earlier PR #511 reviews in the same window: 5477855475, 5477877052, 5477908833, 5477950364) | e835148a | copilot-pull-request-reviewer | Hold thread `PRRT_kwDORzpWpM6rB1WB` on `208-S.md` (stash `3FC709F9` hold; resolved after operator acceptance, decision a), fenced-code thread `PRRT_kwDORzpWpM6rB1Wj`, and fence-matcher thread `PRRT_kwDORzpWpM6rB94D`; all resolved |
 | 5 | 5478359604 | `665b6ffa` | copilot-pull-request-reviewer | 3 body findings, fixed in `1b53b384` |
 | 6 | 5478657799 | `a88f83bd` | copilot-pull-request-reviewer | 1 thread and 1 body finding, fixed in `8eaa53e6` |
 | 7 | 5481051637 | `8eaa53e6` | copilot-pull-request-reviewer | 3 body findings, fixed in `31d85220` |
