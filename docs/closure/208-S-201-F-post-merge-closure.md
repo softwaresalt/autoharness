@@ -108,11 +108,10 @@ edited, archived, or harvested. Stash `F373C349` was left for Stage.
   no exception clause, and it is not presented as one. This closure branch
   touches no `.autoharness/` or config path (see the diff scope under Gates).
 * **(c) Review-fix cycle bound.** The Orchestrator extended the PR #511 bound
-  from 8 to cycle 9. The reason was an in-scope cp1252 decode defect in the
-  new gate, which was fixed. For the closure PR (#512), the Orchestrator
-  extended the review-fix bound from 6 to 10 cycles on 2026-10-11T02:26:56Z.
-  The operator set no cap, and every Copilot comment must be resolved before
-  merge. Cycles 1 to 6 are recorded in the PR #512 body.
+  from 8 to cycle 9, because of an in-scope cp1252 decode defect in the new
+  gate, which was fixed. The review-fix bound for the closure PR (#512) is an
+  Orchestrator decision. Its live value and the review history are recorded
+  in PR #512, which is authoritative. This document does not restate them.
 * **(d) Stage same-route escalation.** Stage's escalation resolves to the same
   route as its own tier3 route, so it is an `ESCALATION_DEGRADED` no-op. This
   is tracked as follow-up `3C19FA0F`.
@@ -171,13 +170,13 @@ on `3ef04bac` returned `SATISFIED`.
 | Closure index resync | `backlogit sync` after all backlog mutations | `CLOSURE_INDEX_SYNC_OK`: exit `0`, `Indexed 1820 artifacts`, no `.backlogit` markdown changes since the last mutation |
 | Copilot threads on PR 511 | GraphQL `reviewThreads` | 13 total, 13 resolved |
 | Lifecycle topology | `autoharness gate pipeline-topology --phase lifecycle` | pass; `BRANCH_POST_MERGE_CLOSURE_ELIGIBLE` |
-| Crash-resumption scan | `backlogit checkpoint list` | 110 records; 0 quarantined; 0 ship-owned `active`; normal startup |
+| Crash-resumption scan | `backlogit checkpoint list` | at closure startup: 110 records; 0 quarantined; 0 ship-owned `active`; normal startup |
 | P-018 acceptance, default locale | `autoharness gate copilot-review 511 --enforcement auto` | `SATISFIED`, exit 0, head `3ef04bac` |
 | P-018 detection, real bodies | `gate copilot-review 506` and `509` | `UNDISPOSITIONED_BODY_FINDINGS` (BLOCK). PR 506 merged 2026-10-08T04:48:32Z and PR 509 merged 2026-10-09T20:46:02Z, both before the disposition-marker rule was live. PR 509 carries a Copilot round-2 body-only finding (the source refs of stash `19FA25D8`). The verdicts show the gate detects undispositioned body findings |
 | Runtime probe `cli-help` | `uv run --offline autoharness --help` (the declared command with `--offline`) | exit `0`, CLI usage text printed, from the workspace project entrypoint (`file:///C:/Source/GitHub/autoharness`). The online resolver failed on 3 identical attempts (PyPI TLS handshake, network fault; the circuit-breaker bound), so the distinct network-free `--offline` invocation was run once. It is not a fourth identical retry of the failing online resolution. Cross-check: installed `autoharness --help`, exit `0` |
-| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/208-S-201-F-post-merge-closure.md --shipment 208-S` | exit `0` on the final run (`passed: true`, `failed_check: null`, no warnings), with `compaction_status: done` |
-| Full local build | source diff | not applicable: the closure diff (20 files) touches only `.backlogit/`, `docs/closure/`, `docs/memory/`, and `docs/archive/memory/`. No source, test, template, or config changed |
-| Pre-push canonical suite (every pushed closure HEAD) | `git push` pre-push hook: `python -m unittest discover -s tests`, and repo markdownlint on all markdown | `Ran 3509 tests ... OK (skipped=57)` on each push; `All local quality gates passed` |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/208-S-201-F-post-merge-closure.md --shipment 208-S` | run before every commit of this artifact; passes with `compaction_status: done` and `close_path: cascade` |
+| Full local build | source diff | not applicable: the closure diff touches only `.backlogit/`, `docs/closure/`, `docs/memory/`, and `docs/archive/memory/`. No source, test, template, or config changed |
+| Pre-push canonical suite | `git push` pre-push hook: `python -m unittest discover -s tests`, and repo markdownlint on all markdown | the hook passed on every push; per-HEAD results are recorded in PR #512 |
 | Full canonical suite on PR head | CI `test` job, PR #511 head `3ef04bac` | `SUCCESS`. No source change in this closure diff, so no separate source gate is required |
 
 ## Runtime Verification
@@ -197,19 +196,18 @@ on `3ef04bac` returned `SATISFIED`.
   `autoharness --help` also exits `0`. `autoharness home` resolves to this
   workspace, and `autoharness version` reports `1.5.0`, matching
   `pyproject.toml`. Releasability is not required, and this change has no
-  release or publish obligation (no tag; the `CHANGELOG.md` `## Unreleased`
-  entry from 201.005-T is the only release-facing note).
-* Post-merge smoke on `main` runs after the closure merge. Its result will be
-  recorded in the closure PR and in the final report.
+  release or publish obligation. No tag is created. The `## Unreleased`
+  section of `CHANGELOG.md` carries the 201-F gate entry and the 208-S decode
+  fix entry as release notes for a future release.
+* A post-merge smoke run on `main` is a separate observation. It is not a
+  releasability condition, and its outcome is recorded in PR #512.
 
 ## Operational Closure
 
 * `closure_status`: `READY` is the releasability verdict for PR #511's change
-  and this docs-and-backlog-only closure. The closure-evidence gate passed on
-  the finalized artifact (exit `0`, `compaction_status: done`). Merging this
-  closure PR is the only remaining step before closure completion is declared.
-  The post-merge smoke on `main` is an observation after the closure merge,
-  not a releasability condition.
+  and this docs-and-backlog-only closure. Closure completion is determined by
+  the merge of the closure PR, whose live status is recorded in PR #512. The
+  post-merge smoke on `main` is an observation, not a releasability condition.
 * Invariants to preserve: P-018 fails closed on undispositioned Copilot
   review-body findings, and `--admin` does not bypass a P-018 BLOCK. The
   disposition marker is trusted only from an association-trusted author
@@ -277,9 +275,9 @@ on `3ef04bac` returned `SATISFIED`.
 * Authority: the DARK_MODE_ACTIVE activation record (P-017) for the 208-S
   closure PR, as stated in the operator's closure brief for this session:
   scope 208-S only; `merge_approval_pre_authorized: true` for the closure PR;
-  `admin_fallback_pre_authorized: false`. Closure PR readiness (head, §1.9
-  outcome, Copilot gate result, approval source) is recorded in the PR #512
-  body (readiness block for the current HEAD) and in the final report.
+  `admin_fallback_pre_authorized: false`. Readiness for the closure PR (head,
+  §1.9 outcome, Copilot gate result, approval source) is recorded in the PR
+  #512 body, which is authoritative and live.
 * Tools: `TOOL_DEGRADED`. Backlog MCP and GitHub MCP were unavailable, so the
   backlogit CLI (`INDEX_SYNC_OK (CLI fallback)`) and `gh` were used. Intercom was
   unavailable, so events were emitted as labelled session output. They are
@@ -291,8 +289,9 @@ on `3ef04bac` returned `SATISFIED`.
 a bounded, threshold-gated consolidation of the just-closed release unit's
 memory:
 
-* Compacted: `docs/memory/2026-10-08/stage-38d29192-copilot-review-body-findings-harvest.md`
-  and `docs/memory/2026-10-10-ship-208-s-halt.md` into
+* Compacted (the sources were formerly under `docs/memory/`): the Stage
+  harvest memory `2026-10-08/stage-38d29192-copilot-review-body-findings-harvest.md`
+  and the Ship halt memory `2026-10-10-ship-208-s-halt.md`, into
   `docs/memory/compacted/2026-10-10-208-s-201-f-compacted.md`. The originals
   were moved, not deleted, to `docs/archive/memory/` with the same relative
   paths.
@@ -302,6 +301,6 @@ memory:
   decided-plan candidate, but the 201.00x-T tasks and this closure cite the
   plan path, so consolidating it is deferred (the decided-plan path defect is
   tracked by `9749EC1C`). Older closure records are threshold-gated and were
-  not selected. The legacy `docs/memory` backlog remains above the 40-file and
-  500 KB thresholds, tracked by `3A3C72D0`.
+  not selected. The legacy `docs/memory` backlog was above the 40-file and
+  500 KB thresholds at the time of this compaction, tracked by `3A3C72D0`.
 * compact-context did not fail, so `degraded` does not apply.

@@ -11,9 +11,9 @@ doc_type: memory
 
 Fresh-context Ship session that ran the post-merge closure for shipment
 208-S (covering feature 201-F) after PR #511 merged. It supersedes the
-halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
+halt checkpoint `2026-10-10-ship-208-s-halt.md`, which was compacted.
 
-## Outcome at time of writing
+## Facts fixed at closure
 
 * PR #511 merged: merge commit `bc461105` (`--merge`), parents `26446a68`
   and `3ef04bac`, merged 2026-10-10T23:36:59Z. CI on `bc461105` succeeded.
@@ -83,16 +83,13 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
   a direct, read-only parse of `archive/stash.jsonl` until `674BA1FE` is
   resolved.
 
-## Status and remaining steps
+## Resume note
 
-* Closure PR #512 is open. Local review, pushes, and Copilot rounds 1 to 7 are
-  recorded in the PR body. Cycle 7 fixes the round-7 report-order finding.
-  The Orchestrator extended the review-fix bound to 10 cycles on
-  2026-10-11T02:26:56Z and accepted the lock and claim-before-acceptance
-  deviations.
-* Remaining: the Copilot loop to a clean round on threads and bodies, the
-  §1.9 gate and the P-018 gate on the current HEAD, DARK_MODE_MERGE_AUTHORIZED,
-  `--merge`, the two-parent proof, and MERGE_CONFIRMED.
-* Post-merge: return to `main`, confirm a clean tree, run the post-merge smoke
-  on `main`, confirm CI on the closure merge commit, and emit
-  DARK_MODE_COMPLETE.
+* State of PR #512 changes after this note was written. Verify it live with
+  `gh pr view 512` and `gh api graphql` (reviewThreads) before acting. Do not
+  rely on this note for cycle counts, remaining budget, or gate verdicts.
+* The Orchestrator accepted the lock-script substitution and the
+  claim-before-acceptance P-005 deviation on 2026-10-11T02:26:56Z. Both are
+  recorded in the closure artifact.
+* The post-merge steps are defined in the Ship agent definition. Their
+  execution is recorded in PR #512 and in the merge record, not in this note.
