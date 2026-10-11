@@ -250,6 +250,8 @@ on `3ef04bac` returned `SATISFIED`.
 * Lock tool deviation and stash-text correction: `31A1FEAC` (file-lock script
   drift; kind bug; low). Its text misidentifies the canonical path, and Stage
   should amend or archive it.
+* Non-P-021 follow-up: `674BA1FE` (`stash get` does not resolve archived
+  entries; kind bug; low).
 * Existing entries referenced and not duplicated: `3FC709F9`, `F373C349`
   (left for Stage), `3C19FA0F`, `1F13DF5E`, `DB2E092B`, `C9E87CE9`,
   `FD85BC61`, `F15933A0`, `ED0AE060`.
