@@ -84,12 +84,17 @@ edited, archived, or harvested. Stash `F373C349` was left for Stage.
   for 208-S, keep `3FC709F9` as the hardening follow-up, and proceed to merge.
   The verbatim decision record is PR #511 comment 6095553824 (created
   2026-10-10T08:11:21Z, posted by Ship under DARK_MODE_ACTIVE).
-  **Process deviation (disclosed, P-005 for operator review):** hold
+  **Process deviation (disclosed P-005 deviation; Orchestrator-accepted, see below):** hold
   `3FC709F9` required that acceptance, or a Stage triage, come before the claim.
   An earlier Ship session claimed 208-S and implemented its tasks before that
   acceptance, under the operator's run-end-to-end directive. The halt
   checkpoint records this. No P-005 telemetry event was emitted from this
-  session.
+  session. **Orchestrator disposition (2026-10-11T02:26:56Z):** accepted as a
+  disclosed P-005 deviation. The operator accepted the rule at
+  2026-10-10T08:09:29Z (PR #511 comment 6095553824). The root cause and
+  prevention are recorded in
+  `docs/compound/2026-10-10-read-full-stash-text-for-holds-before-eligibility-or-claim.md`.
+  No further action.
 * **(b) Operator-directed config carry-forward.** `.autoharness/config.yaml`
   (blob `6c22c19e`) was carried forward once, as commit `7b34ba47`, with
   coupled mirror, manifest, and pin updates in `d89125d0`. This used the
@@ -104,22 +109,25 @@ edited, archived, or harvested. Stash `F373C349` was left for Stage.
   touches no `.autoharness/` or config path (see the diff scope under Gates).
 * **(c) Review-fix cycle bound.** The Orchestrator extended the PR #511 bound
   from 8 to cycle 9. The reason was an in-scope cp1252 decode defect in the
-  new gate, which was fixed. The closure PR bound is 6, and no extension is
-  needed for it.
+  new gate, which was fixed. For the closure PR (#512), the Orchestrator
+  extended the review-fix bound from 6 to 10 cycles on 2026-10-11T02:26:56Z.
+  The operator set no cap, and every Copilot comment must be resolved before
+  merge. Cycles 1 to 6 are recorded in the PR #512 body.
 * **(d) Stage same-route escalation.** Stage's escalation resolves to the same
   route as its own tier3 route, so it is an `ESCALATION_DEGRADED` no-op. This
   is tracked as follow-up `3C19FA0F`.
-* **Lock tool deviation (noncanonical substitution, for operator disposition).**
+* **Lock tool deviation (noncanonical substitution, Orchestrator-accepted).**
   The file-lock contract names the canonical script, the workspace-root
   `scripts/acquire_lock.ps1` (SHA-256 `75B85DB5...`). The Pre-Mode lock was
   instead acquired with the noncanonical gitignored copy
   `.autoharness/staging/scripts/acquire_lock.ps1` (SHA-256 `2F2BB7F5...`),
   passing `-WorkspaceRoot` explicitly. No validation of the staged copy was
-  performed. The lock was released with its token. No operator approval is
-  recorded, so the operator should accept or reject the substitution.
-  Follow-up `31A1FEAC` tracks the drift. Its stash text misidentifies the
-  canonical path. Ship cannot edit stash entries, so Stage should amend or
-  archive it.
+  performed. The lock was released with its token. The Orchestrator accepted
+  this on 2026-10-11T02:26:56Z as a disclosed deviation: the lock is an
+  advisory single-agent convenience, and no concurrent writer existed. The
+  lock is not to be retried. Follow-up `31A1FEAC` tracks the drift. Its stash
+  text misidentifies the canonical path. Stage owns triage of that entry, and
+  Ship does not edit stash entries.
 * **Destructive-close authority.** The operator's closure directive for this
   session, verbatim: "Use the P-015 classifier ... to decide SAFE_CLOSE vs
   CASCADE - never decide from prose ... unless the classifier + engine gates
@@ -135,16 +143,18 @@ edited, archived, or harvested. Stash `F373C349` was left for Stage.
 
 ## Review History (PR #511)
 
-Copilot review IDs were verified against the GitHub reviews API.
+Copilot review IDs were verified against the GitHub reviews API. Body counts
+were parsed from each review body (`N open finding(s)`, `Previously missed (N)`,
+`N resolved since last review`).
 
 | Round | Review ID | Reviewed commit | Reviewer | Findings and disposition |
 |---|---|---|---|---|
 | 4 | 5478006254 (earlier PR #511 reviews in the same window: 5477855475, 5477877052, 5477908833, 5477950364) | e835148a | copilot-pull-request-reviewer | Hold thread `PRRT_kwDORzpWpM6rB1WB` on `208-S.md` (stash `3FC709F9` hold; resolved after operator acceptance, decision a), fenced-code thread `PRRT_kwDORzpWpM6rB1Wj`, and fence-matcher thread `PRRT_kwDORzpWpM6rB94D`; all resolved |
-| 5 | 5478359604 | `665b6ffa` | copilot-pull-request-reviewer | 3 body findings, fixed in `1b53b384` |
-| 6 | 5478657799 | `a88f83bd` | copilot-pull-request-reviewer | 1 thread and 1 body finding, fixed in `8eaa53e6` |
-| 7 | 5481051637 | `8eaa53e6` | copilot-pull-request-reviewer | 3 body findings, fixed in `31d85220` |
-| 8 | 5481121878 | `31d85220` | copilot-pull-request-reviewer | clean |
-| 9 | 5481197441 | `3ef04bac` | copilot-pull-request-reviewer | 1 thread (readiness refresh), resolved; clean |
+| 5 | 5478359604 | `665b6ffa` | copilot-pull-request-reviewer | 3 threadless body findings (Previously missed), fixed in `1b53b384` |
+| 6 | 5478657799 | `a88f83bd` | copilot-pull-request-reviewer | 1 open thread and 1 threadless body finding, fixed in `8eaa53e6` |
+| 7 | 5481051637 | `8eaa53e6` | copilot-pull-request-reviewer | 1 thread resolved, plus 3 threadless body findings, fixed in `31d85220` |
+| 8 | 5481121878 | `31d85220` | copilot-pull-request-reviewer | clean (0 open findings, no threadless body findings) |
+| 9 | 5481197441 | `3ef04bac` | copilot-pull-request-reviewer | 1 open thread (readiness refresh), resolved; no threadless body findings |
 
 All 13 review threads on PR #511 are resolved (`13/13`). The final P-018 gate
 on `3ef04bac` returned `SATISFIED`.
@@ -163,11 +173,12 @@ on `3ef04bac` returned `SATISFIED`.
 | Lifecycle topology | `autoharness gate pipeline-topology --phase lifecycle` | pass; `BRANCH_POST_MERGE_CLOSURE_ELIGIBLE` |
 | Crash-resumption scan | `backlogit checkpoint list` | 110 records; 0 quarantined; 0 ship-owned `active`; normal startup |
 | P-018 acceptance, default locale | `autoharness gate copilot-review 511 --enforcement auto` | `SATISFIED`, exit 0, head `3ef04bac` |
-| P-018 detection, real bodies | `gate copilot-review 506` and `509` | `UNDISPOSITIONED_BODY_FINDINGS` (BLOCK). PR 506 merged 2026-10-08T04:48:32Z and PR 509 merged 2026-10-09T20:46:02Z, both before the disposition-marker rule was live. PR 509 carries a body-only finding (stash `19FA25D8`). No action is taken on the merged PRs; the verdicts show the gate detects undispositioned body findings |
+| P-018 detection, real bodies | `gate copilot-review 506` and `509` | `UNDISPOSITIONED_BODY_FINDINGS` (BLOCK). PR 506 merged 2026-10-08T04:48:32Z and PR 509 merged 2026-10-09T20:46:02Z, both before the disposition-marker rule was live. PR 509 carries a Copilot round-2 body-only finding (the source refs of stash `19FA25D8`). The verdicts show the gate detects undispositioned body findings |
 | Runtime probe `cli-help` | `uv run --offline autoharness --help` (the declared command with `--offline`) | exit `0`, CLI usage text printed, from the workspace project entrypoint (`file:///C:/Source/GitHub/autoharness`). The online resolver failed on 3 identical attempts (PyPI TLS handshake, network fault; the circuit-breaker bound), so the distinct network-free `--offline` invocation was run once. It is not a fourth identical retry of the failing online resolution. Cross-check: installed `autoharness --help`, exit `0` |
 | Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/208-S-201-F-post-merge-closure.md --shipment 208-S` | exit `0` on the final run (`passed: true`, `failed_check: null`, no warnings), with `compaction_status: done` |
 | Full local build | source diff | not applicable: the closure diff (20 files) touches only `.backlogit/`, `docs/closure/`, `docs/memory/`, and `docs/archive/memory/`. No source, test, template, or config changed |
-| Full canonical suite | CI `test` job on PR head | not applicable to this docs-and-backlog diff (no source change). The CI `test` job on PR head `3ef04bac` is `SUCCESS` (see the CI row above) |
+| Pre-push canonical suite (every pushed closure HEAD) | `git push` pre-push hook: `python -m unittest discover -s tests`, and repo markdownlint on all markdown | `Ran 3509 tests ... OK (skipped=57)` on each push; `All local quality gates passed` |
+| Full canonical suite on PR head | CI `test` job, PR #511 head `3ef04bac` | `SUCCESS`. No source change in this closure diff, so no separate source gate is required |
 
 ## Runtime Verification
 
@@ -235,7 +246,7 @@ on `3ef04bac` returned `SATISFIED`.
 * The `--force` override print can raise `UnicodeEncodeError` on a cp1252
   console after the audit line is written. Captured as `5A51B5F9`.
 * The file-lock staged and installed script copies differ. Captured as
-  `31A1FEAC`.
+  `31A1FEAC`. Orchestrator-accepted as a disclosed deviation (2026-10-11T02:26:56Z).
 * `backlogit stash get` does not resolve archived entries. Captured as
   `674BA1FE`.
 * The online `uv run` resolver is blocked by the network. The probe passed in
@@ -249,8 +260,8 @@ on `3ef04bac` returned `SATISFIED`.
   a capture-time judgement, and Ship cannot edit a captured entry. Stage's C6
   triage decides whether deliberation is needed.
 * Lock tool deviation and stash-text correction: `31A1FEAC` (file-lock script
-  drift; kind bug; low). Its text misidentifies the canonical path, and Stage
-  should amend or archive it.
+  drift; kind bug; low). Its text misidentifies the canonical path. It is left
+  for Stage triage (Orchestrator decision, 2026-10-11T02:26:56Z).
 * Non-P-021 follow-up: `674BA1FE` (`stash get` does not resolve archived
   entries; kind bug; low).
 * Existing entries referenced and not duplicated: `3FC709F9`, `F373C349`
@@ -267,12 +278,12 @@ on `3ef04bac` returned `SATISFIED`.
   closure PR, as stated in the operator's closure brief for this session:
   scope 208-S only; `merge_approval_pre_authorized: true` for the closure PR;
   `admin_fallback_pre_authorized: false`. Closure PR readiness (head, §1.9
-  outcome, Copilot gate result, approval source) will be recorded in the
-  closure PR body and the final report.
+  outcome, Copilot gate result, approval source) is recorded in the PR #512
+  body (readiness block for the current HEAD) and in the final report.
 * Tools: `TOOL_DEGRADED`. Backlog MCP and GitHub MCP were unavailable, so the
   backlogit CLI (`INDEX_SYNC_OK (CLI fallback)`) and `gh` were used. Intercom was
   unavailable, so events were emitted as labelled session output. They are
-  recorded here and will also appear in the closure PR body.
+  recorded here and in the PR #512 body.
 
 ## Compaction Status (P-020)
 

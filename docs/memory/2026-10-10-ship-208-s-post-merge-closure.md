@@ -16,7 +16,7 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
   201.009-T are archived.
 * Closure branch `post-merge/201-f-p018-copilot-review-body-findings`. Backlog
   commit `0bb02879`. The closure artifact and evidence record are committed
-  in the next commit (see the closure PR).
+  in `55dd6d84`.
 * Stash captures (P-021 C2 or post-merge Step 6): `5A51B5F9` (cp1252 `--force`
   print, the required capture), `31A1FEAC` (file-lock staged vs installed
   script drift), `674BA1FE` (`stash get` does not resolve archived entries).
@@ -45,8 +45,9 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
   `.autoharness/staging/scripts/acquire_lock.ps1` instead of the canonical
   workspace-root `scripts/acquire_lock.ps1` that the file-lock contract names.
   The two SHA-256 values differ, and the staged copy was not validated. The
-  lock was released with its token. Operator disposition is required
-  (`31A1FEAC` tracks the drift).
+  lock was released with its token. The Orchestrator accepted this on
+  2026-10-11T02:26:56Z as a disclosed deviation. The lock is not to be
+  retried. `31A1FEAC` is left for Stage triage.
 * `uv run autoharness --help` (the declared `cli-help` probe) failed on three
   identical attempts (PyPI TLS handshake, network). The probe then passed in
   the `--offline` form (`uv run --offline autoharness --help`, exit 0, usage
@@ -59,7 +60,8 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
 * Process deviation (disclosed): an earlier Ship session claimed 208-S and
   implemented its tasks before the operator's acceptance of hold 3FC709F9
   (verbatim decision record: PR #511 comment 6095553824). See the closure
-  artifact, decision (a).
+  artifact, decision (a). The Orchestrator accepted this as a disclosed P-005
+  deviation on 2026-10-11T02:26:56Z. No further action.
 
 ## Learnings
 
@@ -72,10 +74,16 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
   a direct, read-only parse of `archive/stash.jsonl` until `674BA1FE` is
   resolved.
 
-## Remaining closure steps at time of writing
+## Status and remaining steps
 
-* Closure PR: local review (P-014), Copilot review loop, §1.9 gate,
-  DARK_MODE_MERGE_AUTHORIZED, `--merge`, two-parent proof, MERGE_CONFIRMED.
-* Post-merge: return to `main`, confirm a clean tree, run the post-merge
-  smoke on `main`, confirm CI on the closure merge commit, emit
+* Closure PR #512 is open. Local review, pushes, and Copilot rounds 1 to 7 are
+  recorded in the PR body. Cycle 7 fixes the round-7 report-order finding.
+  The Orchestrator extended the review-fix bound to 10 cycles on
+  2026-10-11T02:26:56Z and accepted the lock and claim-before-acceptance
+  deviations.
+* Remaining: the Copilot loop to a clean round on threads and bodies, the
+  §1.9 gate and the P-018 gate on the current HEAD, DARK_MODE_MERGE_AUTHORIZED,
+  `--merge`, the two-parent proof, and MERGE_CONFIRMED.
+* Post-merge: return to `main`, confirm a clean tree, run the post-merge smoke
+  on `main`, confirm CI on the closure merge commit, and emit
   DARK_MODE_COMPLETE.
