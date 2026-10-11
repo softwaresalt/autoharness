@@ -41,10 +41,12 @@ halt checkpoint `2026-10-10-ship-208-s-halt.md`, which is now compacted.
 
 ## Deviations (disclosed)
 
-* The Pre-Mode lock used `.autoharness/staging/scripts/acquire_lock.ps1`
-  because the skill-relative `.github/skills/file-lock/scripts/` path does
-  not exist. The workspace-root `scripts/acquire_lock.ps1` has a different
-  SHA-256. The lock was released with its token (`31A1FEAC` tracks it).
+* The Pre-Mode lock used the noncanonical gitignored copy
+  `.autoharness/staging/scripts/acquire_lock.ps1` instead of the canonical
+  workspace-root `scripts/acquire_lock.ps1` that the file-lock contract names.
+  The two SHA-256 values differ, and the staged copy was not validated. The
+  lock was released with its token. Operator disposition is required
+  (`31A1FEAC` tracks the drift).
 * `uv run autoharness --help` (the declared `cli-help` probe) failed on three
   identical attempts (PyPI TLS handshake, network). The probe then passed in
   the `--offline` form (`uv run --offline autoharness --help`, exit 0, usage

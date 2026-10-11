@@ -109,14 +109,17 @@ edited, archived, or harvested. Stash `F373C349` was left for Stage.
 * **(d) Stage same-route escalation.** Stage's escalation resolves to the same
   route as its own tier3 route, so it is an `ESCALATION_DEGRADED` no-op. This
   is tracked as follow-up `3C19FA0F`.
-* **Lock tool deviation (disclosed, for operator review and acceptance).** The
-  Pre-Mode lock was acquired with
-  `.autoharness/staging/scripts/acquire_lock.ps1`, passing `-WorkspaceRoot`
-  explicitly. The skill-relative path `.github/skills/file-lock/scripts/` does
-  not exist. The workspace-root `scripts/acquire_lock.ps1` differs in SHA-256
-  from the staged copy. The lock was released with its token. Follow-up
-  `31A1FEAC` tracks the drift. No operator approval of this substitution is
-  recorded; the operator should accept or reject it.
+* **Lock tool deviation (noncanonical substitution, for operator disposition).**
+  The file-lock contract names the canonical script, the workspace-root
+  `scripts/acquire_lock.ps1` (SHA-256 `75B85DB5...`). The Pre-Mode lock was
+  instead acquired with the noncanonical gitignored copy
+  `.autoharness/staging/scripts/acquire_lock.ps1` (SHA-256 `2F2BB7F5...`),
+  passing `-WorkspaceRoot` explicitly. No validation of the staged copy was
+  performed. The lock was released with its token. No operator approval is
+  recorded, so the operator should accept or reject the substitution.
+  Follow-up `31A1FEAC` tracks the drift. Its stash text misidentifies the
+  canonical path. Ship cannot edit stash entries, so Stage should amend or
+  archive it.
 * **Destructive-close authority.** The operator's closure directive for this
   session, verbatim: "Use the P-015 classifier ... to decide SAFE_CLOSE vs
   CASCADE - never decide from prose ... unless the classifier + engine gates
@@ -155,6 +158,7 @@ on `3ef04bac` returned `SATISFIED`.
 | CI on PR head `3ef04bac` | `gh pr view 511 --json statusCheckRollup` | `detect code changes`, `pipeline-topology (ambient)`, `test`, and `ci gate` all `SUCCESS` |
 | Two-parent proof | `git rev-list --parents -n 1 bc461105` | `bc461105 26446a68 3ef04bac` |
 | Single worktree (P-016) | `git worktree list` | one worktree: this checkout |
+| Closure index resync | `backlogit sync` after all backlog mutations | `CLOSURE_INDEX_SYNC_OK`: exit `0`, `Indexed 1820 artifacts`, no `.backlogit` markdown changes since the last mutation |
 | Copilot threads on PR 511 | GraphQL `reviewThreads` | 13 total, 13 resolved |
 | Lifecycle topology | `autoharness gate pipeline-topology --phase lifecycle` | pass; `BRANCH_POST_MERGE_CLOSURE_ELIGIBLE` |
 | Crash-resumption scan | `backlogit checkpoint list` | 110 records; 0 quarantined; 0 ship-owned `active`; normal startup |
@@ -243,9 +247,9 @@ on `3ef04bac` returned `SATISFIED`.
   priority low). Ship recorded its requires-deliberation flag as `no`. That is
   a capture-time judgement, and Ship cannot edit a captured entry. Stage's C6
   triage decides whether deliberation is needed.
-* Non-P-021 follow-ups (Step 6, stash only): `31A1FEAC` (file-lock script
-  drift; kind bug; low) and `674BA1FE` (`stash get` does not resolve archived
-  entries; kind bug; low).
+* Lock tool deviation and stash-text correction: `31A1FEAC` (file-lock script
+  drift; kind bug; low). Its text misidentifies the canonical path, and Stage
+  should amend or archive it.
 * Existing entries referenced and not duplicated: `3FC709F9`, `F373C349`
   (left for Stage), `3C19FA0F`, `1F13DF5E`, `DB2E092B`, `C9E87CE9`,
   `FD85BC61`, `F15933A0`, `ED0AE060`.
