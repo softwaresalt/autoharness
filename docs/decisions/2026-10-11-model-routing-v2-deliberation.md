@@ -298,7 +298,8 @@ model_routing:
 ```
 
 * `tier` is required (`tier1`, `tier2`, `tier3`). Unset fields inherit per field from that
-  tier. The tier is retained as the route's capability class for P-013.2 ceiling checks and
+  tier (the route's own `tier`, never from a bound site's default tier; D4). The tier is
+  retained as the route's capability class for P-013.2 ceiling checks and
   telemetry. A route is a targeted override, never a parallel tier taxonomy (the P-013.5
   invariant).
 * Names match `^[a-z][a-z0-9_-]{0,47}$` and must not equal `tier1`/`tier2`/`tier3`.
@@ -360,23 +361,65 @@ model_routing:
   `bindings`; they use their role blocks (no dual spelling, so no new ambiguity).
 * An unknown site id fails verification (`ROUTING_UNKNOWN_SITE`). That closes the
   silently-inert hazard for every name in the baseline that is not a real agent.
+* A binding on a **managed site whose template default tier cannot be established**
+  (`SiteRegistry.unresolved`: `template-path-unusable`, `template-unreadable`,
+  `no-tier-placeholder`, `ambiguous-tier`) fails verification too, as
+  `ROUTING_BINDING_UNRESOLVED_SITE: <id>: <reason>` (a verify-level code, not a resolver code;
+  PR #513 review-fix cycle 5, thread `PRRT_kwDORzpWpM6rmyoO`). A binding reaches an installed
+  agent only by overlaying that agent's four `TIER_<N>_*` template variables through the one
+  plain `{{KEY}}` renderer (`_render_template`). A template with no single tier placeholder
+  offers no overlay target, and a missing or unreadable template offers nothing to render, so
+  reinstall and community rendering could never apply the binding and could restore a
+  different route. Letting such a binding resolve and be compared would let an installed agent
+  whose frontmatter happens to match pass verification while the renderer cannot reproduce it.
+  An **unbound** site with an unresolved default stays a known site; the drift check reports
+  it (D10).
 * Rejected: free-form binding keys (silent no-ops); binding by skill name (skills have no
   model attachment point, P-013.5); folding role blocks into `bindings` (churns every
-  installed config and test for no gain).
+  installed config and test for no gain); a second render path that needs no `TIER_<N>_*`
+  placeholder (a new per-site placeholder family in every agent template, or a post-render
+  frontmatter rewrite), because it would add a second rendering mechanism that the prose
+  install and tune skills and a future port would all have to reproduce, only to serve
+  templates that are already defective.
 
-### D4: resolution precedence (per field, total order)
+### D4: resolution precedence (per field, total order; two explicit branches for subagent sites)
 
 For a site, each of `model_family`, `model_provider`, `reasoning_effort`, `context_tier`
-resolves independently, first non-empty wins:
+resolves independently, first non-empty wins. A subagent site (`agent:<id>`) resolves under
+**exactly one of two branches**, chosen once by whether `model_routing.bindings` has an entry
+for it. The branches are never mixed (PR #513 review-fix cycle 5, thread
+`PRRT_kwDORzpWpM6rmypP`):
 
-1. site binding per-field override;
-2. the binding's `route` (catalog delta, then its `tier`; or the bare tier);
-3. for role sites, the existing role block, then the role's default tier (Stage `tier3`,
-   Ship `tier2`, Orchestrator `tier2`); for subagent sites with no binding, the agent's
-   template default tier;
-4. terminal default `default` for `context_tier` only.
+| Site | Base, in order (per field) | Never consulted |
+|---|---|---|
+| Role (`orchestrator`, `stage`, `ship`) | the existing role block, then the role's default tier (Stage `tier3`, Ship `tier2`, Orchestrator `tier2`) | binding layers (roles are not bindable) |
+| Subagent, **unbound** (no binding) | the template default tier (`site.default_tier`) | binding layers (none exists) |
+| Subagent, **bound** | 1. the binding's per-field override; 2. the binding route's catalog-delta field, then the field of the tier the route names (its `tier`; for a bare-tier binding, that tier's field) | **`site.default_tier`**: not even as a field-level fallback |
 
-`model_family` still unresolved after step 3 is a resolution **error**
+After the base is exhausted, the terminal default `default` applies to `context_tier` only,
+in every branch. A bound route that leaves a field empty therefore does not inherit it from
+the agent's old template tier: an empty `model_provider` or `reasoning_effort` stays empty
+(the runtime default) and an unset `context_tier` is `default`. For example, a subagent whose
+template default tier is `tier2` (provider `anthropic`, `context_tier: long_context`) and which
+is bound to a `tier1` that declares neither resolves `model_provider` to empty and
+`context_tier` to `default`, not `anthropic` and `long_context`.
+
+**Overrides are not part of this chain.** `config.overrides[<VAR>]` (194.006-T, AS-F9) is a
+render-time layer the renderer applies over the config-derived route-family variables,
+including `TIER_<N>_*`; the pure resolver has no such layer. An explicit `TIER_<N>_*` override
+therefore applies on top of a bound route exactly as it applies on top of the unbound base
+(the existing role overlay applies `config.overrides` the same way). Overrides are keyed to
+the variable names the agent's template renders, so only the `TIER_<N>_*` of the site's own
+default tier `N` apply; an override on the bound route's own tier variables (`TIER_<T>_*`,
+`T` different from `N`) does not reach the agent. The route a managed agent
+is installed with is the resolver's route composed with those overrides by **one** shared
+composition function in `verify_workspace.py` (`_compose_site_route_variables`, R1-B B6a), the
+module that already owns the renderer and the override layer; the pure resolver cannot host it
+(its import allowlist excludes `verify_workspace`) and neither can the registry builder
+(`model_routing_sites.py` must not import `verify_workspace` at module level). The render seams
+and the drift check (D10) both call that function.
+
+`model_family` still unresolved after the base is exhausted is a resolution **error**
 (`ROUTING_UNRESOLVED: model_family`), never a silent default (P-013.5). An empty
 `model_provider` or `reasoning_effort` is **valid** and means "use the model/runtime default":
 the config template documents it ("leave empty for default"), `verify-workspace` already
@@ -387,10 +430,12 @@ are not regressed. Only a non-string value or an unresolved `{{...}}` placeholde
 rendered `model_provider` remains invalid (existing verify behavior, unchanged). Escalation
 routes keep the P-013.6 order (nested role
 escalation, legacy flat, `tier3`) and per-field fallback. Installed frontmatter is **not**
-part of the chain: it is a rendered default (E8B5B3C5/H8) and is checked against the
-resolver's output. The resolver output carries an ordered `resolution_chain` so a future
-derived-route layer (work-attribute routing, `9B582824`) can be inserted between steps 1
-and 2 without changing any consumer.
+part of the chain: it is a rendered default (E8B5B3C5/H8) and is checked against the route
+the renderer writes for that site, that is, the resolver's output composed with explicit
+`config.overrides` by the shared composition function above, never against raw resolver
+output alone. The resolver output carries an ordered `resolution_chain` so a future
+derived-route layer (work-attribute routing, `9B582824`) can be inserted between the
+binding's per-field override and the binding's route without changing any consumer.
 
 ### D5: the resolver is code, with vectors, and is the single source of truth
 
@@ -492,9 +537,9 @@ and 2 without changing any consumer.
 |---|---|
 | Schema 1.2.0 | `routes` (tier required, field overrides, name pattern), `bindings` (site-id pattern, one object shape), `additionalProperties: false` on both; **`model_routing` itself becomes a closed object (`additionalProperties: false`, allowlist = the ten existing keys plus `routes` and `bindings`), 1.2.0 only**; existing keys unchanged. |
 | Resolver | One module and vectors (D5); one shared raw-YAML guard (R1-A unit A2a) for anchors, aliases, and merge keys, called by `verify-workspace` and the CLI. |
-| `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, `routes`/`bindings` declared in a pre-1.2.0 config (inert), **unknown key directly under `model_routing` (fails in a 1.2.0 config; advisory in an older one, the same gate as the anchor check in D2)**, alias-free `model_routing`, and installed subagent frontmatter versus the resolved route. The drift check fails closed for manifest-managed agents (rendered or community; a managed agent whose default tier cannot be established fails the same way) **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
+| `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, a binding on a managed site whose default tier is unresolved (`ROUTING_BINDING_UNRESOLVED_SITE`, D3), `routes`/`bindings` declared in a pre-1.2.0 config (inert), **unknown key directly under `model_routing` (fails in a 1.2.0 config; advisory in an older one, the same gate as the anchor check in D2)**, alias-free `model_routing`, and installed subagent frontmatter versus the route the renderer writes for that site (the resolved route composed with explicit `config.overrides` by one shared composition function, D4, so an explicit `TIER_<N>_*` override is never reported as drift). The drift check fails closed for manifest-managed agents (rendered or community; an unbound managed agent whose default tier cannot be established fails the same way, `ROUTING_SITE_DEFAULT_UNRESOLVED`, and a bound one is rejected outright, `ROUTING_BINDING_UNRESOLVED_SITE`) **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
 | `tune-harness` | Detects subagent drift and proposes a refresh of route frontmatter (proposal only, never auto-applied); proposes catalog extraction when it finds repeated identical route blocks. |
-| Install | Config template gains empty `routes`/`bindings` blocks; variable table documents them; subagent frontmatter is rendered from resolver output for bound sites. |
+| Install | Config template gains empty `routes`/`bindings` blocks; variable table documents them; for a bound site the subagent frontmatter is rendered from the shared site composition (the bound route, then explicit `config.overrides`, D4); unbound sites render byte-identically to before. |
 | Policy | P-013.5 amended (catalog, sites, bindings, resolver, alias prohibition); P-013.6 amended in R2; amendment-log rows per policy convention. |
 | Tests | Red-first vectors and verify fixtures; `1.1.0` mirror pinned; tests prove the baseline-shaped block fails with a named error rather than silently passing. |
 
@@ -581,6 +626,8 @@ end of this document; the table below keeps the original questions and defaults.
 | Shared-file conflicts with the queued `209-S` to `213-S` chain (Orchestrator/Stage/Ship templates, `workflow-policies.md.tmpl`, harness manifest) | Sequence after `213-S` with an explicit `blocks` edge; rebase at claim time (precedent in the 2026-10-08 Stage memory). |
 | New Python surface while the operator is steering toward Go | Pure function plus language-neutral vectors; CLI is a thin wrapper; flagged for `039-DL` cross-read; no hold. |
 | Site registry drifts from templates | Sync test between `SUBAGENT_SITES` and `templates/agents/**` frontmatter tier variables, extended to `templates/community/agents/**`. |
+| A bound subagent mixes tiers: a field its route leaves empty is silently filled from the agent's old template tier (PR #513 thread `PRRT_kwDORzpWpM6rmypP`) | D4 states two explicit branches; R1-B B1 adds vectors where a bound tier leaves `model_provider`, `reasoning_effort`, or `context_tier` empty while the site default tier would supply it (the field stays empty or `default`), plus an unbound contrast; B6a renders the same. |
+| The renderer and the drift check disagree: an explicit `TIER_<N>_*` override is reported as drift, or a bound agent on an unresolved default tier passes verify while reinstall cannot apply its binding (PR #513 threads `PRRT_kwDORzpWpM6rmyoz`, `PRRT_kwDORzpWpM6rmyoO`) | One shared composition function in `verify_workspace.py` (`_compose_site_route_variables`, B6a) is called by both render seams and by B7, which reads its expected frontmatter from the same composed variables; `ROUTING_BINDING_UNRESOLVED_SITE` rejects such a binding up front (B6) and in B7; a render-then-verify round-trip test covers both seams. |
 | Operator expects phase routing and sees it deferred | D6 states the reason and the promotion rule; R4 recorded as a gated follow-up. |
 | `routes`/`bindings` adoption increases rendered-config complexity | Empty blocks by default; tune proposes extraction only when duplication is detected. |
 | Cross-provider routes expose code to a second vendor | OQ1 default is no change; all non-default routes carry explicit degradation; operator decision recorded. |
@@ -597,7 +644,10 @@ end of this document; the table below keeps the original questions and defaults.
   `208.014-T`, ordered before B5 `208.006-T`). `214-S` blocks on `213-S`; `215-S` blocks on `214-S`.
 * Follow-up stash entries: `C2EA31FA` (R2 escalation chain), `C5801D7B` (R3 invocation
   directives and review diversity), `507B2139` (R4 phase promotion, gated), and `56654C18`
-  (tune refresh of the 13 stale subagent frontmatters, after `215-S`).
+  (tune refresh of the 13 stale subagent frontmatters, after `215-S`), and `EB56281C`
+  (`DEFERRED SCOPE EXPANSION`, PR #513 review-fix cycle 5: whether R3's invocation-time
+  `--site agent:<id>` route and `routing resolve` should include the render-time
+  `config.overrides` layer that R1 keeps outside the resolver; needs deliberation, low).
 * Stash `44CB5AE1` (captured as `DEFERRED SCOPE EXPANSION` in PR #513 review-fix cycle 2:
   skills that validate an operator config against the root schema file) is **materialized,
   not deferred**: Copilot thread `PRRT_kwDORzpWpM6rlcW8` showed the hold lived only in free
@@ -609,6 +659,21 @@ end of this document; the table below keeps the original questions and defaults.
   managed class whose default tier is derived by the same parse as a rendered agent; plan unit
   B2 (`208.002-T`) derives it, B6 (`208.008-T`), B6a (`208.007-T`), and B7 (`208.009-T`) were
   updated to match (invariant I12). No new task, edge, or manifest change.
+* Bound versus unbound site resolution and the render/verify composition (PR #513 review-fix
+  cycle 5, the last operator-authorized extension; threads `PRRT_kwDORzpWpM6rmypP`,
+  `PRRT_kwDORzpWpM6rmyoz`, `PRRT_kwDORzpWpM6rmyoO`, one design cluster): D4 now states the two
+  explicit branches (an unbound site resolves from its template default tier; a bound site
+  resolves from the binding's route and never consults the site default tier) and that
+  explicit `config.overrides` are a render-time layer outside the pure resolver; D3 rejects a
+  binding on a managed site whose default tier is unresolved (`ROUTING_BINDING_UNRESOLVED_SITE`);
+  D10 and the risk table were aligned. R1-B units B1 (`208.001-T`), B2 (`208.002-T`), B6
+  (`208.008-T`), B6a (`208.007-T`, which now defines the shared composition function), B7
+  (`208.009-T`, which derives its expected frontmatter from it), B8 to B11 (`208.010-T` to
+  `208.013-T`), and R1-A A2 and A3 (`207.002-T`, `207.003-T`) were updated to match
+  (invariants I13 and I14). No new task, edge, size, or manifest change. The open question
+  whether R3's invocation-time route and `routing resolve` should include the render-time
+  overrides layer that R1 keeps outside the resolver is captured as the `DEFERRED SCOPE
+  EXPANSION` stash entry `EB56281C`, not decided here.
 * Baseline: `docs/design-docs/model-routing-v2.md`.
 * Plans (R1): `docs/plans/2026-10-11-model-routing-resolver-single-source-plan.md` (R1-A) and
   `docs/plans/2026-10-11-model-routing-catalog-bindings-plan.md` (R1-B).

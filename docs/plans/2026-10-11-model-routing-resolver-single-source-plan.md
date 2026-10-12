@@ -129,6 +129,16 @@ Rules reproduced exactly from today's code (no new behavior):
   role-scoped; a field unset on either side carries no signal; `context_tier` is excluded.
 * Unresolved `model_family` is an error. Empty `model_provider`/`reasoning_effort` is valid
   ("leave empty to use the model default").
+* `config.overrides` (194.006-T, AS-F9) is **not an input to the resolver**. It is a
+  render-time layer applied by `_authoritative_route_variables` over the config-derived
+  route-family variables, outside `model_routing.py`; A3 does not delegate it
+  (`_authoritative_route_variables`, `_route_family_variables`, `_compose_artifact_variables`,
+  and `_context_tier_override_error` stay in `verify_workspace.py` unchanged), and
+  `routing resolve` therefore reports the config-derived route. R1-B (B6a, B7) composes that
+  layer explicitly, in one shared function, wherever an installed frontmatter is compared
+  with a route, instead of comparing it with raw resolver output (PR #513 review-fix cycle 5,
+  thread `PRRT_kwDORzpWpM6rmyoz`). Whether the CLI and R3's invocation-time route should
+  include that layer is a deferred decision (stash `EB56281C`).
 
 CLI document (`schema_version: "1.0.0"`, keys pinned by the A4 test): `schema_version`,
 `site`, `kind`, `resolved` (the four fields plus `tier_class`), `resolution_chain`,
@@ -215,7 +225,8 @@ only: `contextlib`, `unittest.mock`, `ast`) therefore provides:
 * the A1 vectors parametrized against `guarded_resolve` (the whole run is under
   `forbid_io()`); ambiguity returns the error with no per-role resolution; unresolved
   `model_family` returns `ROUTING_UNRESOLVED`; an empty `model_provider` or
-  `reasoning_effort` returns no error;
+  `reasoning_effort` returns no error; a config carrying a top-level `overrides` mapping
+  resolves exactly as without it (the resolver has no override layer);
 * **guard self-tests (negative):** a deliberately impure stub resolver for each channel
   (`open`, `Path.read_text`, `os.stat` or `Path.exists`, `os.listdir`, `os.environ[...]`,
   `os.getenv`, `subprocess.run`, a socket connection) fails under `forbid_io()` with
@@ -298,7 +309,11 @@ file is modified.
 **Change:** Replace the bodies of the helpers listed in the Problem Frame with calls into
 `model_routing`, keeping every function name, signature, and return shape so existing tests
 and the install variable derivation keep working. Do not touch check keys or error strings
-(tests and `verify-harness` consume them).
+(tests and `verify-harness` consume them). The `config.overrides` layer is not delegated
+(see the contract above): `_authoritative_route_variables`, `_route_family_variables`,
+`_compose_artifact_variables`, and `_context_tier_override_error` are not in the delegated
+list and stay unchanged, so overrides still apply over the delegated tier and role values
+exactly as today (the existing `test_route_variable_precedence` pins it, unmodified).
 
 **Tests (scenarios):** the A1 characterization test still passes unchanged; a delegation test
 asserts each helper returns a value computed by `model_routing` (by patching the module and
