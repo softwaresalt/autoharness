@@ -139,3 +139,56 @@ tested, acknowledged. No P0, P1, or P2 findings. The delta check supports the ex
 verdict: the plan remains **PASS**. The statement above that OQ9 "blocks safe execution"
 describes the plan as reviewed; OQ9 was confirmed afterwards (see the plan's "Unresolved
 operator decisions" paragraph).
+
+## Addendum: PR #513 review-fix cycle 2 (2026-10-12 UTC)
+
+Append-only. The cycle 1 and cycle 2 records, the cycle 1 addendum, and the verdict above are
+unchanged. The staging PR (#513) received a second Copilot review (review 5494415746, HEAD
+`e0051e68`) with three findings, all touching this plan. Stage verified each against the
+repository, fixed it, and re-checked only the changed units as a single-agent delta pass
+(same `TOOL_DEGRADED` declarations as above). The graph statement in the cycle 1 addendum
+("the backlog encodes the `B3b -> B4` edge") described that state; the edge now reads
+`B3b -> B5`, as below.
+
+| Review thread | Verification and change | Commit |
+|---|---|---|
+| `PRRT_kwDORzpWpM6rkjC9` (`model_routing` still open to arbitrary keys) | Confirmed: `model_routing` has no `additionalProperties` in the root schema or the 1.1.0 mirror (the dogfood config carries no unknown key). Decision: B4 closes `model_routing` with an allowlist in the **1.2.0 schema only** (1.1.0 untouched, so I1 and I2 hold); B1 exports `MODEL_ROUTING_KNOWN_KEYS`; B6 adds `routing_unknown_keys` (fails at 1.2.0 with `ROUTING_UNKNOWN_KEY`, one advisory per key below 1.2.0, the same gate as the anchor check); regression cases for `routez` and an inert `subagents` block at the schema and verify layers, and a 1.1.0 stays-valid case | `e21a9502` |
+| `PRRT_kwDORzpWpM6rkjDk` (a deliberately red boundary between B4 and B5) | Confirmed: the four B3 modules validate current-version fixtures and the dogfood config against both the root and the current mirror, which read the contract version (1.1.0 until B5), so the root const at 1.2.0 in B4 made them red. B4 now only publishes the unreferenced 1.2.0 mirror (2 files); B5 is the single atomic cut-over (root schema content, `current_version`, `known_versions`, migration entry, byte pin, lockstep test, dogfood marker, manifest hash), resized `S` / `low` to `M` / `medium`; edges: `208.005-T` no longer depends on `208.004-T`, `208.006-T` now does; invariant I10 | `789f5748` |
+| `PRRT_kwDORzpWpM6rkjEC` (alias check only in `verify-workspace`) | Confirmed (see the R1-A review addendum). B6's alias check now delegates to the shared R1-A function `model_routing_yaml.check_model_routing_yaml` (`207.006-T`); B6 defines no scanner and tests delegation | `7ba1193a` |
+
+Audit for the same "intermediate red" pattern across all of R1-B: B1, B2, B3a, B3b, B4 (now),
+B6, B6a, B7, B8, B9, B10, and B11 each leave the suite green by their acceptance criteria;
+B5 is the only unit that changes the root const, the contract version, the current-mirror
+pairing, and the marker, and it does so together. The shipment manifest order of `215-S`
+already honored every edge and is unchanged.
+
+Delta persona pass over the changed units:
+
+* **Architecture Strategist.** Closing `model_routing` only in 1.2.0 keeps every published
+  mirror immutable; the unknown-key severity follows the same fail-at-1.2.0 / advisory-below
+  gate as anchors (040-DL D2), so one rule covers every accepted-but-inert routing key.
+  Publishing the mirror unreferenced and adopting it atomically in B5 keeps the
+  contract-version-coupled tests green at every boundary. The graph is
+  `B3a -> B3b -> B5`, `B4 -> B5`, `{B1, B2, B5} -> B6`; acyclic; `autoharness gate
+  dag-readiness` reports `cycle_detected: false` and `ready_set: [209-S]`.
+* **Python Reviewer.** `MODEL_ROUTING_KNOWN_KEYS` is a plain frozenset in the pure module (no
+  I/O, so the A2 import allowlist still passes) and a B6 sync test ties it to the 1.2.0
+  mirror's `model_routing.properties`, so the schema and the check cannot drift.
+* **Scope Boundary Auditor.** B4 shrinks to two new files; B5 grows to three files plus the
+  marker pair (within budget, resized for volume and integration risk); B6's net size is
+  unchanged (the event scan left, a set-difference check arrived). No routing value, config
+  key beyond the documented twelve, or policy text changes.
+* **Learnings Researcher.** The seven-step mirror-immutability fix and the existence-gated
+  verify-check pattern from the two compound learnings still govern; no conflict.
+
+New findings: **B-F11 [P3]** B5 resized `S` / `low` to `M` / `medium`; both axes re-estimated
+under `ah-stage-sizing-v1`, `215-S` histogram now `M:8`, `S:5`, acknowledged. **B-F12 [P3]**
+between B5 and B8 the config template still renders `schema_version: "1.1.0"` while a global
+skill still says to validate against the root schema file; no test gate observes it and B8,
+B9, and R1-A A5 close the install, tune, and Orchestrator wording within the same shipment.
+The one consumer none of them covers, `workspace-discovery` Phase 0, is out of scope here
+(P-021 C1) and captured as `DEFERRED SCOPE EXPANSION` stash `44CB5AE1`, which must route
+through `deliberate` (C6) before `215-S` is claimed, acknowledged. **B-F13 [P3]** B6 now
+carries four checks, but the raw-YAML scan moved to R1-A, so its size and complexity are
+unchanged, acknowledged. No P0, P1, or P2 findings. The delta check supports the existing
+verdict: the plan remains **PASS**.

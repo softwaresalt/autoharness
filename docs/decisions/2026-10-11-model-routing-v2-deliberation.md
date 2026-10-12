@@ -580,7 +580,9 @@ end of this document; the table below keeps the original questions and defaults.
   B6a are `208.008-T` and `208.007-T`). `214-S` blocks on `213-S`; `215-S` blocks on `214-S`.
 * Follow-up stash entries: `C2EA31FA` (R2 escalation chain), `C5801D7B` (R3 invocation
   directives and review diversity), `507B2139` (R4 phase promotion, gated), `56654C18`
-  (tune refresh of the 13 stale subagent frontmatters, after `215-S`).
+  (tune refresh of the 13 stale subagent frontmatters, after `215-S`), and `44CB5AE1`
+  (`DEFERRED SCOPE EXPANSION` found in PR #513 review-fix cycle 2: skills that validate an
+  operator config against the root schema file, to be deliberated before `215-S` is claimed).
 * Baseline: `docs/design-docs/model-routing-v2.md`.
 * Plans (R1): `docs/plans/2026-10-11-model-routing-resolver-single-source-plan.md` (R1-A) and
   `docs/plans/2026-10-11-model-routing-catalog-bindings-plan.md` (R1-B).

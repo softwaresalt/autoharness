@@ -136,3 +136,59 @@ Orchestrator). All times UTC.
   PASS verdicts are untouched.
 * **Deferred scope expansions:** none. Every change stayed inside this staging's artifacts.
 * Still open for the operator: OQ5 and OQ8 (see the previous addendum).
+
+## Addendum 2026-10-12: PR #513 review-fix cycle 2
+
+Append-only. Copilot review `5494415746` on PR #513 (HEAD `e0051e68`) raised three new
+threads, all in this staging's own artifacts. Stage verified each against the repository,
+fixed it at the root in a separate local commit, and re-ran a delta check (single-agent
+declared degradation, same as before). No push, no PR comment, no thread resolution: the Role
+Boundary reserves those for the Orchestrator. The repository test suite was not run (Stage
+boundary); evidence came from reading the tests and from scratch probes that left no file in
+the workspace. All times UTC; the cycle counter is 2 of the 3-cycle limit.
+
+| UTC | Phase | Commit |
+|---|---|---|
+| 2026-10-12T18:07:34Z (+0s) | Session start; Role Boundary re-read; tool gate, index sync | |
+| 2026-10-12T18:14:13Z (+6m39s) | Verification of all three findings against schemas, tests, contracts, plans | |
+| 2026-10-12T18:18:44Z (+4m31s) | Thread `PRRT_kwDORzpWpM6rkjC9`: `model_routing` allowlist and unknown-key check | `e21a9502` |
+| 2026-10-12T18:28:35Z (+9m51s) | Thread `PRRT_kwDORzpWpM6rkjDk`: atomic 1.2.0 cut-over | `789f5748` |
+| 2026-10-12T18:36:35Z (+8m00s) | Thread `PRRT_kwDORzpWpM6rkjEC`: shared raw-YAML guard | `7ba1193a` |
+| 2026-10-12T18:37:51Z (+1m16s) | Review and plan addenda, this memory note | the addenda commit |
+
+* **Finding 1 (unknown `model_routing` keys): confirmed.** `model_routing` sets no
+  `additionalProperties` in the root schema or the 1.1.0 mirror. Decision: an allowlist (the
+  ten existing keys plus `routes` and `bindings`) in the **1.2.0 schema only**, so the published
+  1.1.0 mirror stays byte-identical and 1.1.0 configs with extra keys keep validating; a named
+  `routing_unknown_keys` check fails at 1.2.0 and warns (never changes `ok`) below, the same
+  gate as the anchor check. The constant `MODEL_ROUTING_KNOWN_KEYS` (resolver, B1) is the
+  single allowlist and a sync test ties it to the mirror. The `subagents` block the review
+  mentions is the baseline's proposed shape; this repository's dogfood config and template
+  carry no such key, so the evidence is the schema probe, not an installed workspace.
+* **Finding 2 (deliberately red B4/B5 boundary): confirmed.** The four B3 test modules
+  validate current-version fixtures and the dogfood config against the root and the current
+  mirror; the contract version stays 1.1.0 until B5, so a root const of 1.2.0 in B4 made them
+  red. B4 now only publishes the unreferenced mirror; B5 is the single atomic cut-over
+  (resized `S` / `low` to `M` / `medium`). Edges: removed `208.005-T` on `208.004-T`, added
+  `208.006-T` on `208.004-T`. Audit of the other R1-B units found no second occurrence.
+* **Finding 3 (CLI skips the alias guard): confirmed.** `yaml.safe_load` yields plain,
+  schema-valid dicts for anchors, aliases, and merge keys; `yaml.parse` still shows them.
+  New R1-A task `207.006-T` (unit A2a, `S` / `medium`) owns one shared function called by the
+  A4 CLI (before schema validation, exit `2`) and by R1-B B6; a 1.1.0 config with aliases is
+  not rejected (D2). Edges: `207.006-T` on `207.002-T`, `207.004-T` on `207.006-T`; `214-S`
+  manifest order is `207-F`, `.001`, `.002`, `.003`, `.006`, `.004`, `.005`. No task-level
+  cross-shipment edge was added (the shipment edge `215-S` after `214-S` carries it, matching
+  B1's dependency on the R1-A resolver).
+* **Graph checks.** Both manifests honor every task edge, the task graph is acyclic, and
+  `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
+  `ready_set: [209-S]`. `214-S` now holds six tasks (`M:4`, `S:2`); `215-S` thirteen
+  (`M:8`, `S:5`). The harvested counts in the sections above describe the original state.
+* **Review records.** Cycle 2 addenda appended to both plan-review records; earlier cycles and
+  both PASS verdicts are untouched and still hold (delta findings A-F9 to A-F11 and B-F11 to
+  B-F13, all P3).
+* **Deferred scope expansion:** stash `44CB5AE1` (P-021 C2): `workspace-discovery` Phase 0 (and
+  the install, tune, and Orchestrator wording that B8, B9, and A5 already rewrite) validates
+  an operator config against the root schema file, which carries const 1.2.0 after B5. It is a
+  different contract surface, so it is out of scope here; it must route through `deliberate`
+  (C6) and be decided before `215-S` is claimed.
+* Still open for the operator: OQ5 and OQ8 (see the earlier addenda).

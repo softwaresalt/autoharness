@@ -117,3 +117,47 @@ stays `M` and it remains one sitting, acknowledged. **A-F8 [P3]** the runtime gu
 intercept the import machinery's own reads; the static allowlist is the declared complement,
 acknowledged. No P0, P1, or P2 findings. The delta check supports the existing verdict:
 the plan remains **PASS**.
+
+## Addendum: PR #513 review-fix cycle 2 (2026-10-12 UTC)
+
+Append-only. The cycle 1 and cycle 2 records, the cycle 1 addendum, and the verdict above are
+unchanged. The staging PR (#513) received a second Copilot review (review 5494415746, HEAD
+`e0051e68`). One of its three findings touches this plan; Stage fixed it and re-checked only
+the changed units as a single-agent delta pass (same `TOOL_DEGRADED` declarations as above).
+
+| Review thread | Change to this plan or its tasks | Commit |
+|---|---|---|
+| `PRRT_kwDORzpWpM6rkjEC` (alias detection only in `verify-workspace`, so the CLI could succeed for a forbidden 1.2.0 config) | Verified: `yaml.safe_load` erases anchors, aliases, and merge keys and the result is schema-valid plain data, while `yaml.parse` still exposes them. New unit **A2a** (`207.006-T`, `S` / `medium`) owns one shared function `model_routing_yaml.check_model_routing_yaml(raw_text, schema_version)`; A4 (`207.004-T`) calls it on the raw text **before** schema validation and exits `2` with `ROUTING_ANCHOR_UNSUPPORTED` for a 1.2.0 config, gains the CLI exit-`2` regression test, a 1.1.0-not-rejected case, and a delegation assertion; invariant I8 added; graph is now `A1 -> A2 -> A3` and `A2 -> A2a -> A4 -> A5` | `7ba1193a` |
+
+Delta persona pass over the changed units:
+
+* **Architecture Strategist.** The guard has one owner and two consumers (A4 here, R1-B B6
+  across the shipment edge), and lands in R1-A because A4 is the first consumer and `215-S`
+  blocks on `214-S`; placing it in R1-B would have shipped a CLI that accepts what
+  `verify-workspace` rejects. It is a separate module because it imports `yaml`, which the A2
+  static import allowlist forbids in the pure resolver, so resolver purity is untouched. The
+  backlog edges are `207.006-T` after `207.002-T` and `207.004-T` after both; the `214-S`
+  manifest order (`207-F`, `.001`, `.002`, `.003`, `.006`, `.004`, `.005`) honors every
+  edge; the graph is acyclic and `autoharness gate dag-readiness` still reports
+  `cycle_detected: false` and `ready_set: [209-S]`.
+* **Python Reviewer.** The scan walks `yaml.parse` events, bounded to the `model_routing`
+  value; a merge key is a plain `<<` scalar in key position, so a quoted `"<<"` key is not
+  flagged. A scratch probe (not committed) confirmed that `yaml.parse` does not raise on an
+  undefined alias while `yaml.safe_load` raises `ComposerError`, so the guard also reports the
+  baseline-shaped document. A YAML syntax error is returned as `parse_error`, never raised.
+* **Scope Boundary Auditor.** A2a adds two new files and one concern; A4 stays at three files
+  and one concern; no config key, schema, policy, or routing value changes. D9 is read with
+  D2's gate (error at 1.2.0, advisory below) and the row is annotated accordingly; a 1.1.0
+  config with aliases is not rejected.
+* **Constitution Reviewer and Learnings Researcher.** No conflict. The guard tests reuse the
+  A2 `forbid_io()` harness, so the "pure over text" claim is asserted, not stated; the CLI
+  read-only claim (I5) still rests on the tree-snapshot test, now including the guard
+  scenarios.
+
+New findings: **A-F9 [P3]** the CLI does not emit the advisory `warnings` for configs below
+1.2.0 (its pinned document key set is unchanged); `verify-workspace` owns the advisory,
+acknowledged. **A-F10 [P3]** the CLI's alias rejection is only reachable end to end once R1-B
+makes 1.2.0 a valid version; A4's regression test reaches it now because the guard runs
+before schema validation, acknowledged. **A-F11 [P3]** one new task (`207.006-T`), so `214-S`
+holds six tasks (histogram `M:4`, `S:2`), acknowledged. No P0, P1, or P2 findings. The delta
+check supports the existing verdict: the plan remains **PASS**.

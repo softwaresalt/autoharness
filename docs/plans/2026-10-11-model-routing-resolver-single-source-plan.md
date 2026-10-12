@@ -584,4 +584,10 @@ decision: PASS
   A1/A2 pin the empty-`model_provider` rule; A4's read-only claim is asserted by a snapshot
   test. A delta check recorded in the review record's addendum leaves the gate decision
   above unchanged (earlier cycle records are not altered).
+* **Addendum (PR #513 review-fix cycle 2, 2026-10-12 UTC):** new unit A2a (`207.006-T`) holds
+  the one shared raw-YAML guard that the A4 CLI calls before schema validation (exit `2` for
+  an anchor, alias, or merge key under `model_routing` in a 1.2.0 config) and that R1-B B6
+  reuses; A4 gains the exit-`2` regression test; invariant I8 added. A delta check recorded in
+  the review record's addendum leaves the gate decision above unchanged (findings A-F9 to
+  A-F11, all P3).
 

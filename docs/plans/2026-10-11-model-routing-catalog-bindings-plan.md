@@ -851,3 +851,10 @@ decision: PASS
   R1-A purity guard, and the backlog encodes the `B3b -> B4` edge. A delta check recorded in
   the review record's addendum leaves the gate decision above unchanged (earlier cycle
   records are not altered).
+* **Addendum (PR #513 review-fix cycle 2, 2026-10-12 UTC):** `model_routing` is closed by an
+  allowlist in the 1.2.0 schema only, with a named `routing_unknown_keys` check (fail at
+  1.2.0, advisory below); B4 now only publishes the unreferenced 1.2.0 mirror and B5 is the
+  single atomic cut-over (resized `S` / `low` to `M` / `medium`; the edge reads `B3b -> B5`,
+  superseding the `B3b -> B4` edge above); B6's alias check delegates to the shared R1-A
+  guard (`207.006-T`). A delta check recorded in the review record's addendum leaves the
+  gate decision above unchanged (findings B-F11 to B-F13, all P3).
