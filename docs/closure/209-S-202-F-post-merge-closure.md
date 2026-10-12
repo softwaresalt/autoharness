@@ -45,10 +45,7 @@ archived the manifest through the P-015 CASCADE path; the close is verified.
 | Post-Mode report | `.backlogit/reconcile/209-S-post-20261012-233553.md`, `PROCEED` |
 | Evidence record | `docs/closure/evidence/209-S-202-F-close-evidence.json` (phases `pre_close` and `post_close`) |
 
-Timeout sizing: `B = ceil(1.5 * (133 + 35 * 6))` = 515 s, within the 1800 s default; the run
-was started attached and async with the 2400 s supervision budget and completed (about
-15 minutes) without being killed. Lock: acquired and released (token-matched) through the
-workspace-root `scripts/acquire_lock.ps1` / `release_lock.ps1`; no substitution.
+Timeout sizing: `B = ceil(1.5 * (133 + 35 * 6))` = 515 s, so the 1800 s default `--timeout` applied (it was not shortened to B). The run was started attached and async with the 2400 s supervision budget and completed in about 11 minutes (the child `backlogit shipment ship` ran 23:24:14Z to 23:35:34Z, about 680 s, which is above the 515 s reference estimate; the reference F/P values for backlogit 1.11.0 are therefore low for this workspace and the default timeout was the correct choice). It was not killed. Lock: acquired and released (token-matched) through the workspace-root `scripts/acquire_lock.ps1` / `release_lock.ps1`; no substitution.
 
 ## Linked-Deliberation Disposition (P-015 INV-12)
 
@@ -121,7 +118,7 @@ All 4 review threads on PR #514 are resolved (4/4). Final P-018 gate on `8faa1f8
 | Crash-resumption scan | `backlogit checkpoint list` | 112 records; 0 quarantined; 0 ship-owned `active`; normal startup |
 | Single worktree (P-016) | `git worktree list` | one worktree: this checkout |
 | Closure index resync | `backlogit sync` after all backlog mutations | `CLOSURE_INDEX_SYNC_OK`: `Indexed 1851 artifacts` |
-| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/209-S-202-F-post-merge-closure.md --shipment 209-S` | run before each commit of this artifact; see the PR for the final result |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/209-S-202-F-post-merge-closure.md --shipment 209-S --json` | `passed: true`, exit 0 (run before each commit of this artifact; re-run after the final edit) |
 
 ## Runtime Verification
 
