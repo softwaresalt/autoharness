@@ -505,6 +505,15 @@ and 2 without changing any consumer.
   timeline is a separate operator decision (OQ6).
 * Installed workspaces: tune proposes; nothing is auto-applied; workspace-authored agents
   are advisory-only.
+* Agent-executed consumers validate by the document's own `schema_version`: the root schema
+  tracks only the current version (const), so once the root reads `1.2.0` a skill that
+  validates an operator config against the root file alone would report a valid 1.1.0 config
+  as invalid. Every global skill or agent that validates a config therefore selects the
+  schema matching the document's own `schema_version` (the `resolve_contract_schema_path`
+  rule): the Orchestrator in R1-A A5, `workspace-discovery` in R1-B B4a (before the cut-over),
+  `install-harness` in B8, `tune-harness` in B9 (which also asserts the end-of-shipment
+  sweep). This completes the consumers of the contract surface that B5's cut-over changes
+  (P-021 C1); it is not a deferred expansion (PR #513 thread `PRRT_kwDORzpWpM6rlcW8`).
 * The dogfood `.autoharness/config.yaml` routing values are **not** edited by this work.
   Fixing the 13 stale subagent frontmatters is a tune-refresh chore the operator can run
   once R1 ships (recorded as a follow-up note, not scope).
@@ -513,7 +522,7 @@ and 2 without changing any consumer.
 
 | Release | Scope | Gate |
 |---|---|---|
-| **R1** (planned and harvested now, as two shipments) | R1-A: D5 resolver, vectors, delegation, CLI, Orchestrator directive. R1-B: D1 to D4, D10, D11 catalog, bindings, schema 1.2.0, verify and tune drift, install/policy/docs | R1-B blocked on R1-A; both after the queued `213-S` |
+| **R1** (planned and harvested now, as two shipments) | R1-A: D5 resolver, vectors, delegation, CLI, Orchestrator directive. R1-B: D1 to D4, D10, D11 catalog, bindings, schema 1.2.0, verify and tune drift, install/policy/docs, version-aware config-validation wording (B4a, B8, B9) | R1-B blocked on R1-A; both after the queued `213-S` |
 | **R2** (stash follow-up) | D7 escalation `chain`, per-level guard, P-013.6 amendment | R1 shipped; OQ3 default accepted |
 | **R3** (stash follow-up) | D8 review diversity, invocation-time subagent and review directives in Stage, Ship, and review skills | R1 shipped; runtime override evidence |
 | **R4** (stash follow-up, gated) | D6 phase-site promotion with `9B582824` A/C, derived-route slot | `9B582824` component A shipped and cost evidence |
@@ -576,13 +585,18 @@ end of this document; the table below keeps the original questions and defaults.
 * Source stash: `BF66F08B` (archived by Stage after consumption); deliberation: `040-DL`.
 * Harvested: feature `207-F` (shipment `214-S`, 6 tasks `207.001-T` to `207.006-T`; plan
   unit A2a is `207.006-T`) and
-  feature `208-F` (shipment `215-S`, 13 tasks `208.001-T` to `208.013-T`; plan units B6 and
-  B6a are `208.008-T` and `208.007-T`). `214-S` blocks on `213-S`; `215-S` blocks on `214-S`.
+  feature `208-F` (shipment `215-S`, 14 tasks `208.001-T` to `208.014-T`; plan units B6 and
+  B6a are `208.008-T` and `208.007-T`, and B4a, added in PR #513 review-fix cycle 3, is
+  `208.014-T`, ordered before B5 `208.006-T`). `214-S` blocks on `213-S`; `215-S` blocks on `214-S`.
 * Follow-up stash entries: `C2EA31FA` (R2 escalation chain), `C5801D7B` (R3 invocation
-  directives and review diversity), `507B2139` (R4 phase promotion, gated), `56654C18`
-  (tune refresh of the 13 stale subagent frontmatters, after `215-S`), and `44CB5AE1`
-  (`DEFERRED SCOPE EXPANSION` found in PR #513 review-fix cycle 2: skills that validate an
-  operator config against the root schema file, to be deliberated before `215-S` is claimed).
+  directives and review diversity), `507B2139` (R4 phase promotion, gated), and `56654C18`
+  (tune refresh of the 13 stale subagent frontmatters, after `215-S`).
+* Stash `44CB5AE1` (captured as `DEFERRED SCOPE EXPANSION` in PR #513 review-fix cycle 2:
+  skills that validate an operator config against the root schema file) is **materialized,
+  not deferred**: Copilot thread `PRRT_kwDORzpWpM6rlcW8` showed the hold lived only in free
+  text, so `215-S` could be claimed without it. It is now task `208.014-T` (B4a), a
+  dependency of B5 `208.006-T`, with the B9 sweep (`208.011-T`) as its end-of-shipment check,
+  and the stash entry is archived with that forward reference.
 * Baseline: `docs/design-docs/model-routing-v2.md`.
 * Plans (R1): `docs/plans/2026-10-11-model-routing-resolver-single-source-plan.md` (R1-A) and
   `docs/plans/2026-10-11-model-routing-catalog-bindings-plan.md` (R1-B).

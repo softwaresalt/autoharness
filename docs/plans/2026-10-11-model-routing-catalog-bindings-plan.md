@@ -57,6 +57,12 @@ After this plan ships (and `R1-A` has shipped):
   the resolver as the normative executable definition.
 * The dogfood config's `schema_version` marker moves to `1.2.0` (marker only; no routing
   value changes) after operator confirmation.
+* Every global skill that validates an operator config selects the schema by the document's
+  own `schema_version` (the `resolve_contract_schema_path` rule) instead of the root schema
+  file alone, which tracks only the current version: `workspace-discovery` via B4a (before
+  the cut-over), `install-harness` via B8, `tune-harness` via B9, and the Orchestrator via
+  R1-A A5. A valid legacy 1.1.0 config is therefore never reported invalid by an agent after
+  the root const reads `1.2.0`.
 
 ## Problem Frame
 
@@ -79,7 +85,11 @@ ignored, which is the exact defect class being removed.
 Scope boundaries (P-021 C1):
 
 * In scope: catalog, bindings, schema 1.2.0, resolver extension, verification and drift,
-  install/tune surfaces, P-013.5 amendment, docs, the dogfood `schema_version` marker.
+  install/tune surfaces, P-013.5 amendment, docs, the dogfood `schema_version` marker, and the
+  version-aware config-validation wording in the global skills that read an operator config
+  (B4a, B8, B9): the root schema's current-version-only const is changed by this release's
+  own cut-over, so completing the consumers of that contract surface is not an expansion
+  (P-021 C1; Copilot thread `PRRT_kwDORzpWpM6rlcW8`).
 * Out of scope: escalation `chain` (R2), review diversity and invocation-time subagent
   directives (R3), phase sites (R4), any routing value in `.autoharness/config.yaml`,
   refreshing the 13 stale subagent frontmatters (a `tune` chore once this ships), CLI
@@ -95,6 +105,7 @@ Scope boundaries (P-021 C1):
 | RB2a | A bound subagent renders consistently with install, tune, and the render-parity check (D10) | B6a |
 | RB3 | Per-field precedence with a reserved ordered `resolution_chain` (D4) | B1 |
 | RB4 | Schema 1.2.0 as a new mirror, with a closed `model_routing` key allowlist; 1.1.0 preserved; contract, migration, and tests (D1, D10, D11) | B3a, B3b, B4, B5 |
+| RB4a | No agent-executed consumer validates an operator config against the root schema alone once the root tracks only the current version: the validation wording selects the mirror matching the document's own `schema_version` (D11; PR #513 thread `PRRT_kwDORzpWpM6rlcW8`, stash `44CB5AE1` materialized) | B4a (before B5), B8, B9 sweep (R1-A A5 for the Orchestrator) |
 | RB5 | Verification: integrity, unknown site, inert keys at 1.1.0, unknown `model_routing` keys, alias-free through the shared R1-A guard (A2a), subagent drift (D10) | B6, B7 |
 | RB6 | Install and tune surfaces (D10, D11) | B8, B9 |
 | RB7 | P-013.5 amendment and documentation (D10, D12) | B10, B11 |
@@ -133,7 +144,9 @@ Scope boundaries (P-021 C1):
 
 Execution posture: test-first for every code unit (the harness-architect generates the
 expected-RED roster at Ship time); migration-first discipline for the schema bump (B3a and
-B3b make the existing tests version-agnostic **before** the root schema changes, and B5
+B3b make the existing tests version-agnostic **before** the root schema changes, B4a makes the
+one agent-executed consumer that no other unit owns, the `workspace-discovery` Phase 0
+validation wording, version-aware **before** the root schema changes, and B5
 then flips the root schema, the contract version, the current-mirror pairing, and the
 dogfood marker in one commit). **No task boundary is deliberately red:** every unit leaves
 the full suite green. Canonical test gate: `$env:PYTHONPATH='src'; python -m unittest discover -s tests`.
@@ -338,6 +351,69 @@ test changed** and `git diff` shows no change to the 1.1.0 mirror, the root
 **Size/complexity:** `M` / `medium`. **Depends on:** none within this plan (B3a/B3b gate
 B5, not this unit).
 
+### B4a: Version-aware config validation wording in the workspace-discovery skill (before the cut-over)
+
+Added in PR #513 review-fix cycle 3 for Copilot thread `PRRT_kwDORzpWpM6rlcW8`. It
+materializes the work first captured as `DEFERRED SCOPE EXPANSION` stash `44CB5AE1`
+(archived with a forward reference to this unit).
+
+**Files (3):** `.github/skills/workspace-discovery/SKILL.md`,
+`.autoharness/harness-manifest.yaml` (checksum),
+`tests/test_workspace_discovery_config_validation_guidance.py` (new).
+
+**Why it is in scope.** `workspace-discovery` Phase 0 item 1 validates
+`.autoharness/config.yaml` against `schemas/harness-config.schema.json`, the root schema,
+which pins `schema_version` to the current contract version only. After B5 the root const is
+`1.2.0` and `model_routing` is a closed allowlist, so a valid legacy 1.1.0 config (every
+workspace installed today) would be reported invalid by an agent following the skill. A
+read-only probe confirmed the mechanism: a `{schema_version: 1.0.0}` document validates
+against its own mirror and fails the root with `'1.1.0' was expected`; B5 makes the same true
+of 1.1.0. `verify-workspace` is unaffected because it selects the mirror through
+`resolve_contract_schema_path`; install-harness, tune-harness, and the Orchestrator wording
+are rewritten by B8, B9, and R1-A A5. The regression is caused by this release's own
+authorized cut-over on the same contract surface, so completing it is not a scope expansion
+(P-021 C1) and it is not deferred a second time.
+
+**Change (mechanical, no new design).** Rewrite Phase 0 item 1 only: read `schema_version`
+from the document and validate against
+`{autoharness_home}/schemas/harness-config/<schema_version>.schema.json` when that mirror
+exists (the selection `resolve_contract_schema_path` makes); when the version is absent,
+unknown to the contract, or has no mirror, validate against the current mirror and report
+the version as a contract finding rather than declaring the file invalid on the root alone;
+state that the root file tracks only the current version; name
+`autoharness verify-workspace --workspace {workspace_path} --json` as the CLI that applies
+the same selection. The skill is global and non-rendered (no template; installed-only engine
+artifact), so the wording reads the version from the document at runtime and adds no
+`{{...}}` placeholder. Nothing else in the skill changes: the `runtime_validation`,
+`validator_manifest`, `validation_expectations`, and `releasability` tokens pinned by the
+`workspace_discovery_runtime_validation_contract` check, and the frontmatter `name`, stay.
+
+**Tests (scenarios), version-agnostic:** the version and the current mirror come only from the
+B3a helper (`tests/_config_schema_contract.py`); no current-version literal, so B5 never
+edits this test. (1) Phase 0 item 1 names selection by the document's own `schema_version`,
+the mirror path pattern, and the verify-workspace CLI, states the root tracks only the
+current version, and no longer instructs validation against the root file alone; (2) for every
+mirror file in `schemas/harness-config/`, a minimal `{schema_version: <v>}` fixture resolves
+through `resolve_contract_schema_path` to that mirror and validates against it; (3) every
+non-current mirror version is rejected by the root schema with a `schema_version` const error
+(the hazard the wording guards; true before and after B5); (4) the current-version fixture
+validates against the root and the current mirror (lockstep; true before and after B5);
+(5) the four runtime-validation contract tokens and the frontmatter `name` are unchanged.
+Run unmodified in B5's full-suite gate, the same test covers the post-cut-over cases: a 1.1.0
+config validates through the mirror selection (not the root) and a 1.2.0 config validates
+against the root and the 1.2.0 mirror.
+
+**Acceptance criteria:** the new test passes at this unit's commit and unmodified at B5's and
+every later commit; Phase 0 item 1 selects the schema by the document's own `schema_version`
+and the root file is no longer the sole validation target; the manifest checksum equals the
+LF-normalized committed skill; `git diff` shows changes only in the three listed files.
+
+**Harness surface:** `harness-surface:none`. **Size/complexity:** `S` / `low`
+(`ah-stage-sizing-v1`: one prose edit, one checksum, one test over existing mirrors; same
+shape as B9). **Depends on:** B3a (the helper). **Ordering:** B5 depends on B4a, and the
+`215-S` manifest lists B4a before B5. It does not depend on B4 or B5: the wording is correct
+before and after the cut-over, which is why it can land first.
+
 ### B5: Atomic 1.2.0 cut-over: root schema, contract bump, migration entry, 1.1.0 byte pin, dogfood marker
 
 **Files (3 plus a marker pair):** `schemas/harness-config.schema.json`,
@@ -378,16 +454,21 @@ operator only if the recorded confirmation is missing or the change would exceed
 untouched 1.1.0 mirror for a 1.1.0 document; the 1.1.0 byte pin; the root and the 1.2.0
 mirror are identical except `$id` (the lockstep check); the dogfood config (marker 1.2.0)
 validates against the root and the 1.2.0 mirror; `summarize_schema_contract` marks a 1.1.0
-config `known-legacy` with the new proposal; the four B3 modules pass unmodified.
+config `known-legacy` with the new proposal; the four B3 modules pass unmodified; the B4a test
+passes unmodified and now also covers the post-cut-over cases (the 1.1.0 mirror is a
+non-current mirror that the root rejects and the mirror selection accepts; the 1.2.0 current
+fixture validates against the root and the 1.2.0 mirror).
 
 **Acceptance criteria:** the full suite is green in this unit's commit with no test changing
 meaning; verify-workspace on this workspace reports the config contract as current with no
-schema warning; the config diff is exactly one line.
+schema warning; the config diff is exactly one line; B4a is complete before this unit starts,
+so no skill instructs validating a legacy-version operator config against the root schema
+alone at the cut-over.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium` (resized from `S` / `low`: the root schema file joins the unit and atomicity raises
 the integration risk; size and complexity are both re-estimated under `ah-stage-sizing-v1`).
-**Depends on:** B3b, B4.
+**Depends on:** B3b, B4, B4a.
 
 ### B6: verify-workspace: catalog, binding, site, inert-key, unknown-key, and alias checks
 
@@ -544,6 +625,8 @@ rendering leaves no unresolved `{{...}}`; the template contains no `&`, `*alias`
 
 **Harness surface:** `harness-surface:none`. **Size/complexity:** `S` / `low`. **Depends
 on:** B5. **File budget note:** 3 files plus the pin test only if the example must change.
+The `workspace-discovery` counterpart of the validation-wording change is B4a (before B5);
+the end-of-shipment sweep over all three global skills is asserted in B9.
 
 ### B9: tune-harness: route drift and catalog proposals
 
@@ -563,9 +646,13 @@ same rule as B8).
 
 **Tests (scenarios):** the new step markers exist; proposals are described as proposal-only;
 the existing tune contract tests (`test_context_tier_tune_guidance`,
-`test_frontmatter_conformity_guidance`) pass unchanged.
+`test_frontmatter_conformity_guidance`) pass unchanged; **end-of-shipment sweep (closes
+invariant I11):** the config-validation instruction in each of `workspace-discovery` (B4a),
+`install-harness` (B8), and `tune-harness` (this unit) selects the schema by the document's
+own `schema_version`, and none names `schemas/harness-config.schema.json` as the sole
+validation target (read-only file assertions; B9 is the last of the three to land).
 
-**Acceptance criteria:** manifest checksum equals the committed skill.
+**Acceptance criteria:** manifest checksum equals the committed skill; the sweep passes.
 
 **Harness surface:** `harness-surface:none`. **Size/complexity:** `S` / `low`. **Depends
 on:** B7, B8.
@@ -618,6 +705,7 @@ on:** B10.
 ```text
 B1 -> B2
 B3a -> B3b -> B5
+B3a -> B4a -> B5
 B4 -> B5
 {B1, B2, B5} -> B6 -> B6a -> B7
 B5 -> B8
@@ -625,17 +713,20 @@ B5 -> B8
 ```
 
 No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B6a, B7),
-`harness-manifest.yaml` (B5, B9, B10). B4 only adds new files and is independent of B3a/B3b;
+`harness-manifest.yaml` (B4a, B5, B9, B10). B4 only adds new files and is independent of B3a/B3b;
 B5 is the single unit that changes the root schema, the contract version, and the dogfood
-marker, so it waits for both the B3 migration and the B4 mirror. The manifest lists B4
-before B5 and B3b before B5.
+marker, so it waits for the B3 migration, the B4 mirror, and the B4a validation wording. B4a
+needs only the B3a helper and is correct before and after the cut-over, so it lands before
+B5. The manifest lists B4 before B5, B4a before B5, and B3b before B5.
 
 ## Decisions and Rationale
 
 * **One release for schema, resolver, verification, and surfaces.** Accepted-but-inert keys
   are the defect class being removed, so no key lands without its enforcement.
 * **Migration-first, then one atomic cut-over.** B3a/B3b remove the test coupling to the
-  literal `1.1.0` before anything else changes. B4 then publishes the 1.2.0 mirror
+  literal `1.1.0` before anything else changes, and B4a does the same for the one
+  agent-executed consumer that no other unit owns (the `workspace-discovery` Phase 0
+  validation wording). B4 then publishes the 1.2.0 mirror
   *unreferenced* (a new file nothing selects), and B5 flips the root const, the contract
   version, the current-mirror pairing, and the dogfood marker in one commit. The two
   alternatives were rejected: changing the root const in B4 and the contract in B5 leaves the
@@ -644,6 +735,15 @@ before B5 and B3b before B5.
   B4 and B5 into one unit would exceed the 2-hour rule. The recurrence history of
   schema-mirror mutation (`docs/compound/2026-08-08-*`, `2026-08-30-*`) is why the 1.1.0
   byte pin exists.
+* **Version-aware validation wording is completed by this release, not deferred (B4a).** The
+  root schema tracks only the current version, so a skill that validates against it alone
+  reports a valid legacy config as invalid once B5 moves the const. B8, B9, and R1-A A5
+  already rewrite three consumers; the fourth, `workspace-discovery`, gets its own small unit
+  because B8 depends on B5 (folding it there would land the correction after the cut-over)
+  and B5 is at its file budget. A prose-only hold ("deliberate before `215-S` is claimed") was
+  rejected: a hold that lives only in free text is invisible to claim eligibility, the same
+  failure as stash `FCC31BAB`. The fix is a backlog task with a dependency edge from B5 and
+  an acceptance test, so the shipment cannot reach the cut-over without it.
 * **Drift opt-in is "bindings declared".** Keying it to `schema_version` would turn this
   workspace red the moment its marker moves to 1.2.0, over drift that predates this work.
 * **Catalog entries are tier deltas.** Preserves the P-013.5 invariant (a targeted override,
@@ -668,7 +768,7 @@ before B5 and B3b before B5.
 |---|---|
 | A schema version bump cascades into tests and tooling | B3a/B3b first; B4 publishes an unreferenced mirror and changes no existing test; B5 flips the root const, contract version, current mirror, and dogfood marker in one commit and requires the full suite green there. |
 | A task boundary left red between the root const change and the contract bump | There is none by construction: no unit changes the root const without the contract version and marker (B5 only), and B4/B6/B6a/B7 leave the suite green; B5 stops and re-splits rather than commit red. |
-| A global skill still tells agents to validate an operator config against the root schema file, which carries const 1.2.0 after B5 (found while checking for the red-boundary pattern: `workspace-discovery` Phase 0; B8, B9, and R1-A A5 already rewrite the install, tune, and Orchestrator wording) | Out of scope for this plan (P-021 C1: a different contract surface, no test boundary goes red). Captured as `DEFERRED SCOPE EXPANSION` stash `44CB5AE1`, which must route through `deliberate` (P-021 C6); decide before `215-S` is claimed. `verify-workspace` is unaffected (it selects the matching mirror). |
+| A global skill still tells agents to validate an operator config against the root schema file, which carries const 1.2.0 after B5 (`workspace-discovery` Phase 0; B8, B9, and R1-A A5 already rewrite the install, tune, and Orchestrator wording) | Materialized, not deferred (PR #513 thread `PRRT_kwDORzpWpM6rlcW8`): new unit B4a (`208.014-T`, `S` / `low`) rewrites the `workspace-discovery` wording to select the mirror matching the document's own `schema_version`, B5 depends on it (backlog edge `208.006-T` -> `208.014-T`) and the `215-S` manifest lists it first, and B9 asserts an end-of-shipment sweep over all three skills (invariant I11). Stash `44CB5AE1` is archived with a forward reference. `verify-workspace` is unaffected (it selects the matching mirror). |
 | In-place mutation of the 1.1.0 mirror (third-occurrence bug class) | B4 forbids editing it; B5 pins its bytes. |
 | Verify turns red on this workspace | Drift opt-in is bindings-only; inert-key, unknown-key, and alias checks are existence-gated; B6/B7 acceptance includes "this workspace unchanged except new passing keys and info". |
 | A 1.2.0 allowlist rejects a hand-edited config with a key it does not know (for example a `subagents` block carried over from the baseline) | Intended: the key was inert. The failure names the key and the allowed set. Configs below 1.2.0 are untouched (schema) and get a non-blocking advisory (B6); the operator chooses when to bump `schema_version`. |
@@ -701,6 +801,7 @@ Requires plan hardening: yes
 | Unit | Runtime surface | Verification before absorption |
 |---|---|---|
 | B4/B5 | schema validation, `verify-workspace` | Validate this workspace config at 1.2.0 against the new mirror and a copy at 1.1.0 against the untouched mirror; confirm the 1.1.0 mirror hash equals `origin/main`. |
+| B4a | `workspace-discovery` Phase 0 | After B5, follow Phase 0 against a scratch config declaring 1.1.0 and one declaring 1.2.0: the first validates against the 1.1.0 mirror (not the root), the second against the root and the 1.2.0 mirror; neither is reported invalid. |
 | B6/B7 | `verify-workspace` | Run on this workspace: all prior keys unchanged, new keys passing, 13 subagents reported as `info` drift. Run on a scratch copy with a deliberately broken binding, an anchor, an unknown `model_routing` key (`routez`), and a drifted managed subagent: each fails at 1.2.0 with its documented code; the unknown key and the anchor warn only on a scratch copy declared at 1.1.0. |
 | B8 | fresh install render | Render the template for a scratch workspace; validate against 1.2.0; confirm no unresolved placeholders. |
 | B9 | `tune-harness` guidance | Walk the new step against a scratch config with three identical route blocks; confirm proposals are proposal-only. |
@@ -756,12 +857,21 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
 * I10 no task boundary is deliberately red: every unit leaves the full suite green. The root
   `schema_version` const, `SCHEMA_CONTRACTS["config"]["current_version"]`, the current-mirror
   file the B3 helper returns, and the dogfood marker change only together, in B5.
+* I11 no consumer reports a valid legacy-version operator config as invalid because the root
+  schema tracks only the current version: every skill or agent that validates an operator
+  config selects the schema matching the document's own `schema_version`
+  (`resolve_contract_schema_path`). Owners: R1-A A5 (Orchestrator), B4a (`workspace-discovery`,
+  before B5), B8 (`install-harness`), B9 (`tune-harness`, plus the sweep that asserts all
+  three skills). The one consumer that does not depend on B5 for other reasons lands before
+  the cut-over; the two that do (B8, B9) land inside the same unreleased shipment, where no
+  intermediate state is released and the full suite stays green (I10).
 
 **Risky actions:**
 
 | ProposedAction | ActionRisk | Approval | Rollback |
 |---|---|---|---|
 | B4: publish the 1.2.0 mirror as a new, unreferenced file | medium (new published schema; nothing selects it until B5) | PR review; operator merge approval (P-014) | delete the new file; 1.1.0 and root untouched |
+| B4a: edit one paragraph of a global engine skill plus its manifest checksum | low (prose and a checksum; no code; correct before and after the cut-over) | PR review; version-agnostic test | revert the commit |
 | B5: atomic cut-over: root schema content, `current_version`, `.autoharness/config.yaml` marker and manifest | high (contract change; operator-owned file; verification semantics) | **operator confirmation recorded 2026-10-12 (`040-DL` OQ9) and cited at Ship intake**; diff must show exactly one changed config line | revert the commit (root, contract, marker, checksum together); 1.1.0 untouched |
 | B6/B7: new fail-closed verify checks | medium | PR review; I4 workspace comparison | revert |
 | B6a: render-time site composition in the render loop | medium (shared render path; a bug changes every agent render) | PR review; I9 byte-identity of unbound renders | revert |
@@ -779,6 +889,11 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
   are `$id`, the `schema_version` const, `model_routing.additionalProperties`, `routes`, and
   `bindings` (a one-time check, not a committed test, because B5 makes the root equal the
   mirror).
+* B4a: the test reads the version and the current mirror only through the B3a helper (no
+  hardcoded current-version literal) and asserts both directions of the hazard (the selected
+  mirror accepts every known version's fixture; the root rejects every non-current one), so it
+  stays green before and after B5 and B5's gate re-runs it unmodified. The manifest checksum is
+  computed from the LF-normalized committed blob.
 * B5: before committing, run the four B3 modules and the full suite on the cut-over tree;
   all green in the same commit. The lockstep test compares root and the 1.2.0 mirror
   structurally (everything but `$id`). The SHA-256 pin is computed over LF-normalized bytes
@@ -858,3 +973,9 @@ decision: PASS
   superseding the `B3b -> B4` edge above); B6's alias check delegates to the shared R1-A
   guard (`207.006-T`). A delta check recorded in the review record's addendum leaves the
   gate decision above unchanged (findings B-F11 to B-F13, all P3).
+* **Addendum (PR #513 review-fix cycle 3, 2026-10-12 UTC):** the deferred `workspace-discovery`
+  validation wording is materialized as new unit B4a (`208.014-T`, `S` / `low`), ordered
+  before B5 with a backlog edge `208.006-T` -> `208.014-T` (and `208.014-T` -> `208.003-T`),
+  listed in the `215-S` manifest between B4 and B5; B9 gains an end-of-shipment sweep;
+  invariant I11 added; stash `44CB5AE1` archived. A delta check recorded in the review
+  record's addendum leaves the gate decision above unchanged (finding B-F14, P3).
