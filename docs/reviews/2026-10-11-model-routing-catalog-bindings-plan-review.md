@@ -192,3 +192,61 @@ through `deliberate` (C6) before `215-S` is claimed, acknowledged. **B-F13 [P3]*
 carries four checks, but the raw-YAML scan moved to R1-A, so its size and complexity are
 unchanged, acknowledged. No P0, P1, or P2 findings. The delta check supports the existing
 verdict: the plan remains **PASS**.
+
+## Addendum: PR #513 review-fix cycle 3 (2026-10-12 UTC)
+
+Append-only. The cycle 1 and cycle 2 records, both earlier addenda, and the verdict above are
+unchanged. The staging PR (#513) received a third Copilot review (review 5494859553) with one
+finding, touching this plan's shipment. Stage verified it against the repository, fixed it,
+and re-checked only the changed units as a single-agent delta pass (same `TOOL_DEGRADED`
+declarations as above). The repository test suite was not run (Stage boundary).
+
+| Review thread | Verification and change | Commit |
+|---|---|---|
+| `PRRT_kwDORzpWpM6rlcW8` (comment 4251365219, `.backlogit/queue/215-S.md` line 21: the `workspace-discovery` correction was a prose-only hold, so `215-S` could be claimed after `214-S` ships without it) | Confirmed. `.github/skills/workspace-discovery/SKILL.md` Phase 0 item 1 validates an operator config against `schemas/harness-config.schema.json`, whose `schema_version` const is the current version only. A scratch probe (not committed) showed a `{schema_version: 1.0.0}` document passes its own mirror and fails the root with `'1.1.0' was expected`; B5 makes the same true of 1.1.0, the version every installed workspace declares. `verify-workspace` is unaffected (it uses `resolve_contract_schema_path`). The other consumers are owned: `install-harness` by B8, `tune-harness` by B9, the Orchestrator template by R1-A A5. The cause is B5's own authorized cut-over on the same contract surface, so it is completed here (P-021 C1), not deferred again. New task **B4a** (`208.014-T`, `S` / `low`) rewrites the Phase 0 wording to select the mirror matching the document's own `schema_version` and adds a version-agnostic regression test (reads the version only through the B3a helper); edges `208.006-T` -> `208.014-T` and `208.014-T` -> `208.003-T`; manifest order `... 208.005-T, 208.014-T, 208.006-T ...`; B9 gains an end-of-shipment sweep over the three global skills; invariant I11; stash `44CB5AE1` archived with a forward reference | `2f851bc2` |
+
+Audit for other prose-only gates in the staged artifacts (greps for "before ... is claimed",
+"must be decided before", "do not claim", "decide before", "hold"): the only claim hold that
+lived solely in free text was `44CB5AE1`, now materialized. Not gates on `214-S` or `215-S`:
+`207-S` is a hold gate that already exists as a backlog item (the 168-S distribution
+re-plan) and is not a predecessor; the follow-up stash entries `C2EA31FA` (R2), `C5801D7B`
+(R3), `507B2139` (R4, gated on `9B582824` component A, which gates its own future staging)
+and `56654C18` (post-ship tune chore) gate nothing claimable; the "do not claim P-013.7" text
+in B10 reserves a policy number, not a shipment.
+
+Delta persona pass over the changed units:
+
+* **Architecture Strategist.** The root schema tracks only the current version, so every
+  agent-executed consumer must select the schema by the document's own `schema_version`, the
+  rule `resolve_contract_schema_path` already applies for `verify-workspace`. B4a follows the
+  same migration-first pattern as B3a/B3b: its wording is correct before and after the
+  cut-over, so it lands first and B5 depends on it. The graph is `B3a -> B3b -> B5`,
+  `B3a -> B4a -> B5`, `B4 -> B5`, `{B1, B2, B5} -> B6`; acyclic. The `215-S` manifest
+  (15 items) honors every task edge; no shipment-level edge changed, and
+  `autoharness gate dag-readiness` still reports `cycle_detected: false` and
+  `ready_set: [209-S]`.
+* **Python Reviewer.** No `src/` file changes. B4a's test is version-agnostic: the current
+  version and mirror come only from the B3a helper, the legacy set is every non-current
+  mirror on disk, and both directions of the hazard are asserted (selected mirror accepts,
+  root rejects a non-current version), so it stays green before and after B5 and B5's gate
+  re-runs it unmodified.
+* **Scope Boundary Auditor.** B4a is three files and one concern (skill prose, its manifest
+  checksum, its test); no template, CLI, schema, config, policy, or routing value is touched
+  and width isolation holds. B5 changes only by an added prerequisite and a fifth acceptance
+  criterion; B8 and B9 gain notes, and B9 gains one read-only sweep scenario inside its own
+  new test file (still `S` / `low`). The runtime-validation tokens that
+  `workspace_discovery_runtime_validation_contract` pins stay untouched.
+* **Constitution Reviewer and Learnings Researcher.** The reclassification (P-021 C1) is
+  recorded in `040-DL` D11 and supersedes the cycle 2 deferral, so no separate deliberation
+  artifact is required under C6. The compound learning on reading full stash text for holds
+  applies: a hold must be a backlog edge, not prose. No conflict.
+
+New findings: **B-F14 [P3]** the cycle 2 addendum's B-F12 text (the `workspace-discovery` gap
+"is out of scope ... must route through `deliberate` before `215-S` is claimed") described
+that state and is superseded by this addendum; the earlier record is left unaltered,
+acknowledged. **B-F15 [P3]** B8 and B9 still land after B5 (B8 depends on B5, B9 on B7 and
+B8), so `install-harness` and `tune-harness` keep a prose window inside the one unreleased
+shipment where the suite stays green (I10); it is closed by the B9 sweep (I11) rather than by
+reordering, acknowledged. **B-F16 [P3]** `215-S` now holds 15 manifest members (14 tasks,
+histogram `M:8`, `S:6`), acknowledged. No P0, P1, or P2 findings. The delta check supports
+the existing verdict: the plan remains **PASS**.

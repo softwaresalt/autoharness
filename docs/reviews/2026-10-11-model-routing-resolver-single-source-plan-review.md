@@ -161,3 +161,29 @@ makes 1.2.0 a valid version; A4's regression test reaches it now because the gua
 before schema validation, acknowledged. **A-F11 [P3]** one new task (`207.006-T`), so `214-S`
 holds six tasks (histogram `M:4`, `S:2`), acknowledged. No P0, P1, or P2 findings. The delta
 check supports the existing verdict: the plan remains **PASS**.
+
+## Addendum: PR #513 review-fix cycle 3 (2026-10-12 UTC)
+
+Append-only. The cycle 1 and cycle 2 records, both earlier addenda, and the verdict above are
+unchanged. The staging PR (#513) received a third Copilot review (review 5494859553) with one
+finding, thread `PRRT_kwDORzpWpM6rlcW8` on `.backlogit/queue/215-S.md`. It concerns the R1-B
+shipment, not an R1-A unit; Stage fixed it in the R1-B artifacts (commit `2f851bc2`; see the
+R1-B review record's cycle 3 addendum) and ran a delta check on this plan's side only.
+
+* **What changed here: nothing in R1-A.** `214-S` is byte-identical in membership and order
+  (`207-F`, `.001`, `.002`, `.003`, `.006`, `.004`, `.005`; six tasks, `M:4`, `S:2`), and no
+  `207.*` task body changed.
+* **Cross-plan dependency check.** R1-A unit A5 (`207.005-T`) already specifies the
+  Orchestrator wording this finding concerns ("the schema version matching the document's
+  own `schema_version`", versioned mirror), so it is the Orchestrator owner of the new R1-B
+  invariant I11 (every agent-executed config validator selects the schema by the document's
+  own version). The R1-B unit B4a (`208.014-T`) supplies the `workspace-discovery`
+  counterpart before B5, and B8/B9 the install and tune counterparts. No A5 change was
+  needed, and A5 still does not edit any route literal or Step 0.
+* **Graph.** `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
+  `ready_set: [209-S]`; the `214-S` manifest order honors every `207.*` edge.
+
+New finding: **A-F12 [P3]** A5 is now cross-referenced as the Orchestrator owner of R1-B
+invariant I11; its text, size (`M` / `low`), and acceptance criteria are unchanged,
+acknowledged. No P0, P1, or P2 findings. The delta check supports the existing verdict: the
+plan remains **PASS**.

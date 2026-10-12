@@ -192,3 +192,88 @@ the workspace. All times UTC; the cycle counter is 2 of the 3-cycle limit.
   different contract surface, so it is out of scope here; it must route through `deliberate`
   (C6) and be decided before `215-S` is claimed.
 * Still open for the operator: OQ5 and OQ8 (see the earlier addenda).
+
+## Addendum 2026-10-12: PR #513 review-fix cycle 3
+
+Append-only. Copilot review `5494859553` on PR #513 raised one new thread,
+`PRRT_kwDORzpWpM6rlcW8` (comment `4251365219`) on `.backlogit/queue/215-S.md` line 21: the
+`workspace-discovery` correction deferred in cycle 2 (stash `44CB5AE1`) was a prose-only hold,
+so `215-S` could be claimed once `214-S` ships without it. Stage verified it against the
+repository, fixed it at the root in a separate local commit, and ran a delta check (single-agent
+declared degradation, same as before). No push, no PR comment, no thread resolution: the Role
+Boundary reserves those for the Orchestrator. The repository test suite was not run (Stage
+boundary). All times UTC; this is review-fix cycle **3 of 3**, the last permitted. The
+engram, intercom, and graphtor-docs packs are installed but their tools were not exposed in
+this session (`ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`; file-based
+fallback, no halt); the backlogit tools were `ALL_TOOLS_OK` and `INDEX_SYNC_OK`.
+
+| UTC | Phase | Commit |
+|---|---|---|
+| 2026-10-12T18:55:33Z (+0s) | Session start; Role Boundary re-read; tool gate and index sync | |
+| 2026-10-12T19:04:25Z (+8m52s) | Verification against the repository (confirmed); option (a) chosen; task `208.014-T` created and sized | |
+| 2026-10-12T19:12:06Z (+7m41s) | Edges, manifest order, task, plan, and deliberation bodies; stash `44CB5AE1` triage note and archive | |
+| 2026-10-12T19:13:31Z (+1m25s) | Fix commit | `2f851bc2` |
+| 2026-10-12T19:13:52Z (+21s) | Review addenda, plan note, this memory note | the addenda commit |
+
+* **Finding: confirmed.** `.github/skills/workspace-discovery/SKILL.md` Phase 0 item 1 says
+  "Validate against `schemas/harness-config.schema.json`", the root file, whose `schema_version`
+  const is the current version only. A scratch probe (nothing written) showed a
+  `{schema_version: 1.0.0}` document passes its own mirror and fails the root with
+  `'1.1.0' was expected`; after B5 the same holds for 1.1.0, the version every installed
+  workspace declares. A repo-wide `git grep` of every reference to the root schema file found
+  the other three consumers already owned: `install-harness` Step 1.0b (B8, `208.010-T`),
+  `tune-harness` line 79 (B9, `208.011-T`), and the Orchestrator template line 491 (R1-A A5,
+  `207.005-T`, whose text already says "the schema version matching the document's own
+  `schema_version`"). `verify-workspace` is unaffected (`resolve_contract_schema_path`), and no
+  other CLI or script validates a config against the root file (`gates/config.py` validates a
+  different block). Invariant I10 (green suite at every boundary) is not literally violated,
+  because no test observes agent-executed prose, but its intent is: the root const is changed by
+  this PR's own cut-over.
+* **Choice: option (a), a new small task rather than folding into B8.** B8 depends on B5, so a
+  fold would land the correction after the cut-over; B5 is already at its file budget and must
+  not grow. New task `208.014-T` (plan unit B4a, `S` / `low`, `ah-stage-sizing-v1`, three
+  files) rewrites Phase 0 item 1 to select the mirror matching the document's own
+  `schema_version` (the `resolve_contract_schema_path` rule; `verify-workspace` named as the
+  CLI that applies it) and adds a version-agnostic regression test that reads the current
+  version only through the B3a helper (so B5 never edits it and B5's gate re-runs it
+  unmodified). No design decision was needed, so option (b) (a machine-readable gate) was not
+  used and `dag-root` and bootstrap grants were not touched. The two requested test cases map
+  as: legacy 1.1.0 validates through the mirror selection after the cut-over, and a 1.2.0
+  config validates against the root, both asserted over "every mirror on disk" at B5's gate.
+* **Edges and sizing.** `208.006-T` (B5) depends on `208.014-T`; `208.014-T` depends on
+  `208.003-T` (B3a helper). The `215-S` manifest order is `... 208.005-T, 208.014-T,
+  208.006-T ...` (15 items; 14 tasks, histogram `M:8`, `S:6`); no task edge is violated and no
+  edge leaves the manifest. Size was set first (`S`, `agent`, `ah-stage-sizing-v1`) and
+  complexity second (`low`) in separate calls, as backlogit requires. B9 gained one read-only
+  end-of-shipment sweep scenario over the three global skills (still `S` / `low`) so the new
+  invariant I11 has an executable check; B5, B8, and `208-F` text were updated to match. A
+  shipment title of 296 characters made `backlogit sync` fail to parse `215-S.md`; it was
+  shortened to 199 characters, so keep shipment titles well under 255.
+* **Stash `44CB5AE1`.** Triage note appended (materialized, not deferred; the Orchestrator's
+  P-021 C1 classification supersedes the cycle 2 out-of-scope rationale), then archived with
+  `backlogit stash archive` (not removed), with the forward reference
+  `44CB5AE1 -> 208.014-T`. The unconditional duplicate scan (P-021 C5 A) was clean: no other
+  stash entry describes this expansion. Late-identifier reconciliation (C5 B): the only `N/A`
+  (capturing task ID) stands; the new thread identifier is recorded in the note.
+* **Other prose-only gates.** A grep of the staged artifacts for "before ... is claimed",
+  "must be decided before", "do not claim", "decide before", and "hold" found only `44CB5AE1`
+  (now materialized) plus the stale cycle 2 statements in this memory file, the cycle 2 review
+  addendum, and earlier plan text; the plan and `040-DL` were updated in place, and the two
+  append-only records are superseded by this addendum and the review addenda, not rewritten.
+  The `207-S` hold gate is already a backlog item and not a predecessor; `C2EA31FA`,
+  `C5801D7B`, `507B2139` (gated on `9B582824` component A for its own future staging), and
+  `56654C18` gate nothing claimable.
+* **Supersedes.** The "Deferred scope expansion: stash `44CB5AE1`" bullet in the cycle 2
+  addendum above (out of scope; decide before `215-S` is claimed) no longer holds: the
+  correction is task `208.014-T`, a dependency of B5.
+* **Graph checks.** `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
+  `ready_set: [209-S]` (unchanged; no shipment edge changed). Both manifests honor every task
+  edge. A read-only `pre_claim` probe on this Stage branch returned `BRANCH_MISMATCH`, as
+  expected off a shipment branch; it is not a claim. Edited documents keep valid frontmatter
+  and one H1 with no heading-level skips.
+* **Review records.** Cycle 3 addenda appended to both plan-review records (findings B-F14 to
+  B-F16 and A-F12, all P3); earlier cycles and both PASS verdicts are untouched and still hold.
+* **Next (Orchestrator).** Push, post the reply on `PRRT_kwDORzpWpM6rlcW8` citing the fix
+  commit `2f851bc2`, resolve the thread. For Ship at `215-S` claim: execute `208.014-T`
+  (B4a) before `208.006-T` (B5); cite OQ9 at B5 intake as before.
+* Still open for the operator: OQ5 and OQ8 (see the earlier addenda).

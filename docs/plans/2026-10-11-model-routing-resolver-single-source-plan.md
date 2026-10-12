@@ -590,4 +590,10 @@ decision: PASS
   reuses; A4 gains the exit-`2` regression test; invariant I8 added. A delta check recorded in
   the review record's addendum leaves the gate decision above unchanged (findings A-F9 to
   A-F11, all P3).
+* **Addendum (PR #513 review-fix cycle 3, 2026-10-12 UTC):** no R1-A unit changed. The finding
+  (thread `PRRT_kwDORzpWpM6rlcW8`) was fixed in R1-B (new unit B4a, `208.014-T`); A5 is
+  cross-referenced there as the Orchestrator owner of the new invariant I11 (validate an
+  operator config against the schema matching the document's own `schema_version`), and its
+  text is unchanged. A delta check recorded in the review record's addendum leaves the gate
+  decision above unchanged (finding A-F12, P3).
 
