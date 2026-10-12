@@ -127,8 +127,10 @@ Scope boundaries (P-021 C1):
 
 Execution posture: test-first for every code unit (the harness-architect generates the
 expected-RED roster at Ship time); migration-first discipline for the schema bump (B3a and
-B3b make the existing tests version-agnostic **before** the root schema changes).
-Canonical test gate: `$env:PYTHONPATH='src'; python -m unittest discover -s tests`.
+B3b make the existing tests version-agnostic **before** the root schema changes, and B5
+then flips the root schema, the contract version, the current-mirror pairing, and the
+dogfood marker in one commit). **No task boundary is deliberately red:** every unit leaves
+the full suite green. Canonical test gate: `$env:PYTHONPATH='src'; python -m unittest discover -s tests`.
 
 ### B1: Resolver: tier-delta catalog and bindings
 
@@ -243,7 +245,11 @@ installed subagents (managed, with their template default tiers), excludes `_orc
 `SCHEMA_CONTRACTS["config"]["current_version"]`) and `current_config_mirror_path()`. Replace
 hardcoded `"1.1.0"` fixture `schema_version` values and the hardcoded
 `schemas/harness-config/1.1.0.schema.json` constant with the helper. Behavior and assertions
-are otherwise identical.
+are otherwise identical. These modules (and the two in B3b) validate current-version fixtures
+and the dogfood config against **both** the root schema and the current mirror, so the
+contract version, the root `schema_version` const, the current-mirror file, and the dogfood
+marker are read together; routing the version and mirror path through one helper is what lets
+B5 flip all four in a single commit without editing these tests again.
 
 **Tests (scenarios):** both modules pass at the current version (1.1.0) with no assertion
 changes; a grep-style assertion in the helper's own test that no hardcoded config
@@ -270,13 +276,13 @@ assertion reads the current mirror via the helper.
 **Harness surface:** `harness-surface:none`. **Size/complexity:** `S` / `low`. **Depends
 on:** B3a.
 
-### B4: Schema 1.2.0 (root plus new mirror)
+### B4: Author the schema 1.2.0 mirror (unreferenced until B5)
 
-**Files (3):** `schemas/harness-config.schema.json`,
-`schemas/harness-config/1.2.0.schema.json` (new), `tests/test_harness_config_schema_1_2_0.py`
-(new).
+**Files (2):** `schemas/harness-config/1.2.0.schema.json` (new),
+`tests/test_harness_config_schema_1_2_0.py` (new).
 
-**Change:** Root becomes `schema_version` const `1.2.0` and gains, under `model_routing`:
+**Change:** Publish the new mirror as a copy of the current root schema with `$id` set to the
+1.2.0 mirror URL, `schema_version` const `1.2.0`, and these additions under `model_routing`:
 `routes` (object; each value a `routeDelta`: `tier` required enum `tier1|tier2|tier3`,
 optional `model_family`, `model_provider`, `reasoning_effort`, and `context_tier` via the
 existing `contextTier` definition; `additionalProperties: false`; property names match
@@ -289,11 +295,20 @@ object: it gains `additionalProperties: false` over exactly the twelve propertie
 (the ten existing keys plus `routes` and `bindings`), so an unknown key such as `routez` or a
 top-level `subagents` block fails validation with a named path instead of being silently
 inert. The `not` ambiguity constraint on `model_routing` is unchanged. This tightening exists
-**only** in the 1.2.0 schema (root and new mirror): a 1.2.0 config is a deliberate opt-in
-(`schema_version` is bumped by the operator), whereas the published 1.1.0 mirror stays
-byte-identical, so every 1.1.0 config that validates today (extra keys included) still
-validates (invariants I1, I2). Nothing else changes. The 1.2.0 mirror equals the root except
-`$id`. **Do not edit `schemas/harness-config/1.1.0.schema.json`.**
+**only** in the 1.2.0 schema (this mirror, and the root once B5 adopts it): a 1.2.0 config is
+a deliberate opt-in (`schema_version` is bumped by the operator), whereas the published 1.1.0
+mirror stays byte-identical, so every 1.1.0 config that validates today (extra keys included)
+still validates (invariants I1, I2). Nothing else changes: the mirror is the current root
+plus the additions above. **Do not edit `schemas/harness-config/1.1.0.schema.json`.**
+
+**Why the root is not touched here.** The root `schema_version` const, the contract's
+`current_version`, the current-mirror file, and the dogfood marker are read together by the
+B3a/B3b modules (they validate current-version fixtures and the dogfood config against both
+the root and the current mirror) and by `resolve_contract_schema_path`. Flipping the root
+const in this unit while the contract and marker stay at 1.1.0 would leave those tests
+deliberately red until B5. So this unit publishes the mirror without referencing it
+(`known_versions` does not list 1.2.0, so nothing selects the file) and changes no existing
+test's behavior; B5 adopts it atomically.
 
 **Tests (scenarios):** empty and valid catalog/bindings validate; `routes.stage` style names
 that equal a tier, a route without `tier`, an unknown binding key shape (for example
@@ -303,32 +318,48 @@ otherwise-valid 1.2.0 config whose only defect is an unknown `model_routing` key
 config carrying only the inert baseline-style `subagents` block; every
 key the dogfood config and the rendered config template carry under `model_routing` is a member
 of the allowlist (a key-set subset check, independent of the marker); the
-`model_routing.properties` key set equals the twelve documented keys; the root and the
-1.2.0 mirror are identical except `$id`; a 1.1.0 document **including one with an unknown
-`model_routing` key and one with a `subagents` block** still validates against the untouched
-1.1.0 mirror.
+`model_routing.properties` key set equals the twelve documented keys; a 1.1.0 document
+**including one with an unknown `model_routing` key and one with a `subagents` block** still
+validates against the untouched 1.1.0 mirror. All of these validate against the mirror file
+directly, not the root.
 
-**Acceptance criteria:** the schema tests pass; `git diff` shows no change to the 1.1.0
-mirror; B3a/B3b tests still pass with root at 1.2.0 (they read the helper).
+**Acceptance criteria:** the schema tests pass; the full suite is green with **no existing
+test changed** and `git diff` shows no change to the 1.1.0 mirror, the root
+`harness-config.schema.json`, `src/autoharness/schema_contracts.py`, or
+`.autoharness/config.yaml` (the mirror is unreferenced until B5).
 
-**Harness surface:** `harness-surface:none` (JSON schemas and tests; no `src/` file).
-**Size/complexity:** `M` / `medium`. **Depends on:** B3b.
+**Harness surface:** `harness-surface:none` (JSON schema and tests; no `src/` file).
+**Size/complexity:** `M` / `medium`. **Depends on:** none within this plan (B3a/B3b gate
+B5, not this unit).
 
-### B5: Contract bump, migration entry, 1.1.0 byte pin, dogfood marker
+### B5: Atomic 1.2.0 cut-over: root schema, contract bump, migration entry, 1.1.0 byte pin, dogfood marker
 
-**Files (2 plus a marker pair):** `src/autoharness/schema_contracts.py`,
-`tests/test_harness_config_schema_versioning.py` (new); marker pair:
-`.autoharness/config.yaml` (the single `schema_version` line) and
+**Files (3 plus a marker pair):** `schemas/harness-config.schema.json`,
+`src/autoharness/schema_contracts.py`, `tests/test_harness_config_schema_versioning.py`
+(new); marker pair: `.autoharness/config.yaml` (the single `schema_version` line) and
 `.autoharness/harness-manifest.yaml` (`config_hash` and affected checksums).
 
-**Change:** Set `SCHEMA_CONTRACTS["config"]["current_version"]` to `1.2.0`, add `1.2.0` to
-`known_versions`, extend the version-decision comment block in the established style, and add
-a `known-legacy` `upgrade-config-contract-1.1.0-to-1.2.0` entry to `CONTRACT_MIGRATIONS`
-(additive; action: bump `schema_version`, optionally adopt `routes`/`bindings`, rerun
-verify-workspace). Add `test_legacy_1_1_0_mirror_preserved_unchanged`, pinning the SHA-256 of
-the LF-normalized bytes of the 1.1.0 mirror (value computed from the committed file at
-implementation time). Bump the dogfood `schema_version` to `1.2.0` and refresh the manifest
-`config_hash`.
+**Why one unit.** The root `schema_version` const, `SCHEMA_CONTRACTS["config"]["current_version"]`
+(which drives the B3 helper's fixture version and `current_config_mirror_path()`), the
+current-mirror file, and the dogfood marker are read together by the four B3a/B3b modules
+(each validates current-version fixtures and the dogfood config against both the root and the
+current mirror) and by `resolve_contract_schema_path`. Any subset flipping alone is red, so
+they flip in one commit and no task boundary is deliberately red.
+
+**Change:** Replace the root schema's content with the B4 mirror's content (identical except
+`$id`), so the root const reads `1.2.0` and carries `routes`, `bindings`, and the
+`model_routing` allowlist. Set `SCHEMA_CONTRACTS["config"]["current_version"]` to `1.2.0`,
+add `1.2.0` to `known_versions`, extend the version-decision comment block in the established
+style, and add a `known-legacy` `upgrade-config-contract-1.1.0-to-1.2.0` entry to
+`CONTRACT_MIGRATIONS` (additive; action: bump `schema_version`, optionally adopt
+`routes`/`bindings`, rerun verify-workspace). Add `test_legacy_1_1_0_mirror_preserved_unchanged`,
+pinning the SHA-256 of the LF-normalized bytes of the 1.1.0 mirror (value computed from the
+committed file at implementation time). Bump the dogfood `schema_version` to `1.2.0` and
+refresh the manifest `config_hash`. If the full-suite gate shows any other test that pins the
+config version or validates a current-version document against the root, make it
+version-agnostic through the B3 helper in this unit as a meaning-preserving edit and record it
+in the task comment; if that would exceed the file budget, stop and re-split rather than
+commit a red boundary.
 
 **Operator confirmation:** `.autoharness/config.yaml` is operator-owned. The operator
 confirmed the bump on 2026-10-12 (`040-DL`, "Operator Confirmation (2026-10-12)", OQ9 yes), so
@@ -336,15 +367,21 @@ Ship cites that record at intake rather than re-asking. The edit is limited to t
 `schema_version` marker (no `model_routing` value may change). Ship halts and asks the
 operator only if the recorded confirmation is missing or the change would exceed the marker.
 
-**Tests (scenarios):** the contract reports `1.2.0` current and `1.1.0` known-legacy; the
-1.1.0 byte pin; a 1.2.0 dogfood-shaped config validates; `summarize_schema_contract` marks a
-1.1.0 config `known-legacy` with the new proposal.
+**Tests (scenarios):** the contract reports `1.2.0` current and `1.1.0` known-legacy;
+`resolve_contract_schema_path` selects the 1.2.0 mirror for a 1.2.0 document and the
+untouched 1.1.0 mirror for a 1.1.0 document; the 1.1.0 byte pin; the root and the 1.2.0
+mirror are identical except `$id` (the lockstep check); the dogfood config (marker 1.2.0)
+validates against the root and the 1.2.0 mirror; `summarize_schema_contract` marks a 1.1.0
+config `known-legacy` with the new proposal; the four B3 modules pass unmodified.
 
-**Acceptance criteria:** full suite green; verify-workspace on this workspace reports the
-config contract as current with no schema warning.
+**Acceptance criteria:** the full suite is green in this unit's commit with no test changing
+meaning; verify-workspace on this workspace reports the config contract as current with no
+schema warning; the config diff is exactly one line.
 
-**Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `S` / `low`.
-**Depends on:** B4.
+**Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
+`medium` (resized from `S` / `low`: the root schema file joins the unit and atomicity raises
+the integration risk; size and complexity are both re-estimated under `ah-stage-sizing-v1`).
+**Depends on:** B3b, B4.
 
 ### B6: verify-workspace: catalog, binding, site, inert-key, unknown-key, and alias checks
 
@@ -560,22 +597,31 @@ on:** B10.
 
 ```text
 B1 -> B2
-B3a -> B3b -> B4 -> B5
+B3a -> B3b -> B5
+B4 -> B5
 {B1, B2, B5} -> B6 -> B6a -> B7
 B5 -> B8
 {B7, B8} -> B9 -> B10 -> B11
 ```
 
 No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B6a, B7),
-`harness-manifest.yaml` (B5, B9, B10).
+`harness-manifest.yaml` (B5, B9, B10). B4 only adds new files and is independent of B3a/B3b;
+B5 is the single unit that changes the root schema, the contract version, and the dogfood
+marker, so it waits for both the B3 migration and the B4 mirror. The manifest lists B4
+before B5 and B3b before B5.
 
 ## Decisions and Rationale
 
 * **One release for schema, resolver, verification, and surfaces.** Accepted-but-inert keys
   are the defect class being removed, so no key lands without its enforcement.
-* **Migration-first for the version bump.** B3a/B3b remove the test coupling to the literal
-  `1.1.0` before the root changes, so B4 is a small, reviewable schema change and the bump
-  does not cascade into four test files and the schema in one commit. The recurrence history of
+* **Migration-first, then one atomic cut-over.** B3a/B3b remove the test coupling to the
+  literal `1.1.0` before anything else changes. B4 then publishes the 1.2.0 mirror
+  *unreferenced* (a new file nothing selects), and B5 flips the root const, the contract
+  version, the current-mirror pairing, and the dogfood marker in one commit. The two
+  alternatives were rejected: changing the root const in B4 and the contract in B5 leaves the
+  four B3 modules (which validate current-version fixtures and the dogfood config against both
+  the root and the current mirror) deliberately red between the two units; folding all of
+  B4 and B5 into one unit would exceed the 2-hour rule. The recurrence history of
   schema-mirror mutation (`docs/compound/2026-08-08-*`, `2026-08-30-*`) is why the 1.1.0
   byte pin exists.
 * **Drift opt-in is "bindings declared".** Keying it to `schema_version` would turn this
@@ -600,7 +646,9 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 
 | Risk | Mitigation |
 |---|---|
-| A schema version bump cascades into tests and tooling | B3a/B3b first; B4 acceptance requires those tests unchanged in meaning; B5 acceptance requires the full suite green. |
+| A schema version bump cascades into tests and tooling | B3a/B3b first; B4 publishes an unreferenced mirror and changes no existing test; B5 flips the root const, contract version, current mirror, and dogfood marker in one commit and requires the full suite green there. |
+| A task boundary left red between the root const change and the contract bump | There is none by construction: no unit changes the root const without the contract version and marker (B5 only), and B4/B6/B6a/B7 leave the suite green; B5 stops and re-splits rather than commit red. |
+| A global skill still tells agents to validate an operator config against the root schema file, which carries const 1.2.0 after B5 (found while checking for the red-boundary pattern: `workspace-discovery` Phase 0; B8, B9, and R1-A A5 already rewrite the install, tune, and Orchestrator wording) | Out of scope for this plan (P-021 C1: a different contract surface, no test boundary goes red). Captured as `DEFERRED SCOPE EXPANSION` stash `44CB5AE1`, which must route through `deliberate` (P-021 C6); decide before `215-S` is claimed. `verify-workspace` is unaffected (it selects the matching mirror). |
 | In-place mutation of the 1.1.0 mirror (third-occurrence bug class) | B4 forbids editing it; B5 pins its bytes. |
 | Verify turns red on this workspace | Drift opt-in is bindings-only; inert-key, unknown-key, and alias checks are existence-gated; B6/B7 acceptance includes "this workspace unchanged except new passing keys and info". |
 | A 1.2.0 allowlist rejects a hand-edited config with a key it does not know (for example a `subagents` block carried over from the baseline) | Intended: the key was inert. The failure names the key and the allowed set. Configs below 1.2.0 are untouched (schema) and get a non-blocking advisory (B6); the operator chooses when to bump `schema_version`. |
@@ -685,13 +733,16 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
 * I8 no provider or model name is hardcoded in any template (Core Rule 3).
 * I9 every unbound artifact, and every pipeline artifact, renders byte-identically to its
   pre-change render (B6a).
+* I10 no task boundary is deliberately red: every unit leaves the full suite green. The root
+  `schema_version` const, `SCHEMA_CONTRACTS["config"]["current_version"]`, the current-mirror
+  file the B3 helper returns, and the dogfood marker change only together, in B5.
 
 **Risky actions:**
 
 | ProposedAction | ActionRisk | Approval | Rollback |
 |---|---|---|---|
-| B4: change root schema, publish 1.2.0 mirror | high (contract change) | PR review; operator merge approval (P-014) | revert; 1.1.0 untouched |
-| B5: bump `current_version`; edit `.autoharness/config.yaml` marker and manifest | high (operator-owned file; verification semantics) | **operator confirmation recorded 2026-10-12 (`040-DL` OQ9) and cited at Ship intake**; diff must show exactly one changed config line | revert two lines plus checksum |
+| B4: publish the 1.2.0 mirror as a new, unreferenced file | medium (new published schema; nothing selects it until B5) | PR review; operator merge approval (P-014) | delete the new file; 1.1.0 and root untouched |
+| B5: atomic cut-over: root schema content, `current_version`, `.autoharness/config.yaml` marker and manifest | high (contract change; operator-owned file; verification semantics) | **operator confirmation recorded 2026-10-12 (`040-DL` OQ9) and cited at Ship intake**; diff must show exactly one changed config line | revert the commit (root, contract, marker, checksum together); 1.1.0 untouched |
 | B6/B7: new fail-closed verify checks | medium | PR review; I4 workspace comparison | revert |
 | B6a: render-time site composition in the render loop | medium (shared render path; a bug changes every agent render) | PR review; I9 byte-identity of unbound renders | revert |
 | B10: amend P-013.5 | medium (governance text) | PR review; operator merge approval | revert |
@@ -699,16 +750,21 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
 
 **Added verification (tightens the plan):**
 
-* B3a/B3b gate: after the edits, a temporary local probe that sets the helper's current
-  version to `1.2.0` (monkeypatch in a scratch run, not committed) must show the four
-  modules do not fail on a hardcoded `1.1.0`. This proves B4/B5 will not cascade.
-* B4: the lockstep test compares root and the 1.2.0 mirror structurally (everything but
-  `$id`), and a second test asserts `git`-tracked 1.1.0 content equals its blob on
-  `origin/main` at implementation time (the byte pin in B5 is the durable form).
-* B5: the SHA-256 pin is computed over LF-normalized bytes so a Windows autocrlf checkout
-  does not break it. Ship records the computed value in the task comment. The config edit
-  is verified with `git diff --stat` showing exactly one changed line in
-  `.autoharness/config.yaml`.
+* B3a/B3b gate: after the edits, a grep over the four modules finds no harness-config `1.1.0`
+  literal (a deliberate legacy-pin assertion excepted); fixture versions and the mirror path
+  come only from the helper. Each module still passes at 1.1.0, unchanged in meaning.
+* B4: a test asserts the `git`-tracked 1.1.0 content equals its blob on `origin/main` at
+  implementation time (the byte pin in B5 is the durable form). At implementation time Ship
+  also diffs the new mirror against the then-current root and confirms the only differences
+  are `$id`, the `schema_version` const, `model_routing.additionalProperties`, `routes`, and
+  `bindings` (a one-time check, not a committed test, because B5 makes the root equal the
+  mirror).
+* B5: before committing, run the four B3 modules and the full suite on the cut-over tree;
+  all green in the same commit. The lockstep test compares root and the 1.2.0 mirror
+  structurally (everything but `$id`). The SHA-256 pin is computed over LF-normalized bytes
+  so a Windows autocrlf checkout does not break it. Ship records the computed value in the
+  task comment. The config edit is verified with `git diff --stat` showing exactly one
+  changed line in `.autoharness/config.yaml`.
 * B6: the alias scan is bounded to the `model_routing` subtree, tolerates a YAML parse
   error (reported, not raised), and detects merge keys (`<<`) as well as anchors and
   aliases. The unknown-key check reads only the keys directly under `model_routing`, never

@@ -278,6 +278,11 @@ Keep the single `model_routing` block as the source. Add optional keys in a **ne
   ambiguity class); renaming or removing existing keys (hard cutover, the rejected
   Option C of the F02FD596 decision); mutating `1.1.0` in place (third-occurrence bug
   class).
+* Staging constraint (PR #513 review, cycle 2): the new mirror is published first as an
+  unreferenced file; the root schema const, `SCHEMA_CONTRACTS` `current_version`, the
+  current-mirror file, and the dogfood marker then change together in one atomic unit, so no
+  task boundary is left red (the existing config-schema tests validate current-version
+  documents against both the root and the current mirror).
 
 ### D2: no YAML anchors, aliases, or merge keys; a tier-delta route catalog
 
