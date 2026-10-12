@@ -500,7 +500,9 @@ and 2 without changing any consumer.
 ## Unresolved Questions
 
 Each item has a recommended default. The default is what this staging proceeds on; none
-blocks planning or R1 shipping.
+blocks planning or R1 shipping. The operator's answer (2026-10-12 UTC) and the per-question
+status are recorded in the append-only "Operator Confirmation (2026-10-12)" section at the
+end of this document; the table below keeps the original questions and defaults.
 
 | ID | Question (needs operator authority) | Recommended default | What it blocks |
 |---|---|---|---|
@@ -512,7 +514,7 @@ blocks planning or R1 shipping.
 | OQ6 | Flat `escalation` deprecation timeline | Not in this series | Nothing here |
 | OQ7 | Go parity: author the resolver for a future port? | Yes (pure function, JSON vectors); `039-DL` does not hold R1 | Nothing here |
 | OQ8 | Disposition of stash `1E6C8576`, whose design is consumed here | Operator archives it after R2 is staged, since its escalation-ladder addendum is covered by R2 and OQ3 | Stash hygiene only |
-| OQ9 | May Ship move the dogfood `.autoharness/config.yaml` `schema_version` marker from `1.1.0` to `1.2.0` (marker only; no routing value) in R1-B unit B5? The config is operator-owned. | Yes, confirm at Ship intake | R1-B unit B5 and everything after it in that shipment |
+| OQ9 | May Ship move the dogfood `.autoharness/config.yaml` `schema_version` marker from `1.1.0` to `1.2.0` (marker only; no routing value) in R1-B unit B5? The config is operator-owned. | Yes (confirmed 2026-10-12; see "Operator Confirmation") | Nothing: confirmed. Ship cites the recorded confirmation at intake; the edit stays marker-only |
 
 ## Risks and Mitigations
 
@@ -546,3 +548,33 @@ blocks planning or R1 shipping.
   `docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md`,
   `docs/compound/2026-08-30-157-s-149-f-schema-mutation-in-place-third-occurrence.md`.
 * Policies: P-013, P-013.5, P-013.6, P-014, P-018, P-021, P-012, P-016.
+
+## Operator Confirmation (2026-10-12)
+
+Append-only note, recorded in UTC on 2026-10-12. Source: the operator's answer to the open
+questions reported by Stage in the "Needs you" list for this staging, relayed through the
+Orchestrator: "2. yes". Item 2 of that list was "accept the recommended defaults for OQ1 to
+OQ9, including OQ9 (Ship may bump the dogfood `.autoharness/config.yaml` `schema_version`
+marker from `1.1.0` to `1.2.0`; marker only, no routing value)".
+
+Status per question. "Resolved by default" means the operator accepted the recommended
+default in the table above. A question whose recommended default is itself "left to the
+operator" or a pending operator action is not closed by a yes and stays open.
+
+| ID | Status | Recorded outcome |
+|---|---|---|
+| OQ1 | Resolved by default | No provider-mix change; the Claude Stage route stays. No dogfood config change. |
+| OQ2 | Resolved by default | Cross-family review is `preferred`; never a merge gate. |
+| OQ3 | Resolved by default | Escalation stays analysis-only; P-013.6 unchanged; no `max_cycles`. The R2 gate "OQ3 default accepted" is satisfied. |
+| OQ4 | Resolved by default | Proposed catalog names (`ingest`, `repair`, `reviewer`, `architect`) as tier deltas over current tiers; no catalog data in the dogfood config. Concrete dogfood catalog values remain a later operator data decision and gate nothing in R1. |
+| OQ5 | **Open** | The recommended default is "left to the operator; not decided here", so a yes does not decide it. `3C19FA0F` (Stage escalation target) and `1F13DF5E` (Orchestrator route alignment) stay open operator decisions. |
+| OQ6 | Resolved by default | The flat `escalation` deprecation timeline is not in this series. |
+| OQ7 | Resolved by default | Go parity: the resolver is a pure function with JSON vectors; `039-DL` does not hold R1. |
+| OQ8 | **Open (default accepted, action pending)** | The accepted disposition is that the operator archives stash `1E6C8576` after R2 is staged. R2 is not staged yet, so no disposition has been executed; `1E6C8576` is untouched. |
+| OQ9 | Resolved: yes | Ship may bump the dogfood `.autoharness/config.yaml` `schema_version` marker from `1.1.0` to `1.2.0` in R1-B unit B5 (`208.006-T`). Marker only: no `model_routing` value may change. |
+
+Ship intake note for `208.006-T` and `215-S`: the confirmation now exists, so OQ9 no longer
+blocks either item. Ship cites this section at intake rather than re-asking. The edit stays
+marker-only: `git diff --stat` must show exactly one changed line in
+`.autoharness/config.yaml` (plus the manifest `config_hash` refresh), and Ship halts and asks
+the operator only if that record is missing or the change would exceed the marker.

@@ -398,8 +398,8 @@ section must carry literal `dispatch_mode:` and `decision:` markers; harvest hal
 them.
 
 **Unresolved operator decisions that block safe execution:** none. Items needing operator
-authority for later releases are recorded in `040-DL` (OQ1 to OQ9) with defaults; none
-blocks R1-A.
+authority for later releases are recorded in `040-DL` (OQ1 to OQ9) with defaults (confirmed
+2026-10-12, except OQ5 and OQ8 which remain open); none blocks R1-A.
 
 ## Plan Review
 

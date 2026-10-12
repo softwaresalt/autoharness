@@ -244,11 +244,11 @@ the LF-normalized bytes of the 1.1.0 mirror (value computed from the committed f
 implementation time). Bump the dogfood `schema_version` to `1.2.0` and refresh the manifest
 `config_hash`.
 
-**Operator checkpoint:** `.autoharness/config.yaml` is operator-owned. Ship MUST obtain
-explicit operator confirmation before editing it, and the edit is limited to the
-`schema_version` marker (no `model_routing` value may change). Recommended default:
-confirm. If declined, this unit and everything after it stays blocked and Ship halts with
-that reason (no workaround that leaves the dogfood on a legacy-flagged version).
+**Operator confirmation:** `.autoharness/config.yaml` is operator-owned. The operator
+confirmed the bump on 2026-10-12 (`040-DL`, "Operator Confirmation (2026-10-12)", OQ9 yes), so
+Ship cites that record at intake rather than re-asking. The edit is limited to the
+`schema_version` marker (no `model_routing` value may change). Ship halts and asks the
+operator only if the recorded confirmation is missing or the change would exceed the marker.
 
 **Tests (scenarios):** the contract reports `1.2.0` current and `1.1.0` known-legacy; the
 1.1.0 byte pin; a 1.2.0 dogfood-shaped config validates; `summarize_schema_contract` marks a
@@ -479,7 +479,7 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 | A schema version bump cascades into tests and tooling | B3a/B3b first; B4 acceptance requires those tests unchanged in meaning; B5 acceptance requires the full suite green. |
 | In-place mutation of the 1.1.0 mirror (third-occurrence bug class) | B4 forbids editing it; B5 pins its bytes. |
 | Verify turns red on this workspace | Drift opt-in is bindings-only; inert-key and alias checks are existence-gated; B6/B7 acceptance includes "this workspace unchanged except new passing keys and info". |
-| Operator declines the dogfood marker bump | Explicit operator checkpoint in B5; Ship halts with the reason; no half-state. |
+| Dogfood marker bump exceeds the marker or its confirmation record is missing | Operator confirmed 2026-10-12 (`040-DL` OQ9); Ship cites the record and checks the diff is one marker line; if either fails Ship halts with the reason; no half-state. |
 | Amendment Log version collision with the `209-S` to `213-S` chain | Version chosen at claim time as the next minor; shipment sequenced after `213-S`; rebase at claim. |
 | Site registry diverges from templates | B2 sync test. |
 | `build_site_registry` misclassifies a workspace-authored agent as managed | Provenance reuses `frontmatter_conformity`'s manifest-based index; unit test for the unmanaged case. |
@@ -496,7 +496,7 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 * Migration, backfill, destructive data/config action, or irreversible step: **present**.
   Schema version bump and an edit to the operator-owned dogfood config marker.
 * External integration, operator checkpoint, or external dependency: **present**. Operator
-  confirmation for the config marker; `R1-A` must have shipped; manifest checksums.
+  confirmation for the config marker (given 2026-10-12); `R1-A` must have shipped; manifest checksums.
 * High runtime, rollout, or rollback risk: **present**. A fail-closed verification gate and
   a version bump touching tests, tooling, and installed workspaces.
 
@@ -563,7 +563,7 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
 | ProposedAction | ActionRisk | Approval | Rollback |
 |---|---|---|---|
 | B4: change root schema, publish 1.2.0 mirror | high (contract change) | PR review; operator merge approval (P-014) | revert; 1.1.0 untouched |
-| B5: bump `current_version`; edit `.autoharness/config.yaml` marker and manifest | high (operator-owned file; verification semantics) | **explicit operator confirmation before the edit**; diff must show exactly one changed config line | revert two lines plus checksum |
+| B5: bump `current_version`; edit `.autoharness/config.yaml` marker and manifest | high (operator-owned file; verification semantics) | **operator confirmation recorded 2026-10-12 (`040-DL` OQ9) and cited at Ship intake**; diff must show exactly one changed config line | revert two lines plus checksum |
 | B6/B7: new fail-closed verify checks | medium | PR review; I4 workspace comparison | revert |
 | B6a: render-time site composition in the render loop | medium (shared render path; a bug changes every agent render) | PR review; I9 byte-identity of unbound renders | revert |
 | B10: amend P-013.5 | medium (governance text) | PR review; operator merge approval | revert |
@@ -601,7 +601,8 @@ violation; rollback is a revert of the shipment PR; owner is Ship; validation wi
 PR review plus the first `tune-harness` run after merge (it should propose the 13 subagent
 refreshes as proposals, never apply them).
 
-**Operator checkpoints:** (1) before B5's config edit, confirm OQ9. (2) at PR merge (P-014):
+**Operator checkpoints:** (1) before B5's config edit, Ship cites the recorded OQ9
+confirmation (2026-10-12) and verifies the diff is marker-only. (2) at PR merge (P-014):
 explicit approval. (3) separate from this release: whether to run the `tune` refresh of the
 13 stale subagent frontmatters.
 
@@ -610,9 +611,10 @@ dispatch and no dispatchable anchor route, so the review is
 `single-agent-declared-degradation` with `TOOL_DEGRADED: model-specific-review-routing`;
 the appended review must carry literal `dispatch_mode:` and `decision:` markers.
 
-**Unresolved operator decisions that block safe execution:** OQ9 only, and it blocks only
-unit B5 (and later units in this shipment) at Ship intake. Recommended default: confirm.
-OQ1 to OQ8 (`040-DL`) do not block this release.
+**Unresolved operator decisions that block safe execution:** none. OQ9 (the dogfood marker
+bump, scoped to B5) was confirmed by the operator on 2026-10-12 and is recorded in `040-DL`
+("Operator Confirmation (2026-10-12)"). OQ1 to OQ8 (`040-DL`) do not block this release
+(OQ5 and OQ8 remain open and unrelated to it).
 
 ## Plan Review
 

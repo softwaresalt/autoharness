@@ -89,3 +89,19 @@ series), OQ7 Go parity (yes), OQ8 disposition of stash `1E6C8576` (operator), OQ
 2. Operator answers `040-DL` OQ1 to OQ9, in particular OQ9 before `208.006-T` and OQ8.
 3. Ship works the queue: `214-S` is claimable only after `213-S` ships; `215-S` after `214-S`.
 4. After `215-S`: run `tune-harness` (proposals only) for stash `56654C18`; stage R2 and R3.
+
+## Addendum 2026-10-12: operator confirmation of the `040-DL` defaults
+
+Append-only. Supersedes the "Operator decisions pending" section and next step 2 above for
+the questions it resolves. The operator answered "2. yes" (accept the recommended defaults for
+OQ1 to OQ9, including the OQ9 marker bump), relayed by the Orchestrator and recorded in
+`040-DL` under "Operator Confirmation (2026-10-12)".
+
+* Resolved by default: OQ1, OQ2, OQ3, OQ4, OQ6, OQ7. Resolved yes: OQ9 (Ship may bump the
+  dogfood `schema_version` marker `1.1.0` to `1.2.0`; marker only, no routing value).
+* Still open: OQ5 (its default is "left to the operator", so a yes does not decide
+  `3C19FA0F` or `1F13DF5E`) and OQ8 (default accepted; the operator archives `1E6C8576`
+  after R2 is staged, which has not happened).
+* `208.006-T` and `215-S` are no longer gated on an OQ9 answer. Ship cites the recorded
+  confirmation at intake; the edit stays marker-only (one changed line in
+  `.autoharness/config.yaml`).
