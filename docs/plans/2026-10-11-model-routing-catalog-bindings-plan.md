@@ -1097,3 +1097,11 @@ decision: PASS
   listed in the `215-S` manifest between B4 and B5; B9 gains an end-of-shipment sweep;
   invariant I11 added; stash `44CB5AE1` archived. A delta check recorded in the review
   record's addendum leaves the gate decision above unchanged (finding B-F14, P3).
+* **Addendum (PR #513 review-fix cycle 4, 2026-10-12 UTC; the operator authorized one cycle
+  beyond the three-cycle limit):** the site registry derives `default_tier` for
+  `managed-community` agents as well as `managed-rendered` ones, by one parse of the template
+  tier placeholder (community agents via the manifest `template_path`); an unresolvable
+  default is reported with a reason (`SiteRegistry.unresolved`) and follows B7's bindings
+  opt-in; B6a overlays the in-memory community render too; invariant I12 added. No task,
+  edge, size, or manifest change. A delta check recorded in the review record's addendum
+  leaves the gate decision above unchanged (findings B-F17 to B-F20, all P3).

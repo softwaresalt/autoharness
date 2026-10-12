@@ -250,3 +250,66 @@ shipment where the suite stays green (I10); it is closed by the B9 sweep (I11) r
 reordering, acknowledged. **B-F16 [P3]** `215-S` now holds 15 manifest members (14 tasks,
 histogram `M:8`, `S:6`), acknowledged. No P0, P1, or P2 findings. The delta check supports
 the existing verdict: the plan remains **PASS**.
+
+## Addendum: PR #513 review-fix cycle 4 (2026-10-12 UTC)
+
+Append-only. The cycle 1 to cycle 3 records, all earlier addenda, and the verdict above are
+unchanged. This is review-fix cycle **4**: the three-cycle limit was reached in cycle 3 and
+the operator explicitly authorized one more cycle (disposition recorded: "Option 1: extend
+the cycle limit by one"). The staging PR (#513) received a fourth Copilot review (review
+5495212123) with one finding on this plan. Stage verified it against the repository, fixed
+it, and re-checked only the changed units as a single-agent delta pass (same
+`TOOL_DEGRADED` declarations as above). The repository test suite was not run (Stage
+boundary).
+
+| Review thread | Verification and change | Commit |
+|---|---|---|
+| `PRRT_kwDORzpWpM6rmKbh` (comment 4251665186, plan line 213: `FC_MANAGED_CLASSES` also includes `managed-community`, but B2 derives `default_tier` only for `managed-rendered`, so a community agent registers `managed=True, default_tier=None` and cannot resolve its template default) | Confirmed. `_fc_build_provenance_index` assigns `managed-community` from a manifest `community_templates[]` entry alone and carries its `template_path`; `_fc_evaluate_target` sets `managed = artifact_class in FC_MANAGED_CLASSES`, and `frontmatter_conformity` fails managed community files closed exactly like rendered ones. The shipped community template (`templates/community/agents/adr-generator.agent.md.tmpl`, also the `template_path` its `templates/community/registry.yaml` entry exposes) declares `max_subagent_tier: 2` and `model_family: "{{TIER_2_FAMILY}}"` and is rendered by the same `_render_template` (plain `{{KEY}}` replacement); `_fc_rendered_candidate` already resolves a community `template_path` through `_fc_contained_community_source` (relative, existing file inside `autoharness_home/templates/`). So an unbound community agent resolved no route: B7 would skip it or fail it as `ROUTING_UNRESOLVED`, and B6a gave it no overlay. Fix: B2 derives `default_tier` for both template-backed classes through **one** `{{TIER_<N>_FAMILY}}` frontmatter parse (community from the manifest `template_path`, the existing containment rule reused), `SiteRegistry` gains `unresolved` (id to reason: `template-path-unusable`, `template-unreadable`, `no-tier-placeholder`, `ambiguous-tier`; `SiteSpec` keeps three fields), the sync test covers community agent templates, and fixtures cover managed-community, missing and escaping `template_path`, no placeholder, ambiguous, and unreadable; B6a overlays both render seams; B7 compares an unbound community agent against its template default and surfaces an unresolved default (fail closed with bindings via `ROUTING_SITE_DEFAULT_UNRESOLVED`, `info` without); B6 gains a known-site test; invariant I12 | `6dffa98c` |
+
+The drift-verification unit is B7 (`208.009-T`); B9 (`208.011-T`) is the tune-harness unit and
+is unchanged (it only proposes, and the verify output already names an unresolved default).
+Other managed classes in `FC_MANAGED_CLASSES`: `managed-rendered` (already derived),
+`managed-community` (the finding), and `managed-source` (`auto-tune`, `auto-mergeinstall`:
+manifest label "global agent definition", no template, listed in `plugin.json`, frontmatter
+carries tier keys only and no route-value keys), so it correctly has no tier default and
+stays dropped. This workspace's manifest has no `community_templates` entry and no community
+agent is installed, so its registry and verify output are unchanged (invariant I4); community
+coverage is by fixture and by the added scratch-workspace runtime check.
+
+Delta persona pass over the changed units:
+
+* **Architecture Strategist.** The registry now mirrors `_fc_build_provenance_index`'s
+  classification on both of its manifest sources instead of one, so the disk-first join is
+  complete. The class is taken from the manifest, never from template health, so an
+  unusable community template stays managed (fail-closed) rather than being demoted to an
+  advisory workspace-authored site. The plan dependency graph is unchanged and acyclic.
+* **Python Reviewer.** The tier parse is one targeted regex over the frontmatter block (no
+  YAML parse of `{{...}}` values); community resolution reuses
+  `_fc_contained_community_source`, so containment precedes every read and an escaping path
+  is never read (asserted at the read seam). `SiteSpec` is untouched, so the R1-A resolver
+  contract and the B1 vectors do not change.
+* **Scope Boundary Auditor.** No new task, file, edge, or concern: B2, B6, B6a, and B7 each
+  keep their two files and `M` / `medium`; the increments are one more template source for
+  the same parse (B2), a second render seam in the same file (B6a), one more drift state
+  (B7), and one known-site scenario (B6). The `215-S` manifest is unchanged (15 members,
+  histogram `M:8`, `S:6`).
+* **Constitution Reviewer and Learnings Researcher.** The fix completes the same
+  contract surface the finding named (P-021 C1), so nothing is deferred and no
+  `DEFERRED SCOPE EXPANSION` entry was created. The provenance split (`037-DL`) and the
+  fail-closed-managed rule are reused, not reinvented.
+
+New findings: **B-F17 [P3]** B2's manifest-orphan rule covered `artifacts[]` only, the same
+root cause as the finding (community entries invisible to the manifest side of the join);
+extended to `community_templates[]` with a fixture, acknowledged. **B-F18 [P3]**
+`SiteRegistry` gained a fourth field (`unresolved`), the same shape change as B-F9; B6 and B7
+were updated in the same revision, acknowledged. **B-F19 [P3]** `ROUTING_SITE_DEFAULT_UNRESOLVED`
+is a verify-level code defined in B7, not a resolver code, and fails only under the bindings
+opt-in, so I4 holds, acknowledged. **B-F20 [P3]** a managed-rendered file with a missing
+template source is demoted by the classifier to unknown-provenance (workspace-authored) while
+a community file with an unusable template stays managed with an unresolved default; the
+asymmetry follows the existing classifier and is recorded in B2, acknowledged. No P0, P1, or
+P2 findings. The delta check supports the existing verdict: the plan remains **PASS**.
+
+Graph checks: `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
+`ready_set: [209-S]`; the `214-S` (7 items) and `215-S` (15 items) manifests honor every
+task edge and no edge leaves either manifest; no edge changed.

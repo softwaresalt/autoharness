@@ -277,3 +277,93 @@ fallback, no halt); the backlogit tools were `ALL_TOOLS_OK` and `INDEX_SYNC_OK`.
   commit `2f851bc2`, resolve the thread. For Ship at `215-S` claim: execute `208.014-T`
   (B4a) before `208.006-T` (B5); cite OQ9 at B5 intake as before.
 * Still open for the operator: OQ5 and OQ8 (see the earlier addenda).
+
+## Addendum 2026-10-12: PR #513 review-fix cycle 4 (operator-authorized extension)
+
+Append-only. Copilot review `5495212123` on PR #513 raised one new thread,
+`PRRT_kwDORzpWpM6rmKbh` (comment `4251665186`) on
+`docs/plans/2026-10-11-model-routing-catalog-bindings-plan.md` line 213: the site registry
+(B2) derived `default_tier` only for `managed-rendered` files although `FC_MANAGED_CLASSES`
+also contains `managed-community`. The cycle 3 addendum above says cycle 3 was "the last
+permitted"; the operator then explicitly authorized one more cycle (disposition recorded:
+"Option 1: extend the cycle limit by one"), so this is cycle **4**, and that sentence is
+superseded, not rewritten. Stage verified the finding against the repository, fixed it in a
+separate local commit, and ran a delta check (single-agent declared degradation, same as
+before). No push, no PR comment, no thread resolution: the Role Boundary reserves those for
+the Orchestrator. The repository test suite was not run (Stage boundary). All times UTC. The
+engram, intercom, and graphtor-docs packs are installed but their tools were not exposed in
+this session (`ENGRAM_DEGRADED`, `INTERCOM_DEGRADED`, `GRAPHTOR_UNAVAILABLE`; file-based
+fallback, no halt); the backlogit tools were `ALL_TOOLS_OK` and `INDEX_SYNC_OK` (CLI sync
+completed after the edits).
+
+| UTC | Phase | Commit |
+|---|---|---|
+| 2026-10-12T19:38:17Z (+0s) | Session start; Role Boundary re-read; tool gate and index sync | |
+| 2026-10-12T19:45:57Z (+7m40s) | Verification against the repository (confirmed) | |
+| 2026-10-12T19:49:35Z (+3m38s) | Plan, deliberation, and task bodies edited; index sync; graph and manifest checks | |
+| 2026-10-12T19:50:45Z (+1m10s) | Fix commit | `6dffa98c` |
+| 2026-10-12T19:51:10Z (+25s) | Review addendum, plan note, this memory note | the addenda commit |
+
+* **Finding: confirmed.** `_fc_build_provenance_index` (`verify_workspace.py` ~3563) gives
+  every manifest `community_templates[]` entry `class: managed-community` with its
+  `template_path`, from the entry alone; `FC_MANAGED_CLASSES` (~3471) holds
+  `managed-rendered`, `managed-community`, and `managed-source`; `_fc_evaluate_target` (~3723)
+  sets `managed = artifact_class in FC_MANAGED_CLASSES`, and `frontmatter_conformity` (~4135)
+  fails a nonconformant managed community file closed like a rendered one;
+  `_fc_rendered_candidate` (~3869) documents the community in-memory render. The shipped community template
+  `templates/community/agents/adr-generator.agent.md.tmpl` (registry `template_path` of the
+  same value) declares `max_subagent_tier: 2` and `model_family: "{{TIER_2_FAMILY}}"` and is
+  rendered by the same `_render_template` (plain `{{KEY}}` replacement) through
+  `_compose_artifact_variables`; `_fc_rendered_candidate` already resolves a community
+  `template_path` with `_fc_contained_community_source`. The B2 plan parsed the tier only for
+  `managed-rendered`, so a community agent registered `managed=True, default_tier=None`, an
+  unbound one resolved no route (B7 would skip it or fail it as `ROUTING_UNRESOLVED`), and
+  B6a gave it no overlay.
+* **Design (reuse, no new scheme).** One `{{TIER_<N>_FAMILY}}` frontmatter regex serves both
+  template-backed classes; `N` maps to `tier<N>` (the `_derive_tier_route_variables` mapping).
+  Community resolution reuses `_fc_contained_community_source` (relative, existing file
+  inside `autoharness_home/templates/`). When no single tier results the site still registers
+  `managed=True, default_tier=None` and `SiteRegistry.unresolved` carries the reason
+  (`template-path-unusable`, `template-unreadable`, `no-tier-placeholder`, `ambiguous-tier`);
+  `SiteSpec` keeps three fields so B1 and the R1-A resolver contract are untouched. Verdict
+  (B7): an unbound managed site with an unresolved default fails closed with
+  `ROUTING_SITE_DEFAULT_UNRESOLVED: <id>: <reason>` only when the workspace declares
+  bindings, and is one `info` line otherwise, the same opt-in as drift, so this workspace
+  stays `ok` (it installs no community agent; its manifest has no `community_templates`
+  entry). Rejected: guessing a tier, demoting the site to workspace-authored (would turn a
+  fail-closed managed check into an advisory one), skipping silently (the defect).
+* **Other managed classes.** `managed-rendered` already derived. `managed-source`
+  (`auto-tune`, `auto-mergeinstall`) has no template, tier keys only, no route-value keys
+  (plugin-global profile): correctly no tier default, still dropped. A `managed-rendered` file
+  with a missing template source never reaches the unresolved branch (the classifier makes it
+  unknown-provenance, so it registers workspace-authored); a community file with an unusable
+  template stays managed because its class comes from the manifest alone (recorded as
+  B-F20).
+* **Edits.** Plan: outcome, contract extensions, B2, B6, B6a, B7, decisions, risk rows,
+  invariant I12, runtime verification (scratch workspace with `adr-generator`), Plan Review
+  bullet. Tasks: `208.002-T` (B2), `208.008-T` (B6), `208.007-T` (B6a), `208.009-T` (B7, the
+  drift unit; B9 is `208.011-T` and unchanged). Deliberation `040-DL`: D3, D10 row, risk row,
+  Traceability. B2 also now treats a missing `community_templates[]` file as an orphan
+  (same root cause, B-F17). The grep of all staged artifacts for the old
+  "parsed only for a `managed-rendered`" statement finds none left.
+* **Sizes and the 2-hour rule.** No size or complexity change (`ah-stage-sizing-v1` values
+  kept): B2, B6, B6a, B7 stay `M` / `medium`; each increment is small (one more template
+  source for the same parse; one more render seam in the same file; one more drift state)
+  and stays within two files and one concern. `215-S` manifest unchanged (15 items; 14 tasks,
+  `M:8`, `S:6`).
+* **Graph checks.** `autoharness gate dag-readiness --json`: `cycle_detected: false`,
+  `ready_set: [209-S]`. The `214-S` (7 items) and `215-S` (15 items) manifests honor every
+  task edge; no edge leaves either manifest; no edge changed.
+* **Prose-only gates and deferrals.** None found: nothing in this fix is a hold. No
+  `DEFERRED SCOPE EXPANSION` stash entry was created (the fix completes the same contract
+  surface; P-021 C1); so the P-021 C5 duplicate scan and late-identifier reconciliation did
+  not apply this cycle.
+* **Review records.** Cycle 4 addendum appended to the catalog-bindings plan-review record
+  (findings B-F17 to B-F20, all P3); the PASS verdict still holds (delta check). The R1-A
+  plan and its review record are not affected and were not touched. Edited documents keep
+  valid frontmatter and one H1 with no heading-level skips.
+* **Next (Orchestrator).** Push, post the reply on `PRRT_kwDORzpWpM6rmKbh` citing the fix
+  commit `6dffa98c`, resolve the thread. For Ship at `215-S`: B2 (`208.002-T`) now owns
+  community-agent tier derivation, B6a (`208.007-T`) both render seams, and B7
+  (`208.009-T`) the community and unresolved-default verdicts.
+* Still open for the operator: OQ5 and OQ8 (see the earlier addenda).
