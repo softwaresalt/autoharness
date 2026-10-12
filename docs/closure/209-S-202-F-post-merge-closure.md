@@ -165,6 +165,10 @@ All 4 review threads on PR #514 are resolved (4/4). Final P-018 gate on `8faa1f8
 
 * P-021 C2 capture: stash `635D7BAC` (extend P-017 policy text and `docs/pipeline-topology-gate.md`
   with the activation-preflight clause; kind task; provisional priority medium; requires deliberation: no).
+* Follow-up capture (Copilot review finding on PR #515): stash `1AD61D32` (decide whether to adopt the
+  GraphQL `requestReviews` `botIds` technique as an explicitly configured Copilot-request fallback in
+  `github-pr-automation.instructions.md` section 1.1; kind task; provisional priority medium; requires
+  deliberation: yes). Until decided, section 1.1's configured-wrapper rule stands.
 * CHANGELOG `## Unreleased` entry for the 209-S behaviour change: left to the carryover release cut
   (shipments 210-S and 211-S are the remaining cut members; the plan's closure note lists
   P1/P3/P7/FB6F9FE0 for the release note).
@@ -176,19 +180,23 @@ All 4 review threads on PR #514 are resolved (4/4). Final P-018 gate on `8faa1f8
   reviewed head. Parents `6227fc09` and `8faa1f86`.
 * Admin fallback: not used (`admin_fallback_pre_authorized: false`). No `--force`.
 * Tools: Copilot review was requested through the GraphQL `requestReviews` mutation with `botIds`
-  (`gh pr edit --add-reviewer` and REST did not register it); see
+  because the operator's dark-mode brief explicitly required a Copilot review and neither
+  `gh pr edit --add-reviewer` nor REST registered it. This is an observed technique, not a
+  configured fallback (section 1.1); the policy decision is captured as stash `1AD61D32`. See
   `docs/compound/2026-10-12-requesting-copilot-review-via-graphql-bot-id.md`.
 
 ## Compaction Status (P-020)
 
-`done`. The mandatory compact-context run (target `all`, P-020) was invoked as a bounded,
-threshold-gated scan after the session memory summary was written:
+`done`. The mandatory compact-context run (target `all`, P-020) was invoked after the session
+memory summary was written, and performed its bounded Tier-1 consolidation of the just-closed
+release unit's fresh memory:
 
-* Session record: `docs/memory/2026-10-12-ship-209-s-post-merge-closure.md`.
-* Candidates compacted: none. The only memory that mentions this unit,
-  `docs/memory/2026-10-08/stage-backlogit-carryover-first-cut-memory.md`, covers the whole carryover
-  cut (Features B and C, shipments 210-S and 211-S, are not complete), so it does not qualify under
-  the completed-work rule and was left in place. Active checkpoints preserved: 0 needed.
+* Compacted: the session record `docs/memory/2026-10-12-ship-209-s-post-merge-closure.md` into
+  `docs/memory/compacted/2026-10-12-209-s-202-f-compacted.md`. The verbose original was moved,
+  not deleted, to `docs/archive/memory/2026-10-12-ship-209-s-post-merge-closure.md`.
+* Not compacted: `docs/memory/2026-10-08/stage-backlogit-carryover-first-cut-memory.md` covers the
+  whole carryover cut (Features B and C, shipments 210-S and 211-S, are not complete), so it does
+  not qualify under the completed-work rule. Active checkpoints preserved: 0 needed.
 * Deferred: the legacy `docs/memory` backlog is above the 40-file and 500 KB thresholds (79 files,
   about 818 KB), already tracked by `3A3C72D0`; bulk compaction of unrelated older memory is outside
   this release unit's bounded closure.

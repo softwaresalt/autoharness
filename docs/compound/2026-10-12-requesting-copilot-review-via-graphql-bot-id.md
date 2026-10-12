@@ -18,6 +18,15 @@ tool. `github-pr-automation.instructions.md` section 1.1 says not to rely on
 configured, and every `gh`/REST attempt left `reviewRequests` empty, so the P-018 gate would
 have blocked on `WAITING_FOR_REVIEW` indefinitely.
 
+## Status: observed technique, not a configured fallback
+
+`github-pr-automation.instructions.md` section 1.1 permits a wrapper for requesting Copilot
+review only when one is explicitly configured, and otherwise requires recording shadow review as
+unavailable/advisory. This learning does NOT configure the mutation below as a fallback and does
+not change that rule. It was used in 209-S only because the operator's dark-mode brief explicitly
+required Ship to request a Copilot review and wait for it. Whether to adopt it as a configured
+fallback is an operator policy decision, captured as stash `1AD61D32`.
+
 ## What worked
 
 The GraphQL `requestReviews` mutation with `botIds` and `union: true` registered the
@@ -45,7 +54,10 @@ after every push to re-arm review for the new HEAD.
 
 ## Prevention
 
-Treat the GraphQL mutation above as the configured Copilot-request fallback for sessions
-without GitHub MCP, and record it in the PR body's `Shadow review` line. The `BOT_` node ID
-is a stable GitHub identifier for the Copilot reviewer bot; re-verify it with the
-mutation response (`requestedReviewer.login`) rather than trusting it blindly.
+Until stash `1AD61D32` is decided: when no configured wrapper exists and the operator has not
+explicitly asked for a Copilot review, follow section 1.1 and record shadow review as
+unavailable/advisory. When the operator explicitly requires a Copilot review (as in the 209-S
+dark-mode brief), the GraphQL mutation above is a known working technique; record that choice in
+the PR body's `Shadow review` line. The `BOT_` node ID is a GitHub identifier for the Copilot
+reviewer bot; verify it from the mutation response (`requestedReviewer.login`) rather than
+trusting it blindly.
