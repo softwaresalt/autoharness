@@ -145,10 +145,24 @@ class Step0ReportingContractTests(unittest.TestCase):
                     "`PREDECESSOR_CLOSURE_INCOMPLETE`",
                     "bootstrap grant present",
                     "This sub-step is read-only",
+                    "every `blocks` predecessor of the candidate has shipped",
+                    "does not exclude the candidate from probing",
+                    "Every `INELIGIBLE` variant, including `GATE_PROBE_ERROR`",
+                    "`active_shipment_invariant`",
+                    "`detect_before_consistency`",
+                    "`backlog_state`",
+                    "`worktree_topology`",
+                    "`worktree_cleanliness`",
+                    "`branch_ownership`",
                 ):
                     self.assertIn(token, step0)
                 state_block = _between(step0, "ORCHESTRATOR STATE:", "```\n\n", path)
-                for field in ("Eligible shipments", "Gate-blocked shipments", "GLOBAL_GATE_BLOCK"):
+                for field in (
+                    "Eligible shipments",
+                    "Gate-blocked shipments",
+                    "Unevaluated shipments",
+                    "GLOBAL_GATE_BLOCK",
+                ):
                     self.assertIn(field, state_block)
                 skip = regions[label]["step 2 skip"]
                 for token in (
@@ -157,6 +171,7 @@ class Step0ReportingContractTests(unittest.TestCase):
                     "(b) while a `DARK_MODE_ACTIVE` run is in effect",
                     "(c) an operator-named `ship {id}` is never substituted",
                     "remains the sole claim authority",
+                    "Carve-out (a) takes precedence over (c)",
                 ):
                     self.assertIn(token, skip)
                 self.assertIn("Gate-blocked first-pass skip", _between(text, _STEP2, _STEP3, path))
@@ -188,6 +203,10 @@ class DarkPreflightContractTests(unittest.TestCase):
                     "never read as a pass",
                     "not_applicable",
                     "head: active (resume)",
+                    "halts like any other blocked head",
+                    "none of which is itself `EXTERNAL_BLOCKER`",
+                    "not_applicable (no shipment in scope)",
+                    "skipped (ELIGIBILITY_GATE_SKIPPED)",
                     "--phase pre_claim",
                 ):
                     self.assertIn(token, preflight_text)
