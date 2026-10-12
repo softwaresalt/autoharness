@@ -1,6 +1,6 @@
 ---
 title: "Model routing v2: deterministic route resolver, tier-delta catalog, and subagent site bindings"
-description: "Deliberation for stash BF66F08B (040-DL). Evaluates the docs/design-docs/model-routing-v2.md baseline against the shipped P-013/P-013.5/P-013.6 routing contract and decides an improved, staged mechanism: one deterministic resolver, a YAML-anchor-free tier-delta route catalog, manifest-registered subagent site bindings, and drift/unknown-key verification (schema 1.2.0), followed by an escalation chain and a review-diversity invariant. Phase-level routing is deferred behind an explicit promotion rule."
+description: "Deliberation for stash BF66F08B (040-DL). Evaluates the docs/design-docs/model-routing-v2.md baseline against the shipped P-013/P-013.5/P-013.6 routing contract and decides an improved, staged mechanism: one deterministic resolver, a YAML-anchor-free tier-delta route catalog, installed-agent subagent site bindings, and drift/unknown-key verification (schema 1.2.0), followed by an escalation chain and a review-diversity invariant. Phase-level routing is deferred behind an explicit promotion rule."
 topic: "How should autoharness model routing evolve beyond role plus tier routes, using model-routing-v2.md as the baseline proposal?"
 depth: "deep"
 decision_status: "decided"
@@ -327,9 +327,14 @@ model_routing:
 
 * A binding is `{ route: <catalog-name | tier1 | tier2 | tier3>, <optional per-field
   overrides> }`, `additionalProperties: false`. One shape only.
-* The **site registry** is derived, not hand-typed: the shipped subagent templates give the
-  default tier of each known agent (validated by a sync test against the templates), and
-  verify adds installed workspace-authored agents. Pipeline agents cannot be bound through
+* The **site registry** is derived, not hand-typed, and it is **disk-first**: the installed
+  agent files are enumerated first and then left-joined to the manifest `artifacts[]`. A
+  file with manifest provenance is managed (its default tier comes from the shipped
+  subagent template, validated by a sync test against the templates); a file with none is
+  workspace-authored (no default tier, advisory only). A manifest entry whose file is
+  missing is a distinct orphan case, not a site. Deriving candidates from the manifest
+  alone would make workspace-authored agents unreachable, since they have no manifest
+  provenance by definition. Pipeline agents cannot be bound through
   `bindings`; they use their role blocks (no dual spelling, so no new ambiguity).
 * An unknown site id fails verification (`ROUTING_UNKNOWN_SITE`). That closes the
   silently-inert hazard for every name in the baseline that is not a real agent.

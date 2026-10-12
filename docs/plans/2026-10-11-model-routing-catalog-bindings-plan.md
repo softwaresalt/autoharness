@@ -1,6 +1,6 @@
 ---
 title: "Model routing catalog and bindings: tier-delta route catalog and subagent site bindings with schema 1.2.0 (R1-B)"
-description: "Plan for the second release unit of the 040-DL model-routing design. Adds a YAML-anchor-free tier-delta route catalog (`model_routing.routes`) and manifest-registered subagent site bindings (`model_routing.bindings`) as an additive schema 1.2.0 with a new mirror, extends the R1-A resolver, and lands the verification, drift, tune, install, policy, and documentation surfaces in the same release so no accepted key is ever inert."
+description: "Plan for the second release unit of the 040-DL model-routing design. Adds a YAML-anchor-free tier-delta route catalog (`model_routing.routes`) and installed-agent subagent site bindings (`model_routing.bindings`) as an additive schema 1.2.0 with a new mirror, extends the R1-A resolver, and lands the verification, drift, tune, install, policy, and documentation surfaces in the same release so no accepted key is ever inert."
 doc_type: plan
 status: reviewed
 created: 2026-10-11
@@ -101,8 +101,9 @@ Scope boundaries (P-021 C1):
   `default_tier`; terminal `default` for `context_tier` only. `model_family` unresolved is
   `ROUTING_UNRESOLVED`. The `resolution_chain` lists the contributing layers in order so a
   later derived-route layer (`9B582824`) can be inserted without changing consumers.
-* The pure module stays pure. Building `sites` from the workspace manifest and templates is
-  I/O and lives in a separate `src/autoharness/model_routing_sites.py`.
+* The pure module stays pure. Building `sites` is I/O (it enumerates installed agent files,
+  then joins them to the workspace manifest and templates) and lives in a separate
+  `src/autoharness/model_routing_sites.py`.
 
 ## Implementation Units
 
@@ -140,30 +141,67 @@ unchanged (regression guard); the module remains I/O-free.
 **Files (2):** `src/autoharness/model_routing_sites.py` (new),
 `tests/test_model_routing_sites.py` (new).
 
-**Change:** `build_site_registry(workspace_path, autoharness_home, manifest)` returns
-`Mapping[str, SiteSpec]` for installed non-pipeline agents: manifest `artifacts[]` entries
-whose path matches `.github/agents/**/*.agent.md`, excluding the pipeline agents
-(`_orchestrator`, `_stage`, `_ship`) and plugin-global agents (`auto-tune`,
-`auto-mergeinstall`; their `template` provenance is "global agent definition" and the
-frontmatter contract forbids route-value keys on them). `default_tier` is parsed from the
-named template's frontmatter `{{TIER_<N>_FAMILY}}` variable by a targeted regex over the
-frontmatter block (not a full YAML parse, because template frontmatter can carry unquoted
-`{{...}}` values that are not valid YAML) (for example
-`agents/review/correctness-reviewer.agent.md.tmpl`), `managed=True` for manifest-rendered
-files, and workspace-authored agents (no template provenance) register with
-`default_tier=None, managed=False`. The site id is the file name without `.agent.md`, so the
-`technology-reviewer` template installed as `python-reviewer` registers as `python-reviewer`.
-Read-only.
+**Change:** `build_site_registry(workspace_path, autoharness_home, manifest, profile=None)`
+returns a frozen `SiteRegistry(sites: Mapping[str, SiteSpec], orphans: tuple[str, ...],
+conflicts: tuple[str, ...])`. The builder is **disk-first**: it enumerates the installed
+agent files first and only then joins them to the manifest. A workspace-authored agent has no
+manifest provenance by definition, so a candidate set drawn only from `manifest.artifacts[]`
+could never contain one and the unmanaged branch would be unreachable.
+
+1. **Enumerate.** Collect every `*.agent.md` under the harness's agent scan directories, in
+   sorted order: `.github/agents/` (recursive, which covers `.github/agents/subagents/`)
+   plus the configured local agents directory when the profile declares a global-tool
+   self-install (the directories `_resolve_agent_scan_dirs` returns). Path containment is
+   checked before any read: a scan root or file that resolves outside the workspace is not
+   traversed or read, and symlink or reparse-point files are skipped (the rules
+   `frontmatter_conformity` already applies through `_fc_enumerate_targets` and
+   `_fc_resolve_contained`). Drop the pipeline agents (`_orchestrator`, `_stage`, `_ship`).
+2. **Left-join to the manifest.** Look each file's normalized workspace-relative path up in
+   the manifest provenance index (`_fc_build_provenance_index`, `_fc_classify`; an untracked
+   path classifies as workspace-authored). A file whose class is managed (`FC_MANAGED_CLASSES`)
+   registers with `managed=True`; `default_tier` is parsed only for a `managed-rendered` file,
+   from the named template's frontmatter `{{TIER_<N>_FAMILY}}` variable by a targeted regex
+   over the frontmatter block (not a full YAML parse, because template frontmatter can carry
+   unquoted `{{...}}` values that are not valid YAML), for example
+   `agents/review/correctness-reviewer.agent.md.tmpl`. A `managed-source` file (`auto-tune`,
+   `auto-mergeinstall`; manifest label "global agent definition", and the frontmatter
+   contract forbids route-value keys on them) is dropped. Every other file registers as
+   **workspace-authored**: `default_tier=None, managed=False` (no manifest entry, a
+   workspace-source label, or unestablished provenance, as in `frontmatter_conformity`).
+3. **Manifest orphans.** A manifest `artifacts[]` entry whose path is an agent path under a
+   scan directory but has no file on disk is a distinct case. It is returned in `orphans`
+   (sorted paths), is not a site (nothing is installed to bind), and is not re-reported here:
+   the artifact checksum scan already reports the missing managed file.
+4. **Conflicts.** Two on-disk files that yield the same site id register neither; the id is
+   listed in `conflicts`.
+
+The site id is the file name without `.agent.md`, so the `technology-reviewer` template
+installed as `python-reviewer` registers as `python-reviewer`. The builder is read-only.
+`verify_workspace` imports this module, so the shared helpers are imported function-locally
+or injected, never at module top level (no import cycle).
 
 **Tests (scenarios):** every shipped subagent template maps to a tier (sync test: a new
-template without a recognizable tier variable fails the test, forcing an explicit decision);
-a workspace-authored agent registers as unmanaged; pipeline agents are excluded.
+template without a recognizable tier variable fails the test, forcing an explicit decision).
+Fixture workspaces (temporary directories) cover each branch of the join:
 
-**Acceptance criteria:** the registry for this workspace contains the 13 installed
-subagents with their template default tiers and excludes `_orchestrator`, `_stage`,
-`_ship`, `auto-tune`, and `auto-mergeinstall`.
+* a **managed agent**: file on disk plus a manifest entry with its template registers
+  `managed=True` with the template's default tier;
+* a **workspace-authored agent**: file on disk with **no manifest entry** registers
+  `managed=False, default_tier=None` (this is the branch a manifest-derived candidate set
+  could never reach);
+* a **manifest orphan**: a manifest entry whose file is missing is absent from `sites` and
+  present in `orphans`;
+* pipeline agents and `managed-source` agents are excluded; two files with the same site id
+  land in `conflicts` and are registered as neither;
+* a scan root or file that escapes the workspace (or is a symlink) is not read;
+* `autoharness.model_routing_sites` imports standalone (no cycle with `verify_workspace`).
 
-**Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `S` /
+**Acceptance criteria:** the registry for this workspace has `sites` containing the 13
+installed subagents (managed, with their template default tiers), excludes `_orchestrator`,
+`_stage`, `_ship`, `auto-tune`, and `auto-mergeinstall`, and has empty `orphans` and
+`conflicts`; the managed, workspace-authored, and manifest-orphan fixtures pass.
+
+**Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** B1.
 
 ### B3a: Make escalation and anchor-review schema tests version-agnostic
@@ -280,12 +318,17 @@ are absent and the config has no anchors):
   (`ROUTING_ANCHOR_UNSUPPORTED`) in a 1.2.0 config and is an advisory warning in older
   configs.
 
-Use the `model_routing_sites.build_site_registry` result as the site set.
+Use `model_routing_sites.build_site_registry(...).sites` as the site set. A binding whose
+id is in the registry's `orphans` (manifest entry, file missing) or `conflicts` (duplicate
+site id) fails as `ROUTING_UNKNOWN_SITE` and the message names that cause.
 
 **Tests (scenarios):** valid catalog and binding pass; unresolved reference, unknown site,
-pipeline-site binding, tier-named route each fail with their code; `routes` in a 1.1.0
-config fails; the baseline block (with anchors defined) fails the alias check at 1.2.0 and
-warns at 1.1.0; a config with none of these keys adds only passing checks.
+pipeline-site binding, tier-named route each fail with their code; a binding to a
+workspace-authored agent (on disk, no manifest entry) is a known site and passes; a binding
+to a manifest-orphan id (manifest entry, file missing) fails as `ROUTING_UNKNOWN_SITE` naming
+the missing file; `routes` in a 1.1.0 config fails; the baseline block (with anchors
+defined) fails the alias check at 1.2.0 and warns at 1.1.0; a config with none of these
+keys adds only passing checks.
 
 **Acceptance criteria:** the new checks appear in `targeted_checks` with the documented
 keys; every pre-existing verify test passes unmodified; verify-workspace on this workspace
@@ -308,8 +351,9 @@ site's default tier) with the resolver's output for the site, so the in-memory r
 bound agent equals what install and tune write. An artifact with no resolved site, and every
 pipeline artifact, gets the base map back unchanged (the same "no resolved role means base
 map" constraint as the role overlay). `config.overrides` precedence mirrors the role
-overlay. Without this unit, a bound agent could never satisfy both the render-parity check
-and the B7 drift check.
+overlay. A workspace-authored agent is not a manifest artifact, has no template render, and
+has `default_tier=None`, so it receives no overlay. Without this unit, a bound agent could
+never satisfy both the render-parity check and the B7 drift check.
 
 **Tests (scenarios):** a bound agent renders with the binding's values; every unbound agent
 renders byte-identically to the pre-change render (guards invariant I9); `config.overrides`
@@ -327,19 +371,23 @@ after.
 **Files (2):** `src/autoharness/verify_workspace.py`,
 `tests/test_verify_workspace_subagent_route_drift.py` (new).
 
-**Change:** Add `subagent_route_drift`. For each registry site, compare the installed
-frontmatter `model_family`, `model_provider`, `reasoning_effort`, `context_tier` to the
-resolver's output. Behavior depends on whether the workspace **declares bindings** (the
+**Change:** Add `subagent_route_drift`. For each registry site (`build_site_registry(...).sites`,
+which includes managed and workspace-authored agents enumerated from disk), compare the
+installed frontmatter `model_family`, `model_provider`, `reasoning_effort`, `context_tier` to
+the resolver's output. A workspace-authored agent has no default tier, so it resolves a route
+only when it has a binding; an unbound workspace-authored agent has nothing to compare and is
+skipped. Behavior depends on whether the workspace **declares bindings** (the
 opt-in): with bindings, a managed (manifest-rendered) agent that drifts fails closed and a
-workspace-authored agent produces one advisory warning (provenance split reused from
+(bound) workspace-authored agent produces one advisory warning (provenance split reused from
 `frontmatter_conformity`); without bindings, drift is reported only as non-blocking `info`
 lines (count plus ids). Every drift also yields a `refresh-route-frontmatter` migration
 proposal. The opt-in is `bindings` non-empty, **not** `schema_version`, so this workspace
 (which will be at 1.2.0 with no bindings) does not turn red over its 13 stale subagents.
 
 **Tests (scenarios):** bindings declared plus managed drift fails; bindings declared plus
-workspace-authored drift warns; no bindings plus drift is info only and `ok` stays true;
-matching frontmatter passes; proposals are emitted.
+bound workspace-authored drift (an on-disk agent with no manifest entry) warns and does not
+change `ok`; an unbound workspace-authored agent is skipped; no bindings plus drift is info
+only and `ok` stays true; matching frontmatter passes; proposals are emitted.
 
 **Acceptance criteria:** verify-workspace on this workspace stays `ok` and reports the 13
 drifted subagents as `info`.
@@ -471,7 +519,9 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 * **Catalog entries are tier deltas.** Preserves the P-013.5 invariant (a targeted override,
   never a parallel taxonomy) and P-013.2 tier-class semantics, and avoids reintroducing
   four-field copies.
-* **Registry is derived, in a separate I/O module.** Keeps the resolver pure and portable.
+* **Registry is derived from disk and classified by the manifest, in a separate I/O module.**
+  Keeps the resolver pure and portable, and makes workspace-authored agents (which have no
+  manifest entry) reachable.
 * **No CLI `agent:` sites yet.** Nothing consumes them until R3's invocation directives.
 
 ## Risks and Caveats
@@ -484,7 +534,8 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 | Dogfood marker bump exceeds the marker or its confirmation record is missing | Operator confirmed 2026-10-12 (`040-DL` OQ9); Ship cites the record and checks the diff is one marker line; if either fails Ship halts with the reason; no half-state. |
 | Amendment Log version collision with the `209-S` to `213-S` chain | Version chosen at claim time as the next minor; shipment sequenced after `213-S`; rebase at claim. |
 | Site registry diverges from templates | B2 sync test. |
-| `build_site_registry` misclassifies a workspace-authored agent as managed | Provenance reuses `frontmatter_conformity`'s manifest-based index; unit test for the unmanaged case. |
+| `build_site_registry` misclassifies a workspace-authored agent as managed, or never sees one | Disk-first: installed agent files are enumerated, then left-joined to the manifest provenance index (the classification `frontmatter_conformity` uses); fixtures for managed, workspace-authored (no manifest entry), and manifest-orphan agents. |
+| Registry enumeration reads outside the workspace or follows a link | Containment and symlink/reparse checks before any read (same rules as `frontmatter_conformity`); an escape fixture in B2. |
 | New Python surface vs the Go direction | Pure resolver with JSON vectors; registry builder is thin I/O; flagged for `039-DL`. |
 | Distribution payload lists (168-S, on hold) omit the new mirror and modules | Recorded as a cross-read note for the `207-S` disposition; packaging includes `schemas/` and `src/` today. |
 
