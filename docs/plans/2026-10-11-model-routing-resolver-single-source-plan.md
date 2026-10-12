@@ -611,4 +611,12 @@ decision: PASS
   operator config against the schema matching the document's own `schema_version`), and its
   text is unchanged. A delta check recorded in the review record's addendum leaves the gate
   decision above unchanged (finding A-F12, P3).
+* **Addendum (PR #513 review-fix cycle 5, 2026-10-12 UTC; the operator authorized one more
+  extension, the last):** the three threads are R1-B findings (bound-site rendering and
+  verification); this plan was checked for the same gaps. It has no agent sites, but its
+  resolver contract now states that `config.overrides` is not a resolver input (A2 adds one
+  vector; A3 states that the override-layer functions are not delegated and stay unchanged).
+  No behavior, size, edge, or manifest change; `214-S` membership and order are unchanged. A
+  delta check recorded in the review record's addendum leaves the gate decision above
+  unchanged (finding A-F13, P3).
 

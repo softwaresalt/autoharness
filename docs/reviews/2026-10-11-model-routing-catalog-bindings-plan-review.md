@@ -313,3 +313,96 @@ P2 findings. The delta check supports the existing verdict: the plan remains **P
 Graph checks: `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
 `ready_set: [209-S]`; the `214-S` (7 items) and `215-S` (15 items) manifests honor every
 task edge and no edge leaves either manifest; no edge changed.
+
+## Addendum: PR #513 review-fix cycle 5 (2026-10-12 UTC)
+
+Append-only. The cycle 1 to cycle 4 records, all earlier addenda, and the verdict above are
+unchanged. This is review-fix cycle **5**: the operator explicitly authorized a further
+extension of the review-fix cycle limit by one (disposition recorded: "Extend by one more
+cycle"), and this is the **last** extension; if more findings remain after it, the
+Orchestrator escalates. The staging PR (#513) received a fifth Copilot review on HEAD
+`790e28c0` with three threads that are one design cluster: how a **bound** managed agent is
+rendered and then verified. Stage verified each against the repository, fixed them together
+as one coherent correction (one commit, `9fa41513`), and re-checked the changed units as a
+single-agent delta pass (same `TOOL_DEGRADED` declarations as above). The repository test
+suite and linters were not run (Stage boundary).
+
+| Review thread | Verification and change | Commit |
+|---|---|---|
+| `PRRT_kwDORzpWpM6rmyoO` (comment 4251926657, `.backlogit/queue/208.009-T.md` line 28: B6a skips the binding overlay when a managed site's `default_tier` is unresolved, but the same bound site could resolve and pass B7, so reinstall or community rendering could restore a different route) | Confirmed. Before the fix B6a said a managed site with an unresolved tier "receives no overlay", B7 said "with a binding it resolves from the binding and is compared normally", and B6 said a binding on a managed-community agent "including one whose default tier is unresolved, is a known site and passes". The renderer is plain `{{KEY}}` replacement (`_render_template`, `verify_workspace.py` ~1152) fed by a variable map at both seams (the staged loop ~6049; `_fc_rendered_candidate` ~3857, where an unusable community `template_path` is `unproducible`), so a binding can reach an installed agent only by overlaying the four `TIER_<N>_*` variables of one resolved tier. All four unresolved reasons (`template-path-unusable`, `template-unreadable`, `no-tier-placeholder`, `ambiguous-tier`) leave no such target: a missing or unreadable template has nothing to render and a template with no or several tier placeholders has no single `N`. A bound unresolved site whose installed frontmatter coincidentally equaled the binding therefore passed B7 while a reinstall rendered the base route. Fix (rejected, not rendered around): `ROUTING_BINDING_UNRESOLVED_SITE: <id>: <reason>` (a verify-level code) in B6 (up front, at config validation) and in B7 (so B7 cannot pass such a site even run alone), B6a applies no overlay, and D3 states the rule once; B6 gains a parametrized scenario over the four reasons and both template-backed classes (including frontmatter equal to the binding), B7 a bound-unresolved scenario with no refresh proposal, and B6a and B7 a reinstall regression (the render output installed passes, one changed field fails). A render path that needs no `TIER_<N>_*` was evaluated and rejected: it would require a per-site placeholder family in every agent template or a post-render frontmatter rewrite, a second rendering mechanism that the prose install and tune skills and a future port would have to reproduce, only for templates that are already defective | `9fa41513` |
+| `PRRT_kwDORzpWpM6rmyoz` (comment 4251926715, same file and line: the bound-agent renderer requires `config.overrides` to win, but the drift check compares frontmatter with resolver output that has no override layer, so a correctly rendered agent using an explicit `TIER_<N>_*` override is reported as drift) | Confirmed, and broader than the thread: it also affects an **unbound** agent whenever bindings are declared anywhere (the opt-in). `_derive_template_variables` assigns `_authoritative_route_variables(config)` into the base map, and that function applies `config.overrides[<VAR>]` over the config-derived value for every route-family variable, `TIER_<N>_*` included (~2864 to ~2879, ~2976); `_compose_artifact_variables` applies it again on the role overlay (~2805); the R1-A contract and 040-DL D4 give the resolver no override layer, and B7 compared raw resolver output. Fix: ONE shared composition function, `verify_workspace._compose_site_route_variables` plus the companion `_expected_site_route`, defined by B6a next to `_compose_artifact_variables` (the module that already owns `_render_template`, the override layer, and both render seams; `model_routing.py` cannot host it because its import allowlist excludes `verify_workspace`, and `model_routing_sites.py` must not import `verify_workspace` at module level). Both render seams render with its composed map, and B7 reads its expected frontmatter through the same two functions, so renderer and drift check cannot diverge by construction. Overrides apply per variable on top of the bound route exactly as on the unbound base, are keyed to the agent's own `TIER_<N>_*` names, an invalid `*_CONTEXT_TIER` override is skipped as in the existing compose paths, and `config_authoritative` has no default. B6a gains override, no-overlay, equivalence (rendered bytes parsed back equal `_expected_site_route`, plus a source assertion that no other composition exists), and reinstall scenarios; B7 gains bound and unbound override, non-authoritative, and round-trip scenarios | `9fa41513` |
+| `PRRT_kwDORzpWpM6rmypP` (comment 4251926758, plan line 145: the B1/B2 precedence falls through to `site.default_tier` after a binding, conflicting with the governing D4 decision, which applies the template default tier only when a subagent has no binding, and can mix tiers) | Confirmed. D4 listed "for subagent sites with no binding, the agent's template default tier" while the plan and B1 listed `the site's default_tier` after the binding for every `agent:<id>` site. The existing per-field fallback (`_resolve_role_route_field`) runs only from a route to its own tier, never across tiers, so the plan's fall-through would let a bound tier that intentionally leaves `model_provider`, `reasoning_effort`, or `context_tier` empty inherit them from the agent's old template tier instead of keeping the runtime default or `default`. Fix: D4 and the plan now state two explicit, never-mixed branches chosen once by whether `bindings` has an entry for the site. **Unbound**: `site.default_tier` is the base. **Bound**: the binding's route is the base (binding override, catalog-delta field, the route's tier field, terminal `default` for `context_tier` only) and `site.default_tier` is never consulted, not even as a field-level fallback. B1 (`208.001-T`) adds five branch vectors (a bound tier that leaves a field empty while the site default tier would supply it, the unbound contrast, a partial catalog delta, an override-only binding, and a generic assertion that no bound `resolution_chain` names the site default tier) and an overrides-ignored vector; B6a renders the same (its overlay assigns all four variables, empty strings included); B7 fails frontmatter that carries the default tier's values | `9fa41513` |
+
+Where the rule is stated, identically: 040-DL D3 and D4 (plus the D10 and risk rows), R1-B
+plan Outcome, Requirements Trace (RB2a, RB3, RB5), Planned Contract Extensions, B1, B2, B6,
+B6a, B7, B8, B9, B10, B11, Decisions, Risks, invariants I13 and I14, and Runtime
+Verification, and tasks `208.001-T`, `208.002-T`, `208.007-T`, `208.008-T`, `208.009-T`,
+`208.010-T` to `208.013-T`, and the `208-F` summary. The managed-community text from cycle 4
+holds under the same two branches (an unbound community agent resolves its template default
+tier exactly as a rendered one; a bound one resolves from its binding and must have a resolvable
+default tier). R1-A was checked for the same gap: it has no agent sites (so no bound/unbound
+issue) but its contract never said the resolver excludes `config.overrides`; that is now
+explicit in the R1-A plan, A2 (one vector), and A3 (the override layer is not delegated), see
+the R1-A record's cycle 5 addendum.
+
+Delta persona pass over the changed units (B1, B2, B6, B6a, B7, B8 to B11, D3, D4, D10, and
+R1-A A2 and A3):
+
+* **Architecture Strategist.** The composition lives where the renderer and the override
+  layer already live, so the resolver stays pure (its import allowlist and the standalone
+  import of `model_routing_sites` are untouched) and the renderer and the drift check share
+  one function instead of two derivations. The branch statement is identical across D4, B1,
+  B6a, and B7 (a grep for the old fall-through and "resolves from the binding and is
+  compared" phrases finds none outside the append-only earlier addenda). The dependency graph
+  is unchanged and acyclic.
+* **Python Reviewer.** The overlay assigns empty strings rather than skipping them (a
+  skip-empty overlay would re-create the cross-tier inheritance at render time);
+  `config_authoritative` is a required keyword (the older compose helpers' `True` default is
+  the residual recorded in stash `09DFC9F9` item 3, left as is); the registry is built once
+  per verify run and passed to both seams; no new import cycle.
+* **Scope Boundary Auditor.** No new task, file, edge, or manifest change: B6a and B7 keep two
+  files and one concern each (render composition; the drift verdict), B6 gains one failing
+  branch, and R1-A gains one vector and one statement. The one thing that is genuinely out of
+  scope, whether R3's invocation-time route and `routing resolve` should include the
+  render-time overrides layer that R1 keeps outside the resolver, is captured as `DEFERRED
+  SCOPE EXPANSION` stash `EB56281C` (P-021 C2; duplicate scan clean; all source refs populated,
+  so no late-identifier reconciliation applies). Rejecting a binding on an unresolved-default
+  site completes the same contract surface the finding named (P-021 C1), so it is not a
+  deferral.
+* **Constitution Reviewer and Learnings Researcher.** No source, template, schema, config, or
+  policy file was touched. The fix reuses two precedents rather than inventing a scheme: the
+  fail-closed managed rule (`037-DL`) and the single-shared-function rule the repo already
+  follows for escalation (`_effective_escalation_context_tier_for_role` serves both the
+  render and its check "so the render and the check cannot diverge"). No prose-only gate was
+  added: the rejection is a named verify token with tests, and the equivalence is a test plus
+  a source assertion.
+
+New findings: **B-F21 [P2, fixed]** a bound site on an unresolved default tier could pass B7
+while B6a could not apply its binding (thread `PRRT_kwDORzpWpM6rmyoO`). **B-F22 [P2, fixed]**
+the drift check compared raw resolver output, so an explicit `TIER_<N>_*` override was
+reported as drift for bound and unbound agents (thread `PRRT_kwDORzpWpM6rmyoz`). **B-F23 [P2,
+fixed]** the B1/B2 precedence fell through to the site default tier after a binding,
+contradicting D4 and mixing tiers (thread `PRRT_kwDORzpWpM6rmypP`). **B-F24 [P3]**
+overrides are keyed to the variable names the agent's template renders, so an override on the
+bound route's own tier variables (`TIER_<T>_*`, `T` different from the agent's `N`) does not
+reach a bound agent; the rule is stated in D4, the plan, and B6a, and tested, acknowledged.
+**B-F25 [P3]** the overlay must assign empty strings, stated and tested in B6a, acknowledged.
+**B-F26 [P3]** the R1-A contract did not state that the resolver excludes `config.overrides`
+(fixed in R1-A; the CLI-versus-overrides question is `EB56281C`), acknowledged. **B-F27 [P3]**
+B7's scenarios are restated as one parametrized matrix plus seven targeted scenarios (and
+B6a's grow from five to eight) in the same files, acknowledged. No P0 or P1 findings; the
+three P2 findings are fixed in this revision. The delta check supports the existing verdict:
+the plan remains **PASS**.
+
+Sizes and the 2-hour rule (`ah-stage-sizing-v1`, no value changed): B1, B2, B6, B6a, and B7
+stay `M` / `medium`. B1 adds five rows to one parametrized fixture; B2 changes no code or
+test; B6 adds one failing branch and one parametrized scenario; B6a is the overlay it already
+owned plus a small accessor and the empty-overwrite rule (five to eight scenarios, one fixture
+helper, two files); B7 gets thinner and class-agnostic because it reads the expectation from
+B6a's function instead of deriving one. Nothing needed a split, so no task, edge, or manifest
+order changed.
+
+Graph checks: `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
+`ready_set: [209-S]`; the `214-S` (7 items; 6 tasks, `M:4`, `S:2`) and `215-S` (15 items; 14
+tasks, `M:8`, `S:6`) manifests honor every task edge and no edge leaves either manifest; no
+edge, manifest order, size, or complexity value changed.

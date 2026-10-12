@@ -1388,3 +1388,17 @@ decision: PASS
   opt-in; B6a overlays the in-memory community render too; invariant I12 added. No task,
   edge, size, or manifest change. A delta check recorded in the review record's addendum
   leaves the gate decision above unchanged (findings B-F17 to B-F20, all P3).
+* **Addendum (PR #513 review-fix cycle 5, 2026-10-12 UTC; the operator authorized one more
+  extension, the last):** three Copilot threads, one design cluster. A subagent site now
+  resolves under two explicit, never-mixed branches (unbound: the template default tier;
+  bound: the binding's route, never the site default tier as a field-level fallback); B6a
+  defines the single shared composition function (`_compose_site_route_variables` plus
+  `_expected_site_route`, in `verify_workspace.py`) that both render seams and B7 use, so the
+  drift check derives its expectation from the same composed variables (explicit `TIER_<N>_*`
+  overrides included) as the renderer; a binding on a managed site whose default tier is
+  unresolved is rejected (`ROUTING_BINDING_UNRESOLVED_SITE`, B6 and B7). B1, B2, B6, B6a, B7,
+  and B8 to B11 were aligned; invariants I13 and I14 added; R1-A states that `config.overrides`
+  is outside the resolver. No task, edge, size, or manifest change. A delta check recorded in
+  the review record's addendum leaves the gate decision above unchanged (findings B-F21 to
+  B-F27: three P2 fixed, four P3). The out-of-scope CLI-versus-overrides question is stash
+  `EB56281C`.

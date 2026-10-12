@@ -187,3 +187,42 @@ New finding: **A-F12 [P3]** A5 is now cross-referenced as the Orchestrator owner
 invariant I11; its text, size (`M` / `low`), and acceptance criteria are unchanged,
 acknowledged. No P0, P1, or P2 findings. The delta check supports the existing verdict: the
 plan remains **PASS**.
+
+## Addendum: PR #513 review-fix cycle 5 (2026-10-12 UTC)
+
+Append-only. The cycle 1 to cycle 3 records, all earlier addenda, and the verdict above are
+unchanged (cycle 4 touched no R1-A artifact, so it has no addendum here). This is review-fix
+cycle **5**: the operator explicitly authorized a further extension of the review-fix cycle
+limit by one (disposition recorded: "Extend by one more cycle"), the **last** extension. The
+three Copilot threads of this cycle (`PRRT_kwDORzpWpM6rmyoO`, `PRRT_kwDORzpWpM6rmyoz`,
+`PRRT_kwDORzpWpM6rmypP`) are R1-B findings about how a bound managed agent is rendered and
+verified; Stage fixed them in the R1-B artifacts (commit `9fa41513`; see the R1-B review
+record's cycle 5 addendum) and checked this plan for the same gaps. The repository test suite
+and linters were not run (Stage boundary).
+
+* **Bound/unbound gap: not present.** R1-A resolves only the three role sites (no
+  `agent:<id>` sites, no bindings), so the precedence conflict in the third thread does not
+  exist here; R1-B owns it.
+* **Override gap: present as an omission, fixed.** The planned resolver contract reproduced
+  today's helpers exactly but never said that `config.overrides` (194.006-T, AS-F9) is not an
+  input to the resolver. That override layer (`_authoritative_route_variables` over the
+  config-derived route-family variables, and `_compose_artifact_variables` on the role overlay)
+  is what R1-B's drift check had failed to account for. The contract now says so explicitly;
+  A2 (`207.002-T`) adds one vector (a config carrying a top-level `overrides` mapping resolves
+  exactly as without it); A3 (`207.003-T`) states that the override-layer functions
+  (`_authoritative_route_variables`, `_route_family_variables`, `_compose_artifact_variables`,
+  `_context_tier_override_error`) are not in the delegated list and stay unchanged (the
+  existing `test_route_variable_precedence` pins the layering, unmodified). No behavior,
+  signature, check key, or size changes.
+* **Deferred, not decided here.** `routing resolve` therefore reports the config-derived route
+  (A4 is unchanged); whether R3's invocation-time route and the CLI should include the
+  render-time overrides layer is captured as `DEFERRED SCOPE EXPANSION` stash `EB56281C`
+  (P-021 C2).
+* **Graph.** `autoharness gate dag-readiness --json` reports `cycle_detected: false` and
+  `ready_set: [209-S]`; the `214-S` manifest is byte-identical in membership and order (7
+  items; six tasks, `M:4`, `S:2`) and honors every `207.*` edge.
+
+New finding: **A-F13 [P3]** the resolver contract did not state that `config.overrides` is
+outside the resolver (fixed as above: one vector in A2, one statement in A3; sizes `M` /
+`medium` unchanged), acknowledged. No P0, P1, or P2 findings. The delta check supports the
+existing verdict: the plan remains **PASS**.
