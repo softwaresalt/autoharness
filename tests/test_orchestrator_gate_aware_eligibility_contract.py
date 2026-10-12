@@ -212,6 +212,7 @@ class DarkPreflightContractTests(unittest.TestCase):
                     self.assertIn(token, preflight_text)
                 _flag_lines_are_prohibitions(self, preflight_text)
                 self.assertIn("| `preflight` (optional) |", dark)
+                self.assertIn("the head is eligible or already `active`", dark[preflight_at:])
 
 
 class DarkPromptAndManifestContractTests(unittest.TestCase):
@@ -228,6 +229,8 @@ class DarkPromptAndManifestContractTests(unittest.TestCase):
                     "PENDING",
                     "EXTERNAL_BLOCKER",
                     "`preflight`",
+                    "has not yet shipped",
+                    "already `active` on a resume",
                 ):
                     self.assertIn(token, text)
                 self.assertLess(

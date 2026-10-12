@@ -58,7 +58,7 @@ Do not infer dark factory mode from vague autonomy language such as `run everyth
 
 The preflight is advisory and read-only: it consumes no bootstrap grant, claims nothing, and waives nothing. Step 2a's `pre_claim` re-check remains the binding claim authority.
 
-Only after the activation preflight above passes (or is not applicable), record `DARK_MODE_ACTIVE` in session state before invoking Stage or Ship. The activation record MUST include:
+Only after the activation preflight above passes (the head is eligible or already `active`, or the preflight is not applicable or skipped), record `DARK_MODE_ACTIVE` in session state before invoking Stage or Ship. The activation record MUST include:
 
 | Field | Required Semantics |
 |---|---|
