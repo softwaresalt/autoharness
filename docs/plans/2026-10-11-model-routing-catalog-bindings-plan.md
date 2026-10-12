@@ -29,9 +29,11 @@ After this plan ships (and `R1-A` has shipped):
   `schemas/harness-config/1.2.0.schema.json` mirror. The 1.1.0 mirror is preserved
   byte-for-byte and pinned by test. Configs at 1.1.0 stay valid and resolve identically.
 * The R1-A resolver resolves `agent:<id>` sites (binding, catalog delta, tier, per-field
-  precedence) and reports an ordered `resolution_chain`. The render loop applies a binding
-  to the bound agent's route variables, so install, tune, and the render-parity check agree
-  with the resolver; unbound artifacts render byte-identically to before.
+  precedence) and reports an ordered `resolution_chain`. Both paths that render an agent
+  from a template (the staged render loop for manifest artifacts and the in-memory render of
+  an installed community agent) apply a binding to the bound agent's route variables, so
+  install, tune, and the render-parity check agree with the resolver; unbound artifacts
+  render byte-identically to before.
 * `verify-workspace` fails closed on: an unresolved catalog or binding reference, an
   unknown site, a binding on a pipeline site, `routes`/`bindings` declared in a 1.1.0
   config (they would be inert), an unknown key directly under `model_routing` in a 1.2.0
@@ -47,9 +49,12 @@ After this plan ships (and `R1-A` has shipped):
   1.1.0 mirror is not touched: a 1.1.0 config with extra keys keeps validating exactly as
   today.
 * For workspaces that declare bindings, `verify-workspace` fails closed when an installed,
-  manifest-managed subagent's frontmatter route differs from its resolved route; for
-  workspace-authored agents it is advisory with a migration proposal. For workspaces that
-  declare no bindings it reports the drift as non-blocking `info` only.
+  manifest-managed subagent (rendered from a manifest template, or installed from a
+  community template) has a frontmatter route that differs from its resolved route, or has
+  a template default tier that cannot be established; for workspace-authored agents it is
+  advisory with a migration proposal. For workspaces that declare no bindings it reports the
+  drift as non-blocking `info` only. An unbound community agent resolves its template
+  default tier exactly as an unbound rendered agent does; it is never skipped.
 * `tune-harness` detects the drift and repeated route blocks and proposes a refresh or a
   catalog extraction (proposal only). Fresh installs render empty `routes`/`bindings`
   blocks at schema 1.2.0.
@@ -115,7 +120,13 @@ Scope boundaries (P-021 C1):
 
 * `resolve_site(config, site, *, kind="route", installed_roles=frozenset(), sites=None)`
   where `sites: Mapping[str, SiteSpec] | None` and
-  `SiteSpec(site: str, default_tier: str | None, managed: bool)`.
+  `SiteSpec(site: str, default_tier: str | None, managed: bool)`. `default_tier` is the
+  `tier<N>` key whose `TIER_<N>_*` variables the agent's template renders (the mapping
+  `_derive_tier_route_variables` already uses). It is derived by **one** parse of that
+  template for both `managed-rendered` and `managed-community` sites (B2); it is `None` for a
+  workspace-authored site, and for a managed site whose tier cannot be established (the
+  reason is carried by `SiteRegistry.unresolved`, B2, so `SiteSpec` keeps exactly these
+  three fields).
 * Site grammar: `orchestrator`, `stage`, `ship`, or `agent:<id>` with
   `<id>` matching `^[a-z0-9][a-z0-9_-]*$`.
 * New errors: `ROUTING_REF_UNRESOLVED: <name>`, `ROUTING_UNKNOWN_SITE: <site>`,
@@ -191,10 +202,11 @@ the twelve documented members.
 
 **Change:** `build_site_registry(workspace_path, autoharness_home, manifest, profile=None)`
 returns a frozen `SiteRegistry(sites: Mapping[str, SiteSpec], orphans: tuple[str, ...],
-conflicts: tuple[str, ...])`. The builder is **disk-first**: it enumerates the installed
-agent files first and only then joins them to the manifest. A workspace-authored agent has no
-manifest provenance by definition, so a candidate set drawn only from `manifest.artifacts[]`
-could never contain one and the unmanaged branch would be unreachable.
+conflicts: tuple[str, ...], unresolved: Mapping[str, str])`. The builder is **disk-first**: it
+enumerates the installed agent files first and only then joins them to the manifest. A
+workspace-authored agent has no manifest provenance by definition, so a candidate set drawn
+only from `manifest.artifacts[]` could never contain one and the unmanaged branch would be
+unreachable.
 
 1. **Enumerate.** Collect every `*.agent.md` under the harness's agent scan directories, in
    sorted order: `.github/agents/` (recursive, which covers `.github/agents/subagents/`)
@@ -206,20 +218,53 @@ could never contain one and the unmanaged branch would be unreachable.
    `_fc_resolve_contained`). Drop the pipeline agents (`_orchestrator`, `_stage`, `_ship`).
 2. **Left-join to the manifest.** Look each file's normalized workspace-relative path up in
    the manifest provenance index (`_fc_build_provenance_index`, `_fc_classify`; an untracked
-   path classifies as workspace-authored). A file whose class is managed (`FC_MANAGED_CLASSES`)
-   registers with `managed=True`; `default_tier` is parsed only for a `managed-rendered` file,
-   from the named template's frontmatter `{{TIER_<N>_FAMILY}}` variable by a targeted regex
-   over the frontmatter block (not a full YAML parse, because template frontmatter can carry
-   unquoted `{{...}}` values that are not valid YAML), for example
-   `agents/review/correctness-reviewer.agent.md.tmpl`. A `managed-source` file (`auto-tune`,
-   `auto-mergeinstall`; manifest label "global agent definition", and the frontmatter
-   contract forbids route-value keys on them) is dropped. Every other file registers as
-   **workspace-authored**: `default_tier=None, managed=False` (no manifest entry, a
-   workspace-source label, or unestablished provenance, as in `frontmatter_conformity`).
-3. **Manifest orphans.** A manifest `artifacts[]` entry whose path is an agent path under a
-   scan directory but has no file on disk is a distinct case. It is returned in `orphans`
-   (sorted paths), is not a site (nothing is installed to bind), and is not re-reported here:
-   the artifact checksum scan already reports the missing managed file.
+   path classifies as workspace-authored). A file whose class is managed (`FC_MANAGED_CLASSES`,
+   three members) registers with `managed=True` and is handled by class:
+   * **`managed-rendered`** (a manifest `artifacts[]` entry whose template source exists
+     inside `templates/`): `default_tier` is parsed from that template, for example
+     `agents/review/correctness-reviewer.agent.md.tmpl`.
+   * **`managed-community`** (a manifest `community_templates[]` entry; the classifier assigns
+     the class from the entry alone and does not test its template): `default_tier` is parsed
+     from the entry's `template_path`, for example
+     `templates/community/agents/adr-generator.agent.md.tmpl`, resolved by the rule
+     `frontmatter_conformity` already applies to community candidates
+     (`_fc_contained_community_source`: a relative path to an existing file inside
+     `autoharness_home/templates/`; an absolute, escaping, missing, or non-file path is never
+     read). A community agent is a real managed agent site: its template declares the same
+     `{{TIER_<N>_*}}` placeholders as a rendered agent (the shipped `adr-generator` template
+     declares `max_subagent_tier: 2` and `model_family: "{{TIER_2_FAMILY}}"`), and it is
+     rendered by `_render_template` like any other.
+   * **`managed-source`** (`auto-tune`, `auto-mergeinstall`; manifest label "global agent
+     definition"): dropped. It has no template and no tier default, and the frontmatter
+     contract forbids route-value keys on it.
+
+   Both template-backed classes derive the tier through **one parse**, not two schemes: a
+   targeted regex over the template's frontmatter block (not a full YAML parse, because
+   template frontmatter can carry unquoted `{{...}}` values that are not valid YAML) for the
+   `{{TIER_<N>_FAMILY}}` variable; exactly one distinct `N` gives `default_tier = "tier<N>"`.
+
+   **Unresolved default.** When the template cannot yield exactly one tier, the site still
+   registers with `managed=True, default_tier=None` and `SiteRegistry.unresolved` maps its id
+   to a reason: `template-path-unusable` (a community `template_path` that fails the
+   containment rule, is missing, or is not a file), `template-unreadable` (a read or decode
+   error), `no-tier-placeholder` (no `{{TIER_<N>_FAMILY}}` in the frontmatter), or
+   `ambiguous-tier` (more than one distinct `N`). The builder never raises, never guesses a
+   tier, and never demotes the site to workspace-authored: the class comes from the manifest
+   (as in `frontmatter_conformity`, where an unusable community template is `unproducible`,
+   not unmanaged), and demoting would turn a fail-closed managed check into an advisory one.
+   A `managed-rendered` file whose template source is missing never reaches this branch: the
+   classifier already treats it as unknown-provenance, so it registers workspace-authored. An
+   unresolved site is still a known, bindable site; B7 defines the verdict.
+
+   Every other file registers as **workspace-authored**: `default_tier=None, managed=False`
+   (no manifest entry, a workspace-source label, or unestablished provenance, as in
+   `frontmatter_conformity`).
+3. **Manifest orphans.** A manifest entry (`artifacts[]` `path`, or `community_templates[]`
+   `installed_path`) that is an agent path under a scan directory but has no file on disk is
+   a distinct case. It is returned in `orphans` (sorted paths), is not a site (nothing is
+   installed to bind), and is not re-reported here: the artifact checksum scan already
+   reports a missing managed file, and the community-template check reports it as
+   `missing file`.
 4. **Conflicts.** Two on-disk files that yield the same site id register neither; the id is
    listed in `conflicts`.
 
@@ -228,17 +273,31 @@ installed as `python-reviewer` registers as `python-reviewer`. The builder is re
 `verify_workspace` imports this module, so the shared helpers are imported function-locally
 or injected, never at module top level (no import cycle).
 
-**Tests (scenarios):** every shipped subagent template maps to a tier (sync test: a new
-template without a recognizable tier variable fails the test, forcing an explicit decision).
-Fixture workspaces (temporary directories) cover each branch of the join:
+**Tests (scenarios):** every shipped subagent template and every shipped community agent
+template (`templates/community/agents/*.agent.md.tmpl`, currently `adr-generator`) maps to
+exactly one tier (sync test: a new template without a recognizable tier variable fails the
+test, forcing an explicit decision). Fixture workspaces (temporary directories) cover each
+branch of the join:
 
 * a **managed agent**: file on disk plus a manifest entry with its template registers
   `managed=True` with the template's default tier;
+* a **managed-community agent** (PR #513 thread `PRRT_kwDORzpWpM6rmKbh`): file on disk plus a
+  `community_templates[]` entry (`installed_path`, `template_path` naming a fixture template
+  whose frontmatter has `model_family: "{{TIER_2_FAMILY}}"`) registers `managed=True,
+  default_tier="tier2"` with an empty `unresolved`; the same template bytes registered
+  through an `artifacts[]` entry yield the identical `default_tier` (one parse, two sources);
+* **unresolved defaults** (each registers `managed=True, default_tier=None`, stays in
+  `sites`, and names its reason in `unresolved`): a community `template_path` that names a
+  missing file, and one that is absolute or escapes `templates/` (both
+  `template-path-unusable`; the outside file is never read, asserted at the read seam like the
+  escape fixture); and, run for **both** template-backed classes, a template with no
+  `{{TIER_<N>_FAMILY}}` (`no-tier-placeholder`), one referencing two distinct tiers
+  (`ambiguous-tier`), and one whose read raises (`template-unreadable`);
 * a **workspace-authored agent**: file on disk with **no manifest entry** registers
   `managed=False, default_tier=None` (this is the branch a manifest-derived candidate set
   could never reach);
-* a **manifest orphan**: a manifest entry whose file is missing is absent from `sites` and
-  present in `orphans`;
+* a **manifest orphan**: an `artifacts[]` entry, and separately a `community_templates[]`
+  entry, whose file is missing is absent from `sites` and present in `orphans`;
 * pipeline agents and `managed-source` agents are excluded; two files with the same site id
   land in `conflicts` and are registered as neither;
 * a scan root or file that escapes the workspace (or is a symlink) is not read;
@@ -249,8 +308,14 @@ Fixture workspaces (temporary directories) cover each branch of the join:
 
 **Acceptance criteria:** the registry for this workspace has `sites` containing the 13
 installed subagents (managed, with their template default tiers), excludes `_orchestrator`,
-`_stage`, `_ship`, `auto-tune`, and `auto-mergeinstall`, and has empty `orphans` and
-`conflicts`; the managed, workspace-authored, and manifest-orphan fixtures pass.
+`_stage`, `_ship`, `auto-tune`, and `auto-mergeinstall`, and has empty `orphans`,
+`conflicts`, and `unresolved` (this workspace installs no community agent, so community
+coverage is by fixture); the managed, managed-community, unresolved-default,
+workspace-authored, and manifest-orphan fixtures pass.
+
+**Size note (PR #513 cycle 4):** `M` / `medium` is unchanged. The increment is one more
+template source for the same parse (a call to the existing `_fc_contained_community_source`)
+plus fixtures that share one parametrized helper; still two files and one concern.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** B1.
@@ -504,15 +569,19 @@ are absent, `model_routing` has no unknown key, and the config has no anchors):
   the CLI and `verify-workspace`, so a configuration `verify-workspace` rejects cannot
   resolve successfully at runtime.
 
-Use `model_routing_sites.build_site_registry(...).sites` as the site set. A binding whose
-id is in the registry's `orphans` (manifest entry, file missing) or `conflicts` (duplicate
-site id) fails as `ROUTING_UNKNOWN_SITE` and the message names that cause.
+Use `model_routing_sites.build_site_registry(...).sites` as the site set. A managed agent is
+a known site whatever its class, a managed-community agent and a managed site whose default
+tier is unresolved included (B2); the tier matters only to the B7 drift verdict. A binding
+whose id is in the registry's `orphans` (manifest entry, file missing) or `conflicts`
+(duplicate site id) fails as `ROUTING_UNKNOWN_SITE` and the message names that cause.
 
 **Tests (scenarios):** valid catalog and binding pass; unresolved reference, unknown site,
 pipeline-site binding, tier-named route each fail with their code; a binding to a
 workspace-authored agent (on disk, no manifest entry) is a known site and passes; a binding
-to a manifest-orphan id (manifest entry, file missing) fails as `ROUTING_UNKNOWN_SITE` naming
-the missing file; `routes` in a 1.1.0 config fails; the baseline block (with anchors
+to a managed-community agent, including one whose default tier is unresolved, is a known
+site and passes; a binding to a manifest-orphan id (manifest entry, file missing) fails as
+`ROUTING_UNKNOWN_SITE` naming the missing file; `routes` in a 1.1.0 config fails; the
+baseline block (with anchors
 defined) fails the alias check at 1.2.0 and warns at 1.1.0; **the alias check delegates to
 the shared A2a function (patched and asserted called; a source assertion shows
 `verify_workspace.py` has no `yaml.parse` or event scan of its own), a 1.2.0 config with an
@@ -552,17 +621,26 @@ site's default tier) with the resolver's output for the site, so the in-memory r
 bound agent equals what install and tune write. An artifact with no resolved site, and every
 pipeline artifact, gets the base map back unchanged (the same "no resolved role means base
 map" constraint as the role overlay). `config.overrides` precedence mirrors the role
-overlay. A workspace-authored agent is not a manifest artifact, has no template render, and
-has `default_tier=None`, so it receives no overlay. Without this unit, a bound agent could
-never satisfy both the render-parity check and the B7 drift check.
+overlay. The overlay applies at **both** seams that render an agent from a template: the
+staged render loop (manifest `artifacts[]`, `managed-rendered`) and the in-memory community
+render in `_fc_rendered_candidate` (`managed-community`). A community agent is not in
+`artifacts[]`, so the staged loop never renders it, and without the second seam the
+candidate behind a `reinstall-community` proposal would carry the tier default instead of
+the bound route (PR #513 thread `PRRT_kwDORzpWpM6rmKbh`). `N` is the registry's
+`default_tier`. A workspace-authored agent is not a manifest artifact, has no template
+render, and has `default_tier=None`, so it receives no overlay; neither does a managed site
+whose tier is unresolved (`SiteRegistry.unresolved`, B2), because its template names no
+single tier to overlay. Without this unit, a bound agent could never satisfy both the
+render-parity check and the B7 drift check.
 
-**Tests (scenarios):** a bound agent renders with the binding's values; every unbound agent
-renders byte-identically to the pre-change render (guards invariant I9); `config.overrides`
-precedence; pipeline agents unchanged.
+**Tests (scenarios):** a bound agent renders with the binding's values; a bound
+managed-community agent's in-memory candidate render carries the binding's values; every
+unbound agent, community agents included, renders byte-identically to the pre-change render
+(guards invariant I9); `config.overrides` precedence; pipeline agents unchanged.
 
 **Acceptance criteria:** all existing render-parity and checksum-scan tests pass unchanged;
 the render of every agent in this workspace (no bindings) is byte-identical before and
-after.
+after; a bound community agent's candidate render carries its binding's route values.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** B6.
@@ -573,25 +651,45 @@ after.
 `tests/test_verify_workspace_subagent_route_drift.py` (new).
 
 **Change:** Add `subagent_route_drift`. For each registry site (`build_site_registry(...).sites`,
-which includes managed and workspace-authored agents enumerated from disk), compare the
-installed frontmatter `model_family`, `model_provider`, `reasoning_effort`, `context_tier` to
-the resolver's output. A workspace-authored agent has no default tier, so it resolves a route
-only when it has a binding; an unbound workspace-authored agent has nothing to compare and is
-skipped. Behavior depends on whether the workspace **declares bindings** (the
-opt-in): with bindings, a managed (manifest-rendered) agent that drifts fails closed and a
-(bound) workspace-authored agent produces one advisory warning (provenance split reused from
-`frontmatter_conformity`); without bindings, drift is reported only as non-blocking `info`
-lines (count plus ids). Every drift also yields a `refresh-route-frontmatter` migration
-proposal. The opt-in is `bindings` non-empty, **not** `schema_version`, so this workspace
-(which will be at 1.2.0 with no bindings) does not turn red over its 13 stale subagents.
+which includes managed (rendered and community) and workspace-authored agents enumerated from
+disk), compare the installed frontmatter `model_family`, `model_provider`,
+`reasoning_effort`, `context_tier` to the resolver's output. A workspace-authored agent has
+no default tier, so it resolves a route only when it has a binding; an unbound
+workspace-authored agent has nothing to compare and is skipped. A managed agent's default
+tier is its template's, whichever managed class it is: an unbound **managed-community** agent
+resolves its template default tier exactly as an unbound managed-rendered agent does and is
+compared, never skipped (PR #513 thread `PRRT_kwDORzpWpM6rmKbh`). A managed site whose
+default tier is **unresolved** (`SiteRegistry.unresolved`, B2) is not silently skipped
+either: with a binding it resolves from the binding and is compared normally; without one it
+cannot resolve a route, and the verdict follows the same opt-in as drift (below). Behavior
+depends on whether the workspace **declares bindings** (the opt-in): with bindings, a managed
+agent (manifest-rendered or community) that drifts fails closed, an unbound managed agent
+whose default tier is unresolved fails closed with
+`ROUTING_SITE_DEFAULT_UNRESOLVED: <id>: <reason>` (a verify-level code, not a resolver code),
+and a (bound) workspace-authored agent produces one advisory warning (provenance split reused
+from `frontmatter_conformity`); without bindings, drift and unresolved defaults are reported
+only as non-blocking `info` lines (count plus ids). Every drift also yields a
+`refresh-route-frontmatter` migration proposal. The opt-in is `bindings` non-empty, **not**
+`schema_version`, so this workspace (which will be at 1.2.0 with no bindings) does not turn
+red over its 13 stale subagents.
 
 **Tests (scenarios):** bindings declared plus managed drift fails; bindings declared plus
 bound workspace-authored drift (an on-disk agent with no manifest entry) warns and does not
 change `ok`; an unbound workspace-authored agent is skipped; no bindings plus drift is info
-only and `ok` stays true; matching frontmatter passes; proposals are emitted.
+only and `ok` stays true; matching frontmatter passes; proposals are emitted. **Managed
+community agent** (fixture: installed `adr-generator` plus its `community_templates[]` entry,
+with bindings declared for another agent): unbound with matching tier-2 frontmatter it
+passes and appears in the compared set (not skipped); unbound with drifted frontmatter it
+fails closed, and with no bindings declared the same drift is `info` only; bound, it is
+compared against its binding. **Unresolved default** (community template path missing, and a
+template with no tier placeholder): unbound plus bindings declared fails with
+`ROUTING_SITE_DEFAULT_UNRESOLVED` naming the reason; no bindings declared is one `info` line
+and `ok` stays true; bound, it is compared against the binding.
 
 **Acceptance criteria:** verify-workspace on this workspace stays `ok` and reports the 13
-drifted subagents as `info`.
+drifted subagents as `info`; an unbound managed-community agent is compared against its
+template default tier and never skipped; an unresolved managed default is reported with its
+reason, never skipped silently.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** B6a.
@@ -752,6 +850,20 @@ B5. The manifest lists B4 before B5, B4a before B5, and B3b before B5.
 * **Registry is derived from disk and classified by the manifest, in a separate I/O module.**
   Keeps the resolver pure and portable, and makes workspace-authored agents (which have no
   manifest entry) reachable.
+* **One tier parse for every template-backed managed class (PR #513 thread
+  `PRRT_kwDORzpWpM6rmKbh`).** `FC_MANAGED_CLASSES` has three members. `managed-rendered`
+  (manifest `artifacts[]`) and `managed-community` (manifest `community_templates[]`, whose
+  entry exposes `template_path`) are both agents rendered from a template with
+  `{{TIER_<N>_*}}` placeholders (the shipped `adr-generator` community template declares
+  `{{TIER_2_FAMILY}}`), so both derive `default_tier` from that template by the one
+  regex; `managed-source` has no template and no route keys and is dropped. Deriving it only
+  for `managed-rendered` registered a community agent as `managed=True, default_tier=None`, so
+  an unbound one resolved no route: B7 would skip it or fail it as `ROUTING_UNRESOLVED`, and
+  B6a gave it no overlay. A tier that cannot be established is surfaced with a reason
+  (`SiteRegistry.unresolved`) and follows B7's bindings opt-in. Rejected: guessing a tier
+  (would verify the agent against the wrong route), demoting the site to workspace-authored
+  (would turn a fail-closed managed check into an advisory one, and the class comes from the
+  manifest, as in `frontmatter_conformity`), and skipping silently (the defect).
 * **Unknown `model_routing` keys: schema allowlist at 1.2.0, advisory below.** The only place
   an allowlist can live without mutating the published 1.1.0 mirror (I1) is the new 1.2.0
   schema, and a 1.2.0 config is an operator opt-in, so failing there is safe. For older
@@ -774,8 +886,9 @@ B5. The manifest lists B4 before B5, B4a before B5, and B3b before B5.
 | A 1.2.0 allowlist rejects a hand-edited config with a key it does not know (for example a `subagents` block carried over from the baseline) | Intended: the key was inert. The failure names the key and the allowed set. Configs below 1.2.0 are untouched (schema) and get a non-blocking advisory (B6); the operator chooses when to bump `schema_version`. |
 | Dogfood marker bump exceeds the marker or its confirmation record is missing | Operator confirmed 2026-10-12 (`040-DL` OQ9); Ship cites the record and checks the diff is one marker line; if either fails Ship halts with the reason; no half-state. |
 | Amendment Log version collision with the `209-S` to `213-S` chain | Version chosen at claim time as the next minor; shipment sequenced after `213-S`; rebase at claim. |
-| Site registry diverges from templates | B2 sync test. |
-| `build_site_registry` misclassifies a workspace-authored agent as managed, or never sees one | Disk-first: installed agent files are enumerated, then left-joined to the manifest provenance index (the classification `frontmatter_conformity` uses); fixtures for managed, workspace-authored (no manifest entry), and manifest-orphan agents. |
+| Site registry diverges from templates | B2 sync test over the shipped subagent templates and the shipped community agent templates. |
+| A managed-community agent is registered without a default tier, so an unbound one is skipped or fails as unresolved (PR #513 thread `PRRT_kwDORzpWpM6rmKbh`) | B2 derives the tier from the community `template_path` by the same parse as a rendered agent, with managed-community, missing and escaping `template_path`, no-placeholder, ambiguous, and unreadable fixtures; B7 compares an unbound community agent against its template default and surfaces an unresolved default (fail closed with bindings, `info` without); B6a overlays both render seams (invariant I12). |
+| `build_site_registry` misclassifies a workspace-authored agent as managed, or never sees one | Disk-first: installed agent files are enumerated, then left-joined to the manifest provenance index (the classification `frontmatter_conformity` uses); fixtures for managed, managed-community, workspace-authored (no manifest entry), and manifest-orphan agents. |
 | Registry enumeration reads outside the workspace or follows a link | Containment and symlink/reparse checks before any read (same rules as `frontmatter_conformity`); an escape fixture in B2. |
 | New Python surface vs the Go direction | Pure resolver with JSON vectors; registry builder is thin I/O; flagged for `039-DL`. |
 | Distribution payload lists (168-S, on hold) omit the new mirror and modules | Recorded as a cross-read note for the `207-S` disposition; packaging includes `schemas/` and `src/` today. |
@@ -802,7 +915,7 @@ Requires plan hardening: yes
 |---|---|---|
 | B4/B5 | schema validation, `verify-workspace` | Validate this workspace config at 1.2.0 against the new mirror and a copy at 1.1.0 against the untouched mirror; confirm the 1.1.0 mirror hash equals `origin/main`. |
 | B4a | `workspace-discovery` Phase 0 | After B5, follow Phase 0 against a scratch config declaring 1.1.0 and one declaring 1.2.0: the first validates against the 1.1.0 mirror (not the root), the second against the root and the 1.2.0 mirror; neither is reported invalid. |
-| B6/B7 | `verify-workspace` | Run on this workspace: all prior keys unchanged, new keys passing, 13 subagents reported as `info` drift. Run on a scratch copy with a deliberately broken binding, an anchor, an unknown `model_routing` key (`routez`), and a drifted managed subagent: each fails at 1.2.0 with its documented code; the unknown key and the anchor warn only on a scratch copy declared at 1.1.0. |
+| B6/B7 | `verify-workspace` | Run on this workspace: all prior keys unchanged, new keys passing, 13 subagents reported as `info` drift. Run on a scratch copy with a deliberately broken binding, an anchor, an unknown `model_routing` key (`routez`), and a drifted managed subagent: each fails at 1.2.0 with its documented code; the unknown key and the anchor warn only on a scratch copy declared at 1.1.0. This workspace installs no community agent, so also run on a scratch workspace with the `adr-generator` community agent installed (manifest `community_templates[]` entry) and bindings declared for another agent: unbound with matching tier-2 frontmatter it passes and is listed as compared; with drifted frontmatter it fails closed; with its `template_path` pointing at a missing file it fails with `ROUTING_SITE_DEFAULT_UNRESOLVED` naming `template-path-unusable`; with no bindings declared the last two are `info` only. |
 | B8 | fresh install render | Render the template for a scratch workspace; validate against 1.2.0; confirm no unresolved placeholders. |
 | B9 | `tune-harness` guidance | Walk the new step against a scratch config with three identical route blocks; confirm proposals are proposal-only. |
 
@@ -865,6 +978,11 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
   three skills). The one consumer that does not depend on B5 for other reasons lands before
   the cut-over; the two that do (B8, B9) land inside the same unreleased shipment, where no
   intermediate state is released and the full suite stays green (I10).
+* I12 a managed agent's default tier is derived by one parse of its template's
+  `{{TIER_<N>_FAMILY}}` frontmatter variable for both `managed-rendered` and
+  `managed-community` sites; a managed site whose tier cannot be established is reported with
+  a reason (`SiteRegistry.unresolved`; `ROUTING_SITE_DEFAULT_UNRESOLVED` under the bindings
+  opt-in), never skipped, guessed, or demoted to workspace-authored (B2, B6a, B7).
 
 **Risky actions:**
 
@@ -874,7 +992,7 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
 | B4a: edit one paragraph of a global engine skill plus its manifest checksum | low (prose and a checksum; no code; correct before and after the cut-over) | PR review; version-agnostic test | revert the commit |
 | B5: atomic cut-over: root schema content, `current_version`, `.autoharness/config.yaml` marker and manifest | high (contract change; operator-owned file; verification semantics) | **operator confirmation recorded 2026-10-12 (`040-DL` OQ9) and cited at Ship intake**; diff must show exactly one changed config line | revert the commit (root, contract, marker, checksum together); 1.1.0 untouched |
 | B6/B7: new fail-closed verify checks | medium | PR review; I4 workspace comparison | revert |
-| B6a: render-time site composition in the render loop | medium (shared render path; a bug changes every agent render) | PR review; I9 byte-identity of unbound renders | revert |
+| B6a: render-time site composition in the render loop and the in-memory community render | medium (shared render path; a bug changes every agent render) | PR review; I9 byte-identity of unbound renders | revert |
 | B10: amend P-013.5 | medium (governance text) | PR review; operator merge approval | revert |
 | B3a/B3b: edit four existing test modules | medium (touches pins) | PR review; meaning-preserving diff | revert |
 

@@ -343,9 +343,16 @@ model_routing:
 * A binding is `{ route: <catalog-name | tier1 | tier2 | tier3>, <optional per-field
   overrides> }`, `additionalProperties: false`. One shape only.
 * The **site registry** is derived, not hand-typed, and it is **disk-first**: the installed
-  agent files are enumerated first and then left-joined to the manifest `artifacts[]`. A
-  file with manifest provenance is managed (its default tier comes from the shipped
-  subagent template, validated by a sync test against the templates); a file with none is
+  agent files are enumerated first and then left-joined to the manifest (`artifacts[]` and
+  `community_templates[]`). A file with manifest provenance is managed, whether it was
+  rendered from a manifest template or installed from a community template; its default tier
+  comes from that template's `{{TIER_<N>_FAMILY}}` frontmatter variable by one parse for both
+  classes, validated by a sync test against the shipped subagent and community agent
+  templates (PR #513 thread `PRRT_kwDORzpWpM6rmKbh`: deriving it only for manifest-rendered
+  files left a community agent such as `adr-generator` with no default tier). A managed file
+  whose template yields no single tier is reported with a reason, never skipped, guessed, or
+  demoted; a managed file with no template (the engine's own `auto-tune` and
+  `auto-mergeinstall`) is not a site. A file with no manifest provenance is
   workspace-authored (no default tier, advisory only). A manifest entry whose file is
   missing is a distinct orphan case, not a site. Deriving candidates from the manifest
   alone would make workspace-authored agents unreachable, since they have no manifest
@@ -485,7 +492,7 @@ and 2 without changing any consumer.
 |---|---|
 | Schema 1.2.0 | `routes` (tier required, field overrides, name pattern), `bindings` (site-id pattern, one object shape), `additionalProperties: false` on both; **`model_routing` itself becomes a closed object (`additionalProperties: false`, allowlist = the ten existing keys plus `routes` and `bindings`), 1.2.0 only**; existing keys unchanged. |
 | Resolver | One module and vectors (D5); one shared raw-YAML guard (R1-A unit A2a) for anchors, aliases, and merge keys, called by `verify-workspace` and the CLI. |
-| `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, `routes`/`bindings` declared in a pre-1.2.0 config (inert), **unknown key directly under `model_routing` (fails in a 1.2.0 config; advisory in an older one, the same gate as the anchor check in D2)**, alias-free `model_routing`, and installed subagent frontmatter versus the resolved route. The drift check fails closed for manifest-managed agents **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
+| `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, `routes`/`bindings` declared in a pre-1.2.0 config (inert), **unknown key directly under `model_routing` (fails in a 1.2.0 config; advisory in an older one, the same gate as the anchor check in D2)**, alias-free `model_routing`, and installed subagent frontmatter versus the resolved route. The drift check fails closed for manifest-managed agents (rendered or community; a managed agent whose default tier cannot be established fails the same way) **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
 | `tune-harness` | Detects subagent drift and proposes a refresh of route frontmatter (proposal only, never auto-applied); proposes catalog extraction when it finds repeated identical route blocks. |
 | Install | Config template gains empty `routes`/`bindings` blocks; variable table documents them; subagent frontmatter is rendered from resolver output for bound sites. |
 | Policy | P-013.5 amended (catalog, sites, bindings, resolver, alias prohibition); P-013.6 amended in R2; amendment-log rows per policy convention. |
@@ -573,7 +580,7 @@ end of this document; the table below keeps the original questions and defaults.
 | Schema 1.2.0 repeats the in-place mutation bug class | New mirror, `1.1.0` byte-pin test, SCHEMA_CONTRACTS and migration entry, per the two compound learnings. |
 | Shared-file conflicts with the queued `209-S` to `213-S` chain (Orchestrator/Stage/Ship templates, `workflow-policies.md.tmpl`, harness manifest) | Sequence after `213-S` with an explicit `blocks` edge; rebase at claim time (precedent in the 2026-10-08 Stage memory). |
 | New Python surface while the operator is steering toward Go | Pure function plus language-neutral vectors; CLI is a thin wrapper; flagged for `039-DL` cross-read; no hold. |
-| Site registry drifts from templates | Sync test between `SUBAGENT_SITES` and `templates/agents/**` frontmatter tier variables. |
+| Site registry drifts from templates | Sync test between `SUBAGENT_SITES` and `templates/agents/**` frontmatter tier variables, extended to `templates/community/agents/**`. |
 | Operator expects phase routing and sees it deferred | D6 states the reason and the promotion rule; R4 recorded as a gated follow-up. |
 | `routes`/`bindings` adoption increases rendered-config complexity | Empty blocks by default; tune proposes extraction only when duplication is detected. |
 | Cross-provider routes expose code to a second vendor | OQ1 default is no change; all non-default routes carry explicit degradation; operator decision recorded. |
@@ -597,6 +604,11 @@ end of this document; the table below keeps the original questions and defaults.
   text, so `215-S` could be claimed without it. It is now task `208.014-T` (B4a), a
   dependency of B5 `208.006-T`, with the B9 sweep (`208.011-T`) as its end-of-shipment check,
   and the stash entry is archived with that forward reference.
+* Community agents as sites (PR #513 review-fix cycle 4, thread `PRRT_kwDORzpWpM6rmKbh`):
+  D3, the D10 drift row, and the risk table now name `managed-community` as a template-backed
+  managed class whose default tier is derived by the same parse as a rendered agent; plan unit
+  B2 (`208.002-T`) derives it, B6 (`208.008-T`), B6a (`208.007-T`), and B7 (`208.009-T`) were
+  updated to match (invariant I12). No new task, edge, or manifest change.
 * Baseline: `docs/design-docs/model-routing-v2.md`.
 * Plans (R1): `docs/plans/2026-10-11-model-routing-resolver-single-source-plan.md` (R1-A) and
   `docs/plans/2026-10-11-model-routing-catalog-bindings-plan.md` (R1-B).
