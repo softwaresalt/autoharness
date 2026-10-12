@@ -349,8 +349,16 @@ resolves independently, first non-empty wins:
    template default tier;
 4. terminal default `default` for `context_tier` only.
 
-`model_family` or `model_provider` still unresolved after step 3 is a resolution **error**,
-never a silent default (P-013.5). Escalation routes keep the P-013.6 order (nested role
+`model_family` still unresolved after step 3 is a resolution **error**
+(`ROUTING_UNRESOLVED: model_family`), never a silent default (P-013.5). An empty
+`model_provider` or `reasoning_effort` is **valid** and means "use the model/runtime default":
+the config template documents it ("leave empty for default"), `verify-workspace` already
+accepts it (`verify_workspace.py`, "model_provider is intentionally NOT required to be
+non-empty", pinned by `test_verify_workspace_allows_empty_model_provider_field`), and the
+R1-A resolver reproduces that rule rather than tightening it, so legacy and default installs
+are not regressed. Only a non-string value or an unresolved `{{...}}` placeholder in a
+rendered `model_provider` remains invalid (existing verify behavior, unchanged). Escalation
+routes keep the P-013.6 order (nested role
 escalation, legacy flat, `tier3`) and per-field fallback. Installed frontmatter is **not**
 part of the chain: it is a rendered default (E8B5B3C5/H8) and is checked against the
 resolver's output. The resolver output carries an ordered `resolution_chain` so a future

@@ -120,7 +120,9 @@ Canonical test gate: `$env:PYTHONPATH='src'; python -m unittest discover -s test
 **Change:** Extend `resolve_site` per the planned extensions: catalog name and `tier`
 validation, bare-tier references, binding overrides, per-field precedence, error taxonomy,
 `resolution_chain`. Vectors cover: a binding to a catalog route; a binding to a bare tier;
-a binding with a field override; a catalog route named like a tier; a route with no `tier`;
+a binding with a field override; a route or binding that declares no `model_provider` (valid:
+the runtime default; only an unresolved `model_family` is `ROUTING_UNRESOLVED`); a catalog
+route named like a tier; a route with no `tier`;
 an unknown reference; a binding on `agent:_stage`; no binding falls to the site default
 tier; `context_tier` precedence; the baseline's six profiles expressed as deltas.
 

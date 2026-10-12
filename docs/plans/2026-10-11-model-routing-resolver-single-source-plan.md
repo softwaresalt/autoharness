@@ -144,7 +144,8 @@ Canonical test gate for every code unit:
 **Change:** Author about 14 cases as JSON (`config` in, expected resolution out): tier-only
 config; role override with only some fields; Stage with no route (falls to `tier3`); Ship
 (falls to `tier2`); Orchestrator `context_tier` falling to `tier2`; a legacy plain-string
-tier; unset `model_family`; nested escalation with partial fields (per-field `tier3`);
+tier; unset `model_family`; empty `model_provider` and `reasoning_effort` (valid, no error:
+the runtime default); nested escalation with partial fields (per-field `tier3`);
 legacy flat escalation used when no nested; both-present `AMBIGUOUS_ESCALATION_CONFIG`;
 same-route guard true; same family but different provider (not degraded); `context_tier`
 difference only (still same-route); installed-role widening. The test runs each case through
@@ -171,7 +172,7 @@ than a second copy. No I/O, no imports from `verify_workspace` (avoid a cycle).
 
 **Tests (scenarios):** the A1 vectors parametrized against `resolve_site`; ambiguity returns
 the error with no per-role resolution; unresolved `model_family` returns
-`ROUTING_UNRESOLVED`.
+`ROUTING_UNRESOLVED`; an empty `model_provider` or `reasoning_effort` returns no error.
 
 **Acceptance criteria:** every A1 vector passes through `resolve_site`; the module performs
 no file or environment access (asserted by a test that runs it on plain dicts only).
