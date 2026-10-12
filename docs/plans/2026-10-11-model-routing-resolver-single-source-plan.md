@@ -491,4 +491,8 @@ decision: PASS
 * **Findings:** A-F1 and A-F2 (P2, fixed); A-F3 (P3, fixed); A-F4, A-F5, A-F6 (P3,
   acknowledged).
 * **Runtime verification and closure:** specified for A3, A4, and A5; no gaps.
+* **Addendum (PR #513 review-fix cycle 1, 2026-10-12 UTC):** A2 gained the purity guard and
+  A1/A2 pin the empty-`model_provider` rule; A4's read-only claim is asserted by a snapshot
+  test. A delta check recorded in the review record's addendum leaves the gate decision
+  above unchanged (earlier cycle records are not altered).
 

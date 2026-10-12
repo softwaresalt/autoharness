@@ -82,3 +82,38 @@ verification and closure are specified for every runtime surface (A3, A4, A5). N
 
 No P0 or P1 findings; the two P2 findings were fixed and re-verified. Decision: **PASS**.
 P3 items are acknowledged for awareness.
+
+## Addendum: PR #513 review-fix cycle 1 (2026-10-12 UTC)
+
+Append-only. The cycle 1 and cycle 2 records and the verdict above are unchanged. After the
+staging PR (#513) received a Copilot review (review 5487147517, HEAD `cc06f41e`), Stage fixed
+the findings that touch this plan and re-checked only the changed units as a single-agent
+delta pass (same `TOOL_DEGRADED` declarations as above).
+
+| Review thread | Change to this plan or its tasks | Commit |
+|---|---|---|
+| `PRRT_kwDORzpWpM6rWUXL` (empty `model_provider`) | A1 gains an empty `model_provider`/`reasoning_effort` vector and A2 a no-error scenario, pinning the rule this plan already stated; the error was in deliberation D4, now corrected | `82c8308c` |
+| `PRRT_kwDORzpWpM6rWUYJ` (purity not enforced) | A2 adds the `forbid_io()` guard, `guarded_resolve`, the static import allowlist, and negative self-tests; invariant I7; A4's read-only claim (I5) is asserted by a tree-snapshot test | `b62cb4d1` |
+| Operator answer to `040-DL` OQ1 to OQ9 | The `040-DL` defaults were accepted on 2026-10-12; no R1-A unit changed (it was never gated on an OQ) | `96a4503b` |
+
+Delta persona pass over the changed units:
+
+* **Python Reviewer.** The guard is stdlib only (`contextlib`, `unittest.mock`, `ast`) and
+  runs under the canonical `unittest discover` gate. It replaces the `os.environ` attribute
+  rather than using `patch.dict`, which avoids the hazard `tests/_env_patch.py` documents.
+  The guard records violations so a swallowed `AssertionError` still fails at exit, and the
+  static allowlist covers the import-time and function-local-import bypasses.
+* **Scope Boundary Auditor.** The guard is a test helper, not a production change; A2 now
+  lists three files (within the file budget A4 already uses) and stays one concern (the pure
+  resolver and the proof that it is pure). No new config key, schema, or routing value.
+* **Constitution Reviewer and Learnings Researcher.** No conflict. The negative self-tests
+  follow the per-check red/green-pair posture of
+  `docs/compound/2026-08-01-invocation-time-model-routing-enforcement.md`.
+* **Architecture Strategist.** The dependency graph is unchanged and acyclic
+  (`A1 -> A2 -> A3`, `A2 -> A4 -> A5`), and the backlog edges match it exactly.
+
+New findings: **A-F7 [P3]** A2 now carries the resolver, the guard, and the allowlist; size
+stays `M` and it remains one sitting, acknowledged. **A-F8 [P3]** the runtime guard cannot
+intercept the import machinery's own reads; the static allowlist is the declared complement,
+acknowledged. No P0, P1, or P2 findings. The delta check supports the existing verdict:
+the plan remains **PASS**.

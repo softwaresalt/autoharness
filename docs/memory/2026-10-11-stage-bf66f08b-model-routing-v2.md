@@ -105,3 +105,34 @@ OQ1 to OQ9, including the OQ9 marker bump), relayed by the Orchestrator and reco
 * `208.006-T` and `215-S` are no longer gated on an OQ9 answer. Ship cites the recorded
   confirmation at intake; the edit stays marker-only (one changed line in
   `.autoharness/config.yaml`).
+
+## Addendum 2026-10-12: PR #513 review-fix cycle 1
+
+Append-only. Copilot review `5487147517` on PR #513 (HEAD `cc06f41e`) raised four findings
+inside this staging's own artifacts. Stage fixed each at the root, in separate local commits
+(no push, no PR comment, no thread resolution: the Role Boundary reserves those for the
+Orchestrator). All times UTC.
+
+| UTC | Phase | Commit |
+|---|---|---|
+| 2026-10-12T17:29:56Z | Session start; tool gate, index sync | |
+| 2026-10-12T17:34:45Z | Part 1: operator confirmation recorded | `96a4503b` |
+| 2026-10-12T17:36:28Z | Thread `PRRT_kwDORzpWpM6rWUWn`: missing `B3b -> B4` edge | `d12a3979` |
+| 2026-10-12T17:38:16Z | Thread `PRRT_kwDORzpWpM6rWUXL`: empty `model_provider` is valid | `82c8308c` |
+| 2026-10-12T17:42:50Z | Thread `PRRT_kwDORzpWpM6rWUXr`: disk-first site registry | `78f88268` |
+| 2026-10-12T17:46:22Z | Thread `PRRT_kwDORzpWpM6rWUYJ`: resolver purity guard | `b62cb4d1` |
+
+* **Edge audit.** The only missing edge was `208.005-T` depending on `208.004-T`. Every other plan edge
+  in both plans and every "Depends on" note in the 18 tasks matched the backlog. Plan graph
+  and manifests: no cycle, `214-S` and `215-S` manifest orders honor every task edge, and
+  `ready_set` is still `[209-S]`. The R1-B tasks declare no task-level edge to the R1-A
+  tasks by design (the dependency is the shipment edge `215-S` after `214-S`).
+* **Correction to the original session summary.** The "manifest-registered subagent site
+  bindings" wording above meant the registry came from the manifest; it is disk-first, joined
+  to the manifest for provenance (workspace-authored agents have none). Plan B2 resized
+  `S` to `M` (volume only). The purity claim for the resolver, the A4 CLI, and the B2
+  builder is now asserted by tests (guard harness and tree snapshots), not stated.
+* **Review records.** Addenda appended to both plan-review records; earlier cycles and the
+  PASS verdicts are untouched.
+* **Deferred scope expansions:** none. Every change stayed inside this staging's artifacts.
+* Still open for the operator: OQ5 and OQ8 (see the previous addendum).

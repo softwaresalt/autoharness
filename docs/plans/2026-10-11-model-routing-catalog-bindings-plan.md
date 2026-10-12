@@ -702,3 +702,8 @@ decision: PASS
 * **Findings:** B-F1 (P1, fixed); B-F2, B-F3, B-F4 (P2, fixed); B-F5, B-F6, B-F7, B-F8 (P3,
   acknowledged).
 * **Runtime verification and closure:** specified for B4/B5, B6/B7, B8, and B9; no gaps.
+* **Addendum (PR #513 review-fix cycle 1, 2026-10-12 UTC):** B2 is now disk-first with a
+  manifest left-join (B6, B6a, B7 text aligned; B2 resized `S` to `M`), B1 runs under the
+  R1-A purity guard, and the backlog encodes the `B3b -> B4` edge. A delta check recorded in
+  the review record's addendum leaves the gate decision above unchanged (earlier cycle
+  records are not altered).
