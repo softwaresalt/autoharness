@@ -85,7 +85,11 @@ All findings are from direct reads of the repository on 2026-10-12 (UTC) unless 
   and `tier1`/`tier2`/`tier3` (tier objects must carry `model` or be a plain string).
 * Conversely, a top-level `model_routing.subagents` block **passes** validation, because
   `model_routing` itself does not set `additionalProperties: false`. Nothing consumes it, so
-  it would be silently inert. That is an existing hazard any new routing key inherits.
+  it would be silently inert. That is an existing hazard any new routing key inherits. This
+  is a schema probe against the baseline's proposed shape: this repository's dogfood config
+  and config template carry no such key. Resolution: D10 closes `model_routing` with an
+  allowlist in the 1.2.0 schema and adds a named verify check; the published 1.1.0 schema
+  cannot be tightened (D1), so older configs get an advisory instead (D11).
 * The baseline and the current dogfood values disagree: baseline `tier2` is Sonnet 5.5
   `medium` while config `tier2` is `high`; baseline Ship starts on Sonnet and escalates to
   Sonnet `high`/`long_context`, while config Ship starts on Haiku `xhigh`/`long_context`
@@ -454,7 +458,7 @@ and 2 without changing any consumer.
 | Condition | Behavior |
 |---|---|
 | Config missing, unparseable, schema-invalid, or no `schema_version` | HALT to operator (E8B5B3C5/H6); no last-known-good fallback. |
-| Catalog name or binding route unresolved; unknown site; anchor/alias present | `verify-workspace` FAIL; runtime resolver exits non-zero; the invoking agent halts that invocation. |
+| Catalog name or binding route unresolved; unknown site; unknown `model_routing` key (1.2.0 config); anchor/alias present | `verify-workspace` FAIL; runtime resolver exits non-zero; the invoking agent halts that invocation. |
 | Runtime cannot honor a per-invocation override | `ROUTING_DEGRADED` naming the site and route; carry forward to inherited skills (existing). |
 | Model family or provider unavailable at the runtime | `ROUTING_DEGRADED`; continue on the session model only after declaring it. |
 | `context_tier` unsupported | `ROUTING_DEGRADED: context_tier`, non-halting (existing). |
@@ -465,9 +469,9 @@ and 2 without changing any consumer.
 
 | Layer | R1 change |
 |---|---|
-| Schema 1.2.0 | `routes` (tier required, field overrides, name pattern), `bindings` (site-id pattern, one object shape), `additionalProperties: false` on both; existing keys unchanged. |
+| Schema 1.2.0 | `routes` (tier required, field overrides, name pattern), `bindings` (site-id pattern, one object shape), `additionalProperties: false` on both; **`model_routing` itself becomes a closed object (`additionalProperties: false`, allowlist = the ten existing keys plus `routes` and `bindings`), 1.2.0 only**; existing keys unchanged. |
 | Resolver | One module and vectors (D5). |
-| `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, `routes`/`bindings` declared in a pre-1.2.0 config (inert), alias-free `model_routing`, and installed subagent frontmatter versus the resolved route. The drift check fails closed for manifest-managed agents **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
+| `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, `routes`/`bindings` declared in a pre-1.2.0 config (inert), **unknown key directly under `model_routing` (fails in a 1.2.0 config; advisory in an older one, the same gate as the anchor check in D2)**, alias-free `model_routing`, and installed subagent frontmatter versus the resolved route. The drift check fails closed for manifest-managed agents **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
 | `tune-harness` | Detects subagent drift and proposes a refresh of route frontmatter (proposal only, never auto-applied); proposes catalog extraction when it finds repeated identical route blocks. |
 | Install | Config template gains empty `routes`/`bindings` blocks; variable table documents them; subagent frontmatter is rendered from resolver output for bound sites. |
 | Policy | P-013.5 amended (catalog, sites, bindings, resolver, alias prohibition); P-013.6 amended in R2; amendment-log rows per policy convention. |
@@ -478,6 +482,11 @@ and 2 without changing any consumer.
 * Additive 1.2.0: every 1.1.0 config remains valid and resolves identically (proved by the
   vectors). `schema_version` stays `1.1.0` until the operator adopts `routes`/`bindings`,
   at which point tune proposes the bump (mirroring the F02FD596 precedent).
+* The `model_routing` allowlist is a 1.2.0-only tightening: the published 1.1.0 mirror stays
+  byte-identical, so a 1.1.0 config carrying an unknown key (a `subagents` block, a typo)
+  still validates and still resolves identically; verify reports it as a non-blocking
+  advisory. The key becomes a hard failure only when the operator bumps the config to
+  1.2.0.
 * No hard cutover: flat `escalation` and all legacy blocks keep working; the deprecation
   timeline is a separate operator decision (OQ6).
 * Installed workspaces: tune proposes; nothing is auto-applied; workspace-authored agents
@@ -546,6 +555,7 @@ end of this document; the table below keeps the original questions and defaults.
 | `routes`/`bindings` adoption increases rendered-config complexity | Empty blocks by default; tune proposes extraction only when duplication is detected. |
 | Cross-provider routes expose code to a second vendor | OQ1 default is no change; all non-default routes carry explicit degradation; operator decision recorded. |
 | Anchor ban rejects a config an operator already hand-wrote | Verify reports the exact location and a catalog rewrite; advisory until the operator bumps to 1.2.0 (the check is gated on the schema version). |
+| The 1.2.0 `model_routing` allowlist rejects a config that carries an unknown key | Intended: the key is inert. The failure names the key; configs below 1.2.0 are unaffected (the 1.1.0 mirror is untouched) and get an advisory, so nothing turns red until the operator opts in. |
 
 ## Traceability
 

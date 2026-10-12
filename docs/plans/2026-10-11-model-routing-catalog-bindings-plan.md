@@ -34,8 +34,16 @@ After this plan ships (and `R1-A` has shipped):
   with the resolver; unbound artifacts render byte-identically to before.
 * `verify-workspace` fails closed on: an unresolved catalog or binding reference, an
   unknown site, a binding on a pipeline site, `routes`/`bindings` declared in a 1.1.0
-  config (they would be inert), and YAML anchors, aliases, or merge keys under
-  `model_routing` in a 1.2.0 config.
+  config (they would be inert), an unknown key directly under `model_routing` in a 1.2.0
+  config (for example a misspelled `routez` or the inert `subagents` block), and YAML
+  anchors, aliases, or merge keys under `model_routing` in a 1.2.0 config. For a config
+  declaring an older `schema_version` the last two are advisory warnings only, so no
+  existing workspace turns red.
+* The 1.2.0 schema closes `model_routing` itself with `additionalProperties: false` and an
+  allowlist (the ten existing keys plus `routes` and `bindings`), so a 1.2.0 config with an
+  unknown `model_routing` key fails schema validation with a named path. The published
+  1.1.0 mirror is not touched: a 1.1.0 config with extra keys keeps validating exactly as
+  today.
 * For workspaces that declare bindings, `verify-workspace` fails closed when an installed,
   manifest-managed subagent's frontmatter route differs from its resolved route; for
   workspace-authored agents it is advisory with a migration proposal. For workspaces that
@@ -56,7 +64,11 @@ rejected by the schema, or name sites that do not exist; the real gaps are that 
 routing is stale install-time frontmatter that `verify-workspace` never checks (13 installed
 subagents carry routes matching neither current `tier1` nor `tier2`), that every route is a
 full four-field copy, and that unknown `model_routing` keys pass the schema and are silently
-inert.
+inert. `model_routing` sets no `additionalProperties`, in the root schema and in the 1.1.0
+mirror alike, so a misspelled `routez` or a baseline-style top-level `subagents` block
+validates and is ignored. This repository's dogfood config carries no such key and no
+template or test fixture renders one; it is the shape the baseline proposes and any
+hand-edited workspace config can reproduce.
 
 This release closes those gaps in one shipment on purpose. Landing the schema keys without
 their verification (or the reverse) would create a window in which keys are accepted and
@@ -76,12 +88,12 @@ Scope boundaries (P-021 C1):
 
 | # | Requirement (040-DL decision) | Unit |
 |---|---|---|
-| RB1 | Tier-delta catalog resolves; names and tiers validated; no anchors (D2) | B1, B4, B6 |
+| RB1 | Tier-delta catalog resolves; names and tiers validated; no anchors; unknown `model_routing` keys rejected at 1.2.0 (D2, D10) | B1, B4, B6 |
 | RB2 | Bindings resolve for registered `agent:<id>` sites; unknown site fails (D3) | B1, B2, B6 |
 | RB2a | A bound subagent renders consistently with install, tune, and the render-parity check (D10) | B6a |
 | RB3 | Per-field precedence with a reserved ordered `resolution_chain` (D4) | B1 |
-| RB4 | Schema 1.2.0 as a new mirror; 1.1.0 preserved; contract, migration, and tests (D1, D11) | B3a, B3b, B4, B5 |
-| RB5 | Verification: integrity, unknown site, inert keys at 1.1.0, alias-free, subagent drift (D10) | B6, B7 |
+| RB4 | Schema 1.2.0 as a new mirror, with a closed `model_routing` key allowlist; 1.1.0 preserved; contract, migration, and tests (D1, D10, D11) | B3a, B3b, B4, B5 |
+| RB5 | Verification: integrity, unknown site, inert keys at 1.1.0, unknown `model_routing` keys, alias-free, subagent drift (D10) | B6, B7 |
 | RB6 | Install and tune surfaces (D10, D11) | B8, B9 |
 | RB7 | P-013.5 amendment and documentation (D10, D12) | B10, B11 |
 | RB8 | Dogfood marker bump, operator-confirmed, no routing value touched (D11) | B5 |
@@ -96,6 +108,12 @@ Scope boundaries (P-021 C1):
 * New errors: `ROUTING_REF_UNRESOLVED: <name>`, `ROUTING_UNKNOWN_SITE: <site>`,
   `ROUTING_CATALOG_INVALID: <name>: <reason>`,
   `ROUTING_BINDING_ON_PIPELINE_SITE: <site>`.
+* `MODEL_ROUTING_KNOWN_KEYS: frozenset[str]`: the closed set of keys the resolver
+  understands directly under `model_routing` (`tier1`, `tier2`, `tier3`, `orchestrator`,
+  `stage`, `ship`, `escalation`, `anchor_review`, `alt_review`, `alt_doc_review`, `routes`,
+  `bindings`). It is a constant in the pure module (no I/O). The 1.2.0 schema allowlist (B4)
+  and the verify-workspace unknown-key check (B6) must agree with it, and a sync test (B6)
+  fails if the constant and the schema's `model_routing.properties` diverge.
 * Precedence for `agent:<id>` (per field, first non-empty): binding field override; the
   binding's `route` (catalog delta then its `tier`, or the bare tier); the site's
   `default_tier`; terminal `default` for `context_tier` only. `model_family` unresolved is
@@ -120,7 +138,8 @@ Canonical test gate: `$env:PYTHONPATH='src'; python -m unittest discover -s test
 
 **Change:** Extend `resolve_site` per the planned extensions: catalog name and `tier`
 validation, bare-tier references, binding overrides, per-field precedence, error taxonomy,
-`resolution_chain`. Vectors cover: a binding to a catalog route; a binding to a bare tier;
+`resolution_chain`, and the `MODEL_ROUTING_KNOWN_KEYS` constant (a plain frozenset; no
+logic, so the module stays pure). Vectors cover: a binding to a catalog route; a binding to a bare tier;
 a binding with a field override; a route or binding that declares no `model_provider` (valid:
 the runtime default; only an unresolved `model_family` is `ROUTING_UNRESOLVED`); a catalog
 route named like a tier; a route with no `tier`;
@@ -133,11 +152,13 @@ call rather than assumed); the A1 existing-semantics vectors still pass unchange
 (regression guard); `assert_module_import_pure(model_routing)` still passes after the B1
 additions (the site-grammar regex needs only the allowlisted `re`); a catalog or binding
 vector cannot make the resolver touch the filesystem or environment, because `sites` is
-passed in rather than discovered.
+passed in rather than discovered; `MODEL_ROUTING_KNOWN_KEYS` is a frozenset of exactly the
+twelve documented keys.
 
 **Acceptance criteria:** all catalog/bindings vectors and all A1 vectors pass under the
 guard; the module still passes the static import allowlist; the `resolution_chain` for a
-bound site names each contributing layer in order.
+bound site names each contributing layer in order; `MODEL_ROUTING_KNOWN_KEYS` has exactly
+the twelve documented members.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** none within this plan (shipment-level: R1-A shipped).
@@ -261,15 +282,31 @@ optional `model_family`, `model_provider`, `reasoning_effort`, and `context_tier
 existing `contextTier` definition; `additionalProperties: false`; property names match
 `^[a-z][a-z0-9_-]{0,47}$` and are not `tier1`, `tier2`, `tier3`, or `default`) and `bindings` (object;
 `patternProperties` `^agent:[a-z0-9][a-z0-9_-]*$` to a `bindingDelta`: `route` required
-string, the four optional overrides; `additionalProperties: false` at both levels). Nothing
-else changes. The 1.2.0 mirror equals the root except `$id`. **Do not edit
-`schemas/harness-config/1.1.0.schema.json`.**
+string, the four optional overrides; `additionalProperties: false` at both levels).
+
+**Closing `model_routing` itself (the one other change).** `model_routing` becomes a closed
+object: it gains `additionalProperties: false` over exactly the twelve properties it declares
+(the ten existing keys plus `routes` and `bindings`), so an unknown key such as `routez` or a
+top-level `subagents` block fails validation with a named path instead of being silently
+inert. The `not` ambiguity constraint on `model_routing` is unchanged. This tightening exists
+**only** in the 1.2.0 schema (root and new mirror): a 1.2.0 config is a deliberate opt-in
+(`schema_version` is bumped by the operator), whereas the published 1.1.0 mirror stays
+byte-identical, so every 1.1.0 config that validates today (extra keys included) still
+validates (invariants I1, I2). Nothing else changes. The 1.2.0 mirror equals the root except
+`$id`. **Do not edit `schemas/harness-config/1.1.0.schema.json`.**
 
 **Tests (scenarios):** empty and valid catalog/bindings validate; `routes.stage` style names
 that equal a tier, a route without `tier`, an unknown binding key shape (for example
-`phases.architect`), and the baseline-shaped block all fail with a named path; the root and
-the 1.2.0 mirror are identical except `$id`; a 1.1.0 document still validates against the
-untouched 1.1.0 mirror.
+`phases.architect`), and the baseline-shaped block all fail with a named path; **an
+otherwise-valid 1.2.0 config whose only defect is an unknown `model_routing` key** (`routez:
+{}`) **fails with an `additionalProperties` error naming `routez`**, and so does the same
+config carrying only the inert baseline-style `subagents` block; every
+key the dogfood config and the rendered config template carry under `model_routing` is a member
+of the allowlist (a key-set subset check, independent of the marker); the
+`model_routing.properties` key set equals the twelve documented keys; the root and the
+1.2.0 mirror are identical except `$id`; a 1.1.0 document **including one with an unknown
+`model_routing` key and one with a `subagents` block** still validates against the untouched
+1.1.0 mirror.
 
 **Acceptance criteria:** the schema tests pass; `git diff` shows no change to the 1.1.0
 mirror; B3a/B3b tests still pass with root at 1.2.0 (they read the helper).
@@ -309,19 +346,30 @@ config contract as current with no schema warning.
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `S` / `low`.
 **Depends on:** B4.
 
-### B6: verify-workspace: catalog, binding, site, inert-key, and alias checks
+### B6: verify-workspace: catalog, binding, site, inert-key, unknown-key, and alias checks
 
 **Files (2):** `src/autoharness/verify_workspace.py`,
 `tests/test_verify_workspace_routing_catalog.py` (new).
 
 **Change:** Add targeted checks (existence-gated: they pass silently when `routes`/`bindings`
-are absent and the config has no anchors):
+are absent, `model_routing` has no unknown key, and the config has no anchors):
 
 * `routing_catalog_integrity`: every catalog route is valid and every binding `route`
   resolves (uses the resolver); unknown site, pipeline-site binding, and tier-named catalog
   entries fail.
 * `routing_inert_keys`: `routes`/`bindings` present while `schema_version` is `1.1.0` or
   older fails (`ROUTING_KEYS_REQUIRE_1_2_0`), because they would be accepted and ignored.
+* `routing_unknown_keys`: any key directly under `model_routing` that is not in
+  `model_routing.MODEL_ROUTING_KNOWN_KEYS` is accepted-but-inert. The severity follows the
+  config's declared `schema_version`, the same gate the alias check uses (040-DL D2, D11):
+  **a 1.2.0 config fails** (`ROUTING_UNKNOWN_KEY: <key>`, naming the key and the allowed
+  set; the 1.2.0 schema's `additionalProperties: false` rejects the same config earlier, so
+  this check is the named, schema-independent second layer); **an older config produces one
+  advisory warning per key** (the same code, severity `warning`) and never changes `ok`,
+  because the published 1.1.0 schema cannot be tightened (I1) and an existing workspace that
+  validates today (including one carrying a baseline-style `subagents` block) must not turn
+  red (I2, I4). `routes`/`bindings` are in the known set, so in an older config they are
+  reported once, by `routing_inert_keys`, not twice.
 * `routing_anchor_alias_free`: scan `.autoharness/config.yaml` with `yaml.parse` events;
   an anchor, alias, or merge key anywhere under `model_routing` fails
   (`ROUTING_ANCHOR_UNSUPPORTED`) in a 1.2.0 config and is an advisory warning in older
@@ -336,12 +384,19 @@ pipeline-site binding, tier-named route each fail with their code; a binding to 
 workspace-authored agent (on disk, no manifest entry) is a known site and passes; a binding
 to a manifest-orphan id (manifest entry, file missing) fails as `ROUTING_UNKNOWN_SITE` naming
 the missing file; `routes` in a 1.1.0 config fails; the baseline block (with anchors
-defined) fails the alias check at 1.2.0 and warns at 1.1.0; a config with none of these
-keys adds only passing checks.
+defined) fails the alias check at 1.2.0 and warns at 1.1.0; **an otherwise-valid 1.2.0
+config whose only defect is an unknown `model_routing` key (`routez`) fails
+`routing_unknown_keys` with `ROUTING_UNKNOWN_KEY: routez` (run with a permissive schema so
+the named check, not the schema, is what fails); the same at 1.2.0 with only an inert
+`subagents` block; a 1.1.0 config carrying `subagents` or `routez` passes `ok` with one
+advisory warning per key and no failure; `routes` in a 1.1.0 config is reported once (by
+`routing_inert_keys`), not also by `routing_unknown_keys`; a sync test asserts
+`MODEL_ROUTING_KNOWN_KEYS` equals the `model_routing.properties` key set of the current
+(1.2.0) mirror;** a config with none of these keys adds only passing checks.
 
 **Acceptance criteria:** the new checks appear in `targeted_checks` with the documented
 keys; every pre-existing verify test passes unmodified; verify-workspace on this workspace
-is unchanged except the new passing keys.
+is unchanged except the new passing keys (this workspace carries no unknown key).
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** B1, B2, B5.
@@ -531,6 +586,14 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 * **Registry is derived from disk and classified by the manifest, in a separate I/O module.**
   Keeps the resolver pure and portable, and makes workspace-authored agents (which have no
   manifest entry) reachable.
+* **Unknown `model_routing` keys: schema allowlist at 1.2.0, advisory below.** The only place
+  an allowlist can live without mutating the published 1.1.0 mirror (I1) is the new 1.2.0
+  schema, and a 1.2.0 config is an operator opt-in, so failing there is safe. For older
+  configs the schema cannot be tightened and an existing workspace that validates today must
+  not turn red (I2, I4), so `routing_unknown_keys` warns. This is the same
+  fail-at-1.2.0 / advisory-below gate 040-DL D2 sets for anchors, one rule for every
+  accepted-but-inert routing key. The alternative of failing older configs was rejected: it
+  would silently reclassify previously valid configs as invalid.
 * **No CLI `agent:` sites yet.** Nothing consumes them until R3's invocation directives.
 
 ## Risks and Caveats
@@ -539,7 +602,8 @@ No cycles. Serial by file: `model_routing.py` (B1), `verify_workspace.py` (B6, B
 |---|---|
 | A schema version bump cascades into tests and tooling | B3a/B3b first; B4 acceptance requires those tests unchanged in meaning; B5 acceptance requires the full suite green. |
 | In-place mutation of the 1.1.0 mirror (third-occurrence bug class) | B4 forbids editing it; B5 pins its bytes. |
-| Verify turns red on this workspace | Drift opt-in is bindings-only; inert-key and alias checks are existence-gated; B6/B7 acceptance includes "this workspace unchanged except new passing keys and info". |
+| Verify turns red on this workspace | Drift opt-in is bindings-only; inert-key, unknown-key, and alias checks are existence-gated; B6/B7 acceptance includes "this workspace unchanged except new passing keys and info". |
+| A 1.2.0 allowlist rejects a hand-edited config with a key it does not know (for example a `subagents` block carried over from the baseline) | Intended: the key was inert. The failure names the key and the allowed set. Configs below 1.2.0 are untouched (schema) and get a non-blocking advisory (B6); the operator chooses when to bump `schema_version`. |
 | Dogfood marker bump exceeds the marker or its confirmation record is missing | Operator confirmed 2026-10-12 (`040-DL` OQ9); Ship cites the record and checks the diff is one marker line; if either fails Ship halts with the reason; no half-state. |
 | Amendment Log version collision with the `209-S` to `213-S` chain | Version chosen at claim time as the next minor; shipment sequenced after `213-S`; rebase at claim. |
 | Site registry diverges from templates | B2 sync test. |
@@ -569,7 +633,7 @@ Requires plan hardening: yes
 | Unit | Runtime surface | Verification before absorption |
 |---|---|---|
 | B4/B5 | schema validation, `verify-workspace` | Validate this workspace config at 1.2.0 against the new mirror and a copy at 1.1.0 against the untouched mirror; confirm the 1.1.0 mirror hash equals `origin/main`. |
-| B6/B7 | `verify-workspace` | Run on this workspace: all prior keys unchanged, new keys passing, 13 subagents reported as `info` drift. Run on a scratch copy with a deliberately broken binding, an anchor, and a drifted managed subagent: each fails with its documented code. |
+| B6/B7 | `verify-workspace` | Run on this workspace: all prior keys unchanged, new keys passing, 13 subagents reported as `info` drift. Run on a scratch copy with a deliberately broken binding, an anchor, an unknown `model_routing` key (`routez`), and a drifted managed subagent: each fails at 1.2.0 with its documented code; the unknown key and the anchor warn only on a scratch copy declared at 1.1.0. |
 | B8 | fresh install render | Render the template for a scratch workspace; validate against 1.2.0; confirm no unresolved placeholders. |
 | B9 | `tune-harness` guidance | Walk the new step against a scratch config with three identical route blocks; confirm proposals are proposal-only. |
 
@@ -607,8 +671,10 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
 
 * I1 the published `schemas/harness-config/1.1.0.schema.json` bytes never change.
 * I2 every 1.1.0 config that validates today still validates and resolves identically.
-* I3 no key is accepted by the schema without a verification path (the inert-key check
-  covers older configs; B6 covers 1.2.0).
+* I3 no key is accepted by the schema without a verification path: at 1.2.0 the schema
+  allowlist plus `routing_unknown_keys` close `model_routing`; for older configs
+  `routing_inert_keys` (`routes`/`bindings`) and the advisory `routing_unknown_keys` cover
+  what the immutable 1.1.0 schema cannot reject; B6 covers catalog, bindings, and anchors.
 * I4 this workspace's `verify-workspace` stays `ok`; new checks report passing or `info`
   only.
 * I5 the dogfood config diff is exactly the `schema_version` line (and the manifest
@@ -645,7 +711,9 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
   `.autoharness/config.yaml`.
 * B6: the alias scan is bounded to the `model_routing` subtree, tolerates a YAML parse
   error (reported, not raised), and detects merge keys (`<<`) as well as anchors and
-  aliases.
+  aliases. The unknown-key check reads only the keys directly under `model_routing`, never
+  mutates the config, and its allowlist is the single `MODEL_ROUTING_KNOWN_KEYS` constant,
+  held in sync with the 1.2.0 schema by a test.
 * B7: `info` output is bounded (count plus at most 20 ids) so a large workspace does not
   flood the report; the opt-in predicate (`bindings` non-empty) is unit-tested in both
   directions.
