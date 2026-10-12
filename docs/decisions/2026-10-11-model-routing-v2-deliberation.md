@@ -302,11 +302,17 @@ model_routing:
   telemetry. A route is a targeted override, never a parallel tier taxonomy (the P-013.5
   invariant).
 * Names match `^[a-z][a-z0-9_-]{0,47}$` and must not equal `tier1`/`tier2`/`tier3`.
-* `verify-workspace` fails when anything under `model_routing` is parsed from a YAML
-  anchor, alias, or merge key (`ROUTING_ANCHOR_UNSUPPORTED`) in a `schema_version: 1.2.0`
-  config, and reports an advisory for older configs so no existing workspace turns red,
-  because agents read the raw text, render/tune does not preserve them, and the Go runtime
-  must not depend on them.
+* `verify-workspace` and the runtime resolver CLI both fail when anything under
+  `model_routing` is parsed from a YAML anchor, alias, or merge key
+  (`ROUTING_ANCHOR_UNSUPPORTED`) in a `schema_version: 1.2.0` config (the CLI exits non-zero,
+  D9), and for older configs `verify-workspace` reports an advisory and the CLI does not
+  reject, so no existing workspace turns red, because agents read the raw text, render/tune
+  does not preserve them, and the Go runtime must not depend on them. Both surfaces call
+  **one shared function that inspects the raw YAML text before loading** (R1-A unit A2a,
+  `model_routing_yaml.check_model_routing_yaml`), because `yaml.safe_load` erases anchors,
+  aliases, and merge keys, leaving schema-valid plain data that neither the schema nor the
+  pure resolver can distinguish from a hand-written equivalent. A check that lived only in
+  `verify-workspace` would let the CLI succeed for a config verify rejects.
 * The values above are illustrative; the actual catalog is operator data (OQ4). The
   baseline's six profiles map as: `claude-tier1-fast` is plain `tier1`; `claude-tier1-ingest`
   is `ingest`; `claude-tier2-standard` is plain `tier2`; `claude-tier2-repair` is `repair`;
@@ -399,7 +405,10 @@ and 2 without changing any consumer.
   route|escalation] --json`. The Orchestrator declares its invocation directive from this
   output when the CLI is available (`TOOL_OK`), and otherwise follows the existing prose
   with `TOOL_DEGRADED` (P-012). The prose is retained as the declared fallback, so no
-  runtime without the CLI regresses.
+  runtime without the CLI regresses. The CLI reads the config with `yaml.safe_load` and
+  validates it, so it also runs the shared raw-YAML guard (D2) on the file text before
+  loading and exits non-zero for a 1.2.0 config carrying an anchor, alias, or merge key
+  under `model_routing`; it stays read-only and its pinned document key set is unchanged.
 * Rejected: leaving resolution as prose (the observed drift source); embedding the new
   logic only in `verify_workspace.py` (5.9k lines, not callable at runtime); a new schema
   field that stores pre-resolved routes (a second copy to drift).
@@ -463,7 +472,7 @@ and 2 without changing any consumer.
 | Condition | Behavior |
 |---|---|
 | Config missing, unparseable, schema-invalid, or no `schema_version` | HALT to operator (E8B5B3C5/H6); no last-known-good fallback. |
-| Catalog name or binding route unresolved; unknown site; unknown `model_routing` key (1.2.0 config); anchor/alias present | `verify-workspace` FAIL; runtime resolver exits non-zero; the invoking agent halts that invocation. |
+| Catalog name or binding route unresolved; unknown site; unknown `model_routing` key (1.2.0 config); anchor/alias present (1.2.0 config; advisory below, per D2) | `verify-workspace` FAIL; runtime resolver exits non-zero (the CLI applies the same shared raw-YAML guard as verify, D2, D5); the invoking agent halts that invocation. |
 | Runtime cannot honor a per-invocation override | `ROUTING_DEGRADED` naming the site and route; carry forward to inherited skills (existing). |
 | Model family or provider unavailable at the runtime | `ROUTING_DEGRADED`; continue on the session model only after declaring it. |
 | `context_tier` unsupported | `ROUTING_DEGRADED: context_tier`, non-halting (existing). |
@@ -475,7 +484,7 @@ and 2 without changing any consumer.
 | Layer | R1 change |
 |---|---|
 | Schema 1.2.0 | `routes` (tier required, field overrides, name pattern), `bindings` (site-id pattern, one object shape), `additionalProperties: false` on both; **`model_routing` itself becomes a closed object (`additionalProperties: false`, allowlist = the ten existing keys plus `routes` and `bindings`), 1.2.0 only**; existing keys unchanged. |
-| Resolver | One module and vectors (D5). |
+| Resolver | One module and vectors (D5); one shared raw-YAML guard (R1-A unit A2a) for anchors, aliases, and merge keys, called by `verify-workspace` and the CLI. |
 | `verify-workspace` | New targeted checks: catalog integrity, binding route resolves, known site, `routes`/`bindings` declared in a pre-1.2.0 config (inert), **unknown key directly under `model_routing` (fails in a 1.2.0 config; advisory in an older one, the same gate as the anchor check in D2)**, alias-free `model_routing`, and installed subagent frontmatter versus the resolved route. The drift check fails closed for manifest-managed agents **only in workspaces that declare `bindings`** (the opt-in to config-authoritative subagent routing), is advisory for workspace-authored agents (037-DL split), and is non-blocking `info` otherwise, so a workspace with pre-existing drift (this one) does not turn red. Existing P-013.5/P-013.6 checks delegate to the resolver. |
 | `tune-harness` | Detects subagent drift and proposes a refresh of route frontmatter (proposal only, never auto-applied); proposes catalog extraction when it finds repeated identical route blocks. |
 | Install | Config template gains empty `routes`/`bindings` blocks; variable table documents them; subagent frontmatter is rendered from resolver output for bound sites. |
@@ -565,7 +574,8 @@ end of this document; the table below keeps the original questions and defaults.
 ## Traceability
 
 * Source stash: `BF66F08B` (archived by Stage after consumption); deliberation: `040-DL`.
-* Harvested: feature `207-F` (shipment `214-S`, 5 tasks `207.001-T` to `207.005-T`) and
+* Harvested: feature `207-F` (shipment `214-S`, 6 tasks `207.001-T` to `207.006-T`; plan
+  unit A2a is `207.006-T`) and
   feature `208-F` (shipment `215-S`, 13 tasks `208.001-T` to `208.013-T`; plan units B6 and
   B6a are `208.008-T` and `208.007-T`). `214-S` blocks on `213-S`; `215-S` blocks on `214-S`.
 * Follow-up stash entries: `C2EA31FA` (R2 escalation chain), `C5801D7B` (R3 invocation

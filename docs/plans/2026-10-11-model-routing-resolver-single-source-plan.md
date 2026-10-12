@@ -33,7 +33,11 @@ After this plan ships:
 * `autoharness routing resolve --workspace <path> --site <stage|ship|orchestrator>
   [--kind route|escalation] --json` prints one JSON document and exits `0` (resolved), `1`
   (resolved with a declared degradation, for example a same-route escalation), or `2`
-  (unresolved or invalid config; fail closed).
+  (unresolved or invalid config, or a YAML anchor, alias, or merge key under `model_routing`
+  in a config that declares schema 1.2.0; fail closed). The raw-YAML check is one shared
+  function (`model_routing_yaml.check_model_routing_yaml`, unit A2a) because `yaml.safe_load`
+  erases those constructs before the config reaches the resolver; `verify-workspace` calls
+  the same function in R1-B.
 * The Orchestrator declares its Stage and Ship invocation routes from that CLI when it is
   available (`TOOL_OK`) and otherwise follows the existing prose with
   `TOOL_DEGRADED: routing-resolver-cli`. Its config-validation clause validates against the
@@ -80,6 +84,7 @@ Scope boundaries (P-021 C1):
 | RA2 | One pure module implements those semantics, with no I/O, enforced by a test guard (D5) | A2 |
 | RA3 | `verify_workspace` and install derivation delegate to it; public outputs unchanged (D5, D10) | A3 |
 | RA4 | Read-only `routing resolve` CLI with a pinned document shape and fail-closed exit codes (D5, D9) | A4 |
+| RA4a | One shared raw-YAML guard rejects anchors, aliases, and merge keys under `model_routing` for a 1.2.0 config, in both the CLI (exit `2`) and, in R1-B, `verify-workspace`; advisory below 1.2.0 (D2, D9) | A2a, A4 (consumed by R1-B B6) |
 | RA5 | Orchestrator declares routes from the CLI with a declared prose fallback; validates config against the matching schema version (D5, D9, P-012) | A5 |
 | RA6 | No new config keys, schema, policy, or routing-value change (D1, D11) | all (guard in A3 and A5 acceptance) |
 
@@ -230,6 +235,61 @@ performs no filesystem, environment, subprocess, or network access.
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** A1.
 
+### A2a: Shared raw-YAML guard for `model_routing` (anchors, aliases, merge keys)
+
+**Files (2):** `src/autoharness/model_routing_yaml.py` (new),
+`tests/test_model_routing_yaml.py` (new).
+
+**Why a shared unit.** `yaml.safe_load` resolves anchors, aliases, and merge keys at parse
+time, so the resulting dictionary is plain, schema-valid data and the construct is invisible
+to the schema and to the pure resolver. The prohibition (040-DL D2, D9) can therefore only be
+enforced on the raw YAML text, **before** loading. Two consumers need it: the `routing
+resolve` CLI (A4, this release) and `verify-workspace` (R1-B unit B6). One function owns the
+rule so the two cannot disagree, and it lands in R1-A because A4 is its first consumer and
+`215-S` (R1-B) blocks on `214-S`, so the second consumer (B6) always sees it already shipped.
+It is a separate module, not part of `model_routing.py`, because it imports `yaml` (the pure
+module's static import allowlist forbids it).
+
+**Change:** One public function and its result type:
+
+```python
+@dataclass(frozen=True)
+class YamlGuardResult:
+    errors: tuple[str, ...]      # fail closed, e.g. "ROUTING_ANCHOR_UNSUPPORTED: alias at line 12"
+    warnings: tuple[str, ...]    # advisory (declared schema_version below 1.2.0)
+    parse_error: str | None      # a YAML syntax error is reported here, never raised
+
+def check_model_routing_yaml(raw_text: str, schema_version: str | None) -> YamlGuardResult: ...
+```
+
+The function walks the `yaml.parse` **event stream** (not `safe_load`) and flags, anywhere in
+the value of the top-level `model_routing` key: a node carrying an anchor, an alias event,
+and a merge key (a plain, unquoted `<<` scalar in mapping-key position; a quoted `"<<"` key is
+an ordinary string). Constructs outside `model_routing` are ignored. Severity follows the
+declared `schema_version`, parsed as dotted integers: below `1.2.0` the findings are
+`warnings`; at or above `1.2.0`, or when the version is missing or unparsable, they are
+`errors` (fail closed; a 1.1.0 config with aliases is **not** rejected, as D2 scopes the
+prohibition to 1.2.0 and advises older configs). Findings are in document order with the
+construct kind and a 1-based line. Pure over text: no filesystem, environment, subprocess, or
+network access.
+
+**Tests (scenarios):** every call runs under the A2 `forbid_io()` guard
+(`tests/_resolver_purity_guard.py`). An anchor definition, an alias, and a merge key under
+`model_routing` are each flagged with kind and line; an anchor on a sequence node; flow-style
+and block-style forms; `errors` at `1.2.0`, a missing version, and an unparsable version;
+`warnings` (not errors) at `1.1.0`, `1.0.0`, and `0.9.0`; anchors and aliases **outside**
+`model_routing` are ignored; a quoted `"<<"` key and `&`/`*` inside a string or a comment are
+not flagged; the baseline-shaped document (undefined aliases) reports the aliases without
+raising; syntactically broken YAML sets `parse_error` and does not raise; empty text yields no
+findings; the module imports standalone.
+
+**Acceptance criteria:** all scenarios pass; the function is the only anchor/alias/merge-key
+scanner in the code base (A4 and, in R1-B, B6 each assert they delegate to it); no existing
+file is modified.
+
+**Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `S` /
+`medium`. **Depends on:** A2 (reuses the purity guard).
+
 ### A3: Delegate verify_workspace and install derivation to the resolver
 
 **Files (2):** `src/autoharness/verify_workspace.py`,
@@ -265,23 +325,39 @@ precheck in full: a missing, unparseable, empty, or `schema_version`-less config
 that fails validation against the schema version matching its own `schema_version` (the same
 `resolve_contract_schema_path` plus `Draft7Validator` path `verify_workspace` uses; `jsonschema`
 is already a runtime dependency), yields a document with `errors` and exit `2`. There is no
-last-known-good fallback. Add the command to `USAGE`.
+last-known-good fallback. **Raw-YAML guard (040-DL D2, D9):** because `safe_load` erases
+anchors, aliases, and merge keys before validation, the command also passes the raw file text
+and the observed `schema_version` to the A2a function `check_model_routing_yaml`, **before**
+schema validation, so the named code is deterministic whichever schema versions exist. Any
+guard `errors` (a construct under `model_routing` in a config that declares 1.2.0 or later)
+produce a document whose `errors` carry the `ROUTING_ANCHOR_UNSUPPORTED` entries and exit `2`.
+A config declaring `1.1.0` or older is **not** rejected: its guard `warnings` are not emitted
+by the CLI (the pinned document key set is unchanged; the advisory belongs to
+`verify-workspace`). The CLI contains no scanner of its own. Add the command to `USAGE`.
 
 **Tests (scenarios):** dogfood-shaped fixture config resolves Stage and Ship and escalation
 with the expected tuples; same-route escalation gives exit `1` with `ESCALATION_DEGRADED`;
-missing config gives exit `2`; a schema-invalid config gives exit `2`; the document key set
-is exactly the pinned set; the command is read-only (a before/after snapshot of the fixture
-workspace tree, relative paths plus SHA-256 of each file, is identical for every scenario
-above, and stderr is empty on a successful parse).
+missing config gives exit `2`; a schema-invalid config gives exit `2`; **a config declaring
+`schema_version: "1.2.0"` with an anchor, an alias, or a merge key under `model_routing` gives
+exit `2` with `ROUTING_ANCHOR_UNSUPPORTED` in `errors` (the regression for the CLI path:
+without the guard `safe_load` would hand the resolver plain data and the command would
+succeed); the same constructs in a `schema_version: "1.1.0"` config are not rejected and
+resolve exactly as the de-aliased config does; the command calls
+`model_routing_yaml.check_model_routing_yaml` (patched and asserted) and contains no
+`yaml.parse` or event scan of its own;** the document key set is exactly the pinned set; the
+command is read-only (a before/after snapshot of the fixture workspace tree, relative paths
+plus SHA-256 of each file, is identical for every scenario above, and stderr is empty on a
+successful parse).
 
-**Acceptance criteria:** exit codes and key set pinned by test; the read-only snapshot
-assertion passes; running it against this
+**Acceptance criteria:** exit codes and key set pinned by test; an aliased 1.2.0 config exits
+`2` with `ROUTING_ANCHOR_UNSUPPORTED` and an aliased 1.1.0 config is not rejected; the CLI
+delegates to the shared A2a function; the read-only snapshot assertion passes; running it against this
 workspace prints Stage `claude-sonnet-5.5`/`anthropic`/`xhigh`/`default` and Ship
 `claude-haiku-5.5`/`anthropic`/`xhigh`/`long_context` (recorded in closure, not asserted by
 a test that would encode operator data).
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
-`medium`. **Depends on:** A2.
+`medium`. **Depends on:** A2, A2a.
 
 ### A5: Orchestrator declares routes from the CLI, with a declared fallback
 
@@ -315,11 +391,12 @@ marker tests pass; the manifest checksum equals the committed mirror.
 
 ```text
 A1 -> A2 -> A3
-A2 -> A4 -> A5
+A2 -> A2a -> A4 -> A5
 ```
 
-No cycles. A3 and A4 are independent after A2 and touch different production files; they are
-ordered A3 then A4 only for review simplicity.
+No cycles. A3 and A2a/A4 are independent after A2 and touch different production files; they
+are ordered A3 then A2a then A4 only for review simplicity. The A2a function is consumed a
+second time by R1-B unit B6 (shipment `215-S` blocks on `214-S`, so it has shipped by then).
 
 ## Decisions and Rationale
 
@@ -331,6 +408,13 @@ ordered A3 then A4 only for review simplicity.
   resolver testable without a workspace and portable.
 * **CLI is read-only and fail-closed.** Mirrors `harness resolve`; no stale fallback
   (E8B5B3C5).
+* **The raw-YAML prohibition lives in one shared function, called before loading.** `safe_load`
+  erases anchors, aliases, and merge keys, so a check that runs on loaded data (or only in
+  `verify-workspace`) cannot protect the runtime path. One function (A2a) serves the CLI now
+  and `verify-workspace` in R1-B, gated on the declared `schema_version` exactly as D2 states
+  (error at 1.2.0, advisory below), so the two surfaces cannot disagree. It sits in R1-A
+  because the CLI is its first consumer; placing it in R1-B would have shipped a CLI that
+  accepts a configuration `verify-workspace` rejects.
 * **Prose stays as the declared fallback.** Runtimes without the CLI do not regress; the
   degradation is visible (P-012).
 * **No JSON Schema for the CLI document yet.** Pinned keys are enough for one consumer;
@@ -346,6 +430,7 @@ ordered A3 then A4 only for review simplicity.
 | New Python surface while the operator steers toward Go | Pure module plus JSON vectors; thin CLI; cross-read with `039-DL`; not held by `207-S`. |
 | The Orchestrator CLI call is unavailable in some runtimes | Declared `TOOL_DEGRADED` fallback to the existing prose. |
 | A3 touches many lines of a huge file | Size `M`; one concern; whole-suite gate. |
+| The CLI succeeds for a config `verify-workspace` rejects (aliases vanish in `safe_load`) | A2a runs on raw text before loading, in the CLI and in `verify-workspace`; A4 has an exit-`2` regression test and a delegation assertion; no second scanner exists. |
 
 ## Plan Hardening Signals (REQUIRED)
 
@@ -369,7 +454,7 @@ Requires plan hardening: yes
 | Unit | Runtime surface | Verification before absorption |
 |---|---|---|
 | A3 | `autoharness verify-workspace` | Run it on this workspace before and after; the JSON report is identical except no new keys (record both hashes in closure). |
-| A4 | `autoharness routing resolve` | Run for `stage`, `ship`, `orchestrator`, and `--kind escalation` against this workspace; run once against a copy with the config removed and confirm exit `2`. |
+| A4 | `autoharness routing resolve` | Run for `stage`, `ship`, `orchestrator`, and `--kind escalation` against this workspace; run once against a copy with the config removed and confirm exit `2`; run once against a copy declaring `schema_version: "1.2.0"` with an alias under `model_routing` and confirm exit `2` with `ROUTING_ANCHOR_UNSUPPORTED`. |
 | A5 | Orchestrator invocation directive | Confirm the template/mirror/manifest triple; confirm the CLI path and the declared fallback are both stated. |
 
 Closure artifact: the shipment closure record under `docs/closure/` with the before/after
@@ -410,6 +495,10 @@ refactor of a fail-closed verification gate. Hardening recorded 2026-10-12 (UTC)
   successful parse.
 * I6 `context_tier` is never part of the same-route comparison.
 * I7 `model_routing.py` performs no filesystem, environment, subprocess, or network access.
+* I8 the raw-YAML anchor/alias/merge-key rule has exactly one implementation
+  (`model_routing_yaml.check_model_routing_yaml`), called on raw text before loading by the
+  CLI (A4) and by `verify-workspace` (R1-B B6); a config declaring 1.1.0 or older is never
+  rejected for these constructs.
   This is enforced by tests, not by convention: every resolver test call runs under the A2
   `forbid_io()` guard (proved able to fail by negative self-tests), and the module passes the
   static import allowlist.

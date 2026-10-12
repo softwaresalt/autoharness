@@ -38,7 +38,9 @@ After this plan ships (and `R1-A` has shipped):
   config (for example a misspelled `routez` or the inert `subagents` block), and YAML
   anchors, aliases, or merge keys under `model_routing` in a 1.2.0 config. For a config
   declaring an older `schema_version` the last two are advisory warnings only, so no
-  existing workspace turns red.
+  existing workspace turns red. The anchor/alias/merge-key rule is the single R1-A function
+  that the `routing resolve` CLI also calls before loading the config, so the runtime
+  resolver exits non-zero for the same 1.2.0 config that `verify-workspace` fails.
 * The 1.2.0 schema closes `model_routing` itself with `additionalProperties: false` and an
   allowlist (the ten existing keys plus `routes` and `bindings`), so a 1.2.0 config with an
   unknown `model_routing` key fails schema validation with a named path. The published
@@ -93,7 +95,7 @@ Scope boundaries (P-021 C1):
 | RB2a | A bound subagent renders consistently with install, tune, and the render-parity check (D10) | B6a |
 | RB3 | Per-field precedence with a reserved ordered `resolution_chain` (D4) | B1 |
 | RB4 | Schema 1.2.0 as a new mirror, with a closed `model_routing` key allowlist; 1.1.0 preserved; contract, migration, and tests (D1, D10, D11) | B3a, B3b, B4, B5 |
-| RB5 | Verification: integrity, unknown site, inert keys at 1.1.0, unknown `model_routing` keys, alias-free, subagent drift (D10) | B6, B7 |
+| RB5 | Verification: integrity, unknown site, inert keys at 1.1.0, unknown `model_routing` keys, alias-free through the shared R1-A guard (A2a), subagent drift (D10) | B6, B7 |
 | RB6 | Install and tune surfaces (D10, D11) | B8, B9 |
 | RB7 | P-013.5 amendment and documentation (D10, D12) | B10, B11 |
 | RB8 | Dogfood marker bump, operator-confirmed, no routing value touched (D11) | B5 |
@@ -122,6 +124,10 @@ Scope boundaries (P-021 C1):
 * The pure module stays pure. Building `sites` is I/O (it enumerates installed agent files,
   then joins them to the workspace manifest and templates) and lives in a separate
   `src/autoharness/model_routing_sites.py`.
+* Consumed from R1-A (not defined here): `model_routing_yaml.check_model_routing_yaml(raw_text,
+  schema_version) -> YamlGuardResult(errors, warnings, parse_error)` (R1-A unit A2a). B6's
+  alias check delegates to it; B6 defines no scanner. Because `215-S` blocks on `214-S`, the
+  function has shipped before B6 is claimed.
 
 ## Implementation Units
 
@@ -407,10 +413,15 @@ are absent, `model_routing` has no unknown key, and the config has no anchors):
   validates today (including one carrying a baseline-style `subagents` block) must not turn
   red (I2, I4). `routes`/`bindings` are in the known set, so in an older config they are
   reported once, by `routing_inert_keys`, not twice.
-* `routing_anchor_alias_free`: scan `.autoharness/config.yaml` with `yaml.parse` events;
-  an anchor, alias, or merge key anywhere under `model_routing` fails
-  (`ROUTING_ANCHOR_UNSUPPORTED`) in a 1.2.0 config and is an advisory warning in older
-  configs.
+* `routing_anchor_alias_free`: reads the raw text of `.autoharness/config.yaml` and calls the
+  **shared R1-A function** `model_routing_yaml.check_model_routing_yaml(raw_text,
+  schema_version)` (R1-A unit A2a, the same function the `routing resolve` CLI calls before
+  it loads the config). An anchor, alias, or merge key anywhere under `model_routing` is an
+  `error` there, reported here as a failure (`ROUTING_ANCHOR_UNSUPPORTED`), in a 1.2.0
+  config, and a `warning`, reported here as an advisory, in older configs; a `parse_error` is
+  reported, not raised. This unit adds **no scanner of its own**: one implementation serves
+  the CLI and `verify-workspace`, so a configuration `verify-workspace` rejects cannot
+  resolve successfully at runtime.
 
 Use `model_routing_sites.build_site_registry(...).sites` as the site set. A binding whose
 id is in the registry's `orphans` (manifest entry, file missing) or `conflicts` (duplicate
@@ -421,7 +432,11 @@ pipeline-site binding, tier-named route each fail with their code; a binding to 
 workspace-authored agent (on disk, no manifest entry) is a known site and passes; a binding
 to a manifest-orphan id (manifest entry, file missing) fails as `ROUTING_UNKNOWN_SITE` naming
 the missing file; `routes` in a 1.1.0 config fails; the baseline block (with anchors
-defined) fails the alias check at 1.2.0 and warns at 1.1.0; **an otherwise-valid 1.2.0
+defined) fails the alias check at 1.2.0 and warns at 1.1.0; **the alias check delegates to
+the shared A2a function (patched and asserted called; a source assertion shows
+`verify_workspace.py` has no `yaml.parse` or event scan of its own), a 1.2.0 config with an
+alias under `model_routing` fails with `ROUTING_ANCHOR_UNSUPPORTED`, and the same config at
+1.1.0 is only a warning; an otherwise-valid 1.2.0
 config whose only defect is an unknown `model_routing` key (`routez`) fails
 `routing_unknown_keys` with `ROUTING_UNKNOWN_KEY: routez` (run with a permissive schema so
 the named check, not the schema, is what fails); the same at 1.2.0 with only an inert
@@ -436,7 +451,11 @@ keys; every pre-existing verify test passes unmodified; verify-workspace on this
 is unchanged except the new passing keys (this workspace carries no unknown key).
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
-`medium`. **Depends on:** B1, B2, B5.
+`medium`. **Depends on:** B1, B2, B5; and, across the shipment edge (`215-S` blocks on
+`214-S`), the R1-A function `model_routing_yaml.check_model_routing_yaml` from A2a, which has
+shipped by then (the same convention as B1's dependency on the R1-A resolver). With the event
+scan moved into A2a, B6 is a thin delegating wrapper for the alias check, and its size and
+complexity (`M` / `medium`) are unchanged by the addition of the unknown-key check.
 
 ### B6a: Render-time site composition for bound subagents
 
@@ -560,7 +579,8 @@ on:** B7, B8.
 **Change:** Amend P-013.5 with a "Route catalog and site bindings" clause covering: catalog
 entries are tier deltas (not a parallel taxonomy); sites and bindings; per-field precedence;
 frontmatter is a rendered default and is drift-checked; YAML anchors, aliases, and merge
-keys are unsupported under `model_routing`; unknown sites fail verification; the resolver
+keys are unsupported under `model_routing` (one shared raw-YAML check rejects them in a 1.2.0
+config for both `verify-workspace` and the `routing resolve` CLI); unknown sites fail verification; the resolver
 module and CLI are the normative executable definition; skills still inherit and are not
 sites. Add the fail-closed verification items (B6/B7) to the P-013.5 verification list. Add
 an Amendment Log row using the **next minor version after the latest row at claim time**
@@ -765,9 +785,9 @@ workspaces. Hardening recorded 2026-10-12 (UTC).
   so a Windows autocrlf checkout does not break it. Ship records the computed value in the
   task comment. The config edit is verified with `git diff --stat` showing exactly one
   changed line in `.autoharness/config.yaml`.
-* B6: the alias scan is bounded to the `model_routing` subtree, tolerates a YAML parse
-  error (reported, not raised), and detects merge keys (`<<`) as well as anchors and
-  aliases. The unknown-key check reads only the keys directly under `model_routing`, never
+* B6: the alias scan is the shared A2a function (bounded to the `model_routing` subtree,
+  tolerant of a YAML parse error, detecting merge keys as well as anchors and aliases); B6
+  asserts delegation rather than re-testing the scanner. The unknown-key check reads only the keys directly under `model_routing`, never
   mutates the config, and its allowlist is the single `MODEL_ROUTING_KNOWN_KEYS` constant,
   held in sync with the 1.2.0 schema by a test.
 * B7: `info` output is bounded (count plus at most 20 ids) so a large workspace does not
