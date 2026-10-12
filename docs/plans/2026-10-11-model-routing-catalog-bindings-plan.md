@@ -127,11 +127,17 @@ route named like a tier; a route with no `tier`;
 an unknown reference; a binding on `agent:_stage`; no binding falls to the site default
 tier; `context_tier` precedence; the baseline's six profiles expressed as deltas.
 
-**Tests (scenarios):** vectors parametrized; the A1 existing-semantics vectors still pass
-unchanged (regression guard); the module remains I/O-free.
+**Tests (scenarios):** vectors parametrized and run through `guarded_resolve` (the R1-A A2
+`forbid_io()` guard in `tests/_resolver_purity_guard.py`, so purity is enforced during every
+call rather than assumed); the A1 existing-semantics vectors still pass unchanged
+(regression guard); `assert_module_import_pure(model_routing)` still passes after the B1
+additions (the site-grammar regex needs only the allowlisted `re`); a catalog or binding
+vector cannot make the resolver touch the filesystem or environment, because `sites` is
+passed in rather than discovered.
 
-**Acceptance criteria:** all catalog/bindings vectors and all A1 vectors pass; the
-`resolution_chain` for a bound site names each contributing layer in order.
+**Acceptance criteria:** all catalog/bindings vectors and all A1 vectors pass under the
+guard; the module still passes the static import allowlist; the `resolution_chain` for a
+bound site names each contributing layer in order.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** none within this plan (shipment-level: R1-A shipped).
@@ -194,6 +200,9 @@ Fixture workspaces (temporary directories) cover each branch of the join:
 * pipeline agents and `managed-source` agents are excluded; two files with the same site id
   land in `conflicts` and are registered as neither;
 * a scan root or file that escapes the workspace (or is a symlink) is not read;
+* the builder is read-only, asserted rather than claimed: a before/after snapshot of the
+  fixture workspace tree (relative paths plus SHA-256 of each file's bytes) is identical
+  after every call above;
 * `autoharness.model_routing_sites` imports standalone (no cycle with `verify_workspace`).
 
 **Acceptance criteria:** the registry for this workspace has `sites` containing the 13

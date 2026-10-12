@@ -24,7 +24,8 @@ After this plan ships:
 
 * `src/autoharness/model_routing.py` is the one definition of route resolution (tier
   fallback, role routes, `context_tier`, nested/legacy/tier3 escalation, both-present
-  ambiguity, role-scoped same-route guard). It is a pure function over parsed config data.
+  ambiguity, role-scoped same-route guard). It is a pure function over parsed config data,
+  and that purity is enforced by a test guard rather than assumed.
 * Language-neutral JSON vectors pin that behavior, so a later Go port (`F194A1D8`) can run
   the same cases.
 * `verify_workspace.py` and the install variable derivation delegate to the module. Public
@@ -76,7 +77,7 @@ Scope boundaries (P-021 C1):
 | # | Requirement (040-DL decision) | Unit |
 |---|---|---|
 | RA1 | Today's resolution semantics are pinned as language-neutral vectors before any refactor (D5) | A1 |
-| RA2 | One pure module implements those semantics, with no I/O (D5) | A2 |
+| RA2 | One pure module implements those semantics, with no I/O, enforced by a test guard (D5) | A2 |
 | RA3 | `verify_workspace` and install derivation delegate to it; public outputs unchanged (D5, D10) | A3 |
 | RA4 | Read-only `routing resolve` CLI with a pinned document shape and fail-closed exit codes (D5, D9) | A4 |
 | RA5 | Orchestrator declares routes from the CLI with a declared prose fallback; validates config against the matching schema version (D5, D9, P-012) | A5 |
@@ -163,19 +164,68 @@ production file is modified.
 
 ### A2: Pure resolver module
 
-**Files (2):** `src/autoharness/model_routing.py` (new),
-`tests/test_model_routing_resolver.py` (new).
+**Files (3):** `src/autoharness/model_routing.py` (new),
+`tests/test_model_routing_resolver.py` (new), `tests/_resolver_purity_guard.py` (new test
+helper; a flat module that discovery does not collect, like `tests/_env_patch.py`).
 
 **Change:** Implement `ResolvedRoute` and `resolve_site` per the planned contract. Reuse the
 single `context_tier` enum, `frontmatter_contract.CONTEXT_TIER_VALUES` (194-F H-C5), rather
 than a second copy. No I/O, no imports from `verify_workspace` (avoid a cycle).
 
-**Tests (scenarios):** the A1 vectors parametrized against `resolve_site`; ambiguity returns
-the error with no per-role resolution; unresolved `model_family` returns
-`ROUTING_UNRESOLVED`; an empty `model_provider` or `reasoning_effort` returns no error.
+**Purity guard (makes "no I/O" a tested property, not a convention).** Running the resolver
+on a plain dictionary does not prove purity: an implementation could still read a file or an
+environment variable and the vector would pass. `tests/_resolver_purity_guard.py` (stdlib
+only: `contextlib`, `unittest.mock`, `ast`) therefore provides:
 
-**Acceptance criteria:** every A1 vector passes through `resolve_site`; the module performs
-no file or environment access (asserted by a test that runs it on plain dicts only).
+* `forbid_io()`: a context manager that, for the duration of the block, replaces the
+  filesystem, environment, process, and network entry points with stubs that raise
+  `ImpureAccessError` (an `AssertionError` subclass). Filesystem: `builtins.open`,
+  `io.open`, `os.open`, `os.stat`, `os.lstat`, `os.scandir`, `os.listdir`, `os.getcwd`,
+  `os.path.exists`, `os.path.isfile`, `os.path.isdir`, and the `pathlib.Path` methods
+  `open`, `read_text`, `read_bytes`, `write_text`, `write_bytes`, `stat`, `lstat`, `exists`,
+  `is_file`, `is_dir`, `iterdir`, `glob`, `rglob`, `resolve`, `cwd`. Environment: the
+  `os.environ` attribute (replaced by a mapping whose every access raises; never
+  `patch.dict`, which clears and restores the real mapping, the hazard
+  `tests/_env_patch.py` exists to avoid), `os.getenv`, `os.putenv`. Process and network:
+  `subprocess.Popen`, `os.system`, `os.popen`, `socket.socket`, `socket.create_connection`,
+  `socket.getaddrinfo`. Every violation is also recorded and `__exit__` raises
+  `ImpureAccessError` if any was recorded, so a resolver that swallows the error with
+  `except Exception` still fails the test. All patches are restored on exit, including
+  after an exception.
+* `guarded_resolve(*args, **kwargs)`: calls `model_routing.resolve_site` inside
+  `forbid_io()`. Every resolver call in `tests/test_model_routing_resolver.py` goes through
+  it (R1-B's `tests/test_model_routing_catalog_bindings.py` reuses it), and vector fixtures
+  are loaded in `setUpClass`, outside any guarded call.
+* `assert_module_import_pure(module)`: a static complement over the module's source (an
+  `ast` walk of every import and name, including function-local imports). It allows only
+  `__future__`, `dataclasses`, `typing`, `collections.abc`, `enum`, `re`, `types`, and
+  `from autoharness.frontmatter_contract import CONTEXT_TIER_VALUES`; any import of, or
+  reference to, `os`, `io`, `sys`, `pathlib`, `subprocess`, `socket`, `shutil`, `tempfile`,
+  `yaml`, `open`, `environ`, or `getenv` fails. This closes the two bypasses a runtime patch
+  cannot see: a name bound at import time (`from os import environ` keeps the original
+  object) and a function-local import.
+
+**Tests (scenarios):**
+
+* the A1 vectors parametrized against `guarded_resolve` (the whole run is under
+  `forbid_io()`); ambiguity returns the error with no per-role resolution; unresolved
+  `model_family` returns `ROUTING_UNRESOLVED`; an empty `model_provider` or
+  `reasoning_effort` returns no error;
+* **guard self-tests (negative):** a deliberately impure stub resolver for each channel
+  (`open`, `Path.read_text`, `os.stat` or `Path.exists`, `os.listdir`, `os.environ[...]`,
+  `os.getenv`, `subprocess.run`, a socket connection) fails under `forbid_io()` with
+  `ImpureAccessError`; a stub that catches `Exception` around the impure call still fails at
+  `__exit__`; a pure stub passes; after the block, `open`, `os.environ`, and `pathlib.Path`
+  behave normally (a real temporary-file read succeeds);
+* `assert_module_import_pure(model_routing)` passes, and a fixture module that does
+  `from os import environ` (or imports `pathlib` inside a function) fails it;
+* a source assertion in `tests/test_model_routing_resolver.py` that no resolver call in
+  this module bypasses `guarded_resolve` (the same grep-style technique B3a uses).
+
+**Acceptance criteria:** every A1 vector passes through `guarded_resolve` with identical
+results; the guard self-tests prove the guard trips on every listed channel (a guard that
+cannot fail is not accepted); `assert_module_import_pure(model_routing)` passes; the module
+performs no filesystem, environment, subprocess, or network access.
 
 **Harness surface:** `harness-surface:harness-architect`. **Size/complexity:** `M` /
 `medium`. **Depends on:** A1.
@@ -220,9 +270,12 @@ last-known-good fallback. Add the command to `USAGE`.
 **Tests (scenarios):** dogfood-shaped fixture config resolves Stage and Ship and escalation
 with the expected tuples; same-route escalation gives exit `1` with `ESCALATION_DEGRADED`;
 missing config gives exit `2`; a schema-invalid config gives exit `2`; the document key set
-is exactly the pinned set.
+is exactly the pinned set; the command is read-only (a before/after snapshot of the fixture
+workspace tree, relative paths plus SHA-256 of each file, is identical for every scenario
+above, and stderr is empty on a successful parse).
 
-**Acceptance criteria:** exit codes and key set pinned by test; running it against this
+**Acceptance criteria:** exit codes and key set pinned by test; the read-only snapshot
+assertion passes; running it against this
 workspace prints Stage `claude-sonnet-5.5`/`anthropic`/`xhigh`/`default` and Ship
 `claude-haiku-5.5`/`anthropic`/`xhigh`/`long_context` (recorded in closure, not asserted by
 a test that would encode operator data).
@@ -274,8 +327,8 @@ ordered A3 then A4 only for review simplicity.
   with many pinned tests. Vectors generated from the current helpers make "behavior
   preserved" checkable by something other than the existing tests alone, and they double as
   the Go-parity contract.
-* **Pure function over parsed data.** Keeps the resolver testable without a workspace and
-  portable.
+* **Pure function over parsed data, with purity enforced by a test guard.** Keeps the
+  resolver testable without a workspace and portable.
 * **CLI is read-only and fail-closed.** Mirrors `harness resolve`; no stale fallback
   (E8B5B3C5).
 * **Prose stays as the declared fallback.** Runtimes without the CLI do not regress; the
@@ -356,6 +409,10 @@ refactor of a fail-closed verification gate. Hardening recorded 2026-10-12 (UTC)
 * I5 the CLI is read-only: it writes nothing to disk and nothing to stderr after a
   successful parse.
 * I6 `context_tier` is never part of the same-route comparison.
+* I7 `model_routing.py` performs no filesystem, environment, subprocess, or network access.
+  This is enforced by tests, not by convention: every resolver test call runs under the A2
+  `forbid_io()` guard (proved able to fail by negative self-tests), and the module passes the
+  static import allowlist.
 
 **Risky actions:**
 
@@ -376,8 +433,17 @@ refactor of a fail-closed verification gate. Hardening recorded 2026-10-12 (UTC)
   fixture.
 * A3 acceptance is stated as a negative as well: the diff must add no new `targeted_checks`
   key and must modify no file under `tests/` other than the new delegation test.
+* A2 enforces the "no I/O" requirement with a guard harness, because running the resolver on
+  a plain dictionary cannot show that it does not read a file or an environment variable:
+  `forbid_io()` makes filesystem, `os.environ`, subprocess, and socket access raise during
+  every resolver test call; negative self-tests with deliberately impure stubs prove the
+  guard trips (including a stub that swallows the error); and a static import allowlist
+  closes the import-time and function-local-import bypasses. Stdlib only, run by the
+  canonical `unittest discover` gate.
 * A4 pins UTF-8 and LF output (as `harness resolve` does) and asserts nothing is written to
-  stderr on a successful parse, on Windows and Linux.
+  stderr on a successful parse, on Windows and Linux. Read-only (I5) is asserted rather than
+  claimed: the test snapshots the fixture workspace tree (relative paths plus SHA-256 of
+  every file's bytes) before and after each invocation and requires it to be identical.
 * A4 maps exit codes explicitly: `0` resolved; `1` resolved with a declared degradation (the
   caller must use the route **and** surface the degradation); `2` unresolved or invalid
   (the caller halts that invocation).

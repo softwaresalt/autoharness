@@ -374,7 +374,11 @@ and 2 without changing any consumer.
 
 * New pure module `src/autoharness/model_routing.py`: `resolve_site(config, site, kind)`
   returns the four route fields, the tier class, the source chain, and any declared
-  degradation. It takes parsed config data and performs no I/O.
+  degradation. It takes parsed config data and performs no I/O, and that is enforced rather
+  than assumed: every resolver test call runs under a guard that makes filesystem,
+  `os.environ`, subprocess, and socket access raise, with negative self-tests proving the
+  guard trips and a static import allowlist for the bypasses a runtime patch cannot see
+  (R1-A unit A2).
 * Language-neutral conformance vectors (JSON: config in, expected resolution out) under
   `tests/fixtures/model_routing/`, first reproducing today's behavior (tier fallback,
   nested/flat/tier3 escalation, `context_tier`, both-present ambiguity, same-route guard).
