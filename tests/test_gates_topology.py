@@ -2140,16 +2140,26 @@ class StashReferencedCarryForwardGateTests(unittest.TestCase):
         self.assertEqual(check.details['stash_referenced_paths'], [])
 
     def test_unrecognized_reader_answer_admits_nothing_and_warns(self) -> None:
-        class Readers(_StashReferenceReaders):
-            def stash_referenced_paths(self, candidates):
-                return (self_doc,)
+        malformed_answers = (
+            (self.DOC,),
+            StashReferences(paths=([],)),
+            StashReferences(paths=(7,)),
+            StashReferences(paths=self.DOC),
+            StashReferences(paths=(self.DOC,), warning=5),
+        )
+        for answer in malformed_answers:
+            with self.subTest(answer=answer):
+                class Readers(_StashReferenceReaders):
+                    def stash_referenced_paths(self, candidates, _answer=answer):
+                        return _answer
 
-        self_doc = self.DOC
-        result, _ = self._pre_claim(readers_cls=Readers, dirty_paths=(self.DOC,))
-        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
-        check = _check(result, 'worktree_cleanliness')
-        self.assertEqual(check.details['blocking_paths'], [self.DOC])
-        self.assertIn('unrecognized answer', check.details['stash_reference_warning'])
+                result, _ = self._pre_claim(readers_cls=Readers, dirty_paths=(self.DOC,))
+                self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+                check = _check(result, 'worktree_cleanliness')
+                self.assertEqual(check.details['blocking_paths'], [self.DOC])
+                self.assertEqual(check.details['stash_referenced_paths'], [])
+                self.assertIn('unrecognized answer', check.details['stash_reference_warning'])
+                json.dumps(result.to_dict())
 
     def test_backlog_root_failure_in_the_reader_fails_closed(self) -> None:
         class Readers(_StashReferenceReaders):

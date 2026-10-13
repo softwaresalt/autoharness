@@ -1566,7 +1566,12 @@ def _stash_referenced_documents(readers: TopologyReaders, outside_backlog: Seque
     if not callable(getter) or not outside_backlog:
         return [], None
     answer = getter(tuple(outside_backlog))
-    if not isinstance(answer, StashReferences):
+    if not (
+        isinstance(answer, StashReferences)
+        and isinstance(answer.paths, (tuple, list, set, frozenset))
+        and all(isinstance(path, str) for path in answer.paths)
+        and (answer.warning is None or isinstance(answer.warning, str))
+    ):
         return [], "stash_referenced_paths reader returned an unrecognized answer"
     offered = set(outside_backlog)
     paths = sorted(
