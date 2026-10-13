@@ -2170,6 +2170,18 @@ class StashReferencedCarryForwardGateTests(unittest.TestCase):
         self.assertNotEqual(result.exit_code, 0)
         self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
 
+    def test_reader_warning_discards_any_paths_returned_with_it(self) -> None:
+        result, _ = self._pre_claim(
+            dirty_paths=(self.DOC,),
+            stash_paths=(self.DOC,),
+            stash_warning='stash.jsonl is unreadable (OSError)',
+        )
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], [self.DOC])
+        self.assertEqual(check.details['stash_referenced_paths'], [])
+        self.assertEqual(check.details['stash_reference_warning'], 'stash.jsonl is unreadable (OSError)')
+
     def test_readers_without_the_capability_keep_docs_blocking(self) -> None:
         result, _ = self._pre_claim(readers_cls=_CleanlinessReaders, dirty_paths=(self.DOC,))
         self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')

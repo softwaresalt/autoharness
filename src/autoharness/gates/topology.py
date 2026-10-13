@@ -1573,6 +1573,10 @@ def _stash_referenced_documents(readers: TopologyReaders, outside_backlog: Seque
         and (answer.warning is None or isinstance(answer.warning, str))
     ):
         return [], "stash_referenced_paths reader returned an unrecognized answer"
+    if answer.warning is not None:
+        # A warning means the stash could not be used: nothing qualifies, even
+        # if a (non-default) reader also returned paths.
+        return [], answer.warning
     offered = set(outside_backlog)
     paths = sorted(
         path
