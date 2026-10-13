@@ -125,7 +125,7 @@ All 11 review threads on PR #516 are resolved (11/11). Final P-018 gate on `1fcd
 | Crash-resumption scan | `backlogit checkpoint list` | 0 quarantined; 0 ship-owned `active`; normal startup |
 | Single worktree (P-016) | `git worktree list` | one worktree: this checkout |
 | Closure index resync | `backlogit sync --no-update-check` after all archival, evidence, and report writes (2026-10-13T14:30Z) | `CLOSURE_INDEX_SYNC_OK`: `Indexed 1858 artifacts`; re-run after the review-fix commit on this branch |
-| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/210-S-203-F-post-merge-closure.md --shipment 210-S --json` | run before each commit of this artifact; see the closure PR for the final result |
+| Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/210-S-203-F-post-merge-closure.md --shipment 210-S --json` | `passed: true`, exit 0, `failed_check: null`, `warnings: []` (run before each commit of this artifact, including the final content on this branch) |
 
 ## Runtime Verification
 
