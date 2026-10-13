@@ -1,5 +1,5 @@
 ---
-title: "Requesting a Copilot review from an automated Ship session: gh reviewer flags fail, GraphQL requestReviews with the bot node ID works"
+title: "Requesting a Copilot review from a Ship session without GitHub MCP: gh reviewer flags did not register it, a GraphQL requestReviews mutation did (observed in 209-S)"
 problem_type: tooling-gap
 category: workflow
 root_cause: "In a session with no GitHub MCP tools, neither `gh pr edit --add-reviewer @copilot`, `--add-reviewer Copilot`, nor the REST requested_reviewers endpoint with `copilot-pull-request-reviewer[bot]` registered a review request on gh 2.81.0 (the first two returned `'' not found`, the REST call silently left reviewRequests empty). Only the GraphQL requestReviews mutation with botIds registered the Copilot reviewer."
@@ -27,19 +27,20 @@ not change that rule. It was used in 209-S only because the operator's dark-mode
 required Ship to request a Copilot review and wait for it. Whether to adopt it as a configured
 fallback is an operator policy decision, captured as stash `1AD61D32`.
 
-## What worked
+## What was observed
 
-The GraphQL `requestReviews` mutation with `botIds` and `union: true` registered the
-reviewer and the review arrived about four minutes later:
+In 209-S the GraphQL `requestReviews` mutation with `botIds` and `union: true` registered the
+reviewer and the review arrived about four minutes later. This is the command that was run, recorded
+as an observation rather than as guidance:
 
 ```powershell
 $m = 'mutation { requestReviews(input:{pullRequestId:"<PR node id>", botIds:["BOT_kgDOCnlnWA"], union:true}) { pullRequest { reviewRequests(first:5){ nodes { requestedReviewer { __typename ... on Bot { login } } } } } } }'
 gh api graphql -f query=$m
 ```
 
-The PR node ID comes from `gh api graphql` (`repository.pullRequest.id`). The response lists
-the requested reviewer as `Bot` / `copilot-pull-request-reviewer`. Re-run the same mutation
-after every push to re-arm review for the new HEAD.
+The PR node ID came from `gh api graphql` (`repository.pullRequest.id`), and the response listed the
+requested reviewer as `Bot` / `copilot-pull-request-reviewer`. The same mutation was issued again after
+each push in that session to get a review of the new HEAD.
 
 ## Related PowerShell pitfalls hit in the same loop
 
@@ -52,12 +53,10 @@ after every push to re-arm review for the new HEAD.
   `pulls/<n>/reviews`, authored by the poster. Filter on the Copilot login when counting
   Copilot review rounds.
 
-## Prevention
+## Rule that stands
 
-Until stash `1AD61D32` is decided: when no configured wrapper exists and the operator has not
-explicitly asked for a Copilot review, follow section 1.1 and record shadow review as
-unavailable/advisory. When the operator explicitly requires a Copilot review (as in the 209-S
-dark-mode brief), the GraphQL mutation above is a known working technique; record that choice in
-the PR body's `Shadow review` line. The `BOT_` node ID is a GitHub identifier for the Copilot
-reviewer bot; verify it from the mutation response (`requestedReviewer.login`) rather than
-trusting it blindly.
+Section 1.1 is unchanged by this learning: a Copilot-review request wrapper is used only when it is
+explicitly configured, and otherwise shadow review is recorded as unavailable/advisory. Reusing the
+mutation above in a later session is not directed here; it requires the operator's decision on stash
+`1AD61D32` or an explicit operator instruction for that session. Any session that does use it should
+say so in the PR body's `Shadow review` line.
