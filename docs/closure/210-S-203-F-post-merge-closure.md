@@ -34,7 +34,7 @@ the P-015 CASCADE path; the close is verified.
 
 | Check | Result |
 |---|---|
-| Pre-Mode report | `.backlogit/reconcile/210-S-pre-20261013-141900.md`, `PROCEED` |
+| Pre-Mode report | `.backlogit/reconcile/210-S-pre-20261013-141822.md`, `PROCEED` |
 | Classifier | `CASCADE`; qualifying feature `203-F`; out-of-manifest descendants none |
 | Engine semantics | `VERIFIED`, backlogit `1.11.0` on the CLI surface (commit `131577c`) |
 | Selected close path | `cascade` |
@@ -44,7 +44,7 @@ the P-015 CASCADE path; the close is verified.
 | `archived_ids` | `203-F`, `203.001-T` to `203.007-T`, `210-S` (9 of 9 required) |
 | Shipment record | `shipment_status: shipped`, archived with `archived_status: shipped` |
 | Baseline invariant and deliberation byte-identity | both true; `linked_deliberation_drift: []` |
-| Post-Mode report | `.backlogit/reconcile/210-S-post-20261013-142800.md`, `PROCEED` |
+| Post-Mode report | `.backlogit/reconcile/210-S-post-20261013-142808.md`, `PROCEED` |
 | Evidence record | `docs/closure/evidence/210-S-203-F-close-evidence.json` (phases `pre_close` and `post_close`) |
 
 Timeout sizing: `B = ceil(1.5 * (133 + 35 * 9))` = 672 s, so the 1800 s default `--timeout` applied.
@@ -124,6 +124,7 @@ All 11 review threads on PR #516 are resolved (11/11). Final P-018 gate on `1fcd
 | Topology gates | `pre_claim` (x2), `post_claim`, `lifecycle` (several) | all exit 0 |
 | Crash-resumption scan | `backlogit checkpoint list` | 0 quarantined; 0 ship-owned `active`; normal startup |
 | Single worktree (P-016) | `git worktree list` | one worktree: this checkout |
+| Closure index resync | `backlogit sync --no-update-check` after all archival, evidence, and report writes (2026-10-13T14:30Z) | `CLOSURE_INDEX_SYNC_OK`: `Indexed 1858 artifacts`; re-run after the review-fix commit on this branch |
 | Closure-evidence gate | `autoharness gate closure-evidence --path docs/closure/210-S-203-F-post-merge-closure.md --shipment 210-S --json` | run before each commit of this artifact; see the closure PR for the final result |
 
 ## Runtime Verification
