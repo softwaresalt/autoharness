@@ -59,7 +59,8 @@ pass, 6 of 6 IDs archived, shipment `archived_status: shipped`).
 
 * `backlogit move <task> --status done` archives the task in this backlogit version; the
   pre-close contract treats those members as `matched` by declared `done` status.
-* Copilot review request fallback: see
-  `docs/compound/2026-10-12-requesting-copilot-review-via-graphql-bot-id.md`.
+* Observed in 209-S (not a configured fallback; the policy question is stash `1AD61D32`): a
+  GraphQL `requestReviews` mutation with `botIds` registered the Copilot reviewer when `gh` and REST
+  did not; see `docs/compound/2026-10-12-requesting-copilot-review-via-graphql-bot-id.md`.
 * Each push runs the full unittest suite and markdownlint through the pre-push hook
   (about 10 minutes); batch fixes per Copilot round.

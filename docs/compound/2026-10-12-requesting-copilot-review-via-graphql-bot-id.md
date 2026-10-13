@@ -14,9 +14,12 @@ doc_type: learning
 
 During shipment 209-S (PR #514) the Ship agent had no `mcp_github_request_copilot_review`
 tool. `github-pr-automation.instructions.md` section 1.1 says not to rely on
-`gh pr edit --add-reviewer` for Copilot and to use a configured fallback. No fallback was
-configured, and every `gh`/REST attempt left `reviewRequests` empty, so the P-018 gate would
-have blocked on `WAITING_FOR_REVIEW` indefinitely.
+`gh pr edit --add-reviewer` for Copilot and to use a wrapper only when one is explicitly
+configured. No wrapper was configured, and every `gh`/REST attempt left `reviewRequests` empty. In
+this workspace `copilot_review.enforcement` is not overridden (default `auto`), so with no
+requested reviewer and no existing review the P-018 gate would have returned `NOT_APPLICABLE`
+rather than blocking. What required a real Copilot review was the operator's dark-mode brief, not
+the gate.
 
 ## Status: observed technique, not a configured fallback
 
