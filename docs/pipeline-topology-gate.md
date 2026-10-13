@@ -169,14 +169,16 @@ against the backlog carry-forward prefixes defined by P-011:
 | Token | Status | Meaning |
 |---|---|---|
 | `WORKTREE_CLEAN` | passed | No uncommitted or untracked changes. |
-| `CARRY_FORWARD_ELIGIBLE` | passed | Only backlog state is uncommitted; Ship commits it as the first commit on the shipment branch (P-011 carry-forward). |
-| `WORKTREE_DIRTY` | blocked | Changes exist outside the carry-forward prefixes (`details.blocking_paths`), or a backlog path's staged content differs from both `HEAD` and the working tree (`details.divergent_paths`), so staging the working tree would discard it. The message lists at most 20 paths per group (`(+N more)`); the details keep every path. |
+| `CARRY_FORWARD_ELIGIBLE` | passed | Only backlog state and stash-referenced documents (below) are uncommitted; Ship commits them as the first commit on the shipment branch (P-011 carry-forward). |
+| `WORKTREE_DIRTY` | blocked | Changes exist outside the carry-forward set (`details.blocking_paths`), or a carry-forward path's staged content differs from both `HEAD` and the working tree (`details.divergent_paths`), so staging the working tree would discard it. The message lists at most 20 paths per group (`(+N more)`); the details keep every path. |
 | `WORKTREE_STATUS_UNAVAILABLE` | blocked | Worktree status could not be read (git failure, timeout, or the workspace is not the repository top level), so cleanliness is unverifiable. |
 
 When the worktree status was read (`WORKTREE_CLEAN`, `CARRY_FORWARD_ELIGIBLE`,
-`WORKTREE_DIRTY`), the check's `details` carry `carry_forward_paths` and
-`carry_forward_prefixes`, plus `blocking_paths` and/or `divergent_paths` for
-`WORKTREE_DIRTY`. Paths are
+`WORKTREE_DIRTY`), the check's `details` carry `carry_forward_paths`,
+`carry_forward_prefixes`, and `stash_referenced_paths` (empty when none
+qualified), plus `blocking_paths` and/or `divergent_paths` for
+`WORKTREE_DIRTY` and `stash_reference_warning` when the stash could not be
+used. Paths are
 reported exactly as git returned them. `WORKTREE_STATUS_UNAVAILABLE` carries only
 an optional `git_invocation_error`, and a `skipped` result has empty details.
 Readers that do not expose worktree status report the check as visibly `skipped`
@@ -186,6 +188,59 @@ reading each path verbatim (non-`-z` output C-quotes unusual names) and halting
 when a backlog path is both staged and changed again in the working tree.
 Because the Orchestrator's route-to-Ship `pre_claim` invocation runs the same
 check, a dirty worktree also blocks routing a shipment to Ship.
+
+### Stash-referenced companion documents (stash FB6F9FE0)
+
+An operator can stage a requirements or design document together with the stash
+entry that references it. Such a document is carried forward with the backlog
+state instead of blocking every candidate as `WORKTREE_DIRTY`. The reader
+capability `stash_referenced_paths` (optional, `getattr`-detected like
+`carry_forward_prefixes`; readers without it keep every non-backlog path
+blocking) qualifies a dirty path only when **all** of these hold:
+
+* **New file under `docs/`** — the path is untracked or staged as added, and
+  lives under `docs/`. A modified tracked document, or a file anywhere else
+  (for example `src/` or `notes/`), never qualifies and stays blocking.
+* **Exact whole-token reference** — the exact repo-relative path (case-sensitive,
+  `/` separators) occurs as a whole token in the `text` of an active entry of the
+  working-copy `{resolved backlog root}/stash.jsonl`; an entry is active unless it
+  is explicitly marked `status: archived`. Tokens are delimited by
+  whitespace, backticks, quotes, and parentheses; trailing `.,;:` is ignored, so
+  the path must stand alone — markdown emphasis or brackets around it
+  (`**docs/x.md**`, `[docs/x.md]`), a `#anchor` suffix, or a comma-joined list
+  without spaces break the match and leave the document blocking without a
+  warning. Membership only: there is no glob, prefix, or directory widening, and the gate
+  never derives a path from stash text. The stash file and the carry-forward
+  prefix both derive from the same `resolve_backlog_root` result
+  (`BACKLOGIT_WORKSPACE_DIR` override, then `.backlog/`, then `.backlogit/`;
+  both roots present without an override still fails closed).
+* **Containment** — repo-relative with no `..`, empty, or `.` segment; no leading
+  `/`, drive, colon, or backslash; nothing under `.git/`; resolving inside the
+  workspace; a regular file whose own path and parent directories below the
+  workspace are not symlinks or Windows reparse points. The gate re-applies the
+  lexical rules to whatever a reader reports and ignores any path it did not
+  offer.
+
+A qualifying path joins `carry_forward_paths` and is listed in
+`details.stash_referenced_paths`; the existing divergent-staged-content and
+status-unavailable rules apply to it unchanged. A missing, symlinked, unreadable,
+non-UTF-8, or malformed `stash.jsonl` (any bad line, or an entry without a string
+`text`) qualifies **nothing** — the document stays blocking — and
+`details.stash_reference_warning` names the reason (it is also appended to the
+`WORKTREE_DIRTY` message). The check only reads the
+stash when at least one new `docs/` candidate exists.
+
+A blocked `pre_claim` result reports only its blocking check, so when a later
+check (for example `shipment_readiness` on a bootstrap-grant shipment) blocks, the
+cleanliness details are not in the result. Agents then use the backlog-only
+porcelain fallback, which never admits a stash-referenced document: Ship halts on
+it as dirt and the operator commits it as intake. This is deliberate fail-closed
+behavior; exposing the cleanliness result on later-blocked results is a separate
+gate-output change.
+
+This is **intake only**: carrying a document forward never triages the stash
+entry, never changes shipment scope, and never moves a document into the
+shipment (P-011, P-021). Triage stays with Stage.
 
 ## DAG-authoritative predecessor derivation (`pre_claim`)
 

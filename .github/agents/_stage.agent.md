@@ -58,6 +58,20 @@ Stage is a planning and decomposition agent. Acting outside this boundary is a *
 
 If the operator requests implementation work, redirect to the Ship agent. Record P-010 via P-005 telemetry and halt.
 
+### Stash Commit Guidance — Companion Documents (P-011 carry-forward)
+
+When Stage commits stash entries (for example a capture-only intake), it commits each
+entry's referenced companion documents in the **same commit** as the entry: every new
+`docs/` file named verbatim (exact repo-relative path, standing alone as a whole token — delimited by whitespace, backticks, quotes, or parentheses; markdown emphasis or brackets around the path break the match) in the entry's
+text. Ship's P-011 carry-forward treats an uncommitted new `docs/` document as
+carry-forward state only when an active stash entry names its exact path, so an
+uncommitted referenced document is the exception, not the norm. Archiving an entry
+(Step 5.6) never removes its document references: the referenced document stays in the
+repository and the archived entry keeps naming it; commit the document before or with
+the archive, because an uncommitted document named only by an archived entry is no longer
+carry-forward eligible. Committing a companion document is
+intake only — it never triages the entry or changes any shipment's scope. A document is committed only when it satisfies the complete P-011 containment predicate (a regular file under `docs/` with no empty, `.`, or `..` segment, drive, colon, or backslash, resolving inside the workspace, and neither the file nor any parent directory a symlink or Windows reparse point such as a directory junction); Stage never commits a link or a path that escapes the workspace.
+
 ### Stage Spike/Research Worktree Exception (P-016)
 
 Stage may use a separate worktree only for an explicit, time-boxed spike or
