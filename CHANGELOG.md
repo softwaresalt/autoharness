@@ -18,6 +18,21 @@
 
 ### Changed
 
+- **Stash-referenced companion-document carry-forward (203-F, stash FB6F9FE0):**
+  the `pipeline-topology` `pre_claim` `worktree_cleanliness` check now treats a NEW
+  file under `docs/` as carry-forward eligible (`CARRY_FORWARD_ELIGIBLE`) when its
+  exact repo-relative path is a whole token in an active entry of the working-copy
+  `stash.jsonl` of the resolved backlog root (path containment enforced; a
+  missing, symlinked, or malformed stash qualifies nothing). New `details` keys:
+  `stash_referenced_paths` (always present) and `stash_reference_warning`; the
+  `CARRY_FORWARD_ELIGIBLE` and `WORKTREE_DIRTY` message wording changed. Policy
+  P-011 is amended (registry version-history 1.34.0): the carry-forward set adds
+  these documents (intake only: no triage, no scope change), Ship may commit
+  mid-cycle stash intake as an isolated `chore(backlog): carry forward stash intake`
+  commit, and Stage commits each entry's companion documents with the entry.
+  Expected template drift in installed workspaces: `_ship.agent.md`,
+  `_stage.agent.md`, and `workflow-policies.md` (re-run tune-harness).
+
 - **Copilot review-body findings gate (201-F, stash 38D29192)**:
   `autoharness gate copilot-review` now reads each Copilot review's `body` and the
   PR conversation comments. A completed Copilot review that carries threadless

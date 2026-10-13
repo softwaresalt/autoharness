@@ -319,6 +319,7 @@ P-005 violation event.
 - Claim shipments, move tasks to active/done, close shipments, archive completed items
 - Delegate source code reads and writes to build/fix skills
 - Create and checkout feature/chore branches, commit, push
+- Commit already-captured stash entries and the new `docs/` companion documents they cite, verbatim, as P-011 carry-forward intake: a git commit of existing content, not a stash operation — Ship never edits the document or entry, never triages it, and never adds it to the shipment's scope
 - Run build systems, test suites, linters, format checks
 - Create, update, and merge pull requests (with operator approval)
 - Read plans and deliberation artifacts for execution context
@@ -354,7 +355,7 @@ P-005 violation event.
 - If already on the correct shipment branch: proceed without creating a new branch, still applying step 6
 - If on a wrong non-default branch: halt and require operator instruction
 - If worktree is dirty outside the carry-forward set (backlog state and stash-referenced companion documents) before branch creation: halt and do not create branch
-- Mid-cycle intake: new stash entries, and the stash-referenced documents they cite, that appear while the shipment branch is active are committed on that branch as an isolated `chore(backlog): carry forward stash intake` commit; never on a dedicated branch or PR, and never triaged or added to the shipment's scope
+- Mid-cycle intake: at a task boundary only (after a task's commit, before the next claim, with no other uncommitted work), new stash entries and the stash-referenced documents they cite that appear while the shipment branch is active are committed on that branch as an isolated `chore(backlog): carry forward stash intake` commit; `pre_claim` classification is unavailable once the shipment is active, so Ship confirms each document against the gate's rules itself (new regular `docs/` file, exact whole-token reference in an active entry, containment) and leaves any unconfirmed document uncommitted and reported; never on a dedicated branch or PR, and never triaged or added to the shipment's scope
 - If `git pull` refuses because carried-forward backlog state conflicts with incoming changes: halt and hand off to the operator; do not stash, discard, or force
 - If any additional worktree is attached and is not an explicit Stage spike/research worktree allowed by P-016: halt and do not claim or mutate
 

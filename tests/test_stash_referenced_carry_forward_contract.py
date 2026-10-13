@@ -1,5 +1,6 @@
-"""Contract tests for the 203-F stash-referenced companion-document carry-forward
-text (shipment 210-S, units 203.004-T B4 through 203.007-T B7).
+"""Contract tests for the stash-referenced companion-document carry-forward text
+(P-011 carry-forward set, Ship carry-forward and mid-cycle intake, Stage commit
+guidance, and the pipeline-topology gate documentation).
 
 These tests pin the load-bearing instruction text in BOTH each template and its
 installed dogfood mirror (four scenarios):
@@ -84,7 +85,7 @@ class PolicyContractTests(unittest.TestCase):
                     "chore(backlog): carry forward stash intake",
                 ):
                     self.assertIn(needle, p011, f"{needle!r} missing from P-011 in {path}")
-                self.assertIn("| 1.34.0 ", text)
+                self.assertIn("Commit already-captured stash entries", text, f"P-010 carve-out missing in {path}")
 
 
 class ShipContractTests(unittest.TestCase):

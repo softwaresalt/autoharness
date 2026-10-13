@@ -80,7 +80,10 @@ _POST_MERGE_BRANCH_PREFIX = "post-merge/"
 # P-011 stash-referenced companion documents (203-F / stash FB6F9FE0): only NEW
 # files under this repo-relative directory whose exact path appears as a whole
 # token in an active stash entry are carried forward with the backlog state.
-_STASH_REFERENCE_DOCS_PREFIX = "docs/"
+_STASH_REFERENCE_DOCS_DIR = "docs"
+# Sentinel for a worktree-status snapshot that has not been read yet (distinct
+# from ``None``, which means git could not answer).
+_UNREAD: Any = object()
 # Token boundaries inside a stash entry's text: whitespace, backticks, quotes
 # and parentheses split tokens; trailing sentence punctuation is also stripped
 # (the unstripped token is kept as well, so the match is exact either way).
@@ -253,13 +256,18 @@ def _read_active_stash_tokens(stash_path: Path) -> tuple[set[str], str | None]:
     """
     label = f"{stash_path.parent.name}/{stash_path.name}"
     try:
+        link_stat = os.lstat(stash_path)
+        if stat.S_ISLNK(link_stat.st_mode) or _is_reparse_point(stash_path):
+            return set(), f"{label} is a symlink or reparse point"
         raw = stash_path.read_bytes()
     except FileNotFoundError:
         return set(), f"{label} not found"
     except OSError as exc:
         return set(), f"{label} is unreadable ({type(exc).__name__})"
     try:
-        content = raw.decode("utf-8")
+        # utf-8-sig: a BOM (e.g. from Windows PowerShell 5.1 ``-Encoding utf8``)
+        # must not make an otherwise valid first line unparsable.
+        content = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         return set(), f"{label} is not valid UTF-8"
     tokens: set[str] = set()
@@ -269,7 +277,7 @@ def _read_active_stash_tokens(stash_path: Path) -> tuple[set[str], str | None]:
             continue
         try:
             entry = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):
             return set(), f"{label} line {line_number} is not valid JSON"
         if not isinstance(entry, dict) or not isinstance(entry.get("text"), str):
             return set(), f"{label} line {line_number} is not an entry object with a string text"
@@ -279,27 +287,37 @@ def _read_active_stash_tokens(stash_path: Path) -> tuple[set[str], str | None]:
     return tokens, None
 
 
-def _stash_reference_path_contained(workspace: Path, rel: str) -> bool:
-    """Lexical and filesystem containment for a stash-referenced document.
+def _stash_reference_path_lexically_contained(rel: str) -> bool:
+    """Pure lexical containment for a stash-referenced document path.
 
-    The path must be a repo-relative ``docs/...`` file: no empty/``.``/``..``
-    segment, no leading ``/``, drive, colon, backslash or NUL, nothing under a
-    ``.git`` segment, resolving inside the workspace, and a regular file with
-    neither the file nor any parent below the workspace being a symlink or
-    Windows reparse point (``os.lstat`` never follows links).
+    The path must be a repo-relative ``docs/...`` file: at least two ``/``
+    segments, no empty/``.``/``..`` segment (so no leading ``/`` or ``//``), no
+    drive, colon (NTFS alternate data stream), backslash or NUL, and nothing
+    under a ``.git`` segment. No filesystem access.
     """
     if not isinstance(rel, str) or not rel or any(char in rel for char in ("\x00", "\\", ":")):
         return False
     parts = rel.split("/")
-    if len(parts) < 2 or parts[0] != _STASH_REFERENCE_DOCS_PREFIX.rstrip("/"):
+    if len(parts) < 2 or parts[0] != _STASH_REFERENCE_DOCS_DIR:
         return False
-    if any(part in ("", ".", "..") or part.lower() == ".git" for part in parts):
+    return not any(part in ("", ".", "..") or part.lower() == ".git" for part in parts)
+
+
+def _stash_reference_path_contained(workspace: Path, rel: str) -> bool:
+    """Lexical plus filesystem containment for a stash-referenced document.
+
+    After ``_stash_reference_path_lexically_contained``, the path must resolve
+    inside the workspace and be a regular file with neither the file nor any
+    parent below the workspace being a symlink or Windows reparse point
+    (``os.lstat`` never follows links).
+    """
+    if not _stash_reference_path_lexically_contained(rel):
         return False
     try:
         (workspace / rel).resolve().relative_to(workspace.resolve())
         current = workspace
         mode = 0
-        for part in parts:
+        for part in rel.split("/"):
             current = current / part
             link_stat = os.lstat(current)
             if stat.S_ISLNK(link_stat.st_mode) or _is_reparse_point(current):
@@ -565,6 +583,10 @@ class FilesystemTopologyReaders:
         # checks that want to surface it in ``CheckResult.details`` without
         # widening ``_run_git``'s own return contract.
         self._git_invocation_errors: dict[str, str] = {}
+        # Latest worktree-status snapshot (set by ``worktree_dirty_paths``):
+        # ``_UNREAD`` until the first read, ``None`` when git could not answer.
+        self._worktree_divergent: Any = _UNREAD
+        self._worktree_new_files: Any = _UNREAD
 
     @property
     def backlog_dir(self) -> Path:
@@ -883,9 +905,9 @@ class FilesystemTopologyReaders:
         content differs from both ``HEAD`` and the working tree, so staging
         the working tree would discard it. Reads status first if needed;
         ``None`` when status is unavailable (fail closed)."""
-        if not hasattr(self, "_worktree_divergent"):
+        if self._worktree_divergent is _UNREAD:
             self.worktree_dirty_paths()
-        return self._worktree_divergent
+        return None if self._worktree_divergent is _UNREAD else self._worktree_divergent
 
     def carry_forward_prefixes(self) -> tuple[str, ...]:
         """Path prefixes of tool-owned backlog state that P-011 carries
@@ -907,10 +929,10 @@ class FilesystemTopologyReaders:
         failure raises ``BacklogUnavailableError`` (fail closed upstream).
         """
         stash_path = self.backlog_dir / "stash.jsonl"
-        if not hasattr(self, "_worktree_new_files"):
+        if self._worktree_new_files is _UNREAD:
             self.worktree_dirty_paths()
         new_files = self._worktree_new_files
-        if new_files is None:
+        if new_files is None or new_files is _UNREAD:
             return StashReferences(warning="worktree status unavailable; stash-referenced documents not evaluated")
         eligible = [
             path
@@ -1438,8 +1460,11 @@ def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -
     ``worktree_dirty_paths``, ``worktree_divergent_paths``, and
     ``carry_forward_prefixes`` get a visible ``skipped`` result rather than a
     silent omission. Dirty paths under a carry-forward prefix (tool-owned
-    backlog state) pass as ``CARRY_FORWARD_ELIGIBLE`` unless their staged
-    content diverges from the working tree; any other dirty path blocks.
+    backlog state) and stash-referenced companion documents (new ``docs/``
+    files named by an active stash entry; see
+    ``FilesystemTopologyReaders.stash_referenced_paths``) pass as
+    ``CARRY_FORWARD_ELIGIBLE`` unless their staged content diverges from the
+    working tree; any other dirty path blocks.
     """
     if resolved_phase != "pre_claim":
         return None
@@ -1473,8 +1498,9 @@ def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -
     backlog_state = [path for path in normalized if path.startswith(prefixes)]
     outside_backlog = [path for path in normalized if not path.startswith(prefixes)]
     stash_referenced, stash_warning = _stash_referenced_documents(readers, outside_backlog)
+    stash_referenced_set = set(stash_referenced)
     carry_forward = sorted([*backlog_state, *stash_referenced])
-    blocking = [path for path in outside_backlog if path not in stash_referenced]
+    blocking = [path for path in outside_backlog if path not in stash_referenced_set]
     diverged = sorted(set(divergent) & set(carry_forward))
     details = {
         "carry_forward_paths": carry_forward,
@@ -1499,6 +1525,8 @@ def _worktree_cleanliness_check(resolved_phase: str, readers: TopologyReaders) -
             shown = paths[:_BLOCKING_PATHS_MESSAGE_LIMIT]
             more = len(paths) - len(shown)
             reasons.append(f"{label}: " + ", ".join(shown) + (f" (+{more} more)" if more else ""))
+        if stash_warning:
+            reasons.append(f"stash references not applied: {stash_warning}")
         return CheckResult(
             name="worktree_cleanliness",
             status="blocked",
@@ -1526,19 +1554,23 @@ def _stash_referenced_documents(readers: TopologyReaders, outside_backlog: Seque
 
     Readers without the capability (``getattr`` fallback, the same pattern as
     ``carry_forward_prefixes``) admit nothing. The gate trusts no reader
-    blindly: only paths it offered, and only under ``docs/``, are accepted.
+    blindly: a reader answer that is not a ``StashReferences`` admits nothing
+    (with a warning), and only paths the gate offered that also pass the pure
+    lexical ``docs/`` containment rule are accepted.
     """
     getter = getattr(readers, "stash_referenced_paths", None)
     if not callable(getter) or not outside_backlog:
         return [], None
     answer = getter(tuple(outside_backlog))
+    if not isinstance(answer, StashReferences):
+        return [], "stash_referenced_paths reader returned an unrecognized answer"
     offered = set(outside_backlog)
     paths = sorted(
         path
-        for path in set(getattr(answer, "paths", ()) or ())
-        if path in offered and path.startswith(_STASH_REFERENCE_DOCS_PREFIX)
+        for path in set(answer.paths)
+        if path in offered and _stash_reference_path_lexically_contained(path)
     )
-    return paths, getattr(answer, "warning", None)
+    return paths, answer.warning
 
 
 def _shipment_map(shipments: Sequence[ShipmentState]) -> dict[str, ShipmentState]:

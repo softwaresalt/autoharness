@@ -2129,6 +2129,36 @@ class StashReferencedCarryForwardGateTests(unittest.TestCase):
         check = _check(result, 'worktree_cleanliness')
         self.assertEqual(check.details['blocking_paths'], [self.DOC])
         self.assertEqual(check.details['stash_reference_warning'], 'stash.jsonl line 3 is not valid JSON')
+        self.assertIn('stash references not applied: stash.jsonl line 3 is not valid JSON', check.message)
+
+    def test_gate_applies_lexical_containment_to_reader_answers(self) -> None:
+        traversal = 'docs/a/../b.md'
+        result, _ = self._pre_claim(dirty_paths=(traversal,), stash_paths=(traversal,))
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], [traversal])
+        self.assertEqual(check.details['stash_referenced_paths'], [])
+
+    def test_unrecognized_reader_answer_admits_nothing_and_warns(self) -> None:
+        class Readers(_StashReferenceReaders):
+            def stash_referenced_paths(self, candidates):
+                return (self_doc,)
+
+        self_doc = self.DOC
+        result, _ = self._pre_claim(readers_cls=Readers, dirty_paths=(self.DOC,))
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], [self.DOC])
+        self.assertIn('unrecognized answer', check.details['stash_reference_warning'])
+
+    def test_backlog_root_failure_in_the_reader_fails_closed(self) -> None:
+        class Readers(_StashReferenceReaders):
+            def stash_referenced_paths(self, candidates):
+                raise BacklogUnavailableError(Path('.backlogit'), 'multiple backlog directories are present')
+
+        result, _ = self._pre_claim(readers_cls=Readers, dirty_paths=(self.DOC,))
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(result.primary_token, 'BACKLOG_UNAVAILABLE')
 
     def test_readers_without_the_capability_keep_docs_blocking(self) -> None:
         result, _ = self._pre_claim(readers_cls=_CleanlinessReaders, dirty_paths=(self.DOC,))
@@ -2370,6 +2400,78 @@ class StashReferencedReaderTests(unittest.TestCase):
             result = self._qualifying(FilesystemTopologyReaders(workspace))
             self.assertEqual(result.paths, ())
             self.assertIn('line 2', result.warning)
+
+    def test_pathologically_nested_json_line_fails_closed_without_crashing(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            self._write_stash(workspace, raw=b'[' * 200000 + b'\n')
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertIn('line 1', result.warning)
+
+    def test_utf8_bom_on_the_first_line_is_tolerated(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            line = json.dumps({'id': 'A', 'text': f'ref {self.DOC}'}).encode('utf-8')
+            self._write_stash(workspace, raw=b'\xef\xbb\xbf' + line + b'\n')
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual((result.paths, result.warning), ((self.DOC,), None))
+
+    def test_stash_that_is_a_directory_is_unreadable(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.unlink()
+            stash.mkdir()
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertIn('unreadable', result.warning)
+
+    def test_symlinked_stash_file_qualifies_nothing_and_warns(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            self._write(workspace, 'src/real-stash.jsonl', json.dumps({'text': f'ref {self.DOC}'}).encode('utf-8') + b'\n')
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.unlink()
+            try:
+                os.symlink(workspace / 'src' / 'real-stash.jsonl', stash)
+            except (OSError, NotImplementedError) as exc:  # pragma: no cover - platform dependent
+                self.skipTest(f'symlinks unavailable: {exc}')
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertIn('symlink or reparse point', result.warning)
+
+    @unittest.skipUnless(os.name == 'nt', 'directory junctions are a Windows reparse-point case')
+    def test_directory_junction_parent_never_qualifies(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, 'src/inner.md')
+            junction = workspace / 'docs' / 'junction'
+            completed = subprocess.run(
+                ['cmd', '/c', 'mklink', '/J', str(junction), str(workspace / 'src')],
+                capture_output=True,
+                check=False,
+            )
+            if completed.returncode != 0:
+                self.skipTest('could not create a directory junction')
+            self._write_stash(workspace, 'refs docs/junction/inner.md')
+            reader = FilesystemTopologyReaders(workspace)
+            reader.worktree_dirty_paths()
+            reader._worktree_new_files = frozenset(('docs/junction/inner.md',))
+            self.assertEqual(reader.stash_referenced_paths(('docs/junction/inner.md',)).paths, ())
+
+    def test_subclass_overriding_dirty_paths_fails_closed_instead_of_crashing(self) -> None:
+        class OverridingReaders(FilesystemTopologyReaders):
+            def worktree_dirty_paths(self):
+                return (self.DOC_PATH,)
+
+            DOC_PATH = 'docs/design-docs/new-requirements.md'
+
+        with self._repo() as workspace:
+            reader = OverridingReaders(workspace)
+            self.assertIsNone(reader.worktree_divergent_paths())
+            result = reader.stash_referenced_paths((OverridingReaders.DOC_PATH,))
+            self.assertEqual(result.paths, ())
+            self.assertTrue(result.warning)
 
     def test_non_object_entry_or_non_string_text_is_malformed(self) -> None:
         with self._repo() as workspace:

@@ -203,9 +203,13 @@ blocking) qualifies a dirty path only when **all** of these hold:
   (for example `src/` or `notes/`), never qualifies and stays blocking.
 * **Exact whole-token reference** — the exact repo-relative path (case-sensitive,
   `/` separators) occurs as a whole token in the `text` of an active entry of the
-  working-copy `{resolved backlog root}/stash.jsonl`. Tokens are delimited by
-  whitespace, backticks, quotes, and parentheses; trailing `.,;:` is ignored.
-  Membership only: there is no glob, prefix, or directory widening, and the gate
+  working-copy `{resolved backlog root}/stash.jsonl`; an entry is active unless it
+  is explicitly marked `status: archived`. Tokens are delimited by
+  whitespace, backticks, quotes, and parentheses; trailing `.,;:` is ignored, so
+  the path must stand alone — markdown emphasis or brackets around it
+  (`**docs/x.md**`, `[docs/x.md]`), a `#anchor` suffix, or a comma-joined list
+  without spaces break the match and leave the document blocking without a
+  warning. Membership only: there is no glob, prefix, or directory widening, and the gate
   never derives a path from stash text. The stash file and the carry-forward
   prefix both derive from the same `resolve_backlog_root` result
   (`BACKLOGIT_WORKSPACE_DIR` override, then `.backlog/`, then `.backlogit/`;
@@ -213,14 +217,17 @@ blocking) qualifies a dirty path only when **all** of these hold:
 * **Containment** — repo-relative with no `..`, empty, or `.` segment; no leading
   `/`, drive, colon, or backslash; nothing under `.git/`; resolving inside the
   workspace; a regular file whose own path and parent directories below the
-  workspace are not symlinks or Windows reparse points.
+  workspace are not symlinks or Windows reparse points. The gate re-applies the
+  lexical rules to whatever a reader reports and ignores any path it did not
+  offer.
 
 A qualifying path joins `carry_forward_paths` and is listed in
 `details.stash_referenced_paths`; the existing divergent-staged-content and
-status-unavailable rules apply to it unchanged. An unreadable, non-UTF-8, or
-malformed `stash.jsonl` (any bad line, or an entry without a string `text`)
-qualifies **nothing** — the document stays blocking — and
-`details.stash_reference_warning` names the reason. The check only reads the
+status-unavailable rules apply to it unchanged. A missing, symlinked, unreadable,
+non-UTF-8, or malformed `stash.jsonl` (any bad line, or an entry without a string
+`text`) qualifies **nothing** — the document stays blocking — and
+`details.stash_reference_warning` names the reason (it is also appended to the
+`WORKTREE_DIRTY` message). The check only reads the
 stash when at least one new `docs/` candidate exists.
 
 This is **intake only**: carrying a document forward never triages the stash
