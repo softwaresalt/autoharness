@@ -77,7 +77,8 @@ class PolicyContractTests(unittest.TestCase):
                     "whole token",
                     "exact membership only",
                     "no glob, prefix, or directory widening",
-                    "traversal, `.git/`, outside-root, or symlink",
+                    "the full containment predicate",
+                    "Windows reparse point (directory junction)",
                     "unreadable or malformed",
                     "intake only",
                     "P-021 triage stays with Stage",
@@ -100,6 +101,7 @@ class ShipContractTests(unittest.TestCase):
                     "chore(backlog): carry forward stash intake",
                     "Never use a dedicated branch or PR for intake",
                     "never triage, prioritize, or add intake to the shipment's scope",
+                    "complete P-011 containment predicate",
                 ):
                     self.assertIn(needle, text, f"{needle!r} missing from {path}")
                 intake = _between(
@@ -128,6 +130,7 @@ class StageContractTests(unittest.TestCase):
                     "exact repo-relative path",
                     "Archiving an entry",
                     "never triages the entry or changes any shipment's scope",
+                    "complete P-011 containment predicate",
                 ):
                     self.assertIn(needle, section, f"{needle!r} missing from {path}")
 
