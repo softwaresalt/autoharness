@@ -230,6 +230,14 @@ non-UTF-8, or malformed `stash.jsonl` (any bad line, or an entry without a strin
 `WORKTREE_DIRTY` message). The check only reads the
 stash when at least one new `docs/` candidate exists.
 
+A blocked `pre_claim` result reports only its blocking check, so when a later
+check (for example `shipment_readiness` on a bootstrap-grant shipment) blocks, the
+cleanliness details are not in the result. Agents then use the backlog-only
+porcelain fallback, which never admits a stash-referenced document: Ship halts on
+it as dirt and the operator commits it as intake. This is deliberate fail-closed
+behavior; exposing the cleanliness result on later-blocked results is a separate
+gate-output change.
+
 This is **intake only**: carrying a document forward never triages the stash
 entry, never changes shipment scope, and never moves a document into the
 shipment (P-011, P-021). Triage stays with Stage.

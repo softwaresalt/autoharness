@@ -259,6 +259,10 @@ def _read_active_stash_tokens(stash_path: Path) -> tuple[set[str], str | None]:
         link_stat = os.lstat(stash_path)
         if stat.S_ISLNK(link_stat.st_mode) or _is_reparse_point(stash_path):
             return set(), f"{label} is a symlink or reparse point"
+        if not stat.S_ISREG(link_stat.st_mode):
+            # A FIFO/device would block read_bytes() waiting for a writer, so
+            # only a regular file is ever opened.
+            return set(), f"{label} is not a regular file"
         raw = stash_path.read_bytes()
     except FileNotFoundError:
         return set(), f"{label} not found"

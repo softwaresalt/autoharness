@@ -2417,7 +2417,7 @@ class StashReferencedReaderTests(unittest.TestCase):
             result = self._qualifying(FilesystemTopologyReaders(workspace))
             self.assertEqual((result.paths, result.warning), ((self.DOC,), None))
 
-    def test_stash_that_is_a_directory_is_unreadable(self) -> None:
+    def test_stash_that_is_a_directory_is_not_a_regular_file(self) -> None:
         with self._repo() as workspace:
             self._write(workspace, self.DOC)
             stash = workspace / '.backlogit' / 'stash.jsonl'
@@ -2425,7 +2425,20 @@ class StashReferencedReaderTests(unittest.TestCase):
             stash.mkdir()
             result = self._qualifying(FilesystemTopologyReaders(workspace))
             self.assertEqual(result.paths, ())
-            self.assertIn('unreadable', result.warning)
+            self.assertIn('not a regular file', result.warning)
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFOs are POSIX only')
+    def test_stash_that_is_a_fifo_fails_closed_without_blocking(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            stash = workspace / '.backlogit' / 'stash.jsonl'
+            stash.unlink()
+            os.mkfifo(stash)
+            # With no writer attached, read_bytes() on a FIFO would block forever;
+            # the regular-file check must reject it before any open.
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertIn('not a regular file', result.warning)
 
     def test_symlinked_stash_file_qualifies_nothing_and_warns(self) -> None:
         with self._repo() as workspace:
