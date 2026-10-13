@@ -57,8 +57,11 @@ pass, 6 of 6 IDs archived, shipment `archived_status: shipped`).
 
 ## Learnings
 
-* `backlogit move <task> --status done` archives the task in this backlogit version; the
-  pre-close contract treats those members as `matched` by declared `done` status.
+* `backlogit move <task> --status done` relocates the task record under `.backlogit/archive/` but
+  the record still declares `status: done`. Under P-015 that is NOT truly archived or engine-inert
+  (only a declared `status: archived` counts); location is descriptive only. The pre-close contract
+  matches those members by declared `done` status, and the later CASCADE close set the final
+  `archived` status.
 * Observed in 209-S (not a configured fallback; the policy question is stash `1AD61D32`): a
   GraphQL `requestReviews` mutation with `botIds` registered the Copilot reviewer when `gh` and REST
   did not; see `docs/compound/2026-10-12-requesting-copilot-review-via-graphql-bot-id.md`.
