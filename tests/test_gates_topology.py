@@ -23,10 +23,12 @@ from autoharness.gates.topology import (
     BacklogUnavailableError,
     FilesystemTopologyReaders,
     ShipmentState,
+    StashReferences,
     TopologyInput,
     _active_invariant_check,
     _run_git,
     _shipment_readiness_check,
+    _worktree_cleanliness_check,
     audit_sequencing,
     compute_dag_readiness,
     compute_next_eligible,
@@ -2028,6 +2030,404 @@ class FilesystemWorktreeCleanlinessReaderTests(unittest.TestCase):
                 reader = FilesystemTopologyReaders(tmp)
                 self.assertIsNone(reader.worktree_dirty_paths())
             self.assertTrue(reader.git_invocation_error('worktree_dirty_paths'))
+
+
+class _StashReferenceReaders(_CleanlinessReaders):
+    """Fake readers exposing the optional ``stash_referenced_paths`` capability."""
+
+    def __init__(self, *args, stash_paths=(), stash_warning=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stash_paths = tuple(stash_paths)
+        self._stash_warning = stash_warning
+        self.stash_calls: list[tuple[str, ...]] = []
+
+    def stash_referenced_paths(self, candidates):
+        self.stash_calls.append(tuple(candidates))
+        return StashReferences(paths=self._stash_paths, warning=self._stash_warning)
+
+
+class StashReferencedCarryForwardGateTests(unittest.TestCase):
+    """203.001-T / B1: gate-level classification of stash-referenced documents."""
+
+    DOC = 'docs/design-docs/2026-10-07-autoharness-requirements-carryover.md'
+
+    def _pre_claim(self, readers_cls=_StashReferenceReaders, **reader_kwargs):
+        readers = readers_cls(shipments=(_shipment('114-S', 'queued'),), **reader_kwargs)
+        result = evaluate(
+            TopologyInput(mode='agent', phase='pre_claim', target_shipment_id='114-S'),
+            readers=readers,
+        )
+        return result, readers
+
+    def test_stash_referenced_new_doc_is_carry_forward_eligible(self) -> None:
+        result, _ = self._pre_claim(
+            dirty_paths=('.backlogit/stash.jsonl', self.DOC),
+            stash_paths=(self.DOC,),
+        )
+        self.assertEqual(result.exit_code, 0)
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual((check.status, check.token), ('passed', 'CARRY_FORWARD_ELIGIBLE'))
+        self.assertEqual(check.details['carry_forward_paths'], sorted(['.backlogit/stash.jsonl', self.DOC]))
+        self.assertEqual(check.details['stash_referenced_paths'], [self.DOC])
+        self.assertNotIn('blocking_paths', check.details)
+        self.assertIn('stash-referenced documents', check.message)
+
+    def test_only_non_backlog_paths_are_offered_to_the_reader(self) -> None:
+        _, readers = self._pre_claim(
+            dirty_paths=('.backlogit/stash.jsonl', self.DOC, 'src/app.py'),
+            stash_paths=(self.DOC,),
+        )
+        self.assertEqual(readers.stash_calls, [tuple(sorted((self.DOC, 'src/app.py')))])
+
+    def test_reader_is_not_consulted_when_nothing_is_outside_the_backlog(self) -> None:
+        result, readers = self._pre_claim(dirty_paths=('.backlogit/stash.jsonl',), stash_paths=(self.DOC,))
+        self.assertEqual(readers.stash_calls, [])
+        self.assertEqual(_check(result, 'worktree_cleanliness').details['stash_referenced_paths'], [])
+
+    def test_reader_cannot_widen_beyond_offered_docs_candidates(self) -> None:
+        # A reader answer naming a path that is not dirty, or not under docs/,
+        # never makes that path carry-forward eligible.
+        result, _ = self._pre_claim(
+            dirty_paths=('src/app.py',),
+            stash_paths=('src/app.py', 'docs/not-dirty.md'),
+        )
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['src/app.py'])
+        self.assertEqual(check.details['stash_referenced_paths'], [])
+        self.assertNotIn('docs/not-dirty.md', check.details['carry_forward_paths'])
+
+    def test_other_dirt_still_blocks_next_to_a_stash_referenced_doc(self) -> None:
+        result, _ = self._pre_claim(
+            dirty_paths=(self.DOC, 'src/app.py'),
+            stash_paths=(self.DOC,),
+        )
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], ['src/app.py'])
+        self.assertEqual(check.details['carry_forward_paths'], [self.DOC])
+        self.assertEqual(check.details['stash_referenced_paths'], [self.DOC])
+
+    def test_divergent_stash_referenced_doc_blocks(self) -> None:
+        result, _ = self._pre_claim(
+            dirty_paths=(self.DOC,),
+            divergent_paths=(self.DOC,),
+            stash_paths=(self.DOC,),
+        )
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['divergent_paths'], [self.DOC])
+        self.assertNotIn('blocking_paths', check.details)
+
+    def test_reader_warning_is_reported_and_doc_stays_blocking(self) -> None:
+        result, _ = self._pre_claim(
+            dirty_paths=(self.DOC,),
+            stash_paths=(),
+            stash_warning='stash.jsonl line 3 is not valid JSON',
+        )
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], [self.DOC])
+        self.assertEqual(check.details['stash_reference_warning'], 'stash.jsonl line 3 is not valid JSON')
+
+    def test_readers_without_the_capability_keep_docs_blocking(self) -> None:
+        result, _ = self._pre_claim(readers_cls=_CleanlinessReaders, dirty_paths=(self.DOC,))
+        self.assertEqual(result.primary_token, 'WORKTREE_DIRTY')
+        check = _check(result, 'worktree_cleanliness')
+        self.assertEqual(check.details['blocking_paths'], [self.DOC])
+        self.assertEqual(check.details['stash_referenced_paths'], [])
+        self.assertNotIn('stash_reference_warning', check.details)
+
+    def test_stash_reference_does_not_change_status_unavailable_failure(self) -> None:
+        result, readers = self._pre_claim(dirty_paths=None, stash_paths=(self.DOC,))
+        self.assertEqual(result.primary_token, 'WORKTREE_STATUS_UNAVAILABLE')
+        self.assertEqual(readers.stash_calls, [])
+
+
+class StashReferencedReaderTests(unittest.TestCase):
+    """203.002-T / 203.003-T (B2/B3): ``FilesystemTopologyReaders.stash_referenced_paths``
+    against real git worktrees: backlog-root resolution, exact-token matching,
+    containment, and fail-closed behavior."""
+
+    DOC = 'docs/design-docs/new-requirements.md'
+
+    @staticmethod
+    def _git(cwd: Path, *args: str) -> None:
+        FilesystemWorktreeCleanlinessReaderTests._git(cwd, *args)
+
+    @contextmanager
+    def _repo(self, *roots: str):
+        roots = roots or ('.backlogit',)
+        with tempfile.TemporaryDirectory() as tmp, patched_environ(BACKLOGIT_WORKSPACE_DIR=None):
+            workspace = Path(tmp)
+            self._git(workspace, 'init', '-q')
+            self._git(workspace, 'config', 'core.autocrlf', 'false')
+            for root in roots:
+                (workspace / root).mkdir()
+                (workspace / root / 'stash.jsonl').write_bytes(b'')
+            (workspace / 'README.md').write_bytes(b'readme\n')
+            (workspace / 'docs').mkdir()
+            (workspace / 'docs' / 'existing.md').write_bytes(b'existing\n')
+            (workspace / 'src').mkdir()
+            (workspace / 'src' / 'app.py').write_bytes(b'app = 1\n')
+            self._git(workspace, 'add', '.')
+            self._git(workspace, 'commit', '-q', '-m', 'init')
+            yield workspace
+
+    @staticmethod
+    def _write_stash(workspace: Path, *texts: str, root: str = '.backlogit', raw: bytes | None = None) -> None:
+        if raw is None:
+            lines = [json.dumps({'id': f'E{index}', 'kind': 'task', 'text': text}) for index, text in enumerate(texts)]
+            raw = ('\n'.join(lines) + '\n').encode('utf-8')
+        (workspace / root / 'stash.jsonl').write_bytes(raw)
+
+    @staticmethod
+    def _write(workspace: Path, rel: str, content: bytes = b'doc\n') -> None:
+        target = workspace / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+
+    @staticmethod
+    def _qualifying(reader: FilesystemTopologyReaders):
+        dirty = reader.worktree_dirty_paths()
+        assert dirty is not None
+        return reader.stash_referenced_paths(dirty)
+
+    # -- B2: backlog-root resolution -------------------------------------------------
+
+    def test_legacy_backlogit_root_supplies_prefix_and_stash_lookup(self) -> None:
+        with self._repo('.backlogit') as workspace:
+            self._write(workspace, self.DOC)
+            self._write_stash(workspace, f'Intake. See `{self.DOC}` for the requirements.')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertEqual(reader.carry_forward_prefixes(), ('.backlogit/',))
+            result = self._qualifying(reader)
+            self.assertEqual(result.paths, (self.DOC,))
+            self.assertIsNone(result.warning)
+
+    def test_default_backlog_root_supplies_prefix_and_stash_lookup(self) -> None:
+        with self._repo('.backlog') as workspace:
+            self._write(workspace, self.DOC)
+            self._write_stash(workspace, f'See {self.DOC}', root='.backlog')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertEqual(reader.carry_forward_prefixes(), ('.backlog/',))
+            self.assertEqual(self._qualifying(reader).paths, (self.DOC,))
+
+    def test_workspace_dir_override_selects_the_stash_to_read(self) -> None:
+        other = 'docs/design-docs/other.md'
+        with self._repo('.backlog', '.backlogit') as workspace:
+            self._write(workspace, self.DOC)
+            self._write(workspace, other)
+            self._write_stash(workspace, f'ref {self.DOC}', root='.backlogit')
+            self._write_stash(workspace, f'ref {other}', root='.backlog')
+            with patched_environ(BACKLOGIT_WORKSPACE_DIR='.backlogit'):
+                reader = FilesystemTopologyReaders(workspace)
+                self.assertEqual(reader.carry_forward_prefixes(), ('.backlogit/',))
+                self.assertEqual(self._qualifying(reader).paths, (self.DOC,))
+            with patched_environ(BACKLOGIT_WORKSPACE_DIR='.backlog'):
+                reader = FilesystemTopologyReaders(workspace)
+                self.assertEqual(reader.carry_forward_prefixes(), ('.backlog/',))
+                self.assertEqual(self._qualifying(reader).paths, (other,))
+
+    def test_both_roots_present_without_override_fails_closed(self) -> None:
+        with self._repo('.backlog', '.backlogit') as workspace:
+            self._write(workspace, self.DOC)
+            self._write_stash(workspace, f'ref {self.DOC}', root='.backlogit')
+            reader = FilesystemTopologyReaders(workspace)
+            with self.assertRaises(BacklogUnavailableError):
+                reader.stash_referenced_paths((self.DOC,))
+            with self.assertRaises(BacklogUnavailableError):
+                _worktree_cleanliness_check('pre_claim', FilesystemTopologyReaders(workspace))
+
+    def test_check_reports_stash_referenced_paths_for_real_readers(self) -> None:
+        with self._repo('.backlogit') as workspace:
+            self._write(workspace, self.DOC)
+            self._write_stash(workspace, f'ref {self.DOC}')
+            check = _worktree_cleanliness_check('pre_claim', FilesystemTopologyReaders(workspace))
+            self.assertEqual((check.status, check.token), ('passed', 'CARRY_FORWARD_ELIGIBLE'))
+            self.assertEqual(check.details['stash_referenced_paths'], [self.DOC])
+            self.assertEqual(check.details['carry_forward_paths'], ['.backlogit/stash.jsonl', self.DOC])
+
+    def test_staged_added_doc_qualifies(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            self._git(workspace, 'add', self.DOC)
+            self._write_stash(workspace, f'ref {self.DOC}')
+            self.assertEqual(self._qualifying(FilesystemTopologyReaders(workspace)).paths, (self.DOC,))
+
+    # -- B3: exact-token matching ----------------------------------------------------
+
+    def test_token_boundaries_allow_listed_delimiters_and_trailing_punctuation(self) -> None:
+        docs = [f'docs/t{index}.md' for index in range(7)]
+        with self._repo() as workspace:
+            for rel in docs:
+                self._write(workspace, rel)
+            self._write_stash(
+                workspace,
+                f'bare {docs[0]} word',
+                f'tick `{docs[1]}`',
+                f'quoted "{docs[2]}" and \'{docs[3]}\'',
+                f'paren ({docs[4]})',
+                f'sentence ends {docs[5]}.',
+                f'list {docs[6]}; next',
+            )
+            self.assertEqual(self._qualifying(FilesystemTopologyReaders(workspace)).paths, tuple(docs))
+
+    def test_prefix_glob_and_near_miss_references_do_not_qualify(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, 'docs/a.md')
+            self._write(workspace, 'docs/sub/b.md')
+            self._write(workspace, 'docs/c.md')
+            self._write_stash(
+                workspace,
+                'glob docs/*.md and docs/sub/*',
+                'directory docs/ and docs/sub/ and docs/sub',
+                'longer docs/a.md.bak and docs/a.mdx and xdocs/c.md',
+                'case DOCS/C.md and backslash docs\\c.md',
+                'embedded path/docs/a.md/more and docs/sub/b.md-extra',
+            )
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertIsNone(result.warning)
+
+    def test_reference_only_counts_when_the_entry_is_active(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, 'docs/a.md')
+            raw = (json.dumps({'id': 'A', 'text': 'docs/a.md', 'status': 'archived'}) + '\n').encode('utf-8')
+            self._write_stash(workspace, raw=raw)
+            self.assertEqual(self._qualifying(FilesystemTopologyReaders(workspace)).paths, ())
+
+    # -- B3: qualifying-set rules ----------------------------------------------------
+
+    def test_modified_tracked_doc_and_non_docs_file_do_not_qualify(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, 'docs/existing.md', b'changed\n')
+            self._write(workspace, 'notes/new.md')
+            self._write(workspace, 'src/new.py')
+            self._write_stash(workspace, 'refs docs/existing.md notes/new.md src/new.py src/app.py')
+            self.assertEqual(self._qualifying(FilesystemTopologyReaders(workspace)).paths, ())
+
+    def test_docs_path_must_be_under_docs_directory(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, 'docs.md')
+            self._write(workspace, 'docsx/a.md')
+            self._write_stash(workspace, 'refs docs.md docsx/a.md')
+            self.assertEqual(self._qualifying(FilesystemTopologyReaders(workspace)).paths, ())
+
+    def test_candidates_outside_the_real_dirty_set_do_not_qualify(self) -> None:
+        with self._repo() as workspace:
+            self._write_stash(workspace, 'refs docs/existing.md docs/ghost.md')
+            reader = FilesystemTopologyReaders(workspace)
+            self.assertNotIn('docs/ghost.md', reader.worktree_dirty_paths())
+            self.assertEqual(reader.stash_referenced_paths(('docs/existing.md', 'docs/ghost.md')).paths, ())
+
+    def test_traversal_git_dir_absolute_and_drive_candidates_never_qualify(self) -> None:
+        bad = (
+            'docs/../README.md',
+            '../outside/docs/a.md',
+            'docs/./a.md',
+            'docs//a.md',
+            '/docs/a.md',
+            'C:/docs/a.md',
+            'docs/.git/config',
+            'docs\\a.md',
+        )
+        with self._repo() as workspace:
+            self._write(workspace, 'docs/a.md')
+            self._write_stash(workspace, ' '.join(bad) + ' docs/a.md')
+            reader = FilesystemTopologyReaders(workspace)
+            reader.worktree_dirty_paths()
+            # Containment is enforced independently of git's new-file report:
+            # even if every bad path were (wrongly) reported as a new file, none
+            # may qualify.
+            reader._worktree_new_files = frozenset((*bad, 'docs/a.md'))
+            self.assertEqual(reader.stash_referenced_paths(bad).paths, ())
+            self.assertEqual(reader.stash_referenced_paths((*bad, 'docs/a.md')).paths, ('docs/a.md',))
+
+    def test_symlinked_file_and_symlinked_parent_never_qualify(self) -> None:
+        with self._repo() as workspace:
+            target = workspace / 'src' / 'app.py'
+            link_file = workspace / 'docs' / 'link.md'
+            try:
+                os.symlink(target, link_file)
+                os.symlink(workspace / 'src', workspace / 'docs' / 'linked-dir', target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:  # pragma: no cover - platform dependent
+                self.skipTest(f'symlinks unavailable: {exc}')
+            self._write_stash(workspace, 'refs docs/link.md docs/linked-dir/app.py')
+            reader = FilesystemTopologyReaders(workspace)
+            dirty = reader.worktree_dirty_paths()
+            self.assertIn('docs/link.md', dirty)
+            self.assertEqual(reader.stash_referenced_paths(dirty).paths, ())
+            self.assertEqual(reader.stash_referenced_paths(('docs/linked-dir/app.py',)).paths, ())
+
+    # -- B3: fail-closed stash reads ---------------------------------------------------
+
+    def test_malformed_stash_line_qualifies_nothing_and_warns(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            good = json.dumps({'id': 'A', 'text': f'ref {self.DOC}'})
+            self._write_stash(workspace, raw=(good + '\n{not json}\n').encode('utf-8'))
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertIn('line 2', result.warning)
+
+    def test_non_object_entry_or_non_string_text_is_malformed(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            for raw in (b'[1,2]\n', json.dumps({'id': 'A', 'text': 7}).encode('utf-8') + b'\n'):
+                self._write_stash(workspace, raw=raw)
+                result = self._qualifying(FilesystemTopologyReaders(workspace))
+                self.assertEqual(result.paths, ())
+                self.assertTrue(result.warning)
+
+    def test_missing_unreadable_or_non_utf8_stash_qualifies_nothing_and_warns(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            (workspace / '.backlogit' / 'stash.jsonl').unlink()
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertTrue(result.warning)
+            self._write_stash(workspace, raw=b'\xff\xfe\x00bad\n')
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual(result.paths, ())
+            self.assertTrue(result.warning)
+
+    def test_empty_stash_has_no_warning_and_blank_lines_are_ignored(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC)
+            self._write_stash(workspace, raw=b'\n\n')
+            result = self._qualifying(FilesystemTopologyReaders(workspace))
+            self.assertEqual((result.paths, result.warning), ((), None))
+
+    def test_unavailable_worktree_status_qualifies_nothing(self) -> None:
+        with self._repo() as workspace:
+            self._write_stash(workspace, f'ref {self.DOC}')
+            (workspace / 'src' / '.backlogit').mkdir()
+            nested = FilesystemTopologyReaders(workspace / 'src')
+            result = nested.stash_referenced_paths((self.DOC,))
+            self.assertEqual(result.paths, ())
+            self.assertTrue(result.warning)
+
+    def test_malformed_stash_with_divergent_staged_doc_is_worktree_dirty_with_warning(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC, b'v1\n')
+            self._git(workspace, 'add', self.DOC)
+            self._write(workspace, self.DOC, b'v2\n')
+            self._write_stash(workspace, raw=b'{not json}\n')
+            check = _worktree_cleanliness_check('pre_claim', FilesystemTopologyReaders(workspace))
+            self.assertEqual(check.token, 'WORKTREE_DIRTY')
+            self.assertIn(self.DOC, check.details['blocking_paths'])
+            self.assertTrue(check.details['stash_reference_warning'])
+
+    def test_divergent_staged_referenced_doc_is_worktree_dirty(self) -> None:
+        with self._repo() as workspace:
+            self._write(workspace, self.DOC, b'v1\n')
+            self._git(workspace, 'add', self.DOC)
+            self._write(workspace, self.DOC, b'v2\n')
+            self._write_stash(workspace, f'ref {self.DOC}')
+            check = _worktree_cleanliness_check('pre_claim', FilesystemTopologyReaders(workspace))
+            self.assertEqual(check.token, 'WORKTREE_DIRTY')
+            self.assertEqual(check.details['divergent_paths'], [self.DOC])
 
 
 class TargetShipmentReadinessTests(unittest.TestCase):
