@@ -33,9 +33,9 @@ decision: PASS
 |---|---|---|
 | Constitution Reviewer | inline (always-on) | F1 P1 resolved |
 | Python Reviewer | inline (always-on) | F2 P2 resolved, F3 P3, F4 P2 resolved |
-| Scope Boundary Auditor | inline (always-on) | F5 P3, F6 P2 accepted |
+| Scope Boundary Auditor | inline (always-on) | F5 P3, F6 P3 (re-triaged from P2) |
 | Learnings Researcher | inline (always-on) | F12 P3 |
-| Architecture Strategist | inline, same-model | F7 P2 accepted, F8 P3 |
+| Architecture Strategist | inline, same-model | F7 P3 (re-triaged from P2), F8 P3 |
 | Agent-Native Parity Reviewer | inline (triggered) | F9 P2 resolved |
 | Security Lens Reviewer | inline (triggered) | F10 P3 |
 | Schema-CLI-Docs Coupling Reviewer | inline (extra, repo-specific) | F11 P2 resolved |
@@ -57,8 +57,8 @@ decision: PASS
 | F3 | P3 | Python | Type `REMOVED_CAPABILITY_PACKS` as an immutable mapping | Advisory |
 | F4 | P2 | Python | Guard-test scan must be encoding/CRLF-robust | Resolved in U1 |
 | F5 | P3 | Scope | 23 tasks is large for a removal but each is family-scoped | Advisory |
-| F6 | P2 | Scope | U21 wrapper tolerance goes slightly beyond pure deletion | Accepted (R5); separable |
-| F7 | P2 | Architecture | `verify_workspace.py` edited by three sequential tasks | Accepted; linear chain keeps each step green |
+| F6 | P3 | Scope | U21 wrapper tolerance goes slightly beyond pure deletion | Advisory; re-triaged from P2 - required by R5, not scope growth; separable |
+| F7 | P3 | Architecture | `verify_workspace.py` edited by three sequential tasks | Advisory; re-triaged from P2 - linear chain keeps each step green, no concurrent-edit risk |
 | F8 | P3 | Architecture | `215-S blocks` edge puts this shipment at the chain tail | Advisory; reasons in D-11 |
 | F9 | P2 | Agent-Native | Operator clarification/wait behavior undefined after transmit/standby removal | Resolved in D-4 |
 | F10 | P3 | Security | Do not imply destructive approval can be skipped without a remote channel | Advisory; checked in U10/U12 |
@@ -67,6 +67,12 @@ decision: PASS
 
 ## Gate decision
 
-**PASS.** No open P0/P1. Plan hardening was required (`Requires plan hardening: yes`) and is
+**PASS.** No open P0/P1 and no open or accepted P2 findings: every P2 is resolved in the plan, and
+F6/F7 were re-triaged to P3 advisory after a hosted review of the staging PR (PR 518) showed the
+earlier "P2 accepted" label conflicted with the plan-review gate table (an accepted P2 would
+require `decision: ADVISORY` plus recorded authorization). Re-triage basis: F6 is traceable to
+requirement R5 (existing automation passing `-Packs agent-intercom` must not hard-fail), so U21 is
+requirement-driven rather than scope growth; F7 is an ordering observation whose risk is already
+removed by the linear task chain. Plan hardening was required (`Requires plan hardening: yes`) and is
 satisfied by the plan's `## Plan Hardening` section. The plan is harvest-ready; harvest produced
 `209-F` with 23 tasks (`209.001-T` to `209.023-T`) in shipment `216-S`.

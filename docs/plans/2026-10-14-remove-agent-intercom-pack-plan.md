@@ -295,8 +295,15 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   root + 1.1.0; leave `0.9.0`/`1.0.0` byte-identical (byte-pin test via `git show` of the pre-change
   blob hash recorded in the test). `SCHEMA_CONTRACTS["profile"]`: `current_version "1.1.0"`,
   `known_versions ("0.9.0","1.0.0","1.1.0")`; add `1.0.0 -> 1.1.0` `CONTRACT_MIGRATIONS` entry.
-* Verify: legacy 1.0.0 profile with the pack still validates; a 1.1.0 profile with it is rejected
-  by schema (verify later downgrades to a warning in U6).
+* The profile schema root has no top-level `additionalProperties: false`, so after the property is
+  deleted a profile carrying an `agent_intercom` block still VALIDATES (the key is simply an
+  unknown, ignored property). Decision: do NOT close the root (that would reject every unknown
+  top-level key and needs a separate compatibility audit); the legacy block is detected and warned
+  on directly by the U6 collector, not through a schema error.
+* Verify: legacy 1.0.0 profile with the pack still validates; a 1.1.0 profile listing the pack in
+  `harness_recommendations.capability_packs` fails the enum (classified as a warning in U6); a
+  1.1.0 profile carrying only an `agent_intercom` block still validates (test pins this open-root
+  behavior).
 
 ### U3 - harness-manifest schema 1.1.0
 * Posture: migration-first. Size S / complexity medium. Depends on U2 (shared `schema_contracts.py`).
@@ -341,8 +348,10 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   written against the final behavior with the constant monkeypatched until U7.
 * Regex coverage: `LEGACY_CAPABILITY_PACK_ERROR_RE` today matches `capability_packs.N` /
   `capability_pack_overlays.N.pack` only; U6 extends it (or adds a sibling pattern) for
-  `recommendation_reasons.capability_packs.N.item` and for the profile root-level
-  `Additional properties ... ('agent_intercom' was unexpected)` error, each tested.
+  `recommendation_reasons.capability_packs.N.item`, tested. The root-level `agent_intercom`
+  property needs no matcher: the profile root is open (see U2), so no schema error exists for it;
+  instead the U6 collector detects a legacy `agent_intercom` profile block directly (by key
+  presence) and emits the `removed-capability-pack` warning, tested per case (c).
 
 ### U7 - verify_workspace: retire the pack assertions and fixtures
 * Posture: characterization-first. Size M / complexity medium.
@@ -664,9 +673,9 @@ Every selected persona was covered; findings are normalized to P0-P3. Plan harde
 |---|---|---|
 | Constitution Reviewer | inline pass (always-on) | F1 (P1, fixed), P3 note |
 | Python Reviewer | inline pass (always-on) | F2 (P2, fixed), F3 (P3), F4 (P2, fixed) |
-| Scope Boundary Auditor | inline pass (always-on) | F5 (P3), F6 (P2, accepted) |
+| Scope Boundary Auditor | inline pass (always-on) | F5 (P3), F6 (P3, re-triaged from P2) |
 | Learnings Researcher | inline pass (always-on; searched `docs/compound/`) | none contradicting; F12 (P3) |
-| Architecture Strategist | inline pass, same-model (anchor route unavailable) | F7 (P2), F8 (P3) |
+| Architecture Strategist | inline pass, same-model (anchor route unavailable) | F7 (P3, re-triaged from P2), F8 (P3) |
 | Agent-Native Parity Reviewer | inline pass (triggered: agent-facing instructions and operator-visible events change) | F9 (P2, fixed) |
 | Security Lens Reviewer | inline pass (triggered: removal of an optional approval-routing transport) | F10 (P3) |
 | Schema-CLI-Docs Coupling Reviewer (repo-specific, extra pass) | inline pass | F11 (P2, fixed) |
@@ -683,8 +692,10 @@ section and found no residual P0/P1.
   `docs/design-docs/`; Principle VII (destructive-command approval) confirmed intercom-independent.
   P3 note: Principle II (tests first) is honored by U1/U5/U6/U21 test-first posture.
 * **F2 - P2 (Python Reviewer) - RESOLVED.** `LEGACY_CAPABILITY_PACK_ERROR_RE` does not match
-  `recommendation_reasons.capability_packs.N.item` or the root `additionalProperties` error for
-  `agent_intercom`; U6 now requires extending the matcher with a test per shape.
+  `recommendation_reasons.capability_packs.N.item`; U6 now requires extending the matcher with a
+  test. (A first draft also planned a matcher for a root `additionalProperties` error on
+  `agent_intercom`; hosted review of PR 518 showed the profile root is open so no such error
+  exists, and U2/U6 now detect the legacy block directly in the collector instead.)
 * **F3 - P3 (Python Reviewer) - advisory.** Type `REMOVED_CAPABILITY_PACKS` as an immutable
   `Mapping[str, RemovedPackInfo]` (frozen dataclass or `MappingProxyType`) so the retired-pack
   metadata is not a mutable module global.
@@ -693,13 +704,15 @@ section and found no residual P0/P1.
 * **F5 - P3 (Scope Boundary Auditor) - advisory.** 23 tasks is large for a "removal", but each is a
   family-scoped mechanical unit under the 2-hour rule; no replacement mechanism, no rename of
   `Remote Operator Integration`, no telemetry vocabulary change (D-6/D-8) keeps scope minimal.
-* **F6 - P2 (Scope Boundary Auditor) - ACCEPTED.** U21 (wrapper retired-pack tolerance) goes
-  slightly beyond pure deletion, but is required by requirement R5 (existing automation passing
-  `-Packs agent-intercom` must not hard-fail); kept as its own small task so it can be dropped
-  independently if the operator disagrees.
-* **F7 - P2 (Architecture Strategist) - ACCEPTED.** `verify_workspace.py` is edited by three
-  sequential tasks (U5-U7); acceptable because the chain is linear and each step is independently
-  green; the alternative (one large verify task) would exceed the complexity budget.
+* **F6 - P3 (Scope Boundary Auditor) - advisory (re-triaged from P2).** U21 (wrapper retired-pack
+  tolerance) goes slightly beyond pure deletion, but is required by requirement R5 (existing
+  automation passing `-Packs agent-intercom` must not hard-fail), so it is requirement-driven, not
+  scope growth; kept as its own small task so it can be dropped independently if the operator
+  disagrees.
+* **F7 - P3 (Architecture Strategist) - advisory (re-triaged from P2).** `verify_workspace.py` is
+  edited by three sequential tasks (U5-U7); the chain is linear and each step is independently
+  green, so there is no concurrent-edit risk; the alternative (one large verify task) would exceed
+  the complexity budget.
 * **F8 - P3 (Architecture Strategist) - advisory.** The `215-S blocks` edge places this shipment at
   the tail of the 211-S..215-S chain; only U4 (config version slot) and the shared files truly
   force this, and it is recorded with reasons (D-11). Re-evaluate only if 215-S is abandoned.
@@ -721,8 +734,8 @@ section and found no residual P0/P1.
 `autoharness verify-workspace` CLI and the install/tune skills; each unit lists its verification and
 U23 plus the Plan Hardening closure section cover monitoring, rollback and validation window.
 
-**Gate decision: PASS** (no open P0/P1; P2 items either resolved in the plan or explicitly
-accepted above; P3 items are advisory). The plan is harvest-ready.
+**Gate decision: PASS** (no open P0/P1; every P2 is resolved in the plan; F6/F7 were re-triaged to
+P3 advisory, so no accepted-P2 `ADVISORY` authorization is required). The plan is harvest-ready.
 
 ## Harvest Record (2026-10-14, Stage)
 

@@ -68,13 +68,17 @@ All times are UTC (session started 2026-10-14T03:51Z).
   alternate channel. The commit is local on `main` (ahead of `origin/main` by one commit) and is
   ready to push once a working Git for Windows (with bash) is restored.
 
+## Publication update (Orchestrator, after Stage)
+
+The Orchestrator later published the staging commit without bypassing the gate: a hash-verified
+PortableGit (inside the ignored session directory) supplied the bash that the pre-push hook needs,
+the hook passed, `git push origin main` was rejected by the repository rule (changes must go through
+a pull request), so the commit was pushed on `chore/stage-216-S` and opened as PR 518.
+
 ## Next steps
 
-* **Publication (blocking Ship routing - Orchestrator Step 1.5):** after Git is repaired, run
-  `git push origin main` from the repo root (the pre-push hook will run the unit-test gate; the
-  commit contains only backlog/plan/review/memory files), then verify
-  `git show origin/main:.backlogit/queue/216-S.md`. If direct push is rejected by branch
-  protection, use a `chore/stage-216-S` branch + PR (staging artifacts only).
+* **Publication (blocking Ship routing - Orchestrator Step 1.5):** merge PR 518 with a merge commit
+  once the hosted review is clean, then verify `git show origin/main:.backlogit/queue/216-S.md`.
 * Ship: claim `216-S` only after `215-S` ships (pre-claim gate enforces the `blocks` edge).
   At claim time re-read the post-215-S baseline for shared files, derive U4's `<N+1>` config
   version from `SCHEMA_CONTRACTS["config"]`, and re-confirm operator authorization for U8
