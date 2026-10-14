@@ -98,4 +98,6 @@ validation test. Round 4 added: U1/209.001-T classify tests per exact path (no `
 downstream units add or move their own tombstone entries); U9/209.009-T scope strict-safety to its
 template only (9 files, 4 mirror checksums; no installed strict-safety mirror exists); U10/209.010-T
 exempt the new sync-impact report from the zero-reference criterion; the plan's config-ownership row
-says U8 changes only the pack entry, never the config `schema_version` (D-10).
+says U8 changes only the pack entry, never the config `schema_version` (D-10). Round 5 added: U8/209.008-T
+also refresh the manifest `profile_hash` and the profile artifact checksum, because the dogfood
+profile is edited in that task.

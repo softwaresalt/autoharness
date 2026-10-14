@@ -397,7 +397,11 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   `.autoharness/workspace-profile.yaml`
   (remove from `harness_recommendations.capability_packs`/reason/`agent_intercom` block; bump
   `schema_version` to 1.1.0), `.autoharness/harness-manifest.yaml` (remove from `capability_packs`,
-  `capability_pack_overlays`, bump `schema_version` to 1.1.0, refresh `config_hash` + config checksum).
+  `capability_pack_overlays`, bump `schema_version` to 1.1.0, refresh `config_hash` + the config
+  artifact checksum AND the profile integrity pair: top-level `profile_hash` plus the
+  `.autoharness/workspace-profile.yaml` artifact `checksum` (both record the same digest and both go
+  stale when the profile is edited; recompute from the index/LF blob per D-14, so U23's no-new-drift
+  check stays clean).
   The overlay ARTIFACT record and the file itself stay until U22 (D-13).
 * Verify: dogfood verify has 0 blockers and no `removed-capability-pack` warning for these three
   documents; `git diff .autoharness/config.yaml` is exactly one removed line (route/`context_tier`
