@@ -38,7 +38,7 @@ template-vs-dogfood parity tests):
 | Verify / contracts | - | `src/autoharness/verify_workspace.py` (11), `src/autoharness/schema_contracts.py` |
 | Agents | `_orchestrator` (12), `_ship` (30), `_stage` (13) `.agent.md.tmpl` | `.github/agents/_orchestrator|_ship|_stage.agent.md`, `auto-mergeinstall.agent.md` |
 | Foundation | `AGENTS.md.tmpl`, `copilot-instructions.md.tmpl`, `constitution.instructions.md.tmpl` | root `AGENTS.md`, `.github/instructions/constitution.instructions.md`, `harness-architecture.instructions.md`, `.github/copilot-review-instructions.md` |
-| Instructions | `backlogit`, `circuit-breaker`, `concurrency`, `role-enforcement`, `strict-safety` `.instructions.md.tmpl` | matching `.github/instructions/*.md` mirrors |
+| Instructions | `backlogit`, `circuit-breaker`, `concurrency`, `role-enforcement`, `strict-safety` `.instructions.md.tmpl` | matching `.github/instructions/*.md` mirrors for all but `strict-safety` (template only: not installed in this workspace) |
 | Policies | `templates/policies/workflow-policies.md.tmpl` | `.github/policies/workflow-policies.md` |
 | Skills | 17 skill templates (brainstorm, build-feature, compact-context, deliberate, doc-review, fix-ci, harness-architect, harvest, impl-plan, operational-closure, plan-harden, plan-review, pr-lifecycle, review, runtime-verification, safety-modes, shipment-reconcile) | 13 installed mirrors plus global-only skills `install-harness` (36), `workspace-discovery` (11), `tune-harness` (4), `verify-harness` (2), prompt `install-harness.prompt.md` |
 | Dogfood install state | - | `.autoharness/config.yaml`, `.autoharness/workspace-profile.yaml`, `.autoharness/harness-manifest.yaml` (pack list, overlay record, artifact record, checksums) |
@@ -406,9 +406,12 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
 ### U9 - Instruction family sweep
 * Posture: characterization-first. Size M / complexity low.
 * Files: templates + mirrors for `circuit-breaker` (delete stall rule item 4), `concurrency`
-  (L19), `role-enforcement` (L74 - violation report text per D-4), `strict-safety` (L60),
-  `backlogit` (Intercom Coherence Rule -> Operator Choice Presentation Rule). 10 files, ~1-5 line
-  edits each. Refresh the 5 mirror checksums.
+  (L19), `role-enforcement` (L74 - violation report text per D-4) and `backlogit` (Intercom
+  Coherence Rule -> Operator Choice Presentation Rule), plus the `strict-safety` TEMPLATE ONLY
+  (L60): strict-safety is not installed in this dogfood workspace, so
+  `.github/instructions/strict-safety.instructions.md` does not exist and nothing is edited or
+  checksummed for it. 9 files (4 template/mirror pairs + the strict-safety template), ~1-5 line
+  edits each. Refresh the 4 mirror checksums.
 
 ### U10 - Foundation family sweep
 * Size M / complexity low.
@@ -578,7 +581,7 @@ registry stops listing it); U22 precedes U23. No cycles. Shipment-level: `215-S 
 | `workflow-policies(.tmpl)` | 208.012 (P-013.5) | after 215-S |
 | `_orchestrator` template/mirror | 207.005 | after 215-S |
 | `harness-manifest.yaml` checksums | every shipment | serial execution; refresh only own edits |
-| `.autoharness/config.yaml` | 208.006 operator-confirmed marker | U8 touches only the pack entry + version |
+| `.autoharness/config.yaml` | 208.006 operator-confirmed marker | U8 touches only the pack entry; the file's `schema_version` is not changed (D-10) |
 | 211-S (UTC lint), 212-S, 213-S, 214-S | unrelated scopes | not modified; this shipment is not their predecessor |
 
 ## Non-Goals

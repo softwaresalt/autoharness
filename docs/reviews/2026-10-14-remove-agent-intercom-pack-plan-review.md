@@ -94,4 +94,8 @@ install-harness Step 3.3 manifest skeleton to manifest `1.1.0` with a render-and
 and U1 (task 209.001-T) no longer blanket-exclude `tests/**` and allowlist only the exact test
 files that intentionally name the retired value; U21 and task 209.021-T make all four deploy
 wrapper/template copies scaffold the config at U4's new current version with a generated-config
-validation test.
+validation test. Round 4 added: U1/209.001-T classify tests per exact path (no `tests/` allowlist,
+downstream units add or move their own tombstone entries); U9/209.009-T scope strict-safety to its
+template only (9 files, 4 mirror checksums; no installed strict-safety mirror exists); U10/209.010-T
+exempt the new sync-impact report from the zero-reference criterion; the plan's config-ownership row
+says U8 changes only the pack entry, never the config `schema_version` (D-10).
