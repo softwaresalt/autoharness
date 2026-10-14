@@ -228,7 +228,12 @@ path + required rationale string) covers the files that must name the retired va
 `.github/skills/workspace-discovery/SKILL.md`, `scripts/deploy-harness.{sh,ps1}` and
 `templates/scripts/deploy-harness.{sh,ps1}.tmpl`, `docs/capability-packs.md` (a "Retired packs"
 section), `docs/tuning-guide.md`, and the `docs/telemetry/*` deferral-closure note. Every tombstone
-entry must name its reason; the guard fails on an allowlist entry that no longer matches anything
+entry must name its reason AND its permitted matches: tombstones are scoped per path to exact
+permitted occurrences (an exact snippet or section predicate plus a maximum count, e.g. only the
+"Retired capability packs" note in an install skill, only the retired-pack constant and its
+tolerance handlers in `verify_workspace.py`), never to the whole file, and the guard fails on ANY
+additional occurrence in a tombstoned file, so one legitimate retired-ID handler cannot shelter a
+stale preset row or old assertion. The guard also fails on an allowlist entry that no longer matches anything
 (prevents silent growth).
 
 **D-10 Operator-owned config.** `.autoharness/config.yaml` is operator-owned; the operator has
@@ -286,7 +291,8 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
 * Posture: test-first. Size S / complexity low.
 * Files: new `tests/test_removed_pack_surface_guard.py` (1).
 * Content: `HISTORICAL_ALLOWLIST` (D-9), `FROZEN_MIRRORS`, `TELEMETRY_VOCAB`, `TOMBSTONES` (path ->
-  rationale), and `PENDING_SURFACES` (path prefixes still containing the pack, initial = all live
+  rationale plus the exact permitted occurrences: snippet/section predicate and max count, so any
+  additional occurrence in a tombstoned file fails the guard), and `PENDING_SURFACES` (path prefixes still containing the pack, initial = all live
   surfaces from the footprint table). The scan reads bytes and decodes with `errors="ignore"`,
   skipping binary files, so CRLF/encoding differences never create false matches. `tests/**` is not
   blanket-excluded: existing tests that assume the pack are exact-file `PENDING_SURFACES` entries
@@ -684,9 +690,15 @@ installed in this workspace, so this classification is carried as plan disciplin
 * Rollback triggers: any red full-suite that cannot be fixed within the task, any strict-schema
   blocker on the dogfood tree, any modified historical-allowlist path. Rollback procedure: revert the
   offending task commit(s) in reverse dependency order; because the chain is linear and each task
-  leaves the tree green, a partial rollout (stop after any task) is a supported state - the only
-  user-visible partial state is "pack still listed but tolerated" (before U22), which is explicitly
-  handled by U6/U7.
+  leaves the tree green, every task boundary is a SAFE ENGINEERING STOP (tests green) but NOT a
+  supported release state: from U7 on the pack is no longer verified while the registry/install
+  paths still expose it, and U9-U21 progressively strip its woven behavior before U22 removes the
+  definition, so a fresh install from an intermediate commit could receive a partially retired
+  pack. The transition commits are therefore non-releasable: the shipment ships as one PR merged
+  only after U23, and if the work stops midway the branch is either completed through U23 or rolled
+  back to the pre-removal boundary (the last commit before U1); never tag, publish or install from
+  an intermediate commit. The legacy-tolerance paths (U6/U7) protect EXISTING installs that list the
+  pack, not fresh installs from intermediate states.
 * Partial-rollout constraint: U22 (definition removal) must not ship before U21 (wrapper
   tolerance) or before U18 (tune/install tolerance guidance) - the dependency chain enforces it.
 

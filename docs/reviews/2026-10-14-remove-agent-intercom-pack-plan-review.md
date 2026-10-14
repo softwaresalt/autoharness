@@ -100,4 +100,7 @@ template only (9 files, 4 mirror checksums; no installed strict-safety mirror ex
 exempt the new sync-impact report from the zero-reference criterion; the plan's config-ownership row
 says U8 changes only the pack entry, never the config `schema_version` (D-10). Round 5 added: U8/209.008-T
 also refresh the manifest `profile_hash` and the profile artifact checksum, because the dogfood
-profile is edited in that task.
+profile is edited in that task. Round 6 added: tombstones in the guard are scoped per path to exact
+permitted occurrences with a max count (a legitimate retired-ID handler cannot shelter a stale
+row), and the intermediate task commits are declared non-releasable transition states (merge as one
+PR after U23; complete through U23 or roll back to the pre-removal boundary).
