@@ -304,12 +304,22 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   `harness_recommendations.capability_packs` fails the enum (classified as a warning in U6); a
   1.1.0 profile carrying only an `agent_intercom` block still validates (test pins this open-root
   behavior).
+* Retarget the "current-version" proposals: changing `current_version` to `1.1.0` leaves the
+  rules that hard-code the old current target stale (`backfill-profile-schema-version` and
+  `review-unknown-profile-contract` in `schema_contracts.py` still point `to_version`/`action` text
+  at `1.0.0`; the `normalize-legacy-profile-*` rules likewise). U2 retargets every profile rule
+  whose purpose is "move to the current contract" to `1.1.0` (including the action text), keeps the
+  `0.9.0 -> 1.0.0` upgrade entry as a historical step, and adds tests asserting the proposal
+  payloads (`to_version` and action text) for the missing-version and unknown-version cases.
 
 ### U3 - harness-manifest schema 1.1.0
 * Posture: migration-first. Size S / complexity medium. Depends on U2 (shared `schema_contracts.py`).
 * Files: `schemas/harness-manifest.schema.json`, new `schemas/harness-manifest/1.1.0.schema.json`,
   `schema_contracts.py`, test (extend/duplicate U2's pattern; `tests/test_manifest_capability_pack_enum.py` adjust).
 * Same pattern: both enums (top-level `capability_packs`, `capability_pack_overlays[*].pack`).
+* Retarget the manifest's current-version proposals (missing-version backfill, unknown-version
+  review, and any other rule whose `to_version`/action text names the old current contract) to
+  `1.1.0`, with proposal-payload tests, exactly as in U2.
 
 ### U4 - harness-config next-version schema (after 215-S)
 * Posture: migration-first. Size M / complexity medium. Depends on U3; shipment blocked-by 215-S.
@@ -321,6 +331,9 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   byte pins; add `N -> N+1` migration entry. Tests that hard-code mirror paths were made
   version-agnostic by 208.003/208.004 - if not, fix them here, never by editing a frozen mirror.
 * Verify: a config pinned to the previous version listing the pack still validates.
+* Retarget the config's current-version proposals (missing-version backfill, unknown-version
+  review, and any rule whose `to_version`/action text names the previous current version) to
+  `<N+1>`, with proposal-payload tests, exactly as in U2.
 
 ### U5 - Relocate Dark Factory Visibility Protocol and violation-report text into the policy
 * Posture: test-first (new verify check + test, then text). Size M / complexity medium.
@@ -459,7 +472,12 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
 ### U18 - workspace-discovery, tune-harness, verify-harness skills (retired-pack handling)
 * Size M / complexity medium.
 * Files: `.github/skills/workspace-discovery/SKILL.md` (stop Step 1.5c detection of
-  `.intercom/settings.json`/markers and the `agent_intercom` recorded block),
+  `.intercom/settings.json`/markers and the `agent_intercom` recorded block; ALSO update the
+  generated-profile example/pin `schema_version: "1.0.0"` (around L559) to the new current profile
+  contract `1.1.0`, so a fresh discovery no longer emits a known-legacy profile; add a
+  generated-profile validation test that renders the skill's profile skeleton and validates it
+  against the current profile schema, with `schema_version` equal to
+  `SCHEMA_CONTRACTS["profile"]["current_version"]`),
   `.github/skills/tune-harness/SKILL.md` (remove L20/L264/L521/L913 weaving rows; add the "retired
   capability pack" drift category with the cleanup offer and checksum rule from D-3.4/5),
   `.github/skills/verify-harness/SKILL.md` (L124 event-contract wording -> policy P-017

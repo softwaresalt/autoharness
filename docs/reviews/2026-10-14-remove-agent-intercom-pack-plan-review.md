@@ -76,3 +76,14 @@ requirement-driven rather than scope growth; F7 is an ordering observation whose
 removed by the linear task chain. Plan hardening was required (`Requires plan hardening: yes`) and is
 satisfied by the plan's `## Plan Hardening` section. The plan is harvest-ready; harvest produced
 `209-F` with 23 tasks (`209.001-T` to `209.023-T`) in shipment `216-S`.
+
+## Hosted review of the staging PR (PR 518)
+
+Round 1 (3 findings, all resolved): the profile schema root is open so the legacy block is detected
+directly (U2/U6); F6/F7 re-triaged to P3 (above); the stage checkpoint now truthfully records
+publication via the PR. Round 2 (3 findings, resolved): U2-U4 now retarget the current-version
+proposals (`backfill-*`/`review-unknown-*` rules and their action text) to the new current
+contract with payload tests (new F13, P2, resolved in U2-U4); U18 and task 209.018-T now also pin the
+workspace-discovery generated-profile `schema_version` to `1.1.0` with a generated-profile
+validation test (new F14, P2, resolved in U18); the PR readiness record was refreshed for the
+current HEAD. These are plan refinements, not verdict changes: no open P0/P1 or P2 remains.
