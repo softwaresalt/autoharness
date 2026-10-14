@@ -211,8 +211,13 @@ the legacy-tolerance requirement. The verify check keeps requiring
 state; the new stash entry text legitimately names the pack), `docs/archive/**`, `docs/memory/**`,
 `docs/reviews/**`, `docs/research/**`, `docs/spikes/**`, `docs/decisions/**`, `docs/plans/**`,
 `docs/closure/**`, `docs/exec-plans/**`, `docs/bugs/**`, `docs/audits/**`, `docs/compound/**`,
-`docs/design-docs/**` (dated), `tests/**` (tests may name the retired value to prove tolerance),
-and `CHANGELOG.md`. FROZEN published mirrors (`schemas/harness-config/{0.9.0,1.0.0,1.1.0}`,
+`docs/design-docs/**` (dated), and `CHANGELOG.md`. `tests/**` is NOT blanket-excluded (that would
+hide stale or newly introduced live test assumptions about the removed pack): U1 enumerates the
+test files/cases that reference the retired value today and the guard allowlists ONLY those exact
+`tests/<file>` paths, each with a required rationale (tolerance/migration proof, retired-value
+wrapper test, or the guard's own fixtures; the existing tests that merely ASSUME the pack exists
+are rewritten by U2/U6/U7/U21/U22 and drop off the list). Unrelated test references therefore
+fail the guard as intended. FROZEN published mirrors (`schemas/harness-config/{0.9.0,1.0.0,1.1.0}`,
 `schemas/harness-manifest/{0.9.0,1.0.0}`, `schemas/workspace-profile/{0.9.0,1.0.0}`) and the
 telemetry vocabulary files (D-6) are allowlisted by exact path. A small TOMBSTONE allowlist (exact
 path + required rationale string) covers the files that must name the retired value to handle it:
@@ -258,8 +263,10 @@ manifest entry pointing at a missing template.
 
 **D-14 Manifest checksum procedure.** Per `docs/compound/115-S-109-F-checksum-and-branch-ownership-patterns.md`:
 compute SHA-256 over LF git-blob bytes via a direct subprocess capture
-(`git cat-file blob :<path>` / `HEAD:<path>` read as bytes), never via a PowerShell redirect or
-working-tree read. Refresh only checksums of files THIS task edited; never refresh a pre-existing
+(for a file edited in the current task run `git add --renormalize <path>` and read the INDEX blob
+`git cat-file blob :<path>`; `HEAD:<path>` is the pre-task blob for such a file and would write the
+OLD checksum, so reserve `HEAD:<path>` for unchanged baseline evidence only), read as bytes, never
+via a PowerShell redirect or working-tree read. Refresh only checksums of files THIS task edited; never refresh a pre-existing
 stale entry to quiet a warning (`docs/compound/2026-08-15-checksum-drift-fix-...`). Keep manifest
 `note:` additions to one short clause.
 
@@ -279,7 +286,9 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
 * Content: `HISTORICAL_ALLOWLIST` (D-9), `FROZEN_MIRRORS`, `TELEMETRY_VOCAB`, `TOMBSTONES` (path ->
   rationale), and `PENDING_SURFACES` (path prefixes still containing the pack, initial = all live
   surfaces from the footprint table). The scan reads bytes and decodes with `errors="ignore"`,
-  skipping binary files, so CRLF/encoding differences never create false matches. Tests: (a) every live file containing `intercom` (case-insens.)
+  skipping binary files, so CRLF/encoding differences never create false matches. `tests/**` is not
+  blanket-excluded: the guard allowlists only the exact test files that intentionally name the
+  retired value (enumerated here by grep at U1 time), each with a rationale. Tests: (a) every live file containing `intercom` (case-insens.)
   not covered by an allowlist is listed in `PENDING_SURFACES`; (b) every `PENDING_SURFACES` entry still
   matches something (stale entries fail, forcing removal as work lands); (c) allowlist/tombstone
   entries must exist and carry rationale; (d) the empty-ledger assertion is guarded by a module
@@ -468,6 +477,12 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   explicit-selection examples, heartbeat/broadcast guidance; add a short "Retired capability packs"
   note (explicit `capability_packs=agent-intercom` -> `RETIRED_PACK` warning, ignored). Refresh
   checksums of manifest-tracked skills.
+* Install-manifest version pin: Step 3.3 of the install-harness skill hard-codes the manifest skeleton
+  `schema_version: "1.0.0"` and no existing install-harness test asserts it. U17 pins it to the
+  current manifest contract `1.1.0` (equal to `SCHEMA_CONTRACTS["manifest"]["current_version"]`) and
+  adds a regression test that renders the Step 3.3 skeleton and validates it against the current
+  manifest schema, so a fresh install never emits a known-legacy manifest. (New installs also write
+  profile `1.1.0`; config follows U4.)
 
 ### U18 - workspace-discovery, tune-harness, verify-harness skills (retired-pack handling)
 * Size M / complexity medium.
@@ -502,6 +517,11 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
 * Posture: test-first. Size M / complexity medium.
 * Files: `scripts/deploy-harness.{ps1,sh}`, `templates/scripts/deploy-harness.{ps1,sh}.tmpl`
   (4 files, identical logic mirrored), `tests/test_deploy_harness_scripts.py`.
+* The wrappers also scaffold a config with a hard-coded `schema_version: "1.0.0"`
+  (`scripts/deploy-harness.sh` ~L388, `scripts/deploy-harness.ps1` ~L424, plus their templates);
+  all four copies must emit U4's new current config version so a fresh one-command deployment does
+  not create a known-legacy config, and the execution tests assert and validate the generated
+  config against the current config schema.
 * Behavior: an explicit pack list containing `agent-intercom` prints a `RETIRED_PACK` warning and
   skips it (exit 0) instead of `Unknown pack`. The test's `_OPT_IN` assumptions are rewritten
   (omitted `full`/`standard` == preset defaults == all remaining registry packs; explicit `all`

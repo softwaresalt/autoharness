@@ -87,3 +87,11 @@ contract with payload tests (new F13, P2, resolved in U2-U4); U18 and task 209.0
 workspace-discovery generated-profile `schema_version` to `1.1.0` with a generated-profile
 validation test (new F14, P2, resolved in U18); the PR readiness record was refreshed for the
 current HEAD. These are plan refinements, not verdict changes: no open P0/P1 or P2 remains.
+Round 3 and the round-2 body finding added four more plan refinements, all resolved: the D-14
+checksum procedure now reads the INDEX blob (`git add --renormalize` then `:<path>`) for files edited
+in the task and reserves `HEAD:<path>` for unchanged baselines; U17 and task 209.017-T pin the
+install-harness Step 3.3 manifest skeleton to manifest `1.1.0` with a render-and-validate test; D-9
+and U1 (task 209.001-T) no longer blanket-exclude `tests/**` and allowlist only the exact test
+files that intentionally name the retired value; U21 and task 209.021-T make all four deploy
+wrapper/template copies scaffold the config at U4's new current version with a generated-config
+validation test.
