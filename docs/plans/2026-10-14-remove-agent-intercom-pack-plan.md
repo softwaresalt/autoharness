@@ -212,11 +212,13 @@ state; the new stash entry text legitimately names the pack), `docs/archive/**`,
 `docs/reviews/**`, `docs/research/**`, `docs/spikes/**`, `docs/decisions/**`, `docs/plans/**`,
 `docs/closure/**`, `docs/exec-plans/**`, `docs/bugs/**`, `docs/audits/**`, `docs/compound/**`,
 `docs/design-docs/**` (dated), and `CHANGELOG.md`. `tests/**` is NOT blanket-excluded (that would
-hide stale or newly introduced live test assumptions about the removed pack): U1 enumerates the
-test files/cases that reference the retired value today and the guard allowlists ONLY those exact
-`tests/<file>` paths, each with a required rationale (tolerance/migration proof, retired-value
-wrapper test, or the guard's own fixtures; the existing tests that merely ASSUME the pack exists
-are rewritten by U2/U6/U7/U21/U22 and drop off the list). Unrelated test references therefore
+hide stale or newly introduced live test assumptions about the removed pack). Test files are
+classified per exact path: existing tests that merely ASSUME the pack exists are exact-file
+`PENDING_SURFACES` entries (each rewritten and removed from the ledger by the unit that fixes it:
+U2/U3/U4/U6/U7/U21/U22), and tests that intentionally name the retired value (tolerance/migration
+proof, retired-value wrapper test, the guard's own fixtures) are exact-path TOMBSTONES with a
+required rationale. Every later unit that ADDS such a test adds its own tombstone entry in the SAME
+task, so the guard never goes red between tasks. Unrelated test references therefore
 fail the guard as intended. FROZEN published mirrors (`schemas/harness-config/{0.9.0,1.0.0,1.1.0}`,
 `schemas/harness-manifest/{0.9.0,1.0.0}`, `schemas/workspace-profile/{0.9.0,1.0.0}`) and the
 telemetry vocabulary files (D-6) are allowlisted by exact path. A small TOMBSTONE allowlist (exact
@@ -287,8 +289,10 @@ stays within 2 hours (Requirement R10, shaping rule noted in the harvest brief).
   rationale), and `PENDING_SURFACES` (path prefixes still containing the pack, initial = all live
   surfaces from the footprint table). The scan reads bytes and decodes with `errors="ignore"`,
   skipping binary files, so CRLF/encoding differences never create false matches. `tests/**` is not
-  blanket-excluded: the guard allowlists only the exact test files that intentionally name the
-  retired value (enumerated here by grep at U1 time), each with a rationale. Tests: (a) every live file containing `intercom` (case-insens.)
+  blanket-excluded: existing tests that assume the pack are exact-file `PENDING_SURFACES` entries
+  and tests that intentionally name the retired value are exact-path `TOMBSTONES` with rationale
+  (enumerated by grep at U1 time); later units that add such a test add its tombstone in the same
+  task. Tests: (a) every live file containing `intercom` (case-insens.)
   not covered by an allowlist is listed in `PENDING_SURFACES`; (b) every `PENDING_SURFACES` entry still
   matches something (stale entries fail, forcing removal as work lands); (c) allowlist/tombstone
   entries must exist and carry rationale; (d) the empty-ledger assertion is guarded by a module
