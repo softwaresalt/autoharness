@@ -342,8 +342,8 @@ artifacts:
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"
-    checksum: "4d7d0ee274b24acc714e1c29dc0fa90d63aa94a8f6cdba6be3f2cf51be903057"
-    note: "output timestamp observability instruction (previously unrecorded)"
+    checksum: "2cf07a38cf5558676aa8f65a6620b03b532a6d15f27a719fdfe2852f729bf357"
+    note: "output timestamp observability instruction (previously unrecorded); checksum refreshed 204-F/204.001-T (C1: UTC rule for all recorded dates and times); template and mirror changed atomically; checksum over the LF-normalized mirror"
   - path: ".github/prompts/feature-flow-dark.prompt.md"
     primitive: 6
     template: "prompts/feature-flow-dark.prompt.md.tmpl"

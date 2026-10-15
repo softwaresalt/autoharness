@@ -33,6 +33,23 @@ same session:
 
 Use compact human-readable deltas such as `+45s`, `+2m13s`, or `+1h04m`.
 
+## UTC for Recorded Dates and Times
+
+Every recorded date and time uses UTC, not the local timezone. This covers all
+recorded values, not only output stamps:
+
+* date-named folders and filenames (for example `docs/memory/{YYYY-MM-DD}/`) use
+  the UTC date;
+* frontmatter `date` and `created_at` values use UTC;
+* comments, logs, and output stamps use UTC;
+* times use the Z suffix.
+
+Derive recorded values from UTC sources: `date -u`, `[DateTime]::UtcNow` or
+`Get-Date -AsUTC` in PowerShell, and `datetime.now(timezone.utc)` in Python.
+
+Local-offset values (for example `-07:00`) are forbidden in recorded output. When
+a tool reports a local offset, convert it to UTC before recording the value.
+
 ## First Stamp
 
 The first stamp in a session has no previous stamp. Either omit the
