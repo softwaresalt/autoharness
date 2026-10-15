@@ -60,29 +60,29 @@ model_routing:
     reasoning_effort: "xhigh"  # Leave empty to use model default
     model_provider: "anthropic"       # e.g., openai, anthropic — leave empty for default
     model_family: "claude-haiku-5.5"           # Resolved into Tier 1 agent frontmatter
-    context_tier: "default"        # context-capacity class (default | long_context)
+    context_tier: "long_context"        # context-capacity class (default | long_context)
   tier2:
     model: claude-sonnet-5.5              # Standard: orchestration, code, review (e.g., claude-sonnet-5)
     reasoning_effort: "high"
     model_provider: "anthropic"
     model_family: "claude-sonnet-5.5"
-    context_tier: "default"
+    context_tier: "long_context"
   tier3:
-    model: claude-sonnet-5.5              # Frontier: planning, architecture, analysis (e.g., claude-sonnet-5)
+    model: gemini-4-argon              # Frontier: planning, architecture, analysis (e.g., claude-sonnet-5)
     reasoning_effort: "xhigh"
-    model_provider: "anthropic"
-    model_family: "claude-sonnet-5.5"
-    context_tier: "default"
+    model_provider: "google"
+    model_family: "gemini-4-argon"
+    context_tier: "long_context"
   orchestrator:
     model_family: "claude-sonnet-5.5"             # Orchestrator model override
     model_provider: "anthropic"
-    reasoning_effort: "high"
-    context_tier: "default"
+    reasoning_effort: "medium"
+    context_tier: "long_context"
   stage:
-    model_family: "claude-sonnet-5.5"             # Stage role route (falls back to tier3 when empty)
-    model_provider: "anthropic"
-    reasoning_effort: "xhigh"
-    context_tier: "default"
+    model_family: "gemini-4-argon"             # Stage role route (falls back to tier3 when empty)
+    model_provider: "google"
+    reasoning_effort: "high"
+    context_tier: "long_context"
   ship:
     model_family: "claude-haiku-5.5"             # Ship role route (falls back to tier2 when empty)
     model_provider: "anthropic"
@@ -91,8 +91,8 @@ model_routing:
     escalation:
       model_family: "claude-sonnet-5.5"
       model_provider: "anthropic"
-      reasoning_effort: "medium"
-      context_tier: "default" 
+      reasoning_effort: "high"
+      context_tier: "long_context" 
   anchor_review:
     model_provider: "openai"
     model_family: "gpt-6.1-sol"
