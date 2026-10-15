@@ -84,6 +84,7 @@ tokens proportional to file size.
 * For long sessions, save memory checkpoints after completing each phase or major task group.
 * Content to capture: task IDs completed, files modified, decisions and rationale, failed approaches, open questions, and next steps.
 * File convention: `{{DOCS_MEMORY}}/{YYYY-MM-DD}/{descriptive-slug}-memory.md`
+* Memory date folders (`{{DOCS_MEMORY}}/{YYYY-MM-DD}/`) use the UTC date, and all recorded dates and times are UTC (`Z`); see `.github/instructions/output-timestamps.instructions.md`.
 * After writing memory, invoke the **compact-context** skill to consolidate stale checkpoints and finalize decided-plans. This is a mandatory workflow step, not advisory.
 * If context has grown from loading multiple skill definitions mid-session, consider invoking **compact-context** proactively before hitting hard thresholds.
 

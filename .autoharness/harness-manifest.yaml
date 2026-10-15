@@ -142,13 +142,13 @@ artifacts:
   - path: "AGENTS.md"
     primitive: 9
     template: "foundation/AGENTS.md.tmpl"
-    checksum: "eeb8763b85a76b1ca99e9a7705e8c35fa63f7e9e14b7cfd7a41059cbdde4a9b8"
-    note: "pre-existing, source-controlled global artifact"
+    checksum: "153533608a773f2e140dd768c40f706fa5e01a0a3468bedf8274cd072dcb10b6"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
   - path: ".github/copilot-instructions.md"
     primitive: 6
     template: "foundation/copilot-instructions.md.tmpl"
-    checksum: "e998ee2dbc89da104c72d4229c60552f8566ea3cda087f77ab9f71fd8eb13379"
-    note: "pre-existing, source-controlled global artifact"
+    checksum: "f7020e1fb18a3333910b16eb119d95d134f8ca45c37d5611d42e5a7b379624ce"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
   - path: ".github/instructions/harness-architecture.instructions.md"
     primitive: 9
     template: "global instruction definition"

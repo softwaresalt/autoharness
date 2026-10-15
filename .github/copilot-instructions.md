@@ -101,6 +101,7 @@ The backlog tool registry is the abstraction layer between harness agents and th
 * Skills: `{skill-name}/SKILL.md`
 * Instructions: `{name}.instructions.md`
 * Prompts: `{name}.prompt.md`
+* Memory date folders (`docs/memory/{YYYY-MM-DD}/`) use the UTC date, and all recorded dates and times are UTC (`Z`); see `.github/instructions/output-timestamps.instructions.md`.
 
 ### Template Authoring
 

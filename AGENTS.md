@@ -25,6 +25,8 @@ This file defines the authoritative rules for working in the autoharness reposit
 
 7. **Tuning is non-destructive.** The tuner proposes changes for review. Auto-apply is opt-in, not default. Backups are mandatory before any modification.
 
+8. Memory date folders (`docs/memory/{YYYY-MM-DD}/`) use the UTC date, and all recorded dates and times are UTC (`Z`); see `.github/instructions/output-timestamps.instructions.md`.
+
 ## Quality Gates
 
 ```text
