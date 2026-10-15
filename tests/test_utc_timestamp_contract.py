@@ -14,8 +14,8 @@ installed artifact recorded in ``.autoharness/harness-manifest.yaml`` that has a
 scan; plan decision D4 in
 ``docs/plans/2026-10-08-backlogit-carryover-first-cut-plan.md`` keeps a
 consumer-side generated-artifact lint out of scope for this cut. Template-tree
-files must be UTF-8 text with no NUL bytes, and any symlink, junction, or
-non-regular file under ``templates/`` fails the scan.
+files must be UTF-8 text with no NUL bytes, and any symlink, junction (a Windows reparse
+point that is not a symlink), or non-regular file under ``templates/`` fails the scan.
 """
 
 from __future__ import annotations
@@ -24,9 +24,11 @@ import os
 import re
 import subprocess
 import tempfile
+import types
 import unittest
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
@@ -35,6 +37,7 @@ _MANIFEST_RELPATH = ".autoharness/harness-manifest.yaml"
 _OPERATOR_STATE_PREFIX = ".autoharness/"
 _OFFSET_LITERAL = re.compile(r"T\d{2}:\d{2}(:\d{2})?(\.\d+)?[+-]\d{2}:?\d{2}")
 _WINDOWS_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400  # Win32 FILE_ATTRIBUTE_REPARSE_POINT
 
 # Exact substrings each template and installed mirror must contain verbatim.
 _MEMORY_UTC_ANCHOR = (
@@ -93,7 +96,10 @@ def _missing_anchors(text: str, anchors: Iterable[str]) -> list[str]:
 
 
 def _is_parent_component(component: str) -> bool:
-    """Return True for ``..`` and variants Windows resolves to it (extra trailing dots or spaces)."""
+    """Return True for a component made only of dots and spaces with at least two dots.
+    Win32 path normalization strips trailing dots and spaces from path components, so such
+    names can alias ``..``. The check is intentionally conservative: it also rejects longer
+    dot runs, which fails closed."""
     return bool(component) and set(component) <= {".", " "} and component.count(".") >= 2
 
 
@@ -164,7 +170,36 @@ def _manifest_mirror_set(root: Path) -> set[str]:
 
 
 def _is_junction(path: Path) -> bool:
-    return hasattr(path, "is_junction") and path.is_junction()
+    """Return True for a Windows reparse point that is not a symlink (directory junctions
+    and other mount points). Callers reject symlinks first with ``is_symlink()``. The check
+    reads the ``lstat`` reparse-point attribute, so it behaves the same on every supported
+    Python version, and it fails closed when that attribute cannot be read."""
+    if os.name != "nt":
+        return False
+    try:
+        stat_result = os.lstat(path)
+    except FileNotFoundError:
+        return False
+    attributes = getattr(stat_result, "st_file_attributes", None)
+    if attributes is None:
+        raise AssertionError(
+            f"reparse-point state of {path} cannot be determined; "
+            "refusing to assume it is not a junction"
+        )
+    return bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _running_in_ci(environ: Mapping[str, str] = os.environ) -> bool:
+    return any(environ.get(name, "").lower() in {"1", "true"} for name in ("CI", "GITHUB_ACTIONS"))
+
+
+def _link_unavailable(
+    test: unittest.TestCase, kind: str, exc: OSError, environ: Mapping[str, str] = os.environ
+) -> None:
+    """Skip a link fixture locally; on CI, fail instead so the fixture cannot silently vanish."""
+    if _running_in_ci(environ):
+        raise AssertionError(f"{kind} fixture could not be created on CI; refusing to skip: {exc}")
+    test.skipTest(f"{kind} creation not permitted on this host: {exc}")
 
 
 def _template_files(root: Path) -> set[str]:
@@ -472,14 +507,93 @@ class P7UtcContractTest(unittest.TestCase):
                     (root / relpath).parent.mkdir(parents=True, exist_ok=True)
                     (root / relpath).write_bytes(data)
                 for link_relpath, (kind, target_relpath) in links.items():
+                    if kind == "junction" and os.name != "nt":
+                        self.skipTest("junction fixtures are Windows-only")
                     (root / link_relpath).parent.mkdir(parents=True, exist_ok=True)
                     try:
                         _create_link(kind, root, link_relpath, target_relpath)
                     except OSError as exc:
-                        self.skipTest(f"{kind} creation not permitted on this host: {exc}")
+                        _link_unavailable(self, kind, exc)
                 with self.assertRaises(AssertionError) as ctx:
                     scan_targets(root)
                 self.assertIn(needle, str(ctx.exception))
+
+
+class ReparsePointHelperTest(unittest.TestCase):
+    def test_reparse_bit_marks_junction_on_any_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            reparse_stat = types.SimpleNamespace(st_file_attributes=0x400)
+            with mock.patch.object(os, "name", "nt"), mock.patch(
+                "os.lstat", return_value=reparse_stat
+            ):
+                self.assertTrue(_is_junction(path))
+
+    def test_plain_directory_attributes_are_not_a_junction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            plain_stat = types.SimpleNamespace(st_file_attributes=0)
+            with mock.patch.object(os, "name", "nt"), mock.patch(
+                "os.lstat", return_value=plain_stat
+            ):
+                self.assertFalse(_is_junction(path))
+
+    def test_undeterminable_reparse_state_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            no_attributes = types.SimpleNamespace(st_mode=0)
+            with mock.patch.object(os, "name", "nt"), mock.patch(
+                "os.lstat", return_value=no_attributes
+            ):
+                with self.assertRaises(AssertionError) as ctx:
+                    _is_junction(path)
+        self.assertIn("cannot be determined", str(ctx.exception))
+
+    def test_missing_path_is_not_a_junction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            missing = Path(tmp) / "absent"
+            with mock.patch.object(os, "name", "nt"):
+                self.assertFalse(_is_junction(missing))
+
+    def test_non_windows_host_never_reports_a_junction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)
+            reparse_stat = types.SimpleNamespace(st_file_attributes=0x400)
+            with mock.patch.object(os, "name", "posix"), mock.patch(
+                "os.lstat", return_value=reparse_stat
+            ):
+                self.assertFalse(_is_junction(path))
+
+    @unittest.skipUnless(os.name == "nt", "directory junctions are Windows-only")
+    def test_real_junction_is_detected_and_real_directory_is_not(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "real").mkdir()
+            try:
+                _create_link("junction", root, "jct", "real")
+            except OSError as exc:
+                _link_unavailable(self, "junction", exc)
+            self.assertTrue(_is_junction(root / "jct"))
+            self.assertFalse(_is_junction(root / "real"))
+
+    def test_running_in_ci_reads_ci_or_github_actions(self) -> None:
+        truthy = ("1", "true", "TRUE", "True")
+        falsy = ("0", "false", "")
+        for name in ("CI", "GITHUB_ACTIONS"):
+            for value in truthy + falsy:
+                with self.subTest(name=name, value=value):
+                    self.assertIs(_running_in_ci({name: value}), value in truthy)
+        self.assertFalse(_running_in_ci({}))
+
+    def test_link_unavailable_refuses_to_skip_on_ci(self) -> None:
+        with self.assertRaises(AssertionError) as ctx:
+            _link_unavailable(self, "junction", OSError("denied"), environ={"CI": "true"})
+        self.assertIn("refusing to skip", str(ctx.exception))
+
+    def test_link_unavailable_skips_off_ci(self) -> None:
+        with self.assertRaises(unittest.SkipTest) as ctx:
+            _link_unavailable(self, "junction", OSError("denied"), environ={})
+        self.assertIn("not permitted on this host", str(ctx.exception))
 
 
 if __name__ == "__main__":
