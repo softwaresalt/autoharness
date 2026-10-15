@@ -110,8 +110,10 @@ Instruction files re-read: `.github/policies/workflow-policies.md` (P-011, P-021
 - Bypass regression: working-tree-only widening (dirty `carry-forward.yaml` adds `src/`; `src/` file dirty) still
   `WORKTREE_DIRTY`; the dirty file itself is `CARRY_FORWARD_ELIGIBLE`.
 - Divergence: staged vs working-tree `config.yaml` blocks with `divergent_paths`.
-- Branch interaction: on a non-default branch the existing `branch_ownership` check still blocks; the loader reads the
-  current `HEAD` and reports the commit SHA in details.
+- Branch interaction: an UNRELATED non-default branch (one that does not match the target shipment) still blocks via the
+  existing `branch_ownership` check, while a branch matching the target shipment keeps passing with `BRANCH_OK` (existing
+  supported flow, `tests/test_gates_topology.py` `BranchOwnershipTests.test_matching_target_branch_passes`); neither
+  behaviour changes. The loader reads the current `HEAD` and reports the commit SHA in details.
 - Cross-validator parity test: the hand-written validator and `schemas/carry-forward.schema.json` accept and reject the
   same fixtures (no new runtime dependency on a JSON-schema library).
 - Windows: containment tests under default `%TEMP%` plus a junction fixture; LF/CRLF blob vs working-tree content.
