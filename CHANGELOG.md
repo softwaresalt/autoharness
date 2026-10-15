@@ -21,7 +21,7 @@
 - **UTC mandatory for all recorded dates and times (204-F, shipment 211-S):**
   the output-timestamps instruction, the foundation copilot-instructions and AGENTS
   templates, and the compact-context skill state the UTC rule, and a new P7 contract
-  test rejects offset-bearing ISO-8601 literals in templates and installed mirrors.
+  test rejects offset-bearing ISO-8601 literals in templates and manifest-recorded installed mirrors.
   Expected template drift in installed workspaces: output-timestamps,
   copilot-instructions, AGENTS, and compact-context (re-run tune-harness).
 

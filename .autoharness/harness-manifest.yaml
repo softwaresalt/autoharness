@@ -143,7 +143,7 @@ artifacts:
     primitive: 9
     template: "foundation/AGENTS.md.tmpl"
     checksum: "153533608a773f2e140dd768c40f706fa5e01a0a3468bedf8274cd072dcb10b6"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 211-S/204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 211-S/204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template paragraph layout split is layout-only (sentence words identical; the root mirror keeps the sentence as Core Rule 8); checksum over the LF-normalized mirror"
   - path: ".github/copilot-instructions.md"
     primitive: 6
     template: "foundation/copilot-instructions.md.tmpl"
@@ -342,8 +342,8 @@ artifacts:
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"
-    checksum: "94f311794d1f12a20cce2018f2f294e3575ae226d7414968d377f3d9eaf285bb"
-    note: "output timestamp observability instruction (previously unrecorded); checksum refreshed 211-S/204-F/204.001-T (C1: UTC rule for all recorded dates and times); template and mirror changed atomically; checksum over the LF-normalized mirror. 211-S review fix: Windows PowerShell 5.1 UTC derivation source (Get-Date -AsUTC is PowerShell 7.1+); checksum recomputed over the LF-normalized mirror."
+    checksum: "c5d03cbc77166995a9e0f036133fb34dc8833ddd5947f2068b3cfd27e6eb389d"
+    note: "output timestamp observability instruction (previously unrecorded); checksum refreshed 211-S/204-F/204.001-T (C1: UTC rule for all recorded dates and times); template and mirror changed atomically; checksum over the LF-normalized mirror. 211-S review fix: Windows PowerShell 5.1 UTC derivation source (Get-Date -AsUTC is PowerShell 7.1+); checksum recomputed over the LF-normalized mirror. 211-S review fix 2: explicit yyyy-MM-ddTHH:mm:ssZ derivation formats; Get-Date -AsUTC removed; checksum recomputed over the LF-normalized mirror."
   - path: ".github/prompts/feature-flow-dark.prompt.md"
     primitive: 6
     template: "prompts/feature-flow-dark.prompt.md.tmpl"

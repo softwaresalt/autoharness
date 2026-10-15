@@ -9,15 +9,18 @@ installed mirror.
 
 Scope: the offset scan covers every file under ``templates/`` plus every
 installed artifact recorded in ``.autoharness/harness-manifest.yaml`` that has a
-``template:`` key, excluding anything under ``.autoharness/``. Template-tree files
-must decode as UTF-8 with no NUL bytes; any that do not fail the scan. That state is
-operator-owned generated state; plan decision D4 in
-``docs/plans/2026-10-08-backlogit-carryover-first-cut-plan.md`` defers it out of
-scope for this cut.
+``template:`` key, excluding anything under ``.autoharness/``. Files under
+``.autoharness/`` are operator-owned generated state and are excluded from the
+scan; plan decision D4 in
+``docs/plans/2026-10-08-backlogit-carryover-first-cut-plan.md`` keeps a
+consumer-side generated-artifact lint out of scope for this cut. Template-tree
+files must be UTF-8 text with no NUL bytes, and any symlink or non-regular file
+under ``templates/`` fails the scan.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import tempfile
 import unittest
@@ -30,6 +33,7 @@ _ROOT = Path(__file__).resolve().parents[1]
 _MANIFEST_RELPATH = ".autoharness/harness-manifest.yaml"
 _OPERATOR_STATE_PREFIX = ".autoharness/"
 _OFFSET_LITERAL = re.compile(r"T\d{2}:\d{2}(:\d{2})?(\.\d+)?[+-]\d{2}:?\d{2}")
+_WINDOWS_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
 
 # Exact substrings each template and installed mirror must contain verbatim.
 _MEMORY_UTC_ANCHOR = (
@@ -74,15 +78,42 @@ _P7_TARGETS: tuple[tuple[str, str, str, tuple[str, ...]], ...] = (
 
 def _missing_anchors(text: str, anchors: Iterable[str]) -> list[str]:
     """Return the anchors that do not occur verbatim in ``text`` (CRLF normalized to LF)."""
+    anchors = tuple(anchors)
+    if any(not anchor for anchor in anchors):
+        raise ValueError("empty anchor would match vacuously")
     normalized = text.replace("\r\n", "\n")
     return [anchor for anchor in anchors if anchor not in normalized]
+
+
+def _check_manifest_path(index: int, path: object) -> None:
+    """Reject manifest ``path`` values that are not safe relative POSIX-style paths."""
+    if not isinstance(path, str) or not path:
+        raise AssertionError(
+            f"{_MANIFEST_RELPATH} artifacts[{index}] 'path' must be a non-empty string "
+            f"(got {path!r})"
+        )
+    if (
+        Path(path).is_absolute()
+        or _WINDOWS_DRIVE_PREFIX.match(path)
+        or path.startswith(("/", "\\"))
+        or ".." in re.split(r"[/\\]", path)
+    ):
+        raise AssertionError(
+            f"{_MANIFEST_RELPATH} artifacts[{index}] 'path' must be a relative path without "
+            f"'..' components (got {path!r})"
+        )
 
 
 def _manifest_mirror_set(root: Path) -> set[str]:
     """Return the installed-mirror paths the manifest records with a ``template:`` key,
     excluding operator-owned ``.autoharness/`` state. Malformed manifests fail the test."""
+    manifest_path = root / _MANIFEST_RELPATH
     try:
-        manifest = yaml.safe_load((root / _MANIFEST_RELPATH).read_text(encoding="utf-8"))
+        manifest_text = manifest_path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise AssertionError(f"{_MANIFEST_RELPATH} is not valid UTF-8: {exc}") from exc
+    try:
+        manifest = yaml.safe_load(manifest_text)
     except yaml.YAMLError as exc:
         raise AssertionError(f"{_MANIFEST_RELPATH} is not valid YAML: {exc}") from exc
     if not isinstance(manifest, dict):
@@ -105,27 +136,32 @@ def _manifest_mirror_set(root: Path) -> set[str]:
         if "template" not in artifact:
             continue
         path = artifact.get("path")
-        if not isinstance(path, str):
-            raise AssertionError(
-                f"{_MANIFEST_RELPATH} artifacts[{index}] has a 'template' key but no "
-                f"string 'path' (got {path!r})"
-            )
+        _check_manifest_path(index, path)
         if not path.startswith(_OPERATOR_STATE_PREFIX):
             mirrors.add(path)
     return mirrors
 
 
 def _template_files(root: Path) -> set[str]:
-    """Return POSIX relpaths of every file under ``templates/``; fail closed on any
-    file that contains a NUL byte or is not valid UTF-8."""
+    """Return POSIX relpaths of every regular file under ``templates/``; fail closed on
+    any symlink, non-regular file, file that contains a NUL byte, or non-UTF-8 file."""
     templates_dir = root / "templates"
     if not templates_dir.is_dir():
         raise AssertionError(f"templates/ must be a directory under {root}")
     relpaths: set[str] = set()
     for path in templates_dir.rglob("*"):
         relpath = path.relative_to(root)
-        if not path.is_file() or "__pycache__" in relpath.parts:
+        if path.is_symlink():
+            raise AssertionError(f"{relpath.as_posix()}: symlink not allowed under templates/")
+        if path.is_dir():
             continue
+        if "__pycache__" in relpath.parts:
+            # __pycache__ holds generated bytecode, never template content.
+            continue
+        if not path.is_file():
+            raise AssertionError(
+                f"{relpath.as_posix()}: non-regular file not allowed under templates/"
+            )
         data = path.read_bytes()
         if b"\x00" in data:
             raise AssertionError(
@@ -190,7 +226,7 @@ class P7UtcContractTest(unittest.TestCase):
         mirrors = _manifest_mirror_set(_ROOT)
         self.assertTrue(mirrors, "manifest-derived mirror set is empty")
 
-        targets = scan_targets(_ROOT)
+        targets = sorted(_template_files(_ROOT) | mirrors)
         self.assertTrue(targets, "no scan targets discovered")
         for name, template, mirror, _ in _P7_TARGETS:
             with self.subTest(target=name, path=mirror):
@@ -223,13 +259,18 @@ class P7UtcContractTest(unittest.TestCase):
                     )
 
     def test_manifest_and_template_tree_fail_closed(self) -> None:
-        cases: tuple[tuple[str, str, dict[str, bytes], str], ...] = (
-            ("no artifacts list", "schema_version: '1.0.0'\n", {}, "'artifacts'"),
-            ("invalid YAML", "artifacts: [unclosed\n", {}, "not valid YAML"),
-            ("artifact not a mapping", "artifacts:\n  - just-a-string\n", {}, "artifacts[0]"),
+        cases: tuple[tuple[str, str | bytes, dict[str, bytes], dict[str, str], str], ...] = (
+            ("no artifacts list", "schema_version: '1.0.0'\n", {}, {}, "'artifacts'"),
+            ("invalid YAML", "artifacts: [unclosed\n", {}, {}, "not valid YAML"),
+            ("empty manifest", "", {}, {}, "got NoneType"),
+            ("top-level list", "- a\n", {}, {}, "got list"),
+            ("artifacts not a list", "artifacts: {}\n", {}, {}, "'artifacts'"),
+            ("manifest not UTF-8", b"\xff\xfe\n", {}, {}, "not valid UTF-8"),
+            ("artifact not a mapping", "artifacts:\n  - just-a-string\n", {}, {}, "artifacts[0]"),
             (
                 "template entry without path",
                 "artifacts:\n  - path: a.md\n  - template: x.tmpl\n",
+                {},
                 {},
                 "artifacts[1]",
             ),
@@ -237,29 +278,89 @@ class P7UtcContractTest(unittest.TestCase):
                 "template entry with non-string path",
                 "artifacts:\n  - path: 42\n    template: x.tmpl\n",
                 {},
+                {},
+                "artifacts[0]",
+            ),
+            (
+                "empty path",
+                "artifacts:\n  - path: ''\n    template: x.tmpl\n",
+                {},
+                {},
+                "artifacts[0]",
+            ),
+            (
+                "absolute path",
+                "artifacts:\n  - path: /etc/passwd\n    template: x.tmpl\n",
+                {},
+                {},
+                "artifacts[0]",
+            ),
+            (
+                "parent traversal",
+                "artifacts:\n  - path: ../outside.md\n    template: x.tmpl\n",
+                {},
+                {},
+                "artifacts[0]",
+            ),
+            (
+                "windows drive path",
+                "artifacts:\n  - path: C:/Windows/win.ini\n    template: x.tmpl\n",
+                {},
+                {},
+                "artifacts[0]",
+            ),
+            (
+                "backslash-rooted path",
+                "artifacts:\n  - path: \\Windows\\win.ini\n    template: x.tmpl\n",
+                {},
+                {},
+                "artifacts[0]",
+            ),
+            (
+                "backslash parent traversal",
+                "artifacts:\n  - path: sub\\..\\..\\outside.md\n    template: x.tmpl\n",
+                {},
+                {},
                 "artifacts[0]",
             ),
             (
                 "NUL byte in templates/",
                 "artifacts: []\n",
                 {"templates/bad.md": b"ok\x00bad\n"},
+                {},
                 "templates/bad.md",
             ),
             (
                 "undecodable bytes in templates/",
                 "artifacts: []\n",
                 {"templates/bad.md": b"\xff\xfe\n"},
+                {},
                 "templates/bad.md",
             ),
+            (
+                "symlink under templates/",
+                "artifacts: []\n",
+                {"templates/real.md": b"ok\n"},
+                {"templates/link.md": "real.md"},
+                "symlink not allowed under templates/",
+            ),
         )
-        for label, manifest_text, files, needle in cases:
+        for label, manifest, files, links, needle in cases:
             with self.subTest(case=label), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
                 (root / ".autoharness").mkdir()
-                (root / _MANIFEST_RELPATH).write_text(manifest_text, encoding="utf-8")
+                (root / _MANIFEST_RELPATH).write_bytes(
+                    manifest if isinstance(manifest, bytes) else manifest.encode("utf-8")
+                )
                 (root / "templates").mkdir()
                 for relpath, data in files.items():
                     (root / relpath).write_bytes(data)
+                try:
+                    for link_relpath, target in links.items():
+                        os.symlink(target, root / link_relpath)
+                except OSError:
+                    # Hosts that refuse symlink creation leave this case out.
+                    continue
                 with self.assertRaises(AssertionError) as ctx:
                     scan_targets(root)
                 self.assertIn(needle, str(ctx.exception))
