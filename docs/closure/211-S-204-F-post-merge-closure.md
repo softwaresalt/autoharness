@@ -33,25 +33,29 @@ Review-fix cycle 4 (operator-approved, one extension, commit `ab42b6a2`) replace
 * **Deployment path**: merge-only to `main`. Consumers receive the rule through `install-harness` or `tune-harness` on their next run.
 * **Post-deploy checks**: on `main`, run `PYTHONPATH=src python -m unittest tests.test_utc_timestamp_contract -v`. Run `markdownlint "**/*.md"`.
 * **Risky action record**: CASCADE close through `autoharness shipment cascade-close` (mutating). The classifier selected CASCADE under engine VERIFIED. Postcondition: pass. Linked-deliberation disposition: none.
-* **Healthy signals**: the suite stays green on `main` with the same skip count (58). CI `test` job green.
+* **Healthy signals**: the suite stays green on `main`. The pre-push hook run on the Windows host at `fc9be451` recorded `Ran 3571 tests`, `OK (skipped=58)`. The Linux CI `test` job count is not recorded in this artifact. CI `test` job green on the PR.
 * **Failure signals**: new offset-bearing literal in a template or mirror, a missing UTC anchor, or a junction or symlink under `templates/`.
 
 ## Releasability
 
-`closure_status: READY`. No release or tag obligation is recorded on 211-S. `runtime_validation.releasability.required` is false. No closure conditions are open.
+`closure_status: READY`. No release or tag obligation is recorded on 211-S. `runtime_validation.releasability.required` is false. No closure conditions are open, except the operator lock release listed under Operator actions.
 
 ## Follow-ups (P-021 C2 captures, capture-only)
 
-New captures: `083F1DAD` (Windows CI job for the P7 junction and reparse fixtures), `E1B4E9B2` (manifest-mirror path hardening), `1A97BC9B` (junction fixture `cmd` quoting), `D2537F45` (`_is_junction` naming and reparse semantics), `0CD465DA` (slim the P7 test), `B7928086` (test-harness error paths and pytest subTest skips), `785D4FC5` (local-time derivation denylist), `CECA0004` (output-timestamps pointer per installed preset).
+New captures: `083F1DAD` (Windows CI job for the P7 junction and reparse fixtures), `E1B4E9B2` (manifest-mirror path hardening), `1A97BC9B` (junction fixture `cmd` quoting), `D2537F45` (`_is_junction` naming and reparse semantics), `0CD465DA` (slim the P7 test), `B7928086` (test-harness error paths and pytest subTest skips), `785D4FC5` (local-time derivation denylist), `CECA0004` (output-timestamps pointer per installed preset), `2C56E421` (offset-bearing timestamps in the cascade-close evidence excerpt).
 
 Reused captures: `6A811556` (`.autoharness/` generated-state offsets), `68D55E6C` (offset-lint regex widening), `003312F1` (UTC rule single source), `F8BDCEAD` (install-harness DATE row), `48654A2B` (foundation template frontmatter).
+
+Related captures from earlier 211-S sessions, cited by this shipment and not re-triaged here: `B51040E6` (compact-context double-brace tokens), `56C42010` (`.gitattributes` eol pins for mirrors), `48F9023F` (verify-workspace P7 assertions), `F9EE88AC` (paired-edit divergence inventory), `AD4DB602` (CLI `+00:00` emitters), `5ED134BA` (Gate 3 double-brace prose exemption).
+
+Known limitation: the cascade-close evidence record's invocation stderr excerpt carries backlogit's local-offset log timestamps (12 occurrences). The record is tool-generated and hash-protected, so it was not hand-edited. The writer-side gap is captured as `2C56E421`.
 
 Triage belongs to Stage. Ship did not triage, reprioritize, or edit any entry.
 
 ## Operator actions
 
 * **Release the shipment lock.** `.backlogit/queue/.211-S.md.lock` is still held. The owner's capability token was not retained after acquire because of a handling error in this session, so the normal release is refused. The operator must run `scripts/release_lock.ps1 .backlogit/queue/211-S.md -Force`. The lock file is git-ignored.
-* Stage triage of the eight new captures and the five reused captures.
+* Stage triage of the nine new captures and the five reused captures.
 
 ## Close evidence
 
