@@ -333,7 +333,11 @@ Active work items (features, chores, tasks, spikes, deliberations, bugs) are tra
 work items in the backlog queue (`{{BACKLOG_DIRECTORY}}/queue/`). Durable knowledge
 lives in `{{DOCS_ROOT}}/`: compound learnings in `{{DOCS_COMPOUND}}/`, plans in `{{DOCS_PLANS}}/`,
 decisions and spike findings in `{{DOCS_DECISIONS}}/`, session memory in `{{DOCS_MEMORY}}/`,
-and closure records in `{{DOCS_CLOSURE}}/`. When completed work produces durable design
+and closure records in `{{DOCS_CLOSURE}}/`.
+
+Memory date folders (`{{DOCS_MEMORY}}/{YYYY-MM-DD}/`) use the UTC date, and all recorded dates and times are UTC (`Z`); see `.github/instructions/output-timestamps.instructions.md`.
+
+When completed work produces durable design
 decisions or architectural rationale, the ship agent graduates that knowledge
 into `{{DOCS_DESIGN_DOCS}}/` as part of its post-merge closure protocol. The
 `compound-refresh` skill keeps the compound library aligned with current code
