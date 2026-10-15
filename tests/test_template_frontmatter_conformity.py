@@ -349,7 +349,7 @@ class ContextTierTemplateTests(unittest.TestCase):
 
 
 class ContextTierInstalledMirrorTests(unittest.TestCase):
-    """194-F C5c (194.009-T): installed tier-routed mirrors carry ``context_tier: "default"``."""
+    """194-F C5c (194.009-T): installed tier-routed mirrors carry the resolved ``context_tier`` (``long_context`` under the dogfood config since 2026-10-14)."""
 
     def _manifest_by_path(self) -> dict[str, dict[str, Any]]:
         manifest = _load_autoharness("harness-manifest.yaml")
@@ -365,17 +365,18 @@ class ContextTierInstalledMirrorTests(unittest.TestCase):
         self.assertEqual(len(_C5C_MIRRORS), 14)
         self.assertEqual(rels - set(_C4A_PIPELINE_MIRRORS), set(_C5C_MIRRORS))
 
-    def test_mirrors_carry_default_context_tier_after_model_family(self) -> None:
+    def test_mirrors_carry_dogfood_context_tier_after_model_family(self) -> None:
+        # Operator model_routing edit (2026-10-14): dogfood tiers are long_context.
         for rel in _C5C_MIRRORS:
             with self.subTest(mirror=rel):
                 lines = _frontmatter_block((_ROOT / rel).read_text(encoding="utf-8")).split("\n")
                 tier_lines = [line for line in lines if line.startswith("context_tier:")]
-                self.assertEqual(tier_lines, ['context_tier: "default"'])
+                self.assertEqual(tier_lines, ['context_tier: "long_context"'])
                 family_index = next(i for i, line in enumerate(lines) if line.startswith("model_family:"))
-                self.assertEqual(lines[family_index + 1], 'context_tier: "default"')
+                self.assertEqual(lines[family_index + 1], 'context_tier: "long_context"')
                 parsed = read_frontmatter(_ROOT / rel, MODE_INSTALLED)
                 self.assertIsNone(parsed.error)
-                self.assertEqual(parsed.data.get("context_tier"), "default")
+                self.assertEqual(parsed.data.get("context_tier"), "long_context")
 
     def test_mirror_value_is_resolved_value_under_repository_config(self) -> None:
         """C7: the mirror value equals the template's route-prefix variable under the dogfood config."""
