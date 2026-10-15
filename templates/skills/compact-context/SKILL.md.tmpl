@@ -80,6 +80,8 @@ Mark artifacts as compaction candidates if:
 
 ### Phase 3: Compact
 
+The `{YYYY-MM-DD}` date in every compacted, decided-plan, and closure-summary filename below is the UTC date; see `.github/instructions/output-timestamps.instructions.md` for the full rule.
+
 **Memory compaction** (per-release-unit or per-date group):
 
 1. Read all candidate memory/checkpoint files in the group
