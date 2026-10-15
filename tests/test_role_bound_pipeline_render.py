@@ -149,7 +149,7 @@ class RenderedCandidateTests(unittest.TestCase):
     """H-C6: render under three configs and validate as installed frontmatter."""
 
     _EXPECTED_SHIP = {
-        _CONFIG_DOGFOOD: ("claude-haiku-5.5", "anthropic", "xhigh", "long_context"),
+        _CONFIG_DOGFOOD: ("claude-sonnet-5.5", "anthropic", "medium", "long_context"),
         _CONFIG_ROLELESS: ("claude-sonnet-5.5", "anthropic", "high", "long_context"),
         _CONFIG_SEED: ("gpt-6-luna", "openai", "xhigh", "long_context"),
     }
@@ -214,7 +214,7 @@ class InstalledMirrorTests(unittest.TestCase):
         data = self._mirror(_SHIP_MIRROR_REL)
         self.assertEqual(
             tuple(data[key] for key in _ROUTE_KEYS),
-            ("claude-haiku-5.5", "anthropic", "xhigh", "long_context"),
+            ("claude-sonnet-5.5", "anthropic", "medium", "long_context"),
         )
         self.assertEqual(data["max_subagent_tier"], 3)
 
@@ -252,7 +252,7 @@ class DogfoodConfigAndManifestTests(unittest.TestCase):
         # the D-C6 Ship model pin; the route is pinned exactly here.
         self.assertEqual(
             (ship["model_family"], ship["model_provider"], ship["reasoning_effort"]),
-            ("claude-haiku-5.5", "anthropic", "xhigh"),
+            ("claude-sonnet-5.5", "anthropic", "medium"),
         )
 
     def test_manifest_checksums_refreshed(self) -> None:

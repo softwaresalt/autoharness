@@ -4,7 +4,8 @@ Plan unit C7 (docs/plans/2026-09-27-context-tier-model-routing-plan.md). The Shi
 route was originally pinned to ``claude-opus-5.5`` / ``anthropic`` / ``high``
 (D-C6, 2026-09-27T13:18:02-07:00). The operator's model_routing edit of
 2026-10-09, carried forward in shipment 208-S, supersedes that pin: the Ship route
-is now ``claude-haiku-5.5`` / ``anthropic`` / ``xhigh``, with its nested
+is now ``claude-sonnet-5.5`` / ``anthropic`` / ``medium`` (operator edit of
+2026-10-15, carried forward in 217-S), with its nested
 ``ship.escalation`` set to ``claude-sonnet-5.5`` / ``anthropic`` / ``high`` /
 ``long_context`` (operator edit of 2026-10-14; was ``medium`` / ``default``). Its
 ``context_tier`` remains ``long_context`` (ruling 5a, 2026-09-27T22:50-07:00); the
@@ -13,7 +14,7 @@ reads live values and never relies on the config comment that cites these ruling
 
 Asserts, on the live dogfood workspace:
 
-1. the config Ship route is ``claude-haiku-5.5`` / ``anthropic`` / ``xhigh`` /
+1. the config Ship route is ``claude-sonnet-5.5`` / ``anthropic`` / ``medium`` /
    ``long_context``;
 2. the installed ``_ship.agent.md`` frontmatter matches it on all four routing
    keys and declares ``max_subagent_tier: 3``;
@@ -61,9 +62,9 @@ _SHIP_TEMPLATE = _ROOT / "templates" / "agents" / "_ship.agent.md.tmpl"
 _SHIP_MIRROR_REL = ".github/agents/_ship.agent.md"
 _ROUTE_KEYS = ("model_family", "model_provider", "reasoning_effort", "context_tier")
 _PINNED_SHIP_ROUTE = {
-    "model_family": "claude-haiku-5.5",
+    "model_family": "claude-sonnet-5.5",
     "model_provider": "anthropic",
-    "reasoning_effort": "xhigh",
+    "reasoning_effort": "medium",
     "context_tier": "long_context",
 }
 # Operator model_routing edits (2026-10-09, carried forward in 208-S; escalation
@@ -186,7 +187,7 @@ class VerifyWorkspaceShipPinTests(unittest.TestCase):
 
     def test_derived_ship_variables(self) -> None:
         variables = _base_variables()
-        self.assertEqual(variables["SHIP_FAMILY"], "claude-haiku-5.5")
+        self.assertEqual(variables["SHIP_FAMILY"], "claude-sonnet-5.5")
         self.assertEqual(variables["SHIP_PROVIDER"], "anthropic")
         self.assertEqual(variables["SHIP_CONTEXT_TIER"], "long_context")
 

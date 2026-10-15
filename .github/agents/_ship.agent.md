@@ -5,9 +5,9 @@ description: "Manages the backlog-to-shipped pipeline for autoharness template d
 maturity: stable
 tools: vscode, execute, read, agent, edit, search, web, 'microsoft-docs/*', 'backlogit/*', ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo
 max_subagent_tier: 3
-reasoning_effort: "xhigh"
+reasoning_effort: "medium"
 model_provider: "anthropic"
-model_family: "claude-haiku-5.5"
+model_family: "claude-sonnet-5.5"
 context_tier: "long_context"
 subagent_depth: 2
 ---
@@ -896,7 +896,7 @@ operator-halt checkpoint:
    the default context; this never blocks the handoff.
 3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
    equals this agent's own role route tuple (P-013.5) — Ship currently
-   operates at `claude-haiku-5.5`/`anthropic`/`xhigh`, distinct from its
+   operates at `claude-sonnet-5.5`/`anthropic`/`medium`, distinct from its
    nested escalation route (`claude-sonnet-5.5`/`anthropic`/`high`), so an
    auto-escalation attempt is a genuine escalation, not a same-route no-op —
    treat any future
