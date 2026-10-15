@@ -7,7 +7,7 @@ max_subagent_tier: 1
 reasoning_effort: ""
 model_provider: ""
 model_family: "gpt-5.6-luna"
-context_tier: "default"
+context_tier: "long_context"
 subagent_depth: 0
 ---
 

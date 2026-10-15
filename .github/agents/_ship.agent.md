@@ -863,8 +863,8 @@ operator-halt checkpoint:
    `config.model_routing.escalation` (DEPRECATED) -> `model_routing.tier3`
    per-field fallback (`model_family` / `model_provider` /
    `reasoning_effort`). This workspace declares a nested `ship.escalation`
-   override (`claude-sonnet-5.5` / `anthropic` / `medium`, operator
-   model_routing edit carried forward in 208-S) and no legacy flat `escalation`
+   override (`claude-sonnet-5.5` / `anthropic` / `high`, operator
+   model_routing edits carried forward in 208-S and 2026-10-14) and no legacy flat `escalation`
    block, so the nested route resolves. This resolution
    always reads the freshly session-start-reloaded config (never a value
    cached earlier in a long session or resolved by a prior session) — see
@@ -882,12 +882,12 @@ operator-halt checkpoint:
    session's resolved value, and MUST NOT invent a last-known-good fallback.
    This is the config-resolved successor to ad hoc "suggest a frontier-tier
    model" prose — the route is now declared, not improvised.
-   Separately, the escalation `context_tier` resolves to `default`
+   Separately, the escalation `context_tier` resolves to `long_context`
    (nested `ship.escalation.context_tier` -> legacy flat
    `escalation.context_tier` only when the flat route is the selected
    source -> `tier3.context_tier` -> `default`).
-   This workspace declares `ship.escalation.context_tier: default`, so the
-   escalation context tier resolves to `default`.
+   This workspace declares `ship.escalation.context_tier: long_context`, so the
+   escalation context tier resolves to `long_context`.
    Record it in the compiled payload's separate
    `resolved_escalation_context_tier` field — it is not part of the
    `resolved_escalation_route` tuple and is excluded from the same-route
@@ -897,7 +897,7 @@ operator-halt checkpoint:
 3. **Same-route guard (role-scoped, H3)**: if the resolved escalation tuple
    equals this agent's own role route tuple (P-013.5) — Ship currently
    operates at `claude-haiku-5.5`/`anthropic`/`xhigh`, distinct from its
-   nested escalation route (`claude-sonnet-5.5`/`anthropic`/`medium`), so an
+   nested escalation route (`claude-sonnet-5.5`/`anthropic`/`high`), so an
    auto-escalation attempt is a genuine escalation, not a same-route no-op —
    treat any future
    same-tuple resolution as `ESCALATION_DEGRADED` per the canonical

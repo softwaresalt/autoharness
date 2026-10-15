@@ -13,7 +13,8 @@ same-route guard and every tuple consumer are untouched (D-C3, INV-C5). Covers:
     ``ROUTING_DEGRADED: context_tier`` without blocking the handoff;
   * the Stage and Ship "Resolve the escalation route" step carries the role-scoped
     ``{{ESCALATION_CONTEXT_TIER}}`` (templates) and the field (templates and mirrors);
-  * rendering Stage and Ship under the dogfood config gives ``default``;
+  * rendering Stage and Ship under the dogfood config gives ``long_context``
+    (operator edit 2026-10-14; previously ``default``);
   * a per-role fixture renders Stage ``long_context`` and Ship ``default`` (AN-F9);
   * rendered Stage and Ship frontmatter still passes B1 in installed mode.
 """
@@ -226,7 +227,7 @@ class AgentEscalationStepTests(unittest.TestCase):
         for rel in (_STAGE_MIRROR_REL, _SHIP_MIRROR_REL):
             with self.subTest(mirror=rel):
                 section = _normalize(_escalation_step_section(_read(_ROOT / rel)))
-                self.assertIn(_normalize(_RESOLVED_PHRASE.format(tier="default")), section)
+                self.assertIn(_normalize(_RESOLVED_PHRASE.format(tier="long_context")), section)
                 self.assertIn(f"`{_FIELD}`", section)
                 self.assertIn(_DEGRADED, section)
 
@@ -247,9 +248,12 @@ class RenderedEscalationContextTierTests(unittest.TestCase):
                 findings = check_agent(parsed, "tier-routed", MODE_INSTALLED)
                 self.assertFalse(has_blocking_findings(findings), findings)
 
-    def test_dogfood_config_renders_default(self) -> None:
+    def test_dogfood_config_renders_long_context(self) -> None:
+        # Operator model_routing edit (2026-10-14): tier3 and ship.escalation
+        # both declare long_context.
         self._assert_rendered(
-            copy.deepcopy(_load("config.yaml")), {"stage": "default", "ship": "default"}
+            copy.deepcopy(_load("config.yaml")),
+            {"stage": "long_context", "ship": "long_context"},
         )
 
     def test_per_role_fixture_renders_role_scoped_values(self) -> None:

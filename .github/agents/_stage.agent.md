@@ -5,10 +5,10 @@ description: "Manages the stash-to-backlog pipeline for autoharness template dev
 maturity: stable
 tools: vscode/getProjectSetupInfo, vscode/installExtension, vscode/memory, vscode/newWorkspace, vscode/resolveMemoryFileUri, vscode/runCommand, vscode/vscodeAPI, vscode/extensions, vscode/askQuestions, execute/runNotebookCell, execute/executionSubagent, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, web/fetch, web/githubRepo, microsoft-docs/microsoft_code_sample_search, microsoft-docs/microsoft_docs_fetch, microsoft-docs/microsoft_docs_search, backlogit/backlogit_ack_hook_events, backlogit/backlogit_add_dependency, backlogit/backlogit_add_link, backlogit/backlogit_add_to_shipment, backlogit/backlogit_adopt_item, backlogit/backlogit_append_comment, backlogit/backlogit_archive_item, backlogit/backlogit_claim_shipment, backlogit/backlogit_cleanup_checkpoints, backlogit/backlogit_create_checkpoint, backlogit/backlogit_create_item, backlogit/backlogit_create_shipment, backlogit/backlogit_delete_item, backlogit/backlogit_deliberate, backlogit/backlogit_doctor, backlogit/backlogit_export_command_map, backlogit/backlogit_fetch_stash, backlogit/backlogit_get_checkpoint, backlogit/backlogit_get_dependencies, backlogit/backlogit_get_item, backlogit/backlogit_get_links, backlogit/backlogit_get_metadata_catalog, backlogit/backlogit_get_queue, backlogit/backlogit_get_shipment, backlogit/backlogit_get_version, backlogit/backlogit_get_wit_metadata, backlogit/backlogit_harvest_stash, backlogit/backlogit_list_checkpoints, backlogit/backlogit_list_items, backlogit/backlogit_list_shipments, backlogit/backlogit_list_templates, backlogit/backlogit_list_types, backlogit/backlogit_log_telemetry, backlogit/backlogit_merge_sync, backlogit/backlogit_move_item, backlogit/backlogit_poll_hook_events, backlogit/backlogit_query_sql, backlogit/backlogit_remove_dependency, backlogit/backlogit_remove_link, backlogit/backlogit_resolve_checkpoint, backlogit/backlogit_return_blocked, backlogit/backlogit_save_memory, backlogit/backlogit_search_items, backlogit/backlogit_ship_shipment, backlogit/backlogit_stash, backlogit/backlogit_stash_edit, backlogit/backlogit_stash_get, backlogit/backlogit_stash_remove, backlogit/backlogit_sync_index, backlogit/backlogit_telemetry_harvest, backlogit/backlogit_track_commit, backlogit/backlogit_update_item, ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo
 max_subagent_tier: 3
-reasoning_effort: "xhigh"
-model_provider: "anthropic"
-model_family: "claude-sonnet-5.5"
-context_tier: "default"
+reasoning_effort: "high"
+model_provider: "google"
+model_family: "gemini-4-argon"
+context_tier: "long_context"
 subagent_depth: 2
 ---
 
@@ -561,11 +561,12 @@ before falling back to the operator-halt checkpoint:
    schema-failing config — Stage MUST NOT continue on a stale/baked route
    carried over from this file's frontmatter or a prior session's resolved
    value, and MUST NOT invent a last-known-good fallback.
-   Separately, the escalation `context_tier` resolves to `default`
+   Separately, the escalation `context_tier` resolves to `long_context`
    (nested `stage.escalation.context_tier` -> legacy flat
    `escalation.context_tier` only when the flat route is the selected
    source -> `tier3.context_tier` -> `default`).
-   This workspace declares no escalation `context_tier` at any level.
+   This workspace declares no Stage or flat escalation `context_tier`, so it
+   resolves from `tier3.context_tier` (`long_context`).
    Record it in the compiled payload's separate
    `resolved_escalation_context_tier` field — it is not part of the
    `resolved_escalation_route` tuple and is excluded from the same-route
@@ -573,14 +574,15 @@ before falling back to the operator-halt checkpoint:
    `context_tier`, record `ROUTING_DEGRADED: context_tier` and hand off at
    the default context; this never blocks the handoff.
 3. **Same-route guard (role-scoped, H3)**: Stage's explicit role route
-   (`claude-sonnet-5.5`/`anthropic`/`xhigh`) is identical to this workspace's
-   `tier3` route. With no nested `stage.escalation` and no flat `escalation`
-   block declared, the escalation route resolves to `tier3` and lands on the
-   same model as Stage's own route — that must be treated as
-   `ESCALATION_DEGRADED` (same-route no-op) per the canonical definition in
-   `escalation-protocol.instructions.md` rather than silently "escalating" to
-   an identical model. Residual risk recorded for the operator (208-S
-   model_routing edit): Stage has no distinct escalation route until a
+   (`gemini-4-argon`/`google`/`high`) differs from this workspace's `tier3`
+   route (`gemini-4-argon`/`google`/`xhigh`) only in reasoning effort. With no
+   nested `stage.escalation` and no flat `escalation` block declared, the
+   escalation route resolves to `tier3`, a distinct tuple, so escalation is a
+   genuine reasoning-effort escalation rather than a same-route no-op (operator
+   model_routing edit of 2026-10-14). If the tuples ever become equal that must
+   be treated as `ESCALATION_DEGRADED` (same-route no-op) per the canonical
+   definition in `escalation-protocol.instructions.md`. Residual risk: Stage
+   escalation differs only in reasoning effort until a distinct
    `stage.escalation` override is declared. Re-verify this guard whenever the
    escalation or tier3 route configuration changes.
 4. **Hand off and halt**: when the route is not degraded, record it in the

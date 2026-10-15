@@ -150,13 +150,14 @@ class RenderedCandidateTests(unittest.TestCase):
 
     _EXPECTED_SHIP = {
         _CONFIG_DOGFOOD: ("claude-haiku-5.5", "anthropic", "xhigh", "long_context"),
-        _CONFIG_ROLELESS: ("claude-sonnet-5.5", "anthropic", "high", "default"),
+        _CONFIG_ROLELESS: ("claude-sonnet-5.5", "anthropic", "high", "long_context"),
         _CONFIG_SEED: ("gpt-6-luna", "openai", "xhigh", "long_context"),
     }
     _EXPECTED_STAGE = {
-        _CONFIG_DOGFOOD: ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
-        _CONFIG_ROLELESS: ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
-        _CONFIG_SEED: ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
+        # Operator model_routing edit (2026-10-14): Stage route is gemini-4-argon.
+        _CONFIG_DOGFOOD: ("gemini-4-argon", "google", "high", "long_context"),
+        _CONFIG_ROLELESS: ("gemini-4-argon", "google", "xhigh", "long_context"),
+        _CONFIG_SEED: ("gemini-4-argon", "google", "high", "long_context"),
     }
 
     @classmethod
@@ -221,7 +222,7 @@ class InstalledMirrorTests(unittest.TestCase):
         data = self._mirror(_STAGE_MIRROR_REL)
         self.assertEqual(
             tuple(data[key] for key in _ROUTE_KEYS),
-            ("claude-sonnet-5.5", "anthropic", "xhigh", "default"),
+            ("gemini-4-argon", "google", "high", "long_context"),
         )
         self.assertEqual(data["max_subagent_tier"], 3)
 
