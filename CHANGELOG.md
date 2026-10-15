@@ -18,6 +18,13 @@
 
 ### Changed
 
+- **UTC mandatory for all recorded dates and times (204-F, shipment 211-S):**
+  the output-timestamps instruction, the foundation copilot-instructions and AGENTS
+  templates, and the compact-context skill state the UTC rule, and a new P7 contract
+  test rejects offset-bearing ISO-8601 literals in templates and installed mirrors.
+  Expected template drift in installed workspaces: output-timestamps,
+  copilot-instructions, AGENTS, and compact-context (re-run tune-harness).
+
 - **Stash-referenced companion-document carry-forward (203-F, stash FB6F9FE0):**
   the `pipeline-topology` `pre_claim` `worktree_cleanliness` check now treats a NEW
   file under `docs/` as carry-forward eligible (`CARRY_FORWARD_ELIGIBLE`) when its

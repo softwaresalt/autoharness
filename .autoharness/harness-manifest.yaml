@@ -143,12 +143,12 @@ artifacts:
     primitive: 9
     template: "foundation/AGENTS.md.tmpl"
     checksum: "153533608a773f2e140dd768c40f706fa5e01a0a3468bedf8274cd072dcb10b6"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 211-S/204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
   - path: ".github/copilot-instructions.md"
     primitive: 6
     template: "foundation/copilot-instructions.md.tmpl"
     checksum: "f7020e1fb18a3333910b16eb119d95d134f8ca45c37d5611d42e5a7b379624ce"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 211-S/204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template and mirror changed atomically; checksum over the LF-normalized mirror"
   - path: ".github/instructions/harness-architecture.instructions.md"
     primitive: 9
     template: "global instruction definition"
@@ -188,7 +188,7 @@ artifacts:
     primitive: 1
     template: "skills/compact-context/SKILL.md.tmpl"
     checksum: "85aeecc2fc828b350c0fa26e1bd0546751aff2a834eb40e2d0495acfe9298666"
-    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; P-020 mandatory post-merge closure skill -- its absence blocked Orchestrator shipment routing. Runtime fill-in tokens {count}/{size_reduction} normalized from the template's double-brace form to the single-brace form the same file already uses in its Intercom prose and broadcast table; written LF-only and checksum computed with SHA-256 over the raw LF file bytes; checksum refreshed 199-S/193.003-T (skill name: frontmatter key); checksum refreshed 204-F/204.003-T (C3: {YYYY-MM-DD} in compacted, decided-plan, and closure filenames is the UTC date); template and mirror changed atomically; checksum over the LF-normalized mirror"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; the template's leading `## ` title was promoted to `# ` so the installed artifact satisfies MD041/MD025/MD001 per P-008; P-020 mandatory post-merge closure skill -- its absence blocked Orchestrator shipment routing. Runtime fill-in tokens {count}/{size_reduction} normalized from the template's double-brace form to the single-brace form the same file already uses in its Intercom prose and broadcast table; written LF-only and checksum computed with SHA-256 over the raw LF file bytes; checksum refreshed 199-S/193.003-T (skill name: frontmatter key); checksum refreshed 211-S/204-F/204.003-T (C3: {YYYY-MM-DD} in compacted, decided-plan, and closure filenames is the UTC date); template and mirror changed atomically; checksum over the LF-normalized mirror"
   - path: ".github/skills/deliberate/SKILL.md"
     primitive: 4
     template: "skills/deliberate/SKILL.md.tmpl"
@@ -342,8 +342,8 @@ artifacts:
   - path: ".github/instructions/output-timestamps.instructions.md"
     primitive: 7
     template: "instructions/output-timestamps.instructions.md.tmpl"
-    checksum: "2cf07a38cf5558676aa8f65a6620b03b532a6d15f27a719fdfe2852f729bf357"
-    note: "output timestamp observability instruction (previously unrecorded); checksum refreshed 204-F/204.001-T (C1: UTC rule for all recorded dates and times); template and mirror changed atomically; checksum over the LF-normalized mirror"
+    checksum: "94f311794d1f12a20cce2018f2f294e3575ae226d7414968d377f3d9eaf285bb"
+    note: "output timestamp observability instruction (previously unrecorded); checksum refreshed 211-S/204-F/204.001-T (C1: UTC rule for all recorded dates and times); template and mirror changed atomically; checksum over the LF-normalized mirror. 211-S review fix: Windows PowerShell 5.1 UTC derivation source (Get-Date -AsUTC is PowerShell 7.1+); checksum recomputed over the LF-normalized mirror."
   - path: ".github/prompts/feature-flow-dark.prompt.md"
     primitive: 6
     template: "prompts/feature-flow-dark.prompt.md.tmpl"

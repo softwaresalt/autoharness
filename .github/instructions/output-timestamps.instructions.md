@@ -45,7 +45,8 @@ recorded values, not only output stamps:
 * times use the Z suffix.
 
 Derive recorded values from UTC sources: `date -u`, `[DateTime]::UtcNow` or
-`Get-Date -AsUTC` in PowerShell, and `datetime.now(timezone.utc)` in Python.
+`(Get-Date).ToUniversalTime()` in Windows PowerShell 5.1 (or `Get-Date -AsUTC` in
+PowerShell 7.1+), and `datetime.now(timezone.utc)` in Python.
 
 Local-offset values (for example `-07:00`) are forbidden in recorded output. When
 a tool reports a local offset, convert it to UTC before recording the value.
