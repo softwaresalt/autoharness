@@ -84,10 +84,10 @@ model_routing:
     reasoning_effort: "high"
     context_tier: "long_context"
   ship:
-    model_family: "claude-haiku-5.5"             # Ship role route (falls back to tier2 when empty)
+    model_family: "claude-sonnet-5.5"
     model_provider: "anthropic"
-    reasoning_effort: "xhigh"
-    context_tier: "long_context"
+    reasoning_effort: "medium"
+    context_tier: "long_context" 
     escalation:
       model_family: "claude-sonnet-5.5"
       model_provider: "anthropic"
