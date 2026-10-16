@@ -103,6 +103,13 @@ class SeverityTests(unittest.TestCase):
 
 
 class NonFindingTests(unittest.TestCase):
+    def test_forbid_io_restores_the_path_classmethod(self):
+        original = Path.__dict__["cwd"]
+        with forbid_io():
+            pass
+        self.assertIs(Path.__dict__["cwd"], original)
+        self.assertIsInstance(Path.__dict__["cwd"], classmethod)
+        self.assertEqual(Path.cwd(), Path(os.getcwd()))
     def test_constructs_outside_model_routing_are_ignored(self):
         text = "other: &a\n  x: 1\ncopy: *a\nmodel_routing:\n  tier3:\n    model_family: f\n"
         result = check(text, "1.2.0")
@@ -123,6 +130,21 @@ class NonFindingTests(unittest.TestCase):
     def test_nested_model_routing_key_is_not_the_top_level_one(self):
         result = check("outer:\n  model_routing:\n    a: &x 1\n", "1.2.0")
         self.assertEqual(result.errors, ())
+
+    def test_root_level_merge_key_is_flagged(self):
+        text = "base: &b\n  model_routing: {tier3: {model_family: f}}\n<<: *b\n"
+        result = check(text, "1.2.0")
+        self.assertIn("ROUTING_ANCHOR_UNSUPPORTED: merge_key at line 3", result.errors)
+        warned = check(text, "1.1.0")
+        self.assertEqual(warned.errors, ())
+        self.assertIn("ROUTING_ANCHOR_UNSUPPORTED: merge_key at line 3", warned.warnings)
+
+    def test_root_level_merge_key_with_model_routing_present_is_flagged(self):
+        text = "model_routing: {a: 1}\n<<: {b: 2}\n"
+        self.assertEqual(check(text, "1.2.0").errors, ("ROUTING_ANCHOR_UNSUPPORTED: merge_key at line 2",))
+
+    def test_quoted_root_merge_key_is_not_flagged(self):
+        self.assertEqual(check('"<<": x\nmodel_routing: {a: 1}\n', "1.2.0").errors, ())
 
     def test_empty_text_has_no_findings(self):
         result = check("", "1.2.0")

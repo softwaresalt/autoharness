@@ -95,7 +95,10 @@ class forbid_io(contextlib.AbstractContextManager):
 
     def _patch(self, target: Any, name: str, replacement: Any) -> None:
         in_dict = isinstance(target, type) and name in target.__dict__
-        original = getattr(target, name, _MISSING)
+        if in_dict:
+            original = target.__dict__[name]
+        else:
+            original = getattr(target, name, _MISSING)
         setattr(target, name, replacement)
 
         def restore() -> None:

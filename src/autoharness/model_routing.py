@@ -14,21 +14,24 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any
 
 from autoharness.frontmatter_contract import CONTEXT_TIER_VALUES
 
 ROUTE_FIELDS = ("model_family", "model_provider", "reasoning_effort", "context_tier")
-ROLE_DEFAULT_TIER = {"orchestrator": "tier2", "stage": "tier3", "ship": "tier2"}
+ROLE_DEFAULT_TIER = MappingProxyType({"orchestrator": "tier2", "stage": "tier3", "ship": "tier2"})
 ESCALATION_ROLES = ("stage", "ship")
 ESCALATION_FALLBACK_TIER = "tier3"
 ORCHESTRATOR_DEFAULT_FAMILY = "gpt-5.4"
 # Each tier's own documented default model_family, used when the tier is absent.
-TIER_OWN_FAMILY_DEFAULT = {
-    "tier1": "gpt-5.4-mini",
-    "tier2": "claude-sonnet-5",
-    "tier3": "claude-opus-5",
-}
+TIER_OWN_FAMILY_DEFAULT = MappingProxyType(
+    {
+        "tier1": "gpt-5.4-mini",
+        "tier2": "claude-sonnet-5",
+        "tier3": "claude-opus-5",
+    }
+)
 _ESCALATION_ROUTE_FIELDS = ("model_family", "model_provider", "reasoning_effort")
 _SITES = ("stage", "ship", "orchestrator")
 _KINDS = ("route", "escalation")
@@ -81,6 +84,8 @@ def _route_field(
     else:
         tier = {}
     fallback_value = tier.get(field)
+    if field != "context_tier" and isinstance(fallback_value, str) and not fallback_value.strip():
+        fallback_value = None
     label = f"{tier_label}.{field}"
     if field == "model_family" and not _nonblank(fallback_value):
         fallback_value = tier.get("model")
@@ -135,9 +140,10 @@ def effective_escalation_route(model_routing: Mapping[str, Any], role: str) -> t
     block = nested.get(role) or _mapping(_mapping(model_routing.get(role)).get("escalation"))
     source = block if escalation_route_has_any_field(block) else flat
     fallback = tier_fallback_dict(model_routing, ESCALATION_FALLBACK_TIER)
-    return tuple(  # type: ignore[return-value]
+    family, provider, effort = (
         _text(resolve_route_field(source, fallback, field)) for field in _ESCALATION_ROUTE_FIELDS
     )
+    return family, provider, effort
 
 
 def effective_escalation_context_tier(model_routing: Mapping[str, Any], role: str) -> str:

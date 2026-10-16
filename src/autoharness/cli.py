@@ -3932,7 +3932,10 @@ def _load_routing_config(workspace: str) -> tuple[dict | None, list[str]]:
     guard = model_routing_yaml.check_model_routing_yaml(text, schema_version)
     if guard.errors or guard.parse_error:
         return None, list(guard.errors) or [f"CONFIG_UNPARSEABLE: {guard.parse_error}"]
-    schema_errors = _schema_errors(resolve_contract_schema_path("config", _home(), data), data)
+    try:
+        schema_errors = _schema_errors(resolve_contract_schema_path("config", _home(), data), data)
+    except Exception as exc:  # fail closed: any schema failure is a JSON error document
+        return None, [f"CONFIG_SCHEMA_UNAVAILABLE: {type(exc).__name__}"]
     if schema_errors:
         return None, [f"CONFIG_SCHEMA_INVALID: {message}" for message in schema_errors]
     return data, []
@@ -3941,13 +3944,17 @@ def _load_routing_config(workspace: str) -> tuple[dict | None, list[str]]:
 def _routing_document(workspace: str, site: str, kind: str) -> dict:
     from autoharness import model_routing
 
-    config, errors = _load_routing_config(workspace)
-    if config is None:
+    try:
+        config, errors = _load_routing_config(workspace)
+        if config is None:
+            resolved = model_routing.ResolvedRoute(site, kind, "", "", "", "", None, (), (), tuple(errors))
+        else:
+            agents = Path(workspace) / ".github" / "agents"
+            installed = frozenset(role for role in ("stage", "ship") if (agents / f"_{role}.agent.md").exists())
+            resolved = model_routing.resolve_site(config, site, kind=kind, installed_roles=installed)
+    except Exception as exc:  # fail closed: never a traceback or exit 1
+        errors = [f"ROUTING_INTERNAL_ERROR: {type(exc).__name__}"]
         resolved = model_routing.ResolvedRoute(site, kind, "", "", "", "", None, (), (), tuple(errors))
-    else:
-        agents = Path(workspace) / ".github" / "agents"
-        installed = frozenset(role for role in ("stage", "ship") if (agents / f"_{role}.agent.md").exists())
-        resolved = model_routing.resolve_site(config, site, kind=kind, installed_roles=installed)
     document = resolved.to_document()
     exit_code = 2 if resolved.errors else (1 if resolved.degraded else 0)
     return {"schema_version": ROUTING_DOCUMENT_VERSION, **document, "exit_code": exit_code}

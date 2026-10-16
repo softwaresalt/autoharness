@@ -8,7 +8,8 @@
   resolves a `stage`, `ship`, or `orchestrator` model route (or its escalation route) from
   `.autoharness/config.yaml` to one JSON document, from the new pure
   `autoharness.model_routing` resolver that `verify-workspace` now delegates to (outputs
-  unchanged). Exit `0` resolved, `1` resolved with a declared degradation, `2` unresolved or
+  unchanged). `--kind escalation` applies to `stage` and `ship` only; `orchestrator` with
+  `escalation` is unsupported and exits `2`. Exit `0` resolved, `1` resolved with a declared degradation, `2` unresolved or
   invalid configuration, including a YAML anchor, alias, or merge key under `model_routing`
   in a config declaring schema 1.2.0 (shared guard `model_routing_yaml`). No config key,
   schema, or routing value changes.

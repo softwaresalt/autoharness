@@ -170,6 +170,19 @@ class RoutingResolveCliTests(unittest.TestCase):
                     self.assertTrue(document["errors"])
                     self.assertEqual(document["resolved"]["model_family"], "")
 
+    def test_unknown_schema_version_exits_two_with_a_document(self):
+        self.write_config('schema_version: "9.9.9"\nmodel_routing: {tier3: {model: opus, model_family: opus}}\n')
+        status, document = self.resolve("stage")
+        self.assertEqual(status, 2)
+        self.assertTrue(document["errors"])
+
+    def test_schema_resolution_failure_exits_two_with_a_document(self):
+        self.write_config(CONFIG.format(version="1.1.0"))
+        with mock.patch("autoharness.verify_workspace._schema_errors", side_effect=OSError("boom")):
+            status, document = self.resolve("stage")
+        self.assertEqual(status, 2)
+        self.assertEqual(document["errors"], ["CONFIG_SCHEMA_UNAVAILABLE: OSError"])
+
     def test_unresolved_family_exits_two(self):
         self.write_config('schema_version: "1.1.0"\nmodel_routing: {}\n')
         status, document = self.resolve("stage")

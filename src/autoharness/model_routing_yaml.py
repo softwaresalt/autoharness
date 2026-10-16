@@ -71,6 +71,15 @@ def _scan(raw_text: str) -> tuple[list[str], str | None]:
             elif is_root_value:
                 pending_target = False
 
+            if (
+                len(stack) == 1
+                and is_key
+                and isinstance(event, yaml.ScalarEvent)
+                and event.style is None
+                and event.value == "<<"
+            ):
+                flag("merge_key", event)
+
             inside = bool(in_target_depth) or starts_target
             if inside:
                 if isinstance(event, yaml.AliasEvent):
