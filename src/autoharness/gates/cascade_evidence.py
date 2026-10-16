@@ -32,7 +32,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
@@ -1214,6 +1214,111 @@ def _check_in_record_ordering(
         checker.fail("record.pre_close.captured_at", "must precede invocation.started_at")
     if started is not None and finished is not None and finished < started:
         checker.fail("record.invocation.finished_at", "must not precede started_at")
+
+
+_CLOSE_MUTATION_STATUSES: Final = frozenset({"archived", "shipped"})
+_ARCHIVED_AT_CAPTURE: Final = frozenset({"archived"})
+
+
+def _close_mutation_kind(event: Mapping[str, object]) -> str | None:
+    """Describe the event when it is a close mutation (ordering rule 2); None otherwise."""
+
+    event_type = event.get("event_type")
+    if event_type == "archived":
+        return "archived"
+    delta = event.get("delta")
+    if not isinstance(delta, Mapping):
+        return None
+    if event_type == "status_changed":
+        new_status = delta.get("to")
+    elif event_type == "artifact_mutation":
+        changes = delta.get("changes")
+        new_status = changes.get("status") if isinstance(changes, Mapping) else None
+    elif event_type == "shipment_status_changed":
+        new_status = delta.get("status")
+    else:
+        return None
+    if isinstance(new_status, str) and new_status in _CLOSE_MUTATION_STATUSES:
+        return f"{event_type} to {new_status}"
+    return None
+
+
+def check_engine_window(
+    record: Mapping[str, object],
+    *,
+    merge_time: datetime.datetime | None,
+    read_log: Callable[[str], str | None],
+) -> tuple[list[str], list[str]]:
+    """Ordering rules 2-3: no close mutation in the engine logs inside ``[merge, capture)``.
+
+    ``merge_time`` is the merge commit's committer time (None when it could not
+    be resolved, which fails closed). ``read_log(id)`` returns an engine log's
+    text, None when the log does not exist, and raises ``ValueError`` when it
+    cannot be read safely. Returns ``(errors, warnings)``.
+    """
+
+    where = "record.pre_close.captured_at"
+    pre_close = record.get("pre_close")
+    if not isinstance(pre_close, Mapping):
+        return ["record.pre_close: must be an object"], []
+    captured = parse_rfc3339_instant(pre_close.get("captured_at"))
+    if captured is None:
+        return [f"{where}: must be an RFC 3339 timestamp with a UTC offset"], []
+    if merge_time is None:
+        return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
+
+    targets: list[tuple[str, bool]] = []
+    shipment_record = pre_close.get("shipment_record")
+    shipment_archived = isinstance(shipment_record, Mapping) and (
+        shipment_record.get("location") == "archive" or shipment_record.get("declared_status") in _ARCHIVED_AT_CAPTURE
+    )
+    shipment_id = record.get("shipment_id")
+    if isinstance(shipment_id, str):
+        targets.append((shipment_id, shipment_archived))
+    members = pre_close.get("manifest_members")
+    for member in members if type(members) is list else []:
+        if isinstance(member, Mapping) and isinstance(member.get("id"), str):
+            archived = member.get("location") == "archive" or member.get("declared_status") in _ARCHIVED_AT_CAPTURE
+            targets.append((member["id"], archived))
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    for item_id, archived_at_capture in targets:
+        try:
+            text = read_log(item_id)
+        except ValueError as exc:
+            errors.append(f"engine log for {item_id!r} cannot be read: {exc}")
+            continue
+        if text is None:
+            message = f"engine log for {item_id!r} does not exist"
+            if archived_at_capture:
+                warnings.append(f"{message}; tolerated because it was recorded archived at capture")
+            else:
+                errors.append(f"{message}, and it was not recorded archived at capture")
+            continue
+        for number, line in enumerate(text.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except ValueError:
+                event = None
+            if not isinstance(event, Mapping):
+                errors.append(f"engine log for {item_id!r} has a malformed line {number}")
+                continue
+            kind = _close_mutation_kind(event)
+            if kind is None:
+                continue
+            instant = parse_rfc3339_instant(event.get("timestamp"))
+            if instant is None:
+                errors.append(f"engine log for {item_id!r} has a malformed timestamp on line {number}")
+            elif merge_time <= instant < captured:
+                errors.append(
+                    f"{item_id!r} had a close mutation ({kind}) at {event.get('timestamp')} after the merge "
+                    f"({merge_time.isoformat()}) and before pre_close.captured_at ({captured.isoformat()}): "
+                    "the pre-close evidence is not provably pre-mutation"
+                )
+    return errors, warnings
 
 
 def _check_capture(checker: _Checker, capture: Mapping[str, object], where: str) -> None:

@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -306,6 +307,15 @@ its recorded backlog path and location with its recorded SHA-256 (path
 containment checked before any read), and every entry recorded missing must
 still be missing (failed_check close_evidence); an empty observation set
 passes with a vacuous-check warning.
+Finally, the record must be provably pre-mutation (failed_check
+close_evidence), with every timestamp compared as a UTC instant: a cascade
+record needs pre_close.captured_at < invocation.started_at <=
+invocation.finished_at; and, on both paths, the engine logs
+(<backlog root>/logs/<id>.jsonl, read through the same containment checks) of
+the shipment and each manifest member must hold no archived event and no
+status change to archived or shipped in [merge commit committer time,
+pre_close.captured_at). An unresolvable merge time or a malformed log fails; a
+missing log fails unless the member was recorded archived at capture (warning).
 
 `dag-readiness` is READ-ONLY: it performs no backlogit or git mutation on any
 path. It is existence-guarded (zero shipments -> empty report, exit 0) and
@@ -1920,7 +1930,67 @@ def _check_close_path_requirement(
         problem = _recheck_observation_set(record, root, warnings)
         if problem is not None:
             return "close_evidence", f"SAFE_CLOSE observation-set re-check failed: {problem}"
+    window_problems = _engine_window_problems(record, root, warnings)
+    if window_problems:
+        return "close_evidence", (
+            f"close_evidence record '{declared}' is not provably pre-mutation: {'; '.join(window_problems)}"
+        )
     return None
+
+
+_ENGINE_LOG_MAX_BYTES = 8 * 1024 * 1024
+_SAFE_ITEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_MERGE_SHA = re.compile(r"[0-9a-fA-F]{7,64}")
+
+
+def _merge_committer_time(root: Path, sha: object):
+    """Committer time of ``sha`` as a UTC datetime, or None when it cannot be resolved (injectable seam)."""
+    from autoharness.gates.cascade_evidence import parse_rfc3339_instant
+
+    if type(sha) is not str or _MERGE_SHA.fullmatch(sha) is None:
+        return None
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "log", "-1", "--format=%cI", sha],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return parse_rfc3339_instant(completed.stdout.strip())
+
+
+def _engine_window_problems(record: dict, root: Path, warnings: list[str]) -> list[str]:
+    """Ordering rules 2-3 against the engine logs of a validated record (U2b); the problems found."""
+    from autoharness.backlog_root import BacklogUnavailableError, resolve_backlog_root
+    from autoharness.gates.cascade_evidence import check_engine_window
+
+    try:
+        backlog_dir = resolve_backlog_root(root)
+    except BacklogUnavailableError as exc:
+        return [f"the workspace backlog root cannot be detected: {exc}"]
+
+    def read_log(item_id: str) -> str | None:
+        if _SAFE_ITEM_ID.fullmatch(item_id) is None:
+            raise ValueError(f"{item_id!r} is not a safe artifact ID")
+        relative = f"{backlog_dir.name}/logs/{item_id}.jsonl"
+        if not os.path.lexists(root.joinpath(*relative.split("/"))):
+            return None
+        raw = _read_contained_regular_file(root, relative, backlog_dir, _ENGINE_LOG_MAX_BYTES)
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"'{relative}' is not valid UTF-8: {exc}") from exc
+
+    errors, new_warnings = check_engine_window(
+        record, merge_time=_merge_committer_time(root, record.get("merge_commit_sha")), read_log=read_log
+    )
+    warnings.extend(new_warnings)
+    return errors
 
 
 _OBSERVATION_RECORD_MAX_BYTES = 2 * 1024 * 1024
