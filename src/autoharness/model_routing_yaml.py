@@ -35,8 +35,21 @@ def _enforced(schema_version: str | None) -> bool:
     return padded >= ENFORCED_FROM
 
 
+MERGE_TAG = "tag:yaml.org,2002:merge"
+
+
+def _is_merge_key(event: Any) -> bool:
+    """A YAML merge key: a plain `<<` scalar, or any scalar explicitly tagged `!!merge`."""
+    if not isinstance(event, yaml.ScalarEvent):
+        return False
+    if event.tag == MERGE_TAG:
+        return True
+    return event.style is None and event.value == "<<"
+
+
 def _scan(raw_text: str) -> tuple[list[str], str | None]:
     findings: list[str] = []
+    routing_anchors: set[str] = set()
     stack: list[dict[str, Any]] = []
     in_target_depth = 0
     pending_target = False
@@ -48,6 +61,7 @@ def _scan(raw_text: str) -> tuple[list[str], str | None]:
         for event in yaml.parse(raw_text):
             if isinstance(event, (yaml.DocumentStartEvent, yaml.DocumentEndEvent)):
                 stack, in_target_depth, pending_target = [], 0, False
+                routing_anchors.clear()
                 continue
             if isinstance(event, (yaml.MappingEndEvent, yaml.SequenceEndEvent)):
                 stack.pop()
@@ -66,18 +80,28 @@ def _scan(raw_text: str) -> tuple[list[str], str | None]:
                 parent["key_turn"] = not parent["key_turn"]
             is_root_value = bool(parent and parent["map"] and len(stack) == 1 and not is_key)
             starts_target = is_root_value and pending_target
+            if (
+                isinstance(event, yaml.ScalarEvent)
+                and event.value == ROUTING_KEY
+                and getattr(event, "anchor", None)
+            ):
+                routing_anchors.add(event.anchor)
+            aliased_routing_key = (
+                is_key
+                and len(stack) == 1
+                and isinstance(event, yaml.AliasEvent)
+                and event.anchor in routing_anchors
+            )
             if parent and len(stack) == 1 and is_key:
-                pending_target = isinstance(event, yaml.ScalarEvent) and event.value == ROUTING_KEY
+                pending_target = (
+                    isinstance(event, yaml.ScalarEvent) and event.value == ROUTING_KEY
+                ) or aliased_routing_key
             elif is_root_value:
                 pending_target = False
 
-            if (
-                len(stack) == 1
-                and is_key
-                and isinstance(event, yaml.ScalarEvent)
-                and event.style is None
-                and event.value == "<<"
-            ):
+            if aliased_routing_key:
+                flag("alias", event)
+            if len(stack) == 1 and is_key and _is_merge_key(event):
                 flag("merge_key", event)
 
             inside = bool(in_target_depth) or starts_target
@@ -87,7 +111,7 @@ def _scan(raw_text: str) -> tuple[list[str], str | None]:
                 else:
                     if getattr(event, "anchor", None):
                         flag("anchor", event)
-                    if is_key and isinstance(event, yaml.ScalarEvent) and event.style is None and event.value == "<<":
+                    if is_key and _is_merge_key(event):
                         flag("merge_key", event)
 
             if isinstance(event, (yaml.MappingStartEvent, yaml.SequenceStartEvent)):

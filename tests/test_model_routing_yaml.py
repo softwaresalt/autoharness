@@ -146,6 +146,28 @@ class NonFindingTests(unittest.TestCase):
     def test_quoted_root_merge_key_is_not_flagged(self):
         self.assertEqual(check('"<<": x\nmodel_routing: {a: 1}\n', "1.2.0").errors, ())
 
+    def test_aliased_root_routing_key_gets_subtree_checks(self):
+        text = "key: &k model_routing\n*k:\n  tier3: &t {model: opus}\n  stage: *t\n"
+        errors = check(text, "1.2.0").errors
+        self.assertIn("ROUTING_ANCHOR_UNSUPPORTED: alias at line 2", errors)
+        self.assertIn("ROUTING_ANCHOR_UNSUPPORTED: anchor at line 3", errors)
+        self.assertIn("ROUTING_ANCHOR_UNSUPPORTED: alias at line 4", errors)
+        self.assertEqual(check(text, "1.1.0").errors, ())
+
+    def test_unrelated_root_alias_outside_routing_is_ignored(self):
+        text = "a: &x 1\nb: *x\nmodel_routing: {tier3: {model: opus}}\n"
+        self.assertEqual(check(text, "1.2.0").errors, ())
+
+    def test_tagged_merge_key_is_flagged_at_both_locations(self):
+        nested = "model_routing: {stage: {!!merge '<<': {model_family: f}}}\n"
+        self.assertEqual(
+            check(nested, "1.2.0").errors, ("ROUTING_ANCHOR_UNSUPPORTED: merge_key at line 1",)
+        )
+        root = "!!merge '<<': {model_routing: {tier3: {model: opus}}}\n"
+        self.assertEqual(
+            check(root, "1.2.0").errors, ("ROUTING_ANCHOR_UNSUPPORTED: merge_key at line 1",)
+        )
+
     def test_empty_text_has_no_findings(self):
         result = check("", "1.2.0")
         self.assertEqual((result.errors, result.warnings, result.parse_error), ((), (), None))
