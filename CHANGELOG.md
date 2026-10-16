@@ -4,6 +4,14 @@
 
 ### Added
 
+- **`autoharness routing resolve` (207-F / 214-S):** a read-only, fail-closed CLI that
+  resolves a `stage`, `ship`, or `orchestrator` model route (or its escalation route) from
+  `.autoharness/config.yaml` to one JSON document, from the new pure
+  `autoharness.model_routing` resolver that `verify-workspace` now delegates to (outputs
+  unchanged). Exit `0` resolved, `1` resolved with a declared degradation, `2` unresolved or
+  invalid configuration, including a YAML anchor, alias, or merge key under `model_routing`
+  in a config declaring schema 1.2.0 (shared guard `model_routing_yaml`). No config key,
+  schema, or routing value changes.
 - **Claim-marker consumption contract (P-002.8, `marker_contract_version: 1`; 205-F / 212-S):**
   the workflow policy registry publishes the consumer contract for backlogit's
   `custom_fields.scheduler_baseline_claim` marker (producer

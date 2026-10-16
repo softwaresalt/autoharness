@@ -53,6 +53,7 @@ Usage:
   autoharness telemetry begin    Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness harness resolve   Resolve a shipment's harness surfaces to one JSON document
+  autoharness routing resolve   Resolve a site's model route (read-only, fail-closed) to one JSON document
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
   autoharness setup-copilot-cli Copy agents/skills into Copilot CLI (deprecated — use plugin)
@@ -3870,6 +3871,99 @@ def _harness_command(args: list[str]) -> None:
     sys.exit(result.exit_code)
 
 
+# --- routing resolve (214-S, 207.004-T) ---------------------------------------
+
+ROUTING_DOCUMENT_VERSION = "1.0.0"
+
+
+def _routing_parser() -> argparse.ArgumentParser:
+    """The ``autoharness routing`` parser."""
+    parser = argparse.ArgumentParser(
+        prog="autoharness routing",
+        description="Model-routing resolution for one invocation site.",
+        allow_abbrev=False,
+    )
+    commands = parser.add_subparsers(dest="routing_command", metavar="{resolve}", required=True)
+    resolve = commands.add_parser(
+        "resolve",
+        help="resolve a site's route to one JSON document",
+        allow_abbrev=False,
+        description=(
+            "Resolve the model route of one invocation site from .autoharness/config.yaml and write "
+            "one routing-resolution JSON document, followed by one newline, to stdout. Read-only. "
+            "Once the arguments parse, nothing is written to stderr, and the exit status equals the "
+            "document's exit_code: 0 resolved, 1 resolved with a declared degradation (use the route "
+            "and surface the degradation), 2 unresolved or invalid configuration (halt). An argument "
+            "error prints usage to stderr, exits 2 and writes no document."
+        ),
+    )
+    resolve.add_argument("--workspace", required=True, type=_non_empty_path, metavar="PATH", help="workspace root")
+    resolve.add_argument("--site", required=True, choices=("stage", "ship", "orchestrator"), help="invocation site")
+    resolve.add_argument("--kind", choices=("route", "escalation"), default="route", help="route (default) or escalation")
+    resolve.add_argument(
+        "--json", required=True, action="store_true", help="write the result as one JSON document (required)"
+    )
+    return parser
+
+
+def _load_routing_config(workspace: str) -> tuple[dict | None, list[str]]:
+    """Load and fail-closed validate the workspace config (E8B5B3C5/H6); no last-known-good fallback."""
+    import yaml
+
+    from autoharness import model_routing_yaml
+    from autoharness.schema_contracts import resolve_contract_schema_path
+    from autoharness.verify_workspace import _schema_errors
+
+    config_path = Path(workspace) / ".autoharness" / "config.yaml"
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return None, [f"CONFIG_UNREADABLE: {config_path}: {type(exc).__name__}"]
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        message = str(exc).strip().splitlines()
+        return None, [f"CONFIG_UNPARSEABLE: {message[0] if message else type(exc).__name__}"]
+    if not isinstance(data, dict) or not data:
+        return None, ["CONFIG_EMPTY: .autoharness/config.yaml is empty or not a mapping"]
+    schema_version = data.get("schema_version")
+    if not isinstance(schema_version, str) or not schema_version.strip():
+        return None, ["CONFIG_SCHEMA_VERSION_MISSING: schema_version is required"]
+    guard = model_routing_yaml.check_model_routing_yaml(text, schema_version)
+    if guard.errors or guard.parse_error:
+        return None, list(guard.errors) or [f"CONFIG_UNPARSEABLE: {guard.parse_error}"]
+    schema_errors = _schema_errors(resolve_contract_schema_path("config", _home(), data), data)
+    if schema_errors:
+        return None, [f"CONFIG_SCHEMA_INVALID: {message}" for message in schema_errors]
+    return data, []
+
+
+def _routing_document(workspace: str, site: str, kind: str) -> dict:
+    from autoharness import model_routing
+
+    config, errors = _load_routing_config(workspace)
+    if config is None:
+        resolved = model_routing.ResolvedRoute(site, kind, "", "", "", "", None, (), (), tuple(errors))
+    else:
+        agents = Path(workspace) / ".github" / "agents"
+        installed = frozenset(role for role in ("stage", "ship") if (agents / f"_{role}.agent.md").exists())
+        resolved = model_routing.resolve_site(config, site, kind=kind, installed_roles=installed)
+    document = resolved.to_document()
+    exit_code = 2 if resolved.errors else (1 if resolved.degraded else 0)
+    return {"schema_version": ROUTING_DOCUMENT_VERSION, **document, "exit_code": exit_code}
+
+
+def _routing_command(args: list[str]) -> None:
+    """``autoharness routing resolve --workspace <path> --site <site> [--kind <kind>] --json``."""
+    namespace = _routing_parser().parse_args(args)
+    document = _routing_document(namespace.workspace, namespace.site, namespace.kind)
+    payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
+    sys.stdout.flush()
+    sys.stdout.buffer.write(payload + b"\n")
+    sys.stdout.buffer.flush()
+    sys.exit(document["exit_code"])
+
+
 def main(argv: list[str] | None = None) -> None:
     args = argv if argv is not None else sys.argv[1:]
 
@@ -3893,6 +3987,8 @@ def main(argv: list[str] | None = None) -> None:
         _telemetry_command(args[1:])
     elif command == "harness":
         _harness_command(args[1:])
+    elif command == "routing":
+        _routing_command(args[1:])
     elif command == "eval":
         _eval_command(args[1:])
     elif command == "setup-vscode":
