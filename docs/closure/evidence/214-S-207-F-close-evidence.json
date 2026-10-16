@@ -1,0 +1,175 @@
+{
+  "feature_id": "207-F",
+  "invocation": {
+    "argv_redacted": [
+      "C:\\Tools\\backlogit.EXE",
+      "--no-update-check",
+      "--jsonrpc",
+      "--cwd",
+      "C:\\Source\\GitHub\\autoharness",
+      "shipment",
+      "ship",
+      "214-S",
+      "--sha",
+      "fe1cf82b6235e9a1908e3257bbe0f2a7a42e92e5",
+      "--message",
+      "Merge pull request #531 from softwaresalt/feat/214-s-model-routing-resolver",
+      "--author",
+      "Derek Williams"
+    ],
+    "started_at": "2026-10-16T17:43:35Z"
+  },
+  "merge_commit_sha": "fe1cf82b6235e9a1908e3257bbe0f2a7a42e92e5",
+  "phase": "invoking",
+  "pre_close": {
+    "captured_at": "2026-10-16T17:43:25Z",
+    "classifier_reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted",
+    "classifier_verdict": "CASCADE",
+    "close_path_selection": {
+      "reason": "every feature member is a root whose out-of-manifest descendants are engine-inert; cascade close is permitted; backlogit 1.11.0 (cli) is on verified engine minor line 1.11",
+      "selected_close_path": "cascade"
+    },
+    "engine_semantics": {
+      "invocation_surface": "cli",
+      "minor_line": [
+        1,
+        11
+      ],
+      "probe_surface": "cli",
+      "probed_commit": "131577c",
+      "probed_version": "1.11.0",
+      "reason": "backlogit 1.11.0 (cli) is on verified engine minor line 1.11",
+      "verdict": "VERIFIED"
+    },
+    "linked_deliberation_disposition": {
+      "dispositions": [
+        {
+          "declared_status": "queued",
+          "deliberation_id": "040-DL",
+          "link_kinds": [
+            "description"
+          ],
+          "linking_member_ids": [
+            "207-F",
+            "207.001-T",
+            "207.002-T",
+            "207.003-T",
+            "207.004-T",
+            "207.005-T",
+            "207.006-T"
+          ],
+          "outcome": "retained_shared_reference",
+          "path": null,
+          "reason_code": "retained_shared_reference",
+          "records": [
+            {
+              "declared_status": "queued",
+              "path": ".backlogit/queue/040-DL.md",
+              "sha256": "d0883ca1f018fe4b6a468c732485112abdd0d91449ae7c1b889457f7452e4ef8"
+            }
+          ],
+          "referrer_ids": [
+            "208-F",
+            "208.001-T",
+            "208.002-T",
+            "208.003-T",
+            "208.004-T",
+            "208.005-T",
+            "208.006-T",
+            "208.007-T",
+            "208.008-T",
+            "208.009-T",
+            "208.010-T",
+            "208.011-T",
+            "208.012-T",
+            "208.013-T",
+            "208.014-T",
+            "507B2139",
+            "56654C18",
+            "C2EA31FA",
+            "C5801D7B",
+            "EB56281C"
+          ]
+        }
+      ],
+      "planning_error": null,
+      "read_failures": [],
+      "unresolved_references": []
+    },
+    "manifest_members": [
+      {
+        "artifact_type": "feature",
+        "declared_status": "active",
+        "id": "207-F",
+        "location": "queue",
+        "parent_id": null,
+        "sha256": "deb4e3b3a8a2441606ef7191118593fbccad13fb4d22e530398e44f3dc7a7140"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "207.001-T",
+        "location": "archive",
+        "parent_id": "207-F",
+        "sha256": "7c274157dbc905cee2c66949d8c5cc75fd26d3b740a51e3927e6f587f10f51e6"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "207.002-T",
+        "location": "archive",
+        "parent_id": "207-F",
+        "sha256": "817c9dbb76ed96dac56c0920b5310d407f7eb8d85662465d8b0cdd77d7eb06f5"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "207.003-T",
+        "location": "archive",
+        "parent_id": "207-F",
+        "sha256": "93cab4bc8fa8b671b94755e302abf72aa9dcc9e8fce98b0ee9f7047bcf63fb84"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "207.006-T",
+        "location": "archive",
+        "parent_id": "207-F",
+        "sha256": "b6b64dfc76e21416acfe0302fd2db96a5d8c85ae5dc0352fd18b4b27c0eefef5"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "207.004-T",
+        "location": "archive",
+        "parent_id": "207-F",
+        "sha256": "832f32a6ccddf43836092fbdf786ee3f891e3655f8f723d6b6e55cd1d7f57d2e"
+      },
+      {
+        "artifact_type": "task",
+        "declared_status": "done",
+        "id": "207.005-T",
+        "location": "archive",
+        "parent_id": "207-F",
+        "sha256": "42b05df5399963c982d5024f2292558d6b257ce73fa50012da7e92b9209b80f3"
+      }
+    ],
+    "out_of_manifest_descendants": [],
+    "qualifying_feature_ids": [
+      "207-F"
+    ],
+    "shipment_record": {
+      "declared_status": "active",
+      "location": "queue",
+      "sha256": "8b9da72fd248fa28c14be48eb990dd430b15e19b6d7cd62c66de2fb2225beb3b"
+    }
+  },
+  "run_id": "c152dfa51b1f485bbf9e9231afe49b70",
+  "schema_version": 1,
+  "shipment_id": "214-S",
+  "tool": {
+    "binary_path": "C:\\Tools\\backlogit.EXE",
+    "binary_sha256": "e822756bb661435f7351811c54554ec8e76f69868ca386b6590bb56ae1489f3a",
+    "version_excerpt": "{\n  \"version\": \"1.11.0\",\n  \"current\": \"1.11.0\",\n  \"latest\": \"\",\n  \"update_available\": false,\n  \"update_check\": \"skipped\",\n  \"commit\": \"131577c\",\n  \"build_date\": \"2026-09-29T00:15:25Z\",\n  \"go_version\": \"go1.24.13\"\n}\n"
+  }
+}
