@@ -159,6 +159,13 @@ class EngineWindowTests(unittest.TestCase):
         record = _record(started="2026-10-02T01:00:01." + "1" * 6000 + "Z", finished="2026-10-02T01:00:01." + "1" * 5999 + "0Z")
         self.assertTrue(any("must not precede started_at" in p for p in _problems(record)))
 
+    def test_max_date_capture_does_not_overflow_the_window(self) -> None:
+        for captured in ("9999-12-31T23:59:59Z", "9999-12-31T23:59:59.9999999Z"):
+            record = _record(captured=captured, started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+            errors, _ = self._check(self._full_logs(), record=record)
+            self.assertEqual(len(errors), 1, (captured, errors))
+            self.assertIn("maximum supported date", errors[0])
+
     def test_beyond_microsecond_capture_precision_is_ambiguous(self) -> None:
         record = _record(captured="2026-10-02T01:00:00.5000001Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
         log = _event(_MEMBER, "2026-10-02T01:00:00.5000000Z", "archived")

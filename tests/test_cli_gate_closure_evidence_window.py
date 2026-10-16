@@ -83,6 +83,23 @@ class EngineWindowProblemsTests(unittest.TestCase):
         self.assertTrue(any("fails containment" in p for p in problems), problems)
         self.assertEqual(warnings, [])
 
+    def test_permission_denied_log_is_an_error_not_a_missing_log(self) -> None:
+        self.record["pre_close"]["manifest_members"][0]["declared_status"] = "archived"
+        real_lstat = cli.os.lstat
+
+        def fake_lstat(path, *args, **kwargs):
+            if str(path).endswith(f"{_MEMBER}.jsonl"):
+                raise PermissionError("denied")
+            return real_lstat(path, *args, **kwargs)
+
+        warnings: list[str] = []
+        with mock.patch.object(cli, "_merge_committer_time", return_value=_MERGE), mock.patch.object(
+            cli.os, "lstat", side_effect=fake_lstat
+        ):
+            problems = cli._engine_window_problems(self.record, self.root, warnings)
+        self.assertTrue(any(_MEMBER in p and "cannot be inspected" in p for p in problems), problems)
+        self.assertEqual(warnings, [])
+
     def test_unsafe_member_id_is_refused_without_a_read(self) -> None:
         self.record["pre_close"]["manifest_members"][0]["id"] = "..\\evil"
         problems, _ = self._problems()

@@ -1986,8 +1986,12 @@ def _engine_window_problems(record: dict, root: Path, warnings: list[str]) -> li
         logs_reason = _check_path_containment(backlog_dir / "logs", backlog_dir)
         if logs_reason is not None:
             raise ValueError(f"'{backlog_dir.name}/logs' fails containment ({logs_reason}); nothing was probed")
-        if not os.path.lexists(root.joinpath(*relative.split("/"))):
+        try:
+            os.lstat(root.joinpath(*relative.split("/")))
+        except FileNotFoundError:
             return None
+        except OSError as exc:
+            raise ValueError(f"'{relative}' cannot be inspected: {exc}") from exc
         raw = _read_contained_regular_file(root, relative, backlog_dir, _ENGINE_LOG_MAX_BYTES)
         try:
             return raw.decode("utf-8")

@@ -1312,12 +1312,15 @@ def check_engine_window(
     raw_captured = pre_close.get("captured_at")
     window_end = captured
     whole_second = _RFC3339_PATTERN.fullmatch(raw_captured.strip()) if isinstance(raw_captured, str) else None
-    if whole_second is not None and whole_second.group(7) is None:
-        window_end = captured + datetime.timedelta(seconds=1)
-    elif whole_second is not None and len(whole_second.group(7)) > 6:
-        # Digits beyond microseconds are discarded by the parser: widen by one
-        # microsecond so an event inside the truncated remainder is not accepted.
-        window_end = captured + datetime.timedelta(microseconds=1)
+    try:
+        if whole_second is not None and whole_second.group(7) is None:
+            window_end = captured + datetime.timedelta(seconds=1)
+        elif whole_second is not None and len(whole_second.group(7)) > 6:
+            # Digits beyond microseconds are discarded by the parser: widen by one
+            # microsecond so an event inside the truncated remainder is not accepted.
+            window_end = captured + datetime.timedelta(microseconds=1)
+    except OverflowError:
+        return [f"{where}: the timestamp is too close to the maximum supported date to bound its precision window"], []
     if merge_time is None:
         return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
 
