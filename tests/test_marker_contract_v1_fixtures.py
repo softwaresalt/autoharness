@@ -83,10 +83,10 @@ def evaluate(fixture: Dict[str, Any], scenario: Dict[str, Any]) -> Dict[str, Any
 
     for member_id in manifest:
         record = members[member_id]
-        if record["status"] != "active":
-            continue
-        if record.get("read_error") or record.get("status_reread", "active") != "active":
+        if record.get("read_error") or record.get("status_reread", record["status"]) != record["status"]:
             indeterminate.append(member_id)
+            continue
+        if record["status"] != "active":
             continue
         if record.get("marker") != shipment:
             residuals.append(member_id)
@@ -154,7 +154,7 @@ class MarkerContractV1FixtureTests(unittest.TestCase):
         self.assertEqual(self.scenarios["F4"]["expected"]["active_residuals"], ["300.002-T"])
 
     def test_f7_f8_start_epoch_rules_and_contract_version(self) -> None:
-        for scenario_id in ("F7", "F8", "F10"):
+        for scenario_id in ("F7", "F8", "F10", "F11", "F12"):
             with self.subTest(scenario=scenario_id):
                 self._assert_scenario(scenario_id)
         policy = _POLICY_TEMPLATE.read_bytes().replace(b"\r\n", b"\n").decode("utf-8")

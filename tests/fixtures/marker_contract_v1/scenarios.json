@@ -221,6 +221,42 @@
         "active_residuals": [],
         "indeterminate": []
       }
+    },
+    {
+      "id": "F11",
+      "note": "an errored item read on a queued member is indeterminate (M5), never skipped",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T"]],
+      "members": {
+        "300.001-T": {"status": "queued", "marker": null, "deps": [], "read_error": true}
+      },
+      "logs": {},
+      "expected": {
+        "halt": "WAVE_CLAIM_STATE_INDETERMINATE",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": [],
+        "indeterminate": ["300.001-T"]
+      }
+    },
+    {
+      "id": "F12",
+      "note": "a queued member whose re-read status disagrees with the snapshot is a stale read (M5)",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T"]],
+      "members": {
+        "300.001-T": {"status": "queued", "marker": null, "deps": [], "status_reread": "active"}
+      },
+      "logs": {},
+      "expected": {
+        "halt": "WAVE_CLAIM_STATE_INDETERMINATE",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": [],
+        "indeterminate": ["300.001-T"]
+      }
     }
   ]
 }
