@@ -45,7 +45,7 @@ No P-021 deferred captures were created. Residual P3 notes (not backlog items): 
 
 ## Compaction (P-020)
 
-`compaction_status: done`. compact-context (`target: all`) ran as a bounded scan: session memory written to `docs/memory/2026-10-16/ship-213-s-206-f-post-merge-closure.md`; the unit's only memory is that small fresh file, so nothing was consolidated or moved. `docs/memory/` is globally over threshold from unrelated backlog; wide compaction was out of scope for this closure.
+`compaction_status: done`. compact-context (`target: all`) ran a Tier-1 consolidation of this release unit's memory (Copilot round 1 on PR #530 required it): the Stage memory `docs/memory/2026-10-08-stage-171s-replan-and-reconcile-hygiene.md` was consolidated into `docs/memory/compacted/2026-10-16-213-s-206-f-compacted.md` and the original archived to `docs/archive/memory/2026-10-08/stage-171s-replan-and-reconcile-hygiene.md`. The Ship session memory `docs/memory/2026-10-16/ship-213-s-206-f-post-merge-closure.md` stays live (linked from the summary), per the 171-S precedent. Unrelated historical memory was not compacted.
 
 ## Close evidence
 
