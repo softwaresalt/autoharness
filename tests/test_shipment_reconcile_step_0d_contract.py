@@ -75,6 +75,15 @@ class Step0dContractTests(unittest.TestCase):
                 self.assertIn("`pre_report_path`", quality)
                 self.assertIn("not provably pre-mutation", quality)
 
+    def test_ship_agent_copies_pass_pre_report_path_to_safe_close(self) -> None:
+        for path in (
+            mcc.REPO_ROOT / ".github" / "agents" / "_ship.agent.md",
+            mcc.REPO_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl",
+        ):
+            with self.subTest(path=path.name):
+                flat = mcc.flatten(path.read_text(encoding="utf-8"))
+                self.assertIn("`pre_report_path` set to the", flat)
+
     def test_template_and_resolved_copies_agree_on_the_edited_region(self) -> None:
         (_, resolved), (_, rendered) = mcc.sources()
         self.assertEqual(
