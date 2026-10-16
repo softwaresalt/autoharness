@@ -37,9 +37,11 @@
 [submodule "references/hve-core"]
 	path = references/hve-core
 	url = https://github.com/microsoft/hve-core
+	branch = main
 [submodule "references/tokenmasterx"]
 	path = references/tokenmasterx
 	url = https://github.com/All-The-Vibes/TokenMasterX.git
+	branch = master
 [submodule "references/backlog-md"]
 	path = references/backlog-md
 	url = https://github.com/MrLesk/Backlog.md.git
