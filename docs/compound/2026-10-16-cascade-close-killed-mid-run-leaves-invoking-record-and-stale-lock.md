@@ -55,8 +55,14 @@ supervision budget.
 
 Contributing causes:
 
-* No Ship guidance to launch the command as an attached async process polled with a
-  total wait of at least `--timeout` + 600 s.
+* Existing guidance was not followed or propagated: the `shipment-reconcile` skill already
+  requires attached async execution when the supervision budget exceeds the synchronous
+  limit, polling until exit, and halting if the runtime cannot preserve the process, and
+  Ship delegates to that skill. The closure subagent that ran the command did not apply
+  it. The gap is propagation and enforcement at the caller, not missing guidance. (Stash
+  `E337551C` was captured worded as missing guidance; Stage should re-scope it to
+  propagation/enforcement at C6 intake. Entries are single-write, so it is not edited
+  here.)
 * No recovery subcommand for `invoking` records and no sanctioned way to reconstruct
   the lost post-close facts.
 * The wrapper does not persist child stdout/stderr incrementally.
