@@ -2,8 +2,9 @@
 title: "Operator-editable P-011 carry-forward configuration (deliberation)"
 description: "Deliberation of the design constraints for moving P-011 pre_claim carry-forward paths from hard-coded code into an operator-editable YAML, adding .autoharness/config.yaml, and the self-reference security model."
 date: 2026-10-15
-status: draft-awaiting-operator-confirmation
-stash_entries: [D2F399C9]
+status: accepted
+operator_acceptance: "2026-10-15 (operator-directed follow-up, relayed by the Orchestrator): Stage's recommendations for Q1-Q4 and D1-D10 accepted."
+stash_entries: [D2F399C9, 80CD43B8]
 tags: [deliberation, p-011, carry-forward, gates, topology, security]
 ---
 
@@ -73,7 +74,40 @@ more config edits before then.
 - Q3. Accept carrying model-routing edits (`config.yaml`) through an agent-driven commit.
 - Q4. Reference "HEAD" of the current branch (as proposed) versus the remote default branch for the trusted blob.
 
+## Operator acceptance record (2026-10-15)
+
+The operator, via a follow-up routed by the Orchestrator after PR #523 merged (merge commit `013c32c1`), directed
+that Stage's recommendations be treated as ACCEPTED:
+
+| Question | Accepted resolution |
+|---|---|
+| Q1 | Committed-copy trust: the effective configured set is read from the committed blob at `HEAD`, never the working tree. |
+| Q2 | `.autoharness/`-only allowlist for configured entries. |
+| Q3 | Accepted that agent-driven carry-forward commits can include `.autoharness/config.yaml` model-routing edits. |
+| Q4 | The trusted copy is read from the current `HEAD` (not the remote default branch). |
+
+Hardening refinements recorded during plan-harden (they tighten, never loosen, the accepted resolutions; see the
+plan's Plan Hardening and Plan Review sections): the allowlist is further narrowed by a denylist of trust-bearing
+`.autoharness/` files (`backlog-registry.yaml`, whose `cli_command` values are executed, and
+`stage-worktree-marker.yaml`, a gate input) and of the bare `.autoharness/` root as a directory entry; the trusted
+blob must be a regular-file blob (not a symlink or submodule entry) at `HEAD`; a configured path that is a symlink
+or reparse point on disk is not eligible.
+
+Q3 carries a documented operational consequence from `docs/compound/2026-10-10-operator-staged-config-carry-forward-and-route-pin-cascade.md`:
+carry-forward only clears the P-011 gate. A `model_routing` edit still cascades to route pins, installed Stage/Ship
+mirrors and the harness-manifest checksums plus `config_hash`, and must ship as a bundle.
+
+## Overlap with stash 80CD43B8 (P-021 C5(A) duplicate scan)
+
+Stash `80CD43B8` (DEFERRED SCOPE EXPANSION, captured 2026-10-10 by Ship from feature 201-F / shipment 208-S,
+carry-forward commit `7b34ba47`, PR N/A) asks to extend P-011 carry-forward to operator-designated non-backlog paths
+with an explicit, auditable opt-in. Feature 210-F / shipment 217-S fully covers that scope (the committed,
+schema-validated `carry-forward.yaml` is the auditable opt-in). Its source refs are carried here; its `PR: N/A` has no
+later identifier recoverable from residual-risk records for this scope (no-op reconciliation). Disposition: the
+expansion is consumed by 210-F; both `D2F399C9` and `80CD43B8` are archived (non-destructive stash archive), with
+this section as the surviving record.
+
 ## Stage record
 
 - Source stash: D2F399C9. Late-identifier/duplicate scan: not a deferred-scope-expansion entry; N/A.
-- plan-harden and plan-review have NOT been run (see plan). Learnings search of `docs/compound/` not performed against a subagent.
+- plan-harden and plan-review were run on 2026-10-15 after operator acceptance; see the plan. `docs/compound/` learnings search completed (single-agent inline search; no learnings-researcher subagent dispatch available).
