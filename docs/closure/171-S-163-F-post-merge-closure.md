@@ -44,6 +44,10 @@ Active stash entry `CA919C4C` (deferred capture-writer subsecond precision) stay
 
 Record: `docs/closure/evidence/171-S-163-F-close-evidence.json` (phase `post_close`, `merge_commit_sha` `2a159b27`, `classifier_verdict` CASCADE, `engine_verdict` VERIFIED, `postcondition_verdict` pass, `failures` none, `operator_action` none).
 
+## Step 0(d) chronology disclosure
+
+The Pre-Mode report `.backlogit/reconcile/171-S-pre-20261016-063000.md` carries a nominal frontmatter `generated_at` of `2026-10-16T06:30:00Z`, which is later than the evidence capture (`06:29:46Z`). It is a rounded value written by the executor, not a measured instant. The file's own creation time on disk was `06:29:14Z`, before the capture, and the report was produced by Pre-Mode before the `--classify-only` run. That filesystem timestamp is not durable committed evidence, so the `agreed` outcome rests on the content comparison (CASCADE verdict and qualifying set `163-F` equal in report and record), not on a provable ordering. The report was left unaltered (not backdated).
+
 ## Compaction (P-020)
 
 `compaction_status: done`. compact-context (`target: all`) ran as a Tier-1 consolidation: session memory written to `docs/memory/2026-10-16/ship-171-s-163-f-post-merge-closure.md`, three 163-F/171-S Stage review-fix memories consolidated into `docs/memory/compacted/2026-10-16-171-s-163-f-compacted.md` and the originals moved to `docs/archive/memory/2026-09-10/`. Source stash entries (856B6770, A9BABC8B, D6502107, E1E31E6A) are no longer active (already retired by harvest).
