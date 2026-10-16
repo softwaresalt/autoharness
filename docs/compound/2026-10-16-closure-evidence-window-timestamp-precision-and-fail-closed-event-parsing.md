@@ -24,9 +24,12 @@ The base logic was sound each time. The unspecified inputs were not.
 * The capture writer emits whole-second timestamps. Engine logs carry microseconds.
   A whole-second value can sit on either side of a sub-second boundary, so
   precision ambiguity is a fail-closed condition, not a pass.
-* Define behavior for more than six fractional digits (reject, never truncate or
-  round), a lowercase `t` separator, and max-date overflow when the comparison
-  adds a tolerance to a datetime at the end of the representable range.
+* Define behavior for more than six fractional digits, a lowercase `t` separator,
+  and max-date overflow when the comparison adds a tolerance to a datetime at the
+  end of the representable range. Accept longer fractions (engine output can carry
+  seven digits) and compare them precisely: keep the digits beyond microseconds for
+  in-record ordering, and widen the capture bound by one microsecond so the
+  truncated remainder is treated as ambiguous. Never silently truncate or round.
 * Decide each of these before the first review round. Each one cost a round.
 
 ### Log parsers must be strict
