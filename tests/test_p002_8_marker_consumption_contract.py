@@ -160,5 +160,42 @@ class P0028ShipStep3AdmissionTests(unittest.TestCase):
                 self.assertIn("Any second residual", flat)
                 self.assertIn("WORK_STARTED: <S>", flat)
 
+START_RECORD_BEGIN = "<!-- P-002.8:BEGIN ship step 4.1 start record -->"
+START_RECORD_END = "<!-- P-002.8:END ship step 4.1 start record -->"
+
+
+def start_record(path: Path) -> str:
+    return " ".join(extract(lf_text(path), START_RECORD_BEGIN, START_RECORD_END).split())
+
+
+class P0028ShipStep41StartRecordTests(unittest.TestCase):
+    def test_start_record_cites_m3_and_comment_text(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                block = start_record(path)
+                self.assertIn("P-002.8", block)
+                self.assertIn("M3", block)
+                self.assertIn("WORK_STARTED: <S>", block)
+                self.assertIn("`append_comment`", block)
+                self.assertIn("actor `ship`", block)
+                self.assertIn("never moves a claim-assigned task again", block)
+                self.assertIn("WAVE_CLAIM_STATE_INDETERMINATE", block)
+
+    def test_append_is_idempotent_via_reread(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                block = start_record(path)
+                self.assertIn("immediately before appending", block)
+                self.assertIn("re-reads the log before any retry or CLI fallback", block)
+                self.assertIn("never appends a second", block)
+
+    def test_flag_false_leaves_step_unchanged(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                self.assertIn(
+                    "unchanged when `features.scheduler_baseline_claim` is false or absent",
+                    start_record(path),
+                )
+
 if __name__ == "__main__":
     unittest.main()

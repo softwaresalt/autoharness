@@ -405,6 +405,16 @@ per M3–M5, indeterminate first:
 For each task in the derived executable task set:
 
 1. **Claim**: Move the task to active via `backlogit_move_item`.
+   <!-- P-002.8:BEGIN ship step 4.1 start record -->
+   **Start record (P-002.8, `marker_contract_version: 1`)**: this claim step is unchanged when
+   `features.scheduler_baseline_claim` is false or absent (M1). When M1 holds, a claim-assigned task (M3) is already
+   `active` from the shipment claim, so this step never moves a claim-assigned task again. Instead, Ship reads the
+   member log per M2 immediately before appending and, only when the current start epoch has no valid start record
+   (M3), appends the comment `WORK_STARTED: <S>` with actor `ship` through the registry's `append_comment` operation
+   (`backlogit_append_comment`). After a failed append, Ship re-reads the log before any retry or CLI fallback and
+   never appends a second `WORK_STARTED: <S>` in the same epoch. An unreadable, missing, or unparseable log halts
+   `WAVE_CLAIM_STATE_INDETERMINATE`.
+   <!-- P-002.8:END ship step 4.1 start record -->
 2. **Begin telemetry context**: Immediately after claim and before pre-build
    knowledge retrieval, build execution, implementation tool work, or review
    feedback, run:
