@@ -34,10 +34,10 @@ Opt in only when the installed backlogit stamps the marker (the `154-S` producer
 
 Enabling the flag against a backend that does not stamp the marker makes every claimed
 shipment halt at Step 3 as an active residual (`WAVE_NO_PROGRESS`). Ambiguous or unreadable
-claim state halts `WAVE_CLAIM_STATE_INDETERMINATE`, which outranks the residual halt.
+claim state halts `WAVE_CLAIM_STATE_INDETERMINATE`, which outranks the residual halt per P-002.8 M5.
 Repeated halts on freshly claimed shipments mean the producer is absent or older. Roll back
 by setting the flag to `false`; start-record comments already written are inert when the
-flag is off.
+flag is off, because Step 4.1 appends and reads them only when the flag is true.
 
 ## Operator follow-up after release
 

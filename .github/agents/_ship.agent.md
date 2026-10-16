@@ -392,19 +392,19 @@ per M3–M5, indeterminate first:
 * **Active residual (M4)**: halt `WAVE_NO_PROGRESS` with detail `active residual`, except for the operator-resumed
   carve-out below. A task that already carries `WORK_STARTED: <S>` in its current start epoch when Ship re-enters
   this step with no operator-confirmed resume is a residual and halts `WAVE_NO_PROGRESS`; the operator disposes.
-* **Operator-resumed carve-out (narrow)**: the single residual reported as `active residual (operator-resumed)` is
+* **Operator-resumed carve-out (narrow, M4 exception)**: the single residual reported as `active residual (operator-resumed)` is
   admitted only when ALL hold: (1) the operator explicitly confirmed restore of a `ship`-owned checkpoint in this
   session under the Crash-Resumption / Startup Recovery Protocol; (2) the residual's ID equals that checkpoint's
   recorded current task ID; (3) the member's marker equals `S` and it is in the live manifest. Any second residual,
   or a mismatch on any condition, halts `WAVE_NO_PROGRESS`. The carve-out never applies to an indeterminate member.
-* **Claim-assigned (M3)**: the executable set becomes `queued` members plus claim-assigned members, ordered per M6; a
+* **Claim-assigned (M3)**: the executable set becomes `queued` members plus claim-assigned members, in the existing dependency ordering of the next item; a
   claim-assigned member with unfinished dependencies is reported `claim-assigned waiting` and is never a residual,
   and `active_ids` lists only residuals.
 <!-- P-002.8:END ship step 3 claim-marker admission -->
 
 For each task in the derived executable task set:
 
-1. **Claim**: Move the task to active via `backlogit_move_item`.
+1. **Claim**: Move the task to active via `backlogit_move_item` when `features.scheduler_baseline_claim` is false or absent, or the task is `queued`. A claim-assigned task is never moved again.
    <!-- P-002.8:BEGIN ship step 4.1 start record -->
    **Start record (P-002.8, `marker_contract_version: 1`)**: this claim step is unchanged when
    `features.scheduler_baseline_claim` is false or absent (M1). When M1 holds, a claim-assigned task (M3) is already

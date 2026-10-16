@@ -78,10 +78,23 @@ class P0028PolicyContractTests(unittest.TestCase):
     def test_rule_ids_and_shared_tokens_present(self) -> None:
         block = p0028_block(POLICY_TEMPLATE)
         for rule in range(1, 9):
-            self.assertRegex(block, rf"\*\*M{rule}\b")
+            self.assertRegex(block, rf"(?m)^\*\*M{rule} [A-Z]")
         for token in M8_TOKENS:
             self.assertIn(token, block)
         self.assertIn("bumps `marker_contract_version`", block)
+
+    def test_operator_resumed_exception_in_m4_and_m8(self) -> None:
+        for path in (POLICY_TEMPLATE, POLICY_INSTALLED):
+            with self.subTest(path=path.name):
+                block = " ".join(p0028_block(path).split())
+                m4 = block[block.index("**M4 ") : block.index("**M5 ")]
+                self.assertIn("`active residual (operator-resumed)`", m4)
+                self.assertIn("`ship`-owned checkpoint", m4)
+                self.assertIn("recorded current task ID", m4)
+                self.assertIn("Any second residual", m4)
+                self.assertIn("never applies to an indeterminate member (M5)", m4)
+                m8 = block[block.index("**M8 ") :]
+                self.assertIn("`active residual (operator-resumed)`", m8)
 
     def test_p0027_block_is_stable_and_not_redeclared(self) -> None:
         for path in (POLICY_TEMPLATE, POLICY_INSTALLED):
@@ -123,8 +136,15 @@ class P0028ShipStep3AdmissionTests(unittest.TestCase):
                 block = ship_admission(path)
                 self.assertIn("Claim-marker consumption (P-002.8", block)
                 self.assertIn("marker_contract_version: 1", block)
-                for rule in ("M1", "M3", "M4", "M5", "M6"):
-                    self.assertIn(rule, block)
+                for label in (
+                    "(M1)",
+                    "**Indeterminate (M5)**",
+                    "**Active residual (M4)**",
+                    "**Operator-resumed carve-out (narrow, M4 exception)**",
+                    "**Claim-assigned (M3)**",
+                ):
+                    self.assertIn(label, block)
+                self.assertNotIn("per M6", block)
 
     def test_halt_tokens_and_waiting_report(self) -> None:
         for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
@@ -160,6 +180,8 @@ class P0028ShipStep3AdmissionTests(unittest.TestCase):
                 self.assertIn("Any second residual", flat)
                 self.assertIn("WORK_STARTED: <S>", flat)
 
+
+
 START_RECORD_BEGIN = "<!-- P-002.8:BEGIN ship step 4.1 start record -->"
 START_RECORD_END = "<!-- P-002.8:END ship step 4.1 start record -->"
 
@@ -174,7 +196,8 @@ class P0028ShipStep41StartRecordTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 block = start_record(path)
                 self.assertIn("P-002.8", block)
-                self.assertIn("M3", block)
+                self.assertIn("(M3)", block)
+                self.assertIn("(M1)", block)
                 self.assertIn("WORK_STARTED: <S>", block)
                 self.assertIn("`append_comment`", block)
                 self.assertIn("actor `ship`", block)
@@ -196,6 +219,7 @@ class P0028ShipStep41StartRecordTests(unittest.TestCase):
                     "unchanged when `features.scheduler_baseline_claim` is false or absent",
                     start_record(path),
                 )
+
 
 if __name__ == "__main__":
     unittest.main()

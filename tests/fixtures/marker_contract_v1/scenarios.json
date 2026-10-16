@@ -2,6 +2,9 @@
   "marker_contract_version": 1,
   "producer_contract": "scheduler-baseline-marker/v1",
   "log_templates": {
+    "claimed_extra_delta_key": [
+      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"from": "queued", "to": "active", "reason": "shipment claimed"}}
+    ],
     "claimed": [
       {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}}
     ],
@@ -197,6 +200,24 @@
         "halt": null,
         "admitted": ["300.003-T"],
         "claim_assigned_waiting": ["300.004-T"],
+        "active_residuals": [],
+        "indeterminate": []
+      }
+    },
+    {
+      "id": "F10",
+      "note": "claim event whose delta carries an extra key is still recognised by to/reason",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []}
+      },
+      "logs": {"300.001-T": "claimed_extra_delta_key"},
+      "expected": {
+        "halt": null,
+        "admitted": ["300.001-T"],
+        "claim_assigned_waiting": [],
         "active_residuals": [],
         "indeterminate": []
       }

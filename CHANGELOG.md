@@ -8,7 +8,7 @@
   the workflow policy registry publishes the consumer contract for backlogit's
   `custom_fields.scheduler_baseline_claim` marker (producer
   `scheduler-baseline-marker/v1`), and Ship applies it in Step 3 (claim-assigned
-  admission, `WAVE_NO_PROGRESS` / `WAVE_CLAIM_STATE_INDETERMINATE` halts) and Step 4.1
+  admission, `WAVE_NO_PROGRESS` / `WAVE_CLAIM_STATE_INDETERMINATE` halts, plus the narrow M4 operator-resumed exception) and Step 4.1
   (`WORK_STARTED: <S>` start record). It is gated by the new opt-in registry feature
   `features.scheduler_baseline_claim` (default `false`; no behavior change when off).
   Registry version-history 1.35.0. See `docs/claim-marker-consumption.md` for the

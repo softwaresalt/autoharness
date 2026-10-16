@@ -18,7 +18,14 @@ _FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "marker_contract_v1" / "scenarios
 _POLICY_TEMPLATE = _REPO_ROOT / "templates" / "policies" / "workflow-policies.md.tmpl"
 
 TERMINAL_SUCCESS = ("done", "archived")
-CLAIM_EVENT = {"to": "active", "reason": "shipment claimed"}
+
+def is_claim_event(event: Dict[str, Any]) -> bool:
+    delta = event.get("delta") or {}
+    return (
+        event.get("type") == "status_changed"
+        and delta.get("to") == "active"
+        and delta.get("reason") == "shipment claimed"
+    )
 
 
 def _load() -> Dict[str, Any]:
@@ -36,13 +43,13 @@ def _resolve_log(fixture: Dict[str, Any], ref: Any) -> Optional[List[Dict[str, A
 def start_epoch(log: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     last = None
     for index, event in enumerate(log):
-        if event.get("type") == "status_changed" and event.get("delta") == CLAIM_EVENT:
+        if is_claim_event(event):
             last = index
     return log if last is None else log[last + 1 :]
 
 
 def has_claim_event(log: List[Dict[str, Any]]) -> bool:
-    return any(e.get("type") == "status_changed" and e.get("delta") == CLAIM_EVENT for e in log)
+    return any(is_claim_event(e) for e in log)
 
 
 def first_line(body: str) -> str:
