@@ -4,6 +4,17 @@
 
 ### Added
 
+- **Claim-marker consumption contract (P-002.8, `marker_contract_version: 1`; 205-F / 212-S):**
+  the workflow policy registry publishes the consumer contract for backlogit's
+  `custom_fields.scheduler_baseline_claim` marker (producer
+  `scheduler-baseline-marker/v1`), and Ship applies it in Step 3 (claim-assigned
+  admission, `WAVE_NO_PROGRESS` / `WAVE_CLAIM_STATE_INDETERMINATE` halts, plus the narrow M4 operator-resumed exception) and Step 4.1
+  (`WORK_STARTED: <S>` start record). It is gated by the new opt-in registry feature
+  `features.scheduler_baseline_claim` (default `false`; no behavior change when off).
+  Registry version-history 1.35.0. See `docs/claim-marker-consumption.md` for the
+  operator opt-in and the operator-only `CONDITION_B_ATTESTED` follow-up. Expected
+  template drift in installed workspaces: workflow-policies, `_ship` agent, and the
+  backlogit registry template (re-run tune-harness).
 - **`context_tier` on model routes and agent frontmatter (194-F / 200-S)**: every
   `model_routing` route (`tier1`/`tier2`/`tier3`, `orchestrator`, `stage`, `ship`,
   the legacy flat `escalation`, and nested `<role>.escalation`) and tier-routed

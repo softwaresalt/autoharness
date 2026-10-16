@@ -139,7 +139,8 @@
         "templates": { "type": "boolean", "default": false },
         "commit_tracking": { "type": "boolean", "default": false },
         "shipments": { "type": "boolean", "default": false },
-        "sizing": { "type": "boolean", "default": false, "description": "True when create_task/update_task expose structured size and complexity parameters (see field_mapping.size, field_mapping.complexity)" }
+        "sizing": { "type": "boolean", "default": false, "description": "True when create_task/update_task expose structured size and complexity parameters (see field_mapping.size, field_mapping.complexity)" },
+        "scheduler_baseline_claim": { "type": "boolean", "default": false, "description": "True when the backend stamps custom_fields.scheduler_baseline_claim on claim-activated shipment members (producer contract scheduler-baseline-marker/v1) and the workspace opts in to P-002.8 consumption" }
       }
     }
   },
