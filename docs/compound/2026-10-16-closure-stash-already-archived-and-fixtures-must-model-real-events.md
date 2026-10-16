@@ -5,6 +5,8 @@ problem_type: workflow
 category: closure
 root_cause: assumption-drift
 tags: [closure, stash, cascade-close, fixtures, claim-marker, 212-S, 205-F]
+source: docs/compound/2026-10-16-closure-stash-already-archived-and-fixtures-must-model-real-events.md
+doc_type: learning
 ---
 
 # Closure: harvest already archives the source stash entry, and fixtures must model real backlogit events
