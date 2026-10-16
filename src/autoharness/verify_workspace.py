@@ -19,6 +19,7 @@ import yaml
 from jsonschema import Draft7Validator
 
 from autoharness import frontmatter_contract as fc
+from autoharness import model_routing as _mr
 from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
@@ -2297,51 +2298,19 @@ _D8B_LANGUAGE_PERFORMANCE_CHECKS = (
 def _model_routing_tier_dict(model_routing: dict[str, Any], tier_key: str) -> dict[str, Any]:
     """Normalise a `model_routing.<tier_key>` entry to a mapping regardless of
     whether the live config declares it in scalar (legacy string) or object
-    form (SKILL.md rows 414-425, amendment B6). A plain string tier value is
-    treated as both `model` and `model_family`; all other tier sub-fields are
-    absent (they derive to the empty string per SKILL.md's "all other tier
-    sub-fields default to empty")."""
-    tier = model_routing.get(tier_key)
-    if isinstance(tier, str) and tier.strip():
-        return {"model": tier, "model_family": tier}
-    if isinstance(tier, dict):
-        return tier
-    return {}
+    form (SKILL.md rows 414-425, amendment B6). Delegates to the resolver."""
+    return _mr.tier_dict(model_routing, tier_key)
 
 
-# Each tier's OWN literal SKILL.md-documented default model_family (rows
-# 419/422/425), used only when the tier route is absent/empty entirely --
-# mirrors `_derive_tier_route_variables`'s `own_default` composition so a
-# STAGE_*/SHIP_*/ESCALATION_* fallback to an unset tier3/tier2 resolves
-# IDENTICALLY to that tier's own `{{TIER_*_FAMILY}}` variable, rather than
-# silently falling through to the empty string (P0/P1 review finding on this
-# feature's own PR: STAGE_FAMILY/SHIP_FAMILY/ESCALATION_FAMILY previously
-# resolved to "" instead of the documented claude-opus-5/claude-sonnet-5 when
-# the referenced tier was entirely unset in config).
-_TIER_OWN_FAMILY_DEFAULT = {
-    "tier1": "gpt-5.4-mini",
-    "tier2": "claude-sonnet-5",
-    "tier3": "claude-opus-5",
-}
+# Each tier's own documented default model_family (SKILL.md rows 419/422/425),
+# shared with the resolver so the two can never diverge.
+_TIER_OWN_FAMILY_DEFAULT = _mr.TIER_OWN_FAMILY_DEFAULT
 
 
 def _tier_fallback_dict(model_routing: dict[str, Any], tier_key: str) -> dict[str, Any]:
-    """Return a `model_routing.<tier_key>` route dict suitable as the
-    `tier_fallback` argument to `_resolve_role_route_field`, with
-    `model_family` defaulting to that tier's OWN documented literal default
-    (see `_TIER_OWN_FAMILY_DEFAULT`) whenever the tier route does not itself
-    declare a non-empty `model_family` (including when the tier is absent
-    entirely). This keeps every STAGE_*/SHIP_*/ESCALATION_* fallback chain
-    consistent with `_derive_tier_route_variables`'s own `TIER_*_FAMILY`
-    resolution -- a role/escalation route falling back to an unset tier3
-    must resolve the SAME family value `{{TIER_3_FAMILY}}` itself would."""
-    tier_dict = dict(_model_routing_tier_dict(model_routing, tier_key))
-    family = tier_dict.get("model_family")
-    if not (isinstance(family, str) and family.strip()):
-        own_default = _TIER_OWN_FAMILY_DEFAULT.get(tier_key)
-        if own_default:
-            tier_dict["model_family"] = tier_dict.get("model") or own_default
-    return tier_dict
+    """Tier route dict whose `model_family` defaults to the tier's own documented
+    literal default. Delegates to the resolver."""
+    return _mr.tier_fallback_dict(model_routing, tier_key)
 
 
 def _derive_tier_route_variables(model_routing: dict[str, Any]) -> dict[str, str]:
@@ -2376,25 +2345,13 @@ def _derive_orchestrator_route_variables(model_routing: dict[str, Any]) -> dict[
     `orchestrator` populates ONLY `model_family`; provider/effort/context_tier
     ALWAYS fall back to tier2 (provider/effort never to empty; context_tier
     ends at `"default"`), while `ORCHESTRATOR_FAMILY` keeps its OWN
-    `gpt-5.4` default and does NOT fall back to tier2."""
-    orchestrator = model_routing.get("orchestrator")
-    if isinstance(orchestrator, str) and orchestrator.strip():
-        route: dict[str, Any] = {"model_family": orchestrator}
-    elif isinstance(orchestrator, dict):
-        route = orchestrator
-    else:
-        route = {}
-    tier2_fallback = model_routing.get("tier2")
-    family = route.get("model_family")
-    if not (isinstance(family, str) and family.strip()):
-        family = "gpt-5.4"
-    provider = _resolve_role_route_field(route, tier2_fallback, "model_provider") or ""
-    effort = _resolve_role_route_field(route, tier2_fallback, "reasoning_effort") or ""
+    `gpt-5.4` default and does NOT fall back to tier2. Delegates to the resolver."""
+    resolved = _mr.resolve_site({"model_routing": model_routing}, "orchestrator")
     return {
-        "ORCHESTRATOR_FAMILY": str(family),
-        "ORCHESTRATOR_PROVIDER": str(provider),
-        "ORCHESTRATOR_REASONING_EFFORT": str(effort),
-        "ORCHESTRATOR_CONTEXT_TIER": _resolve_context_tier(route, tier2_fallback),
+        "ORCHESTRATOR_FAMILY": str(resolved.model_family),
+        "ORCHESTRATOR_PROVIDER": str(resolved.model_provider),
+        "ORCHESTRATOR_REASONING_EFFORT": str(resolved.reasoning_effort),
+        "ORCHESTRATOR_CONTEXT_TIER": resolved.context_tier,
     }
 
 
@@ -2402,23 +2359,17 @@ def _derive_role_route_variables(model_routing: dict[str, Any]) -> dict[str, str
     """Derive STAGE_*/SHIP_* (SKILL.md rows 429-434): RESOLVED-FROM-SOURCE with
     the P-013.5 per-sub-field tier fallback applied (stage -> tier3, ship ->
     tier2), plus STAGE_/SHIP_CONTEXT_TIER (194-F, C2; ends at `"default"`).
-    Reuses `_resolve_role_route_field`/`ROLE_ROUTE_TIER_FALLBACK`
-    (defined later in this module) so this can never diverge from the
-    installed-output verification check."""
+    Delegates to the resolver; an unresolved family keeps the tier's own
+    documented default."""
     variables: dict[str, str] = {}
     for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
-        route = model_routing.get(role) or {}
-        if not isinstance(route, dict):
-            route = {}
-        tier_fallback = _tier_fallback_dict(model_routing, fallback_tier_key)
+        resolved = _mr.resolve_site({"model_routing": model_routing}, role)
         prefix = role.upper()
-        family = _resolve_role_route_field(route, tier_fallback, "model_family") or ""
-        provider = _resolve_role_route_field(route, tier_fallback, "model_provider") or ""
-        effort = _resolve_role_route_field(route, tier_fallback, "reasoning_effort") or ""
+        family = resolved.model_family or _TIER_OWN_FAMILY_DEFAULT.get(fallback_tier_key, "")
         variables[f"{prefix}_FAMILY"] = str(family)
-        variables[f"{prefix}_PROVIDER"] = str(provider)
-        variables[f"{prefix}_REASONING_EFFORT"] = str(effort)
-        variables[f"{prefix}_CONTEXT_TIER"] = _resolve_context_tier(route, tier_fallback)
+        variables[f"{prefix}_PROVIDER"] = str(resolved.model_provider)
+        variables[f"{prefix}_REASONING_EFFORT"] = str(resolved.reasoning_effort)
+        variables[f"{prefix}_CONTEXT_TIER"] = resolved.context_tier
     return variables
 
 
@@ -2483,50 +2434,17 @@ def _effective_escalation_route_for_role(
     that function's docstring for the full F02FD596/H2/H3/H4 contract this
     mirrors. 142.007-T (artifact/role-aware composition) is the only caller
     that invokes this with a concrete role; the base/global derivation stays
-    role-neutral (see `_derive_escalation_prose_variables` below)."""
-    role_block = model_routing.get(role) or {}
-    if not isinstance(role_block, dict):
-        role_block = {}
-    nested = role_block.get("escalation") or {}
-    if not isinstance(nested, dict):
-        nested = {}
-    flat = model_routing.get("escalation") or {}
-    if not isinstance(flat, dict):
-        flat = {}
-    tier3_fallback = _tier_fallback_dict(model_routing, "tier3")
-
-    source_route = nested if _escalation_route_has_any_field(nested) else flat
-    family = _resolve_role_route_field(source_route, tier3_fallback, "model_family") or ""
-    provider = _resolve_role_route_field(source_route, tier3_fallback, "model_provider") or ""
-    effort = _resolve_role_route_field(source_route, tier3_fallback, "reasoning_effort") or ""
-    return str(family), str(provider), str(effort)
+    role-neutral (see `_derive_escalation_prose_variables` below). Delegates to
+    the resolver."""
+    return _mr.effective_escalation_route(model_routing, role)
 
 
 def _effective_escalation_context_tier_for_role(model_routing: dict[str, Any], role: str) -> str:
     """Resolve the EFFECTIVE escalation `context_tier` for one role (194-F,
-    C2b, H-C2): `<role>.escalation.context_tier` -> the flat
-    `escalation.context_tier` ONLY when the flat route is the selected source
-    -> `tier3.context_tier` -> `"default"`. Source selection reuses the
-    unchanged three-field `_escalation_route_has_any_field` predicate, so a
-    nested block declaring only `context_tier` never selects the nested
-    source (INV-C4); when the nested route IS selected, the flat route is
-    never read (D-C2). Shared by `_compose_artifact_variables` and
-    `_add_escalation_route_resolution_check` so the render and the check
-    cannot diverge (PY-F1)."""
-    role_block = model_routing.get(role) or {}
-    if not isinstance(role_block, dict):
-        role_block = {}
-    nested = role_block.get("escalation") or {}
-    if not isinstance(nested, dict):
-        nested = {}
-    nested_value = nested.get("context_tier")
-    if isinstance(nested_value, str) and nested_value.strip():
-        return nested_value
-    flat = model_routing.get("escalation") or {}
-    if not isinstance(flat, dict):
-        flat = {}
-    source_route = {} if _escalation_route_has_any_field(nested) else flat
-    return _resolve_context_tier(source_route, _tier_fallback_dict(model_routing, "tier3"))
+    C2b, H-C2). Delegates to the resolver, shared by
+    `_compose_artifact_variables` and `_add_escalation_route_resolution_check`
+    so the render and the check cannot diverge (PY-F1)."""
+    return _mr.effective_escalation_context_tier(model_routing, role)
 
 
 def _derive_escalation_prose_variables(model_routing: dict[str, Any]) -> dict[str, str]:
@@ -4288,35 +4206,16 @@ def _resolve_role_route_field(
     `model` and `model_family`) or an object with model/model_family/
     model_provider/reasoning_effort/context_tier. The resolution is
     field-generic; `_resolve_context_tier` adds the `"default"` terminal
-    value for `context_tier`."""
-    value = route.get(field) if isinstance(route, dict) else None
-    if isinstance(value, str) and value.strip():
-        return value
-
-    if isinstance(tier_fallback, str) and tier_fallback.strip():
-        tier_dict: dict[str, Any] = {"model": tier_fallback, "model_family": tier_fallback}
-    elif isinstance(tier_fallback, dict):
-        tier_dict = tier_fallback
-    else:
-        tier_dict = {}
-
-    fallback_value = tier_dict.get(field)
-    if field == "model_family" and not (isinstance(fallback_value, str) and fallback_value.strip()):
-        # Legacy tier objects/strings may only declare `model`; treat it as
-        # the model_family fallback when model_family itself is unset.
-        fallback_value = tier_dict.get("model")
-    return fallback_value
+    value for `context_tier`. Delegates to the resolver."""
+    return _mr.resolve_route_field(route, tier_fallback, field)
 
 
 def _resolve_context_tier(route: Any, tier_fallback: Any) -> str:
     """Resolve a route's `context_tier` (194-F, C2): the route's own value,
     then the fallback tier's value, then `"default"`. An empty string means
     unset/inherit. A legacy plain-string tier carries no `context_tier`, so it
-    gives `"default"`. The result is never empty."""
-    value = _resolve_role_route_field(route, tier_fallback, "context_tier")
-    if isinstance(value, str) and value.strip():
-        return value
-    return "default"
+    gives `"default"`. The result is never empty. Delegates to the resolver."""
+    return _mr.resolve_context_tier(route, tier_fallback)
 
 
 # Role -> fallback tier mapping for P-013.5 role-route resolution. Stage is a
@@ -4340,15 +4239,9 @@ def _add_role_route_resolution_check(
     model_routing.ship route or via per-field fallback to model_routing.tier3
     / model_routing.tier2 respectively. Fails closed: an unresolvable role
     route is a verification failure, not a silent pass."""
-    model_routing = config.get("model_routing") or {}
     errors: list[str] = []
     for role, fallback_tier_key in ROLE_ROUTE_TIER_FALLBACK.items():
-        route = model_routing.get(role) or {}
-        if not isinstance(route, dict):
-            route = {}
-        tier_fallback = model_routing.get(fallback_tier_key)
-        resolved_family = _resolve_role_route_field(route, tier_fallback, "model_family")
-        if not (isinstance(resolved_family, str) and resolved_family.strip()):
+        if "ROUTING_UNRESOLVED: model_family" in _mr.resolve_site(config, role).errors:
             errors.append(
                 f"{role} role route does not resolve: no model_family from "
                 f"model_routing.{role} or fallback model_routing.{fallback_tier_key}"
@@ -4364,13 +4257,9 @@ def _escalation_route_has_any_field(route: Any) -> bool:
     """True when a route dict declares at least one non-empty
     model_family/model_provider/reasoning_effort field. Used to distinguish
     "key present but empty" from "key genuinely declares an override" for the
-    F02FD596 both-present ambiguity check and nested-vs-legacy precedence."""
-    if not isinstance(route, dict):
-        return False
-    return any(
-        isinstance(route.get(field), str) and route.get(field).strip()
-        for field in ("model_family", "model_provider", "reasoning_effort")
-    )
+    F02FD596 both-present ambiguity check and nested-vs-legacy precedence.
+    Delegates to the resolver."""
+    return _mr.escalation_route_has_any_field(route)
 
 
 def _add_escalation_route_resolution_check(
@@ -4444,40 +4333,20 @@ def _add_escalation_route_resolution_check(
     flat_escalation = model_routing.get("escalation") or {}
     if not isinstance(flat_escalation, dict):
         flat_escalation = {}
-    flat_present = _escalation_route_has_any_field(flat_escalation)
     tier3_fallback = model_routing.get("tier3")
 
     # H2: both-present ambiguity is checked FIRST, before any per-role
     # resolution is attempted -- fail closed, never auto-pick a winner.
-    nested_by_role: dict[str, dict[str, Any]] = {}
-    nested_present_any = False
-    for role in ROLE_ROUTE_TIER_FALLBACK:
-        role_block = model_routing.get(role) or {}
-        if not isinstance(role_block, dict):
-            role_block = {}
-        nested = role_block.get("escalation") or {}
-        if not isinstance(nested, dict):
-            nested = {}
-        nested_by_role[role] = nested
-        if _escalation_route_has_any_field(nested):
-            nested_present_any = True
-
-    if flat_present and nested_present_any:
+    ambiguity = _mr.resolve_site(config, "stage", kind="escalation").errors
+    if ambiguity and ambiguity[0].startswith("AMBIGUOUS_ESCALATION_CONFIG"):
         report["targeted_checks"][key] = {
             "ok": False,
-            "errors": [
-                "AMBIGUOUS_ESCALATION_CONFIG: both the legacy flat "
-                "model_routing.escalation and at least one nested "
-                "<role>.escalation are declared -- fail closed, never "
-                "auto-pick a winner (F02FD596/H2). Remove the legacy flat "
-                "model_routing.escalation once migrated to nested per-role "
-                "escalation, or remove the nested override(s) to keep the "
-                "legacy shared route."
-            ],
+            "errors": [ambiguity[0]],
             "ambiguous": True,
             "same_route_roles": [],
         }
         return
+    nested_present_any = _mr.nested_escalation_declared(model_routing)
 
     # Legacy/flat resolution snapshot -- unchanged computation from the
     # pre-nesting implementation (H1 regression guarantee: identical to
@@ -4513,24 +4382,19 @@ def _add_escalation_route_resolution_check(
         if role not in model_routing and not role_installed.get(role, False):
             continue
 
-        nested = nested_by_role[role]
-        if _escalation_route_has_any_field(nested):
-            # H4: an explicit nested override falls back per-field to tier3
-            # ONLY -- never to the legacy flat route.
-            source = "nested"
-        else:
-            source = "legacy_flat" if flat_present else "tier3_fallback"
-            if flat_present:
-                deprecated_flat_in_use = True
-
-        # Shared with `_derive_template_variables`'s {{ESCALATION_*}} family
-        # (via `_compose_artifact_variables`) so the two can never diverge --
-        # see `_effective_escalation_route_for_role`'s docstring above.
-        effective_family, effective_provider, effective_effort = _effective_escalation_route_for_role(
-            model_routing, role
+        escalation = _mr.resolve_site(
+            config,
+            role,
+            kind="escalation",
+            installed_roles=frozenset(name for name, installed in role_installed.items() if installed),
         )
+        if escalation.source == "legacy_flat":
+            deprecated_flat_in_use = True
+        effective_family = escalation.model_family
+        effective_provider = escalation.model_provider
+        effective_effort = escalation.reasoning_effort
 
-        if not (isinstance(effective_family, str) and effective_family.strip()):
+        if "ROUTING_UNRESOLVED: model_family" in escalation.errors:
             errors.append(
                 f"{role} escalation route does not resolve: no model_family "
                 f"from model_routing.{role}.escalation, legacy "
@@ -4545,37 +4409,18 @@ def _add_escalation_route_resolution_check(
         role_provider = _resolve_role_route_field(role_route, role_tier_fallback, "model_provider")
         role_effort = _resolve_role_route_field(role_route, role_tier_fallback, "reasoning_effort")
 
-        # ESCALATION_DEGRADED is same-route-tuple equality: (model_family,
-        # model_provider, reasoning_effort) all matching the role's own
-        # already-resolved route, not model_family alone -- two routes
-        # sharing a family but explicitly differing in provider or effort are
-        # a genuine escalation, not a same-route no-op (Copilot review, PR
-        # #316). A field left unspecified on either side (neither the role's
-        # own route/tier nor the escalation target declares it) carries no
-        # signal either way and must not manufacture a false mismatch --
-        # only an explicit, resolved value on BOTH sides can disagree.
-        # 194-F/C2b (D-C3): context_tier is deliberately NOT part of this
-        # tuple -- a same family/provider/effort escalation that differs only
-        # in context_tier is still a same-route no-op.
-        provider_conflicts = bool(role_provider) and bool(effective_provider) and role_provider != effective_provider
-        effort_conflicts = bool(role_effort) and bool(effective_effort) and role_effort != effective_effort
-        is_same_route = (
-            isinstance(role_family, str)
-            and role_family.strip()
-            and isinstance(effective_family, str)
-            and role_family == effective_family
-            and not provider_conflicts
-            and not effort_conflicts
-        )
+        # ESCALATION_DEGRADED (same-route-tuple equality, role-scoped; the
+        # context_tier is excluded, 194-F/C2b D-C3) is decided by the resolver.
+        is_same_route = bool(escalation.degraded)
         if is_same_route:
             same_route_roles.append(role)
 
         per_role[role] = {
-            "source": source,
+            "source": escalation.source,
             "resolved_family": effective_family,
             "resolved_provider": effective_provider,
             "resolved_reasoning_effort": effective_effort,
-            "resolved_context_tier": _effective_escalation_context_tier_for_role(model_routing, role),
+            "resolved_context_tier": escalation.context_tier,
             "role_route_family": role_family,
             "role_route_provider": role_provider,
             "role_route_reasoning_effort": role_effort,

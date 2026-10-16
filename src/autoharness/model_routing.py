@@ -118,12 +118,15 @@ def _escalation_blocks(model_routing: Mapping[str, Any]) -> tuple[Mapping[str, A
     return flat, nested
 
 
+def nested_escalation_declared(model_routing: Mapping[str, Any]) -> bool:
+    """Any nested `<role>.escalation` declares a family, provider, or effort."""
+    return any(escalation_route_has_any_field(block) for block in _escalation_blocks(model_routing)[1].values())
+
+
 def is_escalation_ambiguous(model_routing: Mapping[str, Any]) -> bool:
     """Legacy flat and any nested `<role>.escalation` both declare a field."""
-    flat, nested = _escalation_blocks(model_routing)
-    return escalation_route_has_any_field(flat) and any(
-        escalation_route_has_any_field(block) for block in nested.values()
-    )
+    flat = _escalation_blocks(model_routing)[0]
+    return escalation_route_has_any_field(flat) and nested_escalation_declared(model_routing)
 
 
 def effective_escalation_route(model_routing: Mapping[str, Any], role: str) -> tuple[str, str, str]:
@@ -272,8 +275,13 @@ def _resolve_escalation(
         return _error_route(
             role,
             "escalation",
-            "AMBIGUOUS_ESCALATION_CONFIG: both the legacy flat model_routing.escalation and at "
-            "least one nested <role>.escalation are declared",
+            "AMBIGUOUS_ESCALATION_CONFIG: both the legacy flat "
+            "model_routing.escalation and at least one nested "
+            "<role>.escalation are declared -- fail closed, never "
+            "auto-pick a winner (F02FD596/H2). Remove the legacy flat "
+            "model_routing.escalation once migrated to nested per-role "
+            "escalation, or remove the nested override(s) to keep the "
+            "legacy shared route.",
         )
     flat, nested = _escalation_blocks(model_routing)
     block = nested[role]
