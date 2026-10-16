@@ -20,6 +20,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from _closure_legacy_names import legacy_closure_filename
 from test_cascade_evidence_contract import (
@@ -174,6 +175,11 @@ class _ClosureWorkspaceMixin:
         self.closure_dir = self.root / "docs" / "closure"
         self.closure_dir.mkdir(parents=True)
         self.outside.mkdir()
+        # Window-ordering rules 2-3 have their own tests (test_cascade_evidence_temporal_ordering.py,
+        # test_cli_gate_closure_evidence_window.py); these fixtures carry no engine logs or real merge commit.
+        patcher = mock.patch("autoharness.cli._engine_window_problems", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:  # noqa: D401 - unittest hook
         self._tmp.cleanup()

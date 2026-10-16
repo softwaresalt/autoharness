@@ -63,6 +63,7 @@ precondition holds, delegates to the Cascade Close Sub-Procedure instead.
 | `shipment_id` | yes for `pre`/`post`/`safe-close`; optional for `detect-mixed-role` | e.g. `004-S` | The shipment to reconcile; for `detect-mixed-role`, omit to scan ALL shipments via `backlogit_list_shipments` |
 | `expected_status` | pre-mode only | `queued` \| `active` \| `done` | `queued` for fresh intake; `active` when shipment already claimed in a prior session; `done` for pre-ship check (the pre-close invocation: enables Pre-Mode step 2b and the Member-Class Status Contract's `qualifying-feature` row) |
 | `merge_commit_sha` | post-mode and safe-close | git SHA | The merge commit that closed the PR; recorded on archived items for traceability |
+| `pre_report_path` | `safe-close` only; optional | path | The Pre-Mode report path the pre-close Pre-Mode run returned within this lock hold. REQUIRED when such a run returned a report within this lock hold; Step 0(d) reads exactly this path. Absent = no pre-close Pre-Mode run in this lock hold (agreement check not-applicable) |
 
 ## Output
 
@@ -754,26 +755,28 @@ completion.
       | `SAFE_CLOSE` | `VERIFIED` | `SAFE_CLOSE`, the classifier's reason |
       | `SAFE_CLOSE` | `UNVERIFIED` | `SAFE_CLOSE`, the classifier's reason |
 
-      **Pre-Mode step 2b agreement check.** The `--classify-only` run below is
+      **Step 0(d).** **Pre-Mode step 2b agreement check.** The `--classify-only` run below is
       followed, before acting on any row of its exit-code routing table, by
       this check: compare the evidence record's `pre_close.classifier_verdict`
       and `pre_close.qualifying_feature_ids` with the `classifier_verdict` and
       `qualifying_feature_ids` in this closure's Pre-Mode report (Pre-Mode step
       6): exactly the report whose path the pre-close Pre-Mode run returned
-      within this same lock hold, never one selected by file name or
-      timestamp (intake reports share the name shape). The verdicts must be
+      within this same lock hold and the caller passes as `pre_report_path`,
+      never one selected by file name or timestamp (intake reports share the
+      name shape). The comparison reads exactly that path. The verdicts must be
       equal and the ID lists equal as sets; a report that cannot be read
-      counts as a difference. Any difference halts with
+      counts as a difference, so `pre_report_path` present but unreadable is a
+      difference. Any difference halts with
       `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT`: nothing has been mutated, the
       Pre-Mode member-class decisions no longer rest on the verdict this step
       would act on, and neither path is substituted. When that report's step
-      2b verdict is `not-evaluated` (an intake `expected_status`), or no
-      pre-close Pre-Mode run returned a report within this lock hold (a
-      standalone safe-close), the `qualifying-feature` row was never applied
-      and there is nothing to protect: the outcome is
+      2b verdict is `not-evaluated` (an intake `expected_status`), or
+      `pre_report_path` absent (no pre-close Pre-Mode run returned a report
+      within this lock hold, a standalone safe-close), the `qualifying-feature`
+      row was never applied and there is nothing to protect: the outcome is
       `agreement-check: not-applicable` and routing proceeds. Ship records the
       outcome (`agreed` or `not-applicable`) in the body of the post-merge
-      closure artifact (Ship Step 5); a standalone or ad-hoc run is always
+      closure artifact (Ship's post-merge closure); a standalone or ad-hoc run is always
       `not-applicable` and needs no record. This step stays authoritative;
       step 2b is advisory for gating only.
 
@@ -796,7 +799,10 @@ completion.
       `pre_close.observation_set` on a selected `SAFE_CLOSE`, and
       `pre_close.out_of_manifest_descendants` on either path. The prose in
       (a)–(c) above stays the specification the command implements; Ship
-      never re-derives these values by hand.
+      never re-derives these values by hand. This `pre_close` record is the
+      Step 0(c) pre-mutation evidence record, and `autoharness gate
+      closure-evidence` rejects the closure when the record is not provably
+      pre-mutation (its ordering checks are named in that gate's help).
 
       Plain `--classify-only` needs no operator approval: it is no-clobber
       (an existing `pre_close` record exits 2 and is left untouched) and only
@@ -1897,7 +1903,11 @@ If pre-mode cannot acquire the lock because another process holds it:
 * **Negative — baseline-archived observation member**: an observation-set artifact already archived, descoped, or missing at baseline is recorded as baseline state and does **NOT** halt by itself.
 * **Negative — changed during run**: any observation-set location/hash drift relative to baseline halts and enters the D6 sequence: capture evidence -> HALT -> emit P-005 -> request EXPLICIT operator approval -> REVALIDATE -> execute ONLY the approved rollback.
 * **Negative — refused transition with no safe substitution**: if `backlogit move <shipment_id> --status shipped` is refused while Step 0(c) did not select `CASCADE`, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; the cascade op must NOT be substituted.
-* **Negative — step 2b / Step 0(c) classifier disagreement**: the `--classify-only` record's `classifier_verdict` or `qualifying_feature_ids` differs from Pre-Mode step 2b's recorded values; halt with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` before acting on any routing row. Nothing is mutated and no path is substituted.
+* **Negative — step 2b / Step 0(d) classifier disagreement**: the `--classify-only` record's `classifier_verdict` or `qualifying_feature_ids` differs from Pre-Mode step 2b's recorded values; halt with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` before acting on any routing row. Nothing is mutated and no path is substituted.
+* **Negative — closure evidence not provably pre-mutation**: the `--classify-only` record was captured after the invocation started (`pre_close.captured_at` is not before `invocation.started_at`), or the engine logs show an `archived` event, or a status change to `archived` or `shipped`, for the shipment or a manifest member between the merge commit and `pre_close.captured_at` (the 159-S post-hoc shape); `autoharness gate closure-evidence` rejects the closure (`failed_check close_evidence`) and no closure artifact is accepted.
+* **`pre_report_path` absent**: no pre-close Pre-Mode run returned a report within this lock hold (a standalone safe-close), so Step 0(d) records `agreement-check: not-applicable` and routing proceeds.
+* **`pre_report_path` present and agreeing**: the report's `classifier_verdict` and `qualifying_feature_ids` equal the evidence record's; Step 0(d) records `agreed` and routing proceeds.
+* **`pre_report_path` present and differing**: the verdict or ID set differs, or the report cannot be read; halt with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` before acting on any routing row.
 * **Negative — non-canonical archived variant**: `Archived`, `ARCHIVED`, or the quoted padded YAML scalar `status: " archived "` all select `SAFE_CLOSE`; exact parsed-scalar matching has no normalization path.
 * **Negative — torn descendant**: any out-of-manifest id that resolves to more than one record selects `SAFE_CLOSE`.
 * **Negative — archive-while-active**: if the shipment record is archived while still `status: active`, producing `archived_status: active`, halt with `RECONCILE_FAIL_SHIPMENT_RECORD_PROVENANCE`.
@@ -1926,6 +1936,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * Safe-close archives the shipment record as its own single artifact and never via the cascade op
 * Safe-close detects off-scope drift, then follows the D6 approval-gated rollback sequence; it never auto-prunes the manifest
 * If `backlogit move <shipment_id> --status shipped` is refused and Step 0(c) did not select `CASCADE`, safe-close halts with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; no substitution, no retry, no hand-edit
+* The closure-evidence gate rejects a close whose evidence record is not provably pre-mutation (in-record timestamp ordering and the engine-log window between the merge commit and `pre_close.captured_at`); safe-close takes its Step 0(d) agreement-check input only from `pre_report_path`, and an absent `pre_report_path` is the sole not-applicable case besides an intake `not-evaluated` verdict
 * `mode: post` runs after the safe-close archive sequence in Ship Step 6
 * After the selected close path returns `recommendation: CLOSED` (safe-close step 10, or Cascade Close Sub-Procedure step 7), the Linked-Deliberation Disposition step runs before post-mode; post-mode runs only after that step returns `recommendation: DISPOSITION_COMPLETE`, never directly after a close-path `CLOSED`
 * "Manifest-scoped mutation only" and safe-close step 1 bound only safe-close steps 1–10; the INV-12 Linked-Deliberation Disposition step is separately sanctioned and archives a validated linked deliberation only through a single-artifact, non-cascading archive, one ID at a time

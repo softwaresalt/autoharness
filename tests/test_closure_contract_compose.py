@@ -21,6 +21,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 from _closure_legacy_names import legacy_closure_filename
 from test_cli_gate_closure_evidence import (
@@ -81,6 +82,11 @@ class ComposedClosureStateMachineTests(unittest.TestCase):
         self.closure_dir = self.workspace / DEFAULT_CLOSURE_DIR
         self.closure_dir.mkdir(parents=True)
         self.reader = FilesystemTopologyReaders(self.workspace)
+        # Engine-log window rules are covered by test_cascade_evidence_temporal_ordering.py and
+        # test_cli_gate_closure_evidence_window.py; this fixture has no engine logs or real merge commit.
+        patcher = mock.patch("autoharness.cli._engine_window_problems", return_value=[])
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:  # noqa: D401 - unittest hook
         self._tmp.cleanup()

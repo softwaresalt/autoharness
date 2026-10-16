@@ -32,7 +32,7 @@ from __future__ import annotations
 import datetime
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
@@ -1162,6 +1162,224 @@ def _check_pre_close(checker: _Checker, pre_close: Mapping[str, object], close_p
         checker.fail(f"{where}.observation_set", "is recorded only on a selected SAFE_CLOSE")
 
 
+_RFC3339_PATTERN: Final = re.compile(
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|[+-][0-9]{2}:[0-9]{2})",
+    re.ASCII,
+)
+
+
+def parse_rfc3339_instant(value: object) -> datetime.datetime | None:
+    """Parse an RFC 3339 timestamp to a UTC instant; None when it is not one (an offset is required)."""
+
+    if not isinstance(value, str):
+        return None
+    match = _RFC3339_PATTERN.fullmatch(value)
+    if match is None:
+        return None
+    year, month, day, hour, minute, second, fraction, offset = match.groups()
+    micro = int((fraction or "0")[:6].ljust(6, "0"))
+    try:
+        if offset in ("Z", "z"):
+            tz = datetime.timezone.utc
+        else:
+            offset_hours, offset_minutes = int(offset[1:3]), int(offset[4:6])
+            if offset_hours > 23 or offset_minutes > 59:
+                return None
+            delta = datetime.timedelta(hours=offset_hours, minutes=offset_minutes)
+            tz = datetime.timezone(-delta if offset[0] == "-" else delta)
+        instant = datetime.datetime(
+            int(year), int(month), int(day), int(hour), int(minute), int(second), micro, tzinfo=tz
+        )
+        return instant.astimezone(datetime.timezone.utc)
+    except (ValueError, OverflowError):
+        return None
+
+
+def _check_in_record_ordering(
+    checker: _Checker, pre_close: Mapping[str, object] | None, invocation: Mapping[str, object]
+) -> None:
+    """Ordering rule 1: ``captured_at`` < ``started_at`` <= ``finished_at``, as UTC instants."""
+
+    stamps: dict[str, datetime.datetime | None] = {}
+    for where, source, key in (
+        ("record.pre_close.captured_at", pre_close, "captured_at"),
+        ("record.invocation.started_at", invocation, "started_at"),
+        ("record.invocation.finished_at", invocation, "finished_at"),
+    ):
+        raw = source.get(key) if source is not None else None
+        if not _is_nonempty_str(raw):
+            stamps[key] = None  # the shape check already reported it
+            continue
+        stamps[key] = parse_rfc3339_instant(raw)
+        if stamps[key] is None:
+            checker.fail(where, f"must be an RFC 3339 timestamp with a UTC offset (got {raw!r})")
+    captured, started, finished = stamps["captured_at"], stamps["started_at"], stamps["finished_at"]
+    if captured is not None and started is not None and _order_key(captured, pre_close, "captured_at") >= _order_key(
+        started, invocation, "started_at"
+    ):
+        checker.fail("record.pre_close.captured_at", "must precede invocation.started_at")
+    if started is not None and finished is not None and _order_key(finished, invocation, "finished_at") < _order_key(
+        started, invocation, "started_at"
+    ):
+        checker.fail("record.invocation.finished_at", "must not precede started_at")
+
+
+def _order_key(instant: datetime.datetime, source: Mapping[str, object] | None, key: str) -> tuple[datetime.datetime, str]:
+    """Instant plus the fractional digits beyond microseconds, normalized for exact ordering.
+
+    With trailing zeros stripped, lexicographic comparison of the digit strings
+    equals numeric comparison of the fractions at any length (and avoids the
+    integer-conversion digit limit on hostile input).
+    """
+
+    raw = source.get(key) if source is not None else None
+    match = _RFC3339_PATTERN.fullmatch(raw.strip()) if isinstance(raw, str) else None
+    fraction = match.group(7) if match is not None else None
+    return instant, (fraction[6:] if fraction else "").rstrip("0")
+
+
+_CLOSE_MUTATION_STATUSES: Final = frozenset({"archived", "shipped"})
+_ARCHIVED_AT_CAPTURE: Final = frozenset({"archived"})
+
+
+def _archived_at_capture(entry: Mapping[str, object]) -> bool:
+    # ``location: archive`` alone does not establish archived status (an
+    # archive-resident ``done`` record is not archived); use the declared status.
+    return is_declared_archived(entry.get("declared_status"))
+
+
+def _close_mutation_kind(event: Mapping[str, object]) -> str | None:
+    """Describe the event when it is a close mutation (ordering rule 2); None otherwise.
+
+    Raises ``ValueError`` when a recognized mutation event type has a malformed
+    payload, so the status transition cannot be determined (fail closed).
+    """
+
+    event_type = event.get("event_type")
+    if not isinstance(event_type, str) or not event_type:
+        raise ValueError("event has a missing, empty, or non-string event_type")
+    if event_type == "archived":
+        return "archived"
+    if event_type not in ("status_changed", "artifact_mutation", "shipment_status_changed"):
+        return None
+    delta = event.get("delta")
+    if not isinstance(delta, Mapping):
+        raise ValueError(f"{event_type} event has no delta object")
+    if event_type == "status_changed":
+        new_status = delta.get("to")
+        if not isinstance(new_status, str):
+            raise ValueError("status_changed event has no string delta.to")
+    elif event_type == "artifact_mutation":
+        changes = delta.get("changes")
+        if not isinstance(changes, Mapping):
+            raise ValueError("artifact_mutation event has no delta.changes object")
+        new_status = changes.get("status")
+        if "status" in changes and not isinstance(new_status, str):
+            raise ValueError("artifact_mutation event has a null or non-string delta.changes.status")
+    else:
+        new_status = delta.get("status")
+        if not isinstance(new_status, str):
+            raise ValueError("shipment_status_changed event has no string delta.status")
+    if isinstance(new_status, str) and new_status in _CLOSE_MUTATION_STATUSES:
+        return f"{event_type} to {new_status}"
+    return None
+
+
+def check_engine_window(
+    record: Mapping[str, object],
+    *,
+    merge_time: datetime.datetime | None,
+    read_log: Callable[[str], str | None],
+) -> tuple[list[str], list[str]]:
+    """Ordering rules 2-3: no close mutation in the engine logs inside ``[merge, capture)``.
+
+    ``merge_time`` is the merge commit's committer time (None when it could not
+    be resolved, which fails closed). ``read_log(id)`` returns an engine log's
+    text, None when the log does not exist, and raises ``ValueError`` when it
+    cannot be read safely. Returns ``(errors, warnings)``.
+    """
+
+    where = "record.pre_close.captured_at"
+    pre_close = record.get("pre_close")
+    if not isinstance(pre_close, Mapping):
+        return ["record.pre_close: must be an object"], []
+    captured = parse_rfc3339_instant(pre_close.get("captured_at"))
+    if captured is None:
+        return [f"{where}: must be an RFC 3339 timestamp with a UTC offset"], []
+    # The capture writer records whole seconds, so a whole-second ``captured_at``
+    # stands for any instant in [C, C+1s): ordering inside that second is
+    # ambiguous and is not treated as proven pre-mutation (fail closed).
+    raw_captured = pre_close.get("captured_at")
+    window_end = captured
+    whole_second = _RFC3339_PATTERN.fullmatch(raw_captured.strip()) if isinstance(raw_captured, str) else None
+    try:
+        if whole_second is not None and whole_second.group(7) is None:
+            window_end = captured + datetime.timedelta(seconds=1)
+        elif whole_second is not None and len(whole_second.group(7)) > 6:
+            # Digits beyond microseconds are discarded by the parser: widen by one
+            # microsecond so an event inside the truncated remainder is not accepted.
+            window_end = captured + datetime.timedelta(microseconds=1)
+    except OverflowError:
+        return [f"{where}: the timestamp is too close to the maximum supported date to bound its precision window"], []
+    if merge_time is None:
+        return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
+
+    targets: list[tuple[str, bool]] = []
+    shipment_record = pre_close.get("shipment_record")
+    shipment_archived = isinstance(shipment_record, Mapping) and _archived_at_capture(shipment_record)
+    shipment_id = record.get("shipment_id")
+    if isinstance(shipment_id, str):
+        targets.append((shipment_id, shipment_archived))
+    members = pre_close.get("manifest_members")
+    for member in members if type(members) is list else []:
+        if isinstance(member, Mapping) and isinstance(member.get("id"), str):
+            targets.append((member["id"], _archived_at_capture(member)))
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    for item_id, archived_at_capture in targets:
+        try:
+            text = read_log(item_id)
+        except ValueError as exc:
+            errors.append(f"engine log for {item_id!r} cannot be read: {exc}")
+            continue
+        if text is None:
+            message = f"engine log for {item_id!r} does not exist"
+            if archived_at_capture:
+                warnings.append(f"{message}; tolerated because it was recorded archived at capture")
+            else:
+                errors.append(f"{message}, and it was not recorded archived at capture")
+            continue
+        for number, line in enumerate(text.split("\n"), start=1):
+            if not line.strip():
+                continue
+            try:
+                event = json.loads(line)
+            except (ValueError, RecursionError):
+                event = None
+            if not isinstance(event, Mapping):
+                errors.append(f"engine log for {item_id!r} has a malformed line {number}")
+                continue
+            try:
+                kind = _close_mutation_kind(event)
+            except ValueError as exc:
+                errors.append(f"engine log for {item_id!r} has a malformed mutation event on line {number}: {exc}")
+                continue
+            if kind is None:
+                continue
+            instant = parse_rfc3339_instant(event.get("timestamp"))
+            if instant is None:
+                errors.append(f"engine log for {item_id!r} has a malformed timestamp on line {number}")
+            elif merge_time <= instant < window_end:
+                errors.append(
+                    f"{item_id!r} had a close mutation ({kind}) at {event.get('timestamp')} after the merge "
+                    f"({merge_time.isoformat()}) and before pre_close.captured_at ({captured.isoformat()}"
+                    + (", limited precision: ordering within the recorded precision is ambiguous" if window_end != captured else "")
+                    + "): the pre-close evidence is not provably pre-mutation"
+                )
+    return errors, warnings
+
+
 def _check_capture(checker: _Checker, capture: Mapping[str, object], where: str) -> None:
     for key in ("total_bytes", "total_lines"):
         checker.field(capture, key, where, lambda v: _is_int(v) and v >= 0, "a non-negative integer")
@@ -1189,6 +1407,7 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
         checker.field(invocation, "argv_redacted", where, _is_str_list, "a list of strings")
         for key in ("started_at", "finished_at"):
             checker.field(invocation, key, where, _is_nonempty_str, "a non-empty string")
+        _check_in_record_ordering(checker, pre_close, invocation)
         exit_code = checker.field(invocation, "exit_code", where, lambda v: v is None or _is_int(v), "an integer or null")
         if exit_code is not _MISSING and exit_code != 0:
             checker.fail(f"{where}.exit_code", f"a passing cascade requires exit code 0 (got {exit_code!r})")

@@ -858,9 +858,11 @@ lifecycle to transition out of. See
         completes in step 1.d.
    b. **Safe-close (thin pointer; `shipment-reconcile` is authoritative)**: Invoke the
       `shipment-reconcile` skill with `mode: safe-close`, `shipment_id`, and the
-      `merge_commit_sha`. Step 0(c) runs inside this call, so pre-mode (step 1.a) has no outcome
+      `merge_commit_sha`, and `pre_report_path` set to the report path that step 1.a's `mode: pre`
+      call returned (omit it only when no pre-close `mode: pre` run returned a report within this
+      lock hold). Step 0(d) runs inside this call, so pre-mode (step 1.a) has no outcome
       to record: only after the `mode: safe-close` call returns `CLOSED`, carry the skill's
-      Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) forward and record it in the
+      Step 0(d) agreement-check outcome (`agreed` / `not-applicable`) forward and record it in the
       body of the closure artifact when step 6.2 writes it. A
       `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` halt yields no outcome to record and stops Ship at
       step 1.b. Keep this agent file at pointer level only — the full,

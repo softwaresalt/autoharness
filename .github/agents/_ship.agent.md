@@ -733,12 +733,13 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    non-shipment-scoped) independently cover the intervening commit/push activity in closure work; this lifecycle
    invocation is the shipment-scoped check immediately preceding the safe-close mutation itself.
 2. **Close the shipment via single-artifact safe-close (thin pointer; `shipment-reconcile` is authoritative, NEVER the cascade `backlogit_ship_shipment`, P-015)**:
-   Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id` and
-   `merge_commit_sha`, after its `mode: pre` gate (`expected_status: done`, the pre-close invocation) returns
+   Invoke `shipment-reconcile` in `mode: safe-close` with the `shipment_id`,
+   `merge_commit_sha`, and `pre_report_path` set to the Pre-Mode report path that the `mode: pre` gate
+   (Pre-Mode step 6) returned within this lock hold, after that gate (`expected_status: done`, the pre-close invocation) returns
    `PROCEED`; that gate judges each manifest member under the skill's Member-Class Status Contract, whose step 2b
    classification lets a qualifying feature member that is still `active` under a `CASCADE` verdict pass instead of
-   halting. Record the skill's Step 0(c) agreement-check outcome (`agreed` / `not-applicable`) in the body of the
-   closure artifact. Keep this agent file at pointer level only — the authoritative,
+   halting. After the `mode: safe-close` call returns `CLOSED`, record the skill's Step 0(d) agreement-check outcome
+   (`agreed` / `not-applicable`) in the body of the closure artifact when the closure artifact is written. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
    not be re-derived here. In this self-hosting repository, `shipment-reconcile` and
    Ship's other referenced skills (`review`, `fix-ci`, `pr-lifecycle`,
