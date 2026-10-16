@@ -80,12 +80,12 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **M1 Capability gate.** The contract applies only in shipment mode, and only when the backlog registry declares `features.scheduler_baseline_claim: true`. When the flag is false or absent, nothing changes and P-002.7 alone governs.
 
-**M2 Reads.** Use the producer read recipe: the active-shipment list, the shipment's `custom_fields.items` read twice, and each member's `status` and `custom_fields.scheduler_baseline_claim`. Read the member's item log `logs/<id>.jsonl` through a configured tool when one exposes the event stream. Otherwise read it raw, only under an explicit, session-recorded, scoped P-012 declaration naming the path. A raw read must resolve inside the detected backlog root (`.backlog/` or legacy `.backlogit/`) and fails closed as `WAVE_CLAIM_STATE_INDETERMINATE` when both roots exist, when the root is unknown, or when the resolved path escapes the root through a symlink or `..`.
+**M2 Reads.** Use the producer read recipe: the active-shipment list, the shipment's `custom_fields.items` read twice, and each member's `status` and `custom_fields.scheduler_baseline_claim`. Read the member's item log `logs/<id>.jsonl` through a configured tool when one exposes the event stream. Otherwise read it raw, only under an explicit, session-recorded, scoped P-012 declaration naming the path. A raw read must resolve inside the detected backlog root (`.backlog/` or legacy `.backlogit/`) and fails closed as `WAVE_CLAIM_STATE_INDETERMINATE` when the root is unknown, when the resolved path escapes the root through a symlink or `..`, when a `BACKLOGIT_WORKSPACE_DIR` override is present but invalid, or when both roots exist and no valid `BACKLOGIT_WORKSPACE_DIR` override selects one. A valid override resolves the root by the same precedence the backlog-root resolver applies, and is not itself an ambiguity.
 
 **M3 Claim-assigned.** A member is claim-assigned if and only if all of these hold: its status is `active`; its marker equals the live shipment `S`; it is listed in `S`'s live `custom_fields.items`; and its current start epoch has no valid start record.
 
-* Start epoch: the log suffix beginning at the latest `status_changed` event with `delta.to: active` and `delta.reason: shipment claimed`, or the whole log when no such event exists.
-* Valid start record: a `comment` event in the epoch whose actor is `ship` and whose first line exactly equals `WORK_STARTED: <S>`. The first line is the comment split at `\n`, with one trailing `\r` stripped.
+* Start epoch: the log suffix beginning at the latest `status_changed` event (`event_type`) with `delta.to: active` and `delta.reason: shipment claimed`, or the whole log when no such event exists.
+* Valid start record: a log event whose `event_type` is `comment`, in the epoch, whose actor is `ship` and whose comment text (`delta.comment`) has a first line exactly equal to `WORK_STARTED: <S>`. The first line is the comment text split at `\n`, with one trailing `\r` stripped.
 
 **M4 Active residual.** Every other `active` member is an active residual (`WAVE_NO_PROGRESS`, detail `active residual`). This includes a missing or non-`S` marker, absence from the live manifest, and a valid start record in the current epoch.
 
@@ -101,7 +101,7 @@ Exception (narrow, H1): the single residual reported as `active residual (operat
 
 Indeterminate outranks residual.
 
-**M6 Admission.** `ready_1 = { t ∈ queued ∪ claim-assigned : every dependency of t is terminal_success }`, where `terminal_success` is `done` or `archived`. A claim-assigned member with unfinished dependencies is reported `claim-assigned waiting`; it is never a residual. When the shipment is admitted, `active_ids` lists only residuals.
+**M6 Admission.** `ready_1 = { t ∈ queued ∪ claim-assigned : every dependency of t is terminal_success }`, where `terminal_success` is `done` or `archived`. A claim-assigned member with unfinished dependencies is reported `claim-assigned waiting`; it is held out of the executable queue, re-evaluated as its dependencies complete, and is never a residual. The single operator-resumed residual admitted under the M4 exception joins the executable queue in addition to `ready_1`. When the shipment is admitted, `active_ids` lists only residuals.
 
 **M7 Relationship to P-002.7.** This contract is the marker-evidenced discriminator at the claim boundary that P-002.7 defines. A claim-cascade-activated member (marker = `S`, in the manifest, no start record) is never a residual, which is consistent with row T1. This contract adds no row to the P-002.7 table.
 

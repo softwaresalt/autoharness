@@ -397,9 +397,10 @@ per M3–M5, indeterminate first:
   session under the Crash-Resumption / Startup Recovery Protocol; (2) the residual's ID equals that checkpoint's
   recorded current task ID; (3) the member's marker equals `S` and it is in the live manifest. Any second residual,
   or a mismatch on any condition, halts `WAVE_NO_PROGRESS`. The carve-out never applies to an indeterminate member.
-* **Claim-assigned (M3)**: the executable set becomes `queued` members plus claim-assigned members, in the existing dependency ordering of the next item; a
-  claim-assigned member with unfinished dependencies is reported `claim-assigned waiting` and is never a residual,
-  and `active_ids` lists only residuals.
+* **Claim-assigned (M3)**: the executable set is the M6 `ready_1` set (`queued` or claim-assigned members whose dependencies are all `terminal_success`) plus the single operator-resumed residual admitted under the M4 exception, in the existing dependency ordering of the next item. A
+  claim-assigned member with unfinished dependencies is reported `claim-assigned waiting`, is held out of the executable
+  set and re-evaluated as dependencies complete, and is never a residual. This selection must stay intact through the
+  derived-set restoration and the ordering that follow. `active_ids` lists only residuals.
 <!-- P-002.8:END ship step 3 claim-marker admission -->
 
 For each task in the derived executable task set:

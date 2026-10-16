@@ -146,6 +146,31 @@ class P0028ShipStep3AdmissionTests(unittest.TestCase):
                     self.assertIn(label, block)
                 self.assertNotIn("per M6", block)
 
+    def test_queue_selection_preserves_resume_and_holds_waiting(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                block = ship_admission(path)
+                self.assertIn("ready_1", block)
+                self.assertIn("operator-resumed residual admitted under the", block)
+                self.assertIn("is held out of the", block)
+                self.assertIn("stay intact through", block)
+
+    def test_raw_log_containment_honors_valid_override(self) -> None:
+        for path in (POLICY_TEMPLATE, POLICY_INSTALLED):
+            with self.subTest(path=path.name):
+                block = p0028_block(path)
+                self.assertIn("no valid `BACKLOGIT_WORKSPACE_DIR` override selects one", block)
+                self.assertIn("override is present but invalid", block)
+                self.assertIn("is not itself an ambiguity", block)
+                self.assertIn("`delta.comment`", block)
+
+    def test_m6_states_resume_and_waiting_selection(self) -> None:
+        for path in (POLICY_TEMPLATE, POLICY_INSTALLED):
+            with self.subTest(path=path.name):
+                block = p0028_block(path)
+                self.assertIn("held out of the executable queue", block)
+                self.assertIn("joins the executable queue in addition to `ready_1`", block)
+
     def test_halt_tokens_and_waiting_report(self) -> None:
         for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
             with self.subTest(path=path.name):

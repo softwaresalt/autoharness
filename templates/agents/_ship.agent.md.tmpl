@@ -413,16 +413,20 @@ Now that all tasks are harnessed, construct the execution queue:
      session under the Crash-Resumption / Startup Recovery Protocol; (2) the residual's ID equals that checkpoint's
      recorded current task ID; (3) the member's marker equals `S` and it is in the live manifest. Any second residual,
      or a mismatch on any condition, halts `WAVE_NO_PROGRESS`. The carve-out never applies to an indeterminate member.
-   * **Claim-assigned (M3)**: feeds item 2. Item 2's queue becomes `{{STATUS_QUEUED}}` members plus claim-assigned
-     members, in the existing dependency ordering of the next item; a claim-assigned member with unfinished dependencies is reported
-     `claim-assigned waiting` and is never a residual, and `active_ids` lists only residuals.
+   * **Claim-assigned (M3)**: feeds item 2. Item 2's queue is the M6 `ready_1` set (`{{STATUS_QUEUED}}` or claim-assigned
+     members whose dependencies are all `terminal_success`) plus the single operator-resumed residual admitted under the
+     M4 exception, in the existing dependency ordering of the next item. A claim-assigned member with unfinished
+     dependencies is reported `claim-assigned waiting`, is held out of the queue and re-evaluated as dependencies
+     complete, and is never a residual. This selection must stay intact through items 2 and 3 (restoring the derived set
+     must not re-add waiting members). `active_ids` lists only residuals.
    <!-- P-002.8:END ship step 3 claim-marker admission -->
 2. List all tasks with `harness-ready` label and `{{STATUS_QUEUED}}` status for the target feature or chore. When
    operating under a Stage-prepared shipment (item 1 above ran), replace this queued-only membership with item 1's
    derived executable set: include every task in that set regardless of whether its status is `{{STATUS_QUEUED}}` or
    `{{STATUS_ACTIVE}}`, and exclude any manifest task that item 1 classified as `pre_archived_skipped` or
    `already_done` even if it would otherwise match `{{STATUS_QUEUED}}`/`{{STATUS_ACTIVE}}` elsewhere. Tasks outside
-   the shipment's manifest are never added by this substitution.
+   the shipment's manifest are never added by this substitution. When the P-002.8 admission above ran, the claim-assigned
+   waiting members it held out are not restored by this substitution.
 3. Sort the queue by dependency order (tasks with no unfinished dependencies first).
 4. If the queue is empty after harness generation, halt and report — there is nothing to build.
 

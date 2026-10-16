@@ -3,29 +3,29 @@
   "producer_contract": "scheduler-baseline-marker/v1",
   "log_templates": {
     "claimed_extra_delta_key": [
-      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"from": "queued", "to": "active", "reason": "shipment claimed"}}
+      {"timestamp": "2026-10-16T01:00:00Z", "actor": "backlogit", "item_id": "300.001-T", "event_type": "status_changed", "delta": {"_shipment_operation": "a1b2c3d4", "from": "queued", "reason": "shipment claimed", "to": "active", "extra": "x"}}
     ],
     "claimed": [
-      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}}
+      {"timestamp": "2026-10-16T01:00:00Z", "actor": "backlogit", "item_id": "300.001-T", "event_type": "status_changed", "delta": {"_shipment_operation": "a1b2c3d4", "from": "queued", "reason": "shipment claimed", "to": "active"}}
     ],
     "claimed_started": [
-      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}},
-      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "ship", "body": "WORK_STARTED: 300-S"}
+      {"timestamp": "2026-10-16T01:00:00Z", "actor": "backlogit", "item_id": "300.001-T", "event_type": "status_changed", "delta": {"_shipment_operation": "a1b2c3d4", "from": "queued", "reason": "shipment claimed", "to": "active"}},
+      {"timestamp": "2026-10-16T01:05:00Z", "actor": "ship", "item_id": "300.001-T", "event_type": "comment", "delta": {"comment": "WORK_STARTED: 300-S"}}
     ],
     "claimed_started_crlf": [
-      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}},
-      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "ship", "body": "WORK_STARTED: 300-S\r\nnote"}
+      {"timestamp": "2026-10-16T01:00:00Z", "actor": "backlogit", "item_id": "300.001-T", "event_type": "status_changed", "delta": {"_shipment_operation": "a1b2c3d4", "from": "queued", "reason": "shipment claimed", "to": "active"}},
+      {"timestamp": "2026-10-16T01:05:00Z", "actor": "ship", "item_id": "300.001-T", "event_type": "comment", "delta": {"comment": "WORK_STARTED: 300-S\r\nnote"}}
     ],
     "stale_start_prior_epoch": [
-      {"ts": "2026-10-15T01:05:00Z", "type": "comment", "actor": "ship", "body": "WORK_STARTED: 300-S"},
-      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}}
+      {"timestamp": "2026-10-15T01:05:00Z", "actor": "ship", "item_id": "300.001-T", "event_type": "comment", "delta": {"comment": "WORK_STARTED: 300-S"}},
+      {"timestamp": "2026-10-16T01:00:00Z", "actor": "backlogit", "item_id": "300.001-T", "event_type": "status_changed", "delta": {"_shipment_operation": "a1b2c3d4", "from": "queued", "reason": "shipment claimed", "to": "active"}}
     ],
     "claimed_foreign_actor_start": [
-      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}},
-      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "operator", "body": "WORK_STARTED: 300-S"}
+      {"timestamp": "2026-10-16T01:00:00Z", "actor": "backlogit", "item_id": "300.001-T", "event_type": "status_changed", "delta": {"_shipment_operation": "a1b2c3d4", "from": "queued", "reason": "shipment claimed", "to": "active"}},
+      {"timestamp": "2026-10-16T01:05:00Z", "actor": "operator", "item_id": "300.001-T", "event_type": "comment", "delta": {"comment": "WORK_STARTED: 300-S"}}
     ],
     "no_claim_event": [
-      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "ship", "body": "hello"}
+      {"timestamp": "2026-10-16T01:05:00Z", "actor": "ship", "item_id": "300.001-T", "event_type": "comment", "delta": {"comment": "hello"}}
     ]
   },
   "scenarios": [

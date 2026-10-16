@@ -22,7 +22,7 @@ TERMINAL_SUCCESS = ("done", "archived")
 def is_claim_event(event: Dict[str, Any]) -> bool:
     delta = event.get("delta") or {}
     return (
-        event.get("type") == "status_changed"
+        event.get("event_type") == "status_changed"
         and delta.get("to") == "active"
         and delta.get("reason") == "shipment claimed"
     )
@@ -60,9 +60,9 @@ def first_line(body: str) -> str:
 def has_valid_start_record(epoch: List[Dict[str, Any]], shipment: str) -> bool:
     expected = "WORK_STARTED: " + shipment
     return any(
-        e.get("type") == "comment"
+        e.get("event_type") == "comment"
         and e.get("actor") == "ship"
-        and first_line(e.get("body", "")) == expected
+        and first_line((e.get("delta") or {}).get("comment", "")) == expected
         for e in epoch
     )
 
@@ -154,7 +154,7 @@ class MarkerContractV1FixtureTests(unittest.TestCase):
         self.assertEqual(self.scenarios["F4"]["expected"]["active_residuals"], ["300.002-T"])
 
     def test_f7_f8_start_epoch_rules_and_contract_version(self) -> None:
-        for scenario_id in ("F7", "F8"):
+        for scenario_id in ("F7", "F8", "F10"):
             with self.subTest(scenario=scenario_id):
                 self._assert_scenario(scenario_id)
         policy = _POLICY_TEMPLATE.read_bytes().replace(b"\r\n", b"\n").decode("utf-8")
