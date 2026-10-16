@@ -458,3 +458,5 @@ features:
   discovery: true
   lifecycle_hygiene: true
   sizing: true
+  # Opt in only when the installed backlogit stamps the claim marker (154-S producer, scheduler-baseline-marker/v1); see P-002.8.
+  scheduler_baseline_claim: false

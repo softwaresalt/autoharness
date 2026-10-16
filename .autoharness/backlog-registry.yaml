@@ -267,3 +267,5 @@ features:
   templates: true
   commit_tracking: true
   shipments: true
+  # Opt in only when the installed backlogit stamps the claim marker (154-S producer, scheduler-baseline-marker/v1); see P-002.8.
+  scheduler_baseline_claim: false

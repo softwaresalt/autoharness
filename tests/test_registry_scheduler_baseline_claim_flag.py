@@ -51,5 +51,17 @@ class SchedulerBaselineClaimFlagSchemaTests(unittest.TestCase):
         jsonschema.Draft7Validator(schema).validate(registry)
 
 
+class RegistryFilesDeclareFlagTests(unittest.TestCase):
+    """U2: both registry files opt out by default and validate against the schema."""
+
+    def test_registries_declare_flag_false_and_validate(self) -> None:
+        validator = jsonschema.Draft7Validator(_schema())
+        for path in _REGISTRY_FILES:
+            with self.subTest(path=path.name):
+                data = yaml.safe_load(path.read_text(encoding="utf-8"))
+                self.assertIs(data["features"]["scheduler_baseline_claim"], False)
+                validator.validate(data)
+
+
 if __name__ == "__main__":
     unittest.main()
