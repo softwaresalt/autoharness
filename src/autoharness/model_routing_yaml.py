@@ -44,12 +44,13 @@ def _is_merge_key(event: Any) -> bool:
         return False
     if event.tag == MERGE_TAG:
         return True
-    return event.style is None and event.value == "<<"
+    return event.tag is None and event.style is None and event.value == "<<"
 
 
 def _scan(raw_text: str) -> tuple[list[str], str | None]:
     findings: list[str] = []
     routing_anchors: set[str] = set()
+    merge_anchors: set[str] = set()
     stack: list[dict[str, Any]] = []
     in_target_depth = 0
     pending_target = False
@@ -62,6 +63,7 @@ def _scan(raw_text: str) -> tuple[list[str], str | None]:
             if isinstance(event, (yaml.DocumentStartEvent, yaml.DocumentEndEvent)):
                 stack, in_target_depth, pending_target = [], 0, False
                 routing_anchors.clear()
+                merge_anchors.clear()
                 continue
             if isinstance(event, (yaml.MappingEndEvent, yaml.SequenceEndEvent)):
                 stack.pop()
@@ -92,15 +94,27 @@ def _scan(raw_text: str) -> tuple[list[str], str | None]:
                 and isinstance(event, yaml.AliasEvent)
                 and event.anchor in routing_anchors
             )
+            if _is_merge_key(event) and getattr(event, "anchor", None):
+                merge_anchors.add(event.anchor)
+            aliased_merge_key = (
+                is_key
+                and len(stack) == 1
+                and isinstance(event, yaml.AliasEvent)
+                and event.anchor in merge_anchors
+            )
             if parent and len(stack) == 1 and is_key:
                 pending_target = (
-                    isinstance(event, yaml.ScalarEvent) and event.value == ROUTING_KEY
-                ) or aliased_routing_key
+                    (isinstance(event, yaml.ScalarEvent) and event.value == ROUTING_KEY)
+                    or aliased_routing_key
+                    or aliased_merge_key
+                )
             elif is_root_value:
                 pending_target = False
 
             if aliased_routing_key:
                 flag("alias", event)
+            if aliased_merge_key:
+                flag("merge_key", event)
             if len(stack) == 1 and is_key and _is_merge_key(event):
                 flag("merge_key", event)
 
