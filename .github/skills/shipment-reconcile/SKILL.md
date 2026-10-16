@@ -1015,8 +1015,16 @@ and exits 6 (`mutation_possible: indeterminate`), so Ship sizes it before
 the run. Let N = |closure_scope(S)| (the manifest items plus the shipment
 record) and compute the budget `B = ceil(1.5 * (F + P * N))` seconds, where
 F and P are the fixed and per-artifact `backlogit shipment ship` costs
-re-derived from the workspace's own backlogit event logs (reference values,
-backlogit 1.11.0: F = 133 s, P = 35 s). If B <= 1800, the default suffices.
+re-derived from the workspace's own backlogit evidence records (reference
+values, backlogit 1.11.0: F = 800 s, P = 45 s). The reference values were
+re-derived on 2026-10-16 from the 15 `docs/closure/evidence/*-close-evidence.json`
+records (duration = `invocation.finished_at - invocation.started_at`, N =
+manifest members + the shipment record): they cover every observed record,
+including 169-S (1153 s at N = 9), and replace the earlier F = 133 s, P = 35 s,
+which under-covered five of them. Operators recompute F and P from their own
+workspace's evidence records rather than trusting these values. The default
+suffices only when B <= 1800 (N <= 8 under the reference values); compute B per
+run rather than assuming the default.
 If 1800 < B <= 3600, Ship adds `--timeout B` to the invocation above. If
 B > 3600, Ship does not start the mutating run and HALTs for an operator
 decision; it never invokes the command with a timeout known to be too

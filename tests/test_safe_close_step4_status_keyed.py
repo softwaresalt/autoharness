@@ -56,6 +56,15 @@ class SafeCloseStep4StatusKeyedTests(unittest.TestCase):
             with self.subTest(copy=name):
                 text = _flat(path.read_text(encoding="utf-8"))
                 self.assertIn("archive/`-resident record declaring `done`", text)
+    def test_timeout_reference_costs_rederived_in_both_copies(self) -> None:
+        for name, path in _COPIES.items():
+            with self.subTest(copy=name):
+                text = _flat(path.read_text(encoding="utf-8"))
+                self.assertIn("F = 800 s, P = 45 s", text)
+                self.assertNotIn("F = 133 s, P = 35 s). If B <= 1800", text)
+                self.assertNotIn("If B <= 1800, the default suffices", text)
+                self.assertIn("recompute F and P from their own workspace's evidence records", text)
+
     def test_p002_7_reciprocal_cross_references(self) -> None:
         for name, path in _COPIES.items():
             with self.subTest(copy=name):
