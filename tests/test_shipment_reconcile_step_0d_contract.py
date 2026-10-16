@@ -77,7 +77,9 @@ class Step0dContractTests(unittest.TestCase):
 
     def test_template_and_resolved_copies_agree_on_the_edited_region(self) -> None:
         (_, resolved), (_, rendered) = mcc.sources()
-        self.assertEqual(_step_0(resolved), _step_0(rendered))
+        self.assertEqual(
+            mcc.section(resolved, "**Step 0(d).**", _ROUTING_BEGIN), mcc.section(rendered, "**Step 0(d).**", _ROUTING_BEGIN)
+        )
         self.assertEqual(
             mcc.section(resolved, "## Inputs", "## Output"), mcc.section(rendered, "## Inputs", "## Output")
         )
