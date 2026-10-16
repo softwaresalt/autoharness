@@ -372,6 +372,36 @@ suppresses, replaces, softens, or pre-empts item 1a's `SHIPMENT_STATE_INCONSISTE
 set is EMPTY while the manifest is non-empty, HALT and report — do NOT advance to build or PR, and do NOT trigger any
 closure path; this is an operator-disposition case only.
 
+<!-- P-002.8:BEGIN ship step 3 claim-marker admission -->
+**Claim-marker consumption (P-002.8, `marker_contract_version: 1`)**: this paragraph applies the canonical
+claim-marker consumption contract by rule ID (M1–M8 in the workflow policy registry) and never restates it. It runs
+only when operating under a Stage-prepared shipment `S` AND the backlog registry declares
+`features.scheduler_baseline_claim: true` (M1). The derivation above is unchanged when
+`features.scheduler_baseline_claim` is false or absent, and in any session without a shipment `S`. When M1 holds, it
+runs after the derivation and strictly AFTER the Step 0.5 item 1a early-warning and the `shipment-reconcile` pre-mode
+check, and never suppresses, softens, or pre-empts either of them.
+Read per M2: the active-shipment list (`backlogit_list_shipments`), the shipment's `custom_fields.items` twice
+(`backlogit_get_shipment`), and each `active` member's status and `custom_fields.scheduler_baseline_claim`
+(`backlogit_get_item`). Read a member log `logs/<id>.jsonl` through a configured tool when one exposes the event
+stream; otherwise read it raw only under an explicit, session-recorded, scoped P-012 declaration naming the path,
+resolved inside the detected backlog root and fail-closed per M2. Classify every `active` member of the derived set
+per M3–M5, indeterminate first:
+
+* **Indeterminate (M5)**: halt `WAVE_CLAIM_STATE_INDETERMINATE`, report each member's reason together with the
+  residuals, and do not advance. Indeterminate outranks residual.
+* **Active residual (M4)**: halt `WAVE_NO_PROGRESS` with detail `active residual`, except for the operator-resumed
+  carve-out below. A task that already carries `WORK_STARTED: <S>` in its current start epoch when Ship re-enters
+  this step with no operator-confirmed resume is a residual and halts `WAVE_NO_PROGRESS`; the operator disposes.
+* **Operator-resumed carve-out (narrow)**: the single residual reported as `active residual (operator-resumed)` is
+  admitted only when ALL hold: (1) the operator explicitly confirmed restore of a `ship`-owned checkpoint in this
+  session under the Crash-Resumption / Startup Recovery Protocol; (2) the residual's ID equals that checkpoint's
+  recorded current task ID; (3) the member's marker equals `S` and it is in the live manifest. Any second residual,
+  or a mismatch on any condition, halts `WAVE_NO_PROGRESS`. The carve-out never applies to an indeterminate member.
+* **Claim-assigned (M3)**: the executable set becomes `queued` members plus claim-assigned members, ordered per M6; a
+  claim-assigned member with unfinished dependencies is reported `claim-assigned waiting` and is never a residual,
+  and `active_ids` lists only residuals.
+<!-- P-002.8:END ship step 3 claim-marker admission -->
+
 For each task in the derived executable task set:
 
 1. **Claim**: Move the task to active via `backlogit_move_item`.

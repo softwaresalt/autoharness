@@ -108,5 +108,57 @@ class P0028PolicyContractTests(unittest.TestCase):
                 self.assertIn("Added P-002.8", rows[0])
 
 
+SHIP_ADMISSION_BEGIN = "<!-- P-002.8:BEGIN ship step 3 claim-marker admission -->"
+SHIP_ADMISSION_END = "<!-- P-002.8:END ship step 3 claim-marker admission -->"
+
+
+def ship_admission(path: Path) -> str:
+    return extract(lf_text(path), SHIP_ADMISSION_BEGIN, SHIP_ADMISSION_END)
+
+
+class P0028ShipStep3AdmissionTests(unittest.TestCase):
+    def test_item_1b_cites_contract_in_template_and_mirror(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                block = ship_admission(path)
+                self.assertIn("Claim-marker consumption (P-002.8", block)
+                self.assertIn("marker_contract_version: 1", block)
+                for rule in ("M1", "M3", "M4", "M5", "M6"):
+                    self.assertIn(rule, block)
+
+    def test_halt_tokens_and_waiting_report(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                block = ship_admission(path)
+                for token in (
+                    "WAVE_CLAIM_STATE_INDETERMINATE",
+                    "WAVE_NO_PROGRESS",
+                    "active residual",
+                    "claim-assigned waiting",
+                ):
+                    self.assertIn(token, block)
+                self.assertLess(
+                    block.index("WAVE_CLAIM_STATE_INDETERMINATE"), block.index("WAVE_NO_PROGRESS")
+                )
+
+    def test_flag_false_states_no_behavior_change(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                flat = " ".join(ship_admission(path).split())
+                self.assertIn(
+                    "unchanged when `features.scheduler_baseline_claim` is false or absent", flat
+                )
+
+    def test_operator_resumed_carve_out_is_narrow(self) -> None:
+        for path in (SHIP_TEMPLATE, SHIP_INSTALLED):
+            with self.subTest(path=path.name):
+                flat = " ".join(ship_admission(path).split())
+                self.assertIn("active residual (operator-resumed)", flat)
+                self.assertIn("`ship`-owned checkpoint", flat)
+                self.assertIn("recorded current task ID", flat)
+                self.assertIn("never applies to an indeterminate member", flat)
+                self.assertIn("Any second residual", flat)
+                self.assertIn("WORK_STARTED: <S>", flat)
+
 if __name__ == "__main__":
     unittest.main()
