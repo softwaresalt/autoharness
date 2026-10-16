@@ -135,6 +135,13 @@ class EngineWindowTests(unittest.TestCase):
         self.assertEqual(len(errors), 1, errors)
         self.assertIn("ambiguous", errors[0])
 
+    def test_beyond_microsecond_capture_precision_is_ambiguous(self) -> None:
+        record = _record(captured="2026-10-02T01:00:00.5000001Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        log = _event(_MEMBER, "2026-10-02T01:00:00.5000000Z", "archived")
+        errors, _ = self._check(self._full_logs(**{_MEMBER: log}), record=record)
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("ambiguous", errors[0])
+
     def test_lowercase_separator_whole_second_capture_is_still_ambiguous(self) -> None:
         record = _record(captured="2026-10-02t01:00:00Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
         log = _event(_MEMBER, "2026-10-02T01:00:00.100Z", "archived")

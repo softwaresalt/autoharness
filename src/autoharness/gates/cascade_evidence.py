@@ -1296,6 +1296,11 @@ def check_engine_window(
     whole_second = _RFC3339_PATTERN.fullmatch(raw_captured.strip()) if isinstance(raw_captured, str) else None
     if whole_second is not None and whole_second.group(7) is None:
         window_end = captured + datetime.timedelta(seconds=1)
+    elif whole_second is not None and len(whole_second.group(7)) > 6:
+        # Digits beyond microseconds are discarded by the parser: widen by one
+        # microsecond so an event inside the truncated remainder is not accepted.
+        window_end = captured + datetime.timedelta(microseconds=1)
+        window_end = captured + datetime.timedelta(seconds=1)
     if merge_time is None:
         return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
 
@@ -1349,7 +1354,7 @@ def check_engine_window(
                 errors.append(
                     f"{item_id!r} had a close mutation ({kind}) at {event.get('timestamp')} after the merge "
                     f"({merge_time.isoformat()}) and before pre_close.captured_at ({captured.isoformat()}"
-                    + (", whole-second precision: ordering within that second is ambiguous" if window_end != captured else "")
+                    + (", limited precision: ordering within the recorded precision is ambiguous" if window_end != captured else "")
                     + "): the pre-close evidence is not provably pre-mutation"
                 )
     return errors, warnings
