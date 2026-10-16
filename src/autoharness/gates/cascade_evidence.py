@@ -1162,6 +1162,60 @@ def _check_pre_close(checker: _Checker, pre_close: Mapping[str, object], close_p
         checker.fail(f"{where}.observation_set", "is recorded only on a selected SAFE_CLOSE")
 
 
+_RFC3339_PATTERN: Final = re.compile(
+    r"(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?([Zz]|[+-]\d{2}:\d{2})"
+)
+
+
+def parse_rfc3339_instant(value: object) -> datetime.datetime | None:
+    """Parse an RFC 3339 timestamp to a UTC instant; None when it is not one (an offset is required)."""
+
+    if not isinstance(value, str):
+        return None
+    match = _RFC3339_PATTERN.fullmatch(value)
+    if match is None:
+        return None
+    year, month, day, hour, minute, second, fraction, offset = match.groups()
+    micro = int((fraction or "0")[:6].ljust(6, "0"))
+    if offset in ("Z", "z"):
+        tz = datetime.timezone.utc
+    else:
+        delta = datetime.timedelta(hours=int(offset[1:3]), minutes=int(offset[4:6]))
+        tz = datetime.timezone(-delta if offset[0] == "-" else delta)
+    try:
+        instant = datetime.datetime(
+            int(year), int(month), int(day), int(hour), int(minute), int(second), micro, tzinfo=tz
+        )
+    except ValueError:
+        return None
+    return instant.astimezone(datetime.timezone.utc)
+
+
+def _check_in_record_ordering(
+    checker: _Checker, pre_close: Mapping[str, object] | None, invocation: Mapping[str, object]
+) -> None:
+    """Ordering rule 1: ``captured_at`` < ``started_at`` <= ``finished_at``, as UTC instants."""
+
+    stamps: dict[str, datetime.datetime | None] = {}
+    for where, source, key in (
+        ("record.pre_close.captured_at", pre_close, "captured_at"),
+        ("record.invocation.started_at", invocation, "started_at"),
+        ("record.invocation.finished_at", invocation, "finished_at"),
+    ):
+        raw = source.get(key) if source is not None else None
+        if not _is_nonempty_str(raw):
+            stamps[key] = None  # the shape check already reported it
+            continue
+        stamps[key] = parse_rfc3339_instant(raw)
+        if stamps[key] is None:
+            checker.fail(where, f"must be an RFC 3339 timestamp with a UTC offset (got {raw!r})")
+    captured, started, finished = stamps["captured_at"], stamps["started_at"], stamps["finished_at"]
+    if captured is not None and started is not None and captured >= started:
+        checker.fail("record.pre_close.captured_at", "must precede invocation.started_at")
+    if started is not None and finished is not None and finished < started:
+        checker.fail("record.invocation.finished_at", "must not precede started_at")
+
+
 def _check_capture(checker: _Checker, capture: Mapping[str, object], where: str) -> None:
     for key in ("total_bytes", "total_lines"):
         checker.field(capture, key, where, lambda v: _is_int(v) and v >= 0, "a non-negative integer")
@@ -1189,6 +1243,7 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
         checker.field(invocation, "argv_redacted", where, _is_str_list, "a list of strings")
         for key in ("started_at", "finished_at"):
             checker.field(invocation, key, where, _is_nonempty_str, "a non-empty string")
+        _check_in_record_ordering(checker, pre_close, invocation)
         exit_code = checker.field(invocation, "exit_code", where, lambda v: v is None or _is_int(v), "an integer or null")
         if exit_code is not _MISSING and exit_code != 0:
             checker.fail(f"{where}.exit_code", f"a passing cascade requires exit code 0 (got {exit_code!r})")
