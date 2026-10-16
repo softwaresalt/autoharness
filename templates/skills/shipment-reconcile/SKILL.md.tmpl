@@ -83,10 +83,12 @@ Every item in the manifest is classified as one of:
 
 > Classification semantics are mode-dependent. Pre-mode checks each item's
 > declared status, wherever the record resides, against its member class;
-> post-mode checks the archive for file presence only. Safe-close step 4 and
-> the Cascade Close Sub-Procedure's pre-archived-member preamble still use
-> `pre-archived` as a location label (the record resides in `archive/`);
-> that usage is unchanged and is not the Pre-Mode class above.
+> post-mode checks the archive for file presence only. Safe-close step 4
+> classifies by declared status (a record declaring `archived` is
+> `pre-archived`; location is a label only), while the Cascade Close
+> Sub-Procedure's pre-archived-member preamble still uses `pre-archived` as a
+> location label (the record resides in `archive/`); that preamble usage is
+> unchanged and is not the Pre-Mode class above.
 
 ### Member-Class Status Contract (Pre-Mode; authoritative)
 
@@ -98,6 +100,8 @@ Cascade Close Sub-Procedure apply it by reference and never restate the
 declared-status rule or the member-class table. (The "not truly archived"
 sentence at Step 0(b) and in the Cascade preamble applies the rule to the
 two-set gate; it is deliberate and pinned there by 147-F.)
+
+The block does not govern claim-to-admission member statuses; that contract is P-002.7 (Post-Claim Member-Status Contract) in the workflow-policies registry, which in turn names this section as the pre-close classification contract.
 
 **Declared-status rule (R-1).** Declared `status` is read from the record's
 own frontmatter `status` field — never inferred from, nor substituted by,
@@ -119,12 +123,11 @@ single-`expected_status` semantics, unchanged. Row selection follows step
 2b's classifier verdict, not the path Step 0(c) finally selects: if the
 engine-semantics gate then selects `SAFE_CLOSE`, safe-close archives the
 manifest members individually, a `queue/`-resident qualifying feature
-included. One known limit remains: Safe-Close step 4 still keys its
-`pre-archived` skip on location, so an `archive/`-resident qualifying
-feature that declares `{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}` passes here
-but is skipped there without its own transition. That location-keyed skip
-is pre-existing and deferred to a durable active stash entry local to
-this workspace's own backlog; this contract does not change it.
+included. Safe-close step 4 keys on the declared `status` too, not on
+location: a record declaring `archived` is skipped as `pre-archived`, and any
+other declared status is moved to `{{STATUS_DONE}}` if needed and then archived
+explicitly, so an `archive/`-resident qualifying feature that declares
+`{{STATUS_ACTIVE}}` or `{{STATUS_DONE}}` is archived rather than skipped.
 
 | Member class | `matched` | Tolerated — reported, never halts | HALT (`status-mismatch`) |
 |---|---|---|---|
@@ -577,7 +580,7 @@ completion.
       **Declared `status` follows the Member-Class Status Contract's
       declared-status rule (R-1)** — the same rule Pre-Mode step 3 applies.
       A record residing in
-      `{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: done` is
+      `{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: {{STATUS_DONE}}` is
       **not** truly archived; only a declared `status: archived` counts as
       truly archived for the Cascade Close Sub-Procedure's step 3 gate
       below. This declared-status
@@ -641,7 +644,7 @@ completion.
       | Manifest shape | Out-of-manifest descendant | Engine effect | Evidence class |
       |---|---|---|---|
       | has feature member | declares exact canonical `status: archived` | inert — skipped, byte-identical | **PROVEN (ENGINE LAW)** — verify via a path-scoped `git diff --stat <verified-commit-a> <verified-commit-b> -- <archived-artifact-path-a> <archived-artifact-path-b>` returning empty, and `git rev-parse <verified-commit-a>:<path>` / `git rev-parse <verified-commit-b>:<path>` returning identical blob OIDs for each path in this workspace's own history. This is the **only** proven row |
-      | has feature member | `status: done` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
+      | has feature member | `status: {{STATUS_DONE}}` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
       | has feature member | live `queued` | archived, with `returned_ids` reported `[]` | **INDICATIVE / UNPROVEN** — rationale only; may never be stated as measured fact and may never authorize `CASCADE` |
       | no feature member | live sibling | returned, with `parent_id` cleared | **INDICATIVE / UNPROVEN** — follow-up `63363CF5`; may never authorize `CASCADE`. For a genuine split-delivery intermediate shipment, see **INV-11** and safe-close step 8's `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt, tracked by a durable active stash entry local to this workspace's own backlog |
       | any | ancestor/parent of a manifest item | untouched (no upward walk) | **INDICATIVE / UNPROVEN** |
@@ -884,16 +887,27 @@ completion.
    to compare against baseline.
 
 4. **Archive each manifest item individually** (loop over `items` ONLY):
-   * If the item's file is in `{{BACKLOG_DIRECTORY}}/queue/`: move it to
-     `{{STATUS_DONE}}` via `{{OP_MOVE_MCP}}`, then archive that single artifact via
+   Classification keys on the item's own declared `status` (Member-Class Status
+   Contract R-1); the directory holding the record (`queue/` or `archive/`) is a
+   location label only and never decides the action.
+   * If the item's declared `status` is `archived`: classify `pre-archived` and
+     **skip** — do not re-archive. Reusing the `pre-archived` classification
+     prevents false-positive cascade flags on items that were legitimately
+     shipped earlier.
+   * If the item carries any other declared `status`, in either location: when
+     that status is not `{{STATUS_DONE}}`, first move it to `{{STATUS_DONE}}` via
+     `{{OP_MOVE_MCP}}` (the engine can refuse a direct `{{STATUS_QUEUED}}` to
+     `{{STATUS_DONE}}` move as an invalid transition, so step through `{{STATUS_ACTIVE}}`
+     first when needed; if any move is refused, HALT for operator review and
+     never skip); then perform an explicit single-artifact archive via
      `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback `backlogit archive {id}`). When the
      backlog registry's `archive_item` operation supports commit metadata, record
      the merge SHA using that tool's configured field (for backlogit, `commit_sha`);
-     otherwise record the merge SHA in the closure report. Classify `matched`.
-   * If the item's file is already in `{{BACKLOG_DIRECTORY}}/archive/`: classify
-     `pre-archived` and **skip** — do not re-archive. Reusing the `pre-archived`
-     classification prevents false-positive cascade flags on items that were
-     legitimately shipped earlier.
+     otherwise record the merge SHA in the closure report. Classify `matched`. A
+     record already in `{{BACKLOG_DIRECTORY}}/archive/` that declares
+     `{{STATUS_DONE}}` is archived the same way (backlogit 1.11.0 accepts this; a
+     terminal `{{STATUS_DONE}}` move relocates the record to `archive/`). If the
+     engine refuses the archive, HALT for operator review and never skip.
    * If the item's file is in neither location: classify `missing`, halt with
      `RECONCILE_FAIL`, and do not continue archiving.
 
@@ -1004,8 +1018,16 @@ and exits 6 (`mutation_possible: indeterminate`), so Ship sizes it before
 the run. Let N = |closure_scope(S)| (the manifest items plus the shipment
 record) and compute the budget `B = ceil(1.5 * (F + P * N))` seconds, where
 F and P are the fixed and per-artifact `backlogit shipment ship` costs
-re-derived from the workspace's own backlogit event logs (reference values,
-backlogit 1.11.0: F = 133 s, P = 35 s). If B <= 1800, the default suffices.
+re-derived from the workspace's own backlogit evidence records (reference
+values, backlogit 1.11.0: F = 800 s, P = 45 s). The reference values were
+re-derived on 2026-10-16 from the 15 `docs/closure/evidence/*-close-evidence.json`
+records (duration = `invocation.finished_at - invocation.started_at`, N =
+manifest members + the shipment record): they cover every observed record,
+including 169-S (1153 s at N = 9), and replace the earlier F = 133 s, P = 35 s,
+which under-covered five of them. Operators recompute F and P from their own
+workspace's evidence records rather than trusting these values. The default
+suffices only when B <= 1800 (N <= 8 under the reference values); compute B per
+run rather than assuming the default.
 If 1800 < B <= 3600, Ship adds `--timeout B` to the invocation above. If
 B > 3600, Ship does not start the mutating run and HALTs for an operator
 decision; it never invokes the command with a timeout known to be too
@@ -1043,13 +1065,13 @@ location label is **descriptive only** — it names where the record
 currently resides, and is **never** a substitute for, nor evidence of, the
 record's own declared `status` field (the Member-Class Status Contract's
 declared-status rule, R-1). A record residing in
-`{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: done` is **not**
+`{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: {{STATUS_DONE}}` is **not**
 truly archived; only a declared `status: archived` is truly archived for
 step 3's two-set gate below. The sole authority for "truly archived" is the
 declared-status snapshot Step 0(b)/(c) already captured before this
 sub-procedure runs.
 
-A `pre-archived` (by location) manifest member is **expected and tolerated
+A `pre-archived` (declared `archived`) manifest member is **expected and tolerated
 on this path**: it does **not** disqualify the `CASCADE` verdict, does
 **not** constitute a classifier ambiguity or unresolved precondition, and
 does **not** authorize a fallback to safe-close. Step 0(c)'s classifier
@@ -1116,7 +1138,7 @@ post-close re-read.
    the manifest's full item set", "must never be relaxed". **That claim,
    and the spike cited for it, are WITHDRAWN.** The spike's arms were built
    with `move --status done`, which relocates a record but leaves it
-   declaring `status: done` — never truly `status: archived` — so none of
+   declaring `status: {{STATUS_DONE}}` — never truly `status: archived` — so none of
    its arms ever exercised the case this paragraph claimed to cover; its
    finding is valid only for relocated-but-`done` records (see the spike's
    own superseded banner). The two safety properties this paragraph
@@ -1901,6 +1923,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * **Negative — archive-without-status out-of-manifest child**: a record physically in `{{BACKLOG_DIRECTORY}}/archive/` but lacking its own declared `status` still selects `SAFE_CLOSE`; location is never a substitute for inertness.
 * **Negative — live out-of-manifest grandchild**: a live grandchild outside `closure_scope(S)` selects `SAFE_CLOSE`; ancestry explains blast radius but never expands closure scope.
 * **Negative — baseline-archived observation member**: an observation-set artifact already archived, descoped, or missing at baseline is recorded as baseline state and does **NOT** halt by itself.
+* **Safe-Close step 4 status-keyed archive (D16452D7)**: an `{{BACKLOG_DIRECTORY}}/archive/`-resident record declaring `{{STATUS_DONE}}` (or `{{STATUS_ACTIVE}}`) is moved to `{{STATUS_DONE}}` if needed and archived explicitly, classified `matched`, never skipped; a record declaring `archived` in either location is `pre-archived` and skipped; an engine refusal halts for operator review.
 * **Negative — changed during run**: any observation-set location/hash drift relative to baseline halts and enters the D6 sequence: capture evidence -> HALT -> emit P-005 -> request EXPLICIT operator approval -> REVALIDATE -> execute ONLY the approved rollback.
 * **Negative — refused transition with no safe substitution**: if `backlogit move <shipment_id> --status shipped` is refused while Step 0(c) did not select `CASCADE`, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; the cascade op must NOT be substituted.
 * **Negative — step 2b / Step 0(d) classifier disagreement**: the `--classify-only` record's `classifier_verdict` or `qualifying_feature_ids` differs from Pre-Mode step 2b's recorded values; halt with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` before acting on any routing row. Nothing is mutated and no path is substituted.

@@ -51,6 +51,8 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **Violation Action**: Halt and suggest running the harness-architect.
 
+**P-002.7 companion note**: the shipment-reconcile skill's `Member-Class Status Contract` is the pre-close classification contract for the member statuses that follow a claim, and it names the P-002.7 contract below as the claim-to-admission member-status contract.
+
 <!-- P-002.7:BEGIN canonical post-claim member-status contract -->
 ### P-002.7 — Post-Claim Member-Status Contract
 

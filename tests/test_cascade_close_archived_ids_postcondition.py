@@ -291,7 +291,7 @@ class CascadeCloseTwoSetGateStructuralTests(unittest.TestCase):
         )
         self.assertIn(
             "A record residing in `{{BACKLOG_DIRECTORY}}/archive/` while "
-            "declaring `status: done` is **not** truly archived; only a "
+            "declaring `status: {{STATUS_DONE}}` is **not** truly archived; only a "
             "declared `status: archived` counts as truly archived",
             content,
         )
@@ -1173,13 +1173,20 @@ class CascadeCloseTwoSetGateScenarioTests(unittest.TestCase):
         content = _flatten(_skill_content())
         self.assertIn(
             "A record residing in `{{BACKLOG_DIRECTORY}}/archive/` while "
-            "declaring `status: done` is **not** truly archived",
+            "declaring `status: {{STATUS_DONE}}` is **not** truly archived",
             content,
         )
         # Restated identically in both Step 0(b) and the Cascade Close
         # Sub-Procedure preamble.
-        occurrences = content.count("declaring `status: done` is **not** truly archived")
+        occurrences = content.count(
+            "declaring `status: {{STATUS_DONE}}` is **not** truly archived"
+        )
         self.assertGreaterEqual(occurrences, 2)
+        # The rendered mirror carries the resolved literal.
+        mirror = _flatten(_skill_mirror_content())
+        self.assertGreaterEqual(
+            mirror.count("declaring `status: done` is **not** truly archived"), 2
+        )
 
     def test_scenario_8_post_close_read_would_pass_but_step_0b_snapshot_halts(self) -> None:
         # AMENDMENT A4 (BINDING): pins the snapshot-timing failure mode --
