@@ -578,7 +578,7 @@ completion.
       **Declared `status` follows the Member-Class Status Contract's
       declared-status rule (R-1)** — the same rule Pre-Mode step 3 applies.
       A record residing in
-      `{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: done` is
+      `{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: {{STATUS_DONE}}` is
       **not** truly archived; only a declared `status: archived` counts as
       truly archived for the Cascade Close Sub-Procedure's step 3 gate
       below. This declared-status
@@ -642,7 +642,7 @@ completion.
       | Manifest shape | Out-of-manifest descendant | Engine effect | Evidence class |
       |---|---|---|---|
       | has feature member | declares exact canonical `status: archived` | inert — skipped, byte-identical | **PROVEN (ENGINE LAW)** — verify via a path-scoped `git diff --stat <verified-commit-a> <verified-commit-b> -- <archived-artifact-path-a> <archived-artifact-path-b>` returning empty, and `git rev-parse <verified-commit-a>:<path>` / `git rev-parse <verified-commit-b>:<path>` returning identical blob OIDs for each path in this workspace's own history. This is the **only** proven row |
-      | has feature member | `status: done` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
+      | has feature member | `status: {{STATUS_DONE}}` | archived (out-of-scope mutation) | **INDICATIVE / UNPROVEN** — not load-bearing: `done` is non-inert and forces `SAFE_CLOSE` regardless |
       | has feature member | live `queued` | archived, with `returned_ids` reported `[]` | **INDICATIVE / UNPROVEN** — rationale only; may never be stated as measured fact and may never authorize `CASCADE` |
       | no feature member | live sibling | returned, with `parent_id` cleared | **INDICATIVE / UNPROVEN** — follow-up `63363CF5`; may never authorize `CASCADE`. For a genuine split-delivery intermediate shipment, see **INV-11** and safe-close step 8's `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION` halt, tracked by a durable active stash entry local to this workspace's own backlog |
       | any | ancestor/parent of a manifest item | untouched (no upward walk) | **INDICATIVE / UNPROVEN** |
@@ -1052,7 +1052,7 @@ location label is **descriptive only** — it names where the record
 currently resides, and is **never** a substitute for, nor evidence of, the
 record's own declared `status` field (the Member-Class Status Contract's
 declared-status rule, R-1). A record residing in
-`{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: done` is **not**
+`{{BACKLOG_DIRECTORY}}/archive/` while declaring `status: {{STATUS_DONE}}` is **not**
 truly archived; only a declared `status: archived` is truly archived for
 step 3's two-set gate below. The sole authority for "truly archived" is the
 declared-status snapshot Step 0(b)/(c) already captured before this
@@ -1125,7 +1125,7 @@ post-close re-read.
    the manifest's full item set", "must never be relaxed". **That claim,
    and the spike cited for it, are WITHDRAWN.** The spike's arms were built
    with `move --status done`, which relocates a record but leaves it
-   declaring `status: done` — never truly `status: archived` — so none of
+   declaring `status: {{STATUS_DONE}}` — never truly `status: archived` — so none of
    its arms ever exercised the case this paragraph claimed to cover; its
    finding is valid only for relocated-but-`done` records (see the spike's
    own superseded banner). The two safety properties this paragraph
