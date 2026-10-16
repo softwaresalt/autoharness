@@ -191,6 +191,10 @@ class EngineWindowTests(unittest.TestCase):
             ("artifact_mutation", None),
             ("artifact_mutation", {"changes": "nope"}),
             ("artifact_mutation", {"changes": {"status": 5}}),
+            ("artifact_mutation", {"changes": {"status": None}}),
+            (None, {}),
+            ("", {}),
+            (7, {}),
             ("shipment_status_changed", {}),
         ):
             line = json.dumps(

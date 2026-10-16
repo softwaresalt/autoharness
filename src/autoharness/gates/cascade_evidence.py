@@ -1238,6 +1238,8 @@ def _close_mutation_kind(event: Mapping[str, object]) -> str | None:
     """
 
     event_type = event.get("event_type")
+    if not isinstance(event_type, str) or not event_type:
+        raise ValueError("event has a missing, empty, or non-string event_type")
     if event_type == "archived":
         return "archived"
     if event_type not in ("status_changed", "artifact_mutation", "shipment_status_changed"):
@@ -1254,8 +1256,8 @@ def _close_mutation_kind(event: Mapping[str, object]) -> str | None:
         if not isinstance(changes, Mapping):
             raise ValueError("artifact_mutation event has no delta.changes object")
         new_status = changes.get("status")
-        if new_status is not None and not isinstance(new_status, str):
-            raise ValueError("artifact_mutation event has a non-string delta.changes.status")
+        if "status" in changes and not isinstance(new_status, str):
+            raise ValueError("artifact_mutation event has a null or non-string delta.changes.status")
     else:
         new_status = delta.get("status")
         if not isinstance(new_status, str):
