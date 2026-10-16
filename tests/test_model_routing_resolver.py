@@ -121,6 +121,15 @@ class ResolverVectorTests(unittest.TestCase):
         valid = guarded_resolve({"model_routing": {"tier3": {"model_family": "f"}}}, "stage")
         self.assertEqual((valid.model_provider, valid.reasoning_effort, valid.errors), ("", "", ()))
 
+    def test_explicit_empty_tier_fields_are_preserved_not_nulled(self):
+        tier = {"model": "opus", "model_provider": "", "reasoning_effort": ""}
+        for field in ("model_provider", "reasoning_effort"):
+            self.assertEqual(model_routing.resolve_route_field({}, tier, field), "")
+            self.assertIsNone(model_routing.resolve_route_field({}, {}, field))
+            self.assertIsNone(
+                model_routing.resolve_route_field({}, {field: "   "}, field)
+            )
+
     def test_overrides_are_not_an_input(self):
         base = {"model_routing": {"tier3": {"model_family": "f", "model_provider": "p"}}}
         with_overrides = {**base, "overrides": {"stage": {"model_family": "zzz"}, "context_tier": "long_context"}}

@@ -84,7 +84,14 @@ def _route_field(
     else:
         tier = {}
     fallback_value = tier.get(field)
-    if field != "context_tier" and isinstance(fallback_value, str) and not fallback_value.strip():
+    # Whitespace-only values are normalised away; an explicit "" is preserved
+    # (it is distinct from an absent field in the verify-workspace report).
+    if (
+        field != "context_tier"
+        and isinstance(fallback_value, str)
+        and fallback_value != ""
+        and not fallback_value.strip()
+    ):
         fallback_value = None
     label = f"{tier_label}.{field}"
     if field == "model_family" and not _nonblank(fallback_value):
