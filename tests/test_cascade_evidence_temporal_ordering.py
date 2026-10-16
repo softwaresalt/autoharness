@@ -147,6 +147,18 @@ class EngineWindowTests(unittest.TestCase):
         ok = _record(started="2026-10-02T01:00:01.5000001Z", finished="2026-10-02T01:00:01.5000009Z")
         self.assertEqual(_problems(ok), [])
 
+    def test_very_long_fraction_scale_is_preserved_in_record(self) -> None:
+        record = _record(started="2026-10-02T01:00:01.1234562Z", finished="2026-10-02T01:00:01.1234561" + "0" * 40 + "Z")
+        self.assertTrue(any("must not precede started_at" in p for p in _problems(record)))
+
+    def test_equal_instants_with_different_trailing_zeros_are_not_strictly_ordered(self) -> None:
+        record = _record(captured="2026-10-02T01:00:01.5Z", started="2026-10-02T01:00:01.5000000000Z", finished="2026-10-02T01:00:02Z")
+        self.assertTrue(any("must precede invocation.started_at" in p for p in _problems(record)))
+
+    def test_huge_fraction_does_not_crash_ordering(self) -> None:
+        record = _record(started="2026-10-02T01:00:01." + "1" * 6000 + "Z", finished="2026-10-02T01:00:01." + "1" * 5999 + "0Z")
+        self.assertTrue(any("must not precede started_at" in p for p in _problems(record)))
+
     def test_beyond_microsecond_capture_precision_is_ambiguous(self) -> None:
         record = _record(captured="2026-10-02T01:00:00.5000001Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
         log = _event(_MEMBER, "2026-10-02T01:00:00.5000000Z", "archived")

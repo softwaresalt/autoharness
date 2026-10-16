@@ -1224,14 +1224,18 @@ def _check_in_record_ordering(
         checker.fail("record.invocation.finished_at", "must not precede started_at")
 
 
-def _order_key(instant: datetime.datetime, source: Mapping[str, object] | None, key: str) -> tuple[datetime.datetime, int]:
-    """Instant plus the fractional digits beyond microseconds, so sub-microsecond order is preserved."""
+def _order_key(instant: datetime.datetime, source: Mapping[str, object] | None, key: str) -> tuple[datetime.datetime, str]:
+    """Instant plus the fractional digits beyond microseconds, normalized for exact ordering.
+
+    With trailing zeros stripped, lexicographic comparison of the digit strings
+    equals numeric comparison of the fractions at any length (and avoids the
+    integer-conversion digit limit on hostile input).
+    """
 
     raw = source.get(key) if source is not None else None
     match = _RFC3339_PATTERN.fullmatch(raw.strip()) if isinstance(raw, str) else None
     fraction = match.group(7) if match is not None else None
-    extra = int((fraction[6:] if fraction else "").ljust(40, "0") or "0")
-    return instant, extra
+    return instant, (fraction[6:] if fraction else "").rstrip("0")
 
 
 _CLOSE_MUTATION_STATUSES: Final = frozenset({"archived", "shipped"})
