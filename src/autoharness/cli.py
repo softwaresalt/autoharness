@@ -3914,10 +3914,11 @@ def _load_routing_config(workspace: str) -> tuple[dict | None, list[str]]:
     from autoharness.schema_contracts import resolve_contract_schema_path
     from autoharness.verify_workspace import _schema_errors
 
-    config_path = Path(workspace) / ".autoharness" / "config.yaml"
+    root = Path(workspace)
+    config_path = root / ".autoharness" / "config.yaml"
     try:
-        text = config_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
+        text = _read_contained_regular_file(root, ".autoharness/config.yaml", root, 1024 * 1024).decode("utf-8")
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
         return None, [f"CONFIG_UNREADABLE: {config_path}: {type(exc).__name__}"]
     try:
         data = yaml.safe_load(text)

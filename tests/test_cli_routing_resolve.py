@@ -183,6 +183,30 @@ class RoutingResolveCliTests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertEqual(document["errors"], ["CONFIG_SCHEMA_UNAVAILABLE: OSError"])
 
+    def _link_or_skip(self, link, target, is_dir):
+        try:
+            link.symlink_to(target, target_is_directory=is_dir)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable on this platform/privilege level")
+
+    def test_symlinked_config_file_escaping_workspace_exits_two(self):
+        with tempfile.TemporaryDirectory() as outside:
+            external = Path(outside) / "config.yaml"
+            external.write_text(CONFIG.format(version="1.1.0"), encoding="utf-8")
+            (self.ws / ".autoharness").mkdir()
+            self._link_or_skip(self.ws / ".autoharness" / "config.yaml", external, False)
+            status, document = self.resolve("stage")
+        self.assertEqual(status, 2)
+        self.assertTrue(document["errors"][0].startswith("CONFIG_UNREADABLE"))
+
+    def test_symlinked_autoharness_directory_escaping_workspace_exits_two(self):
+        with tempfile.TemporaryDirectory() as outside:
+            (Path(outside) / "config.yaml").write_text(CONFIG.format(version="1.1.0"), encoding="utf-8")
+            self._link_or_skip(self.ws / ".autoharness", Path(outside), True)
+            status, document = self.resolve("stage")
+        self.assertEqual(status, 2)
+        self.assertTrue(document["errors"][0].startswith("CONFIG_UNREADABLE"))
+
     def test_unresolved_family_exits_two(self):
         self.write_config('schema_version: "1.1.0"\nmodel_routing: {}\n')
         status, document = self.resolve("stage")
