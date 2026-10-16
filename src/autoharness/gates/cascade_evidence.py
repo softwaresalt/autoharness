@@ -1163,7 +1163,8 @@ def _check_pre_close(checker: _Checker, pre_close: Mapping[str, object], close_p
 
 
 _RFC3339_PATTERN: Final = re.compile(
-    r"(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?([Zz]|[+-]\d{2}:\d{2})"
+    r"([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|[+-][0-9]{2}:[0-9]{2})",
+    re.ASCII,
 )
 
 
@@ -1177,18 +1178,21 @@ def parse_rfc3339_instant(value: object) -> datetime.datetime | None:
         return None
     year, month, day, hour, minute, second, fraction, offset = match.groups()
     micro = int((fraction or "0")[:6].ljust(6, "0"))
-    if offset in ("Z", "z"):
-        tz = datetime.timezone.utc
-    else:
-        delta = datetime.timedelta(hours=int(offset[1:3]), minutes=int(offset[4:6]))
-        tz = datetime.timezone(-delta if offset[0] == "-" else delta)
     try:
+        if offset in ("Z", "z"):
+            tz = datetime.timezone.utc
+        else:
+            offset_hours, offset_minutes = int(offset[1:3]), int(offset[4:6])
+            if offset_hours > 23 or offset_minutes > 59:
+                return None
+            delta = datetime.timedelta(hours=offset_hours, minutes=offset_minutes)
+            tz = datetime.timezone(-delta if offset[0] == "-" else delta)
         instant = datetime.datetime(
             int(year), int(month), int(day), int(hour), int(minute), int(second), micro, tzinfo=tz
         )
-    except ValueError:
+        return instant.astimezone(datetime.timezone.utc)
+    except (ValueError, OverflowError):
         return None
-    return instant.astimezone(datetime.timezone.utc)
 
 
 def _check_in_record_ordering(
@@ -1218,6 +1222,11 @@ def _check_in_record_ordering(
 
 _CLOSE_MUTATION_STATUSES: Final = frozenset({"archived", "shipped"})
 _ARCHIVED_AT_CAPTURE: Final = frozenset({"archived"})
+
+
+def _archived_at_capture(entry: Mapping[str, object]) -> bool:
+    status = entry.get("declared_status")
+    return entry.get("location") == "archive" or (isinstance(status, str) and status in _ARCHIVED_AT_CAPTURE)
 
 
 def _close_mutation_kind(event: Mapping[str, object]) -> str | None:
@@ -1269,17 +1278,14 @@ def check_engine_window(
 
     targets: list[tuple[str, bool]] = []
     shipment_record = pre_close.get("shipment_record")
-    shipment_archived = isinstance(shipment_record, Mapping) and (
-        shipment_record.get("location") == "archive" or shipment_record.get("declared_status") in _ARCHIVED_AT_CAPTURE
-    )
+    shipment_archived = isinstance(shipment_record, Mapping) and _archived_at_capture(shipment_record)
     shipment_id = record.get("shipment_id")
     if isinstance(shipment_id, str):
         targets.append((shipment_id, shipment_archived))
     members = pre_close.get("manifest_members")
     for member in members if type(members) is list else []:
         if isinstance(member, Mapping) and isinstance(member.get("id"), str):
-            archived = member.get("location") == "archive" or member.get("declared_status") in _ARCHIVED_AT_CAPTURE
-            targets.append((member["id"], archived))
+            targets.append((member["id"], _archived_at_capture(member)))
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -1301,7 +1307,7 @@ def check_engine_window(
                 continue
             try:
                 event = json.loads(line)
-            except ValueError:
+            except (ValueError, RecursionError):
                 event = None
             if not isinstance(event, Mapping):
                 errors.append(f"engine log for {item_id!r} has a malformed line {number}")

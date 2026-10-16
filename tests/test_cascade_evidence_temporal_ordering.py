@@ -60,11 +60,24 @@ class InRecordOrderingTests(unittest.TestCase):
         self.assertTrue(any("record.pre_close.captured_at" in p and "RFC 3339" in p for p in problems), problems)
 
     def test_mixed_offsets_compare_as_instants(self) -> None:
-        # 22:00:00-07:00 is 05:00:00Z, after 04:59:59Z in string order it would look earlier.
+        # 22:00:00-07:00 is 05:00:00Z, so by string order it would wrongly look earlier than the Z-suffixed start.
         ok = _record(captured="2026-10-01T22:00:00-07:00", started="2026-10-02T05:00:01Z", finished="2026-10-02T05:00:02Z")
         self.assertEqual(_problems(ok), [])
         bad = _record(captured="2026-10-01T22:00:02-07:00", started="2026-10-02T05:00:01Z", finished="2026-10-02T05:00:02Z")
         self.assertTrue(any("must precede invocation.started_at" in p for p in _problems(bad)))
+
+
+class Rfc3339ParsingTests(unittest.TestCase):
+    def test_out_of_range_offsets_and_years_are_not_instants(self) -> None:
+        for value in ("2026-10-02T00:00:00+99:00", "2026-10-02T00:00:00+24:00", "2026-10-02T00:00:00+05:60",
+                      "0001-01-01T00:00:00+05:00", "２０２６-10-02T00:00:00Z"):
+            with self.subTest(value=value):
+                self.assertIsNone(cascade_evidence.parse_rfc3339_instant(value))
+
+    def test_out_of_range_offset_is_reported_not_raised(self) -> None:
+        for value in ("2026-10-02T00:00:00+99:00", "0001-01-01T00:00:00+05:00"):
+            problems = _problems(_record(captured=value))
+            self.assertTrue(any("record.pre_close.captured_at" in p and "RFC 3339" in p for p in problems), problems)
 
 
 class EngineWindowTests(unittest.TestCase):
@@ -173,6 +186,48 @@ class EngineWindowTests(unittest.TestCase):
             read_log=lambda item_id: log if item_id == _MEMBER else "",
         )
         self.assertEqual(len(errors), 1, errors)
+        # Rule 1 also fails when the capture follows the invocation start.
+        late = _record(captured="2026-10-02T05:30:00Z", started="2026-10-02T05:25:00Z", finished="2026-10-02T05:40:00Z")
+        self.assertTrue(any("must precede invocation.started_at" in p for p in _problems(late)))
+
+    def test_replay_169s_shape_passing_counterpart(self) -> None:
+        record = _record(captured="2026-10-02T05:02:03Z", started="2026-10-02T05:02:17Z", finished="2026-10-02T05:21:30Z")
+        log = _event("161.003-T", "2026-10-01T22:14:25-07:00", "archived")
+        errors, _ = cascade_evidence.check_engine_window(
+            record,
+            merge_time=_utc("2026-10-02T04:48:32Z"),
+            read_log=lambda item_id: log if item_id == _MEMBER else "",
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(_problems(record), [])
+
+    def test_tagged_declared_status_does_not_raise(self) -> None:
+        record = _record(captured="2026-10-02T01:00:00Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        tagged = {"type": "missing", "value": None}
+        record["pre_close"]["shipment_record"] = {"location": "queue", "declared_status": tagged}
+        record["pre_close"]["manifest_members"][0]["declared_status"] = tagged
+        errors, _ = cascade_evidence.check_engine_window(record, merge_time=self.MERGE, read_log=lambda item_id: "")
+        self.assertEqual(errors, [])
+
+    def test_missing_log_with_tagged_status_is_not_archived(self) -> None:
+        record = _record(captured="2026-10-02T01:00:00Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        record["pre_close"]["manifest_members"][0]["declared_status"] = {"type": "missing", "value": None}
+        errors, _ = cascade_evidence.check_engine_window(
+            record, merge_time=self.MERGE, read_log=lambda item_id: None if item_id == _MEMBER else ""
+        )
+        self.assertTrue(any(_MEMBER in e for e in errors), errors)
+
+    def test_deeply_nested_log_line_is_malformed_not_a_crash(self) -> None:
+        errors, _ = self._check(self._full_logs(**{_MEMBER: "[" * 100000}))
+        self.assertTrue(any(_MEMBER in e and "malformed" in e for e in errors), errors)
+
+    def test_close_mutation_with_missing_or_garbage_timestamp_fails_closed(self) -> None:
+        for event in (
+            json.dumps({"item_id": _MEMBER, "event_type": "archived", "delta": {}}),
+            _event(_MEMBER, "garbage", "archived"),
+        ):
+            errors, _ = self._check(self._full_logs(**{_MEMBER: event}))
+            self.assertTrue(any("malformed timestamp" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

@@ -1902,7 +1902,7 @@ def _check_close_path_requirement(
     try:
         raw = _read_contained_regular_file(root, declared, root, _CLOSE_EVIDENCE_MAX_BYTES)
         record = _json.loads(raw.decode("utf-8"))
-    except ValueError as exc:  # includes JSONDecodeError and UnicodeDecodeError
+    except (ValueError, RecursionError) as exc:  # includes JSONDecodeError and UnicodeDecodeError
         return "close_evidence", f"close_evidence record cannot be read: {exc}"
     if not isinstance(record, dict):
         return "close_evidence", f"close_evidence record '{declared}' is not a JSON object"
@@ -1943,7 +1943,7 @@ _SAFE_ITEM_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 _MERGE_SHA = re.compile(r"[0-9a-fA-F]{7,64}")
 
 
-def _merge_committer_time(root: Path, sha: object):
+def _merge_committer_time(root: Path, sha: object) -> datetime | None:
     """Committer time of ``sha`` as a UTC datetime, or None when it cannot be resolved (injectable seam)."""
     from autoharness.gates.cascade_evidence import parse_rfc3339_instant
 
