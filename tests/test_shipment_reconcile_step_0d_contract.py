@@ -83,6 +83,14 @@ class Step0dContractTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 flat = mcc.flatten(path.read_text(encoding="utf-8"))
                 self.assertIn("`pre_report_path` set to the", flat)
+                self.assertIn("Step 0(d) agreement-check outcome", flat)
+                self.assertNotIn("Step 0(c) agreement-check outcome", flat)
+
+    def test_matrix_classifier_disagreement_row_uses_step_0d_naming(self) -> None:
+        for label, text in mcc.sources():
+            with self.subTest(source=label):
+                self.assertIn("step 2b / Step 0(d) classifier disagreement", text)
+                self.assertNotIn("step 2b / Step 0(c) classifier disagreement", text)
 
     def test_template_and_resolved_copies_agree_on_the_edited_region(self) -> None:
         (_, resolved), (_, rendered) = mcc.sources()

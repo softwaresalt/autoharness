@@ -738,7 +738,7 @@ updated the safe-close algorithm. Backlogit 1.8.0 supports only `queued -> activ
    (Pre-Mode step 6) returned within this lock hold, after that gate (`expected_status: done`, the pre-close invocation) returns
    `PROCEED`; that gate judges each manifest member under the skill's Member-Class Status Contract, whose step 2b
    classification lets a qualifying feature member that is still `active` under a `CASCADE` verdict pass instead of
-   halting. After the `mode: safe-close` call returns `CLOSED`, record the skill's Step 0(c) agreement-check outcome
+   halting. After the `mode: safe-close` call returns `CLOSED`, record the skill's Step 0(d) agreement-check outcome
    (`agreed` / `not-applicable`) in the body of the closure artifact when the closure artifact is written. Keep this agent file at pointer level only — the authoritative,
    step-by-step safe-close algorithm lives in the `shipment-reconcile` skill and must
    not be re-derived here. In this self-hosting repository, `shipment-reconcile` and

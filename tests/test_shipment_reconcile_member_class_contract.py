@@ -396,13 +396,13 @@ class MemberClassContractTextTests(unittest.TestCase):
         ):
             with self.subTest(path=path.name):
                 flat = mcc.flatten(path.read_text(encoding="utf-8"))
-                self.assertIn("Step 0(c) agreement-check outcome (`agreed` / `not-applicable`)", flat)
+                self.assertIn("Step 0(d) agreement-check outcome (`agreed` / `not-applicable`)", flat)
 
     def test_template_ship_agent_records_the_agreement_outcome_after_safe_close(self) -> None:
-        # Step 0(c) runs inside safe-close (step 1.b), so the recording duty must sit
+        # Step 0(d) runs inside safe-close (step 1.b), so the recording duty must sit
         # there; pre-mode (step 1.a) has no agreement-check outcome to record yet.
         text = (mcc.REPO_ROOT / "templates" / "agents" / "_ship.agent.md.tmpl").read_text(encoding="utf-8")
-        phrase = "Step 0(c) agreement-check outcome (`agreed` / `not-applicable`)"
+        phrase = "Step 0(d) agreement-check outcome (`agreed` / `not-applicable`)"
         pre_mode = mcc.flatten(
             mcc.section(text, "a. **Pre-archive reconciliation gate (mandatory)**", "b. **Safe-close (thin pointer")
         )
