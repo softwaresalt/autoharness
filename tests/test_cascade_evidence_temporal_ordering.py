@@ -128,8 +128,20 @@ class EngineWindowTests(unittest.TestCase):
         log = _event(_MEMBER, "2026-10-01T23:59:59Z", "archived")
         self.assertEqual(self._check(self._full_logs(**{_MEMBER: log}))[0], [])
 
-    def test_archive_at_capture_instant_is_outside_window(self) -> None:
-        log = _event(_MEMBER, "2026-10-02T01:00:00Z", "archived")
+    def test_archive_at_capture_instant_is_ambiguous_for_whole_second_capture(self) -> None:
+        # The capture writer records whole seconds: an archive inside that second is not provably later.
+        log = _event(_MEMBER, "2026-10-02T01:00:00.100Z", "archived")
+        errors, _ = self._check(self._full_logs(**{_MEMBER: log}))
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("ambiguous", errors[0])
+
+    def test_archive_in_same_second_after_subsecond_capture_passes(self) -> None:
+        record = _record(captured="2026-10-02T01:00:00.500Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        log = _event(_MEMBER, "2026-10-02T01:00:00.600Z", "archived")
+        self.assertEqual(self._check(self._full_logs(**{_MEMBER: log}), record=record)[0], [])
+
+    def test_archive_the_second_after_whole_second_capture_passes(self) -> None:
+        log = _event(_MEMBER, "2026-10-02T01:00:01Z", "archived")
         self.assertEqual(self._check(self._full_logs(**{_MEMBER: log}))[0], [])
 
     def test_non_mutation_events_inside_window_pass(self) -> None:

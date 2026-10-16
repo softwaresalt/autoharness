@@ -1978,6 +1978,14 @@ def _engine_window_problems(record: dict, root: Path, warnings: list[str]) -> li
         if _SAFE_ITEM_ID.fullmatch(item_id) is None:
             raise ValueError(f"{item_id!r} is not a safe artifact ID")
         relative = f"{backlog_dir.name}/logs/{item_id}.jsonl"
+        # Component-wise containment of the logs directory BEFORE any existence
+        # probe: ``lexists`` follows intermediate links, so a redirected ``logs``
+        # directory must be rejected as an error, never reported as a missing log.
+        from autoharness.gates.shipment_closure import _check_path_containment
+
+        logs_reason = _check_path_containment(backlog_dir / "logs", backlog_dir)
+        if logs_reason is not None:
+            raise ValueError(f"'{backlog_dir.name}/logs' fails containment ({logs_reason}); nothing was probed")
         if not os.path.lexists(root.joinpath(*relative.split("/"))):
             return None
         raw = _read_contained_regular_file(root, relative, backlog_dir, _ENGINE_LOG_MAX_BYTES)

@@ -1286,6 +1286,13 @@ def check_engine_window(
     captured = parse_rfc3339_instant(pre_close.get("captured_at"))
     if captured is None:
         return [f"{where}: must be an RFC 3339 timestamp with a UTC offset"], []
+    # The capture writer records whole seconds, so a whole-second ``captured_at``
+    # stands for any instant in [C, C+1s): ordering inside that second is
+    # ambiguous and is not treated as proven pre-mutation (fail closed).
+    raw_captured = pre_close.get("captured_at")
+    window_end = captured
+    if isinstance(raw_captured, str) and re.search(r"T\d{2}:\d{2}:\d{2}(?!\.)", raw_captured):
+        window_end = captured + datetime.timedelta(seconds=1)
     if merge_time is None:
         return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
 
@@ -1335,11 +1342,12 @@ def check_engine_window(
             instant = parse_rfc3339_instant(event.get("timestamp"))
             if instant is None:
                 errors.append(f"engine log for {item_id!r} has a malformed timestamp on line {number}")
-            elif merge_time <= instant < captured:
+            elif merge_time <= instant < window_end:
                 errors.append(
                     f"{item_id!r} had a close mutation ({kind}) at {event.get('timestamp')} after the merge "
-                    f"({merge_time.isoformat()}) and before pre_close.captured_at ({captured.isoformat()}): "
-                    "the pre-close evidence is not provably pre-mutation"
+                    f"({merge_time.isoformat()}) and before pre_close.captured_at ({captured.isoformat()}"
+                    + (", whole-second precision: ordering within that second is ambiguous" if window_end != captured else "")
+                    + "): the pre-close evidence is not provably pre-mutation"
                 )
     return errors, warnings
 

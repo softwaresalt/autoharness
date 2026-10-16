@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -69,6 +70,18 @@ class EngineWindowProblemsTests(unittest.TestCase):
             self.skipTest("symlinks unavailable")
         problems, _ = self._problems()
         self.assertTrue(any(_MEMBER in p for p in problems), problems)
+
+    def test_redirected_logs_directory_is_a_containment_error_not_a_missing_log(self) -> None:
+        outside = self.root.parent / "outside-logs"
+        outside.mkdir()
+        shutil.rmtree(self.logs)
+        try:
+            self.logs.symlink_to(outside, target_is_directory=True)
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        problems, warnings = self._problems()
+        self.assertTrue(any("fails containment" in p for p in problems), problems)
+        self.assertEqual(warnings, [])
 
     def test_unsafe_member_id_is_refused_without_a_read(self) -> None:
         self.record["pre_close"]["manifest_members"][0]["id"] = "..\\evil"
