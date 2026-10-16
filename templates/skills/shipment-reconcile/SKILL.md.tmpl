@@ -101,6 +101,8 @@ declared-status rule or the member-class table. (The "not truly archived"
 sentence at Step 0(b) and in the Cascade preamble applies the rule to the
 two-set gate; it is deliberate and pinned there by 147-F.)
 
+The block does not govern claim-to-admission member statuses; that contract is P-002.7 (Post-Claim Member-Status Contract) in the workflow-policies registry, which in turn names this section as the pre-close classification contract.
+
 **Declared-status rule (R-1).** Declared `status` is read from the record's
 own frontmatter `status` field — never inferred from, nor substituted by,
 which of `queue/`/`archive/` currently holds the record. Location alone is

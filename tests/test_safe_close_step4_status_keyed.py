@@ -56,6 +56,22 @@ class SafeCloseStep4StatusKeyedTests(unittest.TestCase):
             with self.subTest(copy=name):
                 text = _flat(path.read_text(encoding="utf-8"))
                 self.assertIn("archive/`-resident record declaring `done`", text)
+    def test_p002_7_reciprocal_cross_references(self) -> None:
+        for name, path in _COPIES.items():
+            with self.subTest(copy=name):
+                text = _flat(path.read_text(encoding="utf-8"))
+                self.assertIn("that contract is P-002.7 (Post-Claim Member-Status Contract)", text)
+        policies = (
+            _ROOT / "templates" / "policies" / "workflow-policies.md.tmpl",
+            _ROOT / ".github" / "policies" / "workflow-policies.md",
+        )
+        for path in policies:
+            with self.subTest(policy=path.name):
+                text = _flat(path.read_text(encoding="utf-8"))
+                self.assertIn(
+                    "skill's `Member-Class Status Contract` is the pre-close classification contract",
+                    text,
+                )
 
 
 if __name__ == "__main__":
