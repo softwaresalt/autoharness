@@ -1293,7 +1293,8 @@ def check_engine_window(
     # ambiguous and is not treated as proven pre-mutation (fail closed).
     raw_captured = pre_close.get("captured_at")
     window_end = captured
-    if isinstance(raw_captured, str) and re.search(r"T\d{2}:\d{2}:\d{2}(?!\.)", raw_captured):
+    whole_second = _RFC3339_PATTERN.fullmatch(raw_captured.strip()) if isinstance(raw_captured, str) else None
+    if whole_second is not None and whole_second.group(7) is None:
         window_end = captured + datetime.timedelta(seconds=1)
     if merge_time is None:
         return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
@@ -1324,7 +1325,7 @@ def check_engine_window(
             else:
                 errors.append(f"{message}, and it was not recorded archived at capture")
             continue
-        for number, line in enumerate(text.splitlines(), start=1):
+        for number, line in enumerate(text.split("\n"), start=1):
             if not line.strip():
                 continue
             try:

@@ -135,6 +135,20 @@ class EngineWindowTests(unittest.TestCase):
         self.assertEqual(len(errors), 1, errors)
         self.assertIn("ambiguous", errors[0])
 
+    def test_lowercase_separator_whole_second_capture_is_still_ambiguous(self) -> None:
+        record = _record(captured="2026-10-02t01:00:00Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        log = _event(_MEMBER, "2026-10-02T01:00:00.100Z", "archived")
+        errors, _ = self._check(self._full_logs(**{_MEMBER: log}), record=record)
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("ambiguous", errors[0])
+
+    def test_unicode_line_separator_inside_json_string_is_not_a_line_break(self) -> None:
+        line = json.dumps(
+            {"timestamp": "2026-10-02T00:30:00Z", "item_id": _MEMBER, "event_type": "comment", "delta": {"text": "a\u0085b"}},
+            ensure_ascii=False,
+        )
+        self.assertEqual(self._check(self._full_logs(**{_MEMBER: line + "\r\n"}))[0], [])
+
     def test_archive_in_same_second_after_subsecond_capture_passes(self) -> None:
         record = _record(captured="2026-10-02T01:00:00.500Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
         log = _event(_MEMBER, "2026-10-02T01:00:00.600Z", "archived")
