@@ -51,6 +51,8 @@ Active stash entries `567884BC` and `D328099A` were captured earlier and stay ac
 
 `closure_status: READY`. Owner: operator.
 
+Readiness decision: the plan's outcome is `READY_WITH_CONDITIONS` with the condition "backlogit install and operator attestation", owned by the operator and explicitly out-of-workspace and non-gating for autoharness successors. The closure-evidence gate accepts `READY_WITH_CONDITIONS` only when every condition is satisfied, which this external attestation cannot be, so the machine-readable `closure_status` is `READY` and the condition is carried as the non-gating operator follow-up tracked in stash `F7329AC3` (Copilot review of PR 526 raised this reconciliation; the plan's own non-gating statement is the authority, no plan revision is made).
+
 * Acceptance (3) is operator-only: a `CONDITION_B_ATTESTED` attestation on backlogit `154-S`, after release and install. No agent originates it. Until it is recorded, the contract is shipped but not attested.
 * The capability is opt-in (`features.scheduler_baseline_claim` default false), so flag-off workspaces see no behavior change and P-002.7 governs.
 
