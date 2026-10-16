@@ -45,7 +45,7 @@ Verification outcome: NOT CLEAN. The cascade stopped before the shipment record 
 
 ## Shipment close
 
-* Pre-mode (`expected_status: done`): PROCEED, `.backlogit/reconcile/214-S-pre-20261016-174400.md`.
+* Pre-mode (`expected_status: done`): PROCEED, `.backlogit/reconcile/214-S-pre-20261016-174400.md`. Chronology disclosure: this report (generated_at 17:44:00Z) was produced after the evidence record's `pre_close.captured_at` (17:43:25Z) and after `invocation.started_at` (17:43:35Z), i.e. while `backlogit shipment ship` was already running. It is not backdated or edited, and its statement of the classify-only capture time (17:42:54Z) differs from the committed record's 17:43:25Z; the discrepancy is unexplained in the repo. It must not be read as a pre-mutation gate.
 * Post-mode: `HALT — restore archives` (shipment record not archived), `.backlogit/reconcile/214-S-post-20261016-182500.md`. Linked-deliberation disposition: 040-DL retained.
 
 ## Conditions (closure_status BLOCKED)

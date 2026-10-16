@@ -9,7 +9,7 @@ feature: 207-F
 pr: 531
 merge_commit: fe1cf82b6235e9a1908e3257bbe0f2a7a42e92e5
 date: "2026-10-16"
-source: docs/closure/214-S-207-F-post-merge-closure.md
+source: docs/compound/2026-10-16-cascade-close-killed-mid-run-leaves-invoking-record-and-stale-lock.md
 doc_type: learning
 ---
 
@@ -46,7 +46,7 @@ Every sanctioned path was forbidden or inapplicable:
 * A hand-built `post_close` record would need engine-observed facts that were lost
   (exit code 0, stdout/stderr, the parsed ship response). Writing them would be fabrication.
 
-The stale lock is operator-only to delete; the operator deleted it.
+The stale lock is operator-only to delete; the Orchestrator deleted it with explicit operator approval (Ship did not).
 
 ## Root cause and contributing causes
 
