@@ -10,3 +10,8 @@
 {"timestamp":"2026-09-10T16:18:23.0611749-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.008-T"}}
 {"timestamp":"2026-10-08T15:08:38.1926664-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_item_added","delta":{"item_id":"163.009-T"}}
 {"timestamp":"2026-10-15T19:58:51.0034128-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"9fbb8d85cc1493a98d098f4b0fe17e25","status":"active"}}
+{"timestamp":"2026-10-15T23:30:06.4394309-07:00","actor":"backlogit","item_id":"171-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"171-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-10-15T23:30:16.4513558-07:00","actor":"backlogit","item_id":"171-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"171-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-10-15T23:31:52.3170273-07:00","actor":"backlogit","item_id":"171-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"171-S","status":"shipped"}}
+{"timestamp":"2026-10-15T23:32:02.3292964-07:00","actor":"backlogit","item_id":"171-S","event_type":"commit_tracked","delta":{"author":"Derek Williams","commit_sha":"2a159b27f2b295228c000c34f50b529a94fe47a5","message":"Merge pull request #527 from softwaresalt/feat/171-s-step-0c-evidence-gate"}}
+{"timestamp":"2026-10-15T23:36:24.4200867-07:00","actor":"backlogit","item_id":"171-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/171-S.md"}}
