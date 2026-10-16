@@ -1,0 +1,1451 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Language-neutral pins of today's model_routing resolution (BF66F08B / 040-DL D5).",
+  "vectors": [
+    {
+      "id": "tier-only",
+      "description": "Only tiers declared; stage falls to tier3, ship to tier2, orchestrator to tier2.",
+      "config": {
+        "model_routing": {
+          "tier1": {
+            "model_family": "fam-t1"
+          },
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "role-partial-override",
+      "description": "Stage declares only reasoning_effort; family and provider fall back to tier3.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "stage": {
+            "reasoning_effort": "xhigh"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "xhigh",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {
+            "stage": {
+              "source": "tier3_fallback",
+              "resolved_family": "fam-t3",
+              "resolved_provider": "prov-t3",
+              "resolved_reasoning_effort": "high",
+              "resolved_context_tier": "default",
+              "role_route_family": "fam-t3",
+              "role_route_provider": "prov-t3",
+              "role_route_reasoning_effort": "xhigh",
+              "escalation_degraded": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "stage-no-route",
+      "description": "Stage has no route and falls to tier3 field by field.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "ship-no-route-with-context-tier",
+      "description": "Ship falls to tier2 including context_tier long_context.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "orchestrator-context-tier-from-tier2",
+      "description": "Orchestrator context_tier falls to tier2 while family keeps its own default.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "orchestrator": {
+            "model_family": "orch-fam"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "orch-fam",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "legacy-plain-string-tier",
+      "description": "Legacy plain-string tiers act as model_family with no other field.",
+      "config": {
+        "model_routing": {
+          "tier1": "str-t1",
+          "tier2": "str-t2",
+          "tier3": "str-t3"
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "str-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "str-t2",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "",
+          "ORCHESTRATOR_REASONING_EFFORT": "",
+          "ORCHESTRATOR_CONTEXT_TIER": "default"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "str-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "str-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "str-t3",
+          "resolved_escalation_provider": null,
+          "resolved_escalation_reasoning_effort": null,
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "legacy-object-tier-model-only",
+      "description": "A tier object declaring only model backs model_family.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model": "only-model-t2"
+          },
+          "tier3": {
+            "model": "only-model-t3"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "only-model-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "only-model-t2",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "",
+          "ORCHESTRATOR_REASONING_EFFORT": "",
+          "ORCHESTRATOR_CONTEXT_TIER": "default"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "only-model-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "only-model-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "only-model-t3",
+          "resolved_escalation_provider": null,
+          "resolved_escalation_reasoning_effort": null,
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "unset-model-family",
+      "description": "No tier or role declares a model_family; resolves to the documented tier default only for the derived variables and fails the role check.",
+      "config": {
+        "model_routing": {
+          "stage": {
+            "model_provider": "p"
+          },
+          "ship": {
+            "model_provider": "p"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "claude-opus-5",
+            "model_provider": "p",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "claude-sonnet-5",
+            "model_provider": "p",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "",
+          "ORCHESTRATOR_REASONING_EFFORT": "",
+          "ORCHESTRATOR_CONTEXT_TIER": "default"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "claude-opus-5",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "claude-opus-5",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": false,
+          "errors": [
+            "stage role route does not resolve: no model_family from model_routing.stage or fallback model_routing.tier3",
+            "ship role route does not resolve: no model_family from model_routing.ship or fallback model_routing.tier2"
+          ]
+        },
+        "escalation_route_resolution": {
+          "ok": false,
+          "errors": [
+            "escalation route does not resolve: no model_family from model_routing.escalation or fallback model_routing.tier3"
+          ],
+          "ambiguous": false,
+          "resolved_escalation_family": null,
+          "resolved_escalation_provider": null,
+          "resolved_escalation_reasoning_effort": null,
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {
+            "stage": {
+              "source": "tier3_fallback",
+              "resolved_family": "claude-opus-5",
+              "resolved_provider": "",
+              "resolved_reasoning_effort": "",
+              "resolved_context_tier": "default",
+              "role_route_family": null,
+              "role_route_provider": "p",
+              "role_route_reasoning_effort": null,
+              "escalation_degraded": false
+            },
+            "ship": {
+              "source": "tier3_fallback",
+              "resolved_family": "claude-opus-5",
+              "resolved_provider": "",
+              "resolved_reasoning_effort": "",
+              "resolved_context_tier": "default",
+              "role_route_family": null,
+              "role_route_provider": "p",
+              "role_route_reasoning_effort": null,
+              "escalation_degraded": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "empty-provider-and-effort-valid",
+      "description": "Empty provider and effort are valid; only model_family is mandatory.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2"
+          },
+          "tier3": {
+            "model_family": "fam-t3"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "",
+          "ORCHESTRATOR_REASONING_EFFORT": "",
+          "ORCHESTRATOR_CONTEXT_TIER": "default"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": null,
+          "resolved_escalation_reasoning_effort": null,
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "nested-escalation-partial",
+      "description": "Nested stage escalation declares only family; provider and effort fall back to tier3, never the flat route.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "stage": {
+            "model_family": "stage-fam",
+            "model_provider": "prov-s",
+            "reasoning_effort": "high",
+            "escalation": {
+              "model_family": "esc-fam"
+            }
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "stage-fam",
+            "model_provider": "prov-s",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "esc-fam",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {
+            "stage": {
+              "source": "nested",
+              "resolved_family": "esc-fam",
+              "resolved_provider": "prov-t3",
+              "resolved_reasoning_effort": "high",
+              "resolved_context_tier": "default",
+              "role_route_family": "stage-fam",
+              "role_route_provider": "prov-s",
+              "role_route_reasoning_effort": "high",
+              "escalation_degraded": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "legacy-flat-escalation",
+      "description": "Flat escalation is used when no nested escalation is declared.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "flat-esc",
+            "model_provider": "prov-e",
+            "reasoning_effort": "xhigh",
+            "context_tier": "long_context"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "flat-esc",
+            "model_provider": "prov-e",
+            "reasoning_effort": "xhigh",
+            "context_tier": "long_context"
+          },
+          "ship": {
+            "model_family": "flat-esc",
+            "model_provider": "prov-e",
+            "reasoning_effort": "xhigh",
+            "context_tier": "long_context"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "flat-esc",
+          "resolved_escalation_provider": "prov-e",
+          "resolved_escalation_reasoning_effort": "xhigh",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "both-present-ambiguous",
+      "description": "Flat and nested escalation both declared is ambiguous and fails closed.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "flat-esc"
+          },
+          "ship": {
+            "escalation": {
+              "model_family": "ship-esc"
+            }
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {},
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": false,
+          "errors": [
+            "AMBIGUOUS_ESCALATION_CONFIG: both the legacy flat model_routing.escalation and at least one nested <role>.escalation are declared -- fail closed, never auto-pick a winner (F02FD596/H2). Remove the legacy flat model_routing.escalation once migrated to nested per-role escalation, or remove the nested override(s) to keep the legacy shared route."
+          ],
+          "ambiguous": true,
+          "same_route_roles": []
+        }
+      }
+    },
+    {
+      "id": "same-route-guard-true",
+      "description": "Stage escalation resolves to its own route tuple and is degraded.",
+      "config": {
+        "model_routing": {
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          }
+        }
+      },
+      "installed_roles": [
+        "stage"
+      ],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "claude-sonnet-5",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "",
+          "ORCHESTRATOR_REASONING_EFFORT": "",
+          "ORCHESTRATOR_CONTEXT_TIER": "default"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": false,
+          "errors": [
+            "ship role route does not resolve: no model_family from model_routing.ship or fallback model_routing.tier2"
+          ]
+        },
+        "escalation_route_resolution": {
+          "ok": false,
+          "errors": [
+            "ESCALATION_DEGRADED: role(s) stage resolve an escalation route identical to their own already-resolved role route -- same-route no-op, not a genuine escalation to deeper reasoning; declare a distinct model_family for that role's escalation route."
+          ],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [
+            "stage"
+          ],
+          "deprecated_flat_in_use": true,
+          "per_role": {
+            "stage": {
+              "source": "legacy_flat",
+              "resolved_family": "fam-t3",
+              "resolved_provider": "prov-t3",
+              "resolved_reasoning_effort": "high",
+              "resolved_context_tier": "default",
+              "role_route_family": "fam-t3",
+              "role_route_provider": "prov-t3",
+              "role_route_reasoning_effort": "high",
+              "escalation_degraded": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "same-family-different-provider",
+      "description": "Same family but explicit different provider is a genuine escalation.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "stage": {
+            "model_family": "fam-x",
+            "model_provider": "prov-a",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "fam-x",
+            "model_provider": "prov-b",
+            "reasoning_effort": "high"
+          }
+        }
+      },
+      "installed_roles": [
+        "stage"
+      ],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-x",
+            "model_provider": "prov-a",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-x",
+            "model_provider": "prov-b",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-x",
+            "model_provider": "prov-b",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-x",
+          "resolved_escalation_provider": "prov-b",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": true,
+          "per_role": {
+            "stage": {
+              "source": "legacy_flat",
+              "resolved_family": "fam-x",
+              "resolved_provider": "prov-b",
+              "resolved_reasoning_effort": "high",
+              "resolved_context_tier": "default",
+              "role_route_family": "fam-x",
+              "role_route_provider": "prov-a",
+              "role_route_reasoning_effort": "high",
+              "escalation_degraded": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "context-tier-only-difference-still-same-route",
+      "description": "Escalation differing only by context_tier is still a same-route no-op.",
+      "config": {
+        "model_routing": {
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "escalation": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "long_context"
+          }
+        }
+      },
+      "installed_roles": [
+        "stage"
+      ],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "claude-sonnet-5",
+            "model_provider": "",
+            "reasoning_effort": "",
+            "context_tier": "default"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "",
+          "ORCHESTRATOR_REASONING_EFFORT": "",
+          "ORCHESTRATOR_CONTEXT_TIER": "default"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "long_context"
+          },
+          "ship": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "long_context"
+          }
+        },
+        "role_route_resolution": {
+          "ok": false,
+          "errors": [
+            "ship role route does not resolve: no model_family from model_routing.ship or fallback model_routing.tier2"
+          ]
+        },
+        "escalation_route_resolution": {
+          "ok": false,
+          "errors": [
+            "ESCALATION_DEGRADED: role(s) stage resolve an escalation route identical to their own already-resolved role route -- same-route no-op, not a genuine escalation to deeper reasoning; declare a distinct model_family for that role's escalation route."
+          ],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t3",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [
+            "stage"
+          ],
+          "deprecated_flat_in_use": true,
+          "per_role": {
+            "stage": {
+              "source": "legacy_flat",
+              "resolved_family": "fam-t3",
+              "resolved_provider": "prov-t3",
+              "resolved_reasoning_effort": "high",
+              "resolved_context_tier": "long_context",
+              "role_route_family": "fam-t3",
+              "role_route_provider": "prov-t3",
+              "role_route_reasoning_effort": "high",
+              "escalation_degraded": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "installed-role-widening-no-key",
+      "description": "Installed ship with no ship key still compares escalation to its tier2 route.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium"
+          }
+        }
+      },
+      "installed_roles": [
+        "ship"
+      ],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": false,
+          "errors": [
+            "ESCALATION_DEGRADED: role(s) ship resolve an escalation route identical to their own already-resolved role route -- same-route no-op, not a genuine escalation to deeper reasoning; declare a distinct model_family for that role's escalation route."
+          ],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t2",
+          "resolved_escalation_provider": "prov-t2",
+          "resolved_escalation_reasoning_effort": "medium",
+          "same_route_roles": [
+            "ship"
+          ],
+          "deprecated_flat_in_use": true,
+          "per_role": {
+            "ship": {
+              "source": "legacy_flat",
+              "resolved_family": "fam-t2",
+              "resolved_provider": "prov-t2",
+              "resolved_reasoning_effort": "medium",
+              "resolved_context_tier": "default",
+              "role_route_family": "fam-t2",
+              "role_route_provider": "prov-t2",
+              "role_route_reasoning_effort": "medium",
+              "escalation_degraded": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "installed-role-not-installed-no-key",
+      "description": "Same config with no installed role skips the same-route comparison.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium"
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "default"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "fam-t2",
+          "resolved_escalation_provider": "prov-t2",
+          "resolved_escalation_reasoning_effort": "medium",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": false,
+          "per_role": {}
+        }
+      }
+    },
+    {
+      "id": "nested-context-tier-only-not-source",
+      "description": "A nested escalation declaring only context_tier never selects the nested source.",
+      "config": {
+        "model_routing": {
+          "tier2": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          },
+          "tier3": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high"
+          },
+          "escalation": {
+            "model_family": "flat-esc",
+            "context_tier": "long_context"
+          },
+          "stage": {
+            "escalation": {
+              "context_tier": "default"
+            }
+          }
+        }
+      },
+      "installed_roles": [],
+      "expected": {
+        "role_routes": {
+          "stage": {
+            "model_family": "fam-t3",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "fam-t2",
+            "model_provider": "prov-t2",
+            "reasoning_effort": "medium",
+            "context_tier": "long_context"
+          }
+        },
+        "orchestrator_route_variables": {
+          "ORCHESTRATOR_FAMILY": "gpt-5.4",
+          "ORCHESTRATOR_PROVIDER": "prov-t2",
+          "ORCHESTRATOR_REASONING_EFFORT": "medium",
+          "ORCHESTRATOR_CONTEXT_TIER": "long_context"
+        },
+        "effective_escalation": {
+          "stage": {
+            "model_family": "flat-esc",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "default"
+          },
+          "ship": {
+            "model_family": "flat-esc",
+            "model_provider": "prov-t3",
+            "reasoning_effort": "high",
+            "context_tier": "long_context"
+          }
+        },
+        "role_route_resolution": {
+          "ok": true,
+          "errors": []
+        },
+        "escalation_route_resolution": {
+          "ok": true,
+          "errors": [],
+          "ambiguous": false,
+          "resolved_escalation_family": "flat-esc",
+          "resolved_escalation_provider": "prov-t3",
+          "resolved_escalation_reasoning_effort": "high",
+          "same_route_roles": [],
+          "deprecated_flat_in_use": true,
+          "per_role": {
+            "stage": {
+              "source": "legacy_flat",
+              "resolved_family": "flat-esc",
+              "resolved_provider": "prov-t3",
+              "resolved_reasoning_effort": "high",
+              "resolved_context_tier": "default",
+              "role_route_family": "fam-t3",
+              "role_route_provider": "prov-t3",
+              "role_route_reasoning_effort": "high",
+              "escalation_degraded": false
+            }
+          }
+        }
+      }
+    }
+  ]
+}
