@@ -896,7 +896,10 @@ completion.
      shipped earlier.
    * If the item carries any other declared `status`, in either location: when
      that status is not `done`, first move it to `done` via
-     `backlogit_move_item`; then perform an explicit single-artifact archive via
+     `backlogit_move_item` (the engine can refuse a direct `queued` to
+     `done` move as an invalid transition, so step through `active`
+     first when needed; if any move is refused, HALT for operator review and
+     never skip); then perform an explicit single-artifact archive via
      `backlogit_archive_item` (CLI fallback `backlogit archive {id}`). When the
      backlog registry's `archive_item` operation supports commit metadata, record
      the merge SHA using that tool's configured field (for backlogit, `commit_sha`);
@@ -1068,7 +1071,7 @@ step 3's two-set gate below. The sole authority for "truly archived" is the
 declared-status snapshot Step 0(b)/(c) already captured before this
 sub-procedure runs.
 
-A `pre-archived` (by location) manifest member is **expected and tolerated
+A `pre-archived` (declared `archived`) manifest member is **expected and tolerated
 on this path**: it does **not** disqualify the `CASCADE` verdict, does
 **not** constitute a classifier ambiguity or unresolved precondition, and
 does **not** authorize a fallback to safe-close. Step 0(c)'s classifier

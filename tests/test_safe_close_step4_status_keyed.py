@@ -56,6 +56,14 @@ class SafeCloseStep4StatusKeyedTests(unittest.TestCase):
             with self.subTest(copy=name):
                 text = _flat(path.read_text(encoding="utf-8"))
                 self.assertIn("archive/`-resident record declaring `done`", text)
+
+    def test_step4_move_refusal_halts_in_both_copies(self) -> None:
+        for name, path in _COPIES.items():
+            with self.subTest(copy=name):
+                body = _step4(path.read_text(encoding="utf-8"))
+                self.assertIn("step through `active` first when needed", body)
+                self.assertIn("if any move is refused, HALT for operator review", body)
+
     def test_timeout_reference_costs_rederived_in_both_copies(self) -> None:
         for name, path in _COPIES.items():
             with self.subTest(copy=name):
