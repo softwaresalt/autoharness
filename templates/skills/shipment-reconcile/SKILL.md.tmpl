@@ -896,8 +896,8 @@ completion.
      shipped earlier.
    * If the item carries any other declared `status`, in either location: when
      that status is not `{{STATUS_DONE}}`, first move it to `{{STATUS_DONE}}` via
-     `{{OP_MOVE_MCP}}` (the engine can refuse a direct `queued` to
-     `{{STATUS_DONE}}` move as an invalid transition, so step through `active`
+     `{{OP_MOVE_MCP}}` (the engine can refuse a direct `{{STATUS_QUEUED}}` to
+     `{{STATUS_DONE}}` move as an invalid transition, so step through `{{STATUS_ACTIVE}}`
      first when needed; if any move is refused, HALT for operator review and
      never skip); then perform an explicit single-artifact archive via
      `{{OP_ARCHIVE_ITEM_MCP}}` (CLI fallback `backlogit archive {id}`). When the
@@ -1923,7 +1923,7 @@ If pre-mode cannot acquire the lock because another process holds it:
 * **Negative — archive-without-status out-of-manifest child**: a record physically in `{{BACKLOG_DIRECTORY}}/archive/` but lacking its own declared `status` still selects `SAFE_CLOSE`; location is never a substitute for inertness.
 * **Negative — live out-of-manifest grandchild**: a live grandchild outside `closure_scope(S)` selects `SAFE_CLOSE`; ancestry explains blast radius but never expands closure scope.
 * **Negative — baseline-archived observation member**: an observation-set artifact already archived, descoped, or missing at baseline is recorded as baseline state and does **NOT** halt by itself.
-* **Safe-Close step 4 status-keyed archive (D16452D7)**: an `{{BACKLOG_DIRECTORY}}/archive/`-resident record declaring `done` (or `active`) is moved to `done` if needed and archived explicitly, classified `matched`, never skipped; a record declaring `archived` in either location is `pre-archived` and skipped; an engine refusal halts for operator review.
+* **Safe-Close step 4 status-keyed archive (D16452D7)**: an `{{BACKLOG_DIRECTORY}}/archive/`-resident record declaring `{{STATUS_DONE}}` (or `{{STATUS_ACTIVE}}`) is moved to `{{STATUS_DONE}}` if needed and archived explicitly, classified `matched`, never skipped; a record declaring `archived` in either location is `pre-archived` and skipped; an engine refusal halts for operator review.
 * **Negative — changed during run**: any observation-set location/hash drift relative to baseline halts and enters the D6 sequence: capture evidence -> HALT -> emit P-005 -> request EXPLICIT operator approval -> REVALIDATE -> execute ONLY the approved rollback.
 * **Negative — refused transition with no safe substitution**: if `backlogit move <shipment_id> --status shipped` is refused while Step 0(c) did not select `CASCADE`, halt with `RECONCILE_FAIL_NO_SAFE_RECORD_TRANSITION`; the cascade op must NOT be substituted.
 * **Negative — step 2b / Step 0(d) classifier disagreement**: the `--classify-only` record's `classifier_verdict` or `qualifying_feature_ids` differs from Pre-Mode step 2b's recorded values; halt with `RECONCILE_FAIL_PREMODE_CLASSIFIER_DRIFT` before acting on any routing row. Nothing is mutated and no path is substituted.
