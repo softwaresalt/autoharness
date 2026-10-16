@@ -1,0 +1,205 @@
+{
+  "marker_contract_version": 1,
+  "producer_contract": "scheduler-baseline-marker/v1",
+  "log_templates": {
+    "claimed": [
+      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}}
+    ],
+    "claimed_started": [
+      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}},
+      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "ship", "body": "WORK_STARTED: 300-S"}
+    ],
+    "claimed_started_crlf": [
+      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}},
+      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "ship", "body": "WORK_STARTED: 300-S\r\nnote"}
+    ],
+    "stale_start_prior_epoch": [
+      {"ts": "2026-10-15T01:05:00Z", "type": "comment", "actor": "ship", "body": "WORK_STARTED: 300-S"},
+      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}}
+    ],
+    "claimed_foreign_actor_start": [
+      {"ts": "2026-10-16T01:00:00Z", "type": "status_changed", "delta": {"to": "active", "reason": "shipment claimed"}},
+      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "operator", "body": "WORK_STARTED: 300-S"}
+    ],
+    "no_claim_event": [
+      {"ts": "2026-10-16T01:05:00Z", "type": "comment", "actor": "ship", "body": "hello"}
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "F1",
+      "note": "acceptance 1: dependency-ready member admitted in wave 1, rest claim-assigned waiting, zero residuals",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T", "300.002-T", "300.003-T"], ["300.001-T", "300.002-T", "300.003-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []},
+        "300.002-T": {"status": "active", "marker": "300-S", "deps": ["300.001-T"]},
+        "300.003-T": {"status": "active", "marker": "300-S", "deps": ["300.002-T"]}
+      },
+      "logs": {"300.001-T": "claimed", "300.002-T": "claimed", "300.003-T": "claimed"},
+      "expected": {
+        "halt": null,
+        "admitted": ["300.001-T"],
+        "claim_assigned_waiting": ["300.002-T", "300.003-T"],
+        "active_residuals": [],
+        "indeterminate": []
+      }
+    },
+    {
+      "id": "F2",
+      "note": "acceptance 2a: missing marker is an active residual, never claim-assigned",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T", "300.002-T"], ["300.001-T", "300.002-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []},
+        "300.002-T": {"status": "active", "marker": null, "deps": []}
+      },
+      "logs": {"300.001-T": "claimed", "300.002-T": "claimed"},
+      "expected": {
+        "halt": "WAVE_NO_PROGRESS",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": ["300.002-T"],
+        "indeterminate": []
+      }
+    },
+    {
+      "id": "F3",
+      "note": "acceptance 2a: marker naming another shipment is an active residual",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "299-S", "deps": []}
+      },
+      "logs": {"300.001-T": "claimed"},
+      "expected": {
+        "halt": "WAVE_NO_PROGRESS",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": ["300.001-T"],
+        "indeterminate": []
+      }
+    },
+    {
+      "id": "F4",
+      "note": "acceptance 2b: marker = S without a claim event is indeterminate and outranks a co-present residual",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T", "300.002-T"], ["300.001-T", "300.002-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []},
+        "300.002-T": {"status": "active", "marker": null, "deps": []}
+      },
+      "logs": {"300.001-T": "no_claim_event", "300.002-T": "claimed"},
+      "expected": {
+        "halt": "WAVE_CLAIM_STATE_INDETERMINATE",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": ["300.002-T"],
+        "indeterminate": ["300.001-T"]
+      }
+    },
+    {
+      "id": "F5",
+      "note": "two active shipments is indeterminate",
+      "shipment": "300-S",
+      "active_shipments": ["300-S", "301-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []}
+      },
+      "logs": {"300.001-T": "claimed"},
+      "expected": {
+        "halt": "WAVE_CLAIM_STATE_INDETERMINATE",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": [],
+        "indeterminate": ["shipment"]
+      }
+    },
+    {
+      "id": "F6",
+      "note": "manifest drift between the two reads is indeterminate",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T", "300.002-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []}
+      },
+      "logs": {"300.001-T": "claimed"},
+      "expected": {
+        "halt": "WAVE_CLAIM_STATE_INDETERMINATE",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": [],
+        "indeterminate": ["manifest"]
+      }
+    },
+    {
+      "id": "F7",
+      "note": "a valid WORK_STARTED start record in the current epoch makes the member a residual",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T"], ["300.001-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []}
+      },
+      "logs": {"300.001-T": "claimed_started"},
+      "expected": {
+        "halt": "WAVE_NO_PROGRESS",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": ["300.001-T"],
+        "indeterminate": []
+      }
+    },
+    {
+      "id": "F8",
+      "note": "first-line rule strips one trailing CR; a start record from a prior epoch or a non-ship actor is not valid",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T", "300.002-T", "300.003-T"], ["300.001-T", "300.002-T", "300.003-T"]],
+      "members": {
+        "300.001-T": {"status": "active", "marker": "300-S", "deps": []},
+        "300.002-T": {"status": "active", "marker": "300-S", "deps": []},
+        "300.003-T": {"status": "active", "marker": "300-S", "deps": []}
+      },
+      "logs": {
+        "300.001-T": "stale_start_prior_epoch",
+        "300.002-T": "claimed_foreign_actor_start",
+        "300.003-T": "claimed_started_crlf"
+      },
+      "expected": {
+        "halt": "WAVE_NO_PROGRESS",
+        "admitted": [],
+        "claim_assigned_waiting": [],
+        "active_residuals": ["300.003-T"],
+        "indeterminate": []
+      }
+    },
+    {
+      "id": "F9",
+      "note": "queued members join claim-assigned members in ready_1; done and archived dependencies are terminal_success",
+      "shipment": "300-S",
+      "active_shipments": ["300-S"],
+      "manifest_reads": [["300.001-T", "300.002-T", "300.003-T", "300.004-T"], ["300.001-T", "300.002-T", "300.003-T", "300.004-T"]],
+      "members": {
+        "300.001-T": {"status": "done", "marker": null, "deps": []},
+        "300.002-T": {"status": "archived", "marker": null, "deps": []},
+        "300.003-T": {"status": "queued", "marker": null, "deps": ["300.001-T", "300.002-T"]},
+        "300.004-T": {"status": "active", "marker": "300-S", "deps": ["300.003-T"]}
+      },
+      "logs": {"300.004-T": "claimed"},
+      "expected": {
+        "halt": null,
+        "admitted": ["300.003-T"],
+        "claim_assigned_waiting": ["300.004-T"],
+        "active_residuals": [],
+        "indeterminate": []
+      }
+    }
+  ]
+}
