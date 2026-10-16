@@ -51,6 +51,8 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **Violation Action**: Halt and suggest running the harness-architect.
 
+**P-002.7 companion note**: the shipment-reconcile skill's `Member-Class Status Contract` is the pre-close classification contract for the member statuses that follow a claim, and it names the P-002.7 contract below as the claim-to-admission member-status contract.
+
 <!-- P-002.7:BEGIN canonical post-claim member-status contract -->
 ### P-002.7 — Post-Claim Member-Status Contract
 
@@ -68,7 +70,7 @@ Agents must read this file at each declared gate point and enforce the relevant 
 
 **Observed-version attribution**: backlogit `ClaimShipment` activates the shipment record and every included queued member in one all-or-nothing operation. That behaviour was observed against backlogit 1.10.0 (`docs/compound/2026-08-21-backlogit-1-10-shipment-claim-cascades-to-children.md`, pinned upstream by `TestClaimShipment_ActivatesIncludedScope`) and re-observed against backlogit 1.11.0 at the 177-S claim. This clause records that observed version range only; re-verify the cascade against the installed backlogit version rather than treating it as a claim about all versions.
 
-**Cross-reference**: the Ship agent's intake-reconciliation note (the **Intake reconciliation check** item of Ship's shipment intake) applies this contract at intake and names P-002.7 in return; the two must be changed together. The shipment-reconcile skill's `Member-Class Status Contract` is the pre-close classification contract for the member statuses that follow a claim, and it names this P-002.7 contract as the claim-to-admission member-status contract.
+**Cross-reference**: the Ship agent's intake-reconciliation note (the **Intake reconciliation check** item of Ship's shipment intake) applies this contract at intake and names P-002.7 in return; the two must be changed together.
 <!-- P-002.7:END -->
 
 <!-- P-002.8:BEGIN canonical claim-marker consumption contract -->
