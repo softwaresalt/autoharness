@@ -135,6 +135,18 @@ class EngineWindowTests(unittest.TestCase):
         self.assertEqual(len(errors), 1, errors)
         self.assertIn("ambiguous", errors[0])
 
+    def test_beyond_microsecond_capture_with_provably_later_event_passes(self) -> None:
+        record = _record(captured="2026-10-02T01:00:00.5000001Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        for stamp in ("2026-10-02T01:00:00.6000000Z", "2026-10-02T01:00:01Z"):
+            log = _event(_MEMBER, stamp, "archived")
+            self.assertEqual(self._check(self._full_logs(**{_MEMBER: log}), record=record)[0], [], stamp)
+
+    def test_sub_microsecond_finish_before_start_fails_in_record(self) -> None:
+        record = _record(started="2026-10-02T01:00:01.5000009Z", finished="2026-10-02T01:00:01.5000001Z")
+        self.assertTrue(any("must not precede started_at" in p for p in _problems(record)))
+        ok = _record(started="2026-10-02T01:00:01.5000001Z", finished="2026-10-02T01:00:01.5000009Z")
+        self.assertEqual(_problems(ok), [])
+
     def test_beyond_microsecond_capture_precision_is_ambiguous(self) -> None:
         record = _record(captured="2026-10-02T01:00:00.5000001Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
         log = _event(_MEMBER, "2026-10-02T01:00:00.5000000Z", "archived")

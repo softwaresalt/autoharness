@@ -1214,10 +1214,24 @@ def _check_in_record_ordering(
         if stamps[key] is None:
             checker.fail(where, f"must be an RFC 3339 timestamp with a UTC offset (got {raw!r})")
     captured, started, finished = stamps["captured_at"], stamps["started_at"], stamps["finished_at"]
-    if captured is not None and started is not None and captured >= started:
+    if captured is not None and started is not None and _order_key(captured, pre_close, "captured_at") >= _order_key(
+        started, invocation, "started_at"
+    ):
         checker.fail("record.pre_close.captured_at", "must precede invocation.started_at")
-    if started is not None and finished is not None and finished < started:
+    if started is not None and finished is not None and _order_key(finished, invocation, "finished_at") < _order_key(
+        started, invocation, "started_at"
+    ):
         checker.fail("record.invocation.finished_at", "must not precede started_at")
+
+
+def _order_key(instant: datetime.datetime, source: Mapping[str, object] | None, key: str) -> tuple[datetime.datetime, int]:
+    """Instant plus the fractional digits beyond microseconds, so sub-microsecond order is preserved."""
+
+    raw = source.get(key) if source is not None else None
+    match = _RFC3339_PATTERN.fullmatch(raw.strip()) if isinstance(raw, str) else None
+    fraction = match.group(7) if match is not None else None
+    extra = int((fraction[6:] if fraction else "").ljust(40, "0") or "0")
+    return instant, extra
 
 
 _CLOSE_MUTATION_STATUSES: Final = frozenset({"archived", "shipped"})
@@ -1300,7 +1314,6 @@ def check_engine_window(
         # Digits beyond microseconds are discarded by the parser: widen by one
         # microsecond so an event inside the truncated remainder is not accepted.
         window_end = captured + datetime.timedelta(microseconds=1)
-        window_end = captured + datetime.timedelta(seconds=1)
     if merge_time is None:
         return ["record.merge_commit_sha: the merge commit's committer time could not be resolved"], []
 
