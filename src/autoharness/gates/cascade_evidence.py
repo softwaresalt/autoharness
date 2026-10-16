@@ -1225,28 +1225,41 @@ _ARCHIVED_AT_CAPTURE: Final = frozenset({"archived"})
 
 
 def _archived_at_capture(entry: Mapping[str, object]) -> bool:
-    status = entry.get("declared_status")
-    return entry.get("location") == "archive" or (isinstance(status, str) and status in _ARCHIVED_AT_CAPTURE)
+    # ``location: archive`` alone does not establish archived status (an
+    # archive-resident ``done`` record is not archived); use the declared status.
+    return is_declared_archived(entry.get("declared_status"))
 
 
 def _close_mutation_kind(event: Mapping[str, object]) -> str | None:
-    """Describe the event when it is a close mutation (ordering rule 2); None otherwise."""
+    """Describe the event when it is a close mutation (ordering rule 2); None otherwise.
+
+    Raises ``ValueError`` when a recognized mutation event type has a malformed
+    payload, so the status transition cannot be determined (fail closed).
+    """
 
     event_type = event.get("event_type")
     if event_type == "archived":
         return "archived"
+    if event_type not in ("status_changed", "artifact_mutation", "shipment_status_changed"):
+        return None
     delta = event.get("delta")
     if not isinstance(delta, Mapping):
-        return None
+        raise ValueError(f"{event_type} event has no delta object")
     if event_type == "status_changed":
         new_status = delta.get("to")
+        if not isinstance(new_status, str):
+            raise ValueError("status_changed event has no string delta.to")
     elif event_type == "artifact_mutation":
         changes = delta.get("changes")
-        new_status = changes.get("status") if isinstance(changes, Mapping) else None
-    elif event_type == "shipment_status_changed":
-        new_status = delta.get("status")
+        if not isinstance(changes, Mapping):
+            raise ValueError("artifact_mutation event has no delta.changes object")
+        new_status = changes.get("status")
+        if new_status is not None and not isinstance(new_status, str):
+            raise ValueError("artifact_mutation event has a non-string delta.changes.status")
     else:
-        return None
+        new_status = delta.get("status")
+        if not isinstance(new_status, str):
+            raise ValueError("shipment_status_changed event has no string delta.status")
     if isinstance(new_status, str) and new_status in _CLOSE_MUTATION_STATUSES:
         return f"{event_type} to {new_status}"
     return None
@@ -1312,7 +1325,11 @@ def check_engine_window(
             if not isinstance(event, Mapping):
                 errors.append(f"engine log for {item_id!r} has a malformed line {number}")
                 continue
-            kind = _close_mutation_kind(event)
+            try:
+                kind = _close_mutation_kind(event)
+            except ValueError as exc:
+                errors.append(f"engine log for {item_id!r} has a malformed mutation event on line {number}: {exc}")
+                continue
             if kind is None:
                 continue
             instant = parse_rfc3339_instant(event.get("timestamp"))

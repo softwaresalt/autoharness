@@ -156,12 +156,41 @@ class EngineWindowTests(unittest.TestCase):
 
     def test_missing_log_for_archived_member_warns(self) -> None:
         record = _record(captured="2026-10-02T01:00:00Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
-        record["pre_close"]["manifest_members"][0]["location"] = "archive"
+        record["pre_close"]["manifest_members"][0]["declared_status"] = "archived"
         logs = self._full_logs()
         del logs[_MEMBER]
         errors, warnings = self._check(logs, record=record)
         self.assertEqual(errors, [])
         self.assertTrue(any(_MEMBER in w for w in warnings), warnings)
+
+    def test_missing_log_for_archive_resident_done_member_fails(self) -> None:
+        record = _record(captured="2026-10-02T01:00:00Z", started="2026-10-02T01:00:05Z", finished="2026-10-02T01:10:00Z")
+        record["pre_close"]["manifest_members"][0]["location"] = "archive"
+        record["pre_close"]["manifest_members"][0]["declared_status"] = "done"
+        logs = self._full_logs()
+        del logs[_MEMBER]
+        errors, _ = self._check(logs, record=record)
+        self.assertTrue(any(_MEMBER in e for e in errors), errors)
+
+    def test_malformed_recognized_mutation_payloads_fail_closed(self) -> None:
+        for event_type, delta in (
+            ("status_changed", None),
+            ("status_changed", {"from": "active"}),
+            ("artifact_mutation", None),
+            ("artifact_mutation", {"changes": "nope"}),
+            ("artifact_mutation", {"changes": {"status": 5}}),
+            ("shipment_status_changed", {}),
+        ):
+            line = json.dumps(
+                {"timestamp": "2026-10-02T00:30:00Z", "item_id": _MEMBER, "event_type": event_type, "delta": delta}
+            )
+            errors, _ = self._check(self._full_logs(**{_MEMBER: line}))
+            self.assertTrue(any("malformed mutation event" in e for e in errors), (event_type, delta, errors))
+
+    def test_artifact_mutation_changing_only_non_status_fields_passes(self) -> None:
+        line = _event(_MEMBER, "2026-10-02T00:30:00Z", "artifact_mutation", {"changes": {"title": "x"}})
+        errors, _ = self._check(self._full_logs(**{_MEMBER: line}))
+        self.assertEqual(errors, [])
 
     def test_malformed_log_line_fails(self) -> None:
         errors, _ = self._check(self._full_logs(**{_MEMBER: "{not json"}))
