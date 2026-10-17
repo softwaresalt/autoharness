@@ -59,6 +59,7 @@ __all__ = [
     "LOCK_DIR",
     "MODE_CLASSIFY_ONLY",
     "MODE_MUTATING",
+    "MODE_RECOVER",
     "MODE_REPLACE_PRE_CLOSE",
     "PARSE_CAP_BYTES",
     "PARSE_CAP_LINES",
@@ -99,7 +100,8 @@ LOCK_DIR: Final = Path(".autoharness") / "gates" / "cascade-close"
 MODE_CLASSIFY_ONLY: Final = "classify_only"
 MODE_REPLACE_PRE_CLOSE: Final = "replace_pre_close"
 MODE_MUTATING: Final = "mutating"
-_MODES: Final = frozenset({MODE_CLASSIFY_ONLY, MODE_REPLACE_PRE_CLOSE, MODE_MUTATING})
+MODE_RECOVER: Final = "recover"
+_MODES: Final = frozenset({MODE_CLASSIFY_ONLY, MODE_REPLACE_PRE_CLOSE, MODE_MUTATING, MODE_RECOVER})
 
 _RUN_ID_PATTERN: Final = re.compile(r"[0-9a-f]{32}")
 _PHASES: Final = frozenset({"pre_close", "invoking", "post_close"})
@@ -786,7 +788,9 @@ def _require_held(lock: PairLock) -> None:
 def check_existing_record(lock: PairLock, *, mode: str) -> Mapping[str, object] | None:
     """Return the existing ``pre_close`` record (or ``None``) for the locked pair.
 
-    * an ``invoking`` record, an unreadable record, or an unknown phase: exit 7;
+    * an ``invoking`` record, an unreadable record, or an unknown phase: exit 7
+      (in ``MODE_RECOVER`` the ``invoking`` record is the expected input and is
+      returned; a ``pre_close`` record is then exit 2, nothing to recover);
     * a ``post_close`` record: exit 2 (``evidence already finalized``);
     * a ``pre_close`` record under plain ``--classify-only``: exit 2
       (``evidence already exists``, no-clobber);
@@ -811,6 +815,12 @@ def check_existing_record(lock: PairLock, *, mode: str) -> Mapping[str, object] 
     if not isinstance(record, dict):
         raise PersistError(EXIT_LOCKED, "existing evidence record is not a JSON object (operator review)")
     phase = record.get("phase")
+    if phase == "invoking" and mode == MODE_RECOVER:
+        if not _is_run_id(record.get("run_id")):
+            raise PersistError(EXIT_LOCKED, "the invoking evidence record carries no valid run_id (operator review)")
+        if record.get("shipment_id") != lock.shipment_id or record.get("feature_id") != lock.feature_id:
+            raise PersistError(EXIT_LOCKED, "existing evidence record names a different pair (operator review)")
+        return record
     if phase == "invoking":
         raise PersistError(EXIT_LOCKED, "an invoking evidence record exists (a prior run may have mutated)")
     if phase == "post_close":
@@ -821,6 +831,8 @@ def check_existing_record(lock: PairLock, *, mode: str) -> Mapping[str, object] 
         raise PersistError(EXIT_LOCKED, "existing evidence record names a different pair (operator review)")
     if mode == MODE_CLASSIFY_ONLY:
         raise PersistError(EXIT_INPUT, "evidence already exists")
+    if mode == MODE_RECOVER:
+        raise PersistError(EXIT_INPUT, "no invoking evidence record to recover (the record is pre_close)")
     return record
 
 
