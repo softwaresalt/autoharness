@@ -65,8 +65,8 @@ def _dead_pid() -> int:
 class _Orphan(_Harness):
     """A real run whose finalizer died after the child finished: invoking record, journal, no lock."""
 
-    def __init__(self, test: unittest.TestCase) -> None:
-        super().__init__(test, probes=_PROBES)
+    def __init__(self, test: unittest.TestCase, *, ship: dict | None = None) -> None:
+        super().__init__(test, probes=_PROBES, ship=ship)
         self.test = test
         with mock.patch.object(command, "_finalize", side_effect=_FinalizerDied("killed")):
             outcome = self.run()
@@ -179,10 +179,16 @@ class RefusalMatrixTests(unittest.TestCase):
         orphan.write_lock(pid=os.getpid(), pid_start=None)
         self.assertIn("not provably dead", self._refused(orphan))
 
-    def test_a_lock_held_by_another_run_refuses(self) -> None:
+    def test_a_lock_held_by_a_live_run_other_than_the_original_refuses(self) -> None:
+        orphan = _Orphan(self)
+        orphan.write_lock(run_id="f" * 32, pid=os.getpid(), pid_start=None)
+        self.assertIn("not provably dead", self._refused(orphan))
+
+    def test_a_dead_recovery_runs_lock_left_by_a_crash_after_takeover_is_stale(self) -> None:
         orphan = _Orphan(self)
         orphan.write_lock(run_id="f" * 32)
-        self.assertIn("other than", self._refused(orphan))
+        outcome = orphan.recover(_options(dry_run=True))
+        self.assertEqual(outcome.exit_code, EXIT_OK, outcome.message)
 
     def test_an_unreadable_lock_needs_the_operator_confirmation(self) -> None:
         orphan = _Orphan(self)
@@ -268,7 +274,9 @@ class RefusalMatrixTests(unittest.TestCase):
         shutil.rmtree(orphan.journal_dir)
         self.assertIn("--confirm-engine-stopped", self._refused(orphan))
         outcome = orphan.recover(_options(dry_run=True, confirm_engine_stopped=True))
-        self.assertEqual(outcome.exit_code, EXIT_OK, outcome.message)
+        # Eligibility now passes; this fixture has no engine event log, so reconstruction (T11) refuses.
+        self.assertNotIn("--confirm-engine-stopped", outcome.message)
+        self.assertIn("event log", outcome.message)
 
     def test_a_journal_for_another_argv_refuses(self) -> None:
         orphan = _Orphan(self)
