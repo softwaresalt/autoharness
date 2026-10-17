@@ -310,6 +310,7 @@ class NeverSpawnWithoutAuthorizationTests(unittest.TestCase):
         harness.assert_rolled_back_without_shipping()
 
 
+@unittest.skipIf(sys.prefix != sys.base_prefix, "inside a venv the real launcher already stacks a second layer")
 class LauncherPidMismatchTests(unittest.TestCase):
     """A Windows venv ``python.exe`` is a launcher: the spawned pid is not the interpreter that runs the supervisor."""
 
