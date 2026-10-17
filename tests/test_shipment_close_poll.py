@@ -35,6 +35,7 @@ from autoharness.shipment_close import (
     command,
 )
 from autoharness.shipment_close.liveness import current_host
+from autoharness.shipment_close.journal import write_json
 from autoharness.shipment_close.poll import poll_cascade_close
 
 
@@ -194,6 +195,57 @@ class PollTests(unittest.TestCase):
         outcome.write_text(json.dumps(stale), encoding="utf-8")
         result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
         self.assertNotEqual(result.exit_code, EXIT_OK, result.message)
+
+    def test_poll_after_a_recovery_reports_the_recovered_exit_code(self) -> None:
+        from test_shipment_close_recover_reconstruct import _Recovery
+
+        rows = [
+            ("recovered pass", {}, 0),
+            (
+                "recovered failed invocation",
+                {"ship": {"archive": [], "envelope": {"jsonrpc": "2.0", "id": 1, "error": {"code": -1}}, "exit": 1}},
+                EXIT_INVOCATION_INDETERMINATE,
+            ),
+        ]
+        for label, kwargs, expected in rows:
+            with self.subTest(label):
+                orphan = _Recovery(self, **kwargs)
+                self.assertEqual(orphan.run_recovery().exit_code, expected)
+                self.assertFalse((orphan.journal_dir / "outcome.json").exists())
+                result = self._poll(orphan)
+                self.assertEqual(result.exit_code, expected, result.message)
+                self.assertEqual(result.outcome_source, "recovered_evidence")
+
+    def test_poll_of_a_postconditions_only_recovery_derives_the_code_from_the_facts(self) -> None:
+        from test_shipment_close_recover_reconstruct import _Recovery
+
+        orphan = _Recovery(self)
+        orphan.mark_unproven()
+        orphan.write_logs(correlated=True)
+        exit_record = json.loads((orphan.journal_dir / "exit.json").read_text(encoding="utf-8"))
+        exit_record.update(state="timed_out", exit_code=None, timed_out=True)
+        write_json(orphan.journal(), "exit.json", exit_record)
+        self.assertEqual(orphan.run_recovery().exit_code, EXIT_INVOCATION_INDETERMINATE)
+        result = self._poll(orphan)
+        self.assertEqual(result.exit_code, EXIT_INVOCATION_INDETERMINATE, result.message)
+        self.assertEqual(result.outcome_source, "recovered_evidence")
+
+    def test_an_outcome_landing_during_the_lock_read_is_not_reported_as_an_orphan(self) -> None:
+        from autoharness.shipment_close import poll as poll_module
+        from autoharness.shipment_close.journal import Journal
+
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        directory = harness.root / ".autoharness" / "gates" / "cascade-close" / f"{_SHIPMENT}-{_FEATURE}.journal"
+        journal = Journal(path=directory, run_id=harness.record()["run_id"])
+
+        def late_finalizer(*args: object, **kwargs: object):
+            command._write_outcome(journal, 8, "post_write_failed", "supervisor", detail="x")
+            return None  # the lock vanished as the finalizer released it
+
+        with mock.patch.object(poll_module, "observe_lock", late_finalizer):
+            result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.outcome_source), (8, "journal_outcome"), result.message)
 
     def test_poll_never_waits_longer_than_requested(self) -> None:
         harness = _Harness(self, probes=[_VERIFIED])

@@ -7,6 +7,8 @@ record of the journal's own run:
 * no ``outcome.json`` but a terminal ``post_close`` record for the journal's ``run_id`` (the finalizer died between the
   evidence write and the outcome write): derived read-only from that record, pass -> 0, postcondition failure -> 5,
   failed or unparsed invocation -> 6 (``outcome_source: evidence_record``);
+* a terminal ``post_close`` record written by ``--recover`` that supersedes the journal's run: the exit code
+  recovery returned, rebuilt from the record and its recovery facts (``outcome_source: recovered_evidence``);
 * an ``invoking`` record whose lock owner is alive or cannot be proven dead: ``running`` (exit 9);
 * an ``invoking`` record whose lock is gone or whose owner is provably dead: exit 7 with ``recovery_available``.
 
@@ -112,7 +114,33 @@ def _derive_from_evidence(record: dict, shipment_id: str, feature_id: str) -> tu
     return EXIT_OK, "cascade close completed; every postcondition passed"
 
 
-def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str) -> PollOutcome:
+def _derive_from_recovery(record: dict, recovery: dict, shipment_id: str, feature_id: str) -> tuple[int, str]:
+    """The exit code ``--recover`` returned for this record, rebuilt from the record and its recovery facts."""
+
+    facts = recovery.get("facts")
+    post_close = record.get("post_close")
+    invocation = record.get("invocation")
+    verdict = post_close.get("postcondition_verdict") if isinstance(post_close, dict) else None
+    if not (isinstance(facts, dict) and isinstance(invocation, dict) and verdict in ("pass", "fail")):
+        return EXIT_LOCKED, "the recovered evidence record is malformed (operator review)"
+    exit_code, timed_out = invocation.get("exit_code"), invocation.get("timed_out")
+    failed = (
+        post_close.get("parse_error") is not None  # type: ignore[union-attr]
+        or timed_out is True
+        or (type(exit_code) is int and exit_code != 0)
+        or (facts.get("exit_code") == "unknown" and facts.get("timed_out") != "unknown")  # a sentinel without a code
+    )
+    if failed:
+        return EXIT_INVOCATION_INDETERMINATE, "the recovered invocation failed, timed out, or did not parse"
+    if verdict != "pass":
+        return EXIT_POSTCONDITION_FAILED, "a postcondition failed"
+    problems = validate_evidence_record(record, shipment_id=shipment_id, feature_id=feature_id, close_path="cascade")
+    if problems:
+        return EXIT_POSTCONDITION_FAILED, "the recovered record claims a pass but does not validate"
+    return EXIT_OK, "cascade close recovered; every postcondition passed"
+
+
+def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str, *, recheck: bool = True) -> PollOutcome:
     try:
         directory = journal_path(workspace, shipment_id, feature_id)
         evidence = build_evidence_path(workspace, shipment_id, feature_id)
@@ -148,13 +176,22 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str) -> PollO
     if not os.path.lexists(evidence):
         return result(EXIT_INPUT, "the journal has no outcome and there is no evidence record")
     try:
-        record = json.loads(_retrying(lambda: _read_no_follow(evidence)).decode("utf-8"))  # type: ignore[attr-defined]
+        raw_evidence = _retrying(lambda: _read_no_follow(evidence))
+        record = json.loads(raw_evidence.decode("utf-8"))  # type: ignore[attr-defined]
     except (OSError, ValueError, PersistError) as exc:
         return result(EXIT_LOCKED, f"the evidence record cannot be read (operator review): {exc}")
     if not isinstance(record, dict):
         return result(EXIT_LOCKED, "the evidence record is not a JSON object (operator review)")
     phase = record.get("phase")
     same_run = record.get("run_id") == journal.run_id
+    recovery = record.get("recovery")
+    if phase == "post_close" and not same_run and isinstance(recovery, dict) and recovery.get("supersedes_run_id") == journal.run_id:
+        code, message = _derive_from_recovery(record, recovery, shipment_id, feature_id)
+        return result(
+            code,
+            f"{message} (derived from the recovery record; outcome.json is missing)",
+            outcome_source="recovered_evidence",
+        )
     if phase == "post_close":
         if not same_run:
             return result(EXIT_INPUT, "the journal belongs to an earlier run; this pair was finalized by another run")
@@ -173,7 +210,21 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str) -> PollO
         observed = observe_lock(workspace, shipment_id, feature_id)
     except PersistError as exc:
         return result(EXIT_LOCKED, f"the lock cannot be read (operator review): {exc}", recovery_available=False)
+
+    def orphaned() -> bool:
+        """A finalizer may have finished between the reads above and the lock observation: re-read before concluding."""
+
+        if not recheck:
+            return True
+        try:
+            changed = journal_has(journal, "outcome.json") or _read_no_follow(evidence) != raw_evidence
+        except (OSError, PersistError):
+            changed = True
+        return not changed
+
     if observed is None:
+        if not orphaned():
+            return _evaluate(workspace, shipment_id, feature_id, recheck=False)
         return result(
             EXIT_LOCKED,
             "the run left an invoking record and no lock: the supervisor is gone (recovery is available)",
@@ -185,6 +236,8 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str) -> PollO
         )
     verdict = provably_dead(observed.host, observed.pid, observed.pid_start)
     if verdict.dead:
+        if not orphaned():
+            return _evaluate(workspace, shipment_id, feature_id, recheck=False)
         return result(
             EXIT_LOCKED,
             f"the supervisor is gone ({verdict.basis}); the run is orphaned (recovery is available)",
