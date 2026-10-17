@@ -310,6 +310,55 @@ class NeverSpawnWithoutAuthorizationTests(unittest.TestCase):
         harness.assert_rolled_back_without_shipping()
 
 
+class LauncherPidMismatchTests(unittest.TestCase):
+    """A Windows venv ``python.exe`` is a launcher: the spawned pid is not the interpreter that runs the supervisor."""
+
+    _LAUNCHER = textwrap.dedent(
+        """
+        import subprocess, sys
+        raise SystemExit(subprocess.call([sys.executable, "-m", "autoharness.shipment_close.supervisor",
+                                          "--supervise", sys.argv[1]]))
+        """
+    )
+
+    def _launcher_spawn(self, harness: _DetachHarness):
+        launcher = harness.fakes / "launcher.py"
+        launcher.write_text(self._LAUNCHER, encoding="utf-8")
+
+        def spawn(journal_dir):
+            spawned = runner.spawn_detached([sys.executable, str(launcher), str(journal_dir)], cwd=journal_dir)
+            spawned.process.autoharness_breakaway = spawned.breakaway
+            return spawned.process
+
+        return spawn
+
+    def test_a_launcher_fronted_supervisor_still_ships_and_owns_the_lock(self) -> None:
+        harness = _DetachHarness(self, sleep=1.0)
+        with mock.patch.object(command, "spawn_supervisor", self._launcher_spawn(harness)):
+            outcome = harness.detach()
+            self.assertEqual(outcome.exit_code, EXIT_STARTED, outcome.message)
+            finished = harness.wait_outcome()
+        self.assertEqual((finished["exit_code"], finished["outcome"]), (0, "completed"))
+        harness.wait_lock_gone()
+        self.assertEqual(len(_ship_argvs(harness.argv_log())), 1)
+
+    def test_a_foreign_lock_pid_is_still_refused(self) -> None:
+        harness = _DetachHarness(self)
+        real_handoff = command.handoff_lock
+
+        def wrong_pid(lock, *, pid, pid_start, **kwargs):
+            return real_handoff(lock, pid=os.getpid(), pid_start=pid_start, **kwargs)
+
+        with (
+            mock.patch.object(command, "spawn_supervisor", self._launcher_spawn(harness)),
+            mock.patch.object(command, "handoff_lock", wrong_pid),
+        ):
+            harness.detach()
+            finished = harness.wait_outcome()
+        self.assertEqual((finished["exit_code"], finished["outcome"]), (2, "never_started"))
+        harness.assert_rolled_back_without_shipping()
+
+
 class SupervisorAuthenticationTests(unittest.TestCase):
     def _hooked_spawn(self, mutate):
         real_spawn = command.spawn_supervisor

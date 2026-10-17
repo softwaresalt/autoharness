@@ -255,6 +255,32 @@ def _read_record(path: Path) -> dict:
     return record
 
 
+def _claim_lock_owner(lock, observed) -> bool:
+    """Authenticate the lock handoff, tolerating a Windows venv launcher between the foreground and this process.
+
+    The foreground records the pid it spawned. When that is a launcher (``python.exe`` in a venv) our own pid
+    differs, so the handoff is accepted only if the lock is already marked as handed to a supervisor, names our
+    live parent, and carries that parent's exact start time; the lock is then re-handed to our own pid and start.
+    """
+
+    from autoharness.shipment_close.liveness import process_start_time
+    from autoharness.shipment_close.persist import PersistError, handoff_lock
+
+    me = os.getpid()
+    if observed.pid == me:
+        return True
+    parent = os.getppid()
+    if not (_WINDOWS and observed.supervisor and observed.pid == parent and observed.pid_start):
+        return False
+    if process_start_time(parent) != observed.pid_start:
+        return False
+    try:
+        handoff_lock(lock, pid=me, pid_start=process_start_time(me))
+    except PersistError:
+        return False
+    return True
+
+
 def _supervise_locked(lock, journal: Journal, launch: Mapping[str, object]) -> tuple[int, bool]:
     """Run the barrier, authentication, revalidation, spawn, and finalization; returns ``(status, release_lock)``."""
 
@@ -288,7 +314,7 @@ def _supervise_locked(lock, journal: Journal, launch: Mapping[str, object]) -> t
         if meta["finalizer"] != "supervisor":
             return refuse("never_started", 2, "the finalizer token was not handed to the supervisor")
         observed = observe_lock(lock.workspace, shipment_id, feature_id)
-        if observed is None or observed.run_id != journal.run_id or observed.pid != os.getpid():
+        if observed is None or observed.run_id != journal.run_id or not _claim_lock_owner(lock, observed):
             return refuse("never_started", 2, "the pair lock was not handed to this supervisor")
         invoking = _read_record(lock.evidence_path)
     except (JournalError, PersistError, OSError, ValueError) as exc:
