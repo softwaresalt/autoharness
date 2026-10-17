@@ -24,20 +24,23 @@ tree and never touches anything outside the journal directory.
 from __future__ import annotations
 
 import contextlib
+import datetime
+import hashlib
 import json
 import os
 import re
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
-from autoharness.gates.cascade_evidence import CascadeEvidenceError, build_evidence_path
+from autoharness.gates.cascade_evidence import CascadeEvidenceError, build_evidence_path, parse_rfc3339_instant
 from autoharness.shipment_close import EXIT_INPUT
 from autoharness.shipment_close.persist import (
     LOCK_DIR,
     PersistError,
+    _check_trusted_chain,
     _fsync_directory,
     _is_link,
     _replace_with_retry,
@@ -54,14 +57,20 @@ __all__ = [
     "TRUNCATION_MARKER",
     "Journal",
     "JournalError",
+    "argv_sha256",
+    "build_launch",
     "cleanup_raw_files",
     "create_journal",
     "discard_journal",
     "enforce_stream_cap",
+    "journal_has",
     "journal_path",
+    "open_journal",
     "open_stream_file",
+    "parse_utc",
     "read_json",
     "read_stream",
+    "utc_now",
     "write_json",
 ]
 
@@ -119,6 +128,33 @@ _EXIT_KEYS: Final = frozenset(
     }
 )
 _OUTCOME_KEYS: Final = frozenset({"schema_version", "run_id", "exit_code", "outcome", "finalizer", "written_at"})
+_OUTCOME_OPTIONAL: Final = frozenset({"detail"})
+_LAUNCH_KEYS: Final = frozenset(
+    {
+        "schema_version",
+        "run_id",
+        "shipment_id",
+        "feature_id",
+        "workspace",
+        "merge_commit_sha",
+        "mode",
+        "argv",
+        "argv_sha256",
+        "binary_path",
+        "binary_sha256",
+        "argv_prefix",
+        "cwd",
+        "timeout_seconds",
+        "stream_cap_bytes",
+        "quiescence_grace_seconds",
+        "authorize_deadline",
+        "authorize_nonce",
+        "created_at",
+    }
+)
+_LAUNCH_MODES: Final = frozenset({"attached", "detached"})
+_STARTED_STATES: Final = frozenset({"spawning", "spawned"})
+_COMMIT_SHA: Final = re.compile(r"[0-9a-f]{40}")
 _QUIESCENCE_KEYS: Final = frozenset({"proven", "method", "survivors_killed", "total_bytes"})
 
 
@@ -205,7 +241,8 @@ def _check_exit(obj: Mapping[str, object]) -> str | None:
 
 
 def _check_outcome(obj: Mapping[str, object]) -> str | None:
-    if set(obj) != _OUTCOME_KEYS:
+    keys = set(obj)
+    if not _OUTCOME_KEYS <= keys <= _OUTCOME_KEYS | _OUTCOME_OPTIONAL:
         return "keys differ from the schema"
     if not (_is_int(obj["exit_code"]) and obj["exit_code"] <= 255):
         return "exit_code must be an integer in 0..255"
@@ -213,14 +250,143 @@ def _check_outcome(obj: Mapping[str, object]) -> str | None:
         return "outcome is not a known outcome"
     if not (_is_str(obj["finalizer"]) and _is_str(obj["written_at"])):
         return "finalizer and written_at must be non-empty strings"
+    if "detail" in obj and not _is_str(obj["detail"]):
+        return "detail must be a non-empty string"
     return None
+
+
+def _is_number(value: object) -> bool:
+    return type(value) in (int, float) and value >= 0
+
+
+def argv_sha256(argv: Sequence[str]) -> str:
+    """SHA-256 over the exact argv (the canonical JSON array); H12 hashes this, never the redacted audit copy."""
+
+    return hashlib.sha256(json.dumps(list(argv), separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _check_launch(obj: Mapping[str, object]) -> str | None:
+    if set(obj) != _LAUNCH_KEYS:
+        return "keys differ from the schema"
+    for key in ("argv", "argv_prefix"):
+        value = obj[key]
+        if type(value) is not list or not value or not all(type(item) is str for item in value):
+            return f"{key} must be a non-empty list of strings"
+    if obj["argv_sha256"] != argv_sha256(obj["argv"]):  # type: ignore[arg-type]
+        return "argv_sha256 does not match the exact argv"
+    if obj["argv"][: len(obj["argv_prefix"])] != obj["argv_prefix"]:  # type: ignore[index]
+        return "argv does not start with the recorded argv_prefix"
+    if obj["binary_path"] not in obj["argv_prefix"]:  # type: ignore[operator]
+        return "binary_path must be part of the recorded argv_prefix"
+    for key in ("shipment_id", "feature_id", "workspace", "cwd", "binary_path", "created_at"):
+        if not _is_str(obj[key]):
+            return f"{key} must be a non-empty string"
+    if not (type(obj["binary_sha256"]) is str and _SHA256.fullmatch(obj["binary_sha256"])):
+        return "binary_sha256 must be 64 lowercase hex characters"
+    if not (type(obj["merge_commit_sha"]) is str and _COMMIT_SHA.fullmatch(obj["merge_commit_sha"])):
+        return "merge_commit_sha must be 40 lowercase hex characters"
+    if obj["mode"] not in _LAUNCH_MODES:
+        return "mode must be attached or detached"
+    if not _is_int(obj["timeout_seconds"], minimum=1):
+        return "timeout_seconds must be a positive integer"
+    if not _is_int(obj["stream_cap_bytes"], minimum=1):
+        return "stream_cap_bytes must be a positive integer"
+    if not _is_number(obj["quiescence_grace_seconds"]):
+        return "quiescence_grace_seconds must be a non-negative number"
+    for key in ("authorize_deadline", "authorize_nonce"):
+        if obj[key] is not None and not _is_str(obj[key]):
+            return f"{key} must be null or a non-empty string"
+    if obj["mode"] == "detached" and (obj["authorize_deadline"] is None or obj["authorize_nonce"] is None):
+        return "a detached launch requires authorize_deadline and authorize_nonce"
+    if obj["authorize_deadline"] is not None and parse_rfc3339_instant(obj["authorize_deadline"]) is None:
+        return "authorize_deadline must be an RFC 3339 timestamp"
+    return None
+
+
+def _check_barrier(extra: Mapping[str, Callable[[object], bool]]) -> Callable[[Mapping[str, object]], str | None]:
+    base = {"schema_version", "run_id", "written_at"}
+
+    def check(obj: Mapping[str, object]) -> str | None:
+        if set(obj) != base | set(extra):
+            return "keys differ from the schema"
+        if not _is_str(obj["written_at"]):
+            return "written_at must be a non-empty string"
+        for key, valid in extra.items():
+            if not valid(obj[key]):
+                return f"{key} is malformed"
+        return None
+
+    return check
 
 
 _SCHEMAS: Final[dict[str, Callable[[Mapping[str, object]], str | None]]] = {
     "meta.json": _check_meta,
     "exit.json": _check_exit,
     "outcome.json": _check_outcome,
+    "launch.json": _check_launch,
+    "ready.json": _check_barrier({"supervisor_pid": lambda v: _is_int(v, minimum=1)}),
+    "authorize.json": _check_barrier(
+        {"nonce": _is_str, "valid_until": lambda v: parse_rfc3339_instant(v) is not None}
+    ),
+    "abort.json": _check_barrier({"reason": _is_str}),
+    "child_started.json": _check_barrier(
+        {"state": lambda v: v in _STARTED_STATES, "pid": lambda v: v is None or _is_int(v, minimum=1)}
+    ),
 }
+
+
+def utc_now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def parse_utc(value: object) -> datetime.datetime | None:
+    """The UTC instant of a timestamp this package wrote, or ``None`` when it is not RFC 3339."""
+
+    return parse_rfc3339_instant(value)
+
+
+def build_launch(
+    *,
+    run_id: str,
+    workspace: str,
+    shipment_id: str,
+    feature_id: str,
+    merge_commit_sha: str,
+    mode: str,
+    argv: Sequence[str],
+    binary_path: str,
+    binary_sha256: str,
+    argv_prefix: Sequence[str],
+    cwd: str,
+    timeout_seconds: int,
+    stream_cap_bytes: int | None = None,
+    quiescence_grace_seconds: float = 5.0,
+    authorize_deadline: str | None = None,
+    authorize_nonce: str | None = None,
+) -> dict[str, object]:
+    """The ``launch.json`` payload: the EXACT argv plus its hash and the trusted binary identity (H12)."""
+
+    return {
+        "schema_version": _SCHEMA_VERSION,
+        "run_id": run_id,
+        "shipment_id": shipment_id,
+        "feature_id": feature_id,
+        "workspace": workspace,
+        "merge_commit_sha": merge_commit_sha,
+        "mode": mode,
+        "argv": list(argv),
+        "argv_sha256": argv_sha256(argv),
+        "binary_path": binary_path,
+        "binary_sha256": binary_sha256,
+        "argv_prefix": list(argv_prefix),
+        "cwd": cwd,
+        "timeout_seconds": timeout_seconds,
+        "stream_cap_bytes": stream_cap_bytes if stream_cap_bytes is not None else STREAM_CAP_BYTES,
+        "quiescence_grace_seconds": quiescence_grace_seconds,
+        "authorize_deadline": authorize_deadline,
+        "authorize_nonce": authorize_nonce,
+        "created_at": utc_now(),
+    }
 
 
 def journal_path(workspace: Path | str, shipment_id: str, feature_id: str) -> Path:
@@ -416,6 +582,44 @@ def discard_journal(journal: Journal) -> None:
     """Remove every file this module owns, then the directory if it is then empty (never a tree delete)."""
 
     _require_trusted(journal)
-    _remove_files(journal, (*_RAW_FILES, *_SCHEMAS, "authorize.json", "abort.json"))
+    _remove_files(journal, (*STREAM_FILES, *_SCHEMAS))
     with contextlib.suppress(OSError):
         journal.path.rmdir()
+
+
+def journal_has(journal: Journal, name: str) -> bool:
+    """True when the named journal file exists (a link counts as existing and is refused when read)."""
+
+    return os.path.lexists(_file(journal, name))
+
+
+def open_journal(path: str | Path) -> Journal:
+    """Open an existing journal from its directory path alone (the supervisor's only argument; H12).
+
+    The directory must be absolute, a real directory, and exactly the location
+    its own ``launch.json`` names for the pair (so a copied or relocated
+    ``launch.json`` is refused); the trust walk then re-checks the chain.
+    """
+
+    candidate = Path(path)
+    if not candidate.is_absolute() or not candidate.name.endswith(JOURNAL_SUFFIX):
+        raise JournalError("invalid", "the journal path must be an absolute path to a .journal directory")
+    if _is_link(candidate) or not candidate.is_dir():
+        raise JournalError("untrusted", f"journal directory is missing or is a link: {candidate}")
+    raw, truncated = _read_capped(candidate / "launch.json", MAX_JSON_BYTES)
+    try:
+        run_id = json.loads(raw.decode("utf-8")).get("run_id") if not truncated else None
+    except (ValueError, UnicodeDecodeError, AttributeError) as exc:
+        raise JournalError("torn", "launch.json is not valid JSON (torn or corrupt)") from exc
+    if not (type(run_id) is str and _RUN_ID.fullmatch(run_id)):
+        raise JournalError("invalid", "launch.json carries no valid run_id")
+    journal = Journal(path=candidate, run_id=run_id)
+    launch = read_json(journal, "launch.json")
+    expected = journal_path(str(launch["workspace"]), str(launch["shipment_id"]), str(launch["feature_id"]))
+    if os.path.normcase(os.path.realpath(candidate)) != os.path.normcase(os.path.realpath(expected)):
+        raise JournalError("untrusted", "the journal directory is not the one its launch record names")
+    try:
+        _check_trusted_chain(Path(str(launch["workspace"])).resolve(strict=True), LOCK_DIR)
+    except (PersistError, OSError) as exc:
+        raise JournalError("untrusted", f"the journal location failed the trust walk: {exc}") from exc
+    return journal

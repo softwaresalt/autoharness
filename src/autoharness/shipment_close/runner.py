@@ -31,8 +31,9 @@ import re
 import shutil
 import signal
 import subprocess
+import sys
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -40,6 +41,15 @@ from typing import Final
 import yaml
 
 from autoharness.shipment_close import EXIT_INPUT
+from autoharness.shipment_close.journal import (
+    STREAM_FILES,
+    TRUNCATION_MARKER,
+    Journal,
+    JournalError,
+    read_json,
+    read_stream,
+    utc_now,
+)
 from autoharness.shipment_close.persist import (
     CapturedStream,
     PersistError,
@@ -55,10 +65,14 @@ __all__ = [
     "REGISTRY_PATH",
     "SUPERVISION_MARGIN_SECONDS",
     "BoundedRunResult",
+    "DetachedSpawn",
     "ResolvedBinary",
     "hash_binary",
     "resolve_backlogit_binary",
+    "result_from_journal",
     "run_bounded",
+    "run_journaled",
+    "spawn_detached",
     "validate_timeout",
 ]
 
@@ -336,3 +350,156 @@ def _wait_after_kill(process: subprocess.Popen) -> None:
         process.wait(timeout=_KILL_WAIT_SECONDS)
     except (subprocess.TimeoutExpired, OSError):
         pass
+
+
+# ---------------------------------------------------------------------------
+# Journaled runner (211-F, plan unit T5)
+# ---------------------------------------------------------------------------
+
+# Slack on top of the child's own timeout for the shim's kill path, the quiescence grace
+# (twice: group, then open writers), and the exit-sentinel write.
+SHIM_WAIT_MARGIN_SECONDS: Final = 120
+_DETACHED_PROCESS: Final = 0x00000008
+_CREATE_BREAKAWAY_FROM_JOB: Final = 0x01000000
+_ERROR_ACCESS_DENIED: Final = 5
+_SHIM_MODULE: Final = "autoharness.shipment_close.supervisor"
+
+
+@dataclass(frozen=True)
+class DetachedSpawn:
+    """A detached Python process. ``breakaway`` is False only when a Windows job refused breakaway."""
+
+    process: subprocess.Popen
+    breakaway: bool
+
+
+def _spawn_environment(env: dict[str, str] | None) -> dict[str, str]:
+    merged = dict(os.environ if env is None else env)
+    package_root = str(Path(__file__).resolve().parents[2])
+    existing = merged.get("PYTHONPATH")
+    merged["PYTHONPATH"] = package_root + (os.pathsep + existing if existing else "")
+    return merged
+
+
+def spawn_detached(argv: Sequence[str], *, cwd: Path | str, env: dict[str, str] | None = None) -> DetachedSpawn:
+    """Spawn ``argv`` so it outlives the caller: no console, its own group/session, and (Windows) job breakaway.
+
+    Breakaway is attempted first; a job that forbids it (access denied) is retried without it and reported
+    through ``breakaway=False``, because then the process can still be killed with its job.
+    """
+
+    options = {
+        "cwd": str(cwd),
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "shell": False,
+        "close_fds": True,
+        "env": _spawn_environment(env),
+    }
+    if not _WINDOWS:
+        return DetachedSpawn(subprocess.Popen(list(argv), start_new_session=True, **options), True)
+    base = _DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    try:
+        return DetachedSpawn(subprocess.Popen(list(argv), creationflags=base | _CREATE_BREAKAWAY_FROM_JOB, **options), True)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) != _ERROR_ACCESS_DENIED:
+            raise
+    return DetachedSpawn(subprocess.Popen(list(argv), creationflags=base, **options), False)
+
+
+def _terminate_shim(process: subprocess.Popen) -> None:
+    """Interrupt path: ask the shim to kill its child group (POSIX SIGTERM), then kill the tree."""
+
+    if not _WINDOWS and process.poll() is None:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=_KILL_WAIT_SECONDS)
+        except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired, OSError):
+            pass
+    _kill_group(process)
+    _wait_after_kill(process)
+
+
+def _indeterminate(launch: Mapping[str, object]) -> BoundedRunResult:
+    return BoundedRunResult(
+        argv=tuple(launch["argv"]),  # type: ignore[arg-type]
+        exit_code=None,
+        timed_out=False,
+        started_at=str(launch["created_at"]),
+        finished_at=utc_now(),
+        stdout=StreamCapture(parse_buffer=True).finish(drain_incomplete=True),
+        stderr=StreamCapture().finish(drain_incomplete=True),
+    )
+
+
+def _capture_from_journal(journal: Journal, name: str, *, parse: bool, cap: int, proven: bool) -> CapturedStream:
+    data, truncated = read_stream(journal, name, cap=cap + len(TRUNCATION_MARKER))
+    capture = StreamCapture(parse_buffer=parse)
+    for offset in range(0, len(data), _READ_CHUNK):
+        capture.feed(data[offset : offset + _READ_CHUNK])
+    return capture.finish(drain_incomplete=truncated or not proven)
+
+
+def result_from_journal(journal: Journal, launch: Mapping[str, object]) -> BoundedRunResult:
+    """Rebuild the :class:`BoundedRunResult` from ``exit.json`` and the raw streams (never from wrapper memory).
+
+    A missing or unreadable sentinel or stream is an indeterminate, incomplete result (the child may have run);
+    a ``never_started`` or ``spawn_failed`` sentinel raises :class:`PersistError` (nothing ran).
+    """
+
+    try:
+        exit_record = read_json(journal, "exit.json")
+    except JournalError:
+        return _indeterminate(launch)
+    argv = tuple(launch["argv"])  # type: ignore[arg-type]
+    if exit_record["state"] == "never_started":
+        raise PersistError(EXIT_INPUT, f"the journal shim refused to start {argv[0]!r}; nothing ran")
+    if exit_record["state"] == "spawn_failed":
+        raise PersistError(EXIT_INPUT, f"cannot spawn {argv[0]!r}")
+    verdicts = exit_record["quiescence"]
+    cap = int(launch["stream_cap_bytes"])  # type: ignore[arg-type]
+    try:
+        stdout = _capture_from_journal(
+            journal, "stdout.raw", parse=True, cap=cap, proven=verdicts["stdout"]["proven"]  # type: ignore[index]
+        )
+        stderr = _capture_from_journal(
+            journal, "stderr.raw", parse=False, cap=cap, proven=verdicts["stderr"]["proven"]  # type: ignore[index]
+        )
+    except JournalError:
+        return _indeterminate(launch)
+    return BoundedRunResult(
+        argv=argv,
+        exit_code=exit_record["exit_code"],  # type: ignore[arg-type]
+        timed_out=bool(exit_record["timed_out"]),
+        started_at=str(exit_record["started_at"]),
+        finished_at=str(exit_record["finished_at"]),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def run_journaled(journal: Journal, *, wait_margin_seconds: float = SHIM_WAIT_MARGIN_SECONDS) -> BoundedRunResult:
+    """Run the journal's authenticated launch argv through the detached shim and return its journaled result.
+
+    The wrapper only waits: the child, its exit code, and its output live in the journal, so a killed wrapper
+    loses none of them. An interrupt kills the shim and its child before re-raising.
+    """
+
+    launch = read_json(journal, "launch.json")
+    try:
+        spawned = spawn_detached(
+            [sys.executable, "-m", _SHIM_MODULE, "--shim", str(journal.path)], cwd=journal.path
+        )
+    except (OSError, ValueError) as exc:
+        raise PersistError(EXIT_INPUT, f"cannot spawn the journal shim: {exc}") from exc
+    process = spawned.process
+    try:
+        try:
+            process.wait(timeout=float(launch["timeout_seconds"]) + wait_margin_seconds)  # type: ignore[arg-type]
+        except subprocess.TimeoutExpired:
+            _terminate_shim(process)
+    except BaseException:
+        _terminate_shim(process)
+        raise
+    return result_from_journal(journal, launch)
