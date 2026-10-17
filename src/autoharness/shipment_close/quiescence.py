@@ -288,10 +288,18 @@ def scan_proc_fds(
     self_pid: int | None = None,
     listdir: Callable[[str], list[str]] = os.listdir,
     readlink: Callable[[str], str] = os.readlink,
+    stat_uid: Callable[[str], int] = lambda path: os.stat(path).st_uid,
+    my_uid: int | None = None,
 ) -> WriterVerdict:
-    """Linux: look for any other process holding a descriptor linked to one of ``paths``."""
+    """Linux: look for any other process holding a descriptor linked to one of ``paths``.
+
+    An fd table we cannot read only counts as unproven when the process runs under our own uid:
+    a foreign-uid process cannot hold our 0600 journal files open.
+    """
 
     me = str(self_pid if self_pid is not None else os.getpid())
+    if my_uid is None:
+        my_uid = os.getuid() if hasattr(os, "getuid") else -1
     wanted = {os.path.realpath(path) for path in paths}
     try:
         pids = [name for name in listdir(str(proc_root)) if name.isdigit() and name != me]
@@ -304,7 +312,13 @@ def scan_proc_fds(
             descriptors = listdir(fd_dir)
         except FileNotFoundError:
             continue  # the process exited during the scan
-        except OSError:
+        except OSError as exc:
+            if isinstance(exc, PermissionError):
+                try:
+                    if stat_uid(str(proc_root / pid)) != my_uid:
+                        continue
+                except OSError:
+                    pass
             unreadable += 1
             continue
         for descriptor in descriptors:
