@@ -848,7 +848,8 @@ completion.
       the read-only `autoharness shipment cascade-close --recover --dry-run --shipment <shipment_id> --feature <feature_id> --json`
       (no approval needed, writes nothing), and presents the reported recovery
       mode. Only after explicit operator approval does it run `--recover`
-      (adding `--confirm-owner-dead` or `--confirm-engine-stopped` only when
+      (adding the owner-dead or engine-stopped operator-assertion flags
+      named in `autoharness shipment --help` only when
       the operator asserts those facts). A recovered record (`recovery.recovered:
       true`, mode `journal_complete`, `journal_partial`, or
       `postconditions_only`) is real evidence but carries facts marked
