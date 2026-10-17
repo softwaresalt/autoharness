@@ -90,7 +90,8 @@ MAX_TIMEOUT_SECONDS: Final = 3600
 # bounded run's worst-case kill path is 3 * _KILL_WAIT_SECONDS + 4 *
 # _READER_JOIN_SECONDS = 70 s, so the timed overhead is 2 * (30 + 70) + 70 =
 # 270 s; the remaining 330 s is headroom for the untimed filesystem work.
-# Documentation only: nothing in the command enforces it.
+# Enforced by the attached mutating command's caller-wait pre-flight: a declared caller wait shorter than
+# ``--timeout`` + this margin is refused before anything runs.
 SUPERVISION_MARGIN_SECONDS: Final = 600
 
 _BARE_NAME: Final = re.compile(r"[A-Za-z0-9_-]+")

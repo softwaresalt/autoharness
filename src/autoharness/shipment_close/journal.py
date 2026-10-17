@@ -27,6 +27,7 @@ import contextlib
 import datetime
 import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -178,6 +179,10 @@ def _is_str(value: object) -> bool:
     return type(value) is str and bool(value)
 
 
+def _is_schema_version(value: object) -> bool:
+    return type(value) is int and value == _SCHEMA_VERSION
+
+
 def _is_int(value: object, *, minimum: int = 0) -> bool:
     return type(value) is int and value >= minimum
 
@@ -222,7 +227,7 @@ def _check_quiescence(value: object) -> str | None:
 def _check_exit(obj: Mapping[str, object]) -> str | None:
     if set(obj) != _EXIT_KEYS:
         return "keys differ from the schema"
-    if obj["state"] not in EXIT_STATES:
+    if type(obj["state"]) is not str or obj["state"] not in EXIT_STATES:
         return "state is not a known exit state"
     if obj["child_pid"] is not None and not _is_int(obj["child_pid"], minimum=1):
         return "child_pid must be null or a positive integer"
@@ -248,7 +253,7 @@ def _check_outcome(obj: Mapping[str, object]) -> str | None:
         return "keys differ from the schema"
     if not (_is_int(obj["exit_code"]) and obj["exit_code"] <= 255):
         return "exit_code must be an integer in 0..255"
-    if obj["outcome"] not in OUTCOMES:
+    if type(obj["outcome"]) is not str or obj["outcome"] not in OUTCOMES:
         return "outcome is not a known outcome"
     if not (_is_str(obj["finalizer"]) and _is_str(obj["written_at"])):
         return "finalizer and written_at must be non-empty strings"
@@ -258,7 +263,7 @@ def _check_outcome(obj: Mapping[str, object]) -> str | None:
 
 
 def _is_number(value: object) -> bool:
-    return type(value) in (int, float) and value >= 0
+    return type(value) in (int, float) and math.isfinite(value) and value >= 0
 
 
 def argv_sha256(argv: Sequence[str]) -> str:
@@ -287,7 +292,7 @@ def _check_launch(obj: Mapping[str, object]) -> str | None:
         return "binary_sha256 must be 64 lowercase hex characters"
     if not (type(obj["merge_commit_sha"]) is str and _COMMIT_SHA.fullmatch(obj["merge_commit_sha"])):
         return "merge_commit_sha must be 40 lowercase hex characters"
-    if obj["mode"] not in _LAUNCH_MODES:
+    if type(obj["mode"]) is not str or obj["mode"] not in _LAUNCH_MODES:
         return "mode must be attached or detached"
     if not _is_int(obj["timeout_seconds"], minimum=1):
         return "timeout_seconds must be a positive integer"
@@ -332,7 +337,7 @@ _SCHEMAS: Final[dict[str, Callable[[Mapping[str, object]], str | None]]] = {
     ),
     "abort.json": _check_barrier({"reason": _is_str}),
     "child_started.json": _check_barrier(
-        {"state": lambda v: v in _STARTED_STATES, "pid": lambda v: v is None or _is_int(v, minimum=1)}
+        {"state": lambda v: type(v) is str and v in _STARTED_STATES, "pid": lambda v: v is None or _is_int(v, minimum=1)}
     ),
 }
 
@@ -456,7 +461,7 @@ def write_json(journal: Journal, name: str, obj: Mapping[str, object]) -> None:
     check = _SCHEMAS.get(name)
     if check is None:
         raise JournalError("invalid", f"{name} is not a known journal JSON file")
-    if obj.get("schema_version") != _SCHEMA_VERSION or obj.get("run_id") != journal.run_id:
+    if not _is_schema_version(obj.get("schema_version")) or obj.get("run_id") != journal.run_id:
         raise JournalError("invalid", f"{name}: schema_version or run_id does not match the journal")
     problem = check(obj)
     if problem is not None:
@@ -496,11 +501,11 @@ def read_json(journal: Journal, name: str, *, expected_run_id: str | None = None
         raise JournalError("oversize", f"{name} exceeds {MAX_JSON_BYTES} bytes")
     try:
         obj = json.loads(raw.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
         raise JournalError("torn", f"{name} is not valid JSON (torn or corrupt)") from exc
     if type(obj) is not dict:
         raise JournalError("invalid", f"{name} is not a JSON object")
-    if obj.get("schema_version") != _SCHEMA_VERSION:
+    if not _is_schema_version(obj.get("schema_version")):
         raise JournalError("invalid", f"{name}: unsupported schema_version")
     run_id = obj.get("run_id")
     if not (type(run_id) is str and _RUN_ID.fullmatch(run_id)):
@@ -636,7 +641,7 @@ def open_journal(path: str | Path) -> Journal:
     raw, truncated = _read_capped(candidate / "launch.json", MAX_JSON_BYTES)
     try:
         run_id = json.loads(raw.decode("utf-8")).get("run_id") if not truncated else None
-    except (ValueError, UnicodeDecodeError, AttributeError) as exc:
+    except (ValueError, UnicodeDecodeError, AttributeError, RecursionError) as exc:
         raise JournalError("torn", "launch.json is not valid JSON (torn or corrupt)") from exc
     if not (type(run_id) is str and _RUN_ID.fullmatch(run_id)):
         raise JournalError("invalid", "launch.json carries no valid run_id")

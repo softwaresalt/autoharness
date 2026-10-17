@@ -60,7 +60,7 @@ class AttachedJournalTests(unittest.TestCase):
         directory = _journal_dir(harness)
         self.assertEqual(outcome.journal_path, directory)
         names = {entry.name for entry in directory.iterdir()}
-        self.assertEqual(names, {"meta.json", "exit.json", "outcome.json"})
+        self.assertEqual(names, {"meta.json", "child_started.json", "exit.json", "outcome.json"})
 
         journal = Journal(path=directory, run_id=outcome_run_id(harness))
         meta = read_json(journal, "meta.json")
@@ -109,7 +109,7 @@ class AttachedJournalTests(unittest.TestCase):
         directory = _journal_dir(harness)
         self.assertEqual(
             {entry.name for entry in directory.iterdir()},
-            {"meta.json", "launch.json", "exit.json", "outcome.json", "stdout.raw", "stderr.raw"},
+            {"meta.json", "launch.json", "child_started.json", "exit.json", "outcome.json", "stdout.raw", "stderr.raw"},
         )
         # The journal holds the raw output; only the evidence record is redacted.
         self.assertIn(b"supersecretvalue123", (directory / "stderr.raw").read_bytes())

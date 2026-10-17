@@ -27,6 +27,7 @@ from autoharness.shipment_close.journal import (
     read_json,
     write_json,
 )
+from autoharness.shipment_close.liveness import is_process_alive
 
 _FAR = "2099-01-01T00:00:00.000000Z"
 _PAST = "2020-01-01T00:00:00.000000Z"
@@ -249,6 +250,101 @@ class PostSpawnFailureTests(unittest.TestCase):
             record = supervisor.run_child(fixture.journal, launch, grace_seconds=0.2)
         self.assertEqual(record["state"], "exited")
         self.assertEqual(read_json(fixture.journal, "exit.json")["state"], "exited")
+
+
+class PreSpawnFailureTests(unittest.TestCase):
+    def _supervised_failure(self, harness: _DetachHarness) -> _InProcessSupervisor:
+        holder: list[_InProcessSupervisor] = []
+
+        def spawn(journal_dir):
+            holder.append(_InProcessSupervisor(Path(journal_dir)))
+            return holder[0]
+
+        with (
+            mock.patch.object(command, "spawn_supervisor", spawn),
+            mock.patch.object(supervisor, "_wait_for_authorization", side_effect=RuntimeError("injected before spawn")),
+        ):
+            harness.detach(ack_timeout_seconds=3.0)
+            holder[0].thread.join(60)
+        self.assertIsInstance(holder[0].error, RuntimeError)
+        return holder[0]
+
+    def test_an_unexpected_failure_before_the_spawn_completes_the_never_started_proof_then_releases_the_lock(
+        self,
+    ) -> None:
+        harness = _DetachHarness(self)
+        self._supervised_failure(harness)
+        harness.assert_rolled_back_without_shipping()
+        self.assertEqual(read_json(open_journal(harness.directory), "exit.json")["state"], "never_started")
+        self.assertEqual(harness.wait_outcome()["outcome"], "never_started")
+
+    def test_a_failed_never_started_proof_keeps_the_lock_for_recovery(self) -> None:
+        harness = _DetachHarness(self)
+        with mock.patch.object(command, "finish_never_started", side_effect=command.PersistError(2, "cannot roll back")):
+            self._supervised_failure(harness)
+        self.assertTrue(harness.lock_path.exists(), "the lock must stay so recovery sees a dead owner")
+        self.assertEqual(harness.record()["phase"], "invoking")
+        self.assertFalse(harness.shipped)
+
+
+class ShimPidJournalTests(unittest.TestCase):
+    def test_the_attached_shim_journals_the_child_pid(self) -> None:
+        fixture = _Fixture(self)
+        fixture.write_launch(_quick_script(fixture))
+        self.assertEqual(supervisor.main(["--shim", str(fixture.journal.path)]), 0)
+        started = read_json(fixture.journal, "child_started.json")
+        exited = read_json(fixture.journal, "exit.json")
+        self.assertEqual(started["state"], "spawned")
+        self.assertEqual(started["pid"], exited["child_pid"])
+        self.assertGreater(started["pid"], 0)
+
+
+class KilledAfterSpawnTests(unittest.TestCase):
+    def _slow(self, fixture: _Fixture) -> dict:
+        return fixture.write_launch(fixture.script("slow.py", "import time\ntime.sleep(60)\n"), timeout=120)
+
+    def _assert_child_killed(self, pids: list[int]) -> None:
+        self.assertEqual(len(pids), 1)
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline and is_process_alive(pids[0]) is not False:
+            time.sleep(0.1)
+        self.assertIs(is_process_alive(pids[0]), False, "the spawned child must not outlive the supervisor")
+
+    def test_an_interrupt_while_resolving_the_group_still_kills_the_child(self) -> None:
+        fixture = _Fixture(self)
+        launch = self._slow(fixture)
+        pids: list[int] = []
+        with (
+            mock.patch.object(supervisor, "_group_for", side_effect=supervisor._Terminated),
+            self.assertRaises(supervisor._Terminated),
+        ):
+            supervisor.run_child(fixture.journal, launch, on_spawned=pids.append)
+        self._assert_child_killed(pids)
+
+    def test_an_interrupt_in_the_spawn_callback_still_kills_the_child(self) -> None:
+        fixture = _Fixture(self)
+        launch = self._slow(fixture)
+        pids: list[int] = []
+
+        def interrupted(pid: int) -> None:
+            pids.append(pid)
+            raise supervisor._Terminated
+
+        with self.assertRaises(supervisor._Terminated):
+            supervisor.run_child(fixture.journal, launch, on_spawned=interrupted)
+        self._assert_child_killed(pids)
+
+
+class UnexpectedQuiescenceErrorTests(unittest.TestCase):
+    def test_the_error_type_and_message_are_journaled_without_changing_the_verdict(self) -> None:
+        fixture = _Fixture(self)
+        launch = fixture.write_launch(_quick_script(fixture))
+        with mock.patch.object(supervisor.quiescence, "settle_group", side_effect=RuntimeError("probe broke")):
+            record = supervisor.run_child(fixture.journal, launch, grace_seconds=0.2)
+        for stream in ("stdout", "stderr"):
+            self.assertFalse(record["quiescence"][stream]["proven"])
+            self.assertIn("RuntimeError: probe broke", record["quiescence"][stream]["method"])
+        self.assertEqual(read_json(fixture.journal, "exit.json")["quiescence"], record["quiescence"])
 
 
 class BestEffortNeverStartedTests(unittest.TestCase):

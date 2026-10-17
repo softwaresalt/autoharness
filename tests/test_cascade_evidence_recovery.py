@@ -196,6 +196,19 @@ class RecoveryBlockStructureTests(unittest.TestCase):
             [],
         )
 
+    def test_hostile_json_values_are_problems_never_a_traceback(self) -> None:
+        for hostile in ([], ["x"], {"a": 1}):
+            with self.subTest(hostile=hostile):
+                for mutation in (
+                    lambda r, v=hostile: r["recovery"]["lock_disposition"].update(basis=v),
+                    lambda r, v=hostile: r["recovery"]["lock_disposition"].update(action=v),
+                    lambda r, v=hostile: r["recovery"].update(mode=v),
+                    lambda r, v=hostile: _facts(r).update(exit_code=v),
+                    lambda r, v=hostile: r["invocation"].update(mutation_state=v),
+                ):
+                    self.assertTrue(self._problems(mutation))
+                    self.assertTrue(_structure(_mutate("journal_complete", mutation)))
+
     def test_recovery_block_is_refused_on_a_safe_close_record(self) -> None:
         record = cascade_evidence_safe_close()
         record["recovery"] = _recovered()["recovery"]

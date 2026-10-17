@@ -31,5 +31,6 @@ EXIT_POST_WRITE_FAILED: Final = 8
 # ``--detach`` / ``--poll``: the supervised run started (or is still running) and is not complete.
 # Mutation is possible; ``--poll`` resolves it. Exit 9 is never a refusal.
 EXIT_STARTED: Final = 9
-# ``--recover``: recovery was refused; nothing was written (operator review).
+# ``--recover``: recovery was refused; no evidence record was written, though a provably dead owner's lock may
+# already have been tombstoned (operator review).
 EXIT_RECOVERY_REFUSED: Final = 10

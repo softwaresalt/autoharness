@@ -1,7 +1,10 @@
 """``cascade-close`` orchestration (192-F, plan unit A3).
 
 :func:`run_cascade_close` is the mutating mode of ``autoharness shipment
-cascade-close``. Every step runs under the A1b pair lock:
+cascade-close``. Every step runs under the A1b pair lock (attached mode: the
+foreground holds it throughout; ``--detach``: the foreground hands the lock to
+the detached supervisor, which performs the revalidation and everything after
+the ``invoking`` record and then releases it):
 
 1. the existing-record check (exit 7 or 2), before any classification;
 2. ``--message`` / ``--author`` validation (exit 2);
@@ -30,9 +33,10 @@ cascade-close``. Every step runs under the A1b pair lock:
 10. the owner-bound ``post_close`` record, written even when the invocation
     or the parse failed (exit 8 if it cannot be written).
 
-The command spawns only the A2a probe (steps 3 and 5) and ``shipment ship``.
-It never archives, moves, or edits a deliberation or any other artifact.
-The CLI wiring and ``--json`` rendering are A3d.
+The command spawns the A2a probe (steps 3 and 5), ``shipment ship`` (through the
+journaled shim, step 8), and, with ``--detach``, the detached supervisor that
+then performs the revalidation, the spawn, and the finalization. It never archives, moves, or edits a deliberation or
+any other artifact. The CLI wiring and ``--json`` rendering are A3d.
 """
 
 from __future__ import annotations

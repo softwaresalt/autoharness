@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +44,9 @@ EVENT_LOG_DIR_NAME: Final = "logs"
 ENGINE_ACTOR: Final = "backlogit"
 MAX_LOG_BYTES: Final = 8 * 1024 * 1024
 _OPERATION_KEY: Final = "_shipment_operation"
+# Mirrors the CLI's safe item id grammar: it admits task ids such as ``211.001-T`` that the closure shipment/feature
+# grammar does not, but never a path separator, a leading dot, or a drive designator.
+_SCOPE_ITEM_ID: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*", re.ASCII)
 
 REASON_NO_CORRELATION: Final = "archived events carry no cascade operation correlation"
 REASON_FOREIGN_ACTOR: Final = "a foreign-actor event touches a required item inside the window"
@@ -98,7 +102,7 @@ def _is_link(path: Path) -> bool:
 def _parse_event(raw: str, *, where: str, expected_item_id: str) -> EngineEvent:
     try:
         obj = json.loads(raw)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         raise EventLogError(f"{where}: malformed JSON ({exc.__class__.__name__})") from exc
     if type(obj) is not dict:
         raise EventLogError(f"{where}: event is not an object")
@@ -144,7 +148,7 @@ def _read_log(logs_dir: Path, item_id: str, *, required: bool) -> tuple[EngineEv
     except UnicodeDecodeError as exc:
         raise EventLogError(f"event log is not UTF-8: {path}") from exc
     events = []
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(text.split("\n"), start=1):
         if line.strip():
             events.append(_parse_event(line, where=f"{path.name}:{number}", expected_item_id=item_id))
     return tuple(events)
@@ -199,6 +203,8 @@ def read_cascade_events(backlog_dir: Path | str, shipment_id: str, since: dateti
     all_events = list(shipment_events)
     missing = []
     for item_id in scope:
+        if _SCOPE_ITEM_ID.fullmatch(item_id) is None:
+            raise EventLogError(f"the engine log names an invalid scope item id {item_id!r}")
         item_events = _read_log(logs_dir, item_id, required=False)
         if item_events is None:
             missing.append(item_id)

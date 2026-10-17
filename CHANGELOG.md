@@ -7,7 +7,8 @@
 - **`cascade-close` journaling, `--detach`/`--poll`, and `--recover` (211-F / 218-S):** the mutating
   `autoharness shipment cascade-close` now writes a durable, Git-ignored output journal, so a wrapper killed
   mid-ship no longer loses the engine result. `--detach` hands the run to a detached supervisor behind an
-  authorization barrier and returns exit `9`; the read-only `--poll [--wait <s>]` reports a supervised run (exit `9`
+  authorization barrier and returns exit `9` (or, if the supervised run already finished inside the acknowledgement
+  window, that run's final exit code, routed as the mutating row); the read-only `--poll [--wait <s>]` reports a supervised run (exit `9`
   while running, its final exit code once ended, exit `7` with `recovery_available` when the supervisor is gone);
   `--caller-wait` (or `AUTOHARNESS_CALLER_WAIT_SECONDS`) makes an attached run exit `2` before anything runs when the
   caller would give up before `--timeout` + 600 s. `--recover [--dry-run]` (exit `10` on refusal) rebuilds an orphaned

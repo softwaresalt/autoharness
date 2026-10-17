@@ -14,15 +14,17 @@ This module is the only writer of close-evidence records. It owns:
 * :func:`acquire_pair_lock`, the per-pair ``O_CREAT | O_EXCL`` lock under the
   Git-ignored ``.autoharness/gates/cascade-close/`` (SL-F01), after a
   directory-trust walk of every component (SL-F06). A held lock is never
-  broken automatically (exit 7); removing a stale lock is an operator action;
+  broken automatically by a run: a provably dead owner's lock is moved aside
+  only by the serialized ``--recover`` takeover (:func:`takeover_stale_lock`);
+  any other stale lock needs an operator decision (exit 7);
 * :func:`check_existing_record`, the first action under the lock;
 * :func:`write_evidence_atomic`, the owner-bound atomic write (AS-F01) with the
   narrowly authorized ``pre_close`` takeover compare-and-swap (Copilot PR #481
   T6).
 
 Every path this module touches is inside the workspace it is given
-(constitution IV). It never deletes anything but its own temp file and its own
-lock.
+(constitution IV). It deletes only its own temp file, its own lock, and the
+takeover guard it created; a takeover renames (never deletes) the stale lock.
 """
 
 from __future__ import annotations
@@ -415,7 +417,7 @@ def _read_lock_run_id(lock_path: Path) -> tuple[str | None, bool]:
                 time.sleep(_REPLACE_BACKOFF_SECONDS * (2**attempt))
                 continue
             return None, True
-        except (OSError, ValueError, PersistError):
+        except (OSError, ValueError, RecursionError, PersistError):
             return None, False
         return (payload.get("run_id") if isinstance(payload, dict) else None), False
     return None, True
@@ -605,7 +607,7 @@ def handoff_lock(lock: PairLock, *, pid: int, pid_start: str | None, supervisor:
         raise PersistError(EXIT_INPUT, "handoff pid must be a positive integer")
     try:
         current = json.loads(_read_no_follow(lock.lock_path).decode("utf-8"))
-    except (OSError, ValueError, PersistError) as exc:
+    except (OSError, ValueError, RecursionError, PersistError) as exc:
         raise PersistError(EXIT_INPUT, f"cannot read the held lock for handoff: {exc}") from exc
     if not isinstance(current, dict) or current.get("run_id") != lock.run_id:
         raise PersistError(EXIT_INPUT, "the cascade-close pair lock is not held by this run")
@@ -671,7 +673,7 @@ def _observe_path(lock_path: Path) -> LockObservation | None:
     digest = hashlib.sha256(raw).hexdigest()
     try:
         payload = json.loads(raw.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
         payload = None
     if not isinstance(payload, dict) or not _is_run_id(payload.get("run_id")):
         return LockObservation(digest, False, None, None, None, None, False)
@@ -722,6 +724,31 @@ def _takeover_verdict(
         EXIT_LOCKED,
         f"the lock owner is not provably dead ({verdict.basis}: {verdict.detail}); operator review required",
     )
+
+
+def _remove_takeover_guard(guard_path: Path) -> None:
+    """Remove the guard this call created, retrying a Windows sharing violation; never raises."""
+
+    failure: OSError | None = None
+    for attempt in range(_REPLACE_RETRIES + 1):
+        try:
+            os.unlink(guard_path)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError as exc:
+            failure = exc
+            if attempt < _REPLACE_RETRIES:
+                time.sleep(_REPLACE_BACKOFF_SECONDS * (2**attempt))
+                continue
+        except OSError as exc:
+            failure = exc
+        break
+    with contextlib.suppress(OSError, ValueError):
+        sys.stderr.write(
+            f"warning: cannot remove the cascade-close takeover guard {guard_path}: {failure}; "
+            "remove it manually (an operator action) before the next recovery\n"
+        )
 
 
 def takeover_stale_lock(
@@ -783,8 +810,7 @@ def takeover_stale_lock(
             disposition = LockDisposition(action, current.pid, current.host, basis)
         _create_lock_file(lock_path, _lock_payload(recovery_run_id, supervisor=False))
     finally:
-        with contextlib.suppress(OSError):
-            os.unlink(guard_path)
+        _remove_takeover_guard(guard_path)
     lock = PairLock(
         workspace=root,
         shipment_id=shipment_id,
@@ -831,7 +857,7 @@ def check_existing_record(lock: PairLock, *, mode: str) -> Mapping[str, object] 
         record = json.loads(_read_no_follow(path).decode("utf-8"))
     except PersistError:
         raise
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise PersistError(EXIT_LOCKED, f"existing evidence record is unreadable (operator review): {exc}") from exc
     if not isinstance(record, dict):
         raise PersistError(EXIT_LOCKED, "existing evidence record is not a JSON object (operator review)")
@@ -1038,7 +1064,7 @@ def write_evidence_atomic(
             existing = json.loads(_read_no_follow(target).decode("utf-8"))
         except PersistError:
             raise
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, RecursionError) as exc:
             raise PersistError(EXIT_INPUT, f"existing evidence record is unreadable: {exc}") from exc
         if not isinstance(existing, dict):
             raise PersistError(EXIT_INPUT, "existing evidence record is not a JSON object")

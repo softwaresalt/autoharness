@@ -281,6 +281,97 @@ class PollTests(unittest.TestCase):
         result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
         self.assertEqual((result.exit_code, result.recovery_available), (EXIT_LOCKED, False), result.message)
 
+    def test_a_linked_journal_directory_is_untrusted_exit_7_with_no_recovery(self) -> None:
+        import shutil
+        import tempfile
+
+        from cascade_close_test_support import make_dir_link
+
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        directory = harness.root / ".autoharness" / "gates" / "cascade-close" / f"{_SHIPMENT}-{_FEATURE}.journal"
+        elsewhere = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, elsewhere, True)
+        moved = elsewhere / "journal"
+        shutil.copytree(directory, moved)
+        shutil.rmtree(directory)
+        reason = make_dir_link(directory, moved)
+        if reason:
+            self.skipTest(reason)
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.recovery_available), (EXIT_LOCKED, False), result.message)
+
+    def test_a_linked_lock_directory_is_untrusted_exit_7_with_no_recovery(self) -> None:
+        import shutil
+        import tempfile
+
+        from cascade_close_test_support import make_dir_link
+
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        gates = harness.root / ".autoharness" / "gates"
+        elsewhere = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, elsewhere, True)
+        moved = elsewhere / "cascade-close"
+        shutil.copytree(gates / "cascade-close", moved)
+        shutil.rmtree(gates / "cascade-close")
+        reason = make_dir_link(gates / "cascade-close", moved)
+        if reason:
+            self.skipTest(reason)
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.recovery_available), (EXIT_LOCKED, False), result.message)
+
+    def test_an_exit_0_outcome_needs_a_validated_post_close_record_for_the_same_run(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        self.assertEqual(harness.run().exit_code, EXIT_OK)
+        record = harness.record()
+        record["post_close"]["postcondition_verdict"] = "fail"
+        harness.evidence.write_text(json.dumps(record), encoding="utf-8")
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.outcome_source), (EXIT_POSTCONDITION_FAILED, "evidence_record"))
+        harness.evidence.unlink()
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual(result.exit_code, EXIT_INPUT, result.message)
+        self.assertIsNone(result.outcome_source)
+
+    def test_an_exit_0_outcome_with_an_unreadable_evidence_record_is_exit_7(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        self.assertEqual(harness.run().exit_code, EXIT_OK)
+        harness.evidence.write_text("{torn", encoding="utf-8")
+        self.assertEqual(poll_cascade_close(harness.root, _SHIPMENT, _FEATURE).exit_code, EXIT_LOCKED)
+
+    def test_a_recovery_record_wins_over_a_stale_failing_outcome(self) -> None:
+        from test_shipment_close_recover_reconstruct import _Recovery
+
+        orphan = _Recovery(self)
+        self.assertEqual(orphan.run_recovery().exit_code, 0)
+        command._write_outcome(orphan.journal(), 8, "post_write_failed", "supervisor", detail="stale")
+        self.assertTrue((orphan.journal_dir / "outcome.json").exists())
+        result = poll_cascade_close(orphan.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.outcome_source), (0, "recovered_evidence"), result.message)
+
+    def test_a_transient_sharing_violation_reading_the_lock_is_retried(self) -> None:
+        from autoharness.shipment_close import poll as poll_module
+        from autoharness.shipment_close.persist import PersistError
+
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        calls: list[int] = []
+
+        def flaky(*args: object, **kwargs: object):
+            calls.append(1)
+            if len(calls) == 1:
+                try:
+                    raise PermissionError("sharing violation")
+                except PermissionError as exc:
+                    raise PersistError(EXIT_LOCKED, "existing lock is unreadable") from exc
+            return None
+
+        with mock.patch.object(poll_module, "observe_lock", flaky):
+            result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual((result.exit_code, result.recovery_available), (EXIT_LOCKED, True), result.message)
+
     def test_poll_never_waits_longer_than_requested(self) -> None:
         harness = _Harness(self, probes=[_VERIFIED])
         self._orphan(harness)

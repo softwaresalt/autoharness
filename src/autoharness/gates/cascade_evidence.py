@@ -1481,7 +1481,7 @@ def _check_lock_disposition(value: object, bad: Callable[[str, str], None]) -> N
     action, basis = value["action"], value["basis"]
     if type(action) is not str or action not in _LOCK_BASES:
         bad("lock_disposition.action", f"must be one of {sorted(_LOCK_BASES)}")
-    elif basis not in _LOCK_BASES[action]:
+    elif type(basis) is not str or basis not in _LOCK_BASES[action]:
         bad("lock_disposition.basis", f"{basis!r} is not a valid basis for action {action!r}")
     owner_pid = value["owner_pid"]
     if owner_pid is not None and not (_is_int(owner_pid) and owner_pid > 0):
@@ -1604,7 +1604,7 @@ def _check_recovery_block(checker: _Checker, record: Mapping[str, object]) -> di
         bad("facts", f"must cover exactly {list(RECOVERY_FACT_KEYS)}")
         return None
     for key in RECOVERY_FACT_KEYS:
-        if facts[key] not in _FACT_VALUES[key] or type(facts[key]) is not str:
+        if type(facts[key]) is not str or facts[key] not in _FACT_VALUES[key]:
             bad(f"facts.{key}", f"must be one of {sorted(_FACT_VALUES[key])} (got {facts[key]!r})")
     if not valid:
         return None
@@ -1674,7 +1674,11 @@ def _check_cascade(
                 checker.fail(f"{where}.timed_out", "a passing cascade cannot have timed out")
         allowed_states = _RECOVERED_MUTATION_STATES if recovered else _MUTATION_STATES
         state = checker.field(
-            invocation, "mutation_state", where, lambda v: v in allowed_states, f"one of {sorted(allowed_states)}"
+            invocation,
+            "mutation_state",
+            where,
+            lambda v: type(v) is str and v in allowed_states,
+            f"one of {sorted(allowed_states)}",
         )
         if state is not _MISSING and strict and state != "completed":
             checker.fail(f"{where}.mutation_state", f"a passing cascade requires completed (got {state!r})")

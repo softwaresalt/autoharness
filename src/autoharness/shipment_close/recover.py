@@ -3,11 +3,15 @@
 Recovery exists for the run a killed wrapper left behind: an ``invoking`` evidence record, a lock held by a dead
 owner (or no lock), and possibly a journal. It never invokes backlogit and never moves, archives, or edits a backlog
 artifact. It writes the evidence record (and moves a stale lock to a tombstone) and nothing else; everything it cannot
-observe is recorded as unknown, and every doubt is a refusal (exit 10, nothing written).
+observe is recorded as unknown, and every doubt is a refusal (exit 10: no evidence record is written; a provably dead
+owner's lock may already have been tombstoned, because the lock takeover precedes reconstruction).
 
-This module holds the eligibility half (T10): the record and journal checks, owner liveness (hardening H3), child
+This module holds the eligibility half (the record and journal checks, owner liveness (hardening H3), child
 liveness, a read-only process scan (H11), the settle-window stability proof (H2), the operator confirmations, the
-serialized lock takeover (H8), and the recovery-owner rollback of a never-started run (H7 addendum d).
+serialized lock takeover (H8), and the recovery-owner rollback of a never-started run (H7 addendum d)), the
+reconstruction half (the journal and live-state facts folded into a ``post_close`` record, with every unobserved
+fact marked unknown), the evidence write, and the :func:`recover_cascade_close` command that runs them under the
+recovery's own pair lock.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ import contextlib
 import datetime
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -444,8 +449,8 @@ def _settle(snapshot: _RecoverySnapshot, seconds: float, env: RecoverEnv) -> Non
 
 
 def validate_settle_seconds(value: object) -> float:
-    if type(value) not in (int, float) or value < MIN_SETTLE_SECONDS:
-        raise _Refused(f"the settle window may only be raised above {MIN_SETTLE_SECONDS:g} s", EXIT_INPUT)
+    if type(value) not in (int, float) or not math.isfinite(value) or value < MIN_SETTLE_SECONDS:
+        raise _Refused(f"the settle window must be a finite number of at least {MIN_SETTLE_SECONDS:g} s", EXIT_INPUT)
     return float(value)
 
 
@@ -816,8 +821,10 @@ def recover_cascade_close(
 ) -> RecoverOutcome:
     """Run ``--recover`` (or ``--dry-run``): evidence-only, idempotent, fail closed.
 
-    Exit 10 means refused with nothing written; 2 is an input error or an already-finalized record (also nothing
-    written); a never-started run is rolled back to ``pre_close`` and exits 2 (mutation-free: retry attached).
+    Exit 10 means refused: no evidence record is written (a provably dead owner's lock may already have been
+    tombstoned, since the takeover precedes reconstruction); 2 is an input error or an already-finalized record
+    (also no evidence written); a never-started run is rolled back to ``pre_close`` and exits 2 (mutation-free:
+    retry attached).
     """
 
     try:

@@ -265,6 +265,55 @@ class JsonFilesTest(_Workspace):
                     read_json(self.journal, name)
                 (self.journal.path / name).unlink()
 
+    def test_hostile_json_values_are_refusals_never_a_traceback(self) -> None:
+        launch = journal_module.build_launch(
+            run_id=_RUN,
+            workspace=str(self.workspace),
+            shipment_id="218-S",
+            feature_id="211-F",
+            merge_commit_sha="a" * 40,
+            mode="attached",
+            argv=["bin", "ship"],
+            binary_path="bin",
+            binary_sha256="0" * 64,
+            argv_prefix=["bin"],
+            cwd=str(self.workspace),
+            timeout_seconds=30,
+        )
+        started = {"schema_version": 1, "run_id": _RUN, "written_at": "2026-10-17T00:00:00Z", "pid": None}
+        cases = [
+            ("exit.json", {**_exit(), "state": ["exited"]}),
+            ("exit.json", {**_exit(), "state": {"a": 1}}),
+            ("outcome.json", {**_outcome(), "outcome": ["completed"]}),
+            ("launch.json", {**launch, "mode": ["attached"]}),
+            ("launch.json", {**launch, "quiescence_grace_seconds": float("inf")}),
+            ("launch.json", {**launch, "quiescence_grace_seconds": float("nan")}),
+            ("child_started.json", {**started, "state": ["spawned"]}),
+            ("child_started.json", {**started, "state": {"x": 1}}),
+            ("outcome.json", {**_outcome(), "schema_version": True}),
+            ("outcome.json", {**_outcome(), "schema_version": 1.0}),
+        ]
+        for name, record in cases:
+            with self.subTest(name=name, record=record):
+                with self.assertRaises(JournalError):
+                    write_json(self.journal, name, record)
+                (self.journal.path / name).write_bytes(json.dumps(record).encode())
+                with self.assertRaises(JournalError):
+                    read_json(self.journal, name)
+                (self.journal.path / name).unlink()
+
+    def test_deeply_nested_json_is_a_refusal_not_a_recursion_error(self) -> None:
+        (self.journal.path / "meta.json").write_bytes(b"[" * 20000 + b"]" * 20000)
+        with self.assertRaises(JournalError) as caught:
+            read_json(self.journal, "meta.json")
+        self.assertIn(caught.exception.reason, ("torn", "invalid"))
+        with (
+            mock.patch.object(journal_module.json, "loads", side_effect=RecursionError),
+            self.assertRaises(JournalError) as caught,
+        ):
+            read_json(self.journal, "meta.json")
+        self.assertEqual(caught.exception.reason, "torn")
+
     def test_unknown_names_and_foreign_run_writes_are_refused(self) -> None:
         with self.assertRaises(JournalError):
             write_json(self.journal, "evil.json", _meta())

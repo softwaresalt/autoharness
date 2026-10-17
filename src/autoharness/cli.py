@@ -14,6 +14,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from autoharness.shipment_close.runner import SUPERVISION_MARGIN_SECONDS
 from autoharness.verify_workspace import verify_workspace
 
 # The data directory is bundled inside the package at build time.
@@ -283,8 +284,10 @@ closure-evidence options:
                       workspace_containment | input | filename |
                       frontmatter_predicate | discoverability | close_path |
                       close_evidence, or null on pass; and warnings[], a list
-                      of non-blocking notes: an absent merge_commit key, or a
-                      vacuous SAFE_CLOSE observation-set re-check).
+                      of non-blocking notes: an absent merge_commit key, a
+                      vacuous SAFE_CLOSE observation-set re-check, or a
+                      RECOVERED evidence record, which also adds
+                      evidence_recovered: true and recovery_mode).
 
 `closure-evidence` is READ-ONLY and never writes, renames, or repairs an
 artifact. Checks run in order: workspace containment, input readability (a
@@ -2340,17 +2343,23 @@ cascade-close options:
   --detach            Mutating mode only: hand the run to a detached supervisor (own
                       process group/session, journaled output) behind a two-phase
                       authorization barrier, and return exit 9 once it has started.
-                      Exit 2/4 here still mean nothing was invoked; after exit 9 a
-                      mutation is possible. Never falls back to attached.
+                      If the supervised run already finished inside the
+                      acknowledgement window, its final exit code is returned
+                      instead (route it as the mutating row). Exit 2/4 here still
+                      mean nothing was invoked; after exit 9 a mutation is possible.
+                      Never falls back to attached.
   --caller-wait <s>   Attached mutating mode: the longest the caller will wait (also read
-                      from AUTOHARNESS_CALLER_WAIT_SECONDS; the flag wins). Declared and
-                      shorter than --timeout + 600 s => exit 2 before anything runs (a
-                      caller that gives up first can kill the wrapper mid-mutation). Use
-                      a longer wait, or --detach with --poll. Ignored by --detach.
+                      from AUTOHARNESS_CALLER_WAIT_SECONDS; the flag wins; an invalid
+                      value exits 2 even with --detach). Declared and shorter than
+                      --timeout + @MARGIN@ s => exit 2 before anything runs (a caller
+                      that gives up first can kill the wrapper mid-mutation). Use a
+                      longer wait, or --detach with --poll. Ignored by --detach.
   --poll              Read-only: report a supervised run. Exit 9 while it runs, its final
                       exit code once it ended (from outcome.json, else derived from the
                       terminal evidence record), exit 7 with recovery_available when the
                       supervisor is gone. Writes nothing, resolves no binary, needs no --sha.
+                      Rejects --message, --author, --timeout, --caller-wait,
+                      --classify-only, --replace-pre-close, and --detach.
   --wait <secs>       With --poll only: wait up to this many seconds (0-3600, default 0)
                       for a running supervisor to finish.
   --recover           Evidence-only recovery of an orphaned `invoking` record whose lock
@@ -2359,8 +2368,11 @@ cascade-close options:
                       it writes a recovered post_close record (marked `recovery`, every
                       unobserved fact null/unknown) or, for a run that provably never
                       started a child, rolls the record back to pre_close (exit 2; retry
-                      attached). Everything unprovable is exit 10 with nothing written.
-                      Needs no --sha, --message, or --author. Run --dry-run first.
+                      attached). Everything unprovable is exit 10 (no evidence record is
+                      written; a provably dead owner's lock may already have been
+                      tombstoned). Needs no --sha, --message, or --author. Run --dry-run
+                      first. Rejects --sha, --message, --author, --timeout, --caller-wait,
+                      --wait, --classify-only, --replace-pre-close, --detach, and --poll.
   --dry-run           With --recover only: run every check and report the recovery mode,
                       writing nothing (no lock is taken).
   --confirm-owner-dead
@@ -2370,12 +2382,20 @@ cascade-close options:
                       With --recover only: the operator asserts no `backlogit shipment
                       ship` is running for a legacy record that has no journal.
   --replace-pre-close With --classify-only only: replace an existing pre_close record.
+  --classify-only also rejects --message, --author, --timeout, --caller-wait, and --detach.
   --workspace, -w     Workspace root. Default: .
   --json              Emit one JSON object: mode, exit_code, evidence_path,
                       phase_written, classifier_verdict, engine_verdict,
                       selected_close_path, mutation_possible (no | yes |
                       indeterminate | unknown), postcondition_verdict, failures[],
-                      operator_action (none | review_required).
+                      operator_action (none | review_required). The detach, poll,
+                      and recover modes add journal_path; poll adds outcome_source
+                      (journal_outcome | evidence_record | recovered_evidence) and
+                      recovery_available; recover adds dry_run, recovered,
+                      recovery_mode, recovery_action, and notes[]. A mutating or
+                      detach exit 7 that carries the hint adds recovery_available.
+                      For --recover, mutation_possible is yes when a record was
+                      recovered, no on a rollback (and exit 2), otherwise unknown.
 
 Exit codes:
   0  mutating: all postconditions passed; --classify-only: CASCADE selected.
@@ -2387,20 +2407,24 @@ Exit codes:
   7  the pair lock is already held, or an existing evidence record needs review
      (invoking, unreadable, ambiguous, or another pair); nothing invoked
      (operator review). The lock is
-     .autoharness/gates/cascade-close/{S}-{F}.lock; it is never broken
-     automatically, and removing a stale lock is an operator-only action
+     .autoharness/gates/cascade-close/{S}-{F}.lock; a run never breaks it. A
+     lock whose owner is provably dead is moved aside only by --recover (it
+     leaves a tombstone); any other stale lock is an operator-only decision
      (agents must not delete it).
   8  the post-close evidence write failed after invocation (operator review).
   9  --detach: the supervised run started or is still running; it is not complete
-     and a mutation is possible. The JSON object carries journal_path.
-  10  --recover: recovery was refused; nothing was written (operator review). The
-     JSON object reports recovered, recovery_mode, dry_run, and journal_path. A
+     and a mutation is possible. The JSON object carries journal_path. (A run that
+     already finished inside the acknowledgement window returns its final exit code.)
+  10  --recover: recovery was refused; no evidence record is written (a provably
+     dead owner's lock may already have been tombstoned, since the takeover
+     precedes reconstruction; operator review). The JSON object reports
+     recovered, recovery_mode, dry_run, and journal_path. A
      recovered record exits 0 only when it satisfies the closure-evidence gate; a
      determinate failure record exits 5 or 6 (the gate keeps refusing it).
 Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
 cascade-close, calling `backlogit shipment ship` directly, or substituting
 SAFE_CLOSE until an operator reviews the backlog state and the record.
-"""
+""".replace("@MARGIN@", str(SUPERVISION_MARGIN_SECONDS))
 
 _CASCADE_CLOSE_VALUE_FLAGS = (
     "--shipment",

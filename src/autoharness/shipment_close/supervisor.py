@@ -12,8 +12,12 @@ code.
 The shim accepts exactly one argument besides its mode flag, a journal
 directory. The exact argv comes from the protected ``launch.json`` and nothing
 else (hardening H12): :func:`open_journal` re-derives the directory from the
-launch record, and the launch schema re-hashes the argv, so a shim never execs an
-argv it cannot authenticate.
+launch record, and the launch schema re-hashes the argv, so the shim only execs
+an argv whose ``argv_sha256`` integrity checks out against ``launch.json``. That
+hash check is the whole authentication on the attached (``--shim``) path; the
+detached (``--supervise``) path additionally cross-checks the launch record
+against the ``invoking`` evidence record, the meta, and the pair lock before it
+spawns anything.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from typing import Final
 from autoharness.shipment_close import quiescence
 from autoharness.shipment_close.journal import (
     _RUN_ID,
+    MAX_JSON_BYTES,
     STREAM_FILES,
     Journal,
     JournalError,
@@ -194,14 +199,15 @@ def run_child(
             quiescence={"stdout": dict(empty), "stderr": dict(empty)},
         )
     _close_all(fds)  # the child holds its own copies; the open-writer probe needs ours closed
-    if on_spawned is not None:
-        with contextlib.suppress(JournalError, OSError):
-            on_spawned(process.pid)
-    group = _group_for(process.pid, entered)
+    group = entered if _WINDOWS else None
     timed_out = False
     capped = False
     deadline = time.monotonic() + timeout
     try:
+        if on_spawned is not None:
+            with contextlib.suppress(JournalError, OSError):
+                on_spawned(process.pid)
+        group = _group_for(process.pid, entered)
         while True:
             try:
                 process.wait(timeout=poll_seconds)
@@ -221,9 +227,15 @@ def run_child(
 
     try:
         verdicts = _prove_quiescence(journal, group, cap=cap, grace=grace, capped=capped)
-    except Exception:  # noqa: BLE001 - the child ran: an exit sentinel with an unproven verdict beats none
+    except Exception as exc:  # noqa: BLE001 - the child ran: an exit sentinel with an unproven verdict beats none
+        diagnostic = f"{type(exc).__name__}: {exc}"[:200]
         verdicts = {
-            key: {"proven": False, "method": "supervisor_error", "survivors_killed": 0, "total_bytes": _stream_size(journal, name)}
+            key: {
+                "proven": False,
+                "method": f"supervisor_error ({diagnostic})",
+                "survivors_killed": 0,
+                "total_bytes": _stream_size(journal, name),
+            }
             for key, name in zip(("stdout", "stderr"), STREAM_FILES)
         }
     return _write_exit_retrying(
@@ -368,6 +380,14 @@ def _claim_lock_owner(lock, observed) -> bool:
     return True
 
 
+def _write_child_started(journal: Journal, state: str, pid: int | None) -> None:
+    write_json(
+        journal,
+        "child_started.json",
+        {"schema_version": 1, "run_id": journal.run_id, "state": state, "pid": pid, "written_at": utc_now()},
+    )
+
+
 def _supervise_locked(lock, journal: Journal, launch: Mapping[str, object]) -> tuple[int, bool]:
     """Run the barrier, authentication, revalidation, spawn, and finalization; returns ``(status, release_lock)``."""
 
@@ -448,11 +468,7 @@ def _supervise_locked(lock, journal: Journal, launch: Mapping[str, object]) -> t
         return refuse("revalidation_drift", 4, "the binary's SHA-256 changed immediately before the spawn")
 
     def started(state: str, pid: int | None) -> None:
-        write_json(
-            journal,
-            "child_started.json",
-            {"schema_version": 1, "run_id": journal.run_id, "state": state, "pid": pid, "written_at": utc_now()},
-        )
+        _write_child_started(journal, state, pid)
 
     def before_spawn() -> None:
         if not _authorization_current(journal, launch):
@@ -508,12 +524,39 @@ def supervise(journal: Journal, launch: Mapping[str, object]) -> int:
     try:
         status, release = _supervise_locked(lock, journal, launch)
     except BaseException:
-        release = not journal_has(journal, "child_started.json")  # past the spawn point the lock stays for recovery
+        # Past the spawn point the lock stays for recovery. Before it, the never-started proof must be
+        # complete before the lock is released; when it cannot be completed the lock stays held.
+        release = False
+        if not journal_has(journal, "child_started.json"):
+            release = _finish_never_started_best_effort(lock, journal)
         raise
     finally:
         if release:
             lock.release()
     return status
+
+
+def _finish_never_started_best_effort(lock, journal: Journal) -> bool:
+    """Complete the never-started proof after an unexpected pre-spawn failure; False when it cannot be completed."""
+
+    from autoharness.shipment_close import command
+
+    try:
+        if journal_has(journal, "outcome.json"):
+            return True
+        command.finish_never_started(
+            lock,
+            journal,
+            outcome="never_started",
+            exit_code=2,
+            finalizer="supervisor",
+            detail="the supervisor failed before spawning the child",
+        )
+    except Exception as exc:  # noqa: BLE001 - a failed rollback keeps the lock so recovery sees a dead owner
+        with contextlib.suppress(OSError, ValueError):
+            sys.stderr.write(f"the never-started rollback failed: {type(exc).__name__}: {exc}; leaving the lock for recovery\n")
+        return False
+    return True
 
 
 def _best_effort_never_started(path: str) -> None:
@@ -523,13 +566,13 @@ def _best_effort_never_started(path: str) -> None:
     """
 
     try:
-        raw, _ = _read_capped(Path(path) / "launch.json", 64 * 1024)
+        raw, _ = _read_capped(Path(path) / "launch.json", MAX_JSON_BYTES)
         run_id = json.loads(raw.decode("utf-8")).get("run_id")
         if type(run_id) is str and _RUN_ID.fullmatch(run_id):
             journal = Journal(path=Path(path), run_id=run_id)
             if not (journal_has(journal, "exit.json") or journal_has(journal, "child_started.json")):
                 write_never_started(journal)
-    except (JournalError, OSError, ValueError, AttributeError):
+    except (JournalError, OSError, ValueError, AttributeError, RecursionError):
         pass
 
 
@@ -566,7 +609,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args[0] == "--supervise":
             return supervise(journal, launch)
-        run_child(journal, launch)
+        run_child(journal, launch, on_spawned=lambda pid: _write_child_started(journal, "spawned", pid))
     except _Terminated:
         return 143
     return 0

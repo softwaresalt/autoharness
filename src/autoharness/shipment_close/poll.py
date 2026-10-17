@@ -3,7 +3,10 @@
 The answer comes from the journal and, when the journal's ``outcome.json`` is missing, from the terminal evidence
 record of the journal's own run:
 
-* ``outcome.json`` present: its exit code (``outcome_source: journal_outcome``);
+* ``outcome.json`` present: its exit code (``outcome_source: journal_outcome``). A non-zero code is overridden by a
+  terminal ``post_close`` record written by ``--recover`` that supersedes the run, and an exit-0 claim is trusted only
+  when the evidence record is a validated ``post_close`` for the journal's own run (otherwise it is derived from the
+  evidence record, which may yield 5 or 7);
 * no ``outcome.json`` but a terminal ``post_close`` record for the journal's ``run_id`` (the finalizer died between the
   evidence write and the outcome write): derived read-only from that record, pass -> 0, postcondition failure -> 5,
   failed or unparsed invocation -> 6 (``outcome_source: evidence_record``);
@@ -11,6 +14,8 @@ record of the journal's own run:
   recovery returned, rebuilt from the record and its recovery facts (``outcome_source: recovered_evidence``);
 * an ``invoking`` record whose lock owner is alive or cannot be proven dead: ``running`` (exit 9);
 * an ``invoking`` record whose lock is gone or whose owner is provably dead: exit 7 with ``recovery_available``.
+
+Every path is trust-walked first (a link or non-directory component is exit 7 with no recovery available).
 
 Nothing here writes, deletes, takes a lock, signals a process, or recovers anything.
 """
@@ -44,7 +49,14 @@ from autoharness.shipment_close.journal import (
     read_json,
 )
 from autoharness.shipment_close.liveness import provably_dead
-from autoharness.shipment_close.persist import PersistError, _read_no_follow, observe_lock
+from autoharness.shipment_close.persist import (
+    LOCK_DIR,
+    PersistError,
+    _check_trusted_chain,
+    _read_no_follow,
+    _trusted_component,
+    observe_lock,
+)
 
 __all__ = ["PollOutcome", "poll_cascade_close"]
 
@@ -63,6 +75,9 @@ def _retrying(read: Callable[[], object]) -> object:
             pass
         except JournalError as exc:
             if exc.reason != "untrusted":
+                raise
+        except PersistError as exc:
+            if not isinstance(exc.__cause__, PermissionError):
                 raise
         time.sleep(_TRANSIENT_BACKOFF_SECONDS)
     return read()
@@ -85,7 +100,7 @@ def _open_journal(directory: Path) -> Journal:
     raw, truncated = _read_capped(directory / "meta.json", MAX_JSON_BYTES)
     try:
         run_id = None if truncated else json.loads(raw.decode("utf-8")).get(_RUN_ID)
-    except (ValueError, UnicodeDecodeError, AttributeError) as exc:
+    except (ValueError, UnicodeDecodeError, AttributeError, RecursionError) as exc:
         raise JournalError("torn", "meta.json is not valid JSON (torn or corrupt)") from exc
     if type(run_id) is not str:
         raise JournalError("invalid", "meta.json carries no run_id")
@@ -146,6 +161,18 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str, *, reche
         evidence = build_evidence_path(workspace, shipment_id, feature_id)
     except (JournalError, CascadeEvidenceError) as exc:
         return PollOutcome(EXIT_INPUT, str(exc))
+    try:
+        _check_trusted_chain(Path(workspace).resolve(strict=True), LOCK_DIR)
+        if os.path.lexists(directory):
+            _trusted_component(directory)
+    except (PersistError, OSError) as exc:
+        return PollOutcome(
+            EXIT_LOCKED,
+            f"the journal location failed the trust walk (operator review): {exc}",
+            evidence_path=evidence,
+            journal_path=directory,
+            recovery_available=False,
+        )
     if not os.path.lexists(directory):
         return PollOutcome(EXIT_INPUT, "no supervised run to poll: this pair has no journal", evidence_path=evidence)
     try:
@@ -161,35 +188,66 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str, *, reche
     def result(code: int, message: str, **extra: object) -> PollOutcome:
         return PollOutcome(code, message, evidence_path=evidence, journal_path=directory, **extra)  # type: ignore[arg-type]
 
+    outcome = None
     if journal_has(journal, "outcome.json"):
         try:
             outcome = _retrying(lambda: read_json(journal, "outcome.json"))
         except JournalError:
             outcome = None
-        if outcome is not None:
-            return result(
-                int(outcome["exit_code"]),  # type: ignore[arg-type]
-                f"the supervised run ended: {outcome['outcome']}",
-                outcome_source="journal_outcome",
-            )
 
-    if not os.path.lexists(evidence):
+    raw_evidence = b""
+    record: dict | None = None
+    record_error: PollOutcome | None = None
+    if os.path.lexists(evidence):
+        try:
+            raw_evidence = _retrying(lambda: _read_no_follow(evidence))  # type: ignore[assignment]
+            parsed = json.loads(raw_evidence.decode("utf-8"))
+        except (OSError, ValueError, PersistError, RecursionError) as exc:
+            record_error = result(EXIT_LOCKED, f"the evidence record cannot be read (operator review): {exc}")
+        else:
+            if isinstance(parsed, dict):
+                record = parsed
+            else:
+                record_error = result(EXIT_LOCKED, "the evidence record is not a JSON object (operator review)")
+    phase = record.get("phase") if record is not None else None
+    same_run = record is not None and record.get("run_id") == journal.run_id
+    recovery = record.get("recovery") if record is not None else None
+    superseding = (
+        phase == "post_close"
+        and not same_run
+        and isinstance(recovery, dict)
+        and recovery.get("supersedes_run_id") == journal.run_id
+    )
+
+    # outcome.json is trusted for a failure unless a recovery has since superseded the run; an exit-0 claim is
+    # trusted only when the evidence record is a validated pass for this very run.
+    corroboration = "outcome.json is missing"
+    if outcome is not None:
+        outcome_code = int(outcome["exit_code"])  # type: ignore[arg-type]
+        if outcome_code == 0:
+            confirmed = (
+                record is not None
+                and phase == "post_close"
+                and same_run
+                and not validate_evidence_record(record, shipment_id=shipment_id, feature_id=feature_id, close_path="cascade")
+            )
+            if confirmed:
+                return result(outcome_code, f"the supervised run ended: {outcome['outcome']}", outcome_source="journal_outcome")
+            corroboration = "outcome.json claims success but the evidence record does not confirm it"
+        elif not superseding:
+            return result(outcome_code, f"the supervised run ended: {outcome['outcome']}", outcome_source="journal_outcome")
+        else:
+            corroboration = "outcome.json is superseded by the recovery"
+
+    if record_error is not None:
+        return record_error
+    if record is None:
         return result(EXIT_INPUT, "the journal has no outcome and there is no evidence record")
-    try:
-        raw_evidence = _retrying(lambda: _read_no_follow(evidence))
-        record = json.loads(raw_evidence.decode("utf-8"))  # type: ignore[attr-defined]
-    except (OSError, ValueError, PersistError) as exc:
-        return result(EXIT_LOCKED, f"the evidence record cannot be read (operator review): {exc}")
-    if not isinstance(record, dict):
-        return result(EXIT_LOCKED, "the evidence record is not a JSON object (operator review)")
-    phase = record.get("phase")
-    same_run = record.get("run_id") == journal.run_id
-    recovery = record.get("recovery")
-    if phase == "post_close" and not same_run and isinstance(recovery, dict) and recovery.get("supersedes_run_id") == journal.run_id:
-        code, message = _derive_from_recovery(record, recovery, shipment_id, feature_id)
+    if superseding:
+        code, message = _derive_from_recovery(record, recovery, shipment_id, feature_id)  # type: ignore[arg-type]
         return result(
             code,
-            f"{message} (derived from the recovery record; outcome.json is missing)",
+            f"{message} (derived from the recovery record; {corroboration})",
             outcome_source="recovered_evidence",
         )
     if phase == "post_close":
@@ -198,7 +256,7 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str, *, reche
         code, message = _derive_from_evidence(record, shipment_id, feature_id)
         return result(
             code,
-            f"{message} (derived from the evidence record; outcome.json is missing)",
+            f"{message} (derived from the evidence record; {corroboration})",
             outcome_source="evidence_record",
         )
     if phase != "invoking":
@@ -207,7 +265,7 @@ def _evaluate(workspace: Path | str, shipment_id: str, feature_id: str, *, reche
         return result(EXIT_LOCKED, "the invoking record belongs to another run (operator review)", recovery_available=False)
 
     try:
-        observed = observe_lock(workspace, shipment_id, feature_id)
+        observed = _retrying(lambda: observe_lock(workspace, shipment_id, feature_id))
     except PersistError as exc:
         return result(EXIT_LOCKED, f"the lock cannot be read (operator review): {exc}", recovery_available=False)
 

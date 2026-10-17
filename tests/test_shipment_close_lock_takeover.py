@@ -131,6 +131,14 @@ class ObserveLockTest(unittest.TestCase):
         self.assertNotEqual(torn.raw_sha256, seen.raw_sha256)
         self.assertEqual(len(raw) > 0, True)
 
+    def test_a_recursion_error_while_parsing_a_lock_is_an_unparsable_lock(self) -> None:
+        workspace = _Workspace(self)
+        _stale_lock(workspace)
+        with mock.patch.object(persist.json, "loads", side_effect=RecursionError):
+            seen = observe_lock(workspace.root, _S, _F)
+            self.assertFalse(seen.parsed)
+            self.assertEqual(persist._read_lock_run_id(_lock_path(workspace)), (None, False))
+
     def test_legacy_payload_is_parsed_with_missing_identity(self) -> None:
         workspace = _Workspace(self)
         _stale_lock(workspace, host=..., pid_start=...)
@@ -241,6 +249,50 @@ class TakeoverTest(unittest.TestCase):
             _takeover(workspace, observed, prober=_prober("absent"))
         self.assertEqual(caught.exception.exit_code, EXIT_LOCKED)
         self.assertEqual(_lock_path(workspace).read_bytes(), swapped)
+
+    def _flaky_guard_unlink(self, failures: int):
+        real = os.unlink
+        remaining = [failures]
+
+        def flaky(path, *args, **kwargs):
+            if str(path).endswith(".takeover") and remaining[0] != 0:
+                remaining[0] -= 1
+                raise PermissionError("sharing violation")
+            return real(path, *args, **kwargs)
+
+        return flaky
+
+    def test_a_transient_sharing_violation_removing_the_guard_is_retried(self) -> None:
+        workspace = _Workspace(self)
+        _stale_lock(workspace)
+        observed = observe_lock(workspace.root, _S, _F)
+        with (
+            mock.patch.object(persist.os, "unlink", self._flaky_guard_unlink(2)),
+            mock.patch.object(persist.time, "sleep"),
+        ):
+            lock, _ = _takeover(workspace, observed, prober=_prober("absent"))
+        self.addCleanup(lock.release)
+        self.assertFalse(_lock_path(workspace).with_name(f"{_S}-{_F}.lock.takeover").exists())
+
+    def test_a_guard_that_cannot_be_removed_is_named_in_a_warning(self) -> None:
+        import contextlib
+        import io
+
+        workspace = _Workspace(self)
+        _stale_lock(workspace)
+        observed = observe_lock(workspace.root, _S, _F)
+        guard = _lock_path(workspace).with_name(f"{_S}-{_F}.lock.takeover")
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(persist.os, "unlink", self._flaky_guard_unlink(-1)),
+            mock.patch.object(persist.time, "sleep"),
+            contextlib.redirect_stderr(stderr),
+        ):
+            lock, _ = _takeover(workspace, observed, prober=_prober("absent"))
+        self.addCleanup(lock.release)
+        self.assertIn(str(guard), stderr.getvalue())
+        self.assertTrue(guard.exists())
+        guard.unlink()
 
     def test_a_stale_guard_is_never_auto_cleared(self) -> None:
         workspace = _Workspace(self)

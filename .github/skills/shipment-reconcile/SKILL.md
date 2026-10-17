@@ -828,13 +828,13 @@ completion.
       | `--classify-only` | 0 (`CASCADE`) | Obtain destructive-command approval, then run the mutating `cascade-close` (Cascade Close Sub-Procedure) |
       | `--classify-only` | 3 (`SAFE_CLOSE` selected: classifier `SAFE_CLOSE`, or engine `UNVERIFIED`) | Safe-close steps 1–10, then the Linked-Deliberation Disposition step, citing the verdict record as `close_evidence` |
       | mutating | 0 | Run the Linked-Deliberation Disposition step with its inputs from the evidence record, then write the closure artifact with `close_path: cascade` and `close_evidence` |
-      | mutating `--detach` | 9 | Started, not complete: a mutation is possible. Never a result and never authorizes a commit. Run `--poll --wait <seconds>` until a final exit code, then route that code as the mutating row for it |
+      | mutating `--detach` | 9 | Started, not complete: a mutation is possible. Never a result and never authorizes a commit. Run `--poll --wait <seconds>` until a final exit code, then route that code as the mutating row for it. If the supervised run already finished inside the acknowledgement window, `--detach` returns that run's final exit code instead: route it as the mutating row for that code |
       | `--poll` | 9 | Still running: keep polling within the supervision budget (the stall bound). Not a result |
       | `--poll` | 0, 5, 6, 8 | The supervised run's final exit code: route it as the mutating row for the same code |
       | `--poll` | 7 with `recovery_available` | The supervisor is gone and the record is `invoking`. HALT, then see the Recovery routing below. Never re-run the mutating command |
-      | `--recover` | 0 | A recovered evidence record that passes the closure-evidence gate: continue as mutating exit 0, and record the recovered evidence in the closure artifact (Recovery routing below) |
+      | `--recover` | 0 | A recovered evidence record that passes the closure-evidence gate: continue as mutating exit 0, and record the recovered evidence in the closure artifact (Recovery routing below). `--recover --dry-run` also exits 0 when it is eligible: it writes nothing, even if the planned verdict is a failure, so it is a report and never a recovery |
       | `--recover` | 2 | Rolled back to `pre_close` (never-started run), or an input problem. Nothing was mutated: re-run the attached mutating command, with destructive-command approval |
-      | `--recover` | 5, 6, 10 | HALT. Operator review. 10 is a refusal with nothing written; 5 and 6 are determinate failure records the gate refuses |
+      | `--recover` | 5, 6, 10 | HALT. Operator review. 10 is a refusal: no evidence record is written (a provably dead owner's lock may already have been tombstoned); 5 and 6 are determinate failure records the gate refuses |
       | mutating | 3 | Reached only when no `cascade`-selected `--classify-only` record preceded the run, which the routing above never does. Nothing was mutated: HALT, operator review, and never `SAFE_CLOSE` on this result (the Cascade Close Sub-Procedure's No-substitution rule). A selected-path change after a `CASCADE` `--classify-only` selection is exit 4, never 3 |
       | either | 2, 4 | HALT. Nothing was mutated. Exit 4 includes an engine re-probe difference and any difference from the `cascade`-selected `--classify-only` record, and is never answered with `SAFE_CLOSE`. Fix the input, or ask the operator |
       | either | 5, 6, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
@@ -861,6 +861,22 @@ completion.
       **Run mode**: the mutating command runs `--detach` followed by `--poll`
       (see the Cascade Close Sub-Procedure), or attached with a declared
       `--caller-wait` of at least `--timeout` + 600 s.
+
+      **Flag combinations** (a violation exits 2 before anything runs):
+      `--shipment` and `--feature` are always required, and `--sha` is
+      required except with `--poll` or `--recover`. `--recover` rejects
+      `--sha`, `--message`, `--author`, `--timeout`, `--caller-wait`, `--wait`,
+      `--classify-only`, `--replace-pre-close`, `--detach`, and `--poll`.
+      `--poll` rejects `--message`, `--author`, `--timeout`, `--caller-wait`,
+      `--classify-only`, `--replace-pre-close`, and `--detach`.
+      `--classify-only` rejects `--message`, `--author`, `--timeout`,
+      `--caller-wait`, and `--detach`, and `--replace-pre-close` requires
+      `--classify-only`. `--wait` is accepted only with `--poll`;
+      `--dry-run` and the owner-dead and engine-stopped operator-assertion
+      flags named in `autoharness shipment --help` only with `--recover`. The
+      mutating mode requires `--message` and `--author`;
+      an invalid `--caller-wait` or `AUTOHARNESS_CALLER_WAIT_SECONDS` exits 2
+      even with `--detach`.
 
       **Minimum version**: `autoharness shipment cascade-close` first ships
       in the autoharness release containing 192-F (the first release after

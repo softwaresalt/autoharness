@@ -254,6 +254,32 @@ class FailClosedReaderTest(_TempBacklog):
         events = read_cascade_events(self.backlog, "9-S", self.SINCE)
         self.assertEqual(events.scope_item_ids, ())
 
+    def test_unicode_line_separators_inside_a_json_string_do_not_truncate_the_line(self) -> None:
+        for separator in ("\u2028", "\u0085", "\x0c"):
+            with self.subTest(separator=repr(separator)):
+                line = json.dumps(
+                    {
+                        "timestamp": "2026-10-16T08:05:17.3838236-07:00",
+                        "actor": "backlogit",
+                        "item_id": "9-S",
+                        "event_type": "shipment_created",
+                        "delta": {"items": [], "note": f"a{separator}b"},
+                    },
+                    ensure_ascii=False,
+                )
+                self.write_log("9-S", line)
+                events = read_cascade_events(self.backlog, "9-S", self.SINCE)
+                self.assertEqual(events.scope_item_ids, ())
+
+    def test_scope_item_ids_that_are_not_safe_names_are_refused_before_any_path_is_built(self) -> None:
+        for hostile in ("../9-S", "a/b", "a\\b", ".hidden", "C:x", "", "a\nb", "..", "a b"):
+            with self.subTest(hostile=hostile):
+                self.write_log(
+                    "9-S", self.event(item_id="9-S", event_type="shipment_created", delta={"items": [hostile]})
+                )
+                with self.assertRaises(EventLogError):
+                    read_cascade_events(self.backlog, "9-S", self.SINCE)
+
     def test_item_removal_shrinks_scope(self) -> None:
         self.write_log(
             "9-S",

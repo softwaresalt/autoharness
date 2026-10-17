@@ -146,6 +146,15 @@ class DryRunAndEligibilityTests(unittest.TestCase):
         self.assertEqual(outcome.exit_code, EXIT_INPUT, outcome.message)
         self.assertEqual(orphan.recover(_options(settle_seconds=30.0, dry_run=True)).exit_code, EXIT_OK)
 
+    def test_a_non_finite_or_non_numeric_settle_window_is_a_refusal_not_a_traceback(self) -> None:
+        orphan = _Orphan(self)
+        for bad in (float("nan"), float("inf"), float("-inf"), True, "30", None):
+            for dry_run in (True, False):
+                with self.subTest(bad=bad, dry_run=dry_run):
+                    outcome = orphan.recover(_options(settle_seconds=bad, dry_run=dry_run))
+                    self.assertEqual(outcome.exit_code, EXIT_INPUT, outcome.message)
+        self.assertEqual(orphan.record()["phase"], "invoking")
+
     def test_a_pair_mismatch_in_the_record_is_refused(self) -> None:
         orphan = _Orphan(self)
         record = json.loads(orphan.evidence.read_text(encoding="utf-8"))
