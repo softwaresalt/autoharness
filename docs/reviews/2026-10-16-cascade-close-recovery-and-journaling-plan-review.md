@@ -58,6 +58,8 @@ decision: PASS
   (P1) the authorization wait depended on the foreground: `authorize_deadline` persisted before spawn, supervisor self-expiry, terminal `never_authorized`, lock release (H7, T7); (P2) an empty process group does not prove no
   escaped writer: open-writer probe (Windows exclusive-open, Linux `/proc/*/fd`, else fail closed) and an escaped-session test (H13, T5/T16); (P2) a never-authorized detach left `invoking` with no retry path: owner-bound
   `invoking -> pre_close` rollback with never-spawned proof and an abort-then-attached test (H7, T4/T7). Verdict remains PASS; no open P0/P1.
+* **Cycle 6 (Copilot round 4): two further findings accepted and fixed** - (P1) no snapshot revalidation after the authorization wait: the supervisor recomputes snapshot and engine decision immediately before spawn and refuses on
+  drift, with a changed-during-handshake test (H7, T7); (P2) a crash between persisting `never_started` and the rollback left a stale lock: recovery-owner rollback for a provably dead owner (H7, T4/T10). Verdict remains PASS; no open P0/P1.
 
 ## Findings
 

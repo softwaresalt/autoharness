@@ -79,6 +79,13 @@ supervisor self-expires at that deadline without spawning, writes a terminal `ne
 `authorize.json`. (b) Rollback disposition: `invoking` is written before the spawn, so a never-spawned run returns to `pre_close` through an owner-bound `invoking -> pre_close` rollback transition (T4) permitted only with
 proof (`never_started` in `exit.json`/`outcome.json`, no `child_started`, same-run lock owner); afterwards an attached run takes the `pre_close` record over normally; test: abort followed by an attached invocation.
 
+**Addendum (Copilot round 4):** (c) the foreground's snapshot revalidation precedes the supervisor startup and the authorization wait, so backlog state could drift in that window and `shipment ship` would act on scope
+outside the validated baseline. The supervisor therefore **recomputes the snapshot and engine decision after the authorization wait, immediately before the child spawn** (the same steps 5-6 comparison against the durable `pre_close`
+record: manifest, descendant fingerprints, engine re-probe, binary hash) and refuses to spawn on any drift: terminal `revalidation_drift` outcome (exit-4 class), `never_started` proof, rollback `invoking -> pre_close`, lock released; the post-close drift check is
+a backstop, not the control. Test: change backlog state during the handshake and assert the child is never launched. (d) A crash after `never_started` is persisted but before the rollback leaves a stale lock and an `invoking` record with durable proof that no child
+ran: `--recover` therefore also has a **recovery-owner rollback** (T4/T10): after validating the original run's `never_started` proof and quiescence (no `child_started`, no live descendants, lock owner provably dead) it moves `invoking -> pre_close` under its own
+run id (the mutation-free branch; nothing is reconstructed or written to `post_close`), after which an attached retry proceeds. Test: crash between the sentinel write and the rollback, then recovery, then an attached retry.
+
 ### H8 - Idempotence and torn writes (BINDING, T4/T11)
 
 Recovery writes only through the atomic temp+replace writer. A second `--recover` over a `post_close` record exits 2 (`evidence already
