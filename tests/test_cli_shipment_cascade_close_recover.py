@@ -249,5 +249,17 @@ class GateAdvisoryTests(unittest.TestCase):
         self.assertEqual(payload["failed_check"], "close_evidence")
 
 
+class RecoverMutationFlagTests(unittest.TestCase):
+    def test_a_recover_input_error_never_reports_possible_mutation(self) -> None:
+        payload = cli._cascade_close_payload("recover", 2, "evidence already finalized", RecoverOutcome(2, "x"))
+        self.assertEqual(payload["mutation_possible"], "no")
+
+    def test_a_refused_recover_stays_unknown_and_a_recovered_one_is_yes(self) -> None:
+        refused = cli._cascade_close_payload("recover", 10, "refused", RecoverOutcome(10, "x"))
+        self.assertEqual(refused["mutation_possible"], "unknown")
+        recovered = cli._cascade_close_payload("recover", 0, "ok", RecoverOutcome(0, "x", recovered=True))
+        self.assertEqual(recovered["mutation_possible"], "yes")
+
+
 if __name__ == "__main__":
     unittest.main()

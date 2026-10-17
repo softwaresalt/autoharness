@@ -2604,8 +2604,8 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
         phase_written = "pre_close" if exit_code in (0, 3) and evidence_path is not None else None
     if exit_code == 2:
         mutation = "no"  # every post-invocation write failure is exit 8
-    if mode == "recover":
-        # Recovery itself never mutates the backlog; this is about the original run.
+    if mode == "recover" and exit_code != 2:
+        # Recovery itself never mutates the backlog; this is about the original run (exit 2 wrote nothing).
         mutation = "yes" if field("recovered") else "no" if field("action") == "rollback" else "unknown"
     payload = {
         "mode": mode,
