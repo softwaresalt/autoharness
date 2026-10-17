@@ -87,7 +87,9 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
   append-only, capped), `exit.json` (exit code, finished_at, timed_out, written atomically by the shim), and
   `outcome.json` (final command exit code and message, written by the finalizer). Raw files may hold unredacted
   engine output: they are never committed; only redacted excerpts enter the evidence record (existing
-  `redact`). Journals are retained on any non-success and removed on a clean exit-0 run by the owning run only.
+  `redact`). Journals are retained on any non-success. On a clean exit-0 run the owning run removes only the bulky raw streams (`stdout.raw`, `stderr.raw`); the small
+  terminal files (`meta.json`, `exit.json`, `outcome.json`) are retained (git-ignored) until the next run for the pair replaces them or an operator cleans them, so a `--poll`
+  after completion and cleanup still returns the final exit code (Copilot review, PR 535).
 * **D-2 (detach + poll, B3).** `--detach` (mutating mode only) and `--poll [--wait N]`. The detached supervisor owns
   the child, finalization (steps 9-10) and lock release; the lock payload is handed to the supervisor pid by
   an owner-bound atomic rewrite. If detached survival cannot be established (Windows breakaway refused),
@@ -105,10 +107,12 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
 * **D-5 (stale-lock policy).** Automatic takeover happens **only inside `--recover`** and only when the lock owner is
   provably dead: same host and the pid is absent, or the pid exists but its recorded start time differs (pid
   reuse). Legacy locks without `host`/`pid_start` are never auto-cleared; they need operator
-  `--confirm-owner-dead`. Takeover is an atomic rename of the stale lock to a tombstone
-  (`{S}-{F}.lock.stale-{old_run_id}`) followed by an `O_EXCL` create, so concurrent recoverers race safely and the
-  evidence of the takeover is preserved. A mutating run that meets a stale lock still exits 7, but reports
-  `recovery_available: true`; it never auto-recovers and never re-invokes ship.
+  `--confirm-owner-dead`. Takeover is **serialized** by a short-lived takeover guard (`{S}-{F}.lock.takeover`, `O_EXCL`): inside the guard the
+    recoverer re-reads the lock and re-verifies that its owner identity (`run_id`, `pid`, `pid_start`, `host`) still equals the identity it proved dead and
+    re-checks liveness; only then does it rename the lock to a never-overwritten tombstone (`{S}-{F}.lock.stale-{old_run_id}-{recovery_run_id}`), `O_EXCL`-create the
+    new lock, and release the guard. A delayed contender that proved the *old* owner dead therefore fails the identity recheck against the new (live) lock and exits 7;
+    it can never rename a live lock. A stale/orphaned guard is never auto-cleared (exit 7, operator review). The tombstone preserves the takeover evidence. A mutating run that meets a stale lock still exits 7, but reports
+    `recovery_available: true`; it never auto-recovers and never re-invokes ship.
 * **D-6 (returned_ids semantics).** Facts are classified per field: `observed_journal` (parsed from journaled
   stdout), `engine_event_log` (engine-authored events correlated by `_shipment_operation` and the invocation
   window; empty `shipment_item_returned_blocked` set means observed-empty), `derived_live_state` (a logical

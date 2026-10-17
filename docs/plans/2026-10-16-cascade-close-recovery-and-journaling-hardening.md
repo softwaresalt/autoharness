@@ -72,7 +72,8 @@ finalizer both live (the lock payload `run_id` plus a `finalizer` token in `meta
 
 Recovery writes only through the atomic temp+replace writer. A second `--recover` over a `post_close` record exits 2 (`evidence already
 finalized`) and changes nothing. A crash between lock takeover and record write leaves the tombstone plus the original `invoking`
-record: the next `--recover` re-verifies from scratch (tombstone is not a lock) and is safe.
+record: the next `--recover` re-verifies from scratch (tombstone is not a lock) and is safe. Takeover is serialized by the `.lock.takeover` guard with an
+owner-identity recheck inside it (added by Copilot review of PR 535); a crash inside the guard leaves a guard that is never auto-cleared (operator review, exit 7).
 
 ### H9 - Timestamp handling (BINDING, T1/T11)
 

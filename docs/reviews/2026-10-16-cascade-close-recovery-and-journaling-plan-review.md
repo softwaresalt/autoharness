@@ -44,6 +44,12 @@ decision: PASS
   supervisor accepts only a journal path). Four P2 findings fixed in the same revision.
 * **Cycle 2: PASS** - all revised sections re-verified against the code facts table; no open P0/P1.
 
+* **Cycle 3 (post-publication, Copilot review of PR 535): three findings accepted and fixed** - (P1) takeover rename+`O_EXCL` was not an atomic owner-identity check: now
+  serialized by an `O_EXCL` takeover guard with an owner-identity and liveness recheck inside it and a delayed-contender test (D-5, H8, T4); (P1) success cleanup deleted
+  `outcome.json` that `--poll` needs: now only the raw streams are removed and the small terminal files are retained, with a poll-after-cleanup test (D-1, T6, T8);
+  (P2) `validate_evidence_record` is pass-only, so recovery's exit-5 failure record could not be persisted: added `validate_evidence_structure` for recovery while the gate stays
+  pass-only (T9, T11, T16). Verdict remains PASS; no open P0/P1.
+
 ## Findings
 
 | ID | Sev | Persona | Finding | Disposition |

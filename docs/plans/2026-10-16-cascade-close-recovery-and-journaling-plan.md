@@ -121,7 +121,7 @@ Every task: test-first, one concern, <= 2 h human-equivalent, `size` + `complexi
   `ctypes` (`OpenProcess`/`GetExitCodeProcess`/`GetProcessTimes`), POSIX via `os.kill(pid, 0)` plus `/proc/<pid>/stat` start time. Conservative:
   "unknown" never counts as dead. Injectable seam for tests.
 * **T4 (M/medium): `persist.py` lock + transitions.** Lock payload gains `host`, `pid_start`, `supervisor` flag; owner-bound lock rewrite
-  (pid handoff); `takeover_stale_lock` (atomic rename to `.lock.stale-{old_run_id}` tombstone then `O_EXCL` create; ENOENT loser exits 7); recovery
+  (pid handoff); `takeover_stale_lock` serialized by an `O_EXCL` takeover guard (`.lock.takeover`): inside the guard re-read the lock, re-verify the owner identity (`run_id`, `pid`, `pid_start`, `host`) equals the identity proven dead and re-check liveness, rename to a never-overwritten tombstone `.lock.stale-{old_run_id}-{recovery_run_id}`, `O_EXCL` create the new lock, release the guard; an identity mismatch (delayed contender) or a stale guard exits 7; tests include the delayed-contender interleaving (A takes over, B still holding the old stale verdict must not rename A's live lock); recovery
   transition `invoking -> post_close` for a recovery run holding the lock (new run id, `recovery.supersedes_run_id == record.run_id`), all
   other transitions unchanged; tests incl. concurrent takeover race.
 * **T5 (M/medium): journaled child runner.** `shipment_close/supervisor.py` shim (`python -m autoharness.shipment_close.supervisor`): spawns the
@@ -129,7 +129,7 @@ Every task: test-first, one concern, <= 2 h human-equivalent, `size` + `complexi
   `BoundedRunResult` by streaming the journal files through `StreamCapture` (parse buffer/cap semantics preserved). Includes a detached-survival
   probe test (child outlives a killed launcher; skipped with reason where the platform forbids).
 * **T6 (M/medium): command integration (attached).** `_invoke_and_finalize` uses the journaled runner and writes `meta.json` (run id, redacted argv,
-  effective timeout, declared caller wait, host, pids); journal retained on non-success, removed on a clean exit-0 run; mutating run that meets a
+  effective timeout, declared caller wait, host, pids); journal retained on non-success; on a clean exit-0 run only `stdout.raw`/`stderr.raw` are removed and `meta.json`/`exit.json`/`outcome.json` are retained so `--poll` after cleanup still returns the final code (test: poll after successful cleanup); mutating run that meets a
   stale lock/`invoking` record reports `recovery_available` (exit 7 unchanged, nothing recovered, nothing invoked); existing exit-code behaviour and tests unchanged.
 * **T7 (M/high; de-risked by T5): `--detach`.** Foreground steps 1-7, spawn detached supervisor (Windows `DETACHED_PROCESS|CREATE_NEW_PROCESS_GROUP` with
   breakaway attempt; POSIX `start_new_session`), lock pid handoff, the supervisor cross-checks `meta.json` `argv_sha256` against the `argv_sha256` the foreground wrote into the `invoking` record and re-hashes the binary immediately before spawn (hardening H12), finalizer runs steps 9-10 and writes `outcome.json`, releases lock; if detachment
@@ -140,13 +140,16 @@ Every task: test-first, one concern, <= 2 h human-equivalent, `size` + `complexi
 * **T9 (M/medium): validator + record builder extension (`gates/cascade_evidence.py`).** `recovery` block validation, per-field relaxations keyed to
   `facts` (including tolerance of a null `invocation.finished_at` in `_check_in_record_ordering`, only under a validated recovery block), anti-fabrication rules,
   negative tests (strip the block => the old failures return; every `unknown` fact exercised; forged `observed_journal` without
-  capture data rejected; `none` mutation_state rejected for recovered records). The gate-output advisory is wired in T12 (CLI width isolation).
+    capture data rejected; `none` mutation_state rejected for recovered records). Adds `validate_evidence_structure(record, ...)`: the same structural and
+    recomputation-consistency checks as `validate_evidence_record` but accepting a consistent `fail` verdict and non-empty `failures`, used only by recovery to persist a
+    determinate partial-recovery record; `validate_evidence_record` (used by the closure-evidence gate) stays pass-only; test that a failure record validates structurally
+    yet is refused by the gate. The gate-output advisory is wired in T12 (CLI width isolation).
 * **T10 (M/medium): recovery eligibility.** `shipment_close/recover.py` part 1: a new `MODE_RECOVER` existing-record check in `persist.py` (an `invoking` record is the expected input there, not exit 7), record/phase/pair checks, pre_close validity, owner liveness via T3,
   child liveness (journal pids; process scan for `backlogit ... shipment ship <S>`), settle-window stability (two live reads), legacy-record operator
   confirmations (`--confirm-owner-dead`, `--confirm-engine-stopped`), stale lock takeover via T4, `--dry-run` report. Refusal => exit 10, nothing written.
 * **T11 (M/high; de-risked by T1, T9): recovery reconstruction.** `recover.py` part 2: rebuild `ParsedResult` from journal stdout (`observed_journal`) else engine
   event log (`engine_event_log`) else `derived_live_state`; engine attribution check (D-7); reuse `_reread`/`_recollect`/`evaluate_postconditions`; build
-  and validate the recovered record with `validate_evidence_record` before writing; write via T4 transition; idempotent (a second run exits 2 `evidence already finalized`).
+  and validate the recovered record before writing with the new **structural/consistency** validator `validate_evidence_structure` (T9) so a determinate partial-recovery `fail` record can be persisted (exit 5) while the closure-evidence gate keeps using the pass-only `validate_evidence_record` and therefore never unblocks successors on a failure record; write via T4 transition; idempotent (a second run exits 2 `evidence already finalized`).
 * **T12 (S/low): CLI wiring.** `--recover`, `--dry-run`, `--detach`, `--poll`, `--wait`, `--caller-wait`, `--confirm-owner-dead`, `--confirm-engine-stopped`
   parsing/exclusions, `--json` fields (`recovered`, `recovery_mode`, `recovery_available`, `journal_path`), the closure-evidence gate output advisory (`evidence_recovered`, `recovery_mode`),
   `operator_action` for exits 9 and 10, usage text, exit-code mapping.
@@ -159,7 +162,7 @@ Every task: test-first, one concern, <= 2 h human-equivalent, `size` + `complexi
   mirror (stall bound for `--poll`), closure-subagent delegation wording; manifest checksums; parity tests.
 * **T16 (M/medium): incident replay + final gate.** End-to-end test with a fake backlogit: kill the wrapper mid-ship, assert journal survival, `--recover --dry-run`
   and `--recover` produce a record that passes `validate_evidence_record`, the closure-evidence gate and the pipeline-topology predecessor check fixture; lock
-  tombstone asserted; idempotence; refusal matrix (live owner, no attribution, partial mutation => exit 5 record, legacy record without confirmations).
+  tombstone asserted; idempotence; refusal matrix (live owner, no attribution, partial mutation => exit 5 record that the gate still refuses, legacy record without confirmations), delayed-contender takeover, poll after cleanup.
   Full `unittest discover` run and dogfood `verify` run.
 
 Dependency order: T1 -> T2 -> T3 -> T4 -> T5 -> T6 -> T7 -> T8 -> T9 -> T10 -> T11 -> T12 -> T13 -> T14 -> T15 -> T16 (linear chain; one active task).
@@ -224,4 +227,5 @@ yes - safety-critical close path (destructive-command evidence, lock semantics, 
 * standalone record: `docs/reviews/2026-10-16-cascade-close-recovery-and-journaling-plan-review.md`
 * cycle 1 FAIL: P1 F1 (unauthenticated supervisor argv) plus P2 F2-F5; all resolved in this plan and the hardening record (H12); cycle 2 PASS, no open P0/P1.
 * open P3 advisories: F6-F10 (see the standalone record).
+* post-publication Copilot review (PR 535): two P1 + one P2 fixed in the plan, deliberation, hardening record and tasks 211.003-T, 211.005-T, 211.007-T, 211.009-T, 211.011-T; verdict unchanged.
 
