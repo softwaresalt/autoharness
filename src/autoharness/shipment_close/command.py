@@ -44,7 +44,6 @@ import json
 import os
 import secrets
 import subprocess
-import sys
 import time
 import uuid
 from collections.abc import Mapping

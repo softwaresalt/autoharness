@@ -247,6 +247,40 @@ class PollTests(unittest.TestCase):
             result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
         self.assertEqual((result.exit_code, result.outcome_source), (8, "journal_outcome"), result.message)
 
+    def test_a_journal_without_a_readable_meta_is_an_operator_review_exit_7(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        directory = harness.root / ".autoharness" / "gates" / "cascade-close" / f"{_SHIPMENT}-{_FEATURE}.journal"
+        (directory / "meta.json").write_text("{not json", encoding="utf-8")
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual(result.exit_code, EXIT_LOCKED, result.message)
+        self.assertIsNone(result.recovery_available)
+
+    def test_an_unreadable_evidence_record_is_exit_7_not_a_guess(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        harness.evidence.write_text("[1, 2]", encoding="utf-8")
+        self.assertEqual(poll_cascade_close(harness.root, _SHIPMENT, _FEATURE).exit_code, EXIT_LOCKED)
+        harness.evidence.write_text("{torn", encoding="utf-8")
+        self.assertEqual(poll_cascade_close(harness.root, _SHIPMENT, _FEATURE).exit_code, EXIT_LOCKED)
+
+    def test_an_invoking_record_of_another_run_is_never_reported_as_this_runs_state(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        record = harness.record()
+        harness.evidence.write_text(json.dumps({**record, "run_id": "c" * 32}), encoding="utf-8")
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.recovery_available), (EXIT_LOCKED, False), result.message)
+
+    def test_a_lock_held_by_another_run_blocks_recovery_advice(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        self._orphan(harness)
+        lock = harness.root / ".autoharness" / "gates" / "cascade-close" / f"{_SHIPMENT}-{_FEATURE}.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        lock.write_text(json.dumps({"run_id": "d" * 32, "pid": 1, "host": current_host()}), encoding="utf-8")
+        result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE)
+        self.assertEqual((result.exit_code, result.recovery_available), (EXIT_LOCKED, False), result.message)
+
     def test_poll_never_waits_longer_than_requested(self) -> None:
         harness = _Harness(self, probes=[_VERIFIED])
         self._orphan(harness)
