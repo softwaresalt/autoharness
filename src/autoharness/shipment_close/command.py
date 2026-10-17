@@ -42,6 +42,10 @@ import dataclasses
 import datetime
 import json
 import os
+import secrets
+import subprocess
+import sys
+import time
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -70,6 +74,7 @@ from autoharness.shipment_close import (
     EXIT_POSTCONDITION_FAILED,
     EXIT_REVALIDATION_DRIFT,
     EXIT_SAFE_CLOSE_SELECTED,
+    EXIT_STARTED,
 )
 from autoharness.shipment_close.journal import (
     Journal,
@@ -79,20 +84,25 @@ from autoharness.shipment_close.journal import (
     cleanup_raw_files,
     clear_journal,
     create_journal,
+    journal_has,
+    read_json,
     utc_now,
     write_json,
+    write_never_started,
 )
-from autoharness.shipment_close.liveness import current_host, provably_dead
+from autoharness.shipment_close.liveness import current_host, process_start_time, provably_dead
 from autoharness.shipment_close.observation import locate_record
 from autoharness.shipment_close.persist import (
     MODE_MUTATING,
     PairLock,
     PersistError,
+    RollbackProof,
     StreamCapture,
     TakeoverRefusedError,
     _read_no_follow,
     acquire_pair_lock,
     check_existing_record,
+    handoff_lock,
     observe_lock,
     redact_record_free_text,
     write_evidence_atomic,
@@ -125,6 +135,7 @@ from autoharness.shipment_close.runner import (
     ResolvedBinary,
     hash_binary,
     run_journaled,
+    spawn_detached,
     validate_timeout,
 )
 
@@ -326,6 +337,30 @@ def _read_durable(lock: PairLock) -> dict:
     return durable
 
 
+def _recompute_and_compare(
+    workspace: Path,
+    durable: dict,
+    shipment_id: str,
+    feature_id: str,
+    merge_commit_sha: str,
+    owner: str,
+    resolved: ResolvedBinary,
+) -> PreCloseSnapshot:
+    """Recompute the whole snapshot (re-probing the engine) and compare it with a ``pre_close``-shaped durable record."""
+
+    try:
+        snapshot = run_preclose(workspace, shipment_id, feature_id, resolved=resolved)
+    except PreCloseError as exc:
+        raise _Halt(EXIT_REVALIDATION_DRIFT, f"{_DRIFT_HALT}: the snapshot cannot be recomputed: {exc}") from exc
+    recomputed = build_pre_close_record(snapshot, merge_commit_sha=merge_commit_sha, run_id=owner)
+    differences = _differences(recomputed, durable)
+    if durable.get("run_id") != owner or durable.get("phase") != "pre_close":
+        differences.append("run_id/phase")
+    if differences:
+        raise _Halt(EXIT_REVALIDATION_DRIFT, f"{_DRIFT_HALT}: {differences}; nothing invoked (never SAFE_CLOSE)")
+    return snapshot
+
+
 def _revalidate(
     workspace: Path,
     lock: PairLock,
@@ -338,17 +373,24 @@ def _revalidate(
     """Step 5: recompute the whole snapshot (and re-probe) and compare it with the durable record."""
 
     durable = _read_durable(lock)
-    try:
-        snapshot = run_preclose(workspace, shipment_id, feature_id, resolved=resolved)
-    except PreCloseError as exc:
-        raise _Halt(EXIT_REVALIDATION_DRIFT, f"{_DRIFT_HALT}: the snapshot cannot be recomputed: {exc}") from exc
-    recomputed = build_pre_close_record(snapshot, merge_commit_sha=merge_commit_sha, run_id=owner)
-    differences = _differences(recomputed, durable)
-    if durable.get("run_id") != owner or durable.get("phase") != "pre_close":
-        differences.append("run_id/phase")
-    if differences:
-        raise _Halt(EXIT_REVALIDATION_DRIFT, f"{_DRIFT_HALT}: {differences}; nothing invoked (never SAFE_CLOSE)")
+    snapshot = _recompute_and_compare(workspace, durable, shipment_id, feature_id, merge_commit_sha, owner, resolved)
     return snapshot, durable
+
+
+def revalidate_invoking(
+    workspace: Path,
+    invoking: Mapping[str, object],
+    shipment_id: str,
+    feature_id: str,
+    merge_commit_sha: str,
+    owner: str,
+    resolved: ResolvedBinary,
+) -> PreCloseSnapshot:
+    """The supervisor's pre-spawn steps 5-6 comparison: the snapshot against the durable ``invoking`` record's pre_close."""
+
+    durable = {key: value for key, value in invoking.items() if key != "invocation"}
+    durable["phase"] = "pre_close"
+    return _recompute_and_compare(workspace, durable, shipment_id, feature_id, merge_commit_sha, owner, resolved)
 
 
 # ---------------------------------------------------------------------------
@@ -683,6 +725,248 @@ def _invoke_and_finalize(
 
 
 # ---------------------------------------------------------------------------
+# --detach: the foreground half of the authorization barrier (hardening H7, H12)
+# ---------------------------------------------------------------------------
+
+AUTHORIZE_WINDOW_SECONDS: Final = 60.0
+AUTHORIZE_VALIDITY_SECONDS: Final = 30.0
+READY_TIMEOUT_SECONDS: Final = 30.0
+ACK_TIMEOUT_SECONDS: Final = 10.0
+_ABORT_WAIT_SECONDS: Final = 5.0
+_POLL_SECONDS: Final = 0.1
+_INSTANT_FORMAT: Final = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+
+@dataclass(frozen=True)
+class DetachOptions:
+    authorize_window_seconds: float = AUTHORIZE_WINDOW_SECONDS
+    authorize_validity_seconds: float = AUTHORIZE_VALIDITY_SECONDS
+    ready_timeout_seconds: float = READY_TIMEOUT_SECONDS
+    ack_timeout_seconds: float = ACK_TIMEOUT_SECONDS
+
+
+def _instant_after(seconds: float) -> str:
+    moment = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)
+    return moment.strftime(_INSTANT_FORMAT)
+
+
+def spawn_supervisor(journal_dir: Path) -> subprocess.Popen:
+    """Start the detached supervisor for a prepared journal; its only argument is the journal directory (H12)."""
+
+    spawned = spawn_detached(
+        [sys.executable, "-m", "autoharness.shipment_close.supervisor", "--supervise", str(journal_dir)],
+        cwd=journal_dir,
+    )
+    spawned.process.autoharness_breakaway = spawned.breakaway  # type: ignore[attr-defined]
+    return spawned.process
+
+
+def _await_ready(journal: Journal, process: subprocess.Popen, timeout: float) -> bool:
+    """Wait for ``ready.json``; a dead supervisor or the timeout is False."""
+
+    deadline = time.monotonic() + timeout
+    while True:
+        if journal_has(journal, "ready.json"):
+            try:
+                read_json(journal, "ready.json")
+                return True
+            except JournalError:
+                pass
+        if process.poll() is not None or time.monotonic() >= deadline:
+            return False
+        time.sleep(_POLL_SECONDS)
+
+
+def _claim_supervisor_as_finalizer(journal: Journal) -> None:
+    """Hand the single finalizer token to the supervisor *before* authorizing (never both finalizers live)."""
+
+    meta = read_json(journal, "meta.json")
+    write_json(journal, "meta.json", {**meta, "finalizer": "supervisor"})
+
+
+def _write_authorization(journal: Journal, launch: Mapping[str, object], validity_seconds: float) -> None:
+    write_json(
+        journal,
+        "authorize.json",
+        {
+            "schema_version": 1,
+            "run_id": journal.run_id,
+            "nonce": launch["authorize_nonce"],
+            "valid_until": _instant_after(validity_seconds),
+            "written_at": utc_now(),
+        },
+    )
+
+
+def _await_ack(journal: Journal, timeout: float) -> tuple[str, dict | None]:
+    """After authorization: a terminal ``outcome.json``, a ``child_started`` acknowledgement, or nothing yet."""
+
+    deadline = time.monotonic() + timeout
+    while True:
+        if journal_has(journal, "outcome.json"):
+            with contextlib.suppress(JournalError):
+                return "outcome", read_json(journal, "outcome.json")
+        if journal_has(journal, "child_started.json"):
+            return "started", None
+        if time.monotonic() >= deadline:
+            return "unknown", None
+        time.sleep(_POLL_SECONDS)
+
+
+def rollback_to_pre_close(lock: PairLock, journal: Journal) -> None:
+    """``invoking -> pre_close`` under the never-spawned proof (``never_started`` sentinel, no ``child_started``).
+
+    Raises :class:`PersistError` when the proof or the on-disk record does not support the rollback; the
+    transition itself is re-checked by :func:`write_evidence_atomic`.
+    """
+
+    try:
+        sentinel = read_json(journal, "exit.json")
+    except JournalError as exc:
+        raise PersistError(EXIT_INPUT, f"no never_started sentinel to prove the rollback: {exc}") from exc
+    proof = RollbackProof(
+        never_started=sentinel["state"] == "never_started",
+        child_started=journal_has(journal, "child_started.json"),
+        original_run_id=journal.run_id,
+    )
+    try:
+        existing = json.loads(_read_no_follow(lock.evidence_path).decode("utf-8"))
+    except (OSError, ValueError) as exc:
+        raise PersistError(EXIT_INPUT, f"the invoking record cannot be re-read for the rollback: {exc}") from exc
+    if not isinstance(existing, dict) or existing.get("phase") != "invoking":
+        raise PersistError(EXIT_INPUT, "the on-disk record is not an invoking record; nothing to roll back")
+    record = {key: value for key, value in existing.items() if key not in ("invocation", "post_close")}
+    record["phase"] = "pre_close"
+    write_evidence_atomic(lock.evidence_path, record, owner_run_id=lock.run_id, rollback_proof=proof)
+
+
+def finish_never_started(
+    lock: PairLock, journal: Journal, *, outcome: str, exit_code: int, finalizer: str, detail: str | None = None
+) -> None:
+    """Terminal path for a run whose child provably never started: sentinel, rollback, then ``outcome.json``."""
+
+    if not journal_has(journal, "exit.json"):
+        write_never_started(journal)
+    rollback_to_pre_close(lock, journal)
+    _write_outcome(journal, exit_code, outcome, finalizer, detail=detail)
+
+
+def _abort_before_authorize(
+    lock: PairLock, state: _State, journal: Journal, process: subprocess.Popen | None, reason: str
+) -> CascadeCloseOutcome:
+    """Pre-authorization failure: the only mutation-free exit 2 of ``--detach``.
+
+    ``abort.json`` is written first so a supervisor that is merely late can never spawn. If the supervisor is
+    still alive after a short wait it owns the cleanup (it sees the abort or self-expires at its deadline);
+    otherwise this foreground, still the sole finalizer, rolls the evidence back itself.
+    """
+
+    abort = {
+        "schema_version": 1,
+        "run_id": journal.run_id,
+        "reason": reason[:200],
+        "written_at": utc_now(),
+    }
+    with contextlib.suppress(JournalError, OSError):
+        write_json(journal, "abort.json", abort)
+    alive = False
+    if process is not None:
+        try:
+            process.wait(timeout=_ABORT_WAIT_SECONDS)
+        except subprocess.TimeoutExpired:
+            alive = True
+        except OSError:
+            alive = process.poll() is None
+    message = f"{reason}; abort recorded, nothing was invoked"
+    if alive:
+        lock.held = False  # the supervisor releases the lock when it observes the abort
+        return state.outcome(EXIT_INPUT, f"{message} (the supervisor will roll back and release the lock)")
+    try:
+        if not journal_has(journal, "outcome.json"):
+            finish_never_started(
+                lock, journal, outcome="never_started", exit_code=EXIT_INPUT, finalizer="foreground", detail=reason
+            )
+    except (PersistError, JournalError, OSError) as exc:
+        return state.outcome(EXIT_INPUT, f"{message}, but the evidence could not be rolled back: {exc}")
+    return state.outcome(EXIT_INPUT, message)
+
+
+def _detach(
+    lock: PairLock,
+    state: _State,
+    argv: list[str],
+    durable: dict,
+    *,
+    resolved: ResolvedBinary,
+    merge_commit_sha: str,
+    timeout: int,
+    caller_wait: int | None,
+    grace: float,
+    options: DetachOptions,
+) -> CascadeCloseOutcome:
+    """Steps 7+: journal, ``invoking``, supervisor spawn, lock handoff, then the two-phase authorization barrier."""
+
+    journal = _prepare_journal(
+        lock,
+        resolved=resolved,
+        argv=argv,
+        merge_commit_sha=merge_commit_sha,
+        timeout=timeout,
+        caller_wait=caller_wait,
+        grace=grace,
+        mode="detached",
+        finalizer="foreground",
+        authorize_deadline=_instant_after(options.authorize_window_seconds),
+        authorize_nonce=secrets.token_hex(16),
+    )
+    _write_invoking(lock, state, durable, argv, lock.run_id, journal)
+    launch = read_json(journal, "launch.json")
+
+    process: subprocess.Popen | None = None
+    authorized = False
+    try:
+        try:
+            process = spawn_supervisor(journal.path)
+        except (OSError, ValueError) as exc:
+            return _abort_before_authorize(lock, state, journal, None, f"the detached supervisor could not be spawned: {exc}")
+        if getattr(process, "autoharness_breakaway", True) is not True:
+            return _abort_before_authorize(
+                lock,
+                state,
+                journal,
+                process,
+                "this runtime does not let the supervisor outlive its job (no breakaway); use the attached mode",
+            )
+        handoff_lock(lock, pid=process.pid, pid_start=process_start_time(process.pid))
+        if not _await_ready(journal, process, options.ready_timeout_seconds):
+            return _abort_before_authorize(lock, state, journal, process, "the supervisor did not signal ready in time")
+        _claim_supervisor_as_finalizer(journal)
+        lock.held = False  # from here the supervisor is the only finalizer and lock owner
+        authorized = True
+        _write_authorization(journal, launch, options.authorize_validity_seconds)
+    except Exception as exc:  # noqa: BLE001 - fail closed on the side of the barrier we are on
+        if not authorized:
+            return _abort_before_authorize(lock, state, journal, process, f"detaching failed: {type(exc).__name__}: {exc}")
+        return state.outcome(
+            EXIT_STARTED,
+            f"authorization could not be written ({type(exc).__name__}); the supervisor will self-expire without "
+            "spawning, but a start cannot be ruled out here: poll to learn the result",
+        )
+
+    kind, result = _await_ack(journal, options.ack_timeout_seconds)
+    if kind == "outcome" and result is not None:
+        code = int(result["exit_code"])  # type: ignore[arg-type]
+        return state.outcome(code, f"the supervised run ended ({result['outcome']}); journal {journal.path}")
+    if kind == "started":
+        return state.outcome(EXIT_STARTED, f"started: the supervisor spawned backlogit; poll with --poll ({journal.path})")
+    return state.outcome(
+        EXIT_STARTED,
+        "started (unconfirmed): authorization was granted but no start acknowledgement arrived; mutation is "
+        f"possible, poll with --poll ({journal.path})",
+    )
+
+
+# ---------------------------------------------------------------------------
 # The command
 # ---------------------------------------------------------------------------
 
@@ -700,6 +984,8 @@ def _run_locked(
     timeout: int,
     caller_wait: int | None,
     grace: float,
+    detach: bool,
+    options: DetachOptions,
 ) -> CascadeCloseOutcome:
     owner = lock.run_id
     workspace = lock.workspace
@@ -759,6 +1045,19 @@ def _run_locked(
 
     # Steps 7-10.
     argv = build_ship_argv(resolved, workspace, shipment_id, merge_commit_sha, message, author)
+    if detach:
+        return _detach(
+            lock,
+            state,
+            argv,
+            durable,
+            resolved=resolved,
+            merge_commit_sha=merge_commit_sha,
+            timeout=timeout,
+            caller_wait=caller_wait,
+            grace=grace,
+            options=options,
+        )
     return _invoke_and_finalize(
         lock,
         state,
@@ -807,13 +1106,26 @@ def run_cascade_close(
     run_id: str | None = None,
     caller_wait_seconds: int | None = None,
     quiescence_grace_seconds: float = QUIESCENCE_GRACE_SECONDS,
+    detach: bool = False,
+    authorize_window_seconds: float = AUTHORIZE_WINDOW_SECONDS,
+    authorize_validity_seconds: float = AUTHORIZE_VALIDITY_SECONDS,
+    ready_timeout_seconds: float = READY_TIMEOUT_SECONDS,
+    ack_timeout_seconds: float = ACK_TIMEOUT_SECONDS,
 ) -> CascadeCloseOutcome:
     """Run the mutating ``cascade-close``; returns a frozen :class:`CascadeCloseOutcome` (exit codes per plan A3).
 
     A run that meets an existing lock or ``invoking`` record exits 7 unchanged and reports whether the orphaned
     run looks recoverable (``recovery_available``); it never recovers, takes over, or invokes anything itself.
+    With ``detach`` the foreground only prepares and authorizes: a detached supervisor spawns ``shipment ship``
+    and is the single finalizer; the foreground returns exit 9 (started) or a mutation-free exit 2/4.
     """
 
+    options = DetachOptions(
+        authorize_window_seconds=authorize_window_seconds,
+        authorize_validity_seconds=authorize_validity_seconds,
+        ready_timeout_seconds=ready_timeout_seconds,
+        ack_timeout_seconds=ack_timeout_seconds,
+    )
     state = _State()
     try:
         validate_preclose_inputs(shipment_id, feature_id, merge_commit_sha)
@@ -844,6 +1156,8 @@ def run_cascade_close(
             timeout=timeout,
             caller_wait=caller_wait_seconds,
             grace=quiescence_grace_seconds,
+            detach=detach,
+            options=options,
         )
     except _Halt as halt:
         outcome = state.outcome(halt.exit_code, str(halt))

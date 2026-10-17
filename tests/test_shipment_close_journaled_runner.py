@@ -661,5 +661,58 @@ class RunJournaledTests(unittest.TestCase):
         self.assertFalse(verdict["proven"])
 
 
+class ModeMismatchTests(unittest.TestCase):
+    """A detached launch must go through the barrier (``--supervise``); the bare shim may not exec it."""
+
+    def _write(self, fixture: _Fixture, mode: str) -> Path:
+        marker = fixture.fakes / "ran.txt"
+        script = fixture.script("mark.py", "import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('ran')\n")
+        launch = fixture.write_launch(script, str(marker))
+        if mode == "detached":
+            launch = build_launch(
+                run_id=fixture.run_id,
+                workspace=str(fixture.root),
+                shipment_id="218-S",
+                feature_id="211-F",
+                merge_commit_sha="a" * 40,
+                mode="detached",
+                argv=launch["argv"],
+                binary_path=launch["binary_path"],
+                binary_sha256=launch["binary_sha256"],
+                argv_prefix=launch["argv_prefix"],
+                cwd=launch["cwd"],
+                timeout_seconds=30,
+                authorize_deadline="2099-01-01T00:00:00.000000Z",
+                authorize_nonce="n" * 16,
+            )
+            write_json(fixture.journal, "launch.json", launch)
+        return marker
+
+    def _run(self, fixture: _Fixture, flag: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-m", "autoharness.shipment_close.supervisor", flag, str(fixture.journal.path)],
+            env=_env(),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def test_the_shim_refuses_a_detached_launch(self) -> None:
+        fixture = _Fixture(self)
+        marker = self._write(fixture, "detached")
+        process = self._run(fixture, "--shim")
+        self.assertEqual(process.returncode, 2, process.stderr)
+        self.assertFalse(marker.exists())
+        self.assertEqual(read_json(fixture.journal, "exit.json")["state"], "never_started")
+
+    def test_the_supervisor_refuses_an_attached_launch(self) -> None:
+        fixture = _Fixture(self)
+        marker = self._write(fixture, "attached")
+        process = self._run(fixture, "--supervise")
+        self.assertEqual(process.returncode, 2, process.stderr)
+        self.assertFalse(marker.exists())
+        self.assertEqual(read_json(fixture.journal, "exit.json")["state"], "never_started")
+
+
 if __name__ == "__main__":
     unittest.main()

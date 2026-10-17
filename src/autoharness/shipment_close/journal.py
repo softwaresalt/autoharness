@@ -73,6 +73,7 @@ __all__ = [
     "read_stream",
     "utc_now",
     "write_json",
+    "write_never_started",
 ]
 
 JOURNAL_SUFFIX: Final = ".journal"
@@ -593,6 +594,24 @@ def discard_journal(journal: Journal) -> None:
     _remove_files(journal, (*STREAM_FILES, *_SCHEMAS))
     with contextlib.suppress(OSError):
         journal.path.rmdir()
+
+
+def write_never_started(journal: Journal) -> dict[str, object]:
+    """Persist the ``never_started`` sentinel: the proof that no child was ever spawned for this run."""
+
+    record: dict[str, object] = {
+        "schema_version": 1,
+        "run_id": journal.run_id,
+        "state": "never_started",
+        "child_pid": None,
+        "started_at": None,
+        "finished_at": None,
+        "exit_code": None,
+        "timed_out": False,
+        "quiescence": None,
+    }
+    write_json(journal, "exit.json", record)
+    return record
 
 
 def journal_has(journal: Journal, name: str) -> bool:

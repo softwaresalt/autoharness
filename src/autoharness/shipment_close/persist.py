@@ -75,6 +75,7 @@ __all__ = [
     "StreamCapture",
     "TakeoverRefusedError",
     "acquire_pair_lock",
+    "attach_pair_lock",
     "check_existing_record",
     "ensure_trusted_directory",
     "handoff_lock",
@@ -538,6 +539,27 @@ def acquire_pair_lock(
         raise PersistError(EXIT_INPUT, f"run_id must be 32 lowercase hex characters (got {run_id!r})")
     root, lock_path, evidence_path = _prepare_lock_dir(workspace, shipment_id, feature_id)
     _create_lock_file(lock_path, _lock_payload(run_id, supervisor=supervisor))
+    return PairLock(
+        workspace=root,
+        shipment_id=shipment_id,
+        feature_id=feature_id,
+        run_id=run_id,
+        lock_path=lock_path,
+        evidence_path=evidence_path,
+    )
+
+
+def attach_pair_lock(workspace: Path | str, shipment_id: str, feature_id: str, run_id: str) -> PairLock:
+    """A handle for a lock this run was handed (the detached supervisor); it never creates or takes a lock.
+
+    Refuses (exit 7) unless the lock file exists and names exactly ``run_id``.
+    """
+
+    if not _is_run_id(run_id):
+        raise PersistError(EXIT_INPUT, f"run_id must be 32 lowercase hex characters (got {run_id!r})")
+    root, lock_path, evidence_path = _prepare_lock_dir(workspace, shipment_id, feature_id)
+    if _lock_run_id(lock_path) != run_id:
+        raise PersistError(EXIT_LOCKED, "the cascade-close pair lock is not held by this run")
     return PairLock(
         workspace=root,
         shipment_id=shipment_id,

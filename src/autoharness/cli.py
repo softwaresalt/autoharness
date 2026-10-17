@@ -2286,7 +2286,7 @@ Subcommands:
 Usage:
   autoharness shipment cascade-close --shipment <S> --feature <F> --sha <merge_sha>
                         --message <text> --author <name> [--timeout <seconds>]
-                        [--workspace <path>] [--json]
+                        [--detach] [--workspace <path>] [--json]
   autoharness shipment cascade-close --classify-only [--replace-pre-close]
                         --shipment <S> --feature <F> --sha <merge_sha>
                         [--workspace <path>] [--json]
@@ -2311,6 +2311,11 @@ cascade-close options:
   --timeout <secs>    `shipment ship` timeout, 30-3600 seconds (mutating mode only).
                       Default: 1800.
   --classify-only     Classify and record the verdict; never invoke the cascade.
+  --detach            Mutating mode only: hand the run to a detached supervisor (own
+                      process group/session, journaled output) behind a two-phase
+                      authorization barrier, and return exit 9 once it has started.
+                      Exit 2/4 here still mean nothing was invoked; after exit 9 a
+                      mutation is possible. Never falls back to attached.
   --replace-pre-close With --classify-only only: replace an existing pre_close record.
   --workspace, -w     Workspace root. Default: .
   --json              Emit one JSON object: mode, exit_code, evidence_path,
@@ -2333,6 +2338,8 @@ Exit codes:
      automatically, and removing a stale lock is an operator-only action
      (agents must not delete it).
   8  the post-close evidence write failed after invocation (operator review).
+  9  --detach: the supervised run started or is still running; it is not complete
+     and a mutation is possible. The JSON object carries journal_path.
 Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
 cascade-close, calling `backlogit shipment ship` directly, or substituting
 SAFE_CLOSE until an operator reviews the backlog state and the record.
@@ -2348,9 +2355,10 @@ _CASCADE_CLOSE_VALUE_FLAGS = (
     "--workspace",
     "-w",
 )
-_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json")
+_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json", "--detach")
 # Mutation possibility per exit code (plan A3 exit-code table). Exit 0 is "yes"
-# only for the mutating mode; --classify-only never invokes the cascade.
+# only for the mutating mode; --classify-only never invokes the cascade. Exit 9
+# (--detach/--poll: started or still running) always means a mutation is possible.
 _CASCADE_CLOSE_MUTATION = {
     0: "yes",
     2: "no",
@@ -2360,14 +2368,18 @@ _CASCADE_CLOSE_MUTATION = {
     6: "indeterminate",
     7: "unknown",
     8: "yes",
+    9: "yes",
 }
-_CASCADE_CLOSE_NO_REVIEW = frozenset({0, 2, 3})
+_CASCADE_CLOSE_NO_REVIEW = frozenset({0, 2, 3, 9})
+_CASCADE_CLOSE_SUPERVISED_MODES = frozenset({"mutating", "detach"})
+# Modes whose --json object also carries journal_path (the existing modes keep their exact key set).
+_CASCADE_CLOSE_NEW_MODES = frozenset({"detach", "poll"})
 
 
 def _cascade_close_mode(args: list[str]) -> str:
     if "--classify-only" in args:
         return "replace_pre_close" if "--replace-pre-close" in args else "classify_only"
-    return "mutating"
+    return "detach" if "--detach" in args else "mutating"
 
 
 def _parse_cascade_close_args(args: list[str]) -> dict:
@@ -2405,6 +2417,8 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
     classify_only = "--classify-only" in flags
     if "--replace-pre-close" in flags and not classify_only:
         raise ValueError("--replace-pre-close is accepted only together with --classify-only")
+    if "--detach" in flags and classify_only:
+        raise ValueError("--detach cannot be combined with --classify-only")
     if classify_only:
         stray = [flag for flag in ("--message", "--author", "--timeout") if flag in values]
         if stray:
@@ -2433,6 +2447,7 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
         "workspace": Path(values.get("--workspace", ".")),
         "classify_only": classify_only,
         "replace_pre_close": "--replace-pre-close" in flags,
+        "detach": "--detach" in flags,
         "emit_json": "--json" in flags,
     }
 
@@ -2447,7 +2462,7 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
     failures = [str(failure) for failure in (field("failures") or ())]
     if exit_code not in (0, 3) and message and message not in failures:
         failures.append(message)
-    if mode == "mutating":
+    if mode in _CASCADE_CLOSE_SUPERVISED_MODES:
         mutation = _CASCADE_CLOSE_MUTATION.get(exit_code, "unknown")
         phase_written = field("phase_written")
     else:
@@ -2455,7 +2470,7 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
         phase_written = "pre_close" if exit_code in (0, 3) and evidence_path is not None else None
     if exit_code == 2:
         mutation = "no"  # every post-invocation write failure is exit 8
-    return {
+    payload = {
         "mode": mode,
         "exit_code": exit_code,
         "evidence_path": str(evidence_path) if evidence_path is not None else None,
@@ -2468,13 +2483,17 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
         "failures": failures,
         "operator_action": "none" if exit_code in _CASCADE_CLOSE_NO_REVIEW else "review_required",
     }
+    if mode in _CASCADE_CLOSE_NEW_MODES:
+        journal_path = field("journal_path")
+        payload["journal_path"] = str(journal_path) if journal_path is not None else None
+    return payload
 
 
 def _emit_cascade_close(payload: dict, message: str, emit_json: bool) -> None:
     if emit_json:
         print(json.dumps(payload, indent=2))
     else:
-        stream = sys.stdout if payload["exit_code"] in (0, 3) else sys.stderr
+        stream = sys.stdout if payload["exit_code"] in (0, 3, 9) else sys.stderr
         print(f"cascade-close ({payload['mode']}) — exit {payload['exit_code']}: {message}", file=stream)
         if payload["evidence_path"]:
             print(f"evidence: {payload['evidence_path']}", file=stream)
@@ -2527,6 +2546,7 @@ def _shipment_cascade_close_command(rest: list[str]) -> None:
             replace_pre_close=parsed["replace_pre_close"],
         )
     else:
+        extra: dict[str, object] = {"detach": True} if parsed["detach"] else {}
         result = cascade_command.run_cascade_close(
             parsed["workspace"],
             parsed["shipment"],
@@ -2536,6 +2556,7 @@ def _shipment_cascade_close_command(rest: list[str]) -> None:
             author=parsed["author"],
             resolved=resolved,
             timeout=parsed["timeout"],
+            **extra,
         )
     payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
     _emit_cascade_close(payload, result.message, parsed["emit_json"])
