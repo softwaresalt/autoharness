@@ -676,10 +676,17 @@ def reconstruct(
         exit_record = eligibility.exit_record if mode == "journal_partial" else None
         sentinel = exit_record is not None and exit_record["state"] in _EXITED_STATES
         invocation_failed = bool(sentinel and (exit_record["exit_code"] != 0 or exit_record["timed_out"]))  # type: ignore[index]
+
+        def observed(key: str) -> object | None:
+            return exit_record[key] if sentinel else None  # type: ignore[index]
+
+        exit_code_fact = "observed_journal" if observed("exit_code") is not None else "unknown"
+        timed_out_fact = "observed_journal" if type(observed("timed_out")) is bool else "unknown"
+        journal_finished = observed("finished_at") if type(observed("finished_at")) is str else None
         facts = {
-            "exit_code": "observed_journal" if sentinel else "unknown",
-            "timed_out": "observed_journal" if sentinel else "unknown",
-            "finished_at": "observed_journal" if sentinel else "engine_event_log",
+            "exit_code": exit_code_fact,
+            "timed_out": timed_out_fact,
+            "finished_at": "observed_journal" if journal_finished else "engine_event_log",
             "stdout": "unknown",
             "stderr": "unknown",
             "archived_ids": "engine_event_log",
@@ -690,9 +697,9 @@ def reconstruct(
         record["invocation"] = {
             "argv_redacted": argv,
             "started_at": original["invocation"]["started_at"],
-            "finished_at": exit_record["finished_at"] if sentinel else shipped_at,  # type: ignore[index]
-            "exit_code": exit_record["exit_code"] if sentinel else None,  # type: ignore[index]
-            "timed_out": exit_record["timed_out"] if sentinel else None,  # type: ignore[index]
+            "finished_at": journal_finished or shipped_at,
+            "exit_code": observed("exit_code") if exit_code_fact == "observed_journal" else None,
+            "timed_out": observed("timed_out") if timed_out_fact == "observed_journal" else None,
             "mutation_state": "completed" if post.postcondition_verdict == "pass" else "indeterminate",
             "stdout": unavailable_capture("the journal does not hold a complete, proven stdout capture"),
             "stderr": unavailable_capture("the journal does not hold a complete, proven stderr capture"),

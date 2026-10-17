@@ -250,6 +250,36 @@ class PartialJournalTests(unittest.TestCase):
         self.assertEqual(facts["exit_code"], "observed_journal")
         self.assertEqual(record["recovery"]["engine_attribution"]["operation"], _SHIPMENT)
 
+    def test_a_timed_out_sentinel_without_an_exit_code_is_a_determinate_exit_6_record(self) -> None:
+        orphan = _Recovery(self)
+        orphan.mark_unproven()
+        orphan.write_logs(correlated=True)
+        exit_record = json.loads((orphan.journal_dir / "exit.json").read_text(encoding="utf-8"))
+        exit_record.update(state="timed_out", exit_code=None, timed_out=True)
+        write_json(orphan.journal(), "exit.json", exit_record)
+        outcome = orphan.run_recovery()
+        self.assertEqual(outcome.exit_code, EXIT_INVOCATION_INDETERMINATE, outcome.message)
+        self.assertTrue(outcome.recovered)
+        record = orphan.record()
+        facts = record["recovery"]["facts"]
+        self.assertEqual((facts["exit_code"], facts["timed_out"]), ("unknown", "observed_journal"))
+        self.assertIsNone(record["invocation"]["exit_code"])
+        self.assertIs(record["invocation"]["timed_out"], True)
+        self.assertEqual(orphan.validate(record, strict=False), [])
+
+    def test_a_sentinel_without_a_finish_time_falls_back_to_the_engine_log(self) -> None:
+        orphan = _Recovery(self)
+        orphan.mark_unproven()
+        orphan.write_logs(correlated=True)
+        exit_record = json.loads((orphan.journal_dir / "exit.json").read_text(encoding="utf-8"))
+        exit_record["finished_at"] = None
+        write_json(orphan.journal(), "exit.json", exit_record)
+        outcome = orphan.run_recovery()
+        self.assertEqual(outcome.exit_code, EXIT_OK, outcome.message)
+        record = orphan.record()
+        self.assertEqual(record["recovery"]["facts"]["finished_at"], "engine_event_log")
+        self.assertTrue(record["invocation"]["finished_at"])
+
     def test_offset_bearing_engine_timestamps_are_compared_as_utc_instants(self) -> None:
         for offset in (-7, 0, 14):
             with self.subTest(offset=offset):
