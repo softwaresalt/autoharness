@@ -4,6 +4,19 @@
 
 ### Added
 
+- **`cascade-close` journaling, `--detach`/`--poll`, and `--recover` (211-F / 218-S):** the mutating
+  `autoharness shipment cascade-close` now writes a durable, Git-ignored output journal, so a wrapper killed
+  mid-ship no longer loses the engine result. `--detach` hands the run to a detached supervisor behind an
+  authorization barrier and returns exit `9`; the read-only `--poll [--wait <s>]` reports a supervised run (exit `9`
+  while running, its final exit code once ended, exit `7` with `recovery_available` when the supervisor is gone);
+  `--caller-wait` (or `AUTOHARNESS_CALLER_WAIT_SECONDS`) makes an attached run exit `2` before anything runs when the
+  caller would give up before `--timeout` + 600 s. `--recover [--dry-run]` (exit `10` on refusal) rebuilds an orphaned
+  `invoking` evidence record, or rolls a never-started run back to `pre_close`, without invoking `backlogit` or
+  touching a backlog artifact; recovered records carry an additive `recovery` block and the closure-evidence gate
+  prints an advisory. Ship and `shipment-reconcile` now require `--detach` + `--poll` (or an attached run with a
+  sufficient declared wait). See `docs/gates-reference.md`. Expected template drift in installed workspaces: the
+  `_ship` agent, `shipment-reconcile` and `operational-closure` skills, and the `circuit-breaker` instruction.
+
 - **`autoharness routing resolve` (207-F / 214-S):** a read-only, fail-closed CLI that
   resolves a `stage`, `ship`, or `orchestrator` model route (or its escalation route) from
   `.autoharness/config.yaml` to one JSON document, from the new pure
