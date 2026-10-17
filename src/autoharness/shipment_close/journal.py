@@ -60,6 +60,7 @@ __all__ = [
     "argv_sha256",
     "build_launch",
     "cleanup_raw_files",
+    "clear_journal",
     "create_journal",
     "discard_journal",
     "enforce_stream_cap",
@@ -576,6 +577,13 @@ def cleanup_raw_files(journal: Journal) -> None:
 
     _require_trusted(journal)
     _remove_files(journal, _RAW_FILES)
+
+
+def clear_journal(journal: Journal) -> None:
+    """Remove every file this module owns but keep the directory (a new run reusing the pair's journal path)."""
+
+    _require_trusted(journal)
+    _remove_files(journal, (*STREAM_FILES, *_SCHEMAS))
 
 
 def discard_journal(journal: Journal) -> None:

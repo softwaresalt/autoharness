@@ -37,9 +37,11 @@ The CLI wiring and ``--json`` rendering are A3d.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime
 import json
+import os
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -49,6 +51,7 @@ from typing import Final
 from autoharness.gates.cascade_evidence import (
     DECLARED_STATUS_MISSING,
     CascadeEvidenceError,
+    build_evidence_path,
     engine_semantics_from_record,
     redact,
     serialize_evidence_record,
@@ -68,6 +71,18 @@ from autoharness.shipment_close import (
     EXIT_REVALIDATION_DRIFT,
     EXIT_SAFE_CLOSE_SELECTED,
 )
+from autoharness.shipment_close.journal import (
+    Journal,
+    JournalError,
+    argv_sha256,
+    build_launch,
+    cleanup_raw_files,
+    clear_journal,
+    create_journal,
+    utc_now,
+    write_json,
+)
+from autoharness.shipment_close.liveness import current_host, provably_dead
 from autoharness.shipment_close.observation import locate_record
 from autoharness.shipment_close.persist import (
     MODE_MUTATING,
@@ -78,6 +93,7 @@ from autoharness.shipment_close.persist import (
     _read_no_follow,
     acquire_pair_lock,
     check_existing_record,
+    observe_lock,
     redact_record_free_text,
     write_evidence_atomic,
 )
@@ -102,12 +118,13 @@ from autoharness.shipment_close.preclose import (
     run_preclose,
     validate_preclose_inputs,
 )
+from autoharness.shipment_close.quiescence import QUIESCENCE_GRACE_SECONDS
 from autoharness.shipment_close.runner import (
     DEFAULT_TIMEOUT_SECONDS,
     BoundedRunResult,
     ResolvedBinary,
     hash_binary,
-    run_bounded,
+    run_journaled,
     validate_timeout,
 )
 
@@ -139,6 +156,8 @@ class CascadeCloseOutcome:
     mutation_state: str | None = None
     postcondition_verdict: str | None = None
     failures: tuple[str, ...] = ()
+    journal_path: Path | None = None
+    recovery_available: bool | None = None
 
 
 class _Halt(Exception):
@@ -157,6 +176,8 @@ class _State:
     mutation_state: str | None = None
     postcondition_verdict: str | None = None
     failures: tuple[str, ...] = ()
+    journal_path: Path | None = None
+    recovery_available: bool | None = None
 
     def note(self, snapshot: PreCloseSnapshot) -> None:
         self.classifier_verdict = snapshot.classifier.close_path.name
@@ -441,32 +462,132 @@ def _evaluate(
         )
 
 
-def _invoke_and_finalize(
+_OUTCOME_NAMES = {
+    EXIT_OK: "completed",
+    EXIT_POSTCONDITION_FAILED: "postcondition_failed",
+    EXIT_INVOCATION_INDETERMINATE: "invocation_failed",
+    EXIT_POST_WRITE_FAILED: "post_write_failed",
+}
+
+
+def _prepare_journal(
+    lock: PairLock,
+    *,
+    resolved: ResolvedBinary,
+    argv: list[str],
+    merge_commit_sha: str,
+    timeout: int,
+    caller_wait: int | None,
+    grace: float,
+    mode: str,
+    finalizer: str,
+    authorize_deadline: str | None = None,
+    authorize_nonce: str | None = None,
+) -> Journal:
+    """Create the pair's journal for this run: ``launch.json`` (exact argv, H12) and ``meta.json`` (redacted audit copy)."""
+
+    try:
+        journal = create_journal(lock.workspace, lock.shipment_id, lock.feature_id, lock.run_id)
+        clear_journal(journal)  # leftovers of a rolled-back or finalized earlier run
+        write_json(
+            journal,
+            "launch.json",
+            build_launch(
+                run_id=lock.run_id,
+                workspace=str(lock.workspace),
+                shipment_id=lock.shipment_id,
+                feature_id=lock.feature_id,
+                merge_commit_sha=merge_commit_sha,
+                mode=mode,
+                argv=argv,
+                binary_path=resolved.binary_path,
+                binary_sha256=resolved.binary_sha256,
+                argv_prefix=resolved.argv_prefix,
+                cwd=str(lock.workspace),
+                timeout_seconds=timeout,
+                quiescence_grace_seconds=grace,
+                authorize_deadline=authorize_deadline,
+                authorize_nonce=authorize_nonce,
+            ),
+        )
+        write_json(
+            journal,
+            "meta.json",
+            {
+                "schema_version": 1,
+                "run_id": lock.run_id,
+                "shipment_id": lock.shipment_id,
+                "feature_id": lock.feature_id,
+                "argv_redacted": [redact(item)[0] for item in argv],
+                "argv_sha256": argv_sha256(argv),
+                "timeout_seconds": timeout,
+                "caller_wait_seconds": caller_wait,
+                "host": current_host(),
+                "wrapper_pid": os.getpid(),
+                "created_at": utc_now(),
+                "finalizer": finalizer,
+            },
+        )
+    except (JournalError, PersistError, OSError) as exc:
+        raise _Halt(EXIT_INPUT, f"the journal could not be prepared: {exc}; nothing invoked") from exc
+    return journal
+
+
+def _write_invoking(
+    lock: PairLock, state: _State, durable: dict, argv: list[str], owner: str, journal: Journal
+) -> dict:
+    invoking = dict(durable)
+    invoking["phase"] = "invoking"
+    invoking["invocation"] = {
+        "argv_redacted": [redact(item)[0] for item in argv],
+        "argv_sha256": argv_sha256(argv),
+        "started_at": _utc_now(),
+    }
+    try:
+        write_evidence_atomic(lock.evidence_path, invoking, owner_run_id=owner)
+    except (CascadeEvidenceError, OSError) as exc:
+        with contextlib.suppress(JournalError, OSError):
+            clear_journal(journal)
+        raise _Halt(EXIT_INPUT, f"the invoking record could not be written: {exc}; nothing invoked") from exc
+    state.phase_written = "invoking"
+    state.journal_path = journal.path
+    return invoking
+
+
+def _write_outcome(
+    journal: Journal, exit_code: int, outcome: str, finalizer: str, *, detail: str | None = None
+) -> None:
+    """Best-effort ``outcome.json``: poll falls back to the evidence record if this write is lost (H14)."""
+
+    record: dict[str, object] = {
+        "schema_version": 1,
+        "run_id": journal.run_id,
+        "exit_code": exit_code,
+        "outcome": outcome,
+        "finalizer": finalizer,
+        "written_at": utc_now(),
+    }
+    if detail:
+        record["detail"] = detail[:500]
+    with contextlib.suppress(JournalError, OSError):
+        write_json(journal, "outcome.json", record)
+
+
+def _finalize(
     lock: PairLock,
     state: _State,
     snapshot: PreCloseSnapshot,
     durable: dict,
-    argv: list[str],
-    owner: str,
-    timeout: int,
+    invoking: dict,
+    journal: Journal,
+    result: BoundedRunResult,
+    spawn_error: str | None,
+    *,
+    finalizer: str,
 ) -> CascadeCloseOutcome:
-    invocation_started = _utc_now()
-    invoking = dict(durable)
-    invoking["phase"] = "invoking"
-    invoking["invocation"] = {"argv_redacted": [redact(item)[0] for item in argv], "started_at": invocation_started}
-    try:
-        write_evidence_atomic(lock.evidence_path, invoking, owner_run_id=owner)
-    except CascadeEvidenceError as exc:
-        raise _Halt(EXIT_INPUT, f"the invoking record could not be written: {exc}; nothing invoked") from exc
-    state.phase_written = "invoking"
+    """Steps 9-10: re-read, INV-10, the owner-bound ``post_close`` write, ``outcome.json``, raw-file cleanup."""
 
-    spawn_error: str | None = None
-    try:
-        result = run_bounded(argv, cwd=lock.workspace, timeout=timeout)
-    except PersistError as exc:
-        spawn_error = str(exc)
-        result = _spawn_failed(argv, invocation_started)
-
+    owner = lock.run_id
     parsed = _parse(result, spawn_error)
     post_close, mutation_state = _evaluate(snapshot, durable, result, parsed)
     state.mutation_state = mutation_state
@@ -494,6 +615,7 @@ def _invoke_and_finalize(
     try:
         write_evidence_atomic(lock.evidence_path, final, owner_run_id=owner)
     except (CascadeEvidenceError, OSError) as exc:
+        _write_outcome(journal, EXIT_POST_WRITE_FAILED, "post_write_failed", finalizer)
         return state.outcome(
             EXIT_POST_WRITE_FAILED,
             f"the post_close record could not be written after the invocation: {exc}; operator review required",
@@ -509,12 +631,55 @@ def _invoke_and_finalize(
             reason = f"exit code {result.exit_code}"
         else:
             reason = f"stdout did not parse: {getattr(parsed, 'message', parsed)}"
-        return state.outcome(
-            EXIT_INVOCATION_INDETERMINATE, f"backlogit shipment ship failed ({reason}); operator review required"
+        exit_code, message = (
+            EXIT_INVOCATION_INDETERMINATE,
+            f"backlogit shipment ship failed ({reason}); operator review required",
         )
-    if state.postcondition_verdict != "pass":
-        return state.outcome(EXIT_POSTCONDITION_FAILED, "a postcondition failed; operator review required")
-    return state.outcome(EXIT_OK, "cascade close completed; every postcondition passed")
+    elif state.postcondition_verdict != "pass":
+        exit_code, message = EXIT_POSTCONDITION_FAILED, "a postcondition failed; operator review required"
+    else:
+        exit_code, message = EXIT_OK, "cascade close completed; every postcondition passed"
+    _write_outcome(journal, exit_code, _OUTCOME_NAMES[exit_code], finalizer)
+    if exit_code == EXIT_OK:
+        with contextlib.suppress(JournalError, OSError):
+            cleanup_raw_files(journal)
+    return state.outcome(exit_code, message)
+
+
+def _invoke_and_finalize(
+    lock: PairLock,
+    state: _State,
+    snapshot: PreCloseSnapshot,
+    durable: dict,
+    argv: list[str],
+    owner: str,
+    timeout: int,
+    *,
+    resolved: ResolvedBinary,
+    merge_commit_sha: str,
+    caller_wait: int | None,
+    grace: float,
+) -> CascadeCloseOutcome:
+    journal = _prepare_journal(
+        lock,
+        resolved=resolved,
+        argv=argv,
+        merge_commit_sha=merge_commit_sha,
+        timeout=timeout,
+        caller_wait=caller_wait,
+        grace=grace,
+        mode="attached",
+        finalizer="foreground",
+    )
+    invoking = _write_invoking(lock, state, durable, argv, owner, journal)
+
+    spawn_error: str | None = None
+    try:
+        result = run_journaled(journal)
+    except PersistError as exc:
+        spawn_error = str(exc)
+        result = _spawn_failed(argv, invoking["invocation"]["started_at"])
+    return _finalize(lock, state, snapshot, durable, invoking, journal, result, spawn_error, finalizer="foreground")
 
 
 # ---------------------------------------------------------------------------
@@ -533,6 +698,8 @@ def _run_locked(
     author: str,
     resolved: ResolvedBinary,
     timeout: int,
+    caller_wait: int | None,
+    grace: float,
 ) -> CascadeCloseOutcome:
     owner = lock.run_id
     workspace = lock.workspace
@@ -592,7 +759,39 @@ def _run_locked(
 
     # Steps 7-10.
     argv = build_ship_argv(resolved, workspace, shipment_id, merge_commit_sha, message, author)
-    return _invoke_and_finalize(lock, state, revalidated, durable, argv, owner, timeout)
+    return _invoke_and_finalize(
+        lock,
+        state,
+        revalidated,
+        durable,
+        argv,
+        owner,
+        timeout,
+        resolved=resolved,
+        merge_commit_sha=merge_commit_sha,
+        caller_wait=caller_wait,
+        grace=grace,
+    )
+
+
+def _recovery_available(workspace: Path | str, shipment_id: str, feature_id: str) -> bool:
+    """Read-only: is there an orphaned ``invoking`` record whose lock owner is absent or provably dead?"""
+
+    try:
+        evidence = build_evidence_path(workspace, shipment_id, feature_id)
+        if not os.path.lexists(evidence):
+            return False
+        record = json.loads(_read_no_follow(evidence).decode("utf-8"))
+        if not isinstance(record, dict) or record.get("phase") != "invoking":
+            return False
+        if record.get("shipment_id") != shipment_id or record.get("feature_id") != feature_id:
+            return False
+        observed = observe_lock(workspace, shipment_id, feature_id)
+        if observed is None:
+            return True
+        return observed.parsed and provably_dead(observed.host, observed.pid, observed.pid_start).dead
+    except Exception:  # noqa: BLE001 - a hint only; any doubt is "not available"
+        return False
 
 
 def run_cascade_close(
@@ -606,8 +805,14 @@ def run_cascade_close(
     resolved: ResolvedBinary,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     run_id: str | None = None,
+    caller_wait_seconds: int | None = None,
+    quiescence_grace_seconds: float = QUIESCENCE_GRACE_SECONDS,
 ) -> CascadeCloseOutcome:
-    """Run the mutating ``cascade-close``; returns a frozen :class:`CascadeCloseOutcome` (exit codes per plan A3)."""
+    """Run the mutating ``cascade-close``; returns a frozen :class:`CascadeCloseOutcome` (exit codes per plan A3).
+
+    A run that meets an existing lock or ``invoking`` record exits 7 unchanged and reports whether the orphaned
+    run looks recoverable (``recovery_available``); it never recovers, takes over, or invokes anything itself.
+    """
 
     state = _State()
     try:
@@ -619,10 +824,15 @@ def run_cascade_close(
     try:
         lock = acquire_pair_lock(workspace, shipment_id, feature_id, owner)
     except PersistError as exc:
-        return state.outcome(exc.exit_code, str(exc))
+        outcome = state.outcome(exc.exit_code, str(exc))
+        if exc.exit_code == EXIT_LOCKED:
+            outcome = dataclasses.replace(
+                outcome, recovery_available=_recovery_available(workspace, shipment_id, feature_id)
+            )
+        return outcome
     state.evidence_path = lock.evidence_path
     try:
-        return _run_locked(
+        outcome = _run_locked(
             lock,
             state,
             shipment_id=shipment_id,
@@ -632,11 +842,17 @@ def run_cascade_close(
             author=author,
             resolved=resolved,
             timeout=timeout,
+            caller_wait=caller_wait_seconds,
+            grace=quiescence_grace_seconds,
         )
     except _Halt as halt:
-        return state.outcome(halt.exit_code, str(halt))
+        outcome = state.outcome(halt.exit_code, str(halt))
     except Exception as exc:  # noqa: BLE001 - fail closed; an invoking record means operator review
         exit_code = EXIT_INVOCATION_INDETERMINATE if state.phase_written == "invoking" else EXIT_INPUT
-        return state.outcome(exit_code, f"unexpected failure: {type(exc).__name__}: {exc}")
+        outcome = state.outcome(exit_code, f"unexpected failure: {type(exc).__name__}: {exc}")
     finally:
         lock.release()
+    if outcome.exit_code == EXIT_LOCKED:
+        # Evaluated after our own lock is gone, so only a foreign owner can make the run look live.
+        outcome = dataclasses.replace(outcome, recovery_available=_recovery_available(workspace, shipment_id, feature_id))
+    return outcome
