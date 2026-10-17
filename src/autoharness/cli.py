@@ -1867,7 +1867,12 @@ def _read_contained_regular_file(root: Path, relative: str, base: Path, limit: i
 
 
 def _check_close_path_requirement(
-    frontmatter: dict, root: Path, shipment_id: str, feature_id: str, warnings: list[str]
+    frontmatter: dict,
+    root: Path,
+    shipment_id: str,
+    feature_id: str,
+    warnings: list[str],
+    evidence_info: dict | None = None,
 ) -> tuple[str, str] | None:
     """The 192-F ``close_path`` / ``close_evidence`` checks (plan unit A4); ``(failed_check, message)`` or None.
 
@@ -1907,6 +1912,10 @@ def _check_close_path_requirement(
         return "close_evidence", f"close_evidence record cannot be read: {exc}"
     if not isinstance(record, dict):
         return "close_evidence", f"close_evidence record '{declared}' is not a JSON object"
+    recovery = record.get("recovery")
+    recovery_mode = recovery.get("mode") if isinstance(recovery, dict) else None
+    if evidence_info is not None and isinstance(recovery, dict):
+        evidence_info.update(evidence_recovered=True, recovery_mode=recovery_mode)
     problems = validate_evidence_record(
         record, shipment_id=shipment_id, feature_id=feature_id, close_path=close_path
     )
@@ -1914,6 +1923,11 @@ def _check_close_path_requirement(
         return "close_evidence", (
             f"close_evidence record '{declared}' is not a valid {close_path} record for "
             f"{shipment_id}/{feature_id}: {'; '.join(problems)}"
+        )
+    if isinstance(recovery, dict):
+        warnings.append(
+            f"the close evidence record was RECOVERED (mode {recovery_mode}), not captured by an uninterrupted "
+            "cascade-close; facts marked unknown in record.recovery.facts were not observed"
         )
     if "merge_commit" in frontmatter:
         merge_commit = frontmatter.get("merge_commit")
@@ -2229,9 +2243,11 @@ def _evaluate_closure_evidence(path_arg: str, shipment_arg: str | None, workspac
             f"closure artifact '{resolved}' is not discoverable for shipment {declared_shipment}: "
             f"the topology gate reads canonical closure evidence only from '{closure_dir}'",
         )
+    evidence_info: dict = {}
     requirement = _check_close_path_requirement(
-        frontmatter, root, declared_shipment, match.group("feature_id"), payload["warnings"]
+        frontmatter, root, declared_shipment, match.group("feature_id"), payload["warnings"], evidence_info
     )
+    payload.update(evidence_info)  # only a recovered record adds keys; ordinary output is unchanged
     if requirement is not None:
         return _finish(1, *requirement)
     return _finish(
@@ -2271,6 +2287,11 @@ def _gate_closure_evidence_command(rest: list[str]) -> None:
     else:
         label = {0: "PASS", 1: "FAIL"}.get(payload["exit_code"], "INVALID")
         print(f"Closure-evidence gate — {label}: {payload['message']}")
+        if payload.get("evidence_recovered"):
+            print(
+                f"Advisory: the close evidence record was RECOVERED (mode {payload.get('recovery_mode')}); "
+                "facts marked unknown in record.recovery.facts were not observed."
+            )
     if payload["exit_code"]:
         sys.exit(payload["exit_code"])
 
@@ -2289,6 +2310,9 @@ Usage:
                         [--caller-wait <seconds>] [--detach] [--workspace <path>] [--json]
   autoharness shipment cascade-close --poll --shipment <S> --feature <F>
                         [--wait <seconds>] [--workspace <path>] [--json]
+  autoharness shipment cascade-close --recover --shipment <S> --feature <F>
+                        [--dry-run] [--confirm-owner-dead] [--confirm-engine-stopped]
+                        [--workspace <path>] [--json]
   autoharness shipment cascade-close --classify-only [--replace-pre-close]
                         --shipment <S> --feature <F> --sha <merge_sha>
                         [--workspace <path>] [--json]
@@ -2329,6 +2353,22 @@ cascade-close options:
                       supervisor is gone. Writes nothing, resolves no binary, needs no --sha.
   --wait <secs>       With --poll only: wait up to this many seconds (0-3600, default 0)
                       for a running supervisor to finish.
+  --recover           Evidence-only recovery of an orphaned `invoking` record whose lock
+                      owner is dead (exit 7 with recovery_available). Never invokes
+                      backlogit and never moves, archives, or edits a backlog artifact:
+                      it writes a recovered post_close record (marked `recovery`, every
+                      unobserved fact null/unknown) or, for a run that provably never
+                      started a child, rolls the record back to pre_close (exit 2; retry
+                      attached). Everything unprovable is exit 10 with nothing written.
+                      Needs no --sha, --message, or --author. Run --dry-run first.
+  --dry-run           With --recover only: run every check and report the recovery mode,
+                      writing nothing (no lock is taken).
+  --confirm-owner-dead
+                      With --recover only: the operator asserts a lock owner that cannot
+                      be proven dead (foreign host, legacy or unreadable lock) is dead.
+  --confirm-engine-stopped
+                      With --recover only: the operator asserts no `backlogit shipment
+                      ship` is running for a legacy record that has no journal.
   --replace-pre-close With --classify-only only: replace an existing pre_close record.
   --workspace, -w     Workspace root. Default: .
   --json              Emit one JSON object: mode, exit_code, evidence_path,
@@ -2353,6 +2393,10 @@ Exit codes:
   8  the post-close evidence write failed after invocation (operator review).
   9  --detach: the supervised run started or is still running; it is not complete
      and a mutation is possible. The JSON object carries journal_path.
+  10  --recover: recovery was refused; nothing was written (operator review). The
+     JSON object reports recovered, recovery_mode, dry_run, and journal_path. A
+     recovered record exits 0 only when it satisfies the closure-evidence gate; a
+     determinate failure record exits 5 or 6 (the gate keeps refusing it).
 Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
 cascade-close, calling `backlogit shipment ship` directly, or substituting
 SAFE_CLOSE until an operator reviews the backlog state and the record.
@@ -2370,7 +2414,17 @@ _CASCADE_CLOSE_VALUE_FLAGS = (
     "--workspace",
     "-w",
 )
-_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json", "--detach", "--poll")
+_CASCADE_CLOSE_BOOL_FLAGS = (
+    "--classify-only",
+    "--replace-pre-close",
+    "--json",
+    "--detach",
+    "--poll",
+    "--recover",
+    "--dry-run",
+    "--confirm-owner-dead",
+    "--confirm-engine-stopped",
+)
 _CALLER_WAIT_ENV = "AUTOHARNESS_CALLER_WAIT_SECONDS"
 _POLL_MAX_WAIT_SECONDS = 3600
 # Mutation possibility per exit code (plan A3 exit-code table). Exit 0 is "yes"
@@ -2386,14 +2440,18 @@ _CASCADE_CLOSE_MUTATION = {
     7: "unknown",
     8: "yes",
     9: "yes",
+    10: "unknown",
 }
 _CASCADE_CLOSE_NO_REVIEW = frozenset({0, 2, 3, 9})
-_CASCADE_CLOSE_SUPERVISED_MODES = frozenset({"mutating", "detach", "poll"})
+_CASCADE_CLOSE_SUPERVISED_MODES = frozenset({"mutating", "detach", "poll", "recover"})
 # Modes whose --json object also carries journal_path (the existing modes keep their exact key set).
-_CASCADE_CLOSE_NEW_MODES = frozenset({"detach", "poll"})
+_CASCADE_CLOSE_NEW_MODES = frozenset({"detach", "poll", "recover"})
+_RECOVER_ONLY_FLAGS = ("--dry-run", "--confirm-owner-dead", "--confirm-engine-stopped")
 
 
 def _cascade_close_mode(args: list[str]) -> str:
+    if "--recover" in args:
+        return "recover"
     if "--poll" in args:
         return "poll"
     if "--classify-only" in args:
@@ -2440,7 +2498,8 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
         index += 1
 
     polling = "--poll" in flags
-    for required in ("--shipment", "--feature") if polling else ("--shipment", "--feature", "--sha"):
+    recovering = "--recover" in flags
+    for required in ("--shipment", "--feature") if polling or recovering else ("--shipment", "--feature", "--sha"):
         if required not in values:
             raise ValueError(f"shipment cascade-close requires {required}")
     classify_only = "--classify-only" in flags
@@ -2450,7 +2509,29 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
         raise ValueError("--detach cannot be combined with --classify-only")
     if "--wait" in values and not polling:
         raise ValueError("--wait is accepted only together with --poll")
-    if polling:
+    stray_recover_only = [flag for flag in _RECOVER_ONLY_FLAGS if flag in flags]
+    if stray_recover_only and not recovering:
+        raise ValueError(f"{', '.join(stray_recover_only)} is accepted only together with --recover")
+    if recovering:
+        stray = [
+            flag
+            for flag in (
+                "--sha",
+                "--message",
+                "--author",
+                "--timeout",
+                "--caller-wait",
+                "--wait",
+                "--classify-only",
+                "--replace-pre-close",
+                "--detach",
+                "--poll",
+            )
+            if flag in values or flag in flags
+        ]
+        if stray:
+            raise ValueError(f"{', '.join(stray)} cannot be combined with --recover")
+    elif polling:
         stray = [
             flag
             for flag in ("--message", "--author", "--timeout", "--caller-wait", "--classify-only", "--replace-pre-close", "--detach")
@@ -2477,7 +2558,7 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
             raise ValueError(str(exc)) from exc
     wait = _parse_seconds(values["--wait"], "--wait", maximum=_POLL_MAX_WAIT_SECONDS) if "--wait" in values else 0
     caller_wait = None
-    if not polling and not classify_only:
+    if not polling and not classify_only and not recovering:
         if "--caller-wait" in values:
             caller_wait = _parse_seconds(values["--caller-wait"], "--caller-wait")
         elif os.environ.get(_CALLER_WAIT_ENV, "").strip():
@@ -2497,6 +2578,10 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
         "replace_pre_close": "--replace-pre-close" in flags,
         "detach": "--detach" in flags,
         "poll": polling,
+        "recover": recovering,
+        "dry_run": "--dry-run" in flags,
+        "confirm_owner_dead": "--confirm-owner-dead" in flags,
+        "confirm_engine_stopped": "--confirm-engine-stopped" in flags,
         "emit_json": "--json" in flags,
     }
 
@@ -2519,6 +2604,9 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
         phase_written = "pre_close" if exit_code in (0, 3) and evidence_path is not None else None
     if exit_code == 2:
         mutation = "no"  # every post-invocation write failure is exit 8
+    if mode == "recover":
+        # Recovery itself never mutates the backlog; this is about the original run.
+        mutation = "yes" if field("recovered") else "no" if field("action") == "rollback" else "unknown"
     payload = {
         "mode": mode,
         "exit_code": exit_code,
@@ -2537,6 +2625,15 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
         payload["journal_path"] = str(journal_path) if journal_path is not None else None
     if mode == "poll":
         payload["outcome_source"] = field("outcome_source")
+        payload["recovery_available"] = field("recovery_available")
+    if mode == "recover":
+        payload["dry_run"] = bool(field("dry_run"))
+        payload["recovered"] = bool(field("recovered"))
+        payload["recovery_mode"] = field("recovery_mode")
+        payload["recovery_action"] = field("action")
+        payload["notes"] = [str(note) for note in (field("notes") or ())]
+    elif mode in ("mutating", "detach") and exit_code == 7 and field("recovery_available") is not None:
+        # Added only to an exit-7 outcome that carries the hint, so every other key set is unchanged.
         payload["recovery_available"] = field("recovery_available")
     return payload
 
@@ -2591,6 +2688,23 @@ def _shipment_cascade_close_command(rest: list[str]) -> None:
         payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
         _emit_cascade_close(payload, result.message, parsed["emit_json"])
         return
+    if parsed["recover"]:
+        # Evidence-only: no backlogit binary is resolved or spawned.
+        from autoharness.shipment_close import recover as cascade_recover
+
+        result = cascade_recover.recover_cascade_close(
+            parsed["workspace"],
+            parsed["shipment"],
+            parsed["feature"],
+            options=cascade_recover.RecoverOptions(
+                dry_run=parsed["dry_run"],
+                confirm_owner_dead=parsed["confirm_owner_dead"],
+                confirm_engine_stopped=parsed["confirm_engine_stopped"],
+            ),
+        )
+        payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
+        _emit_cascade_close(payload, result.message, parsed["emit_json"])
+        return
     try:
         resolved = cascade_runner.resolve_backlogit_binary(parsed["workspace"])
     except PersistError as exc:
@@ -2621,8 +2735,14 @@ def _shipment_cascade_close_command(rest: list[str]) -> None:
             timeout=parsed["timeout"],
             **extra,
         )
-    payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
-    _emit_cascade_close(payload, result.message, parsed["emit_json"])
+    message = result.message
+    if result.exit_code == 7 and getattr(result, "recovery_available", None) is True:
+        message += (
+            f"; the run looks orphaned and recovery is available: run `autoharness shipment cascade-close "
+            f"--recover --dry-run --shipment {parsed['shipment']} --feature {parsed['feature']}` first"
+        )
+    payload = _cascade_close_payload(mode, result.exit_code, message, result)
+    _emit_cascade_close(payload, message, parsed["emit_json"])
 
 
 def _shipment_command(args: list[str]) -> None:
