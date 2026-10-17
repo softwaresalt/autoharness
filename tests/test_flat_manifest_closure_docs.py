@@ -405,7 +405,13 @@ ROUTING_TABLE_ROWS = (
     "| mutating | 0 | Run the Linked-Deliberation Disposition step with its inputs from the evidence record, then write the closure artifact with `close_path: cascade` and `close_evidence` |",
     "| mutating | 3 | Reached only when no `cascade`-selected `--classify-only` record preceded the run",
     "| either | 2, 4 | HALT. Nothing was mutated.",
-    "| either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |",
+    "| either | 5, 6, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |",
+    "| either | 7 | HALT. Operator review. Nothing was invoked.",
+    "| mutating `--detach` | 9 | Started, not complete: a mutation is possible.",
+    "| `--poll` | 9 | Still running:",
+    "| `--poll` | 7 with `recovery_available` |",
+    "| `--recover` | 0 | A recovered evidence record that passes the closure-evidence gate",
+    "| `--recover` | 5, 6, 10 | HALT. Operator review.",
 )
 PRE_CLOSE_FIELDS = (
     "`pre_close.engine_semantics`",

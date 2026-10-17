@@ -828,10 +828,38 @@ completion.
       | `--classify-only` | 0 (`CASCADE`) | Obtain destructive-command approval, then run the mutating `cascade-close` (Cascade Close Sub-Procedure) |
       | `--classify-only` | 3 (`SAFE_CLOSE` selected: classifier `SAFE_CLOSE`, or engine `UNVERIFIED`) | Safe-close steps 1–10, then the Linked-Deliberation Disposition step, citing the verdict record as `close_evidence` |
       | mutating | 0 | Run the Linked-Deliberation Disposition step with its inputs from the evidence record, then write the closure artifact with `close_path: cascade` and `close_evidence` |
+      | mutating `--detach` | 9 | Started, not complete: a mutation is possible. Never a result and never authorizes a commit. Run `--poll --wait <seconds>` until a final exit code, then route that code as the mutating row for it |
+      | `--poll` | 9 | Still running: keep polling within the supervision budget (the stall bound). Not a result |
+      | `--poll` | 0, 5, 6, 8 | The supervised run's final exit code: route it as the mutating row for the same code |
+      | `--poll` | 7 with `recovery_available` | The supervisor is gone and the record is `invoking`. HALT, then see the Recovery routing below. Never re-run the mutating command |
+      | `--recover` | 0 | A recovered evidence record that passes the closure-evidence gate: continue as mutating exit 0, and record the recovered evidence in the closure artifact (Recovery routing below) |
+      | `--recover` | 2 | Rolled back to `pre_close` (never-started run), or an input problem. Nothing was mutated: re-run the attached mutating command, with destructive-command approval |
+      | `--recover` | 5, 6, 10 | HALT. Operator review. 10 is a refusal with nothing written; 5 and 6 are determinate failure records the gate refuses |
       | mutating | 3 | Reached only when no `cascade`-selected `--classify-only` record preceded the run, which the routing above never does. Nothing was mutated: HALT, operator review, and never `SAFE_CLOSE` on this result (the Cascade Close Sub-Procedure's No-substitution rule). A selected-path change after a `CASCADE` `--classify-only` selection is exit 4, never 3 |
       | either | 2, 4 | HALT. Nothing was mutated. Exit 4 includes an engine re-probe difference and any difference from the `cascade`-selected `--classify-only` record, and is never answered with `SAFE_CLOSE`. Fix the input, or ask the operator |
-      | either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
+      | either | 5, 6, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |
+      | either | 7 | HALT. Operator review. Nothing was invoked. For an `invoking` record or an orphaned lock, route to the Recovery routing below; never delete the lock and never re-run the mutating command |
       | either | any other or unrecognized exit (including 1) | HALT (CLI too old or unexpected; do not fall back to cascade). Never call `backlogit shipment ship` directly and never substitute `SAFE_CLOSE`; ask the operator |
+
+      **Recovery routing (211-F).** An exit 7 whose evidence record is
+      `invoking` (or a `--poll` exit 7 with `recovery_available`) means a run
+      was killed or its supervisor died, and `backlogit` may have mutated the
+      backlog. Ship never removes the lock. It reports to the operator, runs
+      the read-only `autoharness shipment cascade-close --recover --dry-run --shipment <shipment_id> --feature <feature_id> --json`
+      (no approval needed, writes nothing), and presents the reported recovery
+      mode. Only after explicit operator approval does it run `--recover`
+      (adding `--confirm-owner-dead` or `--confirm-engine-stopped` only when
+      the operator asserts those facts). A recovered record (`recovery.recovered:
+      true`, mode `journal_complete`, `journal_partial`, or
+      `postconditions_only`) is real evidence but carries facts marked
+      `unknown`: the closure artifact's body states the recovery mode, that it
+      was recovered, and which facts were unobserved, and `close_evidence`
+      cites the recovered record unmodified. Never hand-edit the record, and
+      treat a recovery refusal (exit 10) as a HALT for the operator.
+
+      **Run mode**: the mutating command runs `--detach` followed by `--poll`
+      (see the Cascade Close Sub-Procedure), or attached with a declared
+      `--caller-wait` of at least `--timeout` + 600 s.
 
       **Minimum version**: `autoharness shipment cascade-close` first ships
       in the autoharness release containing 192-F (the first release after
@@ -1042,15 +1070,21 @@ or the 1800 default) + a fixed 600 s supervision margin (two 30 s engine
 probes, the bounded kill and reader-join cleanup of each spawned process, at
 most 70 s each, and headroom for the untimed workspace reads and writes), at
 most 4200 s. Whenever the supervision budget exceeds the agent runtime's
-synchronous tool-call limit, Ship MUST start the mutating run in the
-runtime's background/async mode, attached to the session (never detached
-from it), and poll until the command exits; if the runtime cannot keep the
-process alive for the full supervision budget, Ship HALTs before the
-mutating run. A runtime that kills the command mid-run leaves `backlogit`
+synchronous tool-call limit, Ship MUST run the mutating command with
+`--detach` and then `--poll --wait <seconds>` (each call within the runtime's
+synchronous limit) until a final exit code, or attached in the runtime's
+background/async mode with `--caller-wait <seconds>` (a declared wait shorter
+than the effective `--timeout` + 600 s exits 2 before anything runs); if the
+runtime cannot keep the process alive for the full supervision budget
+(attached), or cannot keep polling for it (`--detach`), Ship HALTs before the
+mutating run. `--detach` exit 9 and `--poll` exit 9 mean running, not a result.
+A runtime that kills the attached command mid-run leaves `backlogit`
 running unsupervised in its own process group, the evidence record at
-`invoking`, and the pair lock in place, so the next run exits 7. Ship stays
-attached to the run until the command exits and never abandons or kills it
-on an agent-tool wait or before the supervision budget elapses. For this run
+`invoking`, and the pair lock in place, so the next run exits 7 and routes to
+the Recovery routing in Step 0(c). Ship stays with the run: it stays attached
+to the run until the command exits (or, with `--detach`, until `--poll`
+reports a final exit code) and never abandons or kills it on an agent-tool
+wait or before the supervision budget elapses. For this run
 the supervision budget is the stall bound: the circuit-breaker Stall
 Detection table's `autoharness shipment cascade-close` (mutating mode) row
 sets it in place of the "Other commands" 5-minute stall timeout.
