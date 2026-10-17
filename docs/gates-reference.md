@@ -538,7 +538,7 @@ orphaned lock is `--recover`, which takes over only a lock whose owner is provab
 | `operator_action` | `none` for exits 0, 2, 3, and 9; otherwise `review_required` |
 
 The `detach`, `poll`, and `recover` modes also carry `journal_path`. `poll` adds
-`outcome_source` (`journal_outcome` or `evidence_record`) and `recovery_available`;
+`outcome_source` (`journal_outcome`, `evidence_record`, or `recovered_evidence`) and `recovery_available`;
 `recover` adds `dry_run`, `recovered`, `recovery_mode`, `recovery_action`, and `notes`.
 A mutating or detach exit 7 that carries the hint adds `recovery_available`. Every other
 key set is unchanged.
