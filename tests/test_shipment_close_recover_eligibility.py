@@ -7,6 +7,7 @@ the attached command against the fake backlogit and killing the finalizer.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import shutil
@@ -17,11 +18,12 @@ from unittest import mock
 
 from test_shipment_cascade_close_invoke import _FEATURE, _SHIPMENT, _VERIFIED, _Harness
 
-from autoharness.shipment_close import EXIT_INPUT, EXIT_LOCKED, EXIT_OK, EXIT_RECOVERY_REFUSED, command
+from autoharness.shipment_close import EXIT_INPUT, EXIT_LOCKED, EXIT_OK, EXIT_RECOVERY_REFUSED, command, recover
 from autoharness.shipment_close.journal import Journal, journal_path, write_json, write_never_started
 from autoharness.shipment_close.liveness import ProbeResult, current_host
 from autoharness.shipment_close.persist import (
     MODE_RECOVER,
+    LockDisposition,
     PersistError,
     acquire_pair_lock,
     check_existing_record,
@@ -462,6 +464,71 @@ class RecoveryOwnerRollbackTests(unittest.TestCase):
         outcome = recover_cascade_close(harness.root, _SHIPMENT, _FEATURE, options=_options(), env=_quiet_env())
         self.assertEqual(outcome.exit_code, EXIT_INPUT, outcome.message)
         self.assertEqual(harness.evidence.read_bytes(), before)
+
+
+class RollbackProofTests(unittest.TestCase):
+    def _eligibility(self, harness: _NeverStarted):
+        return recover.assess_eligibility(harness.root, _SHIPMENT, _FEATURE, _options(), _quiet_env())
+
+    def test_owner_death_comes_from_the_real_lock_disposition(self) -> None:
+        harness = _NeverStarted(self)
+        eligibility = self._eligibility(harness)
+        dead = LockDisposition("tombstoned", 1, "h", "pid_absent")
+        self.assertTrue(recover._owner_provably_dead(eligibility, dead))
+        self.assertFalse(recover._owner_provably_dead(eligibility, LockDisposition("operator_confirmed", 1, "h", "operator_confirmed")))
+        absent = LockDisposition("absent", None, None, "lock_absent")
+        self.assertTrue(recover._owner_provably_dead(eligibility, absent))
+
+    def test_an_absent_lock_does_not_prove_death_once_a_spawn_record_appears(self) -> None:
+        harness = _NeverStarted(self)
+        eligibility = self._eligibility(harness)
+        journal = Journal(path=journal_path(harness.root, _SHIPMENT, _FEATURE), run_id=harness.original_run)
+        write_json(
+            journal,
+            "child_started.json",
+            {"schema_version": 1, "run_id": journal.run_id, "written_at": "2026-10-16T00:00:00Z", "state": "spawning", "pid": None},
+        )
+        absent = LockDisposition("absent", None, None, "lock_absent")
+        self.assertFalse(recover._owner_provably_dead(eligibility, absent))
+
+    def test_an_invalid_pre_close_record_is_refused_before_anything_is_written(self) -> None:
+        harness = _NeverStarted(self)
+        eligibility = self._eligibility(harness)
+        broken = dataclasses.replace(eligibility, record={**eligibility.record, "pre_close": {}})
+        lock = acquire_pair_lock(harness.root, _SHIPMENT, _FEATURE, "b" * 32)
+        self.addCleanup(lock.release)
+        before = harness.evidence.read_bytes()
+        with self.assertRaises(recover._Refused):
+            recover._rollback(lock, broken, "b" * 32, LockDisposition("absent", None, None, "lock_absent"))
+        self.assertEqual(harness.evidence.read_bytes(), before)
+
+
+class PowerShellResolutionTests(unittest.TestCase):
+    def test_only_the_absolute_system_powershell_is_used(self) -> None:
+        root = "C:\\Windows"
+        expected = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+        self.assertEqual(
+            recover._powershell_path({"SystemRoot": root}, cwd="C:\\ws", is_file=lambda p: p == expected), expected
+        )
+        self.assertIsNone(recover._powershell_path({"SystemRoot": root}, cwd="C:\\ws", is_file=lambda p: False))
+        self.assertIsNone(recover._powershell_path({}, cwd="C:\\ws", is_file=lambda p: True))
+        self.assertIsNone(recover._powershell_path({"SystemRoot": "relative"}, cwd="C:\\ws", is_file=lambda p: True))
+
+    def test_a_system_root_inside_the_working_directory_is_rejected(self) -> None:
+        self.assertIsNone(
+            recover._powershell_path({"SystemRoot": "C:\\ws\\fake"}, cwd="C:\\ws", is_file=lambda p: True)
+        )
+
+    def test_the_process_listing_is_decoded_as_utf_8(self) -> None:
+        sep = "\t" if os.name == "nt" else " "
+        stdout = f"4242{sep}backlogit shipment ship 900-S caf\u00e9\n".encode("utf-8")
+        completed = subprocess.CompletedProcess([], 0, stdout=stdout, stderr=b"")
+        with (
+            mock.patch.object(recover.subprocess, "run", return_value=completed),
+            mock.patch.object(recover, "_powershell_path", return_value="C:\\Windows\\powershell.exe"),
+        ):
+            processes = list_processes()
+        self.assertEqual(processes, [(4242, "backlogit shipment ship 900-S caf\u00e9")])
 
 
 class TakeoverInteractionTests(unittest.TestCase):

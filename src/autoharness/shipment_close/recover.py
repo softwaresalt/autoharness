@@ -18,7 +18,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import time
 import uuid
@@ -118,15 +117,40 @@ class _Refused(Exception):
 # ---------------------------------------------------------------------------
 
 
+def _powershell_path(
+    environ: Mapping[str, str] | None = None,
+    *,
+    cwd: str | None = None,
+    is_file: Callable[[str], bool] = os.path.isfile,
+) -> str | None:
+    """The absolute system Windows PowerShell, or ``None``.
+
+    A ``PATH`` lookup on Windows consults the working directory first, so a workspace could plant its own
+    ``powershell.exe``; only the system directory under ``%SystemRoot%`` is trusted, never a path inside the cwd.
+    """
+
+    env = os.environ if environ is None else environ
+    root = env.get("SystemRoot") or env.get("windir")
+    if not root or not os.path.isabs(root):
+        return None
+    shell = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    here = os.path.normcase(os.path.abspath(cwd if cwd is not None else os.getcwd()))
+    normal = os.path.normcase(os.path.abspath(shell))
+    if normal == here or normal.startswith(here.rstrip("\\/") + os.sep):
+        return None
+    return shell if is_file(shell) else None
+
+
 def list_processes() -> list[tuple[int, str]] | None:
     """``(pid, command line)`` of every process, read-only; ``None`` when the listing cannot be trusted."""
 
     try:
         if os.name == "nt":
-            shell = shutil.which("powershell") or shutil.which("pwsh")
+            shell = _powershell_path()
             if shell is None:
                 return None
             script = (
+                "[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false; "
                 "Get-CimInstance Win32_Process | ForEach-Object "
                 '{ "$($_.ProcessId)`t$($_.CommandLine)" }'
             )
@@ -134,14 +158,14 @@ def list_processes() -> list[tuple[int, str]] | None:
         else:
             argv = ["ps", "-eo", "pid=,args="]
         completed = subprocess.run(
-            argv, capture_output=True, text=True, timeout=_PROCESS_LIST_TIMEOUT_SECONDS, check=False
+            argv, capture_output=True, timeout=_PROCESS_LIST_TIMEOUT_SECONDS, check=False
         )
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
     if completed.returncode != 0:
         return None
     processes: list[tuple[int, str]] = []
-    for line in completed.stdout.splitlines():
+    for line in completed.stdout.decode("utf-8", errors="replace").splitlines():
         head, _, rest = line.strip().partition("\t" if os.name == "nt" else " ")
         if head.isdigit():
             processes.append((int(head), rest.strip()))
@@ -474,15 +498,43 @@ def assess_eligibility(
 # ---------------------------------------------------------------------------
 
 
-def _rollback(lock: PairLock, eligibility: Eligibility, recovery_run_id: str) -> None:
+def _owner_provably_dead(eligibility: Eligibility, disposition: LockDisposition) -> bool:
+    """Whether the original owner is provably gone, from the real lock disposition (never assumed).
+
+    A tombstoned lock was judged dead by liveness. With no lock at all, death is only established while the
+    never-started proof still stands on disk: the ``never_started`` sentinel and no ``child_started`` record.
+    An operator confirmation is never proof.
+    """
+
+    if disposition.action == "tombstoned":
+        return True
+    if disposition.action != "absent" or eligibility.journal is None:
+        return False
+    try:
+        sentinel = read_json(eligibility.journal, "exit.json")
+    except JournalError:
+        return False
+    return sentinel["state"] == "never_started" and not journal_has(eligibility.journal, "child_started.json")
+
+
+def _rollback(lock: PairLock, eligibility: Eligibility, recovery_run_id: str, disposition: LockDisposition) -> None:
     record = {key: value for key, value in eligibility.record.items() if key not in ("invocation", "post_close")}
     record["phase"] = "pre_close"
     record["run_id"] = recovery_run_id
+    problems = [
+        problem
+        for problem in validate_evidence_record(
+            record, shipment_id=lock.shipment_id, feature_id=lock.feature_id, close_path="cascade"
+        )
+        if not problem.startswith(_NON_RECORD_PREFIXES)
+    ]
+    if problems:
+        raise _Refused(f"the rolled-back pre_close record does not validate (operator review): {problems[:3]}")
     proof = RollbackProof(
         never_started=True,
-        child_started=False,
+        child_started=journal_has(eligibility.journal, "child_started.json") if eligibility.journal else False,
         original_run_id=str(eligibility.record["run_id"]),
-        owner_provably_dead=True,
+        owner_provably_dead=_owner_provably_dead(eligibility, disposition),
     )
     write_evidence_atomic(lock.evidence_path, record, owner_run_id=recovery_run_id, rollback_proof=proof)
 
@@ -831,7 +883,7 @@ def recover_cascade_close(
         ):
             raise _Refused("the evidence record changed while recovery was taking the lock (operator review)")
         if eligibility.rollback:
-            _rollback(lock, eligibility, recovery_run_id)
+            _rollback(lock, eligibility, recovery_run_id, disposition)
             return outcome(
                 EXIT_INPUT,
                 "the run never started a child: the record was rolled back to pre_close; nothing was invoked "
