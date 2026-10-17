@@ -339,6 +339,10 @@ autoharness shipment cascade-close --classify-only [--replace-pre-close]
                       [--workspace <path>] [--json]
 ```
 
+Flag combinations are validated before anything runs. `--recover` rejects `--sha`, `--message`, `--author`,
+`--timeout`, `--caller-wait`, `--wait`, `--classify-only`, `--replace-pre-close`, `--detach` and `--poll`. `--poll`
+rejects `--detach`, `--timeout` and `--caller-wait`. `--detach` cannot be combined with `--classify-only`.
+
 | Mode | Behavior | Approval |
 |---|---|---|
 | plain `--classify-only` | Re-runs the classifier, probes the engine, selects the close path, and writes a new `pre_close` record. No-clobber: an existing `pre_close` record exits 2 and is left untouched. Never invokes the cascade. | None |
