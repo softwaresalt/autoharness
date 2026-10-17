@@ -16,7 +16,7 @@ All times UTC. Dark-mode (P-017): operator AFK-capable; Stage stopped at a queue
 * **Triage:** 369F8062 (feature, mechanism) and E337551C (task, guidance) are both `DEFERRED SCOPE EXPANSION`, so the C6 precedence forced `deliberate`. Duplicate scan over 289 active entries: clean. Late-identifier reconciliation: closure PR **532** recovered for both (PR 531 already recorded; review-thread and task remain a truthful terminal `N/A`). E337551C re-scoped to propagation/enforcement per the RCA (guidance already existed).
 * **Deliberation:** `041-DL` + `docs/decisions/2026-10-16-cascade-close-recovery-and-journaling-deliberation.md` (axes A journal, B caller wait, C orphaned record, D schema; decisions D-1..D-11; OQ-1..OQ-5).
 * **Plan:** `docs/plans/2026-10-16-cascade-close-recovery-and-journaling-plan.md` (16 units), hardening `docs/plans/2026-10-16-cascade-close-recovery-and-journaling-hardening.md` (H1-H12 binding), review `docs/reviews/2026-10-16-cascade-close-recovery-and-journaling-plan-review.md` -> **PASS** (2 cycles; cycle 1 FAIL on one P1, unauthenticated supervisor argv; `dispatch_mode: single-agent-declared-degradation`).
-* **Harvest:** feature `211-F`, tasks `211.001-T`..`211.016-T` (plan order T1..T16 differs from numeric order; ID map in the plan), each with `size` + `complexity` (`ah-stage-sizing-v1`, `size_source: agent`): S:6 M:10; complexity low 5, medium 9, high 2 (T7, T11 each with a named de-risking predecessor). Linear `blocks` chain.
+* **Harvest:** feature `211-F`, tasks `211.001-T`..`211.016-T` (plan order T1..T16 differs from numeric order; ID map in the plan), sized `size` + `complexity` (`ah-stage-sizing-v1`, `size_source: agent`): S:6 M:10; complexity low 5, medium 8, high 3 (T1..T16: T5, T7, T11 high, each with a named de-risking step). Linear `blocks` chain.
 * **Shipment:** `218-S` (queued), 17 items (211-F first, then tasks in plan order), `labels: [dag-root]`, no `blocks` edges. The manifest was verified against the harvest IDs.
 * **Stash:** 369F8062 and E337551C forward-referenced and archived.
 
@@ -30,6 +30,7 @@ OS-redirected journal + supervisor exit sentinel; `--detach`/`--poll` + `--calle
 
 ## Deviations / notes
 
+* **Publication review (PR 535):** two Copilot rounds. Round 1 (2 P1 + 1 P2: serialized lock takeover, retained `outcome.json`, structural validator for failure records) and round 2 (3 P1 + 2 P2: footprint provenance, spawn authorization barrier, descendant-group quiescence, exact launch payload, poll fallback after a crash between writes) were all accepted and fixed in the plan, deliberation, hardening record (H1, H7, H8, H12-H14) and tasks. Consequence for the operator: T5 is now complexity `high`, and whether 214-S itself is recoverable depends on T1's finding on item-level footprint provenance (OQ-4).
 * Parallel `create_item`/`add_dependency` calls timed out under MCP contention; the writes mostly applied and were verified from the queue files before re-issuing the remainder sequentially (no duplicates). `create_shipment` timed out once but created exactly one shipment (218-S).
 * Single-agent declared degradation for plan-review (no reviewer subagent dispatch).
 * Real-world evidence used: `.backlogit/logs/214-S.jsonl`, `207-F.jsonl`, `207.001-T.jsonl` (event types `shipment_status_changed`, `archived`, `shipment_item_returned_blocked`).

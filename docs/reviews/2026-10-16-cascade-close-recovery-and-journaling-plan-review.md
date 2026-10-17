@@ -49,6 +49,11 @@ decision: PASS
   `outcome.json` that `--poll` needs: now only the raw streams are removed and the small terminal files are retained, with a poll-after-cleanup test (D-1, T6, T8);
   (P2) `validate_evidence_record` is pass-only, so recovery's exit-5 failure record could not be persisted: added `validate_evidence_structure` for recovery while the gate stays
   pass-only (T9, T11, T16). Verdict remains PASS; no open P0/P1.
+* **Cycle 4 (Copilot re-review of the cycle-3 head): five further findings accepted and fixed** - (P1) a `shipped` event does not prove this cascade completed the archival: D-7/H1 now require
+  operation-correlated provenance for the whole footprint, never `derived_live_state` for archived ids, with a partial-stop-then-other-actor test; (P1) one-way supervisor handshake could not make exit 2
+  mutation-free: two-phase `authorize.json`/`abort.json` barrier (H7, T7); (P1) regular-file capture lost the inherited-pipe signal: descendant-group quiescence check and fail-closed
+  `drain_incomplete` (H13, T5) with the grandchild test ported; (P2) the supervisor could only reconstruct a redacted argv: protected exact `launch.json` plus `argv_sha256` over the exact argv (H12, T5-T7);
+  (P2) crash between the `post_close` and `outcome.json` writes: `--poll` evidence-record fallback (H14, T8). Verdict remains PASS; no open P0/P1.
 
 ## Findings
 

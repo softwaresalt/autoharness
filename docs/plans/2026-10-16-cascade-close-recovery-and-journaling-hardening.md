@@ -22,11 +22,14 @@ landing leaves the contract self-contradictory.
 
 ## Adversarial findings and binding amendments
 
-### H1 - A recovered record can launder an unattributed live state (BINDING, plan D-7 / T11)
+### H1 - A recovered record can launder an unattributed live state (BINDING, plan D-7 / T1 / T11)
 
-Postconditions can be true because a human or another tool archived the items. Amendment: `postconditions_only` recovery
-requires an engine-authored `shipment_status_changed -> shipped` event correlated to the shipment after `invocation.started_at`;
-otherwise exit 10 with nothing written. Tested in T16 (negative: identical live state, no engine event).
+Postconditions can be true because a human or another tool archived the items, and an engine `shipped` event alone does not prove that *this* cascade completed the archive
+mutations (the 214-S RCA records `shipped` while archival was partial). Amendment (revised after Copilot review of PR 535): `postconditions_only` recovery requires operation-correlated
+provenance for the **whole mutation footprint**: the engine-authored `shipment_status_changed -> shipped` event after `invocation.started_at`, plus, for every required archived id, an
+engine-authored `archived` event inside the cascade's operation window with no foreign-actor event on those items in the window. `derived_live_state` is not a basis for the archived footprint.
+If T1 shows the event log cannot supply that correlation, a passing recovered record is refused (exit 10) and only a journal-observed (`journal_complete`) recovery can pass. Tested in T16
+(negative: identical live state with no engine event; engine stops partially and another actor completes the archival).
 
 ### H2 - Recovering while the engine is still running (BINDING, T10)
 
@@ -62,11 +65,14 @@ redacted excerpts only (existing `redact`). Tested: link refusal, torn `meta.jso
 liveness and start time use `ctypes` `OpenProcess` / `GetExitCodeProcess` (`STILL_ACTIVE`) / `GetProcessTimes` only. The test seam asserts
 `os.kill` is never called on `nt`.
 
-### H7 - Detachment must fail closed (BINDING, T7)
+### H7 - Detachment must fail closed, with an authorization barrier (BINDING, T7; revised after Copilot review of PR 535)
 
-If the supervisor cannot be proven started and detached (handshake via `meta.json` `supervisor_started_at` within a bounded wait), the
-command exits 2 before invoking ship. It never degrades silently to attached, and never leaves a foreground finalizer and a supervisor
-finalizer both live (the lock payload `run_id` plus a `finalizer` token in `meta.json` make the owner unique).
+A one-way "supervisor started" notification cannot make exit 2 mutation-free: a delayed supervisor could start `shipment ship` after the foreground gave up, and a lost notification can hide an
+already-started child. Amendment: a two-phase barrier. The supervisor writes `supervisor_ready` and then **waits**; it spawns the child only after the foreground writes `authorize.json`
+(nonce + `valid_until`, re-checked by the supervisor itself). A foreground timeout before authorization writes `abort.json`; the supervisor never spawns after `abort.json` or past `valid_until`,
+so that exit 2 is provably mutation-free. After `authorize.json` exists the foreground never reports a mutation-free refusal: an unacknowledged start is exit 9 "started (unconfirmed)",
+`mutation_possible: yes`, resolved by `--poll`. It never degrades silently to attached, and never leaves a foreground finalizer and a supervisor finalizer both live (lock `run_id` plus a
+`finalizer` token in `meta.json`). Tests: delayed supervisor start, lost notification, abort-before-authorize, late authorize.
 
 ### H8 - Idempotence and torn writes (BINDING, T4/T11)
 
@@ -89,11 +95,25 @@ task; `autoharness verify` is the last step of T14 and T15 and again in T16.
 
 The "is ship still running" scan is read-only (process listing only), never terminates anything, and a scan error is `unknown` => refusal, not a pass.
 
-### H12 - Supervisor argv integrity (BINDING, added by plan review cycle 1, T5/T7)
+### H12 - Supervisor argv integrity (BINDING, added by plan review cycle 1, revised after Copilot review of PR 535, T5/T6/T7)
 
-The detached supervisor must not exec an argv it cannot authenticate. The foreground writes `argv_sha256` into both the `invoking` record and `meta.json`
-(0600, trusted directory); the supervisor refuses to spawn when they disagree, when `argv[0]` is not the recorded binary path, or when the binary SHA-256
-differs from `tool.binary_sha256` immediately before spawn. The supervisor accepts only a journal directory path as its own argument.
+The detached supervisor must not exec an argv it cannot authenticate, and it must exec the *exact* argv, not the redacted audit copy (redaction can change `--message`/`--author`).
+The foreground writes the exact argv to a protected `launch.json` (0600, git-ignored trusted journal directory, removed with the raw streams on success) and `argv_sha256` over that exact argv into
+both the `invoking` record and `meta.json` (which carries only the redacted audit argv). The supervisor refuses to spawn when the `launch.json` hash and the `invoking` record hash disagree, when `argv[0]` is
+not the recorded binary path, or when the binary SHA-256 differs from `tool.binary_sha256` immediately before spawn. The supervisor accepts only a journal directory path as its own argument.
+Test: a `--message` containing a redaction-triggering value reaches the child byte-for-byte while the evidence record carries only the redacted copy.
+
+### H13 - Regular-file capture must prove the descendant group is quiescent (BINDING, T5; added after Copilot review of PR 535)
+
+Pipes gave the old runner an inherited-descriptor signal (`drain_incomplete`); regular files do not, so a grandchild can keep writing after the direct child exits. Amendment: after the direct child
+exits the shim proves the descendant group is quiescent (POSIX: process-group liveness probe, then group kill; Windows: Job Object membership), kills survivors, and marks the stream
+`drain_incomplete`/capture incomplete; successful finalization fails closed on an incomplete capture (exit 6 class, never `completed`). Where membership cannot be enumerated the result is
+"unknown" and also fails closed. The existing `test_lingering_grandchild_does_not_hang_and_marks_drain_incomplete` scenario is ported to the journaled runner.
+
+### H14 - Terminal-state polling survives a crash between evidence and outcome writes (BINDING, T8; added after Copilot review of PR 535)
+
+The finalizer writes the `post_close` record before `outcome.json`. If it dies between the two, `--poll` falls back (read-only) to the validated terminal evidence record for the journal's `run_id`
+(pass -> 0, postcondition fail -> 5, failed/unparsed invocation -> 6) and reports `outcome_source: evidence_record`; `--recover` still accepts only `invoking` records. Tested.
 
 ## Residual risks (accepted, recorded)
 

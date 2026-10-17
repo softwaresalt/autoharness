@@ -82,18 +82,21 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
 ## Decisions
 
 * **D-1 (journal, A2).** Journal directory `.autoharness/gates/cascade-close/{S}-{F}.journal/` (git-ignored lock
-  directory, trust-walked like the lock dir, files 0600): `meta.json` (run_id, redacted argv, effective timeout,
-  declared caller wait, host, supervisor/child pid and start times), `stdout.raw`, `stderr.raw` (OS-redirected,
-  append-only, capped), `exit.json` (exit code, finished_at, timed_out, written atomically by the shim), and
-  `outcome.json` (final command exit code and message, written by the finalizer). Raw files may hold unredacted
-  engine output: they are never committed; only redacted excerpts enter the evidence record (existing
-  `redact`). Journals are retained on any non-success. On a clean exit-0 run the owning run removes only the bulky raw streams (`stdout.raw`, `stderr.raw`); the small
+  directory, trust-walked like the lock dir, files 0600):   `meta.json` (run_id, redacted audit argv, `argv_sha256`, effective timeout,
+    declared caller wait, host, supervisor/child pid and start times), `launch.json` (the EXACT argv the supervisor executes: 0600, never the redacted copy), `authorize.json`/`abort.json`
+    (spawn barrier), `stdout.raw`, `stderr.raw` (OS-redirected,
+    append-only, capped; a descendant-group quiescence check after the direct child exits marks the capture incomplete and fails closed on a lingering writer), `exit.json` (exit code, finished_at, timed_out, written atomically by the shim), and
+    `outcome.json` (final command exit code and message, written by the finalizer). Raw files may hold unredacted
+    engine output: they are never committed; only redacted excerpts enter the evidence record (existing
+    `redact`). Journals are retained on any non-success. On a clean exit-0 run the owning run removes only the bulky/sensitive files (`stdout.raw`, `stderr.raw`, `launch.json`); the small
   terminal files (`meta.json`, `exit.json`, `outcome.json`) are retained (git-ignored) until the next run for the pair replaces them or an operator cleans them, so a `--poll`
   after completion and cleanup still returns the final exit code (Copilot review, PR 535).
 * **D-2 (detach + poll, B3).** `--detach` (mutating mode only) and `--poll [--wait N]`. The detached supervisor owns
   the child, finalization (steps 9-10) and lock release; the lock payload is handed to the supervisor pid by
-  an owner-bound atomic rewrite. If detached survival cannot be established (Windows breakaway refused),
-  `--detach` exits 2 before the mutation and never silently degrades to attached.
+  an owner-bound atomic rewrite. A **two-phase authorization barrier** guards the spawn: the supervisor writes `supervisor_ready` and spawns the child only after the foreground writes
+  `authorize.json` (nonce + `valid_until`); a foreground timeout before authorization writes `abort.json`, so that exit 2 is provably mutation-free, while after authorization the foreground never
+  claims a mutation-free refusal (unacknowledged start = exit 9 "started (unconfirmed)", resolved by `--poll`). If detachment cannot be established before authorization (Windows breakaway
+  refused), `--detach` exits 2 and never silently degrades to attached. `--poll` falls back to the validated terminal evidence record when `outcome.json` was never written (crash between the two writes).
 * **D-3 (pre-flight).** `--caller-wait <seconds>` (or `AUTOHARNESS_CALLER_WAIT_SECONDS`): in attached mode, a declared wait below
   `timeout + SUPERVISION_MARGIN_SECONDS` exits 2 before any mutation. An undeclared wait is recorded in the journal as
   `undeclared` and produces a warning, not a refusal (compatibility; OQ-1).
@@ -120,10 +123,11 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
   fingerprint unchanged implies nothing was returned that matters), or `unknown`. `unknown` is a legal value
   only inside a recovery block and only for fields the validator lists; nothing is ever defaulted to a success
   value.
-* **D-7 (anti-laundering).** A `postconditions_only` recovery additionally requires engine attribution: at least one
-  engine-authored `shipment_status_changed -> shipped` event for the shipment, with the shipment-operation correlation,
-  after `invocation.started_at`. Without it the live state could have been produced by a human or another tool, so
-  recovery refuses (exit 10). The recovered record carries `recovery.mode` (`journal_complete`, `journal_partial`,
+* **D-7 (anti-laundering, revised after Copilot review of PR 535).** A `postconditions_only` recovery requires operation-correlated provenance for the **whole mutation
+  footprint**, not just the shipment: the engine-authored `shipment_status_changed -> shipped` event after `invocation.started_at` is necessary but not sufficient (the 214-S RCA shows
+  `shipped` while archival was partial, and another actor could finish the archival afterwards). Every required archived id must also be tied to this cascade by engine-authored events
+  inside the cascade's operation window with no foreign-actor event on those items; `derived_live_state` is never a basis for the archived footprint. If that provenance is unavailable the
+  recovery refuses a passing record (exit 10); only a `journal_complete` recovery (stdout observed) can pass without it. The recovered record carries `recovery.mode` (`journal_complete`, `journal_partial`,
   `postconditions_only`), `recovered_at`, `recovery_run_id`, `supersedes_run_id`, `lock_disposition`, and the
   per-field `facts` map; `exit_code`, `timed_out`, `finished_at` and the stdout/stderr captures may be null/unavailable
   only when the facts map marks them `unknown`, and `mutation_state` may be `completed` only from verified
@@ -162,7 +166,8 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
 * **OQ-3** Approval class for `--recover` (write): default is the same destructive-command approval as
   `--classify-only --replace-pre-close` (it dispositions an audit record); `--dry-run` needs none.
 * **OQ-4** Should 214-S itself be repaired by `--recover` after this ships, or kept as the disclosed `BLOCKED`
-  precedent? Operator decision; not scoped here.
+  precedent? Operator decision; not scoped here. Whether 214-S is recoverable at all depends on T1's finding on footprint provenance (D-7): with no journal and uncorrelated item-level events a
+  passing `postconditions_only` record is refused, and 214-S would stay `BLOCKED`.
 * **OQ-5** Windows: does the runtime's process tree/job object permit breakaway for the detached supervisor? T5/T7 probe it; the fail-closed fallback applies if not.
 
 ## Source references (P-021 C5/C6 reconciliation)
