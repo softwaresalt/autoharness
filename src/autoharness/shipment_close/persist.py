@@ -404,12 +404,25 @@ def _read_no_follow(path: Path) -> bytes:
         os.close(fd)
 
 
+def _read_lock_run_id(lock_path: Path) -> tuple[str | None, bool]:
+    """``(run_id, unreadable)``: a Windows sharing violation on the read is retried before it counts as unreadable."""
+
+    for attempt in range(_REPLACE_RETRIES + 1):
+        try:
+            payload = json.loads(_read_no_follow(lock_path).decode("utf-8"))
+        except PermissionError:
+            if attempt < _REPLACE_RETRIES:
+                time.sleep(_REPLACE_BACKOFF_SECONDS * (2**attempt))
+                continue
+            return None, True
+        except (OSError, ValueError, PersistError):
+            return None, False
+        return (payload.get("run_id") if isinstance(payload, dict) else None), False
+    return None, True
+
+
 def _lock_run_id(lock_path: Path) -> str | None:
-    try:
-        payload = json.loads(_read_no_follow(lock_path).decode("utf-8"))
-    except (OSError, ValueError, PersistError):
-        return None
-    return payload.get("run_id") if isinstance(payload, dict) else None
+    return _read_lock_run_id(lock_path)[0]
 
 
 @dataclass
@@ -437,7 +450,15 @@ class PairLock:
             return
         self.held = False
         # Only ever remove our own lock.
-        if _lock_run_id(self.lock_path) != self.run_id:
+        owner, unreadable = _read_lock_run_id(self.lock_path)
+        if unreadable:
+            with contextlib.suppress(OSError, ValueError):
+                sys.stderr.write(
+                    f"warning: cannot read cascade-close lock {self.lock_path} to confirm it is ours; "
+                    "it was left in place: remove it manually (an operator action) before the next run\n"
+                )
+            return
+        if owner != self.run_id:
             return
         for attempt in range(_REPLACE_RETRIES + 1):
             try:

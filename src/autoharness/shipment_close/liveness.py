@@ -186,7 +186,7 @@ def _posix_probe(
         return ProbeResult("absent", detail="no such process")
     except PermissionError:
         pass  # exists, owned by another user
-    except OSError as exc:
+    except (OSError, OverflowError, ValueError) as exc:
         return ProbeResult("unknown", detail=f"kill probe failed: {exc.__class__.__name__}")
     stat = _proc_stat(pid, proc_root)
     if stat is None:

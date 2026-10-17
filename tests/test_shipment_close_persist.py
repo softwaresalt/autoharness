@@ -349,6 +349,36 @@ class LockAndDirectoryTrustTests(unittest.TestCase):
             self.assertIn("operator", stderr.getvalue())
 
 
+    def test_an_unreadable_lock_is_retried_then_warned_about_and_left(self) -> None:
+        workspace = _Workspace(self)
+        lock = acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, _RUN_A)
+        real_read = persist._read_no_follow
+        calls = {"count": 0}
+
+        def flaky(path):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise PermissionError(13, "sharing violation")
+            return real_read(path)
+
+        with mock.patch.object(persist, "_read_no_follow", flaky), mock.patch.object(persist.time, "sleep"):
+            lock.release()
+        self.assertGreaterEqual(calls["count"], 2, "a transient read refusal must be retried")
+        self.assertFalse(lock.lock_path.exists())
+
+        lock = acquire_pair_lock(workspace.root, _SHIPMENT, _FEATURE, _RUN_B)
+        stderr = io.StringIO()
+        with (
+            mock.patch.object(persist, "_read_no_follow", side_effect=PermissionError(13, "denied")),
+            mock.patch.object(persist.time, "sleep"),
+            mock.patch.object(persist.sys, "stderr", stderr),
+        ):
+            lock.release()
+        self.assertTrue(lock.lock_path.exists())
+        self.assertIn(str(lock.lock_path), stderr.getvalue())
+        self.assertIn("operator", stderr.getvalue())
+
+
 class ExistingRecordCheckTests(unittest.TestCase):
     """Scenario 3: the existing-record check under the lock."""
 

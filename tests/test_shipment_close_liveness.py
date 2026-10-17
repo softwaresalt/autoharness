@@ -206,6 +206,16 @@ class PosixProbeTest(unittest.TestCase):
             self.assertEqual((result.state, result.start), ("alive", None))
             self.assertFalse(provably_dead(_HOST, 12, "1", local_host=_HOST, prober=lambda p: result).dead)
 
+    def test_an_out_of_range_pid_is_unknown_never_a_crash(self) -> None:
+        def kill(pid, sig):
+            raise OverflowError("signed integer is greater than maximum")
+
+        self.assertEqual(liveness._posix_probe(2**40, kill=kill, proc_root=Path("/nonexistent")).state, "unknown")
+        self.assertEqual(
+            liveness._posix_probe(5, kill=lambda p, s: (_ for _ in ()).throw(ValueError("bad")), proc_root=Path("/x")).state,
+            "unknown",
+        )
+
     def test_signal_zero_is_the_only_signal_sent(self) -> None:
         calls = []
         liveness._posix_probe(5, kill=lambda pid, sig: calls.append((pid, sig)), proc_root=Path("/nonexistent"))
