@@ -363,6 +363,22 @@ _DETACHED_PROCESS: Final = 0x00000008
 _CREATE_BREAKAWAY_FROM_JOB: Final = 0x01000000
 _ERROR_ACCESS_DENIED: Final = 5
 _SHIM_MODULE: Final = "autoharness.shipment_close.supervisor"
+_SHIM_BOOTSTRAP: Final = (
+    "import sys, runpy; sys.path.pop(0); "
+    f"runpy.run_module({_SHIM_MODULE!r}, run_name='__main__', alter_sys=True)"
+)
+
+
+def supervisor_argv(flag: str, journal_dir: Path | str) -> list[str]:
+    """The interpreter argv for the shim/supervisor, with the working directory kept off ``sys.path``.
+
+    Both run with the journal directory as their cwd, so a plain ``-m`` would import any ``autoharness`` package
+    (or stdlib shadow) that a journal directory happens to contain before the real one.
+    """
+
+    if sys.version_info >= (3, 11):
+        return [sys.executable, "-P", "-m", _SHIM_MODULE, flag, str(journal_dir)]
+    return [sys.executable, "-c", _SHIM_BOOTSTRAP, flag, str(journal_dir)]
 
 
 @dataclass(frozen=True)
@@ -488,9 +504,7 @@ def run_journaled(journal: Journal, *, wait_margin_seconds: float = SHIM_WAIT_MA
 
     launch = read_json(journal, "launch.json")
     try:
-        spawned = spawn_detached(
-            [sys.executable, "-m", _SHIM_MODULE, "--shim", str(journal.path)], cwd=journal.path
-        )
+        spawned = spawn_detached(supervisor_argv("--shim", journal.path), cwd=journal.path)
     except (OSError, ValueError) as exc:
         raise PersistError(EXIT_INPUT, f"cannot spawn the journal shim: {exc}") from exc
     process = spawned.process

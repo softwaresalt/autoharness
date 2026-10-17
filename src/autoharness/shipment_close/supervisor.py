@@ -57,6 +57,10 @@ _KILL_WAIT_SECONDS: Final = 10
 _POLL_SECONDS: Final = 0.25
 
 
+class _SpawnRefused(Exception):
+    """Raised by ``before_spawn`` when the spawn must not happen; nothing was spawned and ``spawning`` was not written."""
+
+
 class _Terminated(BaseException):
     """Raised by the POSIX SIGTERM handler so a wrapper interrupt kills the child group cleanly."""
 
@@ -89,6 +93,28 @@ def _write_exit(journal: Journal, **fields: object) -> dict[str, object]:
     record.update(fields)
     write_json(journal, "exit.json", record)
     return record
+
+
+_EXIT_WRITE_ATTEMPTS: Final = 4
+
+
+def _write_exit_retrying(journal: Journal, **fields: object) -> dict[str, object]:
+    """``exit.json`` is the only proof of what the child did: retry a transient write failure (a sharing violation)."""
+
+    for attempt in range(_EXIT_WRITE_ATTEMPTS):
+        try:
+            return _write_exit(journal, **fields)
+        except (JournalError, OSError):
+            if attempt == _EXIT_WRITE_ATTEMPTS - 1:
+                raise
+            time.sleep(0.1 * (attempt + 1))
+    raise AssertionError("unreachable")
+
+
+def _close_all(fds: list[int]) -> None:
+    for fd in fds:
+        with contextlib.suppress(OSError):
+            os.close(fd)
 
 
 def _kill_everything(group: quiescence.DescendantGroup | None, process: subprocess.Popen) -> None:
@@ -125,14 +151,27 @@ def run_child(
     if _WINDOWS and entered is None:
         # Without a Job Object the descendant set cannot be proven; refuse before anything runs.
         return write_never_started(journal)
-    if before_spawn is not None:
-        before_spawn()
-    fds = [open_stream_file(journal, name) for name in STREAM_FILES]
+    fds: list[int] = []
+    try:
+        for name in STREAM_FILES:
+            fds.append(open_stream_file(journal, name))
+    except (JournalError, OSError):
+        _close_all(fds)
+        return write_never_started(journal)
     flags = (
         {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | _CREATE_NO_WINDOW}
         if _WINDOWS
         else {"start_new_session": True}
     )
+    if before_spawn is not None:
+        try:
+            before_spawn()
+        except _SpawnRefused:
+            _close_all(fds)
+            return write_never_started(journal)
+        except BaseException:
+            _close_all(fds)
+            raise
     started_at = utc_now()
     try:
         process = subprocess.Popen(
@@ -145,18 +184,16 @@ def run_child(
             **flags,
         )
     except (OSError, ValueError):
-        for fd in fds:
-            os.close(fd)
+        _close_all(fds)
         empty = {"proven": True, "method": "not_spawned", "survivors_killed": 0, "total_bytes": 0}
-        return _write_exit(
+        return _write_exit_retrying(
             journal,
             state="spawn_failed",
             started_at=started_at,
             finished_at=utc_now(),
             quiescence={"stdout": dict(empty), "stderr": dict(empty)},
         )
-    for fd in fds:
-        os.close(fd)  # the child holds its own copies; the open-writer probe needs ours closed
+    _close_all(fds)  # the child holds its own copies; the open-writer probe needs ours closed
     if on_spawned is not None:
         with contextlib.suppress(JournalError, OSError):
             on_spawned(process.pid)
@@ -182,6 +219,28 @@ def run_child(
         _kill_everything(group, process)
         raise
 
+    try:
+        verdicts = _prove_quiescence(journal, group, cap=cap, grace=grace, capped=capped)
+    except Exception:  # noqa: BLE001 - the child ran: an exit sentinel with an unproven verdict beats none
+        verdicts = {
+            key: {"proven": False, "method": "supervisor_error", "survivors_killed": 0, "total_bytes": _stream_size(journal, name)}
+            for key, name in zip(("stdout", "stderr"), STREAM_FILES)
+        }
+    return _write_exit_retrying(
+        journal,
+        state="timed_out" if timed_out else "exited",
+        child_pid=process.pid,
+        started_at=started_at,
+        finished_at=utc_now(),
+        exit_code=process.returncode,
+        timed_out=timed_out,
+        quiescence=verdicts,
+    )
+
+
+def _prove_quiescence(
+    journal: Journal, group: quiescence.DescendantGroup | None, *, cap: int, grace: float, capped: bool
+) -> dict[str, object]:
     paths = [journal.path / name for name in STREAM_FILES]
     group_verdict = quiescence.settle_group(group, grace=grace, poll=0.1)
     writer_verdict = quiescence.settle_writers(paths, grace=grace, poll=0.1)
@@ -198,19 +257,50 @@ def run_child(
             "survivors_killed": group_verdict.survivors_killed,
             "total_bytes": _stream_size(journal, name),
         }
-    return _write_exit(
-        journal,
-        state="timed_out" if timed_out else "exited",
-        child_pid=process.pid,
-        started_at=started_at,
-        finished_at=utc_now(),
-        exit_code=process.returncode,
-        timed_out=timed_out,
-        quiescence=verdicts,
-    )
+    return verdicts
 
 
 _AUTH_POLL_SECONDS: Final = 0.1
+_AUTH_READ_ATTEMPTS: Final = 5
+
+
+def _read_authorization(journal: Journal) -> dict[str, object]:
+    """Read ``authorize.json``, retrying what a concurrent atomic replace transiently refuses (a sharing violation)."""
+
+    for attempt in range(_AUTH_READ_ATTEMPTS):
+        try:
+            return read_json(journal, "authorize.json")
+        except PermissionError:
+            pass
+        except JournalError as exc:
+            if exc.reason != "untrusted":
+                raise
+        if attempt < _AUTH_READ_ATTEMPTS - 1:
+            time.sleep(0.05)
+    return read_json(journal, "authorize.json")
+
+
+def _authorization_verdict(journal: Journal, launch: Mapping[str, object], deadline: datetime.datetime) -> str | None:
+    """``None`` while no ``authorize.json`` exists, else ``authorized``/``aborted``/``expired``/``invalid_authorization``.
+
+    The clock is sampled after the file is read, so a slow read can never make an expired grant look valid.
+    """
+
+    if not journal_has(journal, "authorize.json"):
+        return None
+    try:
+        authorization = _read_authorization(journal)
+    except (JournalError, OSError):
+        return "invalid_authorization"
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if journal_has(journal, "abort.json"):
+        return "aborted"
+    if authorization["nonce"] != launch["authorize_nonce"]:
+        return "invalid_authorization"
+    valid_until = parse_utc(authorization["valid_until"])
+    if valid_until is None or now > valid_until or now > deadline:
+        return "expired"
+    return "authorized"
 
 
 def _wait_for_authorization(journal: Journal, launch: Mapping[str, object]) -> str:
@@ -221,29 +311,26 @@ def _wait_for_authorization(journal: Journal, launch: Mapping[str, object]) -> s
     """
 
     deadline = parse_utc(launch["authorize_deadline"])
-    nonce = launch["authorize_nonce"]
     if deadline is None:
         return "invalid_deadline"
     while True:
-        now = datetime.datetime.now(datetime.timezone.utc)
         if journal_has(journal, "abort.json"):
             return "aborted"
-        if journal_has(journal, "authorize.json"):
-            try:
-                authorization = read_json(journal, "authorize.json")
-            except JournalError:
-                return "invalid_authorization"
-            if journal_has(journal, "abort.json"):
-                return "aborted"
-            if authorization["nonce"] != nonce:
-                return "invalid_authorization"
-            valid_until = parse_utc(authorization["valid_until"])
-            if valid_until is None or now > valid_until or now > deadline:
-                return "expired"
-            return "authorized"
-        if now >= deadline:
+        verdict = _authorization_verdict(journal, launch, deadline)
+        if verdict is not None:
+            return verdict
+        if datetime.datetime.now(datetime.timezone.utc) >= deadline:
             return "expired"
         time.sleep(_AUTH_POLL_SECONDS)
+
+
+def _authorization_current(journal: Journal, launch: Mapping[str, object]) -> bool:
+    """The last check before the spawn: no abort, and the grant and the window are still open right now."""
+
+    deadline = parse_utc(launch["authorize_deadline"])
+    if deadline is None or journal_has(journal, "abort.json"):
+        return False
+    return _authorization_verdict(journal, launch, deadline) == "authorized"
 
 
 def _read_record(path: Path) -> dict:
@@ -367,14 +454,25 @@ def _supervise_locked(lock, journal: Journal, launch: Mapping[str, object]) -> t
             {"schema_version": 1, "run_id": journal.run_id, "state": state, "pid": pid, "written_at": utc_now()},
         )
 
-    exit_record = run_child(
-        journal,
-        launch,
-        before_spawn=lambda: started("spawning", None),
-        on_spawned=lambda pid: started("spawned", pid),
-    )
+    def before_spawn() -> None:
+        if not _authorization_current(journal, launch):
+            raise _SpawnRefused("the authorization lapsed or was aborted before the spawn")
+        started("spawning", None)
+
+    try:
+        exit_record = run_child(
+            journal,
+            launch,
+            before_spawn=before_spawn,
+            on_spawned=lambda pid: started("spawned", pid),
+        )
+    except Exception as exc:  # noqa: BLE001 - past the spawn point a child may be running: never release the lock
+        sys.stderr.write(f"the supervised run failed unexpectedly: {type(exc).__name__}: {exc}\n")
+        if journal_has(journal, "child_started.json"):
+            return 2, False
+        return refuse("never_started", 2, f"the shim failed before spawning: {type(exc).__name__}")
     if exit_record["state"] == "never_started":
-        return refuse("never_started", 2, "the shim could not establish a descendant group; nothing ran")
+        return refuse("never_started", 2, "the child was not spawned (no descendant group, stream, or authorization); nothing ran")
 
     state = command._State(evidence_path=lock.evidence_path)
     state.note(snapshot)
@@ -409,6 +507,9 @@ def supervise(journal: Journal, launch: Mapping[str, object]) -> int:
     release = True
     try:
         status, release = _supervise_locked(lock, journal, launch)
+    except BaseException:
+        release = not journal_has(journal, "child_started.json")  # past the spawn point the lock stays for recovery
+        raise
     finally:
         if release:
             lock.release()
@@ -416,13 +517,18 @@ def supervise(journal: Journal, launch: Mapping[str, object]) -> int:
 
 
 def _best_effort_never_started(path: str) -> None:
-    """A launch that failed authentication still leaves the never-started proof when its run id is readable."""
+    """A launch that failed authentication still leaves the never-started proof when its run id is readable.
+
+    It never writes next to evidence of a spawn attempt or an existing exit sentinel.
+    """
 
     try:
         raw, _ = _read_capped(Path(path) / "launch.json", 64 * 1024)
         run_id = json.loads(raw.decode("utf-8")).get("run_id")
         if type(run_id) is str and _RUN_ID.fullmatch(run_id):
-            write_never_started(Journal(path=Path(path), run_id=run_id))
+            journal = Journal(path=Path(path), run_id=run_id)
+            if not (journal_has(journal, "exit.json") or journal_has(journal, "child_started.json")):
+                write_never_started(journal)
     except (JournalError, OSError, ValueError, AttributeError):
         pass
 

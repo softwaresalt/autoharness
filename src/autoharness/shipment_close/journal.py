@@ -278,8 +278,8 @@ def _check_launch(obj: Mapping[str, object]) -> str | None:
         return "argv_sha256 does not match the exact argv"
     if obj["argv"][: len(obj["argv_prefix"])] != obj["argv_prefix"]:  # type: ignore[index]
         return "argv does not start with the recorded argv_prefix"
-    if obj["binary_path"] not in obj["argv_prefix"]:  # type: ignore[operator]
-        return "binary_path must be part of the recorded argv_prefix"
+    if obj["argv_prefix"][-1] != obj["binary_path"]:  # type: ignore[index]
+        return "binary_path must be the last element of the recorded argv_prefix (argv[0] in production)"
     for key in ("shipment_id", "feature_id", "workspace", "cwd", "binary_path", "created_at"):
         if not _is_str(obj[key]):
             return f"{key} must be a non-empty string"

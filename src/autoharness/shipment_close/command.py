@@ -137,6 +137,7 @@ from autoharness.shipment_close.runner import (
     hash_binary,
     run_journaled,
     spawn_detached,
+    supervisor_argv,
     validate_timeout,
 )
 
@@ -754,10 +755,7 @@ def _instant_after(seconds: float) -> str:
 def spawn_supervisor(journal_dir: Path) -> subprocess.Popen:
     """Start the detached supervisor for a prepared journal; its only argument is the journal directory (H12)."""
 
-    spawned = spawn_detached(
-        [sys.executable, "-m", "autoharness.shipment_close.supervisor", "--supervise", str(journal_dir)],
-        cwd=journal_dir,
-    )
+    spawned = spawn_detached(supervisor_argv("--supervise", journal_dir), cwd=journal_dir)
     spawned.process.autoharness_breakaway = spawned.breakaway  # type: ignore[attr-defined]
     return spawned.process
 
