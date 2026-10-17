@@ -54,6 +54,10 @@ decision: PASS
   mutation-free: two-phase `authorize.json`/`abort.json` barrier (H7, T7); (P1) regular-file capture lost the inherited-pipe signal: descendant-group quiescence check and fail-closed
   `drain_incomplete` (H13, T5) with the grandchild test ported; (P2) the supervisor could only reconstruct a redacted argv: protected exact `launch.json` plus `argv_sha256` over the exact argv (H12, T5-T7);
   (P2) crash between the `post_close` and `outcome.json` writes: `--poll` evidence-record fallback (H14, T8). Verdict remains PASS; no open P0/P1.
+* **Cycle 5 (Copilot round 3): four further findings accepted and fixed** - (P1) capture-completeness verdict was in-memory only: persisted per stream in `exit.json` before finalization and enforced by recovery (H13, T5, T11);
+  (P1) the authorization wait depended on the foreground: `authorize_deadline` persisted before spawn, supervisor self-expiry, terminal `never_authorized`, lock release (H7, T7); (P2) an empty process group does not prove no
+  escaped writer: open-writer probe (Windows exclusive-open, Linux `/proc/*/fd`, else fail closed) and an escaped-session test (H13, T5/T16); (P2) a never-authorized detach left `invoking` with no retry path: owner-bound
+  `invoking -> pre_close` rollback with never-spawned proof and an abort-then-attached test (H7, T4/T7). Verdict remains PASS; no open P0/P1.
 
 ## Findings
 

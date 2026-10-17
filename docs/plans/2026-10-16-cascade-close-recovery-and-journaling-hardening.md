@@ -74,6 +74,11 @@ so that exit 2 is provably mutation-free. After `authorize.json` exists the fore
 `mutation_possible: yes`, resolved by `--poll`. It never degrades silently to attached, and never leaves a foreground finalizer and a supervisor finalizer both live (lock `run_id` plus a
 `finalizer` token in `meta.json`). Tests: delayed supervisor start, lost notification, abort-before-authorize, late authorize.
 
+**Addendum (Copilot round 3):** (a) the authorization wait is bounded independently of the foreground: the foreground persists `authorize_deadline` in `launch.json` *before* spawning the supervisor, and the
+supervisor self-expires at that deadline without spawning, writes a terminal `never_authorized` outcome, rolls the evidence back and releases the lock itself; test: kill the foreground between lock handoff and
+`authorize.json`. (b) Rollback disposition: `invoking` is written before the spawn, so a never-spawned run returns to `pre_close` through an owner-bound `invoking -> pre_close` rollback transition (T4) permitted only with
+proof (`never_started` in `exit.json`/`outcome.json`, no `child_started`, same-run lock owner); afterwards an attached run takes the `pre_close` record over normally; test: abort followed by an attached invocation.
+
 ### H8 - Idempotence and torn writes (BINDING, T4/T11)
 
 Recovery writes only through the atomic temp+replace writer. A second `--recover` over a `post_close` record exits 2 (`evidence already
@@ -109,6 +114,12 @@ Pipes gave the old runner an inherited-descriptor signal (`drain_incomplete`); r
 exits the shim proves the descendant group is quiescent (POSIX: process-group liveness probe, then group kill; Windows: Job Object membership), kills survivors, and marks the stream
 `drain_incomplete`/capture incomplete; successful finalization fails closed on an incomplete capture (exit 6 class, never `completed`). Where membership cannot be enumerated the result is
 "unknown" and also fails closed. The existing `test_lingering_grandchild_does_not_hang_and_marks_drain_incomplete` scenario is ported to the journaled runner.
+
+**Addendum (Copilot round 3):** (a) the quiescence verdict is persisted per stream in `exit.json` (`quiescence: {proven, method, survivors_killed}` and final byte counts) before any finalization, so a dead finalizer
+cannot let recovery treat an incomplete/unproven capture as `journal_complete`; recovery enforces it (missing or unproven => `journal_partial` at best, never a passing journal capture); test the crash window.
+(b) An empty process group/Job does not prove that no writer escaped it (a grandchild may leave the group with `start_new_session`/`setsid` and keep the descriptors), so completeness additionally requires an
+open-writer probe on the journal files: Windows exclusive-open (`CreateFile` share mode 0) must succeed; Linux scan `/proc/*/fd` for links to the journal files; on a platform with neither primitive the result is
+`unproven` and finalization fails closed (documented limitation). Test: an escaped-session grandchild holding stdout.
 
 ### H14 - Terminal-state polling survives a crash between evidence and outcome writes (BINDING, T8; added after Copilot review of PR 535)
 

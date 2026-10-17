@@ -85,7 +85,7 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
   directory, trust-walked like the lock dir, files 0600):   `meta.json` (run_id, redacted audit argv, `argv_sha256`, effective timeout,
     declared caller wait, host, supervisor/child pid and start times), `launch.json` (the EXACT argv the supervisor executes: 0600, never the redacted copy), `authorize.json`/`abort.json`
     (spawn barrier), `stdout.raw`, `stderr.raw` (OS-redirected,
-    append-only, capped; a descendant-group quiescence check after the direct child exits marks the capture incomplete and fails closed on a lingering writer), `exit.json` (exit code, finished_at, timed_out, written atomically by the shim), and
+    append-only, capped; a descendant-group quiescence check after the direct child exits marks the capture incomplete and fails closed on a lingering writer), `exit.json` (exit code, finished_at, timed_out, and the **per-stream capture-completeness verdict**: `quiescence: {proven, method, survivors_killed}` plus final byte counts, written atomically by the shim BEFORE any finalization, so a finalizer that dies cannot turn an incomplete or unproven capture into a `journal_complete` one on recovery), and
     `outcome.json` (final command exit code and message, written by the finalizer). Raw files may hold unredacted
     engine output: they are never committed; only redacted excerpts enter the evidence record (existing
     `redact`). Journals are retained on any non-success. On a clean exit-0 run the owning run removes only the bulky/sensitive files (`stdout.raw`, `stderr.raw`, `launch.json`); the small
@@ -95,8 +95,13 @@ characterised, so the plan front-loads a read-only characterisation task (T1).
   the child, finalization (steps 9-10) and lock release; the lock payload is handed to the supervisor pid by
   an owner-bound atomic rewrite. A **two-phase authorization barrier** guards the spawn: the supervisor writes `supervisor_ready` and spawns the child only after the foreground writes
   `authorize.json` (nonce + `valid_until`); a foreground timeout before authorization writes `abort.json`, so that exit 2 is provably mutation-free, while after authorization the foreground never
-  claims a mutation-free refusal (unacknowledged start = exit 9 "started (unconfirmed)", resolved by `--poll`). If detachment cannot be established before authorization (Windows breakaway
-  refused), `--detach` exits 2 and never silently degrades to attached. `--poll` falls back to the validated terminal evidence record when `outcome.json` was never written (crash between the two writes).
+    claims a mutation-free refusal (unacknowledged start = exit 9 "started (unconfirmed)", resolved by `--poll`). The authorization wait is bounded **independently of the foreground**: the foreground persists
+    `authorize_deadline` in `launch.json` before spawning the supervisor and the supervisor self-expires at that deadline without ever spawning, writing a terminal `never_authorized` outcome, rolling
+    the evidence record back and releasing the lock itself (so killing the foreground in that window cannot leave a live-but-stuck owner). **Rollback disposition:** `invoking` is still written before the
+    spawn (record-before-mutation), so a never-authorized or never-spawned run is returned to `pre_close` by an interruption-safe, owner-bound `invoking -> pre_close` rollback transition that is permitted
+    only with proof (`exit.json`/`outcome.json` `never_started`, no `child_started`, lock owner = same run); a subsequent attached run then takes the `pre_close` record over normally, which makes the attached
+    fallback real. If detachment cannot be established before authorization (Windows breakaway
+    refused), `--detach` exits 2 and never silently degrades to attached. `--poll` falls back to the validated terminal evidence record when `outcome.json` was never written (crash between the two writes).
 * **D-3 (pre-flight).** `--caller-wait <seconds>` (or `AUTOHARNESS_CALLER_WAIT_SECONDS`): in attached mode, a declared wait below
   `timeout + SUPERVISION_MARGIN_SECONDS` exits 2 before any mutation. An undeclared wait is recorded in the journal as
   `undeclared` and produces a warning, not a refusal (compatibility; OQ-1).
