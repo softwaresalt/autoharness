@@ -1,0 +1,8 @@
+{"timestamp":"2026-10-11T22:21:49.9528764-07:00","actor":"backlogit","item_id":"214-S","event_type":"shipment_created","delta":{"items":["207-F","207.001-T","207.002-T","207.003-T","207.004-T","207.005-T"],"title":"<sanitized>"}}
+{"timestamp":"2026-10-12T11:35:04.1035975-07:00","actor":"backlogit","item_id":"214-S","event_type":"shipment_item_added","delta":{"item_id":"207.006-T"}}
+{"timestamp":"2026-10-16T08:39:14.2679369-07:00","actor":"backlogit","item_id":"214-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"d72e21c657f36dbcdb4c1af1cc8cb5d7","status":"active"}}
+{"timestamp":"2026-10-16T10:43:37.9098109-07:00","actor":"backlogit","item_id":"214-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"214-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-10-16T10:43:40.6769042-07:00","actor":"backlogit","item_id":"214-S","event_type":"pre_task_completion_gate_passed","delta":{"_shipment_operation":"214-S","base_ref":"origin/HEAD","head_ref":"HEAD","level":"shipment","outcome":"passed","ran":true}}
+{"timestamp":"2026-10-16T10:45:43.181456-07:00","actor":"backlogit","item_id":"214-S","event_type":"shipment_status_changed","delta":{"_shipment_operation":"214-S","status":"shipped"}}
+{"timestamp":"2026-10-16T10:45:57.0613088-07:00","actor":"backlogit","item_id":"214-S","event_type":"commit_tracked","delta":{"author":"<sanitized>","commit_sha":"fe1cf82b6235e9a1908e3257bbe0f2a7a42e92e5","message":"<sanitized>"}}
+{"timestamp":"2026-10-16T11:51:45.8031184-07:00","actor":"backlogit","item_id":"214-S","event_type":"archived","delta":{"archive_path":".backlogit/archive/214-S.md"}}
