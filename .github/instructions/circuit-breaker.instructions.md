@@ -296,6 +296,15 @@ running after the full supervision budget is terminated, counted as a failed
 attempt and a session stall, and escalated to the operator, because its
 evidence record and pair lock need operator review.
 
+For a `--detach` run, the supervision budget bounds the whole `--poll` sequence
+that starts at the `--detach` exit 9, not each `--poll` call: `--poll` is a
+short, read-only, idempotent read, and exit 9 from it means the supervised run
+is still going within its budget, not a stall. A `--poll` that reports exit 7
+with `recovery_available`, or a run still reporting exit 9 after the full
+supervision budget, is escalated to the operator (the latter counted as a
+failed attempt and a session stall); the agent never kills the supervisor or
+deletes the pair lock, and routes the orphaned run to `--recover --dry-run`.
+
 ### Session Stall Counting
 
 A **session stall** occurs when the agent encounters a blocking condition that

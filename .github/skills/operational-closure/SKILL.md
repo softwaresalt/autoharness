@@ -136,6 +136,17 @@ autoharness gate closure-evidence --path docs/closure/{shipment_id}-{feature_id}
   `cascade-close` run wrote; never hand-edit the evidence record, and treat a
   `close_evidence` failure against a record the close already wrote as an
   operator-review HALT.
+* **Recovered evidence (211-F)**: when `cascade-close --recover` finalized the
+  record (`recovery.recovered: true`; mode `journal_complete`,
+  `journal_partial`, or `postconditions_only`), cite it as `close_evidence`
+  unmodified. The closure artifact's body states that the evidence was
+  recovered, the recovery mode, and which `recovery.facts` are `unknown`
+  (not observed). A recovered record is real, gate-valid evidence only when it
+  passes; a determinate recovery failure record (exit 5 or 6) is refused by the
+  gate, so closure is not declared complete on it. When closure runs in a
+  delegated subagent, the delegation names the exit 9 / `--poll` run mode and
+  the exit 7 `--recover --dry-run` routing from `shipment-reconcile`, and the
+  subagent never deletes the pair lock.
 * **Enforcement scope and pre-192-F closures**: the `close_path` and
   `close_evidence` checks are enforced only at write time, by the
   `cascade-close` command (which validates its `pre_close` record before
