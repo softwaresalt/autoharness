@@ -38,19 +38,21 @@ from autoharness.shipment_close.liveness import current_host
 from autoharness.shipment_close.poll import poll_cascade_close
 
 
-def _tree(root: Path) -> dict[str, tuple[int, int]]:
+def _tree(root: Path, *, skip_journal: bool = False) -> dict[str, tuple[int, int]]:
     return {
         str(path.relative_to(root)): (path.stat().st_size, path.stat().st_mtime_ns)
         for path in sorted(root.rglob("*"))
-        if path.is_file()
+        if path.is_file() and not (skip_journal and any(part.endswith(".journal") for part in path.relative_to(root).parts[:-1]))
     }
 
 
 class PollTests(unittest.TestCase):
-    def _poll(self, harness: _Harness, **kwargs: object):
-        before = _tree(harness.root)
+    def _poll(self, harness: _Harness, *, live_supervisor: bool = False, **kwargs: object):
+        # A live detached supervisor keeps writing its own journal (including atomic temp files) while
+        # the poll runs, so only the files outside the journal can prove the poll itself wrote nothing.
+        before = _tree(harness.root, skip_journal=live_supervisor)
         result = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE, **kwargs)
-        self.assertEqual(_tree(harness.root), before, "--poll must not write anything")
+        self.assertEqual(_tree(harness.root, skip_journal=live_supervisor), before, "--poll must not write anything")
         again = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE, **kwargs)
         self.assertEqual((again.exit_code, again.outcome_source), (result.exit_code, result.outcome_source))
         return result
@@ -113,12 +115,14 @@ class PollTests(unittest.TestCase):
         harness = _DetachHarness(self, sleep=3.0)
         started = harness.detach()
         self.assertEqual(started.exit_code, EXIT_STARTED, started.message)
-        running = self._poll(harness)
+        running = self._poll(harness, live_supervisor=True)
         self.assertEqual(running.exit_code, EXIT_STARTED, running.message)
         self.assertIsNone(running.outcome_source)
         finished = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE, wait_seconds=60)
         self.assertEqual(finished.exit_code, EXIT_OK, finished.message)
-        self.assertEqual(finished.outcome_source, "journal_outcome")
+        # The supervisor writes the terminal evidence record before outcome.json; a poll landing in that
+        # window correctly derives the same exit code from the record.
+        self.assertIn(finished.outcome_source, ("journal_outcome", "evidence_record"))
 
     def _orphan(self, harness: _Harness) -> None:
         with mock.patch.object(command, "run_journaled", side_effect=KeyboardInterrupt):
