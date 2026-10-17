@@ -2286,7 +2286,9 @@ Subcommands:
 Usage:
   autoharness shipment cascade-close --shipment <S> --feature <F> --sha <merge_sha>
                         --message <text> --author <name> [--timeout <seconds>]
-                        [--detach] [--workspace <path>] [--json]
+                        [--caller-wait <seconds>] [--detach] [--workspace <path>] [--json]
+  autoharness shipment cascade-close --poll --shipment <S> --feature <F>
+                        [--wait <seconds>] [--workspace <path>] [--json]
   autoharness shipment cascade-close --classify-only [--replace-pre-close]
                         --shipment <S> --feature <F> --sha <merge_sha>
                         [--workspace <path>] [--json]
@@ -2316,6 +2318,17 @@ cascade-close options:
                       authorization barrier, and return exit 9 once it has started.
                       Exit 2/4 here still mean nothing was invoked; after exit 9 a
                       mutation is possible. Never falls back to attached.
+  --caller-wait <s>   Attached mutating mode: the longest the caller will wait (also read
+                      from AUTOHARNESS_CALLER_WAIT_SECONDS; the flag wins). Declared and
+                      shorter than --timeout + 600 s => exit 2 before anything runs (a
+                      caller that gives up first can kill the wrapper mid-mutation). Use
+                      a longer wait, or --detach with --poll. Ignored by --detach.
+  --poll              Read-only: report a supervised run. Exit 9 while it runs, its final
+                      exit code once it ended (from outcome.json, else derived from the
+                      terminal evidence record), exit 7 with recovery_available when the
+                      supervisor is gone. Writes nothing, resolves no binary, needs no --sha.
+  --wait <secs>       With --poll only: wait up to this many seconds (0-3600, default 0)
+                      for a running supervisor to finish.
   --replace-pre-close With --classify-only only: replace an existing pre_close record.
   --workspace, -w     Workspace root. Default: .
   --json              Emit one JSON object: mode, exit_code, evidence_path,
@@ -2352,10 +2365,14 @@ _CASCADE_CLOSE_VALUE_FLAGS = (
     "--message",
     "--author",
     "--timeout",
+    "--caller-wait",
+    "--wait",
     "--workspace",
     "-w",
 )
-_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json", "--detach")
+_CASCADE_CLOSE_BOOL_FLAGS = ("--classify-only", "--replace-pre-close", "--json", "--detach", "--poll")
+_CALLER_WAIT_ENV = "AUTOHARNESS_CALLER_WAIT_SECONDS"
+_POLL_MAX_WAIT_SECONDS = 3600
 # Mutation possibility per exit code (plan A3 exit-code table). Exit 0 is "yes"
 # only for the mutating mode; --classify-only never invokes the cascade. Exit 9
 # (--detach/--poll: started or still running) always means a mutation is possible.
@@ -2371,15 +2388,26 @@ _CASCADE_CLOSE_MUTATION = {
     9: "yes",
 }
 _CASCADE_CLOSE_NO_REVIEW = frozenset({0, 2, 3, 9})
-_CASCADE_CLOSE_SUPERVISED_MODES = frozenset({"mutating", "detach"})
+_CASCADE_CLOSE_SUPERVISED_MODES = frozenset({"mutating", "detach", "poll"})
 # Modes whose --json object also carries journal_path (the existing modes keep their exact key set).
 _CASCADE_CLOSE_NEW_MODES = frozenset({"detach", "poll"})
 
 
 def _cascade_close_mode(args: list[str]) -> str:
+    if "--poll" in args:
+        return "poll"
     if "--classify-only" in args:
         return "replace_pre_close" if "--replace-pre-close" in args else "classify_only"
     return "detach" if "--detach" in args else "mutating"
+
+
+def _parse_seconds(text: str, label: str, *, maximum: int | None = None) -> int:
+    if not text.isascii() or not text.isdigit():
+        raise ValueError(f"{label} must be a non-negative integer number of seconds (got {text!r})")
+    value = int(text)
+    if maximum is not None and value > maximum:
+        raise ValueError(f"{label} must be at most {maximum} seconds (got {value})")
+    return value
 
 
 def _parse_cascade_close_args(args: list[str]) -> dict:
@@ -2411,7 +2439,8 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
             raise ValueError(f"Unknown shipment cascade-close argument: {arg}")
         index += 1
 
-    for required in ("--shipment", "--feature", "--sha"):
+    polling = "--poll" in flags
+    for required in ("--shipment", "--feature") if polling else ("--shipment", "--feature", "--sha"):
         if required not in values:
             raise ValueError(f"shipment cascade-close requires {required}")
     classify_only = "--classify-only" in flags
@@ -2419,8 +2448,18 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
         raise ValueError("--replace-pre-close is accepted only together with --classify-only")
     if "--detach" in flags and classify_only:
         raise ValueError("--detach cannot be combined with --classify-only")
-    if classify_only:
-        stray = [flag for flag in ("--message", "--author", "--timeout") if flag in values]
+    if "--wait" in values and not polling:
+        raise ValueError("--wait is accepted only together with --poll")
+    if polling:
+        stray = [
+            flag
+            for flag in ("--message", "--author", "--timeout", "--caller-wait", "--classify-only", "--replace-pre-close", "--detach")
+            if flag in values or flag in flags
+        ]
+        if stray:
+            raise ValueError(f"{', '.join(stray)} cannot be combined with --poll")
+    elif classify_only:
+        stray = [flag for flag in ("--message", "--author", "--timeout", "--caller-wait") if flag in values]
         if stray:
             raise ValueError(f"{', '.join(stray)} cannot be combined with --classify-only")
     else:
@@ -2436,18 +2475,28 @@ def _parse_cascade_close_args(args: list[str]) -> dict:
             timeout = validate_timeout(int(text))
         except PersistError as exc:
             raise ValueError(str(exc)) from exc
+    wait = _parse_seconds(values["--wait"], "--wait", maximum=_POLL_MAX_WAIT_SECONDS) if "--wait" in values else 0
+    caller_wait = None
+    if not polling and not classify_only:
+        if "--caller-wait" in values:
+            caller_wait = _parse_seconds(values["--caller-wait"], "--caller-wait")
+        elif os.environ.get(_CALLER_WAIT_ENV, "").strip():
+            caller_wait = _parse_seconds(os.environ[_CALLER_WAIT_ENV].strip(), _CALLER_WAIT_ENV)
     return {
         "mode": _cascade_close_mode(args),
         "shipment": values["--shipment"],
         "feature": values["--feature"],
-        "sha": values["--sha"],
+        "sha": values.get("--sha"),
         "message": values.get("--message"),
         "author": values.get("--author"),
         "timeout": timeout,
+        "wait": wait,
+        "caller_wait": caller_wait,
         "workspace": Path(values.get("--workspace", ".")),
         "classify_only": classify_only,
         "replace_pre_close": "--replace-pre-close" in flags,
         "detach": "--detach" in flags,
+        "poll": polling,
         "emit_json": "--json" in flags,
     }
 
@@ -2460,7 +2509,7 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
 
     evidence_path = field("evidence_path")
     failures = [str(failure) for failure in (field("failures") or ())]
-    if exit_code not in (0, 3) and message and message not in failures:
+    if exit_code not in (0, 3, 9) and message and message not in failures:
         failures.append(message)
     if mode in _CASCADE_CLOSE_SUPERVISED_MODES:
         mutation = _CASCADE_CLOSE_MUTATION.get(exit_code, "unknown")
@@ -2486,6 +2535,9 @@ def _cascade_close_payload(mode: str, exit_code: int, message: str, result: obje
     if mode in _CASCADE_CLOSE_NEW_MODES:
         journal_path = field("journal_path")
         payload["journal_path"] = str(journal_path) if journal_path is not None else None
+    if mode == "poll":
+        payload["outcome_source"] = field("outcome_source")
+        payload["recovery_available"] = field("recovery_available")
     return payload
 
 
@@ -2525,11 +2577,20 @@ def _shipment_cascade_close_command(rest: list[str]) -> None:
     # Lazy imports: the module attributes are the test seams, and an import
     # failure here never breaks any unrelated command.
     from autoharness.shipment_close import command as cascade_command
+    from autoharness.shipment_close import poll as cascade_poll
     from autoharness.shipment_close import preclose as cascade_preclose
     from autoharness.shipment_close import runner as cascade_runner
     from autoharness.shipment_close.persist import PersistError
 
     mode = parsed["mode"]
+    if parsed["poll"]:
+        # Read-only: no backlogit binary is resolved or spawned.
+        result = cascade_poll.poll_cascade_close(
+            parsed["workspace"], parsed["shipment"], parsed["feature"], wait_seconds=parsed["wait"]
+        )
+        payload = _cascade_close_payload(mode, result.exit_code, result.message, result)
+        _emit_cascade_close(payload, result.message, parsed["emit_json"])
+        return
     try:
         resolved = cascade_runner.resolve_backlogit_binary(parsed["workspace"])
     except PersistError as exc:
@@ -2547,6 +2608,8 @@ def _shipment_cascade_close_command(rest: list[str]) -> None:
         )
     else:
         extra: dict[str, object] = {"detach": True} if parsed["detach"] else {}
+        if parsed["caller_wait"] is not None:
+            extra["caller_wait_seconds"] = parsed["caller_wait"]
         result = cascade_command.run_cascade_close(
             parsed["workspace"],
             parsed["shipment"],

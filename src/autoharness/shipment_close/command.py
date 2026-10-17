@@ -131,6 +131,7 @@ from autoharness.shipment_close.preclose import (
 from autoharness.shipment_close.quiescence import QUIESCENCE_GRACE_SECONDS
 from autoharness.shipment_close.runner import (
     DEFAULT_TIMEOUT_SECONDS,
+    SUPERVISION_MARGIN_SECONDS,
     BoundedRunResult,
     ResolvedBinary,
     hash_binary,
@@ -1132,6 +1133,17 @@ def run_cascade_close(
         validate_timeout(timeout)
     except (PreCloseError, PersistError) as exc:
         return state.outcome(exc.exit_code, str(exc))
+    if caller_wait_seconds is not None and (type(caller_wait_seconds) is not int or caller_wait_seconds < 0):
+        return state.outcome(EXIT_INPUT, "the declared caller wait must be a non-negative integer number of seconds")
+    needed = timeout + SUPERVISION_MARGIN_SECONDS
+    if not detach and caller_wait_seconds is not None and caller_wait_seconds < needed:
+        # Pre-flight (RCA of 214-S): a caller that gives up before the supervision budget can kill the wrapper mid-mutation.
+        return state.outcome(
+            EXIT_INPUT,
+            f"the declared caller wait ({caller_wait_seconds} s) is shorter than --timeout plus the supervision margin "
+            f"({needed} s); re-run with a caller wait of at least {needed} s, or use --detach and --poll. "
+            "Nothing was invoked",
+        )
     owner = run_id if run_id is not None else uuid.uuid4().hex
     try:
         lock = acquire_pair_lock(workspace, shipment_id, feature_id, owner)

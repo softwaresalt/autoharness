@@ -389,7 +389,7 @@ class EscapedWriterProbeTests(unittest.TestCase):
         if probe.clean is None:
             self.skipTest(f"no open-writer primitive here: {probe.detail}")
         launch = read_json(fixture.journal, "launch.json")
-        with mock.patch.object(supervisor, "_group_for", lambda pid, entered=None: EmptyGroup()):
+        with mock.patch.object(quiescence, "enter_group", lambda pid=None: EmptyGroup()):
             exit_record = supervisor.run_child(fixture.journal, launch, grace_seconds=1.0)
         self.addCleanup(_kill_pid, int(pid_file.read_text(encoding="utf-8")))
         for stream in ("stdout", "stderr"):

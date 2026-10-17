@@ -90,7 +90,7 @@ class _DetachHarness(_Harness):
             if path.exists():
                 try:
                     return json.loads(path.read_text(encoding="utf-8"))
-                except ValueError:
+                except (ValueError, OSError):  # mid-write, or a transient Windows sharing violation
                     pass
             time.sleep(0.1)
         self.test.fail("the supervisor never wrote outcome.json")
@@ -225,6 +225,21 @@ class NeverSpawnWithoutAuthorizationTests(unittest.TestCase):
         journal = Journal(path=harness.directory, run_id=harness.run_id())
         self.assertEqual(read_json(journal, "exit.json")["state"], "never_started")
         self.assertEqual(read_json(journal, "outcome.json")["outcome"], "never_started")
+
+    def test_a_runtime_without_job_breakaway_fails_closed_before_authorizing(self) -> None:
+        harness = _DetachHarness(self)
+
+        def confined(journal_dir):
+            process = _spawn([sys.executable, "-c", "import time; time.sleep(1)"], journal_dir)
+            process.autoharness_breakaway = False
+            return process
+
+        with mock.patch.object(command, "spawn_supervisor", confined):
+            outcome = harness.detach()
+        self.assertEqual(outcome.exit_code, EXIT_INPUT, outcome.message)
+        self.assertIn("breakaway", outcome.message)
+        self.assertFalse((harness.directory / "authorize.json").exists())
+        harness.assert_rolled_back_without_shipping()
 
     def test_a_late_authorize_past_valid_until_is_refused(self) -> None:
         harness = _DetachHarness(self)
