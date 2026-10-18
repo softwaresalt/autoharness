@@ -328,17 +328,41 @@ deviation, and the closure-evidence gate refuses the closure it produces.
 ```text
 autoharness shipment cascade-close --shipment <S> --feature <F> --sha <merge_sha>
                       --message <text> --author <name> [--timeout <seconds>]
+                      [--caller-wait <seconds>] [--detach] [--workspace <path>] [--json]
+autoharness shipment cascade-close --poll --shipment <S> --feature <F>
+                      [--wait <seconds>] [--workspace <path>] [--json]
+autoharness shipment cascade-close --recover --shipment <S> --feature <F>
+                      [--dry-run] [--confirm-owner-dead] [--confirm-engine-stopped]
                       [--workspace <path>] [--json]
 autoharness shipment cascade-close --classify-only [--replace-pre-close]
                       --shipment <S> --feature <F> --sha <merge_sha>
                       [--workspace <path>] [--json]
 ```
 
+Flag combinations are validated before anything runs, and a violation exits 2. `--shipment` and `--feature` are
+always required; `--sha` is required except with `--poll` or `--recover`. A duplicate or unknown flag is refused.
+
+* `--recover` rejects `--sha`, `--message`, `--author`, `--timeout`, `--caller-wait`, `--wait`, `--classify-only`,
+  `--replace-pre-close`, `--detach` and `--poll`.
+* `--poll` rejects `--message`, `--author`, `--timeout`, `--caller-wait`, `--classify-only`, `--replace-pre-close`
+  and `--detach`. It needs no `--sha` (one that is passed is ignored).
+* `--classify-only` rejects `--message`, `--author`, `--timeout`, `--caller-wait` and `--detach`.
+  `--replace-pre-close` is accepted only together with `--classify-only`.
+* `--wait` is accepted only with `--poll`. `--dry-run`, `--confirm-owner-dead` and `--confirm-engine-stopped` are
+  accepted only with `--recover`.
+* The mutating mode (with or without `--detach`) requires `--message` and `--author`. Its caller wait comes from
+  `--caller-wait` or `AUTOHARNESS_CALLER_WAIT_SECONDS` (the flag wins); an invalid value of either exits 2, even with
+  `--detach`, which otherwise ignores the caller wait. The environment variable is read only by the mutating
+  modes.
+
 | Mode | Behavior | Approval |
 |---|---|---|
 | plain `--classify-only` | Re-runs the classifier, probes the engine, selects the close path, and writes a new `pre_close` record. No-clobber: an existing `pre_close` record exits 2 and is left untouched. Never invokes the cascade. | None |
 | `--classify-only --replace-pre-close` | Overwrites an existing `pre_close` record through the pre_close takeover (a compare-and-swap on the prior `run_id`). | Destructive-command approval |
-| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-3600 seconds (default 1800). | Destructive-command approval |
+| mutating (no `--classify-only`) | Invokes `backlogit shipment ship` only when the selected close path is `CASCADE`, then verifies the postconditions and writes the `post_close` record. `--message` and `--author` are required; `--timeout` is 30-3600 seconds (default 1800). Attached: the command stays in the foreground until the cascade ends. | Destructive-command approval |
+| mutating `--detach` | The same destructive run, handed to a detached supervisor (its own process group/session, journaled output) behind a two-phase authorization barrier. Returns exit 9 once the supervisor has started; the run is not complete and a mutation is possible. If the supervised run already finished within the acknowledgement window, `--detach` returns that run's final exit code instead (route it as the mutating row). Never falls back to attached. | Destructive-command approval |
+| `--poll` | Read-only report on a supervised run: exit 9 while it runs, its final exit code once it ended, exit 7 with `recovery_available` when the supervisor is gone. Writes nothing, takes no lock, resolves no binary, needs no `--sha`. `--wait <seconds>` (0-3600, default 0) waits for a running supervisor to finish. | None |
+| `--recover` | Evidence-only recovery of an orphaned `invoking` record. Never invokes `backlogit` and never moves, archives, or edits a backlog artifact. See [Recovery](#recovery-recover). `--dry-run` runs every check and writes nothing. | Operator approval for the real run (not `--dry-run`) |
 
 The evidence record is written to the fixed path
 `docs/closure/evidence/{shipment_id}-{feature_id}-close-evidence.json`. That path
@@ -359,14 +383,20 @@ cost of `backlogit shipment ship`, and P is its per-artifact cost:
 * B > 3600: HALT before the mutating run for an operator decision. Never invoke
   with a timeout known to be too short.
 
-The reference values F = 133 s and P = 35 s were measured on backlogit 1.11.0 at
-~1,700 indexed artifacts from the backlogit event logs under `<backlog root>/logs`
-(`.backlog/` by default; legacy `.backlogit/`) (201-S: 553 s predicted vs 581 s
-actual; 202-S: 483 s predicted vs ~486 s actual). The per-archive term tracks a full
-index rebuild, so it grows with index size. The 1.5 factor leaves at least 50 %
-headroom over the model, and more under the 1800 s default. Re-derive F and P from
-`<backlog root>/logs` when a cascade runs longer than its prediction by more than that
-headroom.
+The reference values F = 800 s and P = 45 s (backlogit 1.11.0) were re-derived on
+2026-10-16 from the 15 `docs/closure/evidence/*-close-evidence.json` records
+(duration = `invocation.finished_at - invocation.started_at`, N = manifest members
+plus the shipment record). They cover every observed record, including 169-S (1153 s
+at N = 9), and replace the earlier F = 133 s, P = 35 s, which under-covered five of
+them. The per-archive term tracks a full index rebuild, so it grows with index size.
+Under the reference values the default suffices only for N <= 8 (B = 1740 s at N = 8,
+1808 s at N = 9), and B <= 3600 holds through N = 35. Compute B per run rather than
+assuming the default. The 1.5 factor leaves at least 50 % headroom over the model,
+and more under the 1800 s default. Recompute F and P from your own workspace's close
+evidence records rather than trusting these values, and again when a cascade runs
+longer than its prediction by more than that headroom. The backlogit event logs under
+`<backlog root>/logs` (`.backlog/` by default; legacy `.backlogit/`) cross-check
+the timing, since they hold the engine's own timestamps.
 
 The ceiling is finite on purpose. A timeout kills the engine mid-cascade and ends in
 exit 6 (`mutation_possible: indeterminate`), so a too-short timeout tears a healthy
@@ -391,19 +421,37 @@ derived from the runner's own bounds:
   re-reads, evidence writes, and lock release.
 
 Whenever the supervision budget exceeds the agent runtime's synchronous tool-call
-limit (some runtimes cap a shell call at about 10 minutes), Ship MUST start the
-mutating run in the runtime's background/async mode, attached to the session (never
-detached from it), and poll until the command exits. If the runtime cannot keep the
-process alive for the full supervision budget, Ship HALTs before the mutating run. A
-runtime that kills `autoharness` mid-run leaves `backlogit` running unsupervised in
-its own process group, the evidence record at `invoking`, and the pair lock in place,
-so the next run exits 7.
+limit (some runtimes cap a shell call at about 10 minutes), Ship MUST run the
+mutating command in one of two supported ways. If the runtime cannot keep the process
+alive for the full supervision budget (attached), or cannot keep polling for it
+(`--detach`), Ship HALTs before the mutating run:
 
-Ship stays attached to the run until the command exits and never abandons or kills
+* **`--detach` + `--poll` (preferred).** `--detach` hands the run to a detached
+  supervisor and returns exit 9 within seconds, so no agent tool wait can kill the
+  cascade. Ship then calls `--poll --wait <seconds>` repeatedly (each call within the
+  runtime's synchronous limit) until it reports a final exit code. Exit 9 from `--poll`
+  means still running: keep polling, within the supervision budget (see Stall bound
+  below). Exit 9 is not a result and never authorizes a commit.
+* **Attached, async.** Start the mutating run in the runtime's background/async mode,
+  attached to the session, and poll the runtime until the command exits. Declare the
+  longest wait the runtime will grant with `--caller-wait <seconds>` (or
+  `AUTOHARNESS_CALLER_WAIT_SECONDS`; the flag wins). A declared wait shorter than the
+  effective `--timeout` + 600 s exits 2 before anything runs, because a caller that
+  gives up first can kill the wrapper mid-mutation. `--caller-wait` is ignored by
+  `--detach`.
+
+A runtime that kills `autoharness` mid-run (attached) leaves `backlogit` running
+unsupervised in its own process group, the evidence record at `invoking`, and the pair
+lock in place, so the next run exits 7. That state is recoverable: see
+[Recovery](#recovery-recover).
+
+Ship stays with the run until it reaches a final exit code and never abandons or kills
 it on an agent-tool wait or before the supervision budget elapses. For this run the
 supervision budget is the stall bound: the circuit-breaker Stall Detection table's
 `autoharness shipment cascade-close` (mutating mode) row sets it in place of the
-"Other commands" 5-minute stall timeout.
+"Other commands" 5-minute stall timeout. For `--detach`, the bound applies to the whole
+`--poll` sequence from the exit 9 start; individual `--poll` calls are short reads,
+not separate stall subjects.
 The broader stall-detection timeout class for other long-running commands remains
 deferred (stash 9869AA32).
 
@@ -428,12 +476,75 @@ is never answered with `SAFE_CLOSE`.
 | `4` | Pre-invocation revalidation drift: snapshot, engine re-probe, binary hash, or a difference from the `cascade`-selected `--classify-only` record. Nothing invoked. Never answered with `SAFE_CLOSE`. | `no` | Yes |
 | `5` | A postcondition failed, including a non-empty `post_close.linked_deliberation_drift`. | `yes` | Yes |
 | `6` | `backlogit` exited non-zero, timed out, or its output did not parse. | `indeterminate` | Yes |
-| `7` | The pair lock is already held, or an existing evidence record is an `invoking` record, unreadable, ambiguous, or names a different pair. Nothing invoked. | `unknown` | Yes |
+| `7` | The pair lock is already held, or an existing evidence record is an `invoking` record, unreadable, ambiguous, or names a different pair. Nothing invoked. With `--poll` and `recovery_available`: the supervisor is gone (see [Recovery](#recovery-recover)). | `unknown` | Yes |
 | `8` | The post-close evidence write failed after invocation. | `yes` | Yes |
+| `9` | `--detach` started, or `--poll` found, a supervised run still running. Not a result: the run is incomplete and a mutation is possible. (A `--detach` whose run already finished inside the acknowledgement window returns that run's final exit code instead.) | `yes` | No |
+| `10` | `--recover` was refused; no evidence record is written (a provably dead owner's lock may already have been tombstoned, because the lock takeover precedes reconstruction). | `unknown` | Yes |
 
-Exits 5, 6, 7, and 8 forbid committing the backlog root, re-running
-`cascade-close`, calling `backlogit shipment ship` directly, or substituting
-`SAFE_CLOSE` until an operator reviews the backlog state and the record.
+Exits 5, 6, 7, 8, and 10 forbid committing the backlog root, re-running
+`cascade-close` (other than the `--recover` path an exit 7 routes to), calling
+`backlogit shipment ship` directly, or substituting `SAFE_CLOSE` until an operator
+reviews the backlog state and the record. A recovered record exits 0 only when it
+satisfies the closure-evidence gate; a determinate failure record exits 5 or 6, and the
+gate keeps refusing it.
+
+### Output journal
+
+Every mutating run writes an unredacted output journal under the Git-ignored
+`.autoharness/gates/cascade-close/{shipment_id}-{feature_id}.journal/`: the raw child
+streams (`stdout.raw`, `stderr.raw`), the child-start marker (`child_started.json`), the
+exit sentinel (`exit.json`, which carries the per-stream quiescence verdict), and the
+final `outcome.json`. A clean exit-0 run removes `stdout.raw`, `stderr.raw` and `launch.json`
+afterwards, leaving the small JSON records (`meta.json`, `child_started.json`, `exit.json` and
+`outcome.json`, plus the barrier files of a `--detach` run) for `--poll`. A wrapper killed mid-ship leaves the journal behind, which is what
+`--poll` and `--recover` read. The directory is created through a trusted-directory
+check (no symlink or junction component, inside the workspace), files are `0600` on
+POSIX, and every read is size-capped and schema-checked. On Windows the mode bits do not
+restrict access: the directory inherits the workspace ACL and is Git-ignored, so treat
+it as sensitive local state. The journal holds unredacted engine output; the evidence
+record only ever receives redacted excerpts. Never commit, edit, or delete the journal.
+
+Before the exit sentinel is trusted, the run proves that no process still writes the
+streams: Windows opens each stream with share mode 0, and Linux scans `/proc/*/fd`. The
+Linux scan counts a same-uid process whose descriptor table it cannot read (a `dumpable=0`
+helper such as `(sd-pam)`) as unproven, unless that process started, per
+`/proc/<pid>/stat`, more than 2 seconds before the journal was created: it cannot have
+inherited a descriptor to files that did not exist yet. A process whose start time cannot
+be read, or that started later, still leaves the capture unproven.
+
+### Recovery (`--recover`)
+
+When a run is killed after the evidence record reached `invoking`, the next run exits 7
+and the pair lock names a dead owner. `--poll` reports that state as `recovery_available`.
+Recovery rebuilds the evidence record from what was observed, in this order:
+
+1. `--recover --dry-run` runs every check (record phase and pair, `pre_close` validity,
+   owner liveness, child liveness, a settle-window stability read, lock takeover
+   eligibility) and reports the recovery mode. It writes nothing and takes no lock.
+2. After operator approval, `--recover` takes over the stale lock (the old lock is
+   renamed to a never-overwritten tombstone), then writes one of:
+   * a recovered `post_close` record (`recovery.recovered: true`) in mode
+     `journal_complete` (stdout observed and quiescence proven),
+     `journal_partial` (the journal exists but is incomplete; like `postconditions_only` it
+     requires the archived footprint to be tied to this cascade by engine event-log
+     attribution, otherwise the recovery is refused), or
+     `postconditions_only` (no usable journal; the archived footprint must be tied to
+     this cascade by engine event-log provenance, otherwise the recovery is refused);
+   * for a run that provably never started a child (`never_started`), a rollback of the
+     record from `invoking` to `pre_close` (exit 2, reported as `recovery_action: rollback` and
+     `phase_written: pre_close`); retry the mutating run attached only on that report. Any
+     other `--recover` exit 2 (an argument or input error, or `evidence already finalized`)
+     does not prove the original invocation was mutation-free: HALT to the operator;
+   * no evidence record, with exit 10, for anything that cannot be proven (a provably dead
+     owner's lock may already have been tombstoned by then, because the lock takeover
+     precedes reconstruction).
+3. A second `--recover` on a finalized record exits 2 (`evidence already finalized`).
+
+`--confirm-owner-dead` and `--confirm-engine-stopped` are operator assertions for the
+cases the command cannot prove itself (a lock owner on a foreign host or with a legacy
+or unreadable lock; a legacy record with no journal). They are accepted only with
+`--recover`, and only after the operator has confirmed the fact. Recovery never invokes
+`backlogit` and never modifies a backlog artifact.
 
 **Pair lock (exit 7).** Every run takes a per-pair lock, created exclusively at
 `.autoharness/gates/cascade-close/{shipment_id}-{feature_id}.lock` (Git-ignored),
@@ -444,7 +555,9 @@ progress or was killed or crashed. Removing a stale lock is an **operator-only**
 action, taken only after the operator confirms no `cascade-close` run for that pair
 is still in progress and reviews the evidence record (an `invoking` phase means a
 prior run may have mutated the backlog). An agent must never delete, rename, or
-overwrite the lock file; it HALTs on exit 7 instead.
+overwrite the lock file by hand; it HALTs on exit 7 instead. The supported way past an
+orphaned lock is `--recover`, which takes over only a lock whose owner is provably dead
+(or operator-confirmed dead) and leaves a tombstone beside it rather than deleting it.
 
 ### `--json` output
 
@@ -452,7 +565,7 @@ overwrite the lock file; it HALTs on exit 7 instead.
 
 | Field | Meaning |
 |---|---|
-| `mode` | `mutating`, `classify_only`, or `replace_pre_close` |
+| `mode` | `mutating`, `detach`, `poll`, `recover`, `classify_only`, or `replace_pre_close` |
 | `exit_code` | The exit code above |
 | `evidence_path` | The evidence record path, or `null` |
 | `phase_written` | The record phase this run wrote, or `null` |
@@ -462,7 +575,16 @@ overwrite the lock file; it HALTs on exit 7 instead.
 | `mutation_possible` | `no`, `yes`, `indeterminate`, or `unknown` |
 | `postcondition_verdict` | `pass`, `fail`, or `null` when no postconditions ran |
 | `failures` | A list of failure messages |
-| `operator_action` | `none` for exits 0, 2, and 3; otherwise `review_required` |
+| `operator_action` | `none` for exits 0, 2, 3, and 9; otherwise `review_required` |
+
+The `detach`, `poll`, and `recover` modes also carry `journal_path`. `poll` adds
+`outcome_source` (`journal_outcome`, `evidence_record`, or `recovered_evidence`) and `recovery_available`;
+`recover` adds `dry_run`, `recovered`, `recovery_mode`, `recovery_action`, and `notes`.
+For `--recover`, `mutation_possible` describes the original run: `yes` when a record was recovered, `no` when the
+record was rolled back to `pre_close` (and for exit 2, which on its own is not proof that the original
+invocation was mutation-free), otherwise `unknown`.
+A mutating or detach exit 7 that carries the hint adds `recovery_available`. Every other
+key set is unchanged.
 
 ### Evidence record fields
 
@@ -502,6 +624,17 @@ The record's selection and disposition fields:
 
 The effective `--timeout` is not recorded in the evidence record; the record carries
 only whether the run timed out (`invocation.timed_out`).
+
+A recovered record also carries an additive `recovery` block: `recovered` (`true`),
+`mode` (`journal_complete`, `journal_partial`, or `postconditions_only`), `recovered_at`,
+`recovery_run_id`, `supersedes_run_id`, `lock_disposition` (`tombstoned`,
+`operator_confirmed`, or `absent`, with its basis), `engine_attribution` (the engine
+event-log provenance, or `null`), and `facts`. `facts` names, for each of `exit_code`,
+`timed_out`, `finished_at`, `stdout`, `stderr`, `archived_ids`, `returned_ids`,
+`commit_sha`, and `mutation_state`, whether it was `observed_journal`,
+`engine_event_log`, `derived_live_state`, or `unknown`; a fact marked `unknown` was not
+observed, and its value is null or an explicit `unavailable` capture, never invented. A
+recovered record can never have `mutation_state: none`.
 
 ### Closure-evidence gate: close-path checks
 
@@ -543,9 +676,16 @@ With `--json`, the result also carries `warnings[]`, a list of non-blocking note
 
 * the closure artifact has no `merge_commit` key, so the record's `merge_commit_sha`
   was not cross-checked;
-* the `SAFE_CLOSE` observation set is empty, so the re-check was vacuous.
+* the `SAFE_CLOSE` observation set is empty, so the re-check was vacuous;
+* the record was RECOVERED (`--recover`) rather than captured by an uninterrupted
+  `cascade-close`, so facts marked unknown in `record.recovery.facts` were not observed.
 
-A warning never changes the exit code. The structured-evidence request to the
+A warning never changes the exit code. When the record the gate validates is a recovered
+record, the result also carries `evidence_recovered: true` and `recovery_mode` (and the
+third warning above), and the
+text output prints an advisory that facts marked unknown in `recovery.facts` were not
+observed. The advisory does not change the verdict: the gate still validates the record
+as pass-only, so a determinate recovery failure record is refused. The structured-evidence request to the
 upstream `backlogit` maintainers is recorded in
 [the backlogit `shipment ship` structured-evidence request](bugs/2026-09-27-backlogit-shipment-ship-structured-evidence-request.md).
 autoharness does not depend on it.

@@ -405,7 +405,13 @@ ROUTING_TABLE_ROWS = (
     "| mutating | 0 | Run the Linked-Deliberation Disposition step with its inputs from the evidence record, then write the closure artifact with `close_path: cascade` and `close_evidence` |",
     "| mutating | 3 | Reached only when no `cascade`-selected `--classify-only` record preceded the run",
     "| either | 2, 4 | HALT. Nothing was mutated.",
-    "| either | 5, 6, 7, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |",
+    "| either | 5, 6, 8 | HALT. Operator review. No commit of the backlog root, no retry, no direct call |",
+    "| either | 7 | HALT. Operator review. Nothing was invoked.",
+    "| mutating `--detach` | 9 | Started, not complete: a mutation is possible.",
+    "| `--poll` | 9 | Still running:",
+    "| `--poll` | 7 with `recovery_available` |",
+    "| `--recover` | 0 | A recovered evidence record that passes the closure-evidence gate",
+    "| `--recover` | 5, 6, 10 | HALT. Operator review.",
 )
 PRE_CLOSE_FIELDS = (
     "`pre_close.engine_semantics`",
@@ -780,6 +786,18 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
                 self.assertIn(_CB_NO_EARLY_KILL, collapsed)
                 self.assertIn("the command's runner alone owns that child's expiry", collapsed)
                 self.assertIn(f"`--timeout` + {_runner.SUPERVISION_MARGIN_SECONDS} s", collapsed)
+
+    def test_circuit_breaker_exempts_running_exit_9_from_failure_counter(self) -> None:
+        """PR #536 review: routine `--poll` exit 9 must not count toward the retry threshold."""
+
+        for label, text in _read_pair(CIRCUIT_BREAKER_FILES):
+            with self.subTest(path=label):
+                threshold = _collapse(_heading_section(text, "## Universal Retry Threshold"))
+                self.assertIn('the expected "still running" exit 9', threshold)
+                self.assertIn("`--detach` or `--poll`", threshold)
+                self.assertIn("never increments the counter", threshold)
+                self.assertIn("remains a counted failure", threshold)
+                self.assertIn("not a counted failure", _collapse(_heading_section(text, STALL_DETECTION_HEADING)))
 
     def test_supervision_margin_covers_the_runner_bounds(self) -> None:
         """PR #485 review: the margin covers both probes, every kill path, and filesystem headroom."""

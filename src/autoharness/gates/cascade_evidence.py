@@ -1389,8 +1389,243 @@ def _check_capture(checker: _Checker, capture: Mapping[str, object], where: str)
     checker.field(capture, "excerpt", where, _is_str, "a string")
 
 
-def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: Mapping[str, object] | None) -> None:
-    """``cascade`` requirements plus internal consistency (AS-F11)."""
+RECOVERY_MODES: Final = ("journal_complete", "journal_partial", "postconditions_only")
+RECOVERY_FACT_KEYS: Final = (
+    "exit_code",
+    "timed_out",
+    "finished_at",
+    "stdout",
+    "stderr",
+    "archived_ids",
+    "returned_ids",
+    "commit_sha",
+    "mutation_state",
+)
+_FACT_VALUES: Final = {
+    "exit_code": frozenset({"observed_journal", "unknown"}),
+    "timed_out": frozenset({"observed_journal", "unknown"}),
+    "finished_at": frozenset({"observed_journal", "engine_event_log", "unknown"}),
+    "stdout": frozenset({"observed_journal", "unknown"}),
+    "stderr": frozenset({"observed_journal", "unknown"}),
+    # ``unknown`` is legal only when the engine result itself was not observed (no parsed_result).
+    "archived_ids": frozenset({"observed_journal", "engine_event_log", "unknown"}),
+    "returned_ids": frozenset({"observed_journal", "engine_event_log", "derived_live_state", "unknown"}),
+    "commit_sha": frozenset({"observed_journal", "unknown"}),
+    "mutation_state": frozenset({"derived_live_state", "observed_journal"}),
+}
+_RECOVERY_KEYS: Final = frozenset(
+    {
+        "recovered",
+        "mode",
+        "recovered_at",
+        "recovery_run_id",
+        "supersedes_run_id",
+        "lock_disposition",
+        "engine_attribution",
+        "facts",
+    }
+)
+_LOCK_KEYS: Final = frozenset({"action", "owner_pid", "owner_host", "basis"})
+_LOCK_BASES: Final = {
+    "tombstoned": frozenset({"pid_absent", "pid_start_mismatch"}),
+    "absent": frozenset({"lock_absent"}),
+    "operator_confirmed": frozenset({"operator_confirmed"}),
+}
+_ATTRIBUTION_KEYS: Final = frozenset({"basis", "shipped_event_at", "operation"})
+_RECOVERED_MUTATION_STATES: Final = frozenset({"completed", "indeterminate"})
+
+
+def unavailable_capture(reason: str) -> dict[str, object]:
+    """The explicit marker for a stream capture a recovery could not observe (never an empty capture)."""
+
+    return {"availability": "unavailable", "reason": reason}
+
+
+def build_recovery_block(
+    *,
+    mode: str,
+    recovered_at: str,
+    recovery_run_id: str,
+    supersedes_run_id: str,
+    lock_disposition: Mapping[str, object],
+    engine_attribution: Mapping[str, object] | None,
+    facts: Mapping[str, str],
+) -> dict[str, object]:
+    """Assemble the additive ``recovery`` block; :func:`validate_evidence_record` judges it."""
+
+    return {
+        "recovered": True,
+        "mode": mode,
+        "recovered_at": recovered_at,
+        "recovery_run_id": recovery_run_id,
+        "supersedes_run_id": supersedes_run_id,
+        "lock_disposition": dict(lock_disposition),
+        "engine_attribution": None if engine_attribution is None else dict(engine_attribution),
+        "facts": dict(facts),
+    }
+
+
+def _is_unavailable_capture(value: object) -> bool:
+    return (
+        isinstance(value, Mapping)
+        and set(value) == {"availability", "reason"}
+        and value["availability"] == "unavailable"
+        and _is_nonempty_str(value["reason"])
+    )
+
+
+def _check_lock_disposition(value: object, bad: Callable[[str, str], None]) -> None:
+    if not isinstance(value, Mapping) or set(value) != _LOCK_KEYS:
+        bad("lock_disposition", f"must be an object with exactly {sorted(_LOCK_KEYS)}")
+        return
+    action, basis = value["action"], value["basis"]
+    if type(action) is not str or action not in _LOCK_BASES:
+        bad("lock_disposition.action", f"must be one of {sorted(_LOCK_BASES)}")
+    elif type(basis) is not str or basis not in _LOCK_BASES[action]:
+        bad("lock_disposition.basis", f"{basis!r} is not a valid basis for action {action!r}")
+    owner_pid = value["owner_pid"]
+    if owner_pid is not None and not (_is_int(owner_pid) and owner_pid > 0):
+        bad("lock_disposition.owner_pid", "must be a positive integer or null")
+    if value["owner_host"] is not None and not _is_nonempty_str(value["owner_host"]):
+        bad("lock_disposition.owner_host", "must be a non-empty string or null")
+
+
+def _check_attribution(
+    value: object, shipment_id: object, started: datetime.datetime | None, bad: Callable[[str, str], None]
+) -> datetime.datetime | None:
+    """Validate ``engine_attribution``; return the shipped-event instant when it is well-formed."""
+
+    if not isinstance(value, Mapping) or set(value) != _ATTRIBUTION_KEYS:
+        bad("engine_attribution", f"must be null or an object with exactly {sorted(_ATTRIBUTION_KEYS)}")
+        return None
+    if value["basis"] != "engine_event_log":
+        bad("engine_attribution.basis", "must be 'engine_event_log'")
+    if value["operation"] != shipment_id:
+        bad("engine_attribution.operation", f"must name the record's shipment {shipment_id!r}")
+    shipped = parse_rfc3339_instant(value["shipped_event_at"])
+    if shipped is None:
+        bad("engine_attribution.shipped_event_at", "must be an RFC 3339 timestamp with a UTC offset")
+    elif started is not None and shipped < started:
+        bad("engine_attribution.shipped_event_at", "must not precede invocation.started_at")
+    return shipped
+
+
+def _check_mode_facts(
+    mode: str, facts: Mapping[str, str], has_attribution: bool, parsed_present: bool, bad: Callable[[str, str], None]
+) -> None:
+    """Which facts each recovery mode may claim (anti-fabrication, H1/H4)."""
+
+    def require(key: str, allowed: frozenset[str] | set[str], why: str) -> None:
+        if facts[key] not in allowed:
+            bad(f"facts.{key}", f"{why} (got {facts[key]!r})")
+
+    engine_keys = ("archived_ids", "returned_ids", "commit_sha")
+    if not parsed_present:
+        for key in engine_keys:
+            require(key, {"unknown"}, "no engine result was observed, so the fact must be unknown")
+    elif facts["archived_ids"] == "unknown":
+        bad("facts.archived_ids", "a parsed result requires a known archived_ids basis")
+    if (facts["archived_ids"] == "engine_event_log" or facts["returned_ids"] == "derived_live_state"
+            or facts["finished_at"] == "engine_event_log") and not has_attribution:
+        bad("engine_attribution", "engine-derived facts require an engine_attribution")
+    if mode == "journal_complete":
+        for key in ("exit_code", "timed_out", "finished_at", "stdout", "stderr"):
+            require(key, {"observed_journal"}, "a journal_complete recovery must observe it in the journal")
+        if parsed_present:
+            for key in engine_keys:
+                require(key, {"observed_journal"}, "a journal_complete recovery reads it from the observed stdout")
+    elif mode == "journal_partial":
+        for key in engine_keys:
+            if facts[key] == "observed_journal":
+                bad(f"facts.{key}", "a partial journal never supplies the engine result")
+        if parsed_present:
+            require("archived_ids", {"engine_event_log"}, "a partial journal needs engine-attributed archival")
+    else:
+        for key in ("exit_code", "timed_out", "stdout", "stderr", "commit_sha"):
+            require(key, {"unknown"}, "a postconditions_only recovery observed nothing from the journal")
+        require("archived_ids", {"engine_event_log"}, "needs engine-attributed archival")
+        require("mutation_state", {"derived_live_state"}, "is derived from the live state")
+        if not parsed_present:
+            bad("post_close.parsed_result", "a postconditions_only recovery reconstructs the result")
+        if facts["returned_ids"] == "observed_journal":
+            bad("facts.returned_ids", "a postconditions_only recovery has no journal observation")
+
+
+def _check_recovery_block(checker: _Checker, record: Mapping[str, object]) -> dict[str, str] | None:
+    """Validate the ``recovery`` block; return its facts when the block is valid, ``None`` when absent or invalid.
+
+    Per-field relaxations in :func:`_check_cascade` are keyed on the returned facts, so an absent or invalid
+    block relaxes nothing (H4).
+    """
+
+    block = record.get("recovery", _MISSING)
+    if block is _MISSING:
+        return None
+    where = "record.recovery"
+    if not isinstance(block, Mapping):
+        checker.fail(where, "must be an object")
+        return None
+    if set(block) != _RECOVERY_KEYS:
+        missing, extra = sorted(_RECOVERY_KEYS - set(block)), sorted(set(block) - _RECOVERY_KEYS)
+        checker.fail(where, f"keys differ from the schema (missing {missing}, unexpected {extra})")
+        return None
+    valid = True
+
+    def bad(sub: str, message: str) -> None:
+        nonlocal valid
+        valid = False
+        checker.fail(f"{where}.{sub}" if not sub.startswith("post_close") else f"record.{sub}", message)
+
+    if block["recovered"] is not True:
+        bad("recovered", "must be true")
+    mode = block["mode"]
+    if type(mode) is not str or mode not in RECOVERY_MODES:
+        bad("mode", f"must be one of {list(RECOVERY_MODES)}")
+    run_id, recovery_run_id, supersedes = record.get("run_id"), block["recovery_run_id"], block["supersedes_run_id"]
+    if not _is_str(recovery_run_id) or _RUN_ID_PATTERN.fullmatch(recovery_run_id) is None or recovery_run_id != run_id:
+        bad("recovery_run_id", "must be the record's own run_id (a uuid4 hex)")
+    if not _is_str(supersedes) or _RUN_ID_PATTERN.fullmatch(supersedes) is None or supersedes == run_id:
+        bad("supersedes_run_id", "must be the superseded run's uuid4 hex, different from the recovery run")
+    invocation = record.get("invocation")
+    started = parse_rfc3339_instant(invocation.get("started_at")) if isinstance(invocation, Mapping) else None
+    recovered_at = parse_rfc3339_instant(block["recovered_at"])
+    if recovered_at is None:
+        bad("recovered_at", "must be an RFC 3339 timestamp with a UTC offset")
+    elif started is not None and recovered_at < started:
+        bad("recovered_at", "must not precede invocation.started_at")
+    _check_lock_disposition(block["lock_disposition"], bad)
+
+    shipped_at = None
+    attribution = block["engine_attribution"]
+    if attribution is not None:
+        shipped_at = _check_attribution(attribution, record.get("shipment_id"), started, bad)
+    facts = block["facts"]
+    if not isinstance(facts, Mapping) or set(facts) != set(RECOVERY_FACT_KEYS):
+        bad("facts", f"must cover exactly {list(RECOVERY_FACT_KEYS)}")
+        return None
+    for key in RECOVERY_FACT_KEYS:
+        if type(facts[key]) is not str or facts[key] not in _FACT_VALUES[key]:
+            bad(f"facts.{key}", f"must be one of {sorted(_FACT_VALUES[key])} (got {facts[key]!r})")
+    if not valid:
+        return None
+    post_close = record.get("post_close")
+    parsed_present = isinstance(post_close, Mapping) and isinstance(post_close.get("parsed_result"), Mapping)
+    _check_mode_facts(mode, facts, attribution is not None, parsed_present, bad)  # type: ignore[arg-type]
+    if facts["finished_at"] == "engine_event_log" and isinstance(invocation, Mapping):
+        finished = parse_rfc3339_instant(invocation.get("finished_at"))
+        if shipped_at is None or finished is None or finished != shipped_at:
+            bad("facts.finished_at", "an engine-derived finished_at must equal engine_attribution.shipped_event_at")
+    return dict(facts) if valid else None
+
+
+def _check_cascade(
+    checker: _Checker, record: Mapping[str, object], pre_close: Mapping[str, object] | None, *, strict: bool = True
+) -> None:
+    """``cascade`` requirements plus internal consistency (AS-F11).
+
+    ``strict`` (the closure-evidence gate) accepts only a passing record. With ``strict=False`` (recovery's
+    :func:`validate_evidence_structure`) a *consistent* fail record is also structurally valid.
+    """
 
     if record.get("phase") != "post_close":
         checker.fail("record.phase", "a cascade record must be in phase post_close")
@@ -1401,37 +1636,82 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
         if not isinstance(engine, Mapping) or engine.get("verdict") != EngineSemanticsVerdict.VERIFIED.value:
             checker.fail("record.pre_close.engine_semantics.verdict", "a cascade record requires VERIFIED")
 
+    facts = _check_recovery_block(checker, record)
+    recovered = "recovery" in record
+    mode = record["recovery"].get("mode") if facts is not None else None  # type: ignore[union-attr]
+
+    def fact(key: str) -> str | None:
+        return facts[key] if facts is not None else None
+
     invocation = checker.mapping(record, "invocation", "record")
     if invocation is not None:
         where = "record.invocation"
         checker.field(invocation, "argv_redacted", where, _is_str_list, "a list of strings")
-        for key in ("started_at", "finished_at"):
-            checker.field(invocation, key, where, _is_nonempty_str, "a non-empty string")
+        checker.field(invocation, "started_at", where, _is_nonempty_str, "a non-empty string")
+        if fact("finished_at") == "unknown":
+            if invocation.get("finished_at", _MISSING) is not None:
+                checker.fail(f"{where}.finished_at", "must be null when the recovery facts mark it unknown")
+        else:
+            checker.field(invocation, "finished_at", where, _is_nonempty_str, "a non-empty string")
         _check_in_record_ordering(checker, pre_close, invocation)
-        exit_code = checker.field(invocation, "exit_code", where, lambda v: v is None or _is_int(v), "an integer or null")
-        if exit_code is not _MISSING and exit_code != 0:
-            checker.fail(f"{where}.exit_code", f"a passing cascade requires exit code 0 (got {exit_code!r})")
-        timed_out = checker.field(invocation, "timed_out", where, _is_bool, "a boolean")
-        if timed_out is True:
-            checker.fail(f"{where}.timed_out", "a passing cascade cannot have timed out")
+        if fact("exit_code") == "unknown":
+            if invocation.get("exit_code", _MISSING) is not None:
+                checker.fail(f"{where}.exit_code", "must be null when the recovery facts mark it unknown")
+        else:
+            exit_code = checker.field(
+                invocation, "exit_code", where, lambda v: v is None or _is_int(v), "an integer or null"
+            )
+            if fact("exit_code") == "observed_journal" and exit_code is None:
+                checker.fail(f"{where}.exit_code", "an observed exit code must be an integer")
+            elif exit_code is not _MISSING and strict and exit_code != 0:
+                checker.fail(f"{where}.exit_code", f"a passing cascade requires exit code 0 (got {exit_code!r})")
+        if fact("timed_out") == "unknown":
+            if invocation.get("timed_out", _MISSING) is not None:
+                checker.fail(f"{where}.timed_out", "must be null when the recovery facts mark it unknown")
+        else:
+            timed_out = checker.field(invocation, "timed_out", where, _is_bool, "a boolean")
+            if timed_out is True and strict:
+                checker.fail(f"{where}.timed_out", "a passing cascade cannot have timed out")
+        allowed_states = _RECOVERED_MUTATION_STATES if recovered else _MUTATION_STATES
         state = checker.field(
-            invocation, "mutation_state", where, lambda v: v in _MUTATION_STATES, f"one of {sorted(_MUTATION_STATES)}"
+            invocation,
+            "mutation_state",
+            where,
+            lambda v: type(v) is str and v in allowed_states,
+            f"one of {sorted(allowed_states)}",
         )
-        if state is not _MISSING and state != "completed":
+        if state is not _MISSING and strict and state != "completed":
             checker.fail(f"{where}.mutation_state", f"a passing cascade requires completed (got {state!r})")
         for stream in ("stdout", "stderr"):
-            capture = checker.mapping(invocation, stream, where)
-            if capture is not None:
+            capture = checker.mapping(invocation, stream, where) if fact(stream) != "unknown" else invocation.get(stream)
+            if fact(stream) == "unknown":
+                if not _is_unavailable_capture(capture):
+                    checker.fail(f"{where}.{stream}", "must be the explicit unavailable-capture marker (unknown fact)")
+            elif capture is not None:
                 _check_capture(checker, capture, f"{where}.{stream}")
+                if mode == "journal_partial" and capture.get("capture_truncated") is not True:
+                    checker.fail(f"{where}.{stream}.capture_truncated", "a partial-journal capture must be marked truncated")
 
     post_close = checker.mapping(record, "post_close", "record")
     if post_close is None:
         return
     where = "record.post_close"
-    if post_close.get("parse_error") is not None:
-        checker.fail(f"{where}.parse_error", "a passing cascade must have a parsed result")
     archived: object = _MISSING
-    parsed = checker.mapping(post_close, "parsed_result", where)
+    parsed_raw = post_close.get("parsed_result", _MISSING)
+    parse_error = post_close.get("parse_error")
+    if strict:
+        if parse_error is not None:
+            checker.fail(f"{where}.parse_error", "a passing cascade must have a parsed result")
+        parsed = checker.mapping(post_close, "parsed_result", where)
+    elif parsed_raw is None:
+        parsed = None
+        if not _is_nonempty_str(parse_error):
+            checker.fail(f"{where}.parse_error", "an unparsed result must record why")
+    else:
+        parsed = checker.mapping(post_close, "parsed_result", where)
+        if parse_error is not None:
+            checker.fail(f"{where}.parse_error", "must be null when a result was parsed")
+    clean = parsed is not None
     if parsed is not None:
         parsed_where = f"{where}.parsed_result"
         # PR #482 review: the captured engine result must name this record's shipment.
@@ -1444,12 +1724,24 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
             )
         status = checker.field(parsed, "shipment_status", parsed_where, _is_str, "a string")
         if status is not _MISSING and status != _SHIPPED_STATUS:
-            checker.fail(f"{parsed_where}.shipment_status", f"a passing cascade requires 'shipped' (got {status!r})")
+            clean = False
+            if strict:
+                checker.fail(f"{parsed_where}.shipment_status", f"a passing cascade requires 'shipped' (got {status!r})")
         archived = checker.field(parsed, "archived_ids", parsed_where, _is_str_list, "a list of strings")
-        returned = checker.field(parsed, "returned_ids", parsed_where, _is_str_list, "a list of strings")
-        if returned is not _MISSING and returned:
-            checker.fail(f"{parsed_where}.returned_ids", "must be empty")
-        checker.field(parsed, "commit_sha", parsed_where, lambda v: v is None or _is_str(v), "a string or null")
+        if fact("returned_ids") == "unknown":
+            if parsed.get("returned_ids", _MISSING) is not None:
+                checker.fail(f"{parsed_where}.returned_ids", "must be null when the recovery facts mark it unknown")
+        else:
+            returned = checker.field(parsed, "returned_ids", parsed_where, _is_str_list, "a list of strings")
+            if returned is not _MISSING and returned:
+                clean = False
+                if strict:
+                    checker.fail(f"{parsed_where}.returned_ids", "must be empty")
+        if fact("commit_sha") == "unknown":
+            if parsed.get("commit_sha", _MISSING) is not None:
+                checker.fail(f"{parsed_where}.commit_sha", "must be null when the recovery facts mark it unknown")
+        else:
+            checker.field(parsed, "commit_sha", parsed_where, lambda v: v is None or _is_str(v), "a string or null")
     statuses = {
         key: checker.field(post_close, key, where, _is_declared_status, "a declared status")
         for key in ("shipment_record_status", "shipment_record_archived_status")
@@ -1459,22 +1751,49 @@ def _check_cascade(checker: _Checker, record: Mapping[str, object], pre_close: M
         for key in ("allowed_ids", "required_ids")
     }
     stored_differences = {}
+    failures_value: object = _MISSING
     for key in ("unexpected_archived", "missing_required", "failures"):
         value = checker.field(post_close, key, where, _is_str_list, "a list of strings")
         stored_differences[key] = value
+        if key == "failures":
+            failures_value = value
         if value is not _MISSING and value:
-            checker.fail(f"{where}.{key}", "must be empty under a pass verdict")
+            clean = False
+            if strict:
+                checker.fail(f"{where}.{key}", "must be empty under a pass verdict")
     drift = checker.field(post_close, "linked_deliberation_drift", where, lambda v: type(v) is list, "a list")
     if drift is not _MISSING and drift:
-        checker.fail(f"{where}.linked_deliberation_drift", "must be empty under a pass verdict")
+        clean = False
+        if strict:
+            checker.fail(f"{where}.linked_deliberation_drift", "must be empty under a pass verdict")
+    flags = {}
     for key in ("disposition_byte_identical", "parent_id_preserved", "baseline_invariant", "shipment_archived_shipped"):
         value = checker.field(post_close, key, where, _is_bool, "a boolean")
+        flags[key] = value
         if value is False:
-            checker.fail(f"{where}.{key}", "must be true under a pass verdict")
+            clean = False
+            if strict:
+                checker.fail(f"{where}.{key}", "must be true under a pass verdict")
     verdict = checker.field(post_close, "postcondition_verdict", where, lambda v: v in ("pass", "fail"), "pass or fail")
     if verdict is not _MISSING and verdict != "pass":
-        checker.fail(f"{where}.postcondition_verdict", "a cascade record requires pass")
-    _check_derived_post_close(checker, record, pre_close, archived, statuses, stored_sets, stored_differences)
+        if strict:
+            checker.fail(f"{where}.postcondition_verdict", "a cascade record requires pass")
+        elif failures_value is not _MISSING and not failures_value:
+            checker.fail(f"{where}.failures", "a fail verdict must list its failures")
+    _check_derived_post_close(
+        checker,
+        record,
+        pre_close,
+        archived,
+        statuses,
+        stored_sets,
+        stored_differences,
+        strict=strict,
+        verdict=verdict,
+        stored_archived_shipped=flags["shipment_archived_shipped"],
+    )
+    if not strict and verdict == "pass" and not clean:
+        checker.fail(f"{where}.postcondition_verdict", "a pass verdict contradicts the recorded failing facts")
 
 
 def _check_derived_post_close(
@@ -1485,6 +1804,10 @@ def _check_derived_post_close(
     statuses: Mapping[str, object],
     stored_sets: Mapping[str, object],
     stored_differences: Mapping[str, object],
+    *,
+    strict: bool = True,
+    verdict: object = "pass",
+    stored_archived_shipped: object = _MISSING,
 ) -> None:
     """Recompute every derivable ``post_close`` fact from the captured ones (PR #482 review).
 
@@ -1500,11 +1823,17 @@ def _check_derived_post_close(
     if status is not _MISSING and archived_status is not _MISSING:
         decoded_status = declared_status_from_record(status)
         decoded_archived_status = declared_status_from_record(archived_status)
-        if not is_archived_shipped(decoded_status, decoded_archived_status):
+        archived_shipped = is_archived_shipped(decoded_status, decoded_archived_status)
+        if strict and not archived_shipped:
             checker.fail(
                 f"{where}.shipment_archived_shipped",
                 f"the recorded re-read shipment declares status {decoded_status!r} and archived_status "
                 f"{decoded_archived_status!r}, not 'archived' and 'shipped'",
+            )
+        elif not strict and stored_archived_shipped is not _MISSING and stored_archived_shipped != archived_shipped:
+            checker.fail(
+                f"{where}.shipment_archived_shipped",
+                f"recorded {stored_archived_shipped!r} but the recorded re-read statuses give {archived_shipped!r}",
             )
 
     shipment_id = record.get("shipment_id")
@@ -1528,10 +1857,10 @@ def _check_derived_post_close(
                 f"{where}.{key}",
                 f"recorded {sorted(stored)} but recomputation from pre_close and parsed_result gives {list(expected)}",
             )
-        elif expected:
+        elif expected and strict:
             checker.fail(f"{where}.{key}", f"recomputation gives {list(expected)}, so the cascade did not pass")
     drifted = archived_disposition_deliberation_ids(pre_close, archived)
-    if drifted:
+    if drifted and (strict or verdict == "pass"):
         checker.fail(
             f"{where}.linked_deliberation_drift",
             f"the cascade archived disposition-set deliberation(s) {list(drifted)}, which is engine drift",
@@ -1544,6 +1873,8 @@ def _check_safe_close(checker: _Checker, record: Mapping[str, object], pre_close
     for key in ("invocation", "post_close"):
         if record.get(key) is not None:
             checker.fail(f"record.{key}", "a safe_close record invokes nothing")
+    if "recovery" in record:
+        checker.fail("record.recovery", "only a cascade post_close record may carry a recovery block")
     if pre_close is None:
         return
     engine = pre_close.get("engine_semantics")
@@ -1679,8 +2010,37 @@ def validate_evidence_record(
     ``(shipment_id, feature_id)`` pair, carry every required key well-typed,
     keep every path field a relative POSIX path under one backlog root, and
     agree with a fresh engine re-assessment and close-path re-selection.
+    This is the pass-only validator the closure-evidence gate uses.
     """
 
+    return _validate(record, shipment_id, feature_id, close_path, strict=True)
+
+
+def validate_evidence_structure(
+    record: Mapping[str, object],
+    *,
+    shipment_id: str,
+    feature_id: str,
+    close_path: Literal["cascade", "safe_close"],
+) -> list[str]:
+    """The structural and recomputation-consistency checks of :func:`validate_evidence_record`, minus pass-only.
+
+    A *consistent* ``fail`` verdict with non-empty ``failures`` is accepted, so recovery can persist a determinate
+    partial-recovery record. Used only by recovery; the closure-evidence gate keeps :func:`validate_evidence_record`
+    and therefore never accepts a failure record.
+    """
+
+    return _validate(record, shipment_id, feature_id, close_path, strict=False)
+
+
+def _validate(
+    record: Mapping[str, object],
+    shipment_id: str,
+    feature_id: str,
+    close_path: str,
+    *,
+    strict: bool,
+) -> list[str]:
     checker = _Checker()
     if not isinstance(record, Mapping):
         return ["record: must be a JSON object"]
@@ -1709,7 +2069,7 @@ def validate_evidence_record(
         checker.fail("record", f"path fields span more than one backlog root {sorted(checker.roots)}")
 
     if close_path == "cascade":
-        _check_cascade(checker, record, pre_close)
+        _check_cascade(checker, record, pre_close, strict=strict)
     else:
         _check_safe_close(checker, record, pre_close)
     return checker.errors

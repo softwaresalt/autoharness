@@ -17,7 +17,12 @@ The threshold is exactly three counted failures for the same operation.
 
 * Count every non-zero native process exit, tool failure, validation failure,
   and timeout immediately when it is observed. Do not wait for a later
-  diagnostic step before incrementing the counter.
+  diagnostic step before incrementing the counter. The one exemption is the
+  expected "still running" exit 9 from `autoharness shipment cascade-close`
+  `--detach` or `--poll` while the supervision budget (see Stall Detection)
+  has not elapsed: it is a progress signal, not a failure, and never
+  increments the counter. Exit 9 after the full supervision budget, and every
+  other non-zero exit, remains a counted failure.
 * If any single operation (command execution, code fix attempt, file
   generation, tool invocation, or equivalent workflow action) fails three
   counted times with substantially the same error, the agent MUST STOP
@@ -295,6 +300,16 @@ evidence record at `invoking`, and the pair lock in place. Only a wrapper still
 running after the full supervision budget is terminated, counted as a failed
 attempt and a session stall, and escalated to the operator, because its
 evidence record and pair lock need operator review.
+
+For a `--detach` run, the supervision budget bounds the whole `--poll` sequence
+that starts at the `--detach` exit 9, not each `--poll` call: `--poll` is a
+short, read-only, idempotent read, and exit 9 from it means the supervised run
+is still going within its budget, not a stall and not a counted failure (see the
+Universal Retry Threshold exemption). A `--poll` that reports exit 7
+with `recovery_available`, or a run still reporting exit 9 after the full
+supervision budget, is escalated to the operator (the latter counted as a
+failed attempt and a session stall); the agent never kills the supervisor or
+deletes the pair lock, and routes the orphaned run to `--recover --dry-run`.
 
 ### Session Stall Counting
 
