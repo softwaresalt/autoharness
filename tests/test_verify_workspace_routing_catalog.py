@@ -151,11 +151,12 @@ class ValidAndAbsentTests(RoutingCatalogCase):
         for key in CHECKS:
             self.assertNotIn(key, report["targeted_checks"])
 
-    def test_registry_is_not_built_without_bindings(self) -> None:
+    def test_registry_is_built_without_bindings_for_the_route_drift_check(self) -> None:
         self.env.authored_agent("custom")
-        with mock.patch.object(sites_module, "build_site_registry") as build:
+        real = sites_module.build_site_registry
+        with mock.patch.object(sites_module, "build_site_registry", side_effect=real) as build:
             self.run_checks(CURRENT_CONFIG_SCHEMA_VERSION, _routing(routes={"fast": FAST}))
-        build.assert_not_called()
+        self.assertEqual(build.call_count, 1)
 
     def test_registry_is_built_exactly_once_per_run(self) -> None:
         self.env.rendered_agent("alpha", TIER_1)

@@ -2949,13 +2949,10 @@ def _build_verify_site_registry(
     autoharness_home: Path,
     manifest: Any,
     profile: Any,
-    model_routing_block: dict[str, Any],
 ) -> tuple[_mrs.SiteRegistry | None, str | None]:
-    """215-S B6: build the installed-site registry ONCE per verify run, and only when the
-    config declares bindings (the only consumer). Returns (registry, build_error)."""
-    bindings = model_routing_block.get("bindings")
-    if not isinstance(bindings, dict) or not bindings:
-        return None, None
+    """215-S B6/B7: build the installed-site registry ONCE per verify run. The binding checks, both
+    render seams, and the route-drift check (B7, which reports without bindings as `info`) share it.
+    Returns (registry, build_error)."""
     try:
         return _mrs.build_site_registry(workspace_path, autoharness_home, manifest, profile), None
     except Exception as exc:  # noqa: BLE001 - a registry failure is a failed check, never a crash
@@ -4376,6 +4373,222 @@ def _add_frontmatter_conformity_check(
         "info": info,
         "files": files,
     }
+
+
+# ---------------------------------------------------------------------------
+# 215-S B7 (208.009-T): installed subagent route drift
+# ---------------------------------------------------------------------------
+
+ROUTE_DRIFT_WARNING_KIND = "subagent-route-drift"
+CHECK_SUBAGENT_ROUTE_DRIFT = "subagent_route_drift"
+ROUTE_DRIFT_CONTRACT = "model-routing"
+ROUTE_DRIFT_ACTION = "refresh-route-frontmatter"
+_ROUTE_DRIFT_INFO_ID_LIMIT = 20
+
+
+def _route_drift_site_targets(
+    workspace_path: Path, autoharness_home: Path, profile: Any, manifest: Any, site_registry: Any
+) -> dict[str, dict[str, Any]]:
+    """The installed agent file of each registered site, keyed by site id (sorted, deterministic)."""
+    provenance = _fc_build_provenance_index(workspace_path, autoharness_home, manifest)
+    targets: dict[str, dict[str, Any]] = {}
+    for target in _fc_enumerate_targets(workspace_path, profile):
+        if target["kind"] != "agent":
+            continue
+        site_id = target["rel"].rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)]
+        if site_id not in site_registry.sites or site_id in targets:
+            continue
+        if _fc_classify(target["rel"], provenance)["class"] == FC_CLASS_MANAGED_SOURCE:
+            continue
+        targets[site_id] = target
+    return targets
+
+
+def _installed_route(workspace_path: Path, target: dict[str, Any]) -> dict[str, Any] | None:
+    """The four installed route values (None when a key is absent); None when the file is not read."""
+    resolved = _fc_resolve_contained(workspace_path, target["path"])
+    if resolved is None:
+        return None
+    try:
+        data = fc.parse_frontmatter(_fc_read_bytes(resolved), fc.MODE_INSTALLED).data or {}
+    except Exception:  # noqa: BLE001 - an unreadable file is drift from the expectation, never a crash
+        data = {}
+    return {field: data.get(field) for field, _ in _SITE_ROUTE_VARIABLE_SUFFIXES}
+
+
+def _bound_site_resolver_errors(model_routing: dict[str, Any], site_id: str, site_registry: Any) -> list[str]:
+    result = _mr.resolve_site(
+        {"model_routing": model_routing}, f"{_mr.AGENT_SITE_PREFIX}{site_id}", sites=site_registry.sites
+    )
+    return list(result.errors) or [f"ROUTING_UNRESOLVED: {_mr.AGENT_SITE_PREFIX}{site_id}"]
+
+
+def _route_drift_info(code: str, subject: str, items: list[str]) -> str:
+    shown = ", ".join(items[:_ROUTE_DRIFT_INFO_ID_LIMIT])
+    more = len(items) - _ROUTE_DRIFT_INFO_ID_LIMIT
+    return (
+        f"{code}: {len(items)} {subject} (non-blocking: no bindings declared): {shown}"
+        + (f", ... and {more} more" if more > 0 else "")
+    )
+
+
+def _route_drift_proposal(rel: str, managed: bool, expected: dict[str, str], installed: dict[str, Any]) -> dict[str, Any]:
+    fields = [field for field in expected if installed.get(field) != expected[field]]
+    return {
+        "contract": ROUTE_DRIFT_CONTRACT,
+        "path": rel,
+        "from_version": None,
+        "to_version": None,
+        "status": "stale-route",
+        "severity": "P1" if managed else "P2",
+        "changed_fields": fields,
+        "action": ROUTE_DRIFT_ACTION,
+        "manual_review": not managed,
+        "evidence": {"expected": dict(expected), "installed": dict(installed)},
+        "summary": f"{rel}: {ROUTE_DRIFT_ACTION} [{', '.join(fields)}]",
+    }
+
+
+def _add_subagent_route_drift_check(
+    report: dict[str, Any],
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: Any,
+    profile: Any,
+    variables: dict[str, str],
+    model_routing: dict[str, Any],
+    *,
+    config_authoritative: bool,
+    overrides: Any,
+    site_registry: Any,
+    site_registry_error: str | None,
+) -> None:
+    """215-S B7: compare each registered site's installed route frontmatter with the route the
+    renderer writes for it, read through `_expected_site_route` (B6a), never from raw resolver
+    output. The opt-in is a non-empty `bindings` block: with it a drifting or default-unresolved
+    managed agent, a bound site the renderer cannot compose, and an unresolvable binding fail
+    closed; without it drift and unresolved defaults are non-blocking `info` lines. Workspace-
+    authored drift is one advisory warning. Every drift yields a `refresh-route-frontmatter`
+    proposal; a site nothing can render yields none. Writes nothing."""
+    bindings = model_routing.get("bindings") if config_authoritative else None
+    declares = isinstance(bindings, dict) and bool(bindings)
+    errors: list[str] = []
+    info: list[str] = []
+    compared: list[str] = []
+    skipped: list[str] = []
+    drift: dict[str, dict[str, Any]] = {}
+    unresolved: dict[str, str] = {}
+
+    def finish() -> None:
+        report["targeted_checks"][CHECK_SUBAGENT_ROUTE_DRIFT] = {
+            "ok": not errors,
+            "errors": errors,
+            "info": info,
+            "compared": compared,
+            "skipped": skipped,
+            "drifted": list(drift),
+            "drift": drift,
+            "unresolved": unresolved,
+        }
+
+    if site_registry is None:
+        if site_registry_error is not None:
+            message = f"ROUTING_SITE_REGISTRY_UNAVAILABLE: {site_registry_error}"
+            (errors if declares else info).append(message)
+            finish()
+        return
+    if not site_registry.sites:
+        return
+
+    plugin_agents, _ = _fc_load_plugin_agents(workspace_path, manifest)
+    for site_id, target in _route_drift_site_targets(workspace_path, autoharness_home, profile, manifest, site_registry).items():
+        rel = target["rel"]
+        spec = site_registry.sites[site_id]
+        reason = site_registry.unresolved.get(site_id) if spec.managed else None
+        bound = declares and f"{_mr.AGENT_SITE_PREFIX}{site_id}" in bindings
+        if fc.agent_profile_for(rel, plugin_agents) == fc.PROFILE_PLUGIN_GLOBAL:
+            skipped.append(site_id)
+            continue
+        if bound and reason is not None:
+            errors.append(f"ROUTING_BINDING_UNRESOLVED_SITE: {site_id}: {reason}")
+            unresolved[site_id] = reason
+            continue
+        if bound and _bound_site_route(model_routing, site_id, site_registry) is None:
+            errors.extend(_bound_site_resolver_errors(model_routing, site_id, site_registry))
+            continue
+        expected = None
+        if reason is None:
+            expected = _expected_site_route(
+                variables,
+                model_routing,
+                site_id,
+                site_registry,
+                config_authoritative=config_authoritative,
+                overrides=overrides,
+            )
+        if expected is None:
+            if spec.managed:
+                unresolved[site_id] = reason or "no-route-variables"
+            else:
+                skipped.append(site_id)
+            continue
+        installed = _installed_route(workspace_path, target)
+        if installed is None:
+            skipped.append(site_id)
+            continue
+        compared.append(site_id)
+        if all(installed[field] == expected[field] for field in expected):
+            continue
+        drift[site_id] = {
+            "path": rel,
+            "managed": spec.managed,
+            "expected": expected,
+            "installed": installed,
+        }
+        report.setdefault("migration_proposals", []).append(
+            _route_drift_proposal(rel, spec.managed, expected, installed)
+        )
+        if not spec.managed:
+            report["warnings"].append(
+                {
+                    "kind": ROUTE_DRIFT_WARNING_KIND,
+                    "path": rel,
+                    "rule": "SUBAGENT_ROUTE_DRIFT",
+                    "severity": "warning",
+                    "message": (
+                        f"workspace-authored agent {site_id} drifts from its bound route; advisory only, "
+                        "see migration proposals."
+                    ),
+                }
+            )
+        elif declares:
+            changed = [field for field in expected if installed[field] != expected[field]]
+            detail = "; ".join(f"{field} expected {expected[field]!r} got {installed[field]!r}" for field in changed)
+            errors.append(f"{rel}: SUBAGENT_ROUTE_DRIFT: {detail}")
+
+    blocking_unresolved = [site_id for site_id in unresolved if site_registry.sites[site_id].managed]
+    if declares:
+        errors.extend(
+            f"ROUTING_SITE_DEFAULT_UNRESOLVED: {site_id}: {unresolved[site_id]}"
+            for site_id in blocking_unresolved
+            if f"{_mr.AGENT_SITE_PREFIX}{site_id}" not in bindings
+        )
+    else:
+        if drift:
+            info.append(
+                _route_drift_info(
+                    "SUBAGENT_ROUTE_DRIFT", "installed subagent frontmatter route(s) differ from the rendered route", list(drift)
+                )
+            )
+        if blocking_unresolved:
+            info.append(
+                _route_drift_info(
+                    "ROUTING_SITE_DEFAULT_UNRESOLVED",
+                    "managed subagent(s) have no resolvable default tier",
+                    [f"{site_id} ({unresolved[site_id]})" for site_id in blocking_unresolved],
+                )
+            )
+    finish()
 
 
 _ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^ {0,3}#{1,6}\s", re.MULTILINE)
@@ -6046,7 +6259,7 @@ def verify_workspace(
         _model_routing_for_composition = {}
     _overrides_for_composition = config.get("overrides") if config_authoritative else None
     _site_registry, _site_registry_error = _build_verify_site_registry(
-        workspace_path, autoharness_home, manifest, profile, _model_routing_for_composition
+        workspace_path, autoharness_home, manifest, profile
     )
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
@@ -6240,6 +6453,19 @@ def verify_workspace(
         config_authoritative=config_authoritative,
         overrides=_overrides_for_composition,
         site_registry=_site_registry,
+    )
+    _add_subagent_route_drift_check(
+        report,
+        workspace_path,
+        autoharness_home,
+        manifest,
+        profile,
+        variables,
+        _model_routing_for_composition,
+        config_authoritative=config_authoritative,
+        overrides=_overrides_for_composition,
+        site_registry=_site_registry,
+        site_registry_error=_site_registry_error,
     )
 
     if profile_path.exists() and profile:
