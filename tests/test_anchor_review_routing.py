@@ -55,7 +55,9 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         validator = Draft7Validator(schema)
         model_props = schema["properties"]["model_routing"]["properties"]
         self.assertIn("anchor_review", model_props)
-        self.assertNotIn("additionalProperties", schema["properties"]["model_routing"])
+        # The current (1.2.0) schema closes model_routing; the open shape is a
+        # property of the immutable pre-1.2.0 mirrors (see test_harness_config_schema_versioning).
+        self.assertIs(schema["properties"]["model_routing"]["additionalProperties"], False)
         anchor_schema = model_props["anchor_review"]
         self.assertFalse(anchor_schema.get("additionalProperties", True))
         self.assertEqual(set(anchor_schema["required"]), {"model_provider", "model_family"})
@@ -93,7 +95,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
                 "workspace_specific_review": {"model_provider": "local", "model_family": "custom"}
             },
         }
-        self.assertTrue(validator.is_valid(custom_route))
+        self.assertFalse(validator.is_valid(custom_route))
 
     def test_harness_config_template_has_anchor_defaults_and_valid_yaml_when_reasoning_empty(self) -> None:
         text = _read(_CONFIG_TEMPLATE)

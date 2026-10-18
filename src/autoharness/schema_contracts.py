@@ -93,8 +93,22 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         # schema IN PLACE (no 1.2.0 bump; configs without the field stay
         # valid). A config that uses context_tier therefore requires an
         # autoharness release that ships this 1.1.0 revision.
-        "current_version": "1.1.0",
-        "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
+        # Schema-version decision (208-F/215-S B5, 040-DL D1/D11): closing
+        # `model_routing` with `additionalProperties: false` over an explicit
+        # allowlist and adding the `routes` catalog and `bindings` map makes a
+        # document that validates under "1.1.0" (an unknown or inert
+        # `model_routing` key included) invalid under the new contract, so
+        # editing the published `1.1.0.schema.json` in place would give one
+        # version identifier two byte-level meanings (the bug class in
+        # docs/compound/2026-08-08-schema-mirror-mutated-in-place-without-version-bump.md).
+        # Bumped to 1.2.0 instead: `1.1.0.schema.json` stays byte-identical
+        # (pinned by tests/test_harness_config_schema_versioning.py) and the
+        # root schema now tracks the `1.2.0.schema.json` mirror. An installed
+        # config with schema_version: 1.1.0 continues to validate against the
+        # untouched 1.1.0 mirror; adopting routes/bindings requires bumping
+        # schema_version to 1.2.0.
+        "current_version": "1.2.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0", "1.2.0"),
         "compatibility_model": "versioned-contract",
     },
     "profile": {
@@ -181,6 +195,16 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
                 "capability_packs",
             ],
             "action": "Back up .autoharness/config.yaml, rename legacy config keys such as backlog.prefix_map, normalize any legacy capability-pack values, write schema_version: 1.0.0, and rerun verify-workspace.",
+        },
+        {
+            "proposal_id": "upgrade-config-contract-1.1.0-to-1.2.0",
+            "status": "known-legacy",
+            "from_version": "1.1.0",
+            "to_version": "1.2.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-config contract from 1.1.0 to 1.2.0 (additive: model_routing routes and bindings).",
+            "changed_fields": ["schema_version"],
+            "action": "Back up .autoharness/config.yaml, bump schema_version to 1.2.0 (optionally adopt model_routing.routes and model_routing.bindings; model_routing now rejects unknown keys), and rerun verify-workspace.",
         },
         {
             "proposal_id": "backfill-config-schema-version",
