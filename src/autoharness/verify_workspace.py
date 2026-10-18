@@ -20,6 +20,8 @@ from jsonschema import Draft7Validator
 
 from autoharness import frontmatter_contract as fc
 from autoharness import model_routing as _mr
+from autoharness import model_routing_sites as _mrs
+from autoharness import model_routing_yaml
 from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
@@ -2815,6 +2817,174 @@ def _add_context_tier_override_check(
         "ok": not errors,
         "errors": errors,
     }
+
+
+_CONFIG_REL_PATH = ".autoharness/config.yaml"
+_PIPELINE_SITE_NAMES = frozenset({"stage", "ship", "orchestrator"})
+
+
+def _build_verify_site_registry(
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: Any,
+    profile: Any,
+    model_routing_block: dict[str, Any],
+) -> tuple[_mrs.SiteRegistry | None, str | None]:
+    """215-S B6: build the installed-site registry ONCE per verify run, and only when the
+    config declares bindings (the only consumer). Returns (registry, build_error)."""
+    bindings = model_routing_block.get("bindings")
+    if not isinstance(bindings, dict) or not bindings:
+        return None, None
+    try:
+        return _mrs.build_site_registry(workspace_path, autoharness_home, manifest, profile), None
+    except Exception as exc:  # noqa: BLE001 - a registry failure is a failed check, never a crash
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _routing_site_unknown_cause(agent_id: str, registry: _mrs.SiteRegistry) -> str:
+    for rel in registry.orphans:
+        if rel.rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)] == agent_id:
+            return f"manifest entry {rel} names a file that does not exist"
+    if agent_id in registry.conflicts:
+        return "duplicate site id: more than one installed agent file"
+    return ""
+
+
+def _routing_binding_errors(
+    model_routing_block: dict[str, Any],
+    bindings: dict[Any, Any],
+    registry: _mrs.SiteRegistry | None,
+) -> list[str]:
+    errors: list[str] = []
+    config = {"model_routing": model_routing_block}
+    sites = registry.sites if registry is not None else {}
+    for key in sorted(bindings, key=str):
+        site = str(key)
+        is_agent_site = site.startswith(_mr.AGENT_SITE_PREFIX)
+        agent_id = site[len(_mr.AGENT_SITE_PREFIX) :]
+        if site in _PIPELINE_SITE_NAMES or (is_agent_site and agent_id in _mrs.PIPELINE_AGENT_IDS):
+            errors.extend(_mr.resolve_site(config, site, sites=sites).errors)
+            continue
+        if not is_agent_site:
+            errors.append(f"ROUTING_UNKNOWN_SITE: {site}")
+            continue
+        if agent_id not in sites:
+            cause = _routing_site_unknown_cause(agent_id, registry) if registry is not None else ""
+            errors.append(f"ROUTING_UNKNOWN_SITE: {site}" + (f" ({cause})" if cause else ""))
+            continue
+        reason = registry.unresolved.get(agent_id) if registry is not None else None
+        if reason is not None:
+            errors.append(f"ROUTING_BINDING_UNRESOLVED_SITE: {agent_id}: {reason}")
+            continue
+        errors.extend(_mr.resolve_site(config, site, sites=sites).errors)
+    return errors
+
+
+def _routing_catalog_errors(
+    model_routing_block: dict[str, Any],
+    registry: _mrs.SiteRegistry | None,
+    registry_error: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if "routes" in model_routing_block:
+        routes = model_routing_block["routes"]
+        if not isinstance(routes, dict):
+            errors.append("ROUTING_CATALOG_INVALID: routes: not a mapping")
+        else:
+            # Each catalog entry is validated by the resolver itself, through a probe binding.
+            probe_site = {"probe": _mr.SiteSpec("probe", "tier1", True)}
+            for name in sorted(routes, key=str):
+                if not isinstance(name, str):
+                    errors.append(f"ROUTING_CATALOG_INVALID: {name}: route name is not a string")
+                    continue
+                probe = {"model_routing": {**model_routing_block, "bindings": {"agent:probe": {"route": name}}}}
+                result = _mr.resolve_site(probe, "agent:probe", sites=probe_site)
+                errors.extend(error for error in result.errors if error.startswith("ROUTING_CATALOG_INVALID"))
+    if "bindings" in model_routing_block:
+        bindings = model_routing_block["bindings"]
+        if not isinstance(bindings, dict):
+            errors.append("ROUTING_CATALOG_INVALID: bindings: not a mapping")
+        elif registry_error is not None:
+            errors.append(f"ROUTING_SITE_REGISTRY_UNAVAILABLE: {registry_error}")
+        else:
+            errors.extend(_routing_binding_errors(model_routing_block, bindings, registry))
+    return errors
+
+
+def _routing_advisory(kind: str, rule: str, message: str) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "path": _CONFIG_REL_PATH,
+        "rule": rule,
+        "severity": "warning",
+        "message": message,
+    }
+
+
+def _add_model_routing_catalog_checks(
+    report: dict[str, Any],
+    config: dict[str, Any],
+    config_path: Path,
+    site_registry: _mrs.SiteRegistry | None,
+    site_registry_error: str | None,
+) -> None:
+    """215-S B6 (208.008-T): existence-gated catalog, binding, site, inert-key, unknown-key and
+    anchor/alias checks. Registered only when the config declares a `model_routing` mapping.
+    Severity of the unknown-key and anchor checks follows the declared schema_version
+    (fail at 1.2.0 or unknown, advisory below), the same gate (040-DL D2, D11)."""
+    model_routing_block = config.get("model_routing") if isinstance(config, dict) else None
+    if not isinstance(model_routing_block, dict):
+        return
+    schema_version = config.get("schema_version")
+    # The shared A2a gate: one definition of "enforced from 1.2.0" for every routing check.
+    enforced = model_routing_yaml._enforced(schema_version)
+    checks = report["targeted_checks"]
+
+    errors = _routing_catalog_errors(model_routing_block, site_registry, site_registry_error)
+    checks["routing_catalog_integrity"] = {"ok": not errors, "errors": errors}
+
+    inert_errors: list[str] = []
+    if not enforced:
+        inert_errors = [
+            f"ROUTING_KEYS_REQUIRE_1_2_0: {key} is accepted and ignored under schema_version "
+            f"{schema_version}; set schema_version to 1.2.0 or remove it"
+            for key in ("routes", "bindings")
+            if key in model_routing_block
+        ]
+    checks["routing_inert_keys"] = {"ok": not inert_errors, "errors": inert_errors}
+
+    unknown = sorted(str(key) for key in model_routing_block if key not in _mr.MODEL_ROUTING_KNOWN_KEYS)
+    allowed = ", ".join(sorted(_mr.MODEL_ROUTING_KNOWN_KEYS))
+    unknown_messages = [
+        f"ROUTING_UNKNOWN_KEY: {key} is not a recognised model_routing key and would be accepted but ignored "
+        f"(allowed: {allowed})"
+        for key in unknown
+    ]
+    if enforced:
+        checks["routing_unknown_keys"] = {"ok": not unknown_messages, "errors": unknown_messages, "warnings": []}
+    else:
+        checks["routing_unknown_keys"] = {"ok": True, "errors": [], "warnings": unknown_messages}
+        report["warnings"].extend(
+            _routing_advisory("routing-unknown-key", f"ROUTING_UNKNOWN_KEY:{key}", message)
+            for key, message in zip(unknown, unknown_messages)
+        )
+
+    alias_errors: list[str] = []
+    alias_warnings: list[str] = []
+    try:
+        raw_text = config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        alias_errors.append(f"CONFIG_UNREADABLE: {_CONFIG_REL_PATH}: {type(exc).__name__}")
+    else:
+        guard = model_routing_yaml.check_model_routing_yaml(raw_text, schema_version)
+        alias_errors.extend(guard.errors)
+        alias_warnings.extend(guard.warnings)
+        if guard.parse_error:
+            alias_errors.append(f"CONFIG_UNPARSEABLE: {guard.parse_error}")
+    checks["routing_anchor_alias_free"] = {"ok": not alias_errors, "errors": alias_errors, "warnings": alias_warnings}
+    report["warnings"].extend(
+        _routing_advisory("routing-anchor-unsupported", message, message) for message in alias_warnings
+    )
 
 
 def _route_variable_stale_warnings(
@@ -5743,6 +5913,9 @@ def verify_workspace(
     if not isinstance(_model_routing_for_composition, dict):
         _model_routing_for_composition = {}
     _overrides_for_composition = config.get("overrides") if config_authoritative else None
+    _site_registry, _site_registry_error = _build_verify_site_registry(
+        workspace_path, autoharness_home, manifest, profile, _model_routing_for_composition
+    )
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
@@ -6152,6 +6325,10 @@ def verify_workspace(
         str(name).endswith("_CONTEXT_TIER") for name in _config_overrides
     ):
         _add_context_tier_override_check(report, "context_tier_overrides", config)
+
+    # 215-S B6: catalog, binding, site, inert-key, unknown-key and alias checks;
+    # existence-gated on a `model_routing` mapping.
+    _add_model_routing_catalog_checks(report, config, config_path, _site_registry, _site_registry_error)
 
     # P-013.6: escalation route resolution + same-route ESCALATION_DEGRADED
     # detection (106.007-T). Evaluated under the same opt-in gating as
