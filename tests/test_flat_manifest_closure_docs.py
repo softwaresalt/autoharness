@@ -787,6 +787,18 @@ class CascadeCloseTimeoutDocPinTests(unittest.TestCase):
                 self.assertIn("the command's runner alone owns that child's expiry", collapsed)
                 self.assertIn(f"`--timeout` + {_runner.SUPERVISION_MARGIN_SECONDS} s", collapsed)
 
+    def test_circuit_breaker_exempts_running_exit_9_from_failure_counter(self) -> None:
+        """PR #536 review: routine `--poll` exit 9 must not count toward the retry threshold."""
+
+        for label, text in _read_pair(CIRCUIT_BREAKER_FILES):
+            with self.subTest(path=label):
+                threshold = _collapse(_heading_section(text, "## Universal Retry Threshold"))
+                self.assertIn('the expected "still running" exit 9', threshold)
+                self.assertIn("`--detach` or `--poll`", threshold)
+                self.assertIn("never increments the counter", threshold)
+                self.assertIn("remains a counted failure", threshold)
+                self.assertIn("not a counted failure", _collapse(_heading_section(text, STALL_DETECTION_HEADING)))
+
     def test_supervision_margin_covers_the_runner_bounds(self) -> None:
         """PR #485 review: the margin covers both probes, every kill path, and filesystem headroom."""
 

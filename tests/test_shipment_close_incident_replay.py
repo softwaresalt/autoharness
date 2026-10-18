@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
+from _proc_race import retry_read
 from test_cli_gate_closure_evidence import (
     _READY,
     evidence_relpath,
@@ -83,6 +84,14 @@ class IncidentReplayTests(unittest.TestCase):
             lambda: (harness.directory / "child_started.json").exists(),
             "the child-start marker was never written",
         )
+        # The fake engine writes ship.sentinel first and moves the shipment last; kill only once archival finished,
+        # while the engine is still sleeping before it reports.
+        self._wait(
+            lambda: (harness.backlog / "archive" / f"{_SHIPMENT}.md").exists()
+            and not (harness.backlog / "queue" / f"{_SHIPMENT}.md").exists(),
+            "the fake engine never finished archiving the shipment",
+            timeout=30.0,
+        )
         _kill(_workspace_processes(harness.root))
         self._wait(
             lambda: not _workspace_processes(harness.root),
@@ -138,7 +147,9 @@ class IncidentReplayTests(unittest.TestCase):
             harness
         )  # engine event log provenance for the archived footprint
         options: dict[str, float] = {}
-        before = (harness.evidence.read_bytes(), harness.lock_path.read_bytes())
+        before = retry_read(
+            lambda: (harness.evidence.read_bytes(), harness.lock_path.read_bytes())
+        )
         dry = recover_cascade_close(
             harness.root,
             _SHIPMENT,
@@ -149,7 +160,9 @@ class IncidentReplayTests(unittest.TestCase):
         self.assertTrue(dry.dry_run)
         self.assertFalse(dry.recovered)
         self.assertEqual(
-            (harness.evidence.read_bytes(), harness.lock_path.read_bytes()),
+            retry_read(
+                lambda: (harness.evidence.read_bytes(), harness.lock_path.read_bytes())
+            ),
             before,
             "--dry-run writes nothing",
         )
