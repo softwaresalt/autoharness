@@ -504,6 +504,14 @@ restrict access: the directory inherits the workspace ACL and is Git-ignored, so
 it as sensitive local state. The journal holds unredacted engine output; the evidence
 record only ever receives redacted excerpts. Never commit, edit, or delete the journal.
 
+Before the exit sentinel is trusted, the run proves that no process still writes the
+streams: Windows opens each stream with share mode 0, and Linux scans `/proc/*/fd`. The
+Linux scan counts a same-uid process whose descriptor table it cannot read (a `dumpable=0`
+helper such as `(sd-pam)`) as unproven, unless that process started, per
+`/proc/<pid>/stat`, more than 2 seconds before the journal was created: it cannot have
+inherited a descriptor to files that did not exist yet. A process whose start time cannot
+be read, or that started later, still leaves the capture unproven.
+
 ### Recovery (`--recover`)
 
 When a run is killed after the evidence record reached `invoking`, the next run exits 7
@@ -523,7 +531,10 @@ Recovery rebuilds the evidence record from what was observed, in this order:
      `postconditions_only` (no usable journal; the archived footprint must be tied to
      this cascade by engine event-log provenance, otherwise the recovery is refused);
    * for a run that provably never started a child (`never_started`), a rollback of the
-     record from `invoking` to `pre_close` (exit 2); retry the mutating run attached;
+     record from `invoking` to `pre_close` (exit 2, reported as `recovery_action: rollback` and
+     `phase_written: pre_close`); retry the mutating run attached only on that report. Any
+     other `--recover` exit 2 (an argument or input error, or `evidence already finalized`)
+     does not prove the original invocation was mutation-free: HALT to the operator;
    * no evidence record, with exit 10, for anything that cannot be proven (a provably dead
      owner's lock may already have been tombstoned by then, because the lock takeover
      precedes reconstruction).
@@ -570,7 +581,8 @@ The `detach`, `poll`, and `recover` modes also carry `journal_path`. `poll` adds
 `outcome_source` (`journal_outcome`, `evidence_record`, or `recovered_evidence`) and `recovery_available`;
 `recover` adds `dry_run`, `recovered`, `recovery_mode`, `recovery_action`, and `notes`.
 For `--recover`, `mutation_possible` describes the original run: `yes` when a record was recovered, `no` when the
-record was rolled back to `pre_close` (and for exit 2), otherwise `unknown`.
+record was rolled back to `pre_close` (and for exit 2, which on its own is not proof that the original
+invocation was mutation-free), otherwise `unknown`.
 A mutating or detach exit 7 that carries the hint adds `recovery_available`. Every other
 key set is unchanged.
 

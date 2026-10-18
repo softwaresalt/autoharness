@@ -13,7 +13,11 @@ the shim must prove nothing is still writing to the journal streams:
   (``setsid`` on POSIX, a service/launcher on Windows). Windows therefore opens
   every journal stream with share mode 0 (which fails while any other handle is
   open), and Linux scans ``/proc/*/fd`` for links to the journal files. A
-  platform with neither primitive reports ``unproven``.
+  platform with neither primitive reports ``unproven``. The Linux scan treats a
+  same-uid process whose fd table it cannot read as unproven, except one that
+  started (per ``/proc/<pid>/stat``) more than 2 s before the journal was created:
+  it cannot have inherited a descriptor to files that did not exist yet, and
+  deliberately opening a 0600 journal file by path is outside the threat model.
 
 Everything here is read-only apart from :meth:`DescendantGroup.kill_members`,
 which only terminates processes that are members of the shim's own group/job.
@@ -31,6 +35,7 @@ from typing import Final, Protocol
 
 __all__ = [
     "QUIESCENCE_GRACE_SECONDS",
+    "START_SLACK_SECONDS",
     "DescendantGroup",
     "GroupVerdict",
     "PosixGroup",
@@ -44,6 +49,7 @@ __all__ = [
 ]
 
 QUIESCENCE_GRACE_SECONDS: Final = 5.0
+START_SLACK_SECONDS: Final = 2.0
 _WINDOWS: Final = os.name == "nt"
 _PROCESS_TERMINATE: Final = 0x0001
 _JOB_OBJECT_BASIC_PROCESS_ID_LIST: Final = 3
@@ -281,6 +287,44 @@ def _exclusive_open_held(path: Path) -> WriterVerdict:
     return WriterVerdict(None, "exclusive_open", f"{path.name}: CreateFileW failed (error {error})")
 
 
+def _start_epoch_reader(proc_root: Path) -> Callable[[str], float | None]:
+    """A reader of a process's start instant (epoch seconds) from ``<proc_root>/<pid>/stat`` and ``/stat``'s btime.
+
+    ``None`` whenever the instant cannot be established, which callers treat as unproven. ``comm`` (field 2) may hold
+    spaces and parentheses, so the fields are split after the *last* ``)``; ``starttime`` is field 22, in clock ticks
+    since boot.
+    """
+
+    cache: dict[str, float | None] = {}
+
+    def boot_epoch() -> float | None:
+        if "btime" not in cache:
+            cache["btime"] = None
+            try:
+                for line in (proc_root / "stat").read_text(encoding="ascii", errors="replace").splitlines():
+                    if line.startswith("btime "):
+                        cache["btime"] = float(line.split()[1])
+                        break
+            except (OSError, ValueError, IndexError):
+                pass
+        return cache["btime"]
+
+    def read(pid: str) -> float | None:
+        try:
+            ticks_per_second = os.sysconf("SC_CLK_TCK")
+            raw = (proc_root / pid / "stat").read_text(encoding="ascii", errors="replace")
+            fields = raw[raw.rindex(")") + 1 :].split()
+            started_ticks = int(fields[19])  # field 22 overall; field 3 is the first one after comm
+        except (OSError, ValueError, IndexError, AttributeError):
+            return None
+        boot = boot_epoch()
+        if boot is None or ticks_per_second <= 0:
+            return None
+        return boot + started_ticks / ticks_per_second
+
+    return read
+
+
 def scan_proc_fds(
     paths: Sequence[Path],
     *,
@@ -290,16 +334,25 @@ def scan_proc_fds(
     readlink: Callable[[str], str] = os.readlink,
     stat_uid: Callable[[str], int] = lambda path: os.stat(path).st_uid,
     my_uid: int | None = None,
+    started_before_epoch: float | None = None,
+    start_epoch: Callable[[str], float | None] | None = None,
 ) -> WriterVerdict:
     """Linux: look for any other process holding a descriptor linked to one of ``paths``.
 
     An fd table we cannot read only counts as unproven when the process runs under our own uid:
-    a foreign-uid process cannot hold our 0600 journal files open.
+    a foreign-uid process cannot hold our 0600 journal files open. Same-uid processes whose fd table is hidden
+    (``dumpable=0`` helpers such as ``(sd-pam)``) exist on every Linux host, so a caller that knows when the files
+    came into being passes ``started_before_epoch``: an unreadable process that started more than
+    :data:`START_SLACK_SECONDS` before that instant cannot have inherited a descriptor to files that did not yet
+    exist, and is skipped. An unreadable process whose start time cannot be determined, or that started at or after
+    the floor, still counts as unproven; a readable writer is reported regardless of its age.
     """
 
     me = str(self_pid if self_pid is not None else os.getpid())
     if my_uid is None:
         my_uid = os.getuid() if hasattr(os, "getuid") else -1
+    if start_epoch is None:
+        start_epoch = _start_epoch_reader(proc_root)
     wanted = {os.path.realpath(path) for path in paths}
     try:
         pids = [name for name in listdir(str(proc_root)) if name.isdigit() and name != me]
@@ -319,6 +372,10 @@ def scan_proc_fds(
                         continue
                 except OSError:
                     pass
+            if started_before_epoch is not None:
+                started = start_epoch(pid)
+                if started is not None and started < started_before_epoch - START_SLACK_SECONDS:
+                    continue
             unreadable += 1
             continue
         for descriptor in descriptors:
@@ -335,8 +392,11 @@ def scan_proc_fds(
     return WriterVerdict(True, "proc_fd_scan")
 
 
-def probe_writers(paths: Sequence[Path]) -> WriterVerdict:
-    """One open-writer probe over ``paths`` using the strongest primitive the platform offers."""
+def probe_writers(paths: Sequence[Path], *, started_before_epoch: float | None = None) -> WriterVerdict:
+    """One open-writer probe over ``paths`` using the strongest primitive the platform offers.
+
+    ``started_before_epoch`` (the instant the files were created) only matters to the Linux ``/proc`` scan.
+    """
 
     if _WINDOWS:
         for path in paths:
@@ -345,7 +405,7 @@ def probe_writers(paths: Sequence[Path]) -> WriterVerdict:
                 return verdict
         return WriterVerdict(True, "exclusive_open")
     if os.path.isdir("/proc/self/fd"):
-        return scan_proc_fds(paths)
+        return scan_proc_fds(paths, started_before_epoch=started_before_epoch)
     return WriterVerdict(None, "unavailable", "no open-writer primitive on this platform")
 
 

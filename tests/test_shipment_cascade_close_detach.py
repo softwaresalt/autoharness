@@ -333,6 +333,7 @@ class LauncherPidMismatchTests(unittest.TestCase):
 
         return spawn
 
+    @unittest.skipUnless(os.name == "nt", "the launcher handoff is accepted on Windows only (a POSIX spawn is the interpreter itself)")
     def test_a_launcher_fronted_supervisor_still_ships_and_owns_the_lock(self) -> None:
         harness = _DetachHarness(self, sleep=1.0)
         with mock.patch.object(command, "spawn_supervisor", self._launcher_spawn(harness)):

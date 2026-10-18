@@ -30,12 +30,14 @@ from unittest import mock
 from autoharness.shipment_close import journal as journal_module
 from autoharness.shipment_close import quiescence, runner, supervisor
 from autoharness.shipment_close.journal import (
+    Journal,
     JournalError,
     argv_sha256,
     build_launch,
     create_journal,
     open_journal,
     read_json,
+    utc_now,
     write_json,
 )
 from autoharness.shipment_close.liveness import is_process_alive
@@ -343,6 +345,7 @@ class EscapedWriterProbeTests(unittest.TestCase):
     def test_probe_sees_another_process_holding_the_file(self) -> None:
         fixture = _Fixture(self)
         path = fixture.fakes / "held.raw"
+        floor = time.time()
         path.write_bytes(b"")
         holder = subprocess.Popen(
             [
@@ -358,13 +361,15 @@ class EscapedWriterProbeTests(unittest.TestCase):
         self.addCleanup(holder.stdout.close)
         self.addCleanup(holder.kill)
         self.assertEqual(holder.stdout.readline().strip(), b"ready")
-        verdict = quiescence.probe_writers([path])
+        verdict = quiescence.probe_writers([path], started_before_epoch=floor)
         if verdict.clean is None:
             self.skipTest(f"no open-writer primitive here: {verdict.detail}")
         self.assertFalse(verdict.clean)
         holder.kill()
         holder.wait(timeout=10)
-        self.assertTrue(_wait_for(lambda: quiescence.probe_writers([path]).clean is True, timeout=10))
+        self.assertTrue(
+            _wait_for(lambda: quiescence.probe_writers([path], started_before_epoch=floor).clean is True, timeout=10)
+        )
 
     def test_an_escaped_grandchild_holding_stdout_makes_the_capture_unproven(self) -> None:
         fixture = _Fixture(self)
@@ -423,7 +428,9 @@ class EscapedWriterProbeTests(unittest.TestCase):
                     return ["50"]
                 raise PermissionError
 
-            self.assertIsNone(quiescence.scan_proc_fds(paths, listdir=denied).clean)
+            self.assertIsNone(
+                quiescence.scan_proc_fds(paths, listdir=denied, stat_uid=lambda p: 1000, my_uid=1000).clean
+            )
 
     def test_unavailable_primitive_is_unproven(self) -> None:
         with (
@@ -659,6 +666,231 @@ class RunJournaledTests(unittest.TestCase):
         self.assertTrue(result.stdout.drain_incomplete)
         verdict = read_json(fixture.journal, "exit.json")["quiescence"]["stdout"]
         self.assertFalse(verdict["proven"])
+
+
+class ShimBootstrapTests(unittest.TestCase):
+    def test_the_working_directory_entry_is_removed_before_anything_importable_loads(self) -> None:
+        bootstrap = runner._SHIM_BOOTSTRAP
+        self.assertLess(bootstrap.index("sys.path.pop(0)"), bootstrap.index("import runpy"))
+        self.assertEqual(bootstrap.split(";")[0].strip(), "import sys")
+
+    def test_a_journal_local_runpy_is_never_imported(self) -> None:
+        fixture = _Fixture(self)
+        marker = fixture.fakes / "decoy-ran.txt"
+        (fixture.root / "runpy.py").write_text(
+            f"open({str(marker)!r}, 'w').write('decoy')\nraise SystemExit(99)\n", encoding="utf-8"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", runner._SHIM_BOOTSTRAP, "--shim", str(fixture.fakes / "not-a-journal")],
+            cwd=str(fixture.root),
+            env=_env(),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        self.assertFalse(marker.exists(), "the journal-local runpy.py was imported")
+        self.assertEqual(completed.returncode, 2, completed.stderr)
+        self.assertIn("refusing to start", completed.stderr)
+
+
+class SpawnEnvironmentTests(unittest.TestCase):
+    def test_inherited_relative_and_empty_entries_are_resolved_against_the_foreground_directory(self) -> None:
+        fixture = _Fixture(self)
+        base = fixture.root
+        merged = runner._spawn_environment({"PYTHONPATH": os.pathsep.join(["src", "", ".", str(fixture.fakes), ""])}, base)
+        entries = merged["PYTHONPATH"].split(os.pathsep)
+        package_root = str(Path(runner.__file__).resolve().parents[2])
+        self.assertEqual(
+            entries,
+            [package_root, str(base / "src"), str(base), str(base), str(fixture.fakes), str(base)],
+        )
+        self.assertTrue(all(os.path.isabs(entry) for entry in entries))
+
+    def test_an_unset_pythonpath_yields_only_the_package_root(self) -> None:
+        merged = runner._spawn_environment({"PATH": "x"})
+        self.assertEqual(merged["PYTHONPATH"], str(Path(runner.__file__).resolve().parents[2]))
+
+    def test_the_default_base_is_the_foreground_working_directory(self) -> None:
+        merged = runner._spawn_environment({"PYTHONPATH": "."})
+        self.assertEqual(merged["PYTHONPATH"].split(os.pathsep)[1], os.getcwd())
+
+    def test_a_spawned_child_in_the_journal_directory_never_sees_a_journal_local_import(self) -> None:
+        fixture = _Fixture(self)
+        journal_dir = fixture.root / "journal"
+        journal_dir.mkdir()
+        (journal_dir / "decoy_mod.py").write_text("DECOY = True\n", encoding="utf-8")
+        probe = fixture.fakes / "probe.py"
+        out = fixture.fakes / "probe.json"
+        probe.write_text(
+            "import json, sys\n"
+            "try:\n"
+            "    import decoy_mod\n"
+            "    found = True\n"
+            "except ImportError:\n"
+            "    found = False\n"
+            "json.dump({'found': found, 'path': sys.path}, open(sys.argv[1], 'w'))\n",
+            encoding="utf-8",
+        )
+        for inherited in (".", "", "src:", os.pathsep.join(["", "."])):
+            out.unlink(missing_ok=True)
+            env = dict(os.environ, PYTHONPATH=inherited)
+            argv = [sys.executable, str(probe), str(out)]
+            spawned = runner.spawn_detached(argv, cwd=journal_dir, env=env)
+            spawned.process.wait(timeout=60)
+            result = json.loads(out.read_text(encoding="utf-8"))
+            self.assertFalse(result["found"], f"PYTHONPATH={inherited!r} re-admitted a journal-local import")
+
+
+class ReapChildGroupTests(unittest.TestCase):
+    def _journal_with_child(self, pid: int | None, *, exit_written: bool = False) -> Journal:
+        fixture = _Fixture(self)
+        if pid is not None:
+            write_json(
+                fixture.journal,
+                "child_started.json",
+                {"schema_version": 1, "run_id": fixture.run_id, "state": "spawned", "pid": pid, "written_at": utc_now()},
+            )
+        if exit_written:
+            write_json(
+                fixture.journal,
+                "exit.json",
+                {
+                    "schema_version": 1,
+                    "run_id": fixture.run_id,
+                    "state": "exited",
+                    "child_pid": pid,
+                    "started_at": utc_now(),
+                    "finished_at": utc_now(),
+                    "exit_code": 0,
+                    "timed_out": False,
+                    "quiescence": {
+                        key: {"proven": True, "method": "x", "survivors_killed": 0, "total_bytes": 0}
+                        for key in ("stdout", "stderr")
+                    },
+                },
+            )
+        return fixture.journal
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(signal, "SIGKILL", 9, create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_no_recorded_child_means_nothing_is_signalled(self) -> None:
+        calls: list = []
+        runner._reap_child_group(self._journal_with_child(None), killpg=lambda *args: calls.append(args))
+        self.assertEqual(calls, [])
+
+    def test_a_recorded_exit_sentinel_means_a_recycled_pid_is_never_signalled(self) -> None:
+        calls: list = []
+        journal = self._journal_with_child(4242, exit_written=True)
+        runner._reap_child_group(journal, killpg=lambda *args: calls.append(args))
+        self.assertEqual(calls, [])
+
+    def test_a_surviving_group_is_killed_and_verified_gone(self) -> None:
+        calls: list = []
+        gone = {"after": 2}
+
+        def killpg(pid: int, sig: int) -> None:
+            calls.append((pid, sig))
+            if sig == 0:
+                gone["after"] -= 1
+                if gone["after"] < 0:
+                    raise ProcessLookupError
+
+        runner._reap_child_group(self._journal_with_child(4242), killpg=killpg, sleep=lambda _: None)
+        self.assertEqual(calls[0], (4242, 9))
+        self.assertTrue(all(call == (4242, 0) for call in calls[1:]))
+        self.assertGreaterEqual(len(calls), 3)
+
+    def test_an_already_gone_group_is_fine(self) -> None:
+        def killpg(pid: int, sig: int) -> None:
+            raise ProcessLookupError
+
+        runner._reap_child_group(self._journal_with_child(4242), killpg=killpg)
+
+    def test_a_group_that_never_dies_is_an_error(self) -> None:
+        clock = {"now": 0.0}
+
+        def monotonic() -> float:
+            return clock["now"]
+
+        def sleep(seconds: float) -> None:
+            clock["now"] += 5
+
+        with self.assertRaises(runner.ChildMayStillRunError):
+            runner._reap_child_group(
+                self._journal_with_child(4242), killpg=lambda pid, sig: None, sleep=sleep, monotonic=monotonic
+            )
+
+    def test_a_group_that_cannot_be_signalled_is_an_error(self) -> None:
+        def killpg(pid: int, sig: int) -> None:
+            raise PermissionError("denied")
+
+        with self.assertRaises(runner.ChildMayStillRunError):
+            runner._reap_child_group(self._journal_with_child(4242), killpg=killpg)
+
+    @unittest.skipIf(_WINDOWS, "POSIX process groups")
+    def test_a_real_orphaned_child_group_is_killed_and_verified_gone(self) -> None:
+        launcher = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import subprocess, sys; "
+                "p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], start_new_session=True, "
+                "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+                "print(p.pid)",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+        )
+        pid = int(launcher.stdout.strip())
+        self.addCleanup(_kill_pid, pid)
+        journal = self._journal_with_child(pid)
+        try:
+            runner._reap_child_group(journal)
+        except runner.ChildMayStillRunError:
+            stat = Path(f"/proc/{pid}/stat")
+            if stat.exists() and stat.read_text(encoding="utf-8").rsplit(")", 1)[-1].split()[0] == "Z":
+                self.skipTest("the orphan was not reaped by this environment's init (zombie)")
+            raise
+        self.assertTrue(_wait_for(lambda: is_process_alive(pid) is False, timeout=10))
+
+    def test_terminate_shim_reaps_the_child_group_on_posix_only(self) -> None:
+        journal = self._journal_with_child(4242)
+        process = mock.Mock()
+        process.poll.return_value = 0
+        with (
+            mock.patch.object(runner, "_kill_group"),
+            mock.patch.object(runner, "_wait_after_kill"),
+            mock.patch.object(runner, "_reap_child_group") as reap,
+        ):
+            with mock.patch.object(runner, "_WINDOWS", False):
+                runner._terminate_shim(process, journal)
+            reap.assert_called_once_with(journal)
+            reap.reset_mock()
+            with mock.patch.object(runner, "_WINDOWS", True):
+                runner._terminate_shim(process, journal)
+            reap.assert_not_called()
+
+    def test_run_journaled_propagates_a_surviving_child_without_a_second_termination(self) -> None:
+        fixture = _Fixture(self)
+        script = fixture.script("sleeper.py", "import time\ntime.sleep(60)\n")
+        fixture.write_launch(script, timeout=30)
+        dummy = subprocess.Popen([sys.executable, "-c", "pass"])
+        self.addCleanup(dummy.wait)
+        with (
+            mock.patch.object(runner, "spawn_detached") as spawn,
+            mock.patch.object(runner, "_terminate_shim", side_effect=runner.ChildMayStillRunError("alive")) as terminate,
+        ):
+            spawn.return_value = runner.DetachedSpawn(dummy, breakaway=False)
+            with mock.patch.object(subprocess.Popen, "wait", side_effect=subprocess.TimeoutExpired("x", 1)):
+                with self.assertRaises(runner.ChildMayStillRunError):
+                    runner.run_journaled(fixture.journal)
+        self.assertEqual(terminate.call_count, 1)
 
 
 class ModeMismatchTests(unittest.TestCase):

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -10,6 +13,8 @@ from autoharness.shipment_close import quiescence
 
 
 def _scan(tables: dict[str, list[str]], uids: dict[str, int], my_uid: int = 1000, **kwargs):
+    kwargs.setdefault("readlink", lambda p: "/dev/null")
+
     def listdir(path: str) -> list[str]:
         value = tables[path.replace("\\", "/")]
         if isinstance(value, Exception):
@@ -28,7 +33,6 @@ def _scan(tables: dict[str, list[str]], uids: dict[str, int], my_uid: int = 1000
             proc_root=Path("/proc"),
             self_pid=1,
             listdir=listdir,
-            readlink=lambda p: "/dev/null",
             stat_uid=stat_uid,
             my_uid=my_uid,
             **kwargs,
@@ -67,6 +71,84 @@ class ScanProcFdsOwnershipTests(unittest.TestCase):
     def test_unlistable_proc_root_is_unproven(self) -> None:
         verdict = _scan({"/proc": OSError("no")}, {})
         self.assertIsNone(verdict.clean)
+
+
+class ScanProcFdsStartFloorTests(unittest.TestCase):
+    """An unreadable same-uid process that predates the journal cannot hold it by inheritance."""
+
+    FLOOR = 1_000_000.0
+    HIDDEN = ({"/proc": ["50"], "/proc/50/fd": PermissionError()}, {"/proc/50": 1000})
+
+    def _scan_with(self, started, **kwargs):
+        tables, uids = self.HIDDEN
+        return _scan(tables, uids, started_before_epoch=self.FLOOR, start_epoch=lambda pid: started, **kwargs)
+
+    def test_an_old_unreadable_process_is_skipped(self) -> None:
+        self.assertTrue(self._scan_with(self.FLOOR - 3600).clean)
+
+    def test_a_process_just_inside_the_slack_still_counts(self) -> None:
+        slack = quiescence.START_SLACK_SECONDS
+        self.assertIsNone(self._scan_with(self.FLOOR - slack + 0.5).clean)
+        self.assertTrue(self._scan_with(self.FLOOR - slack - 0.5).clean)
+
+    def test_a_new_unreadable_process_is_unproven(self) -> None:
+        self.assertIsNone(self._scan_with(self.FLOOR + 1).clean)
+        self.assertIsNone(self._scan_with(self.FLOOR).clean)
+
+    def test_an_unknown_start_time_is_unproven(self) -> None:
+        self.assertIsNone(self._scan_with(None).clean)
+
+    def test_without_a_floor_an_old_process_is_still_unproven(self) -> None:
+        tables, uids = self.HIDDEN
+        verdict = _scan(tables, uids, start_epoch=lambda pid: 1.0)
+        self.assertIsNone(verdict.clean)
+
+    def test_a_readable_writer_dominates_an_old_hidden_process(self) -> None:
+        tables = {"/proc": ["50", "60"], "/proc/50/fd": PermissionError(), "/proc/60/fd": ["3"]}
+        uids = {"/proc/50": 1000, "/proc/60": 1000}
+        verdict = _scan(
+            tables,
+            uids,
+            started_before_epoch=self.FLOOR,
+            start_epoch=lambda pid: 1.0,
+            readlink=lambda p: "/j/stdout.raw",
+        )
+        self.assertFalse(verdict.clean)
+
+
+class StartEpochReaderTests(unittest.TestCase):
+    def _reader(self, stat_line: str, btime: str | None = "btime 1000\n"):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
+        (root / "7").mkdir()
+        (root / "7" / "stat").write_text(stat_line, encoding="ascii")
+        if btime is not None:
+            (root / "stat").write_text("cpu 1 2 3\n" + btime, encoding="ascii")
+        return quiescence._start_epoch_reader(root)
+
+    @staticmethod
+    def _stat(comm: str, starttime: int) -> str:
+        rest = ["S"] + ["0"] * 18 + [str(starttime)] + ["0"] * 10  # fields 3..22 then filler
+        return f"7 ({comm}) " + " ".join(rest) + "\n"
+
+    def test_the_start_instant_is_btime_plus_ticks(self) -> None:
+        if not hasattr(os, "sysconf"):
+            self.skipTest("no sysconf on this platform")
+        ticks = os.sysconf("SC_CLK_TCK")
+        self.assertAlmostEqual(self._reader(self._stat("python", 5 * ticks))("7"), 1005.0)
+
+    def test_a_comm_with_spaces_and_parentheses_is_parsed(self) -> None:
+        if not hasattr(os, "sysconf"):
+            self.skipTest("no sysconf on this platform")
+        ticks = os.sysconf("SC_CLK_TCK")
+        self.assertAlmostEqual(self._reader(self._stat("a ) b (c", 2 * ticks))("7"), 1002.0)
+
+    def test_unparsable_or_missing_data_is_none(self) -> None:
+        self.assertIsNone(self._reader("garbage without a paren\n")("7"))
+        self.assertIsNone(self._reader("7 (x) S 1 2\n")("7"))
+        self.assertIsNone(self._reader(self._stat("x", 1), btime=None)("7"))
+        self.assertIsNone(self._reader(self._stat("x", 1), btime="btime nope\n")("7"))
+        self.assertIsNone(self._reader(self._stat("x", 1))("999"))
 
 
 class _FakeGroup:

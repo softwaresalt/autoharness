@@ -35,7 +35,7 @@ from autoharness.shipment_close.persist import (
     PersistError,
     acquire_pair_lock,
 )
-from autoharness.shipment_close.runner import ResolvedBinary, hash_binary
+from autoharness.shipment_close.runner import ChildMayStillRunError, ResolvedBinary, hash_binary
 
 _RUN = "c" * 32
 
@@ -152,6 +152,15 @@ class AttachedJournalTests(unittest.TestCase):
         self.assertEqual(outcome.exit_code, EXIT_INVOCATION_INDETERMINATE, outcome.message)
         self.assertIn("could not be spawned", harness.record()["post_close"]["parse_error"])
         self.assertEqual(harness.record()["phase"], "post_close")
+
+    def test_a_child_that_may_still_run_keeps_the_invoking_record_and_the_lock(self) -> None:
+        harness = _Harness(self, probes=[_VERIFIED])
+        with mock.patch.object(command, "run_journaled", side_effect=ChildMayStillRunError("group 4242 survived")):
+            outcome = harness.run()
+        self.assertEqual(outcome.exit_code, EXIT_INVOCATION_INDETERMINATE, outcome.message)
+        self.assertIn("may still be running", outcome.message)
+        self.assertEqual(harness.record()["phase"], "invoking")
+        self.assertEqual(harness.run().exit_code, EXIT_LOCKED)
 
     def test_a_lingering_grandchild_fails_closed_to_exit_6_never_completed(self) -> None:
         harness = _Harness(self, probes=[_VERIFIED])

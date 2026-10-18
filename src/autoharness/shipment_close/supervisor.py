@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import functools
 import json
 import os
 import signal
@@ -44,6 +45,7 @@ from autoharness.shipment_close.journal import (
     _read_capped,
     argv_sha256,
     enforce_stream_cap,
+    journal_created_epoch,
     journal_has,
     open_journal,
     open_stream_file,
@@ -255,7 +257,12 @@ def _prove_quiescence(
 ) -> dict[str, object]:
     paths = [journal.path / name for name in STREAM_FILES]
     group_verdict = quiescence.settle_group(group, grace=grace, poll=0.1)
-    writer_verdict = quiescence.settle_writers(paths, grace=grace, poll=0.1)
+    writer_verdict = quiescence.settle_writers(
+        paths,
+        grace=grace,
+        poll=0.1,
+        probe=functools.partial(quiescence.probe_writers, started_before_epoch=journal_created_epoch(journal)),
+    )
     truncated = {name: enforce_stream_cap(journal, name, cap=cap) for name in STREAM_FILES}
     verdicts: dict[str, object] = {}
     for key, name in zip(("stdout", "stderr"), STREAM_FILES):

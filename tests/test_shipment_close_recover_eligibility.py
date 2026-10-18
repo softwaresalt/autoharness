@@ -306,7 +306,8 @@ class RefusalMatrixTests(unittest.TestCase):
         reason = make_dir_link(orphan.journal_dir, outside)
         if reason is not None:
             self.skipTest(reason)
-        self.addCleanup(lambda: os.path.lexists(orphan.journal_dir) and os.rmdir(orphan.journal_dir))
+        remove_link = os.rmdir if os.name == "nt" else os.unlink  # a POSIX directory symlink is unlinked, not rmdir'd
+        self.addCleanup(lambda: os.path.lexists(orphan.journal_dir) and remove_link(orphan.journal_dir))
         self._refused(orphan)
 
 
@@ -513,6 +514,7 @@ class RollbackProofTests(unittest.TestCase):
 
 
 class PowerShellResolutionTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "the PowerShell resolver is only used on Windows and needs Windows path rules")
     def test_only_the_absolute_system_powershell_is_used(self) -> None:
         root = "C:\\Windows"
         expected = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
@@ -523,6 +525,7 @@ class PowerShellResolutionTests(unittest.TestCase):
         self.assertIsNone(recover._powershell_path({}, cwd="C:\\ws", is_file=lambda p: True))
         self.assertIsNone(recover._powershell_path({"SystemRoot": "relative"}, cwd="C:\\ws", is_file=lambda p: True))
 
+    @unittest.skipUnless(os.name == "nt", "the PowerShell resolver is only used on Windows and needs Windows path rules")
     def test_a_system_root_inside_the_working_directory_is_rejected(self) -> None:
         self.assertIsNone(
             recover._powershell_path({"SystemRoot": "C:\\ws\\fake"}, cwd="C:\\ws", is_file=lambda p: True)

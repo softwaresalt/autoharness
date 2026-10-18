@@ -136,6 +136,7 @@ from autoharness.shipment_close.runner import (
     DEFAULT_TIMEOUT_SECONDS,
     SUPERVISION_MARGIN_SECONDS,
     BoundedRunResult,
+    ChildMayStillRunError,
     ResolvedBinary,
     hash_binary,
     run_journaled,
@@ -726,6 +727,15 @@ def _invoke_and_finalize(
     except PersistError as exc:
         spawn_error = str(exc)
         result = _spawn_failed(argv, invoking["invocation"]["started_at"])
+    except ChildMayStillRunError as exc:
+        # The child may still be mutating the backlog: write no terminal evidence and keep the lock, so the
+        # orphaned `invoking` record is left for --recover (the same convention as the detached handoff).
+        lock.held = False
+        return state.outcome(
+            EXIT_INVOCATION_INDETERMINATE,
+            f"the backlogit child may still be running ({exc}); the invoking record and the pair lock were left "
+            "in place: operator review required, then --recover",
+        )
     return _finalize(lock, state, snapshot, durable, invoking, journal, result, spawn_error, finalizer="foreground")
 
 

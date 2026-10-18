@@ -65,6 +65,7 @@ __all__ = [
     "create_journal",
     "discard_journal",
     "enforce_stream_cap",
+    "journal_created_epoch",
     "journal_has",
     "journal_path",
     "open_journal",
@@ -450,6 +451,8 @@ def _read_capped(path: Path, cap: int) -> tuple[bytes, bool]:
             if not chunk:
                 break
             data += chunk
+    except OSError as exc:  # a directory opens read-only on POSIX but cannot be read
+        raise JournalError("untrusted", f"cannot read {path.name}: {exc.__class__.__name__}") from exc
     finally:
         os.close(fd)
     return bytes(data[:cap]), len(data) > cap
@@ -617,6 +620,22 @@ def write_never_started(journal: Journal) -> dict[str, object]:
     }
     write_json(journal, "exit.json", record)
     return record
+
+
+def journal_created_epoch(journal: Journal) -> float | None:
+    """The epoch seconds of the journal's ``created_at`` (``meta.json``, else ``launch.json``); ``None`` if unknown.
+
+    No process that started before this instant can hold a journal stream by inheritance (the open-writer probe's floor).
+    """
+
+    for name in ("meta.json", "launch.json"):
+        try:
+            created = parse_utc(read_json(journal, name)["created_at"])
+        except (JournalError, OSError):
+            continue
+        if created is not None:
+            return created.timestamp()
+    return None
 
 
 def journal_has(journal: Journal, name: str) -> bool:

@@ -61,6 +61,7 @@ from autoharness.shipment_close.journal import (
     Journal,
     JournalError,
     _is_link,
+    journal_created_epoch,
     journal_has,
     journal_path,
     read_json,
@@ -587,7 +588,12 @@ def _journal_result(eligibility: Eligibility) -> BoundedRunResult | None:
         return None
     if result.stdout.drain_incomplete or result.stderr.drain_incomplete:
         return None
-    if probe_writers([journal.path / name for name in STREAM_FILES]).clean is not True:
+    if (
+        probe_writers(
+            [journal.path / name for name in STREAM_FILES], started_before_epoch=journal_created_epoch(journal)
+        ).clean
+        is not True
+    ):
         return None
     return result
 

@@ -33,6 +33,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +47,7 @@ from autoharness.shipment_close.journal import (
     TRUNCATION_MARKER,
     Journal,
     JournalError,
+    journal_has,
     read_json,
     read_stream,
     utc_now,
@@ -65,6 +67,7 @@ __all__ = [
     "REGISTRY_PATH",
     "SUPERVISION_MARGIN_SECONDS",
     "BoundedRunResult",
+    "ChildMayStillRunError",
     "DetachedSpawn",
     "ResolvedBinary",
     "hash_binary",
@@ -364,8 +367,9 @@ _DETACHED_PROCESS: Final = 0x00000008
 _CREATE_BREAKAWAY_FROM_JOB: Final = 0x01000000
 _ERROR_ACCESS_DENIED: Final = 5
 _SHIM_MODULE: Final = "autoharness.shipment_close.supervisor"
+# ``sys`` is built in, so the working-directory entry is dropped before anything importable (``runpy``) loads.
 _SHIM_BOOTSTRAP: Final = (
-    "import sys, runpy; sys.path.pop(0); "
+    "import sys; sys.path.pop(0); import runpy; "
     f"runpy.run_module({_SHIM_MODULE!r}, run_name='__main__', alter_sys=True)"
 )
 
@@ -390,11 +394,20 @@ class DetachedSpawn:
     breakaway: bool
 
 
-def _spawn_environment(env: dict[str, str] | None) -> dict[str, str]:
+def _spawn_environment(env: dict[str, str] | None, base: Path | str | None = None) -> dict[str, str]:
+    """The child environment with the autoharness package root first on ``PYTHONPATH``.
+
+    The child runs in the journal directory, so every inherited entry (an empty entry means the working directory)
+    is made absolute against ``base`` (default: this process's working directory) while the order is preserved;
+    left relative it would resolve inside the journal and re-admit journal-local imports.
+    """
+
     merged = dict(os.environ if env is None else env)
     package_root = str(Path(__file__).resolve().parents[2])
+    anchor = os.getcwd() if base is None else os.fspath(base)
     existing = merged.get("PYTHONPATH")
-    merged["PYTHONPATH"] = package_root + (os.pathsep + existing if existing else "")
+    inherited = [os.path.abspath(os.path.join(anchor, entry)) for entry in existing.split(os.pathsep)] if existing else []
+    merged["PYTHONPATH"] = os.pathsep.join([package_root, *inherited])
     return merged
 
 
@@ -425,8 +438,74 @@ def spawn_detached(argv: Sequence[str], *, cwd: Path | str, env: dict[str, str] 
     return DetachedSpawn(subprocess.Popen(list(argv), creationflags=base, **options), False)
 
 
-def _terminate_shim(process: subprocess.Popen) -> None:
-    """Interrupt path: ask the shim to kill its child group (POSIX SIGTERM), then kill the tree."""
+class ChildMayStillRunError(Exception):
+    """The shim is gone but the authenticated child's process group could not be proven gone (POSIX).
+
+    Deliberately not a :class:`PersistError`: that type means "nothing ran". The caller must leave the ``invoking``
+    record and the pair lock in place (``lock.held = False``, the same convention the detached handoff uses) so the
+    wrapper never writes terminal failure evidence or releases the lock while the child may still mutate the
+    backlog; the orphaned run is left for ``--recover``.
+    """
+
+
+def _recorded_child_pid(journal: Journal) -> int | None:
+    """The spawned child's pid when the shim journaled one and no exit sentinel exists, else ``None``."""
+
+    if journal_has(journal, "exit.json"):
+        return None
+    try:
+        record = read_json(journal, "child_started.json", expected_run_id=journal.run_id)
+    except JournalError:
+        return None
+    pid = record.get("pid")
+    return pid if record.get("state") == "spawned" and type(pid) is int and pid > 1 else None
+
+
+def _reap_child_group(
+    journal: Journal,
+    *,
+    killpg: Callable[[int, int], None] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+    wait_seconds: float = _KILL_WAIT_SECONDS,
+) -> None:
+    """Kill the journaled child's own process group (it runs in a new session) and verify it is gone.
+
+    Acts only when ``child_started.json`` records a spawned pid and ``exit.json`` does not exist (a recorded exit
+    means the supervisor already finished with the child, so a recycled pid is never signalled). Raises
+    :class:`ChildMayStillRunError` when the group cannot be signalled or is still present after ``wait_seconds``.
+    """
+
+    pid = _recorded_child_pid(journal)
+    if pid is None:
+        return
+    send = os.killpg if killpg is None else killpg
+    try:
+        send(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        return
+    except OSError as exc:
+        raise ChildMayStillRunError(f"cannot signal the journaled child's process group {pid}: {exc}") from exc
+    deadline = monotonic() + wait_seconds
+    while True:
+        try:
+            send(pid, 0)
+        except ProcessLookupError:
+            return
+        except OSError as exc:
+            raise ChildMayStillRunError(f"cannot verify the journaled child's process group {pid}: {exc}") from exc
+        if monotonic() >= deadline:
+            raise ChildMayStillRunError(f"the journaled child's process group {pid} is still present after SIGKILL")
+        sleep(0.1)
+
+
+def _terminate_shim(process: subprocess.Popen, journal: Journal | None = None) -> None:
+    """Interrupt path: ask the shim to kill its child group (POSIX SIGTERM), then kill the tree.
+
+    The authenticated child runs in its own session, so killing the shim's group can leave it running. On POSIX,
+    after the shim is gone, the child's recorded group is killed and verified; if that cannot be proven this raises
+    :class:`ChildMayStillRunError`. On Windows the Job Object / ``taskkill /T`` already covers the child.
+    """
 
     if not _WINDOWS and process.poll() is None:
         try:
@@ -436,6 +515,8 @@ def _terminate_shim(process: subprocess.Popen) -> None:
             pass
     _kill_group(process)
     _wait_after_kill(process)
+    if not _WINDOWS and journal is not None:
+        _reap_child_group(journal)
 
 
 def _indeterminate(launch: Mapping[str, object]) -> BoundedRunResult:
@@ -500,7 +581,8 @@ def run_journaled(journal: Journal, *, wait_margin_seconds: float = SHIM_WAIT_MA
     """Run the journal's authenticated launch argv through the detached shim and return its journaled result.
 
     The wrapper only waits: the child, its exit code, and its output live in the journal, so a killed wrapper
-    loses none of them. An interrupt kills the shim and its child before re-raising.
+    loses none of them. An interrupt kills the shim and its child before re-raising; on POSIX, if the child's
+    process group cannot be proven gone afterwards, :class:`ChildMayStillRunError` is raised instead.
     """
 
     launch = read_json(journal, "launch.json")
@@ -513,8 +595,10 @@ def run_journaled(journal: Journal, *, wait_margin_seconds: float = SHIM_WAIT_MA
         try:
             process.wait(timeout=float(launch["timeout_seconds"]) + wait_margin_seconds)  # type: ignore[arg-type]
         except subprocess.TimeoutExpired:
-            _terminate_shim(process)
+            _terminate_shim(process, journal)
+    except ChildMayStillRunError:
+        raise
     except BaseException:
-        _terminate_shim(process)
+        _terminate_shim(process, journal)
         raise
     return result_from_journal(journal, launch)
