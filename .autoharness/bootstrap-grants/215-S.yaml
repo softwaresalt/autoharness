@@ -1,0 +1,12 @@
+schema_version: 1
+shipment_id: 215-S
+authorized_invocations:
+  - orchestrator_pre_route
+  - ship_pre_branch
+  - ship_pre_claim
+expected_token: PREDECESSOR_CLOSURE_INCOMPLETE
+expected_predecessor_id: 214-S
+manifest_digest: a924936c14b6df773777a1730ab04ee46ee469f7c95d113e6634044aebe17d6f
+authorizing_decision: 'Operator (softwaresalt) accepts 214-S closure as incomplete and explicitly delegated authoring of this grant to the Orchestrator on 2026-10-17: the cascade-close for 214-S was killed mid-run and lost engine output; backlog state was independently verified and archival completed with operator approval; cascade-close --recover refuses 214-S because it has no journal. See docs/closure/214-S-207-F-post-merge-closure.md and docs/compound/2026-10-16-cascade-close-killed-mid-run-leaves-invoking-record-and-stale-lock.md.'
+operator: softwaresalt
+expires_on_claim: true
