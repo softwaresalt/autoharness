@@ -177,5 +177,34 @@ class InstallHarnessSurfaceTests(unittest.TestCase):
         self.assertEqual(entry["checksum"], hashlib.sha256(blob).hexdigest())
 
 
+class StepThreeFourPreservationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        match = re.search(r"(?ms)^#### Step 3\.4: Write Resolved Configuration\n(.*?)^### Phase 4", _skill_text())
+        self.assertIsNotNone(match, "install-harness Step 3.4 not found")
+        self.flat = _flat(match.group(1))
+
+    def test_operator_routes_and_bindings_are_carried_over_verbatim(self) -> None:
+        for token in (
+            "non-empty `model_routing.routes` and `model_routing.bindings`",
+            "carried over verbatim",
+            "never regenerated, emptied, or variable-substituted",
+            "literal `{}` applies only when the existing config has none",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, self.flat)
+
+    def test_existing_schema_version_is_not_silently_bumped(self) -> None:
+        self.assertRegex(self.flat, r"keep the observed `schema_version`")
+        self.assertIn("tune-harness approval path", self.flat)
+
+    def test_installed_config_list_names_routes_and_bindings(self) -> None:
+        self.assertRegex(self.flat, r"`model_routing` \(including any operator `routes` and `bindings`\)")
+
+    def test_manifest_note_records_the_review_fix(self) -> None:
+        manifest = yaml.safe_load((_REPO_ROOT / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))
+        entry = next(a for a in manifest["artifacts"] if a["path"] == ".github/skills/install-harness/SKILL.md")
+        self.assertIn("208.010-T review", entry["note"])
+
+
 if __name__ == "__main__":
     unittest.main()

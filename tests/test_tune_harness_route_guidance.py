@@ -170,6 +170,12 @@ class TuneRouteStepTests(unittest.TestCase):
         for token in ("source: ship-route-default", "source: frontmatter-conformity", "source: schema-contract"):
             self.assertIn(token, step22)
 
+    def test_operator_routes_and_bindings_are_preserved_verbatim_on_config_writes(self) -> None:
+        self.assertRegex(
+            self.flat,
+            r"operator-authored `model_routing\.routes` and `model_routing\.bindings` verbatim",
+        )
+
     def test_manifest_checksum_matches_committed_skill(self) -> None:
         manifest = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8"))
         entry = next(a for a in manifest["artifacts"] if a["path"] == _TUNE)
