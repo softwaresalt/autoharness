@@ -71,13 +71,18 @@ mentions committing or pushing the generated install output.
 
 Check for `.autoharness/config.yaml` in the target workspace. If present:
 
-1. Validate against `{autoharness_home}/schemas/harness-config.schema.json`
+1. Validate the config against the schema version that matches the document's own `schema_version`, not against the root schema alone:
+   * Read `schema_version` from the document. When `{autoharness_home}/schemas/harness-config/<schema_version>.schema.json` exists, validate against that mirror (the selection `resolve_contract_schema_path` makes).
+   * When `schema_version` is absent, unknown to the contract, or has no mirror file, validate against the current mirror and report the version as a contract finding instead of declaring the file invalid on the root alone.
+   * The root `schemas/harness-config.schema.json` tracks only the current version, so it is not the validation target for an older-version config.
 2. Extract operator preferences for: preset, primary stack pack, stack packs, install layers, capability packs, backlog configuration (tool, directory, suffix map), docs directory structure, model routing, and template variable overrides
 3. Merge with the workspace profile — operator config values take precedence over auto-detected profile values
 4. Derive `{{SUFFIX_*}}` template variables from `backlog.suffix_map` (falling back to backlogit project YAML when backlogit pack is active, then schema defaults)
 5. Derive `{{DOCS_ROOT}}` and `{{DOCS_*}}` template variables from `docs.root` and `docs.subdirectories` (falling back to schema defaults)
 6. Derive `{{PRIMARY_STACK_PACK}}`, `{{STACK_PACKS_YAML}}`, `{{INSTALL_LAYERS_YAML}}`, and `{{CAPABILITY_PACKS_YAML}}` from the merged composition state for config write-back
 7. If the config specifies `overrides`, apply those template variable values directly, overriding any profile-derived values
+
+**Catalog and bindings (`model_routing.routes` / `model_routing.bindings`).** Read these from the loaded workspace config at runtime; this guidance adds no install-time placeholder and no template variable. For an agent that has a binding, the four route variables of that artifact (the `TIER_<N>_FAMILY`, `TIER_<N>_PROVIDER`, `TIER_<N>_REASONING_EFFORT`, and `TIER_<N>_CONTEXT_TIER` set of the tier its template renders) come from the shared site composition (`_compose_site_route_variables` in `verify_workspace.py`): the binding's route first, then explicit `config.overrides` values for those same variables. The template default tier is never consulted for a bound agent, so a field the bound route leaves empty is not inherited from the agent's old tier. An unbound agent renders its template default tier as before, and pipeline artifacts are unchanged. A binding on a managed agent whose template default tier cannot be established is rejected by verification (`ROUTING_BINDING_UNRESOLVED_SITE`) rather than guessed or skipped.
 
 If the file does not exist, proceed with profile-only installation using schema default values for all suffix and docs variables. After installation, the installer writes the resolved `.autoharness/config.yaml` recording the actual values used (see Step 3.4).
 

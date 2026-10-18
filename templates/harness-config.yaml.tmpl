@@ -6,7 +6,7 @@
 #
 # Schema: schemas/harness-config.schema.json
 
-schema_version: "1.1.0"
+schema_version: "1.2.0"
 
 # Installation preset: starter | standard | full
 preset: {{INSTALL_PRESET}}
@@ -144,6 +144,13 @@ model_routing:
     model_provider: "{{ANCHOR_REVIEW_PROVIDER}}"       # Anchor reviewer provider (default: openai)
     model_family: "{{ANCHOR_REVIEW_FAMILY}}"           # Anchor reviewer family (default: gpt-5.6-sol)
     reasoning_effort: "{{ANCHOR_REVIEW_REASONING_EFFORT}}"  # Leave empty to use model default
+  # Route catalog and agent bindings (operator-authored; both empty by default).
+  # routes is a tier-delta catalog: each named entry is a tier plus optional field
+  # overrides. bindings maps a site (agent:<id>) to a catalog route plus optional
+  # per-field overrides. Use no YAML anchors, aliases, or merge keys; reference a
+  # catalog route by name instead.
+  routes: {}
+  bindings: {}
 
 # AI CLI tool startup configuration
 # Resolves {{COPILOT_EXE_PATH}} in the generated start.ps1 and start.sh scripts,
