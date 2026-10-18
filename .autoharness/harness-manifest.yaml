@@ -177,8 +177,8 @@ artifacts:
   - path: ".github/skills/workspace-discovery/SKILL.md"
     primitive: 1
     template: "global skill definition"
-    checksum: "a9b1c906e094b83144ea968419520acc07c9900e4507c92c32d640644df3fd92"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 158-S/150.002-T (v1.5.0 release blocker T2): the manifest recorded checksum was never refreshed after the file's content last changed in c37ad959 (2026-08-15), causing verify_workspace checksum_scan to falsely report this file as user-modified. Confirmed via git diff against HEAD (no local edit) and pure-LF byte content -- this is genuine committed content drift, not a masked local modification (PA-3). Refreshed checksum is the LF-normalized SHA-256 of the current committed content.; checksum refreshed 199-S/193.003-T (skill name: frontmatter key)"
+    checksum: "e63b20a9ac7141f0fca1243c909d7266d3f5e7eacfc95294ea875c6d45659248"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 158-S/150.002-T (v1.5.0 release blocker T2): the manifest recorded checksum was never refreshed after the file's content last changed in c37ad959 (2026-08-15), causing verify_workspace checksum_scan to falsely report this file as user-modified. Confirmed via git diff against HEAD (no local edit) and pure-LF byte content -- this is genuine committed content drift, not a masked local modification (PA-3). Refreshed checksum is the LF-normalized SHA-256 of the current committed content.;     checksum refreshed 199-S/193.003-T (skill name: frontmatter key); checksum refreshed 215-S/208.014-T (Phase 0 item 1 now selects the harness-config validation schema by the document's own schema_version via the versioned mirror, with the root schema tracking only the current version; computed from the staged blob via `git cat-file -p :<path>`)"
   - path: ".github/skills/verify-harness/SKILL.md"
     primitive: 7
     template: "global skill definition"

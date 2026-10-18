@@ -28,7 +28,11 @@ A YAML file at `.autoharness/workspace-profile.yaml` in the target workspace con
 
 Check for an operator-authored configuration file at `{workspace_path}/.autoharness/config.yaml`. If present:
 
-1. Validate against `schemas/harness-config.schema.json`
+1. Validate the config against the schema version that matches the document's own `schema_version`, not against the root schema alone:
+   * Read `schema_version` from the document. When `{autoharness_home}/schemas/harness-config/<schema_version>.schema.json` exists, validate against that mirror (the selection `resolve_contract_schema_path` makes).
+   * When `schema_version` is absent, unknown to the contract, or has no mirror file, validate against the current mirror and report the version as a contract finding instead of declaring the file invalid on the root alone.
+   * The root `schemas/harness-config.schema.json` tracks only the current version, so it is not the validation target for an older-version config.
+   * `autoharness verify-workspace --workspace {workspace_path} --json` (its harness-config schema result) applies the same selection.
 2. Extract operator preferences: preset, primary stack pack, stack packs, install layers, capability packs, backlog tool/directory, prefix map, docs directory structure, model routing, template variable overrides
 3. These preferences take precedence over auto-detected values in subsequent phases — when the operator has explicitly specified a value, use it instead of detecting
 
