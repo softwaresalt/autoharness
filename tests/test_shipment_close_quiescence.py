@@ -103,6 +103,19 @@ class ScanProcFdsStartFloorTests(unittest.TestCase):
         verdict = _scan(tables, uids, start_epoch=lambda pid: 1.0)
         self.assertIsNone(verdict.clean)
 
+    def test_only_a_permission_error_is_age_skipped(self) -> None:
+        for error in (OSError(24, "too many open files"), OSError(12, "no memory"), OSError(5, "io error")):
+            with self.subTest(error=repr(error)):
+                tables = {"/proc": ["50"], "/proc/50/fd": error}
+                verdict = _scan(
+                    tables, {"/proc/50": 1000}, started_before_epoch=self.FLOOR, start_epoch=lambda pid: 1.0
+                )
+                self.assertIsNone(verdict.clean)
+
+    def test_a_foreign_uid_oserror_is_not_skipped_as_foreign(self) -> None:
+        tables = {"/proc": ["50"], "/proc/50/fd": OSError(5, "io error")}
+        self.assertIsNone(_scan(tables, {"/proc/50": 0}).clean)
+
     def test_a_readable_writer_dominates_an_old_hidden_process(self) -> None:
         tables = {"/proc": ["50", "60"], "/proc/50/fd": PermissionError(), "/proc/60/fd": ["3"]}
         uids = {"/proc/50": 1000, "/proc/60": 1000}

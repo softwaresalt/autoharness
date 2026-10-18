@@ -314,11 +314,16 @@ class KilledAfterSpawnTests(unittest.TestCase):
         fixture = _Fixture(self)
         launch = self._slow(fixture)
         pids: list[int] = []
+
+        def interrupted(pid: int, entered: object = None) -> None:
+            pids.append(pid)
+            raise supervisor._Terminated
+
         with (
-            mock.patch.object(supervisor, "_group_for", side_effect=supervisor._Terminated),
+            mock.patch.object(supervisor, "_group_for", interrupted),
             self.assertRaises(supervisor._Terminated),
         ):
-            supervisor.run_child(fixture.journal, launch, on_spawned=pids.append)
+            supervisor.run_child(fixture.journal, launch)
         self._assert_child_killed(pids)
 
     def test_an_interrupt_in_the_spawn_callback_still_kills_the_child(self) -> None:
@@ -333,6 +338,102 @@ class KilledAfterSpawnTests(unittest.TestCase):
         with self.assertRaises(supervisor._Terminated):
             supervisor.run_child(fixture.journal, launch, on_spawned=interrupted)
         self._assert_child_killed(pids)
+
+
+class PosixGroupKillBeforeCallbackTests(unittest.TestCase):
+    """The child's process group is armed immediately after ``Popen``, before anything that can be interrupted."""
+
+    PID = 4321
+
+    def _run(self, fixture: _Fixture, **kwargs) -> list[tuple[int, int]]:
+        launch = fixture.write_launch(fixture.script("slow.py", "import time\ntime.sleep(60)\n"), timeout=120)
+        calls: list[tuple[int, int]] = []
+        process = mock.Mock()
+        process.pid = self.PID
+        process.poll.return_value = None
+        popen = mock.Mock(return_value=process)
+        with (
+            mock.patch.object(supervisor, "_WINDOWS", False),
+            mock.patch.object(supervisor.quiescence, "_WINDOWS", False),
+            mock.patch.object(supervisor.subprocess, "Popen", popen),
+            mock.patch.object(supervisor.signal, "SIGKILL", 9, create=True),
+            mock.patch.object(supervisor.quiescence.os, "killpg", lambda pgid, sig: calls.append((pgid, sig)), create=True),
+            self.assertRaises(supervisor._Terminated),
+        ):
+            supervisor.run_child(fixture.journal, launch, **kwargs)
+        self.assertEqual(popen.call_count, 1)
+        process.kill.assert_called_once_with()
+        return calls
+
+    def test_a_termination_in_the_spawn_callback_kills_the_whole_group(self) -> None:
+        def interrupted(pid: int) -> None:
+            raise supervisor._Terminated
+
+        calls = self._run(_Fixture(self), on_spawned=interrupted)
+        self.assertEqual(calls, [(self.PID, 9)])
+
+    def test_a_termination_while_closing_the_stream_descriptors_kills_the_whole_group(self) -> None:
+        real_close, armed = supervisor._close_all, [True]
+
+        def interrupted_once(fds: list[int]) -> None:
+            if armed:
+                armed.clear()
+                raise supervisor._Terminated
+            real_close(fds)
+
+        with mock.patch.object(supervisor, "_close_all", interrupted_once):
+            calls = self._run(_Fixture(self))
+        self.assertEqual(calls, [(self.PID, 9)])
+
+    def test_a_termination_while_resolving_the_group_still_kills_the_whole_group(self) -> None:
+        with mock.patch.object(supervisor, "_group_for", side_effect=supervisor._Terminated):
+            calls = self._run(_Fixture(self))
+        self.assertEqual(calls, [(self.PID, 9)])
+
+    def test_the_group_exists_before_the_spawn_callback_runs(self) -> None:
+        seen: list[object] = []
+        real_enter = supervisor.quiescence.enter_group
+
+        def enter(pid):
+            seen.append(("enter", pid))
+            return real_enter(pid)
+
+        def interrupted(pid: int) -> None:
+            seen.append(("callback", pid))
+            raise supervisor._Terminated
+
+        with mock.patch.object(supervisor.quiescence, "enter_group", enter):
+            self._run(_Fixture(self), on_spawned=interrupted)
+        self.assertEqual(seen, [("enter", self.PID), ("callback", self.PID)])
+
+
+class AttachedSpawningMarkerTests(unittest.TestCase):
+    def test_the_attached_shim_journals_spawning_before_the_spawn(self) -> None:
+        fixture = _Fixture(self)
+        fixture.write_launch(_quick_script(fixture))
+        states: list[str] = []
+        real_popen = subprocess.Popen
+
+        def spying_popen(*args, **kwargs):
+            states.append(read_json(fixture.journal, "child_started.json")["state"])
+            return real_popen(*args, **kwargs)
+
+        with mock.patch.object(supervisor.subprocess, "Popen", spying_popen):
+            self.assertEqual(supervisor.main(["--shim", str(fixture.journal.path)]), 0)
+        self.assertEqual(states, ["spawning"])
+        self.assertEqual(read_json(fixture.journal, "child_started.json")["state"], "spawned")
+
+    def test_an_unwritable_marker_refuses_the_spawn_as_never_started(self) -> None:
+        fixture = _Fixture(self)
+        fixture.write_launch(_quick_script(fixture))
+        with (
+            mock.patch.object(supervisor, "_write_child_started", side_effect=OSError("disk full")),
+            mock.patch.object(supervisor.subprocess, "Popen") as popen,
+        ):
+            self.assertEqual(supervisor.main(["--shim", str(fixture.journal.path)]), 0)
+        popen.assert_not_called()
+        self.assertEqual(read_json(fixture.journal, "exit.json")["state"], "never_started")
+        self.assertFalse(journal_has(fixture.journal, "child_started.json"))
 
 
 class UnexpectedQuiescenceErrorTests(unittest.TestCase):

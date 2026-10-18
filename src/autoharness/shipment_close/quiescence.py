@@ -340,7 +340,8 @@ def scan_proc_fds(
     """Linux: look for any other process holding a descriptor linked to one of ``paths``.
 
     An fd table we cannot read only counts as unproven when the process runs under our own uid:
-    a foreign-uid process cannot hold our 0600 journal files open. Same-uid processes whose fd table is hidden
+    a foreign-uid process cannot hold our 0600 journal files open. Only a ``PermissionError`` is skippable at all;
+    any other ``OSError`` (EMFILE, ENOMEM, EIO) leaves the table unproven. Same-uid processes whose fd table is hidden
     (``dumpable=0`` helpers such as ``(sd-pam)``) exist on every Linux host, so a caller that knows when the files
     came into being passes ``started_before_epoch``: an unreadable process that started more than
     :data:`START_SLACK_SECONDS` before that instant cannot have inherited a descriptor to files that did not yet
@@ -372,10 +373,10 @@ def scan_proc_fds(
                         continue
                 except OSError:
                     pass
-            if started_before_epoch is not None:
-                started = start_epoch(pid)
-                if started is not None and started < started_before_epoch - START_SLACK_SECONDS:
-                    continue
+                if started_before_epoch is not None:
+                    started = start_epoch(pid)
+                    if started is not None and started < started_before_epoch - START_SLACK_SECONDS:
+                        continue
             unreadable += 1
             continue
         for descriptor in descriptors:

@@ -65,7 +65,7 @@ _POLL_SECONDS: Final = 0.25
 
 
 class _SpawnRefused(Exception):
-    """Raised by ``before_spawn`` when the spawn must not happen; nothing was spawned and ``spawning`` was not written."""
+    """Raised by ``before_spawn`` when the spawn must not happen; nothing was spawned."""
 
 
 class _Terminated(BaseException):
@@ -122,6 +122,7 @@ def _close_all(fds: list[int]) -> None:
     for fd in fds:
         with contextlib.suppress(OSError):
             os.close(fd)
+    fds.clear()  # a descriptor number is never closed twice: it may have been reused
 
 
 def _kill_everything(group: quiescence.DescendantGroup | None, process: subprocess.Popen) -> None:
@@ -200,16 +201,17 @@ def run_child(
             finished_at=utc_now(),
             quiescence={"stdout": dict(empty), "stderr": dict(empty)},
         )
-    _close_all(fds)  # the child holds its own copies; the open-writer probe needs ours closed
     group = entered if _WINDOWS else None
     timed_out = False
     capped = False
     deadline = time.monotonic() + timeout
     try:
+        # Arm the group kill before anything interruptible: a SIGTERM from here on must reach the whole group.
+        group = _group_for(process.pid, entered)
+        _close_all(fds)  # the child holds its own copies; the open-writer probe needs ours closed
         if on_spawned is not None:
             with contextlib.suppress(JournalError, OSError):
                 on_spawned(process.pid)
-        group = _group_for(process.pid, entered)
         while True:
             try:
                 process.wait(timeout=poll_seconds)
@@ -224,7 +226,10 @@ def run_child(
                 _kill_everything(group, process)
                 break
     except BaseException:
+        if group is None and not _WINDOWS:
+            group = quiescence.PosixGroup(process.pid)
         _kill_everything(group, process)
+        _close_all(fds)
         raise
 
     try:
@@ -613,10 +618,22 @@ def main(argv: list[str] | None = None) -> int:
         sys.stderr.write(f"refusing to start: {exc}\n")
         return 2
     _install_sigterm()
+
+    def mark_spawning() -> None:
+        try:
+            _write_child_started(journal, "spawning", None)
+        except (JournalError, OSError) as exc:
+            raise _SpawnRefused(f"the spawning marker cannot be journaled: {exc}") from exc
+
     try:
         if args[0] == "--supervise":
             return supervise(journal, launch)
-        run_child(journal, launch, on_spawned=lambda pid: _write_child_started(journal, "spawned", pid))
+        run_child(
+            journal,
+            launch,
+            before_spawn=mark_spawning,
+            on_spawned=lambda pid: _write_child_started(journal, "spawned", pid),
+        )
     except _Terminated:
         return 143
     return 0

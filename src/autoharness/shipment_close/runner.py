@@ -399,14 +399,18 @@ def _spawn_environment(env: dict[str, str] | None, base: Path | str | None = Non
 
     The child runs in the journal directory, so every inherited entry (an empty entry means the working directory)
     is made absolute against ``base`` (default: this process's working directory) while the order is preserved;
-    left relative it would resolve inside the journal and re-admit journal-local imports.
+    left relative it would resolve inside the journal and re-admit journal-local imports. Entries are joined, never
+    normalized: collapsing ``..`` lexically could change which directory a symlinked path names. The working
+    directory is only read when there is an inherited ``PYTHONPATH`` to resolve.
     """
 
     merged = dict(os.environ if env is None else env)
     package_root = str(Path(__file__).resolve().parents[2])
-    anchor = os.getcwd() if base is None else os.fspath(base)
     existing = merged.get("PYTHONPATH")
-    inherited = [os.path.abspath(os.path.join(anchor, entry)) for entry in existing.split(os.pathsep)] if existing else []
+    inherited: list[str] = []
+    if existing:
+        anchor = os.getcwd() if base is None else os.fspath(base)
+        inherited = [anchor if entry == "" else os.path.join(anchor, entry) for entry in existing.split(os.pathsep)]
     merged["PYTHONPATH"] = os.pathsep.join([package_root, *inherited])
     return merged
 
@@ -448,17 +452,17 @@ class ChildMayStillRunError(Exception):
     """
 
 
-def _recorded_child_pid(journal: Journal) -> int | None:
-    """The spawned child's pid when the shim journaled one and no exit sentinel exists, else ``None``."""
+def _recorded_child(journal: Journal) -> tuple[str | None, int | None]:
+    """``(state, pid)`` from ``child_started.json`` while no exit sentinel exists, else ``(None, None)``."""
 
     if journal_has(journal, "exit.json"):
-        return None
+        return None, None
     try:
         record = read_json(journal, "child_started.json", expected_run_id=journal.run_id)
     except JournalError:
-        return None
+        return None, None
     pid = record.get("pid")
-    return pid if record.get("state") == "spawned" and type(pid) is int and pid > 1 else None
+    return record.get("state"), pid if type(pid) is int and pid > 1 else None
 
 
 def _reap_child_group(
@@ -472,12 +476,16 @@ def _reap_child_group(
     """Kill the journaled child's own process group (it runs in a new session) and verify it is gone.
 
     Acts only when ``child_started.json`` records a spawned pid and ``exit.json`` does not exist (a recorded exit
-    means the supervisor already finished with the child, so a recycled pid is never signalled). Raises
-    :class:`ChildMayStillRunError` when the group cannot be signalled or is still present after ``wait_seconds``.
+    means the supervisor already finished with the child, so a recycled pid is never signalled). A pid-less
+    ``spawning`` marker without an exit sentinel means a spawn may have happened that no pid was journaled for, so
+    it raises :class:`ChildMayStillRunError` too. Also raises it when the group cannot be signalled or is still
+    present after ``wait_seconds``.
     """
 
-    pid = _recorded_child_pid(journal)
-    if pid is None:
+    state, pid = _recorded_child(journal)
+    if state == "spawning" and pid is None:
+        raise ChildMayStillRunError("the shim journaled a spawn attempt but no child pid; the child may still be running")
+    if state != "spawned" or pid is None:
         return
     send = os.killpg if killpg is None else killpg
     try:

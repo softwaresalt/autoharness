@@ -703,9 +703,35 @@ class SpawnEnvironmentTests(unittest.TestCase):
         package_root = str(Path(runner.__file__).resolve().parents[2])
         self.assertEqual(
             entries,
-            [package_root, str(base / "src"), str(base), str(base), str(fixture.fakes), str(base)],
+            [
+                package_root,
+                os.path.join(base, "src"),
+                str(base),
+                os.path.join(base, "."),
+                str(fixture.fakes),
+                str(base),
+            ],
         )
         self.assertTrue(all(os.path.isabs(entry) for entry in entries))
+
+    def test_dotdot_entries_are_not_lexically_collapsed(self) -> None:
+        fixture = _Fixture(self)
+        merged = runner._spawn_environment({"PYTHONPATH": os.pathsep.join([os.path.join("link", "..", "x")])}, fixture.root)
+        self.assertEqual(
+            merged["PYTHONPATH"].split(os.pathsep)[1], os.path.join(fixture.root, "link", "..", "x")
+        )
+
+    def test_the_working_directory_is_only_read_when_pythonpath_is_set(self) -> None:
+        with (
+            mock.patch.object(runner, "Path") as path,
+            mock.patch.object(runner.os, "getcwd", side_effect=FileNotFoundError("deleted")) as getcwd,
+        ):
+            path.return_value.resolve.return_value.parents = ["unused", "unused", "ROOT"]
+            for env in ({"PATH": "x"}, {"PYTHONPATH": ""}):
+                self.assertEqual(runner._spawn_environment(env)["PYTHONPATH"], "ROOT")
+            getcwd.assert_not_called()
+            with self.assertRaises(FileNotFoundError):
+                runner._spawn_environment({"PYTHONPATH": "src"})
 
     def test_an_unset_pythonpath_yields_only_the_package_root(self) -> None:
         merged = runner._spawn_environment({"PATH": "x"})
@@ -713,7 +739,7 @@ class SpawnEnvironmentTests(unittest.TestCase):
 
     def test_the_default_base_is_the_foreground_working_directory(self) -> None:
         merged = runner._spawn_environment({"PYTHONPATH": "."})
-        self.assertEqual(merged["PYTHONPATH"].split(os.pathsep)[1], os.getcwd())
+        self.assertEqual(merged["PYTHONPATH"].split(os.pathsep)[1], os.path.join(os.getcwd(), "."))
 
     def test_a_spawned_child_in_the_journal_directory_never_sees_a_journal_local_import(self) -> None:
         fixture = _Fixture(self)
@@ -781,6 +807,45 @@ class ReapChildGroupTests(unittest.TestCase):
         calls: list = []
         runner._reap_child_group(self._journal_with_child(None), killpg=lambda *args: calls.append(args))
         self.assertEqual(calls, [])
+
+    def test_a_pidless_spawning_marker_without_an_exit_sentinel_may_still_be_running(self) -> None:
+        fixture = _Fixture(self)
+        write_json(
+            fixture.journal,
+            "child_started.json",
+            {"schema_version": 1, "run_id": fixture.run_id, "state": "spawning", "pid": None, "written_at": utc_now()},
+        )
+        calls: list = []
+        with self.assertRaises(runner.ChildMayStillRunError):
+            runner._reap_child_group(fixture.journal, killpg=lambda *args: calls.append(args))
+        self.assertEqual(calls, [])
+
+    def test_a_spawning_marker_with_an_exit_sentinel_is_settled(self) -> None:
+        fixture = _Fixture(self)
+        write_json(
+            fixture.journal,
+            "child_started.json",
+            {"schema_version": 1, "run_id": fixture.run_id, "state": "spawning", "pid": None, "written_at": utc_now()},
+        )
+        write_json(
+            fixture.journal,
+            "exit.json",
+            {
+                "schema_version": 1,
+                "run_id": fixture.run_id,
+                "state": "spawn_failed",
+                "child_pid": None,
+                "started_at": utc_now(),
+                "finished_at": utc_now(),
+                "exit_code": None,
+                "timed_out": False,
+                "quiescence": {
+                    key: {"proven": True, "method": "x", "survivors_killed": 0, "total_bytes": 0}
+                    for key in ("stdout", "stderr")
+                },
+            },
+        )
+        runner._reap_child_group(fixture.journal, killpg=lambda *args: self.fail("must not signal"))
 
     def test_a_recorded_exit_sentinel_means_a_recycled_pid_is_never_signalled(self) -> None:
         calls: list = []
