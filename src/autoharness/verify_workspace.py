@@ -4415,7 +4415,15 @@ def _installed_route(workspace_path: Path, target: dict[str, Any]) -> dict[str, 
         data = fc.parse_frontmatter(_fc_read_bytes(resolved), fc.MODE_INSTALLED).data or {}
     except Exception:  # noqa: BLE001 - an unreadable file is drift from the expectation, never a crash
         data = {}
-    return {field: data.get(field) for field, _ in _SITE_ROUTE_VARIABLE_SUFFIXES}
+    return {field: _json_safe_route_value(data.get(field)) for field, _ in _SITE_ROUTE_VARIABLE_SUFFIXES}
+
+
+def _json_safe_route_value(value: Any) -> str | None:
+    """None when absent, the string itself, else a type-tagged string: it can never equal a
+    rendered (string) value, so a non-string frontmatter value stays drift, and it serializes."""
+    if value is None or isinstance(value, str):
+        return value
+    return f"<{type(value).__name__}> {value}"
 
 
 def _bound_site_resolver_errors(model_routing: dict[str, Any], site_id: str, site_registry: Any) -> list[str]:

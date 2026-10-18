@@ -7,6 +7,7 @@ variables), never from raw resolver output. The opt-in is a non-empty `bindings`
 from __future__ import annotations
 
 import itertools
+import json
 import os
 import re
 import tempfile
@@ -429,6 +430,19 @@ class DriftTargetFilterTests(DriftCase):
         check = self.check(report)
         self.assertEqual(check["drift"]["alpha"]["path"], self.fx.rel("alpha"))
         self.assertEqual([p["path"] for p in self.proposals(report, "alpha")], [self.fx.rel("alpha")])
+
+
+class DriftReportJsonSafetyTests(DriftCase):
+    def test_non_string_installed_value_is_drift_and_report_serializes(self) -> None:
+        self.fx.add("alpha", "community")
+        self.fx.write_config(routing(bindings=self.declare_bindings_elsewhere()))
+        text = installed_text(DEFAULT_TIER2).replace('model_family: "f2"', "model_family: 2026-01-01")
+        self.fx._write(self.fx.ws, self.fx.rel("alpha"), text)
+        report = self.verify()
+        check = self.check(report)
+        self.assertIn("alpha", check["drifted"])
+        self.assertFalse(check["ok"])
+        json.dumps(report)
 
 
 class DogfoodWorkspaceTests(unittest.TestCase):
