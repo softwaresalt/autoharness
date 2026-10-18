@@ -22,6 +22,8 @@ _ROOT_CONFIG_SCHEMA = _TESTS_DIR.parent / "schemas" / "harness-config.schema.jso
 _VERSION_AGNOSTIC_MODULES = (
     "test_escalation_hierarchy_schema.py",
     "test_anchor_review_routing.py",
+    "test_context_tier_schema.py",
+    "test_context_tier_resolution.py",
 )
 _HARDCODED_PIN = re.compile(r"1\.1\.0")
 

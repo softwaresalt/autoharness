@@ -26,6 +26,7 @@ import json
 import unittest
 from pathlib import Path
 
+from _config_schema_contract import current_config_mirror_path
 from autoharness.frontmatter_contract import CONTEXT_TIER_VALUES, ROUTE_VALUE_KEYS
 from autoharness.verify_workspace import (
     _add_escalation_route_resolution_check,
@@ -45,7 +46,7 @@ from autoharness.verify_workspace import (
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCHEMAS = (
     _REPO_ROOT / "schemas" / "harness-config.schema.json",
-    _REPO_ROOT / "schemas" / "harness-config" / "1.1.0.schema.json",
+    current_config_mirror_path(),
 )
 
 _RAW_CONTEXT_TIER_VARIABLES = (

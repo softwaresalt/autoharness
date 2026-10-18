@@ -7,7 +7,7 @@ reference from every tier, role, and escalation route object:
   * ``context_tier: long_context`` validates; an unknown value is rejected;
   * ``context_tier`` does not participate in the both-present escalation
     ambiguity (``nonEmptyRouteFields`` unchanged, D-C3 / INV-C4);
-  * the versioned 1.1.0 mirror carries the identical contract (lockstep).
+  * the current versioned mirror carries the identical contract (lockstep).
 
 See docs/plans/2026-09-27-context-tier-model-routing-plan.md section C1.
 """
@@ -22,9 +22,11 @@ from pathlib import Path
 import yaml
 from jsonschema import Draft7Validator
 
+from _config_schema_contract import CURRENT_CONFIG_SCHEMA_VERSION, current_config_mirror_path
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
-_VERSIONED_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.1.0.schema.json"
+_VERSIONED_CONFIG_SCHEMA = current_config_mirror_path()
 _DOGFOOD_CONFIG = _REPO_ROOT / ".autoharness" / "config.yaml"
 _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 
@@ -116,7 +118,7 @@ class ContextTierValidationTests(unittest.TestCase):
                 self.assertEqual(errors, [])
 
     def test_rendered_config_template_validates(self) -> None:
-        config = {"schema_version": "1.1.0", "model_routing": _rendered_template_model_routing()}
+        config = {"schema_version": CURRENT_CONFIG_SCHEMA_VERSION, "model_routing": _rendered_template_model_routing()}
         for schema_path in _SCHEMAS:
             with self.subTest(schema=schema_path.name):
                 errors = list(_validator(schema_path).iter_errors(config))
@@ -124,7 +126,7 @@ class ContextTierValidationTests(unittest.TestCase):
 
     def test_long_context_on_ship_validates(self) -> None:
         config = {
-            "schema_version": "1.1.0",
+            "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
             "model_routing": {
                 "ship": {"model_family": "claude-opus-5.5", "context_tier": "long_context"}
             },
@@ -136,7 +138,7 @@ class ContextTierValidationTests(unittest.TestCase):
     def test_every_route_accepts_each_allowed_value(self) -> None:
         for value in ("", "default", "long_context"):
             config = {
-                "schema_version": "1.1.0",
+                "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
                 "model_routing": {
                     "tier1": {"model": "m1", "context_tier": value},
                     "tier2": {"model": "m2", "context_tier": value},
@@ -161,14 +163,14 @@ class ContextTierValidationTests(unittest.TestCase):
             "stage": {"escalation": {"context_tier": "huge"}},
         }
         for key, route in routes.items():
-            config = {"schema_version": "1.1.0", "model_routing": {key: route}}
+            config = {"schema_version": CURRENT_CONFIG_SCHEMA_VERSION, "model_routing": {key: route}}
             for schema_path in _SCHEMAS:
                 with self.subTest(schema=schema_path.name, route=key):
                     self.assertFalse(_validator(schema_path).is_valid(config))
 
     def test_flat_context_only_plus_nested_family_is_not_ambiguous(self) -> None:
         config = {
-            "schema_version": "1.1.0",
+            "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
             "model_routing": {
                 "escalation": {"context_tier": "long_context"},
                 "stage": {"escalation": {"model_family": "claude-sonnet-5"}},
@@ -180,7 +182,7 @@ class ContextTierValidationTests(unittest.TestCase):
 
     def test_nested_context_only_plus_flat_family_is_not_ambiguous(self) -> None:
         config = {
-            "schema_version": "1.1.0",
+            "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
             "model_routing": {
                 "escalation": {"model_family": "gpt-6-sol"},
                 "ship": {"escalation": {"context_tier": "long_context"}},
