@@ -2764,6 +2764,127 @@ def _compose_artifact_variables(
     return composed
 
 
+_SITE_ROUTE_VARIABLE_SUFFIXES = (
+    ("model_family", "FAMILY"),
+    ("model_provider", "PROVIDER"),
+    ("reasoning_effort", "REASONING_EFFORT"),
+    ("context_tier", "CONTEXT_TIER"),
+)
+_AGENT_ARTIFACT_PREFIX = ".github/agents/"
+
+
+def _site_id_for_artifact(relative_path: str) -> str | None:
+    """215-S B6a: the `agent:<id>` site id of an installed agent artifact (the file stem of
+    `.github/agents/**/<id>.agent.md`), or None for any other artifact and for the pipeline agents."""
+    rel = _fc_normalize_relative(relative_path)
+    if not rel.startswith(_AGENT_ARTIFACT_PREFIX) or not rel.endswith(_mrs.AGENT_FILE_SUFFIX):
+        return None
+    site_id = rel.rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)]
+    if not site_id or site_id in _mrs.PIPELINE_AGENT_IDS:
+        return None
+    return site_id
+
+
+def _site_tier_variable_names(default_tier: str) -> dict[str, str]:
+    """The four `TIER_<N>_*` variable names a managed site's template renders, keyed by route
+    field. The only place a site's tier variable names are built."""
+    number = int(default_tier[len("tier") :])
+    return {field: f"TIER_{number}_{suffix}" for field, suffix in _SITE_ROUTE_VARIABLE_SUFFIXES}
+
+
+def _bound_site_route(
+    model_routing: dict[str, Any], site_id: Any, site_registry: Any
+) -> tuple[_mr.SiteSpec, _mr.ResolvedRoute] | None:
+    """The registered spec and the pure resolver's route for a bound site whose binding resolves."""
+    if site_registry is None or not isinstance(site_id, str) or not isinstance(model_routing, dict):
+        return None
+    spec = site_registry.sites.get(site_id)
+    bindings = model_routing.get("bindings")
+    site = f"{_mr.AGENT_SITE_PREFIX}{site_id}"
+    if spec is None or not isinstance(bindings, dict) or site not in bindings:
+        return None
+    resolved = _mr.resolve_site({"model_routing": model_routing}, site, sites=site_registry.sites)
+    return None if resolved.errors else (spec, resolved)
+
+
+def _compose_site_route_variables(
+    base_variables: dict[str, str],
+    model_routing: dict[str, Any],
+    site_id: str | None,
+    site_registry: Any,
+    *,
+    config_authoritative: bool,
+    overrides: Any,
+) -> dict[str, str]:
+    """215-S B6a: the SITE overlay, the single shared composition of a subagent's route variables
+    (both render seams and the B7 drift expectation call it).
+
+    BOUND (the config binds `agent:<site_id>`, and the site is a managed site with a resolved
+    default tier N): a NEW map in which `TIER_<N>_{FAMILY,PROVIDER,REASONING_EFFORT,CONTEXT_TIER}`
+    carry the resolver's bound route, ALL FOUR assigned unconditionally, empty strings included
+    (skipping empties would let the agent's old template tier leak through), then each of those
+    four names that `overrides` sets to a valid value takes the override. Everything else (an
+    unbound or unregistered site, a pipeline artifact, a workspace-authored site, a managed site
+    with an unresolved default tier, a binding that does not resolve, a non-authoritative config)
+    returns `base_variables` itself, unchanged. `config_authoritative` has no default."""
+    if not config_authoritative:
+        return base_variables
+    bound = _bound_site_route(model_routing, site_id, site_registry)
+    if bound is None:
+        return base_variables
+    spec, resolved = bound
+    if not spec.managed or spec.default_tier is None:
+        return base_variables
+    names = _site_tier_variable_names(spec.default_tier)
+    composed = dict(base_variables)
+    for field, name in names.items():
+        composed[name] = str(getattr(resolved, field))
+    if isinstance(overrides, dict):
+        for name in names.values():
+            value = overrides.get(name)
+            if value is not None and _context_tier_override_error(name, value) is None:
+                composed[name] = str(value)
+    return composed
+
+
+def _expected_site_route(
+    base_variables: dict[str, str],
+    model_routing: dict[str, Any],
+    site_id: str | None,
+    site_registry: Any,
+    *,
+    config_authoritative: bool,
+    overrides: Any,
+) -> dict[str, str] | None:
+    """215-S B6a: the four expected frontmatter values of a registered site, read from the SAME
+    composed map the renderer uses for a managed site, and from the resolver output alone for a
+    bound workspace-authored site (no template, so no `TIER_<N>_*` variable an override could
+    name). None when there is no expectation to derive (unregistered or unbound authored site, an
+    unresolved default tier, a non-authoritative config for an authored site, an unresolvable binding)."""
+    spec = site_registry.sites.get(site_id) if site_registry is not None and isinstance(site_id, str) else None
+    if spec is None:
+        return None
+    if not spec.managed:
+        bound = _bound_site_route(model_routing, site_id, site_registry) if config_authoritative else None
+        if bound is None:
+            return None
+        return {field: str(getattr(bound[1], field)) for field in _mr.ROUTE_FIELDS}
+    if spec.default_tier is None:
+        return None
+    composed = _compose_site_route_variables(
+        base_variables,
+        model_routing,
+        site_id,
+        site_registry,
+        config_authoritative=config_authoritative,
+        overrides=overrides,
+    )
+    names = _site_tier_variable_names(spec.default_tier)
+    if any(name not in composed for name in names.values()):
+        return None
+    return {field: composed[name] for field, name in names.items()}
+
+
 def _route_family_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """194.006-T (C4b): the route family -- every variable returned by the
     tier, orchestrator, role, raw-escalation and escalation-prose derivers
@@ -3951,6 +4072,7 @@ def _fc_rendered_candidate(
     *,
     config_authoritative: bool = True,
     overrides: Any = None,
+    site_registry: Any = None,
 ) -> dict[str, Any]:
     """Validate the rendered source candidate in installed mode (AS-F8, AN-F10).
 
@@ -3991,6 +4113,14 @@ def _fc_rendered_candidate(
                 variables,
                 model_routing,
                 _resolve_artifact_role(record["rel"]),
+                config_authoritative=config_authoritative,
+                overrides=overrides,
+            )
+            composed = _compose_site_route_variables(
+                composed,
+                model_routing,
+                _site_id_for_artifact(record["rel"]),
+                site_registry,
                 config_authoritative=config_authoritative,
                 overrides=overrides,
             )
@@ -4153,6 +4283,7 @@ def _add_frontmatter_conformity_check(
     *,
     config_authoritative: bool = True,
     overrides: Any = None,
+    site_registry: Any = None,
 ) -> None:
     """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
 
@@ -4218,6 +4349,7 @@ def _add_frontmatter_conformity_check(
             model_routing if isinstance(model_routing, dict) else {},
             config_authoritative=config_authoritative,
             overrides=overrides,
+            site_registry=site_registry,
         )
         report.setdefault("migration_proposals", []).extend(_fc_build_proposals(record, candidate))
         if record["managed"]:
@@ -6072,6 +6204,14 @@ def verify_workspace(
                 config_authoritative=config_authoritative,
                 overrides=_overrides_for_composition,
             )
+            artifact_variables = _compose_site_route_variables(
+                artifact_variables,
+                _model_routing_for_composition,
+                _site_id_for_artifact(relative_path),
+                _site_registry,
+                config_authoritative=config_authoritative,
+                overrides=_overrides_for_composition,
+            )
             stage_path.write_text(_render_template(source_content, artifact_variables), encoding="utf-8")
             render_mode = "rendered"
         else:
@@ -6099,6 +6239,7 @@ def verify_workspace(
         model_routing=_model_routing_for_composition,
         config_authoritative=config_authoritative,
         overrides=_overrides_for_composition,
+        site_registry=_site_registry,
     )
 
     if profile_path.exists() and profile:
