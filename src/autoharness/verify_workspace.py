@@ -3022,9 +3022,9 @@ def _routing_catalog_errors(
         bindings = model_routing_block["bindings"]
         if not isinstance(bindings, dict):
             errors.append("ROUTING_CATALOG_INVALID: bindings: not a mapping")
-        elif registry_error is not None:
+        elif bindings and registry_error is not None:
             errors.append(f"ROUTING_SITE_REGISTRY_UNAVAILABLE: {registry_error}")
-        else:
+        elif bindings:
             errors.extend(_routing_binding_errors(model_routing_block, bindings, registry))
     return errors
 

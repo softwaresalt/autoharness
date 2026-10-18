@@ -237,6 +237,12 @@ class CatalogAndBindingFailureTests(RoutingCatalogCase):
             report = self.bound(**{"agent:custom": {"route": "fast"}})
         self.assert_error(report, "ROUTING_SITE_REGISTRY_UNAVAILABLE")
 
+    def test_registry_build_failure_with_empty_bindings_does_not_fail(self) -> None:
+        self.env.authored_agent("custom")
+        with mock.patch.object(sites_module, "build_site_registry", side_effect=OSError("boom")):
+            report = self.run_checks(CURRENT_CONFIG_SCHEMA_VERSION, {"routes": {}, "bindings": {}})
+        self.assert_passes(report, "routing_catalog_integrity")
+
 
 class UnresolvedDefaultBindingTests(RoutingCatalogCase):
     REASONS = {
