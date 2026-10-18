@@ -4395,6 +4395,8 @@ def _route_drift_site_targets(
     for target in _fc_enumerate_targets(workspace_path, profile):
         if target["kind"] != "agent":
             continue
+        if _fc_is_link_or_reparse(target["path"]) or _fc_resolve_contained(workspace_path, target["path"]) is None:
+            continue  # the registry skips these too, so both views of the installed sites agree
         site_id = target["rel"].rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)]
         if site_id not in site_registry.sites or site_id in targets:
             continue

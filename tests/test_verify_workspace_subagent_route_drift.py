@@ -7,6 +7,7 @@ variables), never from raw resolver output. The opt-in is a non-empty `bindings`
 from __future__ import annotations
 
 import itertools
+import os
 import re
 import tempfile
 import unittest
@@ -412,6 +413,22 @@ class RegistryBuildTests(DriftCase):
             check = self.check()
             self.assertFalse(check["ok"])
             self.assertTrue(any("ROUTING_SITE_REGISTRY_UNAVAILABLE" in error for error in check["errors"]))
+
+
+class DriftTargetFilterTests(DriftCase):
+    def test_symlinked_duplicate_sorting_first_is_not_the_drift_target(self) -> None:
+        self.fx.add("alpha", "rendered")
+        self.fx.install("alpha", STALE)
+        link = self.fx.ws / ".github" / "agents" / "alpha.agent.md"
+        try:
+            os.symlink(self.fx.ws / self.fx.rel("alpha"), link)
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlinks unavailable: {exc}")
+        self.fx.write_config(routing(bindings=self.declare_bindings_elsewhere()))
+        report = self.verify()
+        check = self.check(report)
+        self.assertEqual(check["drift"]["alpha"]["path"], self.fx.rel("alpha"))
+        self.assertEqual([p["path"] for p in self.proposals(report, "alpha")], [self.fx.rel("alpha")])
 
 
 class DogfoodWorkspaceTests(unittest.TestCase):
