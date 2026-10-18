@@ -52,7 +52,11 @@ from autoharness.shipment_close.runner import ResolvedBinary, hash_binary
 _SRC = str(Path(__file__).resolve().parent.parent / "src")
 _SLOW_SHIP = _FAKE_BACKLOGIT.replace(
     '    sys.stderr.write(ship.get("stderr", ""))',
-    '    time.sleep(ship.get("sleep", 0))\n    sys.stderr.write(ship.get("stderr", ""))',
+    '    time.sleep(ship.get("sleep", 0))\n'
+    '    deadline = time.monotonic() + 120\n'
+    '    while (HERE / "hold").exists() and time.monotonic() < deadline:\n'
+    "        time.sleep(0.05)\n"
+    '    sys.stderr.write(ship.get("stderr", ""))',
 )
 assert _SLOW_SHIP != _FAKE_BACKLOGIT
 
@@ -68,8 +72,13 @@ def _spawn(argv: list[str], journal_dir: Path) -> subprocess.Popen:
 
 
 class _DetachHarness(_Harness):
-    def __init__(self, test: unittest.TestCase, *, sleep: float = 0.0) -> None:
+    def __init__(self, test: unittest.TestCase, *, sleep: float = 0.0, hold: bool = False) -> None:
         super().__init__(test, probes=[_VERIFIED], ship={**_default_ship(), "sleep": sleep})
+        # A held engine blocks inside `shipment ship` until release(), so the run cannot finish inside the ack window.
+        self.hold_file = self.fakes / "hold"
+        if hold:
+            self.hold_file.write_text("held", encoding="utf-8")
+            test.addCleanup(self.release)
         self.script.write_text(_SLOW_SHIP, encoding="utf-8")
         self.resolved = ResolvedBinary(
             binary_path=str(self.script),
@@ -83,6 +92,9 @@ class _DetachHarness(_Harness):
     def detach(self, **kwargs: object) -> command.CascadeCloseOutcome:
         kwargs.setdefault("ready_timeout_seconds", 30.0)
         return self.run(detach=True, **kwargs)
+
+    def release(self) -> None:
+        self.hold_file.unlink(missing_ok=True)
 
     def wait_outcome(self, timeout: float = 90.0) -> dict:
         deadline = time.monotonic() + timeout
@@ -117,7 +129,7 @@ class _DetachHarness(_Harness):
 
 class DetachHappyPathTests(unittest.TestCase):
     def test_detach_returns_started_and_the_supervisor_is_the_only_finalizer(self) -> None:
-        harness = _DetachHarness(self, sleep=2.0)
+        harness = _DetachHarness(self, hold=True)
         captured: list[dict] = []
         real_write = command.write_evidence_atomic
 
@@ -140,6 +152,7 @@ class DetachHappyPathTests(unittest.TestCase):
         self.assertTrue(is_process_alive(lock.pid))
         self.assertIsNotNone(lock.pid_start)
 
+        harness.release()
         finished = harness.wait_outcome()
         self.assertEqual(
             (finished["exit_code"], finished["outcome"], finished["finalizer"]), (0, "completed", "supervisor")
@@ -173,7 +186,8 @@ class DetachHappyPathTests(unittest.TestCase):
 
         with mock.patch.object(command, "write_evidence_atomic", side_effect=write):
             outcome = harness.detach(message=message)
-        self.assertEqual(outcome.exit_code, EXIT_STARTED, outcome.message)
+        # The run may already have finished inside the ack window; this test does not depend on it still running.
+        self.assertIn(outcome.exit_code, (EXIT_STARTED, EXIT_OK), outcome.message)
         harness.wait_outcome()
         ship = _ship_argvs(harness.argv_log())[0]
         self.assertEqual(ship[ship.index("--message") + 1], message)
@@ -339,7 +353,8 @@ class LauncherPidMismatchTests(unittest.TestCase):
         harness = _DetachHarness(self, sleep=1.0)
         with mock.patch.object(command, "spawn_supervisor", self._launcher_spawn(harness)):
             outcome = harness.detach()
-            self.assertEqual(outcome.exit_code, EXIT_STARTED, outcome.message)
+            # The fast fake engine may finish inside the ack window, which reports the final exit code.
+            self.assertIn(outcome.exit_code, (EXIT_STARTED, EXIT_OK), outcome.message)
             finished = harness.wait_outcome()
         self.assertEqual((finished["exit_code"], finished["outcome"]), (0, "completed"))
         harness.wait_lock_gone()
@@ -433,10 +448,11 @@ class SupervisorAuthenticationTests(unittest.TestCase):
 
 class UnconfirmedStartTests(unittest.TestCase):
     def test_a_lost_acknowledgement_after_authorize_is_exit_9_never_a_refusal(self) -> None:
-        harness = _DetachHarness(self, sleep=1.0)
+        harness = _DetachHarness(self, hold=True)
         outcome = harness.detach(ack_timeout_seconds=0.0)
         self.assertEqual(outcome.exit_code, EXIT_STARTED, outcome.message)
         self.assertIn("unconfirmed", outcome.message)
+        harness.release()
         finished = harness.wait_outcome()
         self.assertEqual(finished["exit_code"], 0)
         self.assertEqual(len(_ship_argvs(harness.argv_log())), 1)

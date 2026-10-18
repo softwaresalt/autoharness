@@ -113,12 +113,13 @@ class PollTests(unittest.TestCase):
                 self.assertEqual(result.outcome_source, "evidence_record")
 
     def test_a_running_supervisor_is_exit_9_and_wait_resolves_it(self) -> None:
-        harness = _DetachHarness(self, sleep=3.0)
+        harness = _DetachHarness(self, hold=True)
         started = harness.detach()
         self.assertEqual(started.exit_code, EXIT_STARTED, started.message)
         running = self._poll(harness, live_supervisor=True)
         self.assertEqual(running.exit_code, EXIT_STARTED, running.message)
         self.assertIsNone(running.outcome_source)
+        harness.release()
         finished = poll_cascade_close(harness.root, _SHIPMENT, _FEATURE, wait_seconds=60)
         self.assertEqual(finished.exit_code, EXIT_OK, finished.message)
         # The supervisor writes the terminal evidence record before outcome.json; a poll landing in that
