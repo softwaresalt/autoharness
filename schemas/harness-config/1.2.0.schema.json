@@ -1,0 +1,982 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://softwaresalt.github.io/autoharness/schemas/harness-config/1.2.0.schema.json",
+  "title": "Harness Configuration",
+  "description": "Operator-authored configuration that controls how autoharness installs and maintains the agent harness in this workspace. Place at .autoharness/config.yaml before running autoharness install or tune.",
+  "type": "object",
+  "required": [
+    "schema_version"
+  ],
+  "definitions": {
+    "nonEmptyRouteFields": {
+      "description": "F02FD596: matches a route object (escalation/stage/ship) that declares at least one non-empty model_family/model_provider/reasoning_effort field. Used to encode the both-present (legacy flat + nested per-role) escalation ambiguity as schema-invalid.",
+      "anyOf": [
+        {
+          "required": ["model_family"],
+          "properties": { "model_family": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        },
+        {
+          "required": ["model_provider"],
+          "properties": { "model_provider": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        },
+        {
+          "required": ["reasoning_effort"],
+          "properties": { "reasoning_effort": { "type": "string", "minLength": 1, "pattern": "\\S" } }
+        }
+      ]
+    },
+    "contextTier": {
+      "type": "string",
+      "enum": ["", "default", "long_context"],
+      "description": "194-F (D-C1): optional, provider- and environment-agnostic context-capacity class for a route. Empty string means unset/inherit (per-field fallback: role -> tier -> 'default'; nested escalation -> tier3 -> 'default'). Not a member of nonEmptyRouteFields, so it never participates in the both-present escalation ambiguity (D-C3)."
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.2.0",
+      "description": "Schema version for forward compatibility"
+    },
+    "preset": {
+      "type": "string",
+      "enum": [
+        "starter",
+        "standard",
+        "full"
+      ],
+      "default": "standard",
+      "description": "Installation preset controlling the default primitive set and capability pack defaults"
+    },
+    "primary_stack_pack": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Primary stack classification to prefer when multiple additive stack packs are present. Overrides auto-detected primary stack selection when set."
+    },
+    "stack_packs": {
+      "type": "array",
+      "description": "Additive stack classifications to treat as active for composition. Overrides detected stack packs when specified.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "install_layers": {
+      "type": "array",
+      "description": "Explicit artifact-class layers to compose. Use to clarify or constrain preset-derived composition. The 'overlays' layer MUST be present when capability_packs is non-empty and SHOULD NOT be present when capability_packs is empty.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "foundation",
+          "instructions",
+          "workflow",
+          "review",
+          "runtime",
+          "backlog",
+          "knowledge",
+          "overlays"
+        ]
+      }
+    },
+    "capability_packs": {
+      "type": "array",
+      "description": "Capability packs to enable. Overrides preset defaults when specified.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "agent-intercom",
+          "agent-engram",
+          "backlogit",
+          "browser-verification",
+          "continuous-learning",
+          "strict-safety",
+          "release-observability",
+          "adversarial-review",
+          "graphtor-docs"
+        ]
+      }
+    },
+    "backlog": {
+      "type": "object",
+      "description": "Backlog tool and directory configuration",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "enum": [
+            "backlogit",
+            "backlog-md",
+            "manual"
+          ],
+          "description": "Backlog tool to use. When set, overrides auto-detection."
+        },
+        "directory": {
+          "type": "string",
+          "description": "Root directory for the backlog (relative to workspace root). New installs default to '.backlog'; '.backlogit' remains valid for existing legacy workspaces. Used as a fallback default when no tool-detected directory is present in the backlog registry; it does not override a detected registry directory.",
+          "examples": [
+            ".backlogit",
+            ".backlog",
+            "backlog"
+          ]
+        },
+        "suffix_map": {
+          "type": "object",
+          "description": "Work item type suffixes. When using backlogit, these are read from backlogit's project config and merged here. Operator values override auto-detected values.",
+          "properties": {
+            "feature": {
+              "type": "string",
+              "default": "F"
+            },
+            "chore": {
+              "type": "string",
+              "default": "C"
+            },
+            "task": {
+              "type": "string",
+              "default": "T"
+            },
+            "spike": {
+              "type": "string",
+              "default": "SP"
+            },
+            "deliberation": {
+              "type": "string",
+              "default": "D"
+            },
+            "bug": {
+              "type": "string",
+              "default": "B"
+            },
+            "epic": {
+              "type": "string",
+              "default": "E"
+            },
+            "subtask": {
+              "type": "string",
+              "default": "ST"
+            },
+            "shipment": {
+              "type": "string",
+              "default": "S"
+            }
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "docs": {
+      "type": "object",
+      "description": "Long-lived knowledge artifact directory configuration",
+      "properties": {
+        "root": {
+          "type": "string",
+          "default": "docs",
+          "description": "Root directory for durable knowledge artifacts (relative to workspace root)"
+        },
+        "subdirectories": {
+          "type": "object",
+          "description": "Subdirectory names within the docs root. Override to match existing workspace conventions.",
+          "properties": {
+            "compound": {
+              "type": "string",
+              "default": "compound"
+            },
+            "plans": {
+              "type": "string",
+              "default": "plans"
+            },
+            "decisions": {
+              "type": "string",
+              "default": "decisions"
+            },
+            "memory": {
+              "type": "string",
+              "default": "memory"
+            },
+            "closure": {
+              "type": "string",
+              "default": "closure"
+            },
+            "design_docs": {
+              "type": "string",
+              "default": "design-docs"
+            },
+            "product_specs": {
+              "type": "string",
+              "default": "product-specs"
+            }
+          }
+        }
+      }
+    },
+    "continuous_learning": {
+      "type": "object",
+      "description": "Configuration for the optional continuous-learning capability pack",
+      "properties": {
+        "directory": {
+          "type": "string",
+          "default": ".autoharness/continuous-learning",
+          "description": "Repo-local directory for observations, instincts, and evolved learned artifacts metadata"
+        },
+        "capture_hooks": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable environment-specific hook capture when the workspace and selected adapter support it"
+        },
+        "environment_adapter": {
+          "type": "string",
+          "default": "none",
+          "description": "Optional environment-specific capture adapter name, such as 'copilot-hooks' or a custom adapter"
+        },
+        "promotion_threshold": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3,
+          "description": "Minimum corroborating observations before an instinct is considered ready to evolve into a learned artifact"
+        }
+      }
+    },
+    "strict_safety": {
+      "type": "object",
+      "description": "Configuration for the optional strict-safety capability pack. Defines action classification and approval rules for risky work.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether strict-safety action classification is active"
+        },
+        "action_risk_levels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "low",
+              "moderate",
+              "high",
+              "destructive"
+            ]
+          },
+          "default": [
+            "low",
+            "moderate",
+            "high",
+            "destructive"
+          ],
+          "description": "Recognized ActionRisk classification levels"
+        },
+        "action_result_states": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "approved",
+              "blocked",
+              "applied",
+              "rolled-back",
+              "abandoned"
+            ]
+          },
+          "default": [
+            "planned",
+            "approved",
+            "blocked",
+            "applied",
+            "rolled-back",
+            "abandoned"
+          ],
+          "description": "Recognized ActionResult lifecycle states"
+        },
+        "require_approval_for": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "destructive",
+              "high"
+            ]
+          },
+          "default": [
+            "destructive"
+          ],
+          "description": "ActionRisk levels that require explicit operator approval before execution"
+        }
+      }
+    },
+    "graphtor_docs": {
+      "type": "object",
+      "description": "Configuration for the optional graphtor-docs capability pack. Enables indexed local documentation search via the graphtor-docs MCP server.",
+      "properties": {
+        "sources_path": {
+          "type": "string",
+          "default": ".graphtor/config/sources.yaml",
+          "description": "Path (relative to workspace root) to the graphtor-docs source index configuration file"
+        },
+        "binary_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Explicit path to the graphtor-docs binary. When null, the binary is resolved from PATH or the default '.graphtor/bin/' location."
+        },
+        "embed_model_dir": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "Explicit path to the local sentence-transformer embedding model directory used for offline vector search (written to .env.local as GRAPHTOR_EMBED_MODEL_DIR). When null, defaults to '<workspace_root>/.graphtor/models/all-MiniLM-L6-v2'."
+        }
+      }
+    },
+    "model_routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Model preferences for each routing tier and review-specific routes. Agent definitions use tier labels; this maps tiers and reviewer roles to environment-agnostic model identifiers and per-route configuration.",
+      "not": {
+        "description": "F02FD596/H2: the legacy flat model_routing.escalation and any nested <role>.escalation (stage.escalation / ship.escalation) MUST NOT both declare a non-empty field. This is ambiguous configuration -- fail closed at schema validation rather than let the loader silently pick a winner. See docs/decisions/2026-08-07-model-routing-hierarchy-dynamic-reload-deliberation.md.",
+        "allOf": [
+          {
+            "required": ["escalation"],
+            "properties": { "escalation": { "$ref": "#/definitions/nonEmptyRouteFields" } }
+          },
+          {
+            "anyOf": [
+              {
+                "required": ["stage"],
+                "properties": {
+                  "stage": {
+                    "required": ["escalation"],
+                    "properties": { "escalation": { "$ref": "#/definitions/nonEmptyRouteFields" } }
+                  }
+                }
+              },
+              {
+                "required": ["ship"],
+                "properties": {
+                  "ship": {
+                    "required": ["escalation"],
+                    "properties": { "escalation": { "$ref": "#/definitions/nonEmptyRouteFields" } }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "tier1": {
+          "description": "Fast/cheap tier for low-complexity tasks (memory, docs, prompt editing). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Legacy: plain model identifier string. E.g., 'gpt-5.4-mini'",
+              "examples": [
+                "gpt-5.4-mini",
+                "claude-haiku-4.5"
+              ]
+            },
+            {
+              "type": "object",
+              "required": [
+                "model"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for Tier 1. E.g., 'gpt-5.4-mini', 'claude-haiku-4.5'",
+                  "examples": [
+                    "gpt-5.4-mini",
+                    "claude-haiku-4.5"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for Tier 1 agents (e.g., 'low', 'medium', 'high'). Leave empty to use the model default.",
+                  "examples": [
+                    "low",
+                    "medium"
+                  ]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Tier 1 agents (e.g., 'openai', 'anthropic'). Used when environment supports multi-provider routing.",
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for Tier 1 (e.g., 'gpt-5.4-mini', 'haiku'). Resolved into agent frontmatter at install time.",
+                  "examples": [
+                    "gpt-5.4-mini",
+                    "claude-haiku-4.5"
+                  ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          ]
+        },
+        "tier2": {
+          "description": "Standard tier for routine tasks (orchestration, code writing, review). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Legacy: plain model identifier string. E.g., 'claude-sonnet-4'",
+              "examples": [
+                "claude-sonnet-4",
+                "gpt-5.2"
+              ]
+            },
+            {
+              "type": "object",
+              "required": [
+                "model"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for Tier 2. E.g., 'claude-sonnet-4', 'gpt-5.2'",
+                  "examples": [
+                    "claude-sonnet-4",
+                    "gpt-5.2"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for Tier 2 agents (e.g., 'medium', 'high'). Leave empty to use the model default.",
+                  "examples": [
+                    "medium",
+                    "high"
+                  ]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Tier 2 agents (e.g., 'openai', 'anthropic').",
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for Tier 2 (e.g., 'gpt-5.2', 'claude-sonnet-4').",
+                  "examples": [
+                    "gpt-5.2",
+                    "claude-sonnet-4"
+                  ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          ]
+        },
+        "tier3": {
+          "description": "Frontier tier for complex tasks (planning, architecture, analysis). Accepts a plain model-identifier string (legacy) or an object with 'model' plus optional routing metadata.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Legacy: plain model identifier string. E.g., 'claude-opus-4.8'",
+              "examples": [
+                "claude-opus-4.8",
+                "gpt-5.4"
+              ]
+            },
+            {
+              "type": "object",
+              "required": [
+                "model"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for Tier 3. E.g., 'claude-opus-4.8', 'gpt-5.4'",
+                  "examples": [
+                    "claude-opus-4.8",
+                    "gpt-5.4"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for Tier 3 agents (e.g., 'high', 'max'). Leave empty to use the model default.",
+                  "examples": [
+                    "high",
+                    "max"
+                  ]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Tier 3 agents (e.g., 'openai', 'anthropic').",
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for Tier 3 (e.g., 'gpt-5.4', 'claude-opus-4.8').",
+                  "examples": [
+                    "gpt-5.4",
+                    "claude-opus-4.8"
+                  ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          ]
+        },
+        "orchestrator": {
+          "description": "Per-agent model override for the Orchestrator. When set, the orchestrator uses this model instead of inheriting from tier2. Accepts a plain model-identifier string or an object with routing metadata.",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Plain model identifier string. E.g., 'gpt-5.4'",
+              "examples": [
+                "gpt-5.4",
+                "claude-sonnet-5"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "model": {
+                  "type": "string",
+                  "description": "Model identifier for the Orchestrator. Optional \u2014 not consumed by agent frontmatter directly but recorded for documentation and tooling.",
+                  "examples": [
+                    "gpt-5.4",
+                    "claude-sonnet-5"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort setting for the Orchestrator (e.g., 'high'). Leave empty to use the model default.",
+                  "examples": [
+                    "medium",
+                    "high"
+                  ]
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for the Orchestrator (e.g., 'openai', 'anthropic').",
+                  "examples": [
+                    "openai",
+                    "anthropic"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family shorthand for the Orchestrator (e.g., 'gpt-5.4', 'claude-sonnet-5'). Default: gpt-5.4.",
+                  "default": "gpt-5.4",
+                  "examples": [
+                    "gpt-5.4",
+                    "claude-sonnet-5"
+                  ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          ]
+        },
+        "stage": {
+          "type": "object",
+          "description": "Optional first-class model route for the Stage agent (P-013.5, invocation-time model-routing enforcement). When set, Stage's invocation directive resolves to this route; when absent, empty, or any sub-field is unset, resolution falls back to model_routing.tier3 so P-013's tier taxonomy is preserved and nothing regresses.",
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "description": "Model provider for the Stage role route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+              "examples": [
+                "anthropic"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "description": "Model family for the Stage role route (e.g., 'claude-opus-5'). Leave empty/absent to fall back to tier3's family.",
+              "examples": [
+                "claude-opus-5"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "description": "Reasoning effort for the Stage role route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+              "examples": [
+                "high",
+                "xhigh"
+              ]
+            },
+            "context_tier": {
+              "$ref": "#/definitions/contextTier"
+            },
+            "escalation": {
+              "type": "object",
+              "description": "F02FD596: optional nested per-role escalation route for Stage (P-013.6). When set, Stage's escalation directive resolves to this route in preference to the legacy flat model_routing.escalation; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 (never to the legacy flat route -- an explicit nested override never silently defers to the shared legacy route). MUST NOT coexist with a non-empty legacy flat model_routing.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected.",
+              "additionalProperties": false,
+              "properties": {
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Stage's nested escalation route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+                  "examples": [
+                    "anthropic",
+                    "openai"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family for Stage's nested escalation route. Leave empty/absent to fall back to tier3's family.",
+                  "examples": [
+                    "claude-sonnet-5",
+                    "gpt-5.6-sol"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort for Stage's nested escalation route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+                  "examples": [
+                    "high",
+                    "max"
+                  ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          }
+        },
+        "ship": {
+          "type": "object",
+          "description": "Optional first-class model route for the Ship agent (P-013.5, invocation-time model-routing enforcement). When set, Ship's invocation directive resolves to this route; when absent, empty, or any sub-field is unset, resolution falls back to model_routing.tier2 so P-013's tier taxonomy is preserved and nothing regresses.",
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "description": "Model provider for the Ship role route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier2's provider.",
+              "examples": [
+                "anthropic"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "description": "Model family for the Ship role route (e.g., 'claude-sonnet-5'). Leave empty/absent to fall back to tier2's family.",
+              "examples": [
+                "claude-sonnet-5"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "description": "Reasoning effort for the Ship role route when the environment supports effort controls. Leave empty to use the model default or fall back to tier2's setting.",
+              "examples": [
+                "high"
+              ]
+            },
+            "context_tier": {
+              "$ref": "#/definitions/contextTier"
+            },
+            "escalation": {
+              "type": "object",
+              "description": "F02FD596: optional nested per-role escalation route for Ship (P-013.6). When set, Ship's escalation directive resolves to this route in preference to the legacy flat model_routing.escalation; when absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 (never to the legacy flat route -- an explicit nested override never silently defers to the shared legacy route). MUST NOT coexist with a non-empty legacy flat model_routing.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected.",
+              "additionalProperties": false,
+              "properties": {
+                "model_provider": {
+                  "type": "string",
+                  "description": "Model provider for Ship's nested escalation route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+                  "examples": [
+                    "anthropic",
+                    "openai"
+                  ]
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Model family for Ship's nested escalation route. Leave empty/absent to fall back to tier3's family.",
+                  "examples": [
+                    "claude-opus-5",
+                    "gpt-5.6-sol"
+                  ]
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Reasoning effort for Ship's nested escalation route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+                  "examples": [
+                    "high",
+                    "max"
+                  ]
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          }
+        },
+        "escalation": {
+          "type": "object",
+          "description": "DEPRECATED-LEGACY (F02FD596): flat, role-agnostic model route for telemetry-driven auto-escalation (P-013.6). Superseded by the nested per-role model_routing.stage.escalation / model_routing.ship.escalation, which take precedence when declared. Retained, unremoved, for backward compatibility (H9) -- resolves for any role lacking a nested escalation override, with a deprecation warning at verification time. MUST NOT coexist with a non-empty nested <role>.escalation (see the model_routing-level 'not' constraint) -- both-present is ambiguous and rejected; migrate fully to nested per-role escalation instead. When absent, empty, or any sub-field is unset, resolution falls back per-field to model_routing.tier3 so escalation targets deeper reasoning than the failing tier. If the resolved (model_family, model_provider, reasoning_effort) tuple equals the acting agent's own role route (e.g., a role route already pinned to tier3), resolution MUST be treated as ESCALATION_DEGRADED (same-route no-op) and fall back to the existing operator-halt path rather than silently \"escalating\" to an identical model.",
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "description": "Model provider for the escalation route (e.g., 'anthropic', 'openai'). Leave empty/absent to fall back to tier3's provider.",
+              "examples": [
+                "anthropic"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "description": "Model family for the escalation route (e.g., 'claude-opus-5'). Leave empty/absent to fall back to tier3's family.",
+              "examples": [
+                "claude-opus-5"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "description": "Reasoning effort for the escalation route when the environment supports effort controls. Leave empty to use the model default or fall back to tier3's setting.",
+              "examples": [
+                "high",
+                "max"
+              ]
+            },
+            "context_tier": {
+              "$ref": "#/definitions/contextTier"
+            }
+          }
+        },
+        "anchor_review": {
+          "type": "object",
+          "description": "First-class anchor reviewer route used by adversarial, plan, and code review flows. Defaults to OpenAI GPT-5.6 Sol where the operator environment supports it; skills must declare degradation when the route cannot be dispatched.",
+          "required": [
+            "model_provider",
+            "model_family"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "default": "openai",
+              "description": "Provider identifier for the anchor reviewer route. Use an environment-agnostic provider name; do not embed credentials.",
+              "examples": [
+                "openai"
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "default": "gpt-5.6-sol",
+              "description": "Model family identifier for the anchor reviewer route. Default: gpt-5.6-sol.",
+              "examples": [
+                "gpt-5.6-sol"
+              ]
+            },
+            "reasoning_effort": {
+              "type": "string",
+              "default": "high",
+              "description": "Reasoning effort for anchor review when the environment supports effort controls. Leave empty to use the model default.",
+              "examples": [
+                "high",
+                "xhigh"
+              ]
+            }
+          }
+        },
+        "alt_review": {
+          "type": "object",
+          "description": "Optional alternate review route used for reviewer diversity when configured. When either provider or family is empty or absent, standard tier routing applies.",
+          "required": [
+            "model_provider",
+            "model_family"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "default": "",
+              "description": "Provider identifier for the alternate review route, such as google. Empty means no alternate route.",
+              "examples": [
+                "google",
+                ""
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "default": "",
+              "description": "Model family for the alternate review route. Empty means no alternate route.",
+              "examples": [
+                "gemini-2.5-flash",
+                ""
+              ]
+            }
+          }
+        },
+        "alt_doc_review": {
+          "type": "object",
+          "description": "Optional alternate documentation-review route used by doc-review templates when configured. Empty provider or family means doc-review uses Tier 2.",
+          "required": [
+            "model_provider",
+            "model_family"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "model_provider": {
+              "type": "string",
+              "default": "",
+              "description": "Provider identifier for the alternate review route, such as google. Empty means no alternate route.",
+              "examples": [
+                "google",
+                ""
+              ]
+            },
+            "model_family": {
+              "type": "string",
+              "default": "",
+              "description": "Model family for the alternate review route. Empty means no alternate route.",
+              "examples": [
+                "gemini-2.5-pro",
+                ""
+              ]
+            }
+          }
+        },
+        "routes": {
+          "type": "object",
+          "description": "208-F: named route catalog. Each entry is a route delta against a base tier: 'tier' is required and the optional model_family, model_provider, reasoning_effort, and context_tier fields override that tier's resolved values. Route names must not equal tier1, tier2, tier3, or default. Entries are referenced by name from model_routing.bindings.",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+            "not": {
+              "enum": ["tier1", "tier2", "tier3", "default"]
+            }
+          },
+          "additionalProperties": {
+            "type": "object",
+            "description": "Route delta: a base tier plus optional field overrides.",
+            "required": ["tier"],
+            "additionalProperties": false,
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": ["tier1", "tier2", "tier3"],
+                "description": "Base tier this route resolves against before applying its overrides."
+              },
+              "model_family": {
+                "type": "string",
+                "description": "Optional model family override for this route."
+              },
+              "model_provider": {
+                "type": "string",
+                "description": "Optional model provider override for this route."
+              },
+              "reasoning_effort": {
+                "type": "string",
+                "description": "Optional reasoning effort override for this route."
+              },
+              "context_tier": {
+                "$ref": "#/definitions/contextTier"
+              }
+            }
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "description": "208-F: bindings of routing sites to catalog routes. Keys use the agent:<name> shape; each value names a route from model_routing.routes and may carry per-binding field overrides.",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^agent:[a-z0-9][a-z0-9_-]*$": {
+              "type": "object",
+              "description": "Binding delta: a catalog route name plus optional field overrides.",
+              "required": ["route"],
+              "additionalProperties": false,
+              "properties": {
+                "route": {
+                  "type": "string",
+                  "description": "Name of a route declared under model_routing.routes."
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Optional model family override for this binding."
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Optional model provider override for this binding."
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Optional reasoning effort override for this binding."
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ai_tools": {
+      "type": "object",
+      "description": "AI CLI tool configuration used when generating workspace startup scripts (start.ps1 / start.sh) and by `autoharness run`.",
+      "properties": {
+        "copilot_cli": {
+          "type": "object",
+          "properties": {
+            "exe_path": {
+              "type": "string",
+              "default": "copilot",
+              "description": "Path to the Copilot CLI executable (no arguments). Defaults to 'copilot', which expects the binary on PATH. Use a full path when copilot is not on PATH, e.g. C:\\Tools\\ghcpcli\\copilot.exe"
+            },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" },
+              "default": [],
+              "description": "Extra arguments always passed to the Copilot CLI before the operator's own argv, e.g. [\"--remote\"]."
+            }
+          }
+        }
+      }
+    },
+    "sidecars": {
+      "type": "array",
+      "description": "Sidecar sync operations `autoharness run` performs before launching the AI CLI tool. Derived at merge-install time from the capability packs enabled for this workspace (backlogit -> \"backlogit\", agent-engram -> \"engram\", graphtor-docs -> \"graphtor-docs\"). Absent means run every known sidecar (backward-compatible default).",
+      "items": {
+        "type": "string",
+        "enum": ["backlogit", "engram", "graphtor-docs"]
+      }
+    },
+    "primitives": {
+      "type": "array",
+      "description": "Specific primitive numbers to install (1-10). Overrides preset when specified.",
+      "items": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "description": "Explicit overrides for template variables that take precedence over auto-detected values. Use sparingly \u2014 prefer correcting the workspace setup over overriding discovery.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "lifecycle_hooks": {
+      "type": "object",
+      "description": "Optional deterministic validation gates (pre_execution actions and pre_task_completion validation_gates). Validated in depth against schemas/validation-gates/1.0.0.schema.json by the config loader. Absent block means no gates run. See docs/gates-reference.md."
+    },
+    "telemetry": {
+      "type": "object",
+      "description": "Optional telemetry configuration (Phase 2 sink is not built in Phase 1). Validated in depth against schemas/validation-gates/1.0.0.schema.json by the config loader."
+    }
+  }
+}
