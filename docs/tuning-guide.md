@@ -477,7 +477,7 @@ model_routing:
 
 A binding is `route` (a catalog name, or `tier1` / `tier2` / `tier3`) plus
 optional per-field overrides. Pipeline agents cannot be bound through
-`bindings` (`ROUTING_BINDING_ON_PIPELINE_SITE`); use their role blocks. The set of
+`bindings` (`ROUTING_BINDING_ON_PIPELINE_SITE`); use their role blocks. At `1.2.0` the config schema also rejects pipeline-site binding keys, so `ROUTING_BINDING_ON_PIPELINE_SITE` is then a secondary error. The set of
 valid `agent:<id>` sites is derived from the installed agent files and the
 harness manifest, never typed by hand, and a binding that names an unknown site
 fails verification (`ROUTING_UNKNOWN_SITE`).
@@ -533,7 +533,7 @@ a mapping:
 
 | Check | Fails when | Without bindings, or below `1.2.0` |
 |---|---|---|
-| `routing_catalog_integrity` | an invalid `routes` entry (`ROUTING_CATALOG_INVALID`), an unresolved route name (`ROUTING_REF_UNRESOLVED`), an unknown site (`ROUTING_UNKNOWN_SITE`), a pipeline site (`ROUTING_BINDING_ON_PIPELINE_SITE`), or an unresolved managed default tier (`ROUTING_BINDING_UNRESOLVED_SITE`) | unchanged; it has nothing to check while both blocks are empty |
+| `routing_catalog_integrity` | an invalid `routes` entry (`ROUTING_CATALOG_INVALID`), an unresolved route name (`ROUTING_REF_UNRESOLVED`), an unknown site (`ROUTING_UNKNOWN_SITE`), a pipeline site (`ROUTING_BINDING_ON_PIPELINE_SITE`), an unresolved managed default tier (`ROUTING_BINDING_UNRESOLVED_SITE`), or, when non-empty `bindings` are declared and the site registry cannot be built, `ROUTING_SITE_REGISTRY_UNAVAILABLE` (fail-closed) | the same catalog and binding validation runs at every schema version; with both blocks empty there is nothing to flag, and an empty `bindings` never raises `ROUTING_SITE_REGISTRY_UNAVAILABLE` |
 | `routing_inert_keys` | `routes` or `bindings` declared while `schema_version` is below `1.2.0` (`ROUTING_KEYS_REQUIRE_1_2_0`): the key would be accepted and ignored | passes |
 | `routing_unknown_keys` | a key directly under `model_routing` that the resolver does not understand (`ROUTING_UNKNOWN_KEY`), at `1.2.0` | an advisory warning below `1.2.0` |
 | `routing_anchor_alias_free` | a YAML anchor, alias, or merge key under `model_routing`, at `1.2.0` | an advisory warning below `1.2.0` |

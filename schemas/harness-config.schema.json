@@ -901,7 +901,7 @@
               "properties": {
                 "route": {
                   "type": "string",
-                  "description": "Name of a route declared under model_routing.routes."
+                  "description": "Name of a route declared under model_routing.routes, or a bare tier tier1-tier3"
                 },
                 "model_family": {
                   "type": "string",

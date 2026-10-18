@@ -202,7 +202,7 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "from_version": "1.1.0",
             "to_version": "1.2.0",
             "severity": "degrading",
-            "summary": "Upgrade the harness-config contract from 1.1.0 to 1.2.0 (additive: model_routing routes and bindings).",
+            "summary": "Upgrade the harness-config contract from 1.1.0 to 1.2.0 (model_routing is now closed: unknown keys are rejected at 1.2.0; routes and bindings are the additive part).",
             "changed_fields": ["schema_version"],
             "action": "Back up .autoharness/config.yaml, bump schema_version to 1.2.0 (optionally adopt model_routing.routes and model_routing.bindings; model_routing now rejects unknown keys), and rerun verify-workspace.",
         },

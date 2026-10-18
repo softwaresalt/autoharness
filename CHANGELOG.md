@@ -15,7 +15,9 @@
   `routing_inert_keys`, `routing_unknown_keys`, `routing_anchor_alias_free`, and
   `subagent_route_drift` checks: an unknown site (`ROUTING_UNKNOWN_SITE`) or a binding on a managed
   agent whose template default tier cannot be established
-  (`ROUTING_BINDING_UNRESOLVED_SITE`) fails, installed subagent frontmatter is drift-checked
+  (`ROUTING_BINDING_UNRESOLVED_SITE`) fails, `routing_catalog_integrity` also fails closed with
+  `ROUTING_SITE_REGISTRY_UNAVAILABLE` when non-empty `bindings` are declared and the site registry
+  cannot be built (empty `bindings` never raise it), installed subagent frontmatter is drift-checked
   against the route the renderer writes only in workspaces that declare `bindings` (otherwise
   non-blocking `info`), and at `1.2.0` an unknown `model_routing` key or a YAML anchor, alias, or
   merge key fails (advisory below `1.2.0`). Tune proposes `refresh-route-frontmatter` updates and
