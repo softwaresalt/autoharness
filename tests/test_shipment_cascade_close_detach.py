@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from _proc_race import retry_read
 from test_shipment_cascade_close_invoke import (
     _FAKE_BACKLOGIT,
     _FEATURE,
@@ -223,8 +224,8 @@ class NeverSpawnWithoutAuthorizationTests(unittest.TestCase):
         self.assertEqual(outcome.exit_code, EXIT_INPUT, outcome.message)
         harness.assert_rolled_back_without_shipping()
         journal = Journal(path=harness.directory, run_id=harness.run_id())
-        self.assertEqual(read_json(journal, "exit.json")["state"], "never_started")
-        self.assertEqual(read_json(journal, "outcome.json")["outcome"], "never_started")
+        self.assertEqual(retry_read(lambda: read_json(journal, "exit.json"))["state"], "never_started")
+        self.assertEqual(harness.wait_outcome()["outcome"], "never_started")
 
     def test_a_runtime_without_job_breakaway_fails_closed_before_authorizing(self) -> None:
         harness = _DetachHarness(self)

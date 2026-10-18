@@ -27,6 +27,8 @@ import uuid
 from pathlib import Path
 from unittest import mock
 
+from _proc_race import cleanup_tempdir, retry_read
+
 from autoharness.shipment_close import journal as journal_module
 from autoharness.shipment_close import quiescence, runner, supervisor
 from autoharness.shipment_close.journal import (
@@ -61,7 +63,7 @@ def _env() -> dict[str, str]:
 class _Fixture:
     def __init__(self, test: unittest.TestCase) -> None:
         tmp = tempfile.TemporaryDirectory()
-        test.addCleanup(tmp.cleanup)
+        test.addCleanup(cleanup_tempdir, tmp)
         base = Path(tmp.name).resolve()
         self.root = base / "ws"
         self.fakes = base / "fakes"
@@ -103,6 +105,20 @@ def _wait_for(predicate, *, timeout: float, interval: float = 0.1) -> bool:
             return True
         time.sleep(interval)
     return predicate()
+
+
+def _has_content(path: Path) -> bool:
+    try:
+        return bool(path.read_text(encoding="utf-8").strip())
+    except OSError:
+        return False
+
+
+def _complete_pid_record(pid_file: Path) -> str:
+    text = pid_file.read_text(encoding="utf-8")
+    if len(text.split()) < 2:
+        raise ValueError("the pid record is not fully written yet")
+    return text
 
 
 def _kill_pid(pid: int) -> None:
@@ -184,7 +200,8 @@ class DetachedSurvivalProbeTests(unittest.TestCase):
         )
         self.addCleanup(process.kill)
         self.assertTrue(_wait_for(pid_file.exists, timeout=20), "the launcher never spawned the shim")
-        text = pid_file.read_text(encoding="utf-8")
+        # The launcher creates the file before writing it; wait for the complete "pid flag" pair.
+        text = retry_read(lambda: _complete_pid_record(pid_file), timeout=20)
         shim_pid, breakaway = int(text.split()[0]), text.split()[1]
         self.addCleanup(_kill_pid, shim_pid)
         if _WINDOWS and breakaway != "1":
@@ -195,11 +212,12 @@ class DetachedSurvivalProbeTests(unittest.TestCase):
             _wait_for(lambda: (fixture.journal.path / "exit.json").exists(), timeout=60),
             "the shim did not survive the launcher being killed",
         )
-        exit_record = read_json(fixture.journal, "exit.json")
+        # exit.json is replaced by the still-running shim: a read can hit a transient Windows sharing violation.
+        exit_record = retry_read(lambda: read_json(fixture.journal, "exit.json"))
         self.assertEqual(exit_record["state"], "exited")
         self.assertEqual(exit_record["exit_code"], 0)
-        self.assertEqual(marker.read_text(encoding="utf-8"), "done")
-        self.assertIn(b"slow child output", (fixture.journal.path / "stdout.raw").read_bytes())
+        self.assertEqual(retry_read(lambda: marker.read_text(encoding="utf-8")), "done")
+        self.assertIn(b"slow child output", retry_read(lambda: (fixture.journal.path / "stdout.raw").read_bytes()))
 
     def test_shim_outlives_a_killed_launcher(self) -> None:
         self._run_probe(_LAUNCHER)
@@ -642,14 +660,14 @@ class RunJournaledTests(unittest.TestCase):
         def interrupted(process, timeout=None):
             calls["n"] += 1
             if calls["n"] == 1:
-                _wait_for(pid_file.exists, timeout=20)
+                _wait_for(lambda: _has_content(pid_file), timeout=20)
                 raise KeyboardInterrupt
             return original_wait(process, timeout=timeout)
 
         with mock.patch.object(subprocess.Popen, "wait", interrupted):
             with self.assertRaises(KeyboardInterrupt):
                 runner.run_journaled(fixture.journal)
-        child = int(pid_file.read_text(encoding="utf-8"))
+        child = int(retry_read(lambda: pid_file.read_text(encoding="utf-8")))
         self.addCleanup(_kill_pid, child)
         self.assertTrue(
             _wait_for(lambda: is_process_alive(child) is False, timeout=15), "the child survived the interrupt"

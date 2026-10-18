@@ -27,6 +27,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from _proc_race import retry_read
 from test_shipment_close_observation import make_scratch_backlog, write_artifact
 
 from autoharness.gates.cascade_evidence import (
@@ -188,7 +189,8 @@ class _Harness:
         log = self.fakes / "argv.log"
         if not log.exists():
             return []
-        return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        # A detached supervisor may still be appending: ride out a transient sharing violation or half-written line.
+        return retry_read(lambda: [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()])
 
     def clear_log(self) -> None:
         log = self.fakes / "argv.log"
@@ -200,7 +202,10 @@ class _Harness:
         return (self.fakes / "ship.sentinel").exists()
 
     def record(self) -> dict | None:
-        return json.loads(self.evidence.read_text(encoding="utf-8")) if self.evidence.exists() else None
+        if not self.evidence.exists():
+            return None
+        # The evidence file is atomically replaced; a detached supervisor may be mid-replace.
+        return retry_read(lambda: json.loads(self.evidence.read_text(encoding="utf-8")))
 
     def run(self, **kwargs: object) -> command.CascadeCloseOutcome:
         return command.run_cascade_close(

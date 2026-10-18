@@ -25,6 +25,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from _proc_race import cleanup_tempdir
+
 from autoharness.shipment_close import EXIT_INPUT
 from autoharness.shipment_close import runner as runner_module
 from autoharness.shipment_close.persist import (
@@ -50,7 +52,7 @@ _EXE = ".exe" if os.name == "nt" else ""
 class _Fixture:
     def __init__(self, test: unittest.TestCase, binary: str = "backlogit") -> None:
         tmp = tempfile.TemporaryDirectory()
-        test.addCleanup(tmp.cleanup)
+        test.addCleanup(cleanup_tempdir, tmp)
         base = Path(tmp.name).resolve()
         self.root = base / "ws"
         self.fakes = base / "fakes"

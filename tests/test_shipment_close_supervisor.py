@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 from test_shipment_cascade_close_detach import _DetachHarness
-from test_shipment_close_journaled_runner import _Fixture, _env
+from test_shipment_close_journaled_runner import _Fixture, _env, _wait_for
 
 from autoharness.shipment_close import EXIT_STARTED, command, runner, supervisor
 from autoharness.shipment_close.journal import (
@@ -54,6 +54,22 @@ def _write_authorization(journal: Journal, nonce: str, valid_until: str) -> None
 
 def _quick_script(fixture: _Fixture) -> Path:
     return fixture.script("quick.py", "import sys\nsys.stdout.write('ok')\n")
+
+
+def _stream_files_released(journal_dir: Path) -> bool:
+    """True once no process holds the stream files: a held file cannot be renamed on Windows."""
+
+    for name in ("stdout.raw", "stderr.raw"):
+        path = journal_dir / name
+        probe = path.with_name(name + ".probe")
+        try:
+            os.replace(path, probe)
+            os.replace(probe, path)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return False
+    return True
 
 
 class LaunchBinaryIdentityTests(unittest.TestCase):
@@ -303,12 +319,18 @@ class KilledAfterSpawnTests(unittest.TestCase):
     def _slow(self, fixture: _Fixture) -> dict:
         return fixture.write_launch(fixture.script("slow.py", "import time\ntime.sleep(60)\n"), timeout=120)
 
-    def _assert_child_killed(self, pids: list[int]) -> None:
+    def _assert_child_killed(self, fixture: _Fixture, pids: list[int]) -> None:
         self.assertEqual(len(pids), 1)
-        deadline = time.monotonic() + 15
+        deadline = time.monotonic() + 30
         while time.monotonic() < deadline and is_process_alive(pids[0]) is not False:
             time.sleep(0.1)
         self.assertIs(is_process_alive(pids[0]), False, "the spawned child must not outlive the supervisor")
+        # A just-exited Windows process can still hold stdout.raw/stderr.raw for a moment; the fixture's
+        # cleanup (cleanup_tempdir) retries the delete, and this makes the files deletable before the test ends.
+        self.assertTrue(
+            _wait_for(lambda: _stream_files_released(fixture.journal.path), timeout=30),
+            "the killed child still holds a stream file",
+        )
 
     def test_an_interrupt_while_resolving_the_group_still_kills_the_child(self) -> None:
         fixture = _Fixture(self)
@@ -324,7 +346,7 @@ class KilledAfterSpawnTests(unittest.TestCase):
             self.assertRaises(supervisor._Terminated),
         ):
             supervisor.run_child(fixture.journal, launch)
-        self._assert_child_killed(pids)
+        self._assert_child_killed(fixture, pids)
 
     def test_an_interrupt_in_the_spawn_callback_still_kills_the_child(self) -> None:
         fixture = _Fixture(self)
@@ -337,7 +359,7 @@ class KilledAfterSpawnTests(unittest.TestCase):
 
         with self.assertRaises(supervisor._Terminated):
             supervisor.run_child(fixture.journal, launch, on_spawned=interrupted)
-        self._assert_child_killed(pids)
+        self._assert_child_killed(fixture, pids)
 
 
 class PosixGroupKillBeforeCallbackTests(unittest.TestCase):
