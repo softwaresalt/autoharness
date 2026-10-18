@@ -175,11 +175,14 @@ Review these fields from the JSON report before proposing tune changes:
 * `migration_proposals[]` — upgrade, backfill, and normalization proposals
 * `warnings[]` — compatibility drift evidence, including grouped summaries when repeated findings collapse into fewer warning rows
 
-The current config contract is `1.1.0`; the workspace profile and harness
+The current config contract is `1.2.0`; the workspace profile and harness
 manifest contracts are `1.0.0`. autoharness also recognizes `0.9.0` as a known
-legacy version for all three, and `1.0.0` as a known legacy config version.
-Those workspaces should generate explicit upgrade proposals instead of being
-treated as unknown-contract failures.
+legacy version for all three, and `1.0.0` and `1.1.0` as known legacy config
+versions. Those workspaces should generate explicit upgrade proposals instead of
+being treated as unknown-contract failures. A config is always validated against
+the schema that matches its own `schema_version`, so a valid `1.1.0` config stays
+valid after the `1.2.0` release (see
+[Migrating from 1.1.0 to 1.2.0](#migrating-from-110-to-120)).
 
 | Contract status | Meaning | Tuning action |
 |---|---|---|
@@ -350,7 +353,7 @@ Resolution is per sub-field, like the other route fields:
 * The install write-back stores each resolved role value in config, so an
   inherited value becomes explicit after install.
 
-Declaring `context_tier` anywhere in config requires `schema_version: "1.1.0"`;
+Declaring `context_tier` anywhere in config requires `schema_version: "1.1.0"` or later;
 the `1.0.0` config schema rejects the key.
 
 ### Escalation Variables: Raw Versus Resolved
@@ -424,6 +427,170 @@ Step 1.5d):
 To adopt the new generic Ship default in an existing workspace, edit
 `model_routing.ship` in `.autoharness/config.yaml` to the seed route documented
 in install-harness Step 1.2, then re-run install or tune.
+
+## Route Catalog and Site Bindings
+
+Schema `1.2.0` adds two optional keys under `model_routing`: `routes`, a catalog
+of named routes, and `bindings`, which attach a catalog route to an installed
+subagent. They extend the P-013.5 route model (see the "Route catalog and site
+bindings" clause in `workflow-policies.md` and the deliberation record
+`docs/decisions/2026-10-11-model-routing-v2-deliberation.md`); they do not add a
+second routing system, and they ship no routing values: both blocks are empty in
+a fresh install and this repository's own routing values are unchanged.
+
+### Route Catalog
+
+Each `routes` entry is a **tier delta**: a required `tier` (`tier1`, `tier2`, or
+`tier3`) plus optional `model_family`, `model_provider`, `reasoning_effort`, and
+`context_tier` overrides. A field the entry leaves unset is taken from the
+entry's own `tier`, so a catalog entry is a targeted override and never a
+parallel tier taxonomy. Entry names match `^[a-z][a-z0-9_-]{0,47}$` and may not be
+`tier1`, `tier2`, `tier3`, or `default`.
+
+```yaml
+model_routing:
+  routes:
+    ingest: { tier: tier1, context_tier: long_context }
+    reviewer: { tier: tier3 }
+```
+
+Do not use YAML anchors, aliases, or merge keys anywhere under `model_routing`:
+reference a catalog entry by name instead. They are rejected at schema `1.2.0`
+(`ROUTING_ANCHOR_UNSUPPORTED`) because loading YAML erases them, so neither the
+schema nor the resolver could tell a shared definition from a hand-written copy.
+
+### Sites and Bindings
+
+A **site** is an invocation boundary that can carry a model route: the pipeline
+roles (`orchestrator`, `stage`, `ship`), which keep their existing blocks, and
+installed subagents, addressed as `agent:<id>` where `<id>` is the agent file
+name without `.agent.md` (for example `agent:security-reviewer`). Skills are not
+sites: they inherit the model of the agent that invokes them.
+
+```yaml
+model_routing:
+  bindings:
+    "agent:security-reviewer": { route: reviewer }
+    "agent:learnings-researcher": { route: ingest }
+    "agent:correctness-reviewer": { route: tier1, reasoning_effort: high }
+```
+
+A binding is `route` (a catalog name, or `tier1` / `tier2` / `tier3`) plus
+optional per-field overrides. Pipeline agents cannot be bound through
+`bindings` (`ROUTING_BINDING_ON_PIPELINE_SITE`); use their role blocks. The set of
+valid `agent:<id>` sites is derived from the installed agent files and the
+harness manifest, never typed by hand, and a binding that names an unknown site
+fails verification (`ROUTING_UNKNOWN_SITE`).
+
+A binding on a managed agent whose template default tier cannot be established
+(the template path is missing or escapes the workspace, the template is
+unreadable, or it carries no or several `TIER_<N>_*` tier placeholders) is
+rejected with `ROUTING_BINDING_UNRESOLVED_SITE: <id>: <reason>`. A binding reaches
+an installed agent only by overlaying the four `TIER_<N>_*` variables its
+template renders, so such a template has nothing to render the binding into.
+Repair the template's tier placeholder, or remove the binding.
+
+### Resolution Precedence
+
+For a subagent site each of `model_family`, `model_provider`,
+`reasoning_effort`, and `context_tier` resolves independently, first non-empty
+wins, under exactly one of two branches. The branch is chosen once, by whether
+`bindings` has an entry for the site, and the branches are never mixed:
+
+| Branch | Base, in order (per field) | Never consulted |
+|---|---|---|
+| Unbound (no binding) | the agent's template default tier: the `tier<N>` whose `TIER_<N>_*` variables the agent's template renders | binding layers |
+| Bound | 1. the binding's per-field override; 2. the binding route's catalog-delta field, then the field of the tier the route names | the template default tier, not even as a field-level fallback |
+
+After the base is exhausted, only `context_tier` has a terminal default
+(`default`). A bound route therefore never inherits a field from the agent's old
+template tier: if the bound route leaves `model_provider` or `reasoning_effort`
+empty, it stays empty (the runtime default), and an unset `context_tier` is
+`default`. `model_family` still unresolved is `ROUTING_UNRESOLVED`, never a
+silent default; a workspace-authored agent has no template default tier, so it
+resolves only when it is bound.
+
+Explicit `config.overrides` for the `TIER_<N>_*` variables are not part of this
+resolution. They are a render-time layer that the renderer applies on top of the
+resolved route, so an explicit override wins over a bound route for that one
+variable. Overrides are keyed to the variable names the agent's template renders,
+so only the `TIER_<N>_*` variables of the agent's own default tier `N` reach the
+agent; an override on the bound route's own tier variables does not.
+
+### Installed Frontmatter and the Bindings Opt-In
+
+Installed subagent frontmatter is a **rendered default**, not a second source of
+truth. Unbound agents render exactly as before. A bound agent renders the route
+the resolver returns, composed with explicit `config.overrides`, and
+`verify-workspace` checks the installed frontmatter against that same composed
+route, so an explicit override is never reported as drift. Changing a binding
+therefore needs a re-render: tune proposes it, and nothing is applied
+automatically.
+
+Drift enforcement is opt-in: it is **fail-closed only in a workspace whose config
+declares a non-empty `bindings` block**. These checks run when `model_routing` is
+a mapping:
+
+| Check | Fails when | Without bindings, or below `1.2.0` |
+|---|---|---|
+| `routing_catalog_integrity` | an invalid `routes` entry (`ROUTING_CATALOG_INVALID`), an unresolved route name (`ROUTING_REF_UNRESOLVED`), an unknown site (`ROUTING_UNKNOWN_SITE`), a pipeline site (`ROUTING_BINDING_ON_PIPELINE_SITE`), or an unresolved managed default tier (`ROUTING_BINDING_UNRESOLVED_SITE`) | unchanged; it has nothing to check while both blocks are empty |
+| `routing_inert_keys` | `routes` or `bindings` declared while `schema_version` is below `1.2.0` (`ROUTING_KEYS_REQUIRE_1_2_0`): the key would be accepted and ignored | passes |
+| `routing_unknown_keys` | a key directly under `model_routing` that the resolver does not understand (`ROUTING_UNKNOWN_KEY`), at `1.2.0` | an advisory warning below `1.2.0` |
+| `routing_anchor_alias_free` | a YAML anchor, alias, or merge key under `model_routing`, at `1.2.0` | an advisory warning below `1.2.0` |
+| `subagent_route_drift` | with bindings declared: a managed subagent's frontmatter differs from the route the renderer writes (`SUBAGENT_ROUTE_DRIFT`), or its default tier is unresolved (`ROUTING_SITE_DEFAULT_UNRESOLVED`), or a binding cannot be rendered (`ROUTING_BINDING_UNRESOLVED_SITE`) | non-blocking `info` lines; drift in a workspace-authored agent is always one advisory warning |
+
+Every drifted agent also yields a `refresh-route-frontmatter` entry in
+`migration_proposals[]`; tune promotes these as proposals only. Tune also
+proposes extracting a catalog entry when three or more bindings are
+field-identical. An installed workspace that has never declared `bindings`
+therefore stays green even if its subagent frontmatter has drifted from its
+template tier (this repository's 13 subagents are reported as `info`).
+
+### `autoharness routing resolve`
+
+```text
+autoharness routing resolve --workspace {workspace_path} --site stage|ship|orchestrator [--kind route|escalation] --json
+```
+
+The command is read-only and fail-closed. It resolves one pipeline site from
+`.autoharness/config.yaml` with the same resolver `verify-workspace` uses, and
+writes one JSON document followed by a newline to stdout; the resolver module is
+the normative definition of the rules above. `--kind escalation` applies to
+`stage` and `ship` only. The command does not take `agent:<id>` sites. The
+process exit status equals the document's `exit_code`:
+
+| Exit | Meaning | Caller action |
+|---|---|---|
+| `0` | resolved | use the route |
+| `1` | resolved with a declared degradation (for example `ESCALATION_DEGRADED: same-route`) | use the route and surface the degradation |
+| `2` | unresolved or invalid configuration, including an unreadable or schema-invalid config and a YAML anchor, alias, or merge key under `model_routing` in a `1.2.0` config | halt |
+
+An argument error prints usage to stderr, exits `2`, and writes no document.
+
+### Migrating from 1.1.0 to 1.2.0
+
+The change is additive: every `1.1.0` config stays valid and resolves
+identically, and `verify-workspace` reports it as a `known-legacy` config contract
+with an `upgrade-config-contract-1.1.0-to-1.2.0` proposal. Adopt it when you want
+a catalog or bindings:
+
+1. Review the `schema_contracts{}` entry and the upgrade proposal from
+   `verify-workspace`. Until you bump, a `1.1.0` config that carries an unknown
+   `model_routing` key or an anchor only gets advisory warnings, and declaring
+   `routes` or `bindings` fails `routing_inert_keys`.
+2. Back up `.autoharness/config.yaml` and set `schema_version: "1.2.0"` (tune
+   proposes this bump, preferably by promoting the upgrade proposal; it never
+   applies it itself). From `1.2.0` the schema closes `model_routing` to its known
+   keys, and anchors, aliases, and merge keys fail.
+3. Add `routes` and `bindings` entries. A fresh install already renders `1.2.0`
+   with empty `routes: {}` and `bindings: {}` blocks.
+4. Run `verify-workspace`, then accept tune's `refresh-route-frontmatter`
+   proposals (or re-render the affected agents) so bound agents carry the new
+   route. Skills and agents that validate a config select the schema matching its
+   own `schema_version`, so a `1.1.0` config is never reported invalid against
+   the `1.2.0` schema.
+
+The `1.1.0` schema is retained unchanged for configs that stay on it.
 
 ## Manual Tuning
 

@@ -4,6 +4,29 @@
 
 ### Added
 
+- **Model route catalog, subagent site bindings, and harness-config schema `1.2.0` (208-F / 215-S):**
+  `model_routing` gains two optional keys. `routes` is a catalog of named tier deltas (a required
+  `tier` plus optional field overrides; never a parallel tier taxonomy) and `bindings` maps an
+  installed subagent site (`agent:<id>`) to a catalog route or a bare tier, with optional per-field
+  overrides. A subagent resolves under one of two never-mixed branches: unbound from its template
+  default tier, bound from the binding's route only (the template default tier is never a
+  field-level fallback). Explicit `TIER_<N>_*` `config.overrides` stay a render-time layer outside
+  the resolver and win over a bound route. `verify-workspace` adds the `routing_catalog_integrity`,
+  `routing_inert_keys`, `routing_unknown_keys`, `routing_anchor_alias_free`, and
+  `subagent_route_drift` checks: an unknown site (`ROUTING_UNKNOWN_SITE`) or a binding on a managed
+  agent whose template default tier cannot be established
+  (`ROUTING_BINDING_UNRESOLVED_SITE`) fails, installed subagent frontmatter is drift-checked
+  against the route the renderer writes only in workspaces that declare `bindings` (otherwise
+  non-blocking `info`), and at `1.2.0` an unknown `model_routing` key or a YAML anchor, alias, or
+  merge key fails (advisory below `1.2.0`). Tune proposes `refresh-route-frontmatter` updates and
+  catalog extraction, proposal only. The P-013.5 policy gains a "Route catalog and site bindings"
+  clause and fail-closed items (registry version-history 1.36.0). Migration: a `1.1.0` config stays
+  valid and resolves identically (the `1.1.0` schema is retained unchanged); bump
+  `schema_version` to `1.2.0` to use `routes` and `bindings` (see `docs/tuning-guide.md`, "Route
+  Catalog and Site Bindings"). No routing value changes in this repository. Expected template
+  drift in installed workspaces: workflow-policies (re-run tune-harness); a fresh install renders
+  the config template at `1.2.0` with empty `routes` and `bindings` blocks.
+
 - **`cascade-close` journaling, `--detach`/`--poll`, and `--recover` (211-F / 218-S):** the mutating
   `autoharness shipment cascade-close` now writes a durable, Git-ignored output journal, so a wrapper killed
   mid-ship no longer loses the engine result. `--detach` hands the run to a detached supervisor behind an

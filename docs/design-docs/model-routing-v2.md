@@ -1,5 +1,11 @@
 # V2 Model Routing Proposal
 
+> **Status: superseded as a proposal, retained as the baseline.** The deliberation record
+> `docs/decisions/2026-10-11-model-routing-v2-deliberation.md` (040-DL) supersedes this document
+> as the model routing v2 proposal. This text is kept unchanged as the baseline that decision
+> evaluated; do not implement from it. Follow 040-DL and `docs/tuning-guide.md` ("Route Catalog
+> and Site Bindings") for the shipped behavior.
+
 ``` yaml
 model_routing:
   # Base Fallback Tiers
