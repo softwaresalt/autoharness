@@ -894,16 +894,6 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "instructions/output-timestamps",
                 "no variable-resolution-table entry is required",
             ],
-            repo_root / "templates" / "instructions" / "agent-intercom.instructions.md.tmpl": [
-                "output-timestamps.instructions.md",
-                "single source of truth",
-                "ISO-8601 UTC",
-            ],
-            repo_root / ".github" / "instructions" / "agent-intercom.instructions.md": [
-                "output-timestamps.instructions.md",
-                "single source of truth",
-                "ISO-8601 UTC",
-            ],
         }
 
         for file_path, expected_phrases in expected_phrases_by_file.items():
@@ -945,7 +935,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [4, 5, 8],
-                    "capability_packs": ["agent-intercom"],
+                    "capability_packs": [],
                     "artifacts": [
                         {
                             "path": ".github/prompts/feature-flow-dark.prompt.md",
@@ -1102,7 +1092,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             "manifest",
             Path("manifest.yaml"),
             {"schema_version": "1.0.0"},
-            "capability_packs.5: 'circuit-breaker' is not one of ['agent-intercom']",
+            "capability_packs.5: 'circuit-breaker' is not one of ['backlogit']",
         )
         self.assertEqual(classification, "warning")
         self.assertEqual(payload["kind"], "legacy-manifest-capability-pack")
@@ -1507,14 +1497,14 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "schema_version": {"type": "string", "const": "1.0.0"},
                     "capability_packs": {
                         "type": "array",
-                        "items": {"type": "string", "enum": ["agent-intercom"]},
+                        "items": {"type": "string", "enum": ["backlogit"]},
                     },
                     "capability_pack_overlays": {
                         "type": "array",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "pack": {"type": "string", "enum": ["agent-intercom"]}
+                                "pack": {"type": "string", "enum": ["backlogit"]}
                             },
                         },
                     },
@@ -1979,7 +1969,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["ship_source_artifact_cleanup"]["ok"])
             self.assertTrue(targeted_checks["closure_source_artifact_cleanup"]["ok"])
 
-    def test_verify_workspace_checks_review_intercom_workflow(self) -> None:
+    def test_verify_workspace_checks_agent_engram_pack_instruction(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             autoharness_home = root / "autoharness-home"
@@ -1991,7 +1981,6 @@ class VerifyWorkspaceTests(unittest.TestCase):
             (autoharness_home / "schemas" / "workspace-profile").mkdir(parents=True, exist_ok=True)
             (workspace / ".autoharness").mkdir(parents=True, exist_ok=True)
             (workspace / ".github" / "instructions").mkdir(parents=True, exist_ok=True)
-            (workspace / ".github" / "skills" / "review").mkdir(parents=True, exist_ok=True)
 
             strict_schema = {
                 "$schema": "http://json-schema.org/draft-07/schema#",
@@ -2024,22 +2013,15 @@ class VerifyWorkspaceTests(unittest.TestCase):
                     "autoharness_version": "1.3.2",
                     "profile_hash": "abc",
                     "primitives_installed": [4, 6, 7],
-                    "capability_packs": ["agent-intercom"],
+                    "capability_packs": ["agent-engram"],
                     "artifacts": [],
                 },
             )
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
             _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
 
-            (workspace / ".github" / "instructions" / "agent-intercom.instructions.md").write_text(
-                "broadcast\napproval\nstandby\n",
-                encoding="utf-8",
-            )
-            (workspace / ".github" / "skills" / "review" / "SKILL.md").write_text(
-                "## Agent-Intercom Communication (NON-NEGOTIABLE)\n"
-                "Review written\n"
-                "Waiting for input\n"
-                "## Subagent Depth Constraint\n",
+            (workspace / ".github" / "instructions" / "agent-engram.instructions.md").write_text(
+                "unified_search\nmap_code\nimpact_analysis\n",
                 encoding="utf-8",
             )
 
@@ -2049,9 +2031,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertEqual(report["blockers"], [])
 
             targeted_checks = report["targeted_checks"]
-            self.assertTrue(targeted_checks["agent_intercom_instruction"]["ok"])
-            self.assertTrue(targeted_checks["review_intercom_workflow"]["ok"])
-            self.assertEqual(targeted_checks["review_intercom_workflow"]["order_violations"], [])
+            self.assertTrue(targeted_checks["agent_engram_instruction"]["ok"])
 
     def test_verify_workspace_checks_foundation_copilot_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2113,7 +2093,6 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "65%\n"
                 "phase or major task group\n"
                 "## Remote Operator Integration\n"
-                "### agent-intercom\n"
                 "### agent-engram\n"
                 "sync_workspace\n"
                 "## Backlog Workflow Expectations\n"
@@ -2133,6 +2112,41 @@ class VerifyWorkspaceTests(unittest.TestCase):
             self.assertTrue(targeted_checks["copilot_session_memory_guidance"]["ok"])
             self.assertTrue(targeted_checks["copilot_remote_operator_guidance"]["ok"])
             self.assertTrue(targeted_checks["copilot_backlog_workflow_expectations"]["ok"])
+
+    def test_remote_operator_guidance_neither_requires_nor_forbids_the_legacy_heading(self) -> None:
+        guidance = "## Remote Operator Integration\n### agent-engram\nsync_workspace\n"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            autoharness_home = root / "autoharness-home"
+            (autoharness_home / "schemas").mkdir(parents=True)
+            _write_permissive_contract_schemas(autoharness_home)
+            for name, legacy in (("current", ""), ("legacy", "### agent-intercom\n")):
+                with self.subTest(install=name):
+                    workspace = root / name
+                    (workspace / ".autoharness").mkdir(parents=True)
+                    (workspace / ".github").mkdir(parents=True)
+                    _write_yaml(
+                        workspace / ".autoharness" / "harness-manifest.yaml",
+                        {
+                            "schema_version": "1.0.0",
+                            "installed_at": "2026-04-25T00:00:00Z",
+                            "autoharness_version": "1.3.2",
+                            "profile_hash": "abc",
+                            "primitives_installed": [9],
+                            "capability_packs": [],
+                            "artifacts": [],
+                        },
+                    )
+                    _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
+                    _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+                    (workspace / ".github" / "copilot-instructions.md").write_text(
+                        guidance.replace("### agent-engram", legacy + "### agent-engram"),
+                        encoding="utf-8",
+                    )
+
+                    report = verify_workspace(workspace, autoharness_home)
+
+                    self.assertTrue(report["targeted_checks"]["copilot_remote_operator_guidance"]["ok"])
 
     def test_verify_workspace_checks_pipeline_topology_gate_hook_wiring(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -6997,7 +7011,7 @@ class NewArtifactDetectionTests(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         self.assertFalse(
             (repo_root / "templates" / "prompts" / "ping-loop.prompt.md.tmpl").exists(),
-            "ping-loop.prompt template must be deleted (agent-intercom ACP consolidation)",
+            "ping-loop.prompt template must be deleted (ACP consolidation)",
         )
         live_files = [
             "src/autoharness/verify_workspace.py",

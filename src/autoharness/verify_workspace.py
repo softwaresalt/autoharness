@@ -40,7 +40,6 @@ from autoharness.startup_script_contract import (
 PLACEHOLDER_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
 CODE_FENCE_RE = re.compile(r"^\s*```")
 SUPPORTED_CAPABILITY_PACKS = {
-    "agent-intercom",
     "agent-engram",
     "backlogit",
     "browser-verification",
@@ -340,28 +339,6 @@ PACK_ASSERTIONS = {
             "must_contain": ["ProposedAction", "ActionRisk", "ActionResult"],
         }
     ],
-    "agent-intercom": [
-        {
-            "key": "agent_intercom_instruction",
-            "path": ".github/instructions/agent-intercom.instructions.md",
-            "must_contain": ["broadcast", "approval", "standby"],
-        },
-        {
-            "key": "review_intercom_workflow",
-            "path": ".github/skills/review/SKILL.md",
-            "must_contain": [
-                "Agent-Intercom Communication (NON-NEGOTIABLE)",
-                "Review written",
-                "Waiting for input",
-            ],
-            "must_precede": [
-                [
-                    "## Agent-Intercom Communication (NON-NEGOTIABLE)",
-                    "## Subagent Depth Constraint",
-                ]
-            ],
-        }
-    ],
     "agent-engram": [
         {
             "key": "agent_engram_instruction",
@@ -461,7 +438,6 @@ FOUNDATION_ASSERTIONS = [
         "path": ".github/copilot-instructions.md",
         "must_contain": [
             "## Remote Operator Integration",
-            "### agent-intercom",
             "### agent-engram",
             "sync_workspace",
         ],
@@ -919,17 +895,6 @@ DARK_FACTORY_ASSERTIONS = [
         "key": "dark_factory_visibility_contract",
         "path": ".github/policies/workflow-policies.md",
         "required": True,
-        "must_contain": [
-            "Dark Factory Visibility Protocol",
-            "BRAINSTORM_HANDOFF_READY",
-            "DARK_MODE_COMPLETE",
-            "degraded-visibility",
-        ],
-    },
-    {
-        "key": "dark_factory_intercom_contract",
-        "path": ".github/instructions/agent-intercom.instructions.md",
-        "requires_pack": "agent-intercom",
         "must_contain": [
             "Dark Factory Visibility Protocol",
             "BRAINSTORM_HANDOFF_READY",

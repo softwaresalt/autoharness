@@ -150,13 +150,15 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=any_line,
         max_count=6,
     ),
+    "tests/test_verify_workspace.py": Tombstone(
+        rationale="proves an install that kept the retired heading in copilot-instructions still passes copilot_remote_operator_guidance",
+        permitted=line_contains("### agent-intercom"),
+        max_count=1,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U7 - verify_workspace retirement
-    "src/autoharness/verify_workspace.py": "U7",
-    "tests/test_verify_workspace.py": "U7",
     # U8 - dogfood install state
     ".autoharness/config.yaml": "U8",
     ".autoharness/workspace-profile.yaml": "U8",

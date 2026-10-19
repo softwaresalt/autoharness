@@ -13,7 +13,6 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 import yaml
 
@@ -356,11 +355,10 @@ class MixedPackTests(unittest.TestCase):
             profile_version="1.0.0",
             packs=(RETIRED, "strict-safety"),
         )
-        # The pack stays in SUPPORTED_CAPABILITY_PACKS until U7; model its final state.
-        final_state = frozenset(vw.SUPPORTED_CAPABILITY_PACKS) - {RETIRED}
-        with mock.patch.object(vw, "SUPPORTED_CAPABILITY_PACKS", final_state):
-            report = _run_verify(docs)
+        report = _run_verify(docs)
         checks = report["targeted_checks"]
+        self.assertNotIn(RETIRED, vw.SUPPORTED_CAPABILITY_PACKS)
+        self.assertNotIn(RETIRED, vw.PACK_ASSERTIONS)
         self.assertIn("strict_safety_instruction", checks)
         self.assertNotIn("agent_intercom_instruction", checks)
         self.assertNotIn("review_intercom_workflow", checks)
