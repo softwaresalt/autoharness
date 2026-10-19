@@ -124,12 +124,21 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=any_line,
         max_count=200,
     ),
+    "tests/test_schema_contract_removed_pack_profile.py": Tombstone(
+        rationale="proves legacy 1.0.0 profiles listing the retired value still validate and that 1.1.0 rejects it",
+        permitted=any_line,
+        max_count=12,
+    ),
+    "src/autoharness/schema_contracts.py": Tombstone(
+        rationale="contract metadata names the retired value to document the version bump and migrate legacy documents",
+        permitted=line_contains("agent-intercom", "agent_intercom"),
+        max_count=4,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U2 / U3 / U4 - schema roots
-    "schemas/workspace-profile.schema.json": "U2",
+    # U3 / U4 - schema roots
     "schemas/harness-manifest.schema.json": "U3",
     "schemas/harness-config.schema.json": "U4",
     "schemas/harness-config/1.2.0.schema.json": "U4",  # becomes a frozen mirror once 1.3.0 is minted

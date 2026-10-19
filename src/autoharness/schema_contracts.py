@@ -115,8 +115,16 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "workspace-profile",
         "schema_file": "workspace-profile.schema.json",
         "versioned_schema_dir": "workspace-profile",
-        "current_version": "1.0.0",
-        "known_versions": ("0.9.0", "1.0.0"),
+        # Schema-version decision (209-F/216-S U2): removing the retired
+        # `agent-intercom` pack from both pack enums (and its `agent_intercom`
+        # property) is a restrictive change, so it is minted as 1.1.0 instead of
+        # mutating the published mirrors. 0.9.0 and 1.0.0 stay byte-identical
+        # (pinned by tests/test_schema_contract_removed_pack_profile.py); a legacy
+        # profile still validates against the contract it was written against.
+        # The 1.1.0 mirror also publishes the optional `copilot_review` block that
+        # the root schema already carried.
+        "current_version": "1.1.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
     "harness-resolution": {
@@ -264,20 +272,35 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "action": "Back up .autoharness/workspace-profile.yaml, rewrite legacy drift categories and capability-pack recommendations to the 1.0.0 vocabulary, write schema_version: 1.0.0, and rerun verify-workspace.",
         },
         {
+            "proposal_id": "upgrade-profile-contract-1.0.0-to-1.1.0",
+            "status": "known-legacy",
+            "from_version": "1.0.0",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Upgrade the workspace-profile contract from 1.0.0 to 1.1.0 (the retired agent-intercom capability pack is no longer a valid recommendation).",
+            "changed_fields": [
+                "schema_version",
+                "harness_recommendations.capability_packs",
+                "harness_recommendations.recommendation_reasons.capability_packs[*].item",
+                "agent_intercom",
+            ],
+            "action": "Back up .autoharness/workspace-profile.yaml, remove the retired agent-intercom pack from the recommendations and drop any agent_intercom block, write schema_version: 1.1.0, and rerun verify-workspace.",
+        },
+        {
             "proposal_id": "backfill-profile-schema-version",
             "status": "missing-version",
             "from_version": None,
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Backfill workspace-profile schema_version to the current contract version.",
             "changed_fields": ["schema_version"],
-            "action": "Back up .autoharness/workspace-profile.yaml, write schema_version: 1.0.0, and rerun verify-workspace.",
+            "action": "Back up .autoharness/workspace-profile.yaml, write schema_version: 1.1.0, and rerun verify-workspace.",
         },
         {
             "proposal_id": "review-unknown-profile-contract",
             "status": "unknown-version",
             "from_version": "*",
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "manual-review",
             "summary": "Review the unknown workspace-profile contract before auto-applying tune changes.",
             "changed_fields": ["schema_version"],
@@ -287,8 +310,8 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-profile-drift-categories",
             "warning_kind": "legacy-profile-drift-category",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Rewrite legacy drift_report category values into the current taxonomy.",
             "changed_fields": ["drift_report.changes[*].category"],
@@ -297,8 +320,8 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-profile-capability-packs",
             "warning_kind": "legacy-profile-capability-pack",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Replace legacy workspace-profile capability-pack recommendations with the current pack vocabulary.",
             "changed_fields": ["harness_recommendations.capability_packs"],

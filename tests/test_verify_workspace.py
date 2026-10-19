@@ -1287,7 +1287,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 },
             )
             _write_yaml(workspace / ".autoharness" / "config.yaml", {"schema_version": "1.0.0"})
-            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.0.0"})
+            _write_yaml(workspace / ".autoharness" / "workspace-profile.yaml", {"schema_version": "1.1.0"})
             (workspace / "AGENTS.md").write_text("# Existing\n", encoding="utf-8")
             (workspace / ".backlogit").mkdir(parents=True, exist_ok=True)
             (workspace / ".backlogit" / "config.yaml").write_text("artifact_types: []\n", encoding="utf-8")
