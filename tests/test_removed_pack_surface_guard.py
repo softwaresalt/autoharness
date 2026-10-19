@@ -23,11 +23,17 @@ intentionally name the retired value are exact-path tombstones.
 from __future__ import annotations
 
 import fnmatch
+import os
+import shutil
 import subprocess
+import tempfile
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
+from unittest import mock
+
+from _git_env import consistent_git_env
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "intercom"
@@ -117,19 +123,35 @@ FROZEN_MIRRORS: Mapping[str, str] = {
     "schemas/workspace-profile/1.0.0.schema.json": "published workspace-profile 1.0.0 mirror is immutable",
 }
 
-# Plan D-6: telemetry route_kind vocabulary of versioned published contracts.
-TELEMETRY_VOCAB: Mapping[str, str] = {
-    "schemas/execution-epoch*": "execution-epoch route_kind vocabulary is a published contract value (D-6)",
-    "schemas/tool-telemetry-event*": "tool-telemetry-event route_kind vocabulary is a published contract value (D-6)",
-    "src/autoharness/telemetry/tool_event.py": "well-known route_kind set mirrors the published telemetry contract (D-6)",
+# Plan D-6: the telemetry route_kind vocabulary of versioned published contracts is
+# scoped as exact-path tombstones (TELEMETRY_TOMBSTONE_PATHS); no glob exemption remains.
+TELEMETRY_VOCAB: Mapping[str, str] = {}
+
+_ROUTE_KIND_ENUM_VALUE = line_contains('"intercom",')
+_TELEMETRY_MAX_COUNTS: Mapping[str, int] = {
+    "schemas/execution-epoch.schema.json": 2,
+    "schemas/execution-epoch/1.1.0.schema.json": 2,
+    "schemas/tool-telemetry-event.schema.json": 1,
+    "schemas/tool-telemetry-event/1.0.0.schema.json": 1,
+    "schemas/tool-telemetry-event/1.1.0.schema.json": 1,
+    "src/autoharness/telemetry/tool_event.py": 1,
 }
+TELEMETRY_TOMBSTONE_PATHS: tuple[str, ...] = tuple(_TELEMETRY_MAX_COUNTS)
 
 # Exact path -> permitted occurrences. Later units add their own entries.
 TOMBSTONES: Mapping[str, Tombstone] = {
+    **{
+        path: Tombstone(
+            rationale="retained route_kind vocabulary value of a published telemetry contract (D-6)",
+            permitted=_ROUTE_KIND_ENUM_VALUE,
+            max_count=_TELEMETRY_MAX_COUNTS[path],
+        )
+        for path in TELEMETRY_TOMBSTONE_PATHS
+    },
     "tests/test_removed_pack_surface_guard.py": Tombstone(
         rationale="the guard names the retired value because scanning for it is its purpose",
         permitted=any_line,
-        max_count=200,
+        max_count=32,
     ),
     "tests/test_schema_contract_removed_pack_profile.py": Tombstone(
         rationale="proves legacy 1.0.0 profiles listing the retired value still validate and that 1.1.0 rejects it",
@@ -249,14 +271,25 @@ PENDING_SURFACES: Mapping[str, str] = {}
 
 
 def git_tracked_files(root: Path = _REPO_ROOT) -> list[str]:
-    result = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=root,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=True,
-    )
-    return [entry.decode("utf-8") for entry in result.stdout.split(b"\0") if entry]
+    git = shutil.which("git")
+    if git is None:
+        raise unittest.SkipTest("git executable not available")
+    if not (root / ".git").exists():
+        raise unittest.SkipTest(f"{root} is not a git checkout (no .git), e.g. a git-archive extract")
+    try:
+        result = subprocess.run(
+            [git, "ls-files", "-z"],
+            cwd=root,
+            capture_output=True,
+            check=True,
+            env=consistent_git_env(),
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = os.fsdecode(exc.stderr or b"").strip()
+        raise unittest.SkipTest(f"git ls-files failed (exit {exc.returncode}): {stderr}") from exc
+    except OSError as exc:
+        raise unittest.SkipTest(f"git could not be run: {exc}") from exc
+    return [os.fsdecode(entry) for entry in result.stdout.split(b"\0") if entry]
 
 
 def read_repo_file(path: str, root: Path = _REPO_ROOT) -> bytes | None:
@@ -289,6 +322,7 @@ class ScanReport:
     stale_allowlist: list[str]
     unrationalized: list[str]
     pending_live: list[str]
+    uncovered_names: list[str]
 
 
 def scan(
@@ -303,6 +337,7 @@ def scan(
 ) -> ScanReport:
     tracked_set = set(tracked)
     uncovered: list[str] = []
+    uncovered_names: list[str] = []
     tombstone_violations: list[str] = []
     pending_live: list[str] = []
     frozen_hit: set[str] = set()
@@ -313,6 +348,10 @@ def scan(
     for path in sorted(tracked_set):
         if _is_historical(path, historical):
             continue
+        if TOKEN in path.casefold() and path not in frozen and not any(
+            fnmatch.fnmatchcase(path, g) for g in telemetry
+        ):
+            uncovered_names.append(path)
         lines = token_lines(read(path))
         if lines is None:
             continue
@@ -342,10 +381,9 @@ def scan(
             continue
         uncovered.append(path)
 
-    stale_allowlist = [
-        f"historical:{entry}" for entry in historical if not any(_matches_prefix(p, entry) for p in tracked_set)
-    ]
-    stale_allowlist += [f"frozen:{p}" for p in frozen if p not in frozen_hit]
+    # Historical entries are not staleness-checked: a record that no longer exists
+    # has no product value to protect.
+    stale_allowlist = [f"frozen:{p}" for p in frozen if p not in frozen_hit]
     stale_allowlist += [f"telemetry:{g}" for g in telemetry if g not in telemetry_hit]
     stale_allowlist += [f"tombstone:{p}" for p in tombstones if p not in tombstone_hit]
     unrationalized = [
@@ -365,6 +403,7 @@ def scan(
         stale_allowlist=stale_allowlist,
         unrationalized=unrationalized,
         pending_live=pending_live,
+        uncovered_names=uncovered_names,
     )
 
 
@@ -375,6 +414,7 @@ class RemovedPackSurfaceGuardTests(unittest.TestCase):
 
     def test_every_live_match_is_classified(self) -> None:
         self.assertEqual(self.report.uncovered, [], "live files name the retired pack outside every class")
+        self.assertEqual(self.report.uncovered_names, [], "tracked file names must not name the retired pack")
         self.assertEqual(self.report.tombstone_violations, [])
 
     def test_pending_ledger_has_no_stale_entries(self) -> None:
@@ -444,8 +484,45 @@ class GuardMachineryTests(unittest.TestCase):
         )
         self.assertEqual(
             sorted(report.stale_allowlist),
-            ["frozen:schemas/x/1.0.0.json", "historical:gone/", "telemetry:schemas/t*", "tombstone:a.md"],
+            ["frozen:schemas/x/1.0.0.json", "telemetry:schemas/t*", "tombstone:a.md"],
         )
+
+    def test_unmatched_historical_entry_is_not_stale(self) -> None:
+        report = self._scan(
+            {"a.md": b"clean\n"}, historical={"gone/": "why"}, frozen={}, telemetry={}, tombstones={}, pending={}
+        )
+        self.assertEqual(report.stale_allowlist, [])
+        self.assertEqual(report.unrationalized, [])
+
+    def test_tracked_file_name_naming_the_pack_is_uncovered(self) -> None:
+        files = {
+            "src/Intercom_helper.py": b"x = 1\n",
+            "docs/archive/old-intercom.md": b"x\n",
+            "schemas/frozen-intercom.json": b"x\n",
+            "schemas/telemetry-intercom.json": b"x\n",
+            "src/clean.py": b"x = 1\n",
+        }
+        report = self._scan(
+            files,
+            historical={"docs/archive/": "why"},
+            frozen={"schemas/frozen-intercom.json": "why"},
+            telemetry={"schemas/telemetry*": "why"},
+            tombstones={},
+            pending={},
+        )
+        self.assertEqual(report.uncovered_names, ["src/Intercom_helper.py"])
+
+    def test_telemetry_vocabulary_is_scoped_to_exact_paths_and_lines(self) -> None:
+        self.assertEqual(dict(TELEMETRY_VOCAB), {})
+        for path in TELEMETRY_TOMBSTONE_PATHS:
+            with self.subTest(path=path):
+                tomb = TOMBSTONES[path]
+                self.assertFalse(any(ch in path for ch in "*?["))
+                lines = ['"route_kind": ["x",', '"intercom",', "# wires the intercom pack"]
+                self.assertTrue(tomb.permitted(lines, 1))
+                self.assertFalse(tomb.permitted(lines, 2))
+
+
 
     def test_blank_rationale_is_reported(self) -> None:
         files = {"a.md": b"intercom\n"}
@@ -496,6 +573,30 @@ class GuardMachineryTests(unittest.TestCase):
         )
         self.assertEqual(report.uncovered, [])
         self.assertEqual(report.stale_allowlist, [])
+
+
+class GitTrackedFilesTests(unittest.TestCase):
+    def test_missing_git_checkout_skips_with_a_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaises(unittest.SkipTest) as ctx:
+                git_tracked_files(Path(temp_dir))
+        self.assertIn("not a git checkout", str(ctx.exception))
+
+    def test_missing_git_executable_skips(self) -> None:
+        with mock.patch("shutil.which", return_value=None):
+            with self.assertRaises(unittest.SkipTest):
+                git_tracked_files()
+
+    def test_git_failure_skips_and_includes_stderr(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            (Path(temp_dir) / ".git").mkdir()
+            with self.assertRaises(unittest.SkipTest) as ctx:
+                git_tracked_files(Path(temp_dir))
+        self.assertIn("git ls-files failed", str(ctx.exception))
+        self.assertIn("repository", str(ctx.exception))
+
+    def test_real_checkout_lists_this_file(self) -> None:
+        self.assertIn("tests/test_removed_pack_surface_guard.py", git_tracked_files())
 
 
 if __name__ == "__main__":
