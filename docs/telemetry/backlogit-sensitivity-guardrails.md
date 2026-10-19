@@ -19,7 +19,7 @@ paired with [`docs/telemetry/backlogit-evidence-map.md`](backlogit-evidence-map.
 Where the evidence map answers "what backlogit data maps to which ratified field, at what
 granularity," this document answers "what is safe to retain and emit at all." It contains
 **no emitter code** — 084-F owns event emission; this document owns safety-boundary policy for
-backlogit-sourced evidence only. Engram, graphtor-docs, and agent-intercom portions of 082-F
+backlogit-sourced evidence only. Engram and graphtor-docs portions of 082-F
 remain **blocked-on-operator** (no read access or sanitized fixtures for those workspaces exist
 in this session) and are explicitly **not** unblocked by this document.
 
@@ -111,7 +111,7 @@ are defensible:
 **This document formally unblocks the backlogit-specific portion of feature 082-F.**
 
 082-F (`cross-pack-measurability-telemetry-access`) called for a cross-pack measurability
-session with read access to Engram, backlogit, graphtor-docs, and agent-intercom workspaces,
+session with read access to Engram, backlogit, and graphtor-docs workspaces,
 blocked pending operator-provided access or sanitized fixtures for each pack. Shipment 113-S
 (108-F) had, and used, **authoritative read-only access to the upstream `backlogit` source
 repository** (`C:\Source\GitHub\backlogit`, read-only, never written to) — satisfying 082-F's
@@ -131,8 +131,8 @@ for that evidence), 082-F's backlogit-specific deliverables are satisfied:
 * Evidence classes were sorted into observed/derived/unavailable/not_applicable per pack surface
   as 082-F's definition of done requires, scoped to backlogit only.
 
-**The Engram, graphtor-docs, and agent-intercom portions of 082-F remain
-blocked-on-operator.** No read access or sanitized fixtures for those three workspaces exist in
+**The Engram and graphtor-docs portions of 082-F remain
+blocked-on-operator.** No read access or sanitized fixtures for those two workspaces exist in
 this session or shipment. This carve-out does not infer, assume, or fabricate any detail about
 those packs' telemetry/logging surfaces from public web sources or guesswork — it addresses
 backlogit only, as its scope is limited to what 113-S/108-F actually reviewed.

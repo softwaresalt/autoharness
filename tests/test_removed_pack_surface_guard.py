@@ -200,16 +200,15 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=in_section("### Retired capability packs"),
         max_count=5,
     ),
+    "docs/telemetry/cross-pack-adapter-gap-report.md": Tombstone(
+        rationale="the closed deferral note names the retired value to record that its deferral is closed and no mapping will be authored",
+        permitted=in_section("## Closed agent-intercom deferral note (AC3, review F3)"),
+        max_count=5,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U20 - telemetry docs and deferred-doc deletion
-    "docs/telemetry/backlogit-evidence-map.md": "U20",
-    "docs/telemetry/backlogit-sensitivity-guardrails.md": "U20",
-    "docs/telemetry/cross-pack-adapter-gap-report.md": "U20",
-    "docs/deferred/agent-intercom-opt-in-nonmcp.md": "U20",
-    "docs/deferred/agent-intercom-opt-in-nonmcp.patch": "U20",
     # U21 - deploy wrapper tolerance
     "tests/test_deploy_harness_scripts.py": "U21",
     # U22 - pack definition removal

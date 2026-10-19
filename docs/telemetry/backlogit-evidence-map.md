@@ -16,7 +16,7 @@ description: Maps backlogit 1.8 telemetry evidence (tool_call_fact, tool_usage, 
 This document is the backlogit-only carve-out of feature 082-F: a factual mapping from
 backlogit 1.8's harvested telemetry evidence to the ratified `ToolTelemetryEvent` v1.0 /
 `ExecutionEpoch` v1.1 contract. It contains **no emitter code** — 084-F owns event emission;
-this document owns evidence classification only. Engram, graphtor-docs, and agent-intercom
+this document owns evidence classification only. Engram and graphtor-docs
 portions of 082-F remain blocked-on-operator (see
 [docs/telemetry/backlogit-sensitivity-guardrails.md](backlogit-sensitivity-guardrails.md)
 for the carve-out statement).

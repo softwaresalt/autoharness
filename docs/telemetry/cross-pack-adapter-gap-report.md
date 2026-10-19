@@ -1,6 +1,6 @@
 ---
 title: Cross-Pack Adapter-Gap + Sensitivity/Fixtures Report (082-F)
-description: Consolidated synthesis of Engram (082.001-T), graphtor-docs (082.002-T), and backlogit (108-F, done) telemetry evidence mapping — a unified adapter-gap matrix, an observed/estimated/derived/unavailable/unsafe summary per pack, explicit sensitivity/redaction acceptance criteria, the sanitized-fixtures decision, and the traceable agent-intercom deferral note.
+description: Consolidated synthesis of Engram (082.001-T), graphtor-docs (082.002-T), and backlogit (108-F, done) telemetry evidence mapping — a unified adapter-gap matrix, an observed/estimated/derived/unavailable/unsafe summary per pack, explicit sensitivity/redaction acceptance criteria, the sanitized-fixtures decision, and the closed deferral note for a retired pack.
 ---
 
 # Cross-Pack Adapter-Gap + Sensitivity/Fixtures Report
@@ -18,7 +18,7 @@ three per-pack evidence mappings — [`backlogit-evidence-map.md`](backlogit-evi
 [`graphtor-docs-evidence-map.md`](graphtor-docs-evidence-map.md) (082.002-T) — into one
 cross-pack adapter-gap matrix, one observed/estimated/derived/unavailable/unsafe summary, an
 explicit sensitivity/redaction guardrail set encoded as acceptance criteria, the
-sanitized-fixtures decision, and a traceable `agent-intercom` deferral note. It contains **no
+sanitized-fixtures decision, and a closed deferral note for a retired pack. It contains **no
 emitter code**. Adapters remain **autoharness-side wrappers**, never pack-repo changes — this
 is consistent with the ratified 079-F ownership model
 (`docs/decisions/2026-07-13-telemetry-metrics-reporting-ownership.md`) and the 108-F precedent,
@@ -120,21 +120,16 @@ emitter cannot read it as optional.
   adapter/emission feature consumes this mapping (084-F or a successor), where a fresh
   sensitivity review of the fixture content itself would apply.
 
-## Explicit agent-intercom deferral note (AC3, review F3)
+## Closed agent-intercom deferral note (AC3, review F3)
 
-Per plan review finding **F3** (P3, accepted): `agent-intercom` measurability is **explicitly
-and traceably deferred**, not silently dropped. 082-F's originating queue item listed
-`agent-intercom` among the four capability packs in scope for a cross-pack measurability
-session; this shipment's evidence-gathering session (see
-`docs/decisions/2026-08-07-082F-cross-pack-measurability-evidence.md`) recorded that
-`agent-intercom` was **unavailable this session** (no evidence surface, no operator-provided
-read access) and was removed from the session's active evidence list rather than mapped from
-guesswork or public-web inference. **This report reaffirms that deferral explicitly**: no
-`agent-intercom` mapping exists in this document, in `engram-evidence-map.md`, or in
-`graphtor-docs-evidence-map.md`. A future session with an actual `agent-intercom` evidence
-surface (operator-provided read access or sanitized fixtures) is required before any
-`agent-intercom` telemetry mapping can be authored — this is a **traceable gap**, not an
-oversight, and must not be assumed covered by 082-F when reviewing future work.
+Per plan review finding **F3** (P3, accepted), `agent-intercom` measurability was explicitly
+and traceably deferred by this shipment's evidence-gathering session (see
+`docs/decisions/2026-08-07-082F-cross-pack-measurability-evidence.md`) because no evidence
+surface was available. **That deferral is now closed:** the `agent-intercom` capability pack
+has been retired (feature 209-F) and is no longer shipped, so there is nothing left to measure
+and no `agent-intercom` telemetry mapping will be authored. No work is pending. The
+`route_kind: "intercom"` vocabulary value in the published telemetry contracts is a
+historical-event vocabulary and is unrelated to any pack mapping.
 
 ## Adapter ownership reaffirmation
 
