@@ -169,16 +169,6 @@ TOMBSTONES: Mapping[str, Tombstone] = {
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U15 - execution-phase skills A
-    ".github/skills/compact-context/SKILL.md": "U15",
-    ".github/skills/fix-ci/SKILL.md": "U15",
-    ".github/skills/pr-lifecycle/SKILL.md": "U15",
-    ".github/skills/review/SKILL.md": "U15",
-    "templates/skills/build-feature/SKILL.md.tmpl": "U15",
-    "templates/skills/compact-context/SKILL.md.tmpl": "U15",
-    "templates/skills/fix-ci/SKILL.md.tmpl": "U15",
-    "templates/skills/pr-lifecycle/SKILL.md.tmpl": "U15",
-    "templates/skills/review/SKILL.md.tmpl": "U15",
     # U16 - execution-phase skills B
     ".github/skills/harness-architect/SKILL.md": "U16",
     ".github/skills/operational-closure/SKILL.md": "U16",

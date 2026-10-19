@@ -8,27 +8,10 @@ argument-hint: "[mode:autofix|mode:report-only] [branch name or file paths]"
 
 Reviews code changes using dynamically selected reviewer personas. Spawns persona subagents that return structured findings, then merges and deduplicates into a unified report.
 
-## Agent-Intercom Communication (NON-NEGOTIABLE)
-
-Call `ping` at session start. If agent-intercom is reachable, broadcast at every step. If unreachable, warn the user that operator visibility is degraded.
-
 When the `strict-safety` capability pack is installed, also follow
 `.github/instructions/strict-safety.instructions.md`: for high-risk diffs, call
 out the `ProposedAction`, `ActionRisk`, approval, and rollback gaps that should
 be visible before merge or deployment.
-
-| Event | Level | Message prefix |
-|---|---|---|
-| Review start | info | `[REVIEW] Starting {mode} review of {scope}` |
-| Diff analyzed | info | `[REVIEW] Analyzed diff: {file_count} files, {line_count} lines changed` |
-| Persona routing | info | `[REVIEW] Routing: {always_on_count} always-on + {conditional_count} conditional personas` |
-| Persona spawned | info | `[SPAWN] {persona_name} for code review` |
-| Persona returned | info | `[RETURN] {persona_name}: {finding_count} findings` |
-| Merge complete | info | `[REVIEW] Merged: {total} findings ({p0} P0, {p1} P1, {p2} P2, {p3} P3)` |
-| Autofix applied | info | `[REVIEW] Applied safe_auto fix: {finding_summary}` |
-| Review written | success | `[REVIEW] Review artifact: {file_path}` |
-| Waiting for input | warning | `[WAIT] Blocked on user decision` |
-| Review complete | success | `[REVIEW] Complete: {summary}` |
 
 ## Subagent Depth Constraint
 
@@ -77,7 +60,7 @@ Check arguments for `mode:autofix` or `mode:report-only`. Strip the mode token b
 | Class | Default owner | Meaning |
 |---|---|---|
 | `safe_auto` | Review skill (autofix mode) | Deterministic local fix |
-| `gated_auto` | agent-intercom approval | Fix exists but changes behavior/contracts |
+| `gated_auto` | operator approval | Fix exists but changes behavior/contracts |
 | `manual` | Backlog follow-up item | Actionable work requiring human judgment |
 | `advisory` | Informational | Learnings, rollout notes, residual risk |
 
@@ -152,7 +135,6 @@ Use a different model from the caller when available to force genuine diversity 
 1. Identify changed files from git diff, explicit file list, or caller-provided scope
 2. Categorize each file by type and domain
 3. Identify which instruction files apply (via `applyTo` patterns)
-4. Broadcast the diff analysis
 
 ### Step 2: Route Personas
 
@@ -162,7 +144,6 @@ Use a different model from the caller when available to force genuine diversity 
    * Select **Template Integrity Reviewer** (`template-integrity-reviewer.agent.md`) when the diff touches template files, Markdown harness artifacts, review/policy/instruction assets, or generated-artifact reference tables
    * Select **Schema-CLI-Docs Coupling Reviewer** (`schema-cli-docs-coupling-reviewer.agent.md`) when the diff spans schema files, `src/` verification logic, install/tune skills, or operator-facing documentation in the same change set
 3. When `model_routing.anchor_review` is dispatchable and the diff touches high-risk template, policy, review-surface, or schema/skill contracts, assign the anchor reviewer to one triggered conditional persona (Template Integrity Reviewer by default, otherwise Schema-CLI-Docs Coupling Reviewer). If model-specific dispatch is unavailable, record `TOOL_DEGRADED: model-specific-review-routing — declared fallback: same-model rubric pass` and apply the same rubric.
-4. Broadcast the routing decision with persona count, anchor reviewer assignment, and any declared degradation
 
 ### Step 3: Spawn Persona Subagents
 
@@ -173,21 +154,19 @@ Spawn all selected personas. Each receives:
 - Instructions to return structured findings
 - Codebase search directive (use grep/glob for context)
 
-Broadcast each spawn.
-
 ### Step 4: Collect and Merge Findings
 
 As each persona returns:
 
-1. Broadcast the return with finding count
-2. Collect all findings
-3. Deduplicate: merge findings that identify the same issue
-4. Assign final severity (more conservative on disagreement)
-5. Assign final action routing
-6. Derive the readiness outcome:
+1. Collect all findings
+2. Deduplicate: merge findings that identify the same issue
+3. Assign final severity (more conservative on disagreement)
+4. Assign final action routing
+5. Derive the readiness outcome:
    * `BLOCKED` if any unresolved P0/P1 findings remain
    * `READY_WITH_FOLLOWUPS` if P0/P1 is clear but actionable P2/P3 findings require backlog follow-up or explicit residual-risk notes
    * `READY` otherwise
+6. Report the readiness outcome and the P0-P3 finding counts in the session output
 
 ### Step 5: Apply Actions (mode-dependent)
 
