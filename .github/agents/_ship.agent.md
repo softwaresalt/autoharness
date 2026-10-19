@@ -144,21 +144,6 @@ If the `agent-engram` capability pack is active (`.github/instructions/agent-eng
 
 See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
 
-### Step 0.1c: Intercom Startup Ping
-
-If the `agent-intercom` capability pack is active (`.github/instructions/agent-intercom.instructions.md` exists):
-
-1. Call heartbeat/ping with a concise session-start status message (e.g., "Ship session started — loading shipment").
-   - On success: log `INTERCOM_OK`.
-   - On failure (service unreachable): log `INTERCOM_DEGRADED — operator visibility reduced`. Do not halt. Continue with non-destructive work.
-2. In `INTERCOM_DEGRADED` mode: skip phase broadcasts; treat approval-dependent destructive operations as blocked until intercom is restored or operator provides another path.
-
-**Phase broadcasts**: Broadcast concise status at planning started, task claimed, task completed, review complete, runtime verification, and operational closure per the Progress Protocol in `.github/instructions/agent-intercom.instructions.md`.
-
-**Before destructive file operations** (deletions, directory removals): run the intercom auto-check step before executing. Block if auto-check fails and intercom is unavailable.
-
-See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
-
 ### Step 0.1d: Graphtor-Docs Server Check
 
 If the `graphtor-docs` capability pack is active (`.github/instructions/graphtor-docs.instructions.md` exists):
@@ -214,7 +199,7 @@ is prohibited (P-001 role separation).
 1. Identify the shipment or feature to work on (read-only — do not claim yet).
    * If a shipment exists, record its ID for use in step 4.
    * Otherwise, select queued tasks from the backlog.
-1a. **Queued-with-active-work early-warning (NON-NEGOTIABLE ordering: runs immediately after the shipment record is loaded, BEFORE the scope/status validation in step 2 and BEFORE the step 4 claim)**: This scan applies only when a shipment exists (`shipment_id` was recorded in step 1); in the no-shipment path (bare queued tasks selected directly from the backlog) there is no shipment record to check, so skip this early-warning. Load the shipment record and enumerate its manifest task IDs via `backlogit shipment get {shipment_id}` (→ `custom_fields.items`), then read each task's status via `backlogit get {task_id}` (CLI fallback path — the whole check uses the CLI since MCP is the unreliable surface being guarded). Filter `custom_fields.items` to task artifacts (exclude any non-task entry — backlogit task IDs end in `-T`, features in `-F`) before evaluating statuses: the shipment `items` list is untyped and the fallback/direct-assembly path can seed it with the covering feature ID, so an `active`/`done` feature entry must be excluded to avoid a false fail-closed halt. Only task artifacts are scanned (task-only manifest, per the 097-S contract); the covering feature is derived via `parent_id` and is **not** part of the scan. If the loaded shipment record status is `queued` while any manifest task is already `active` or `done`, halt with `SHIPMENT_STATE_INCONSISTENT: shipment {shipment_id} is {status} but task {task_id} is {task_status}` (detect-and-report only — no auto-repair) and record a P-005 event. Remediation: for a `queued` record, resolve and re-claim; a genuinely stale record is archive-repaired instead. This runs **ahead of** the scope/status validation in step 2 so a `queued`-with-active-work record is diagnosed before validation would reject it, and **ahead of** the step 4 claim so a successful `queued → active` claim cannot mask the inconsistency. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`. Broadcast the result when intercom is available.
+1a. **Queued-with-active-work early-warning (NON-NEGOTIABLE ordering: runs immediately after the shipment record is loaded, BEFORE the scope/status validation in step 2 and BEFORE the step 4 claim)**: This scan applies only when a shipment exists (`shipment_id` was recorded in step 1); in the no-shipment path (bare queued tasks selected directly from the backlog) there is no shipment record to check, so skip this early-warning. Load the shipment record and enumerate its manifest task IDs via `backlogit shipment get {shipment_id}` (→ `custom_fields.items`), then read each task's status via `backlogit get {task_id}` (CLI fallback path — the whole check uses the CLI since MCP is the unreliable surface being guarded). Filter `custom_fields.items` to task artifacts (exclude any non-task entry — backlogit task IDs end in `-T`, features in `-F`) before evaluating statuses: the shipment `items` list is untyped and the fallback/direct-assembly path can seed it with the covering feature ID, so an `active`/`done` feature entry must be excluded to avoid a false fail-closed halt. Only task artifacts are scanned (task-only manifest, per the 097-S contract); the covering feature is derived via `parent_id` and is **not** part of the scan. If the loaded shipment record status is `queued` while any manifest task is already `active` or `done`, halt with `SHIPMENT_STATE_INCONSISTENT: shipment {shipment_id} is {status} but task {task_id} is {task_status}` (detect-and-report only — no auto-repair) and record a P-005 event. Remediation: for a `queued` record, resolve and re-claim; a genuinely stale record is archive-repaired instead. This runs **ahead of** the scope/status validation in step 2 so a `queued`-with-active-work record is diagnosed before validation would reject it, and **ahead of** the step 4 claim so a successful `queued → active` claim cannot mask the inconsistency. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`. Report the result in the session output.
 2. Verify all tasks have clear scope and acceptance criteria. Task-only shipment
    manifests are valid: resolve each covering feature through the task's
    `parent_id` rather than requiring the parent feature to appear in the shipment.
@@ -313,8 +298,8 @@ is prohibited (P-001 role separation).
      once more — exit 0 converges and proceeds to Step 2; a second `CLAIM_NOT_OBSERVED` (bound exhausted) or any other
      non-zero/ambiguous verdict is terminal (`CLAIM_VERIFY_FAILED`), never a further retry.
    - If the re-read status is anything other than `active` or `queued`: halt **immediately** with `CLAIM_VERIFY_FAILED: shipment {shipment_id} returned unexpected status {status}` — **no retry, no claim**. Any value outside `{active, queued}` is a fail-closed anomaly and must record a P-005 event. Backlogit 1.8.0 does not define a shipment `blocked` status; see `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`.
-   Both halts fire **before** Step 2 moves any task to `active`. Broadcast the claim-verify result when intercom
-   is available. The bounded cycle described above (double-claim guard, single retry, single post_claim re-verify) runs
+   Both halts fire **before** Step 2 moves any task to `active`. Report the claim-verify result in the session output.
+   The bounded cycle described above (double-claim guard, single retry, single post_claim re-verify) runs
    **at most once** and applies **only** to the `CLAIM_NOT_OBSERVED` outcome at this immediate post-claim point — never
    to any pre_claim, lifecycle, build, PR, or closure invocation, and never to any other non-zero verdict. (Bootstrap
    exemption: while `autoharness gate pipeline-topology` is not yet installed, this section operates on the backlogit
@@ -615,8 +600,8 @@ Both paths preserve identically: the mandatory capture-first ordering, the full 
 7. **Pre-merge strategy guardrail (P-009, NON-NEGOTIABLE)**: Before executing any
    merge, verify the PR is configured to use a merge commit strategy — not squash
    or rebase. On GitHub, confirm the active merge is "Create a merge commit". If
-   squash or rebase is the only available option, halt immediately, broadcast a
-   P-009 violation ("Squash/rebase merge detected — merge commit required (P-009)"),
+   squash or rebase is the only available option, halt immediately, report a
+   P-009 violation in the session output ("Squash/rebase merge detected — merge commit required (P-009)"),
    record a P-005 event (`violation_policy: P-009`, `gate: Ship Step 4`,
    `action: halted`), and instruct the operator to enable "Allow merge commits"
    in repository settings (and may also disable "Allow squash merging" and
