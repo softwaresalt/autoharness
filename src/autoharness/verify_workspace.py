@@ -26,6 +26,7 @@ from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
     plan_schema_contract_migrations,
+    removed_pack_site_key,
     resolve_contract_schema_path,
     summarize_schema_contract,
 )
@@ -6216,10 +6217,18 @@ def verify_workspace(
         if not path.exists() or not data:
             continue
         report["warnings"].extend(collect_contract_state_warnings(kind, path, data))
+        reported_removed_sites = {
+            key for key in map(removed_pack_site_key, report["warnings"]) if key is not None
+        }
         schema_path = resolve_contract_schema_path(kind, autoharness_home, data)
         for error in _schema_errors(schema_path, data):
             classification, payload = classify_schema_error(kind, path, data, error)
             if classification == "warning":
+                site_key = removed_pack_site_key(payload)
+                if site_key is not None:
+                    if site_key in reported_removed_sites:
+                        continue
+                    reported_removed_sites.add(site_key)
                 report["warnings"].append(payload)
             else:
                 report["strict_schema_blockers"].append(payload)
@@ -6240,6 +6249,8 @@ def verify_workspace(
         workspace_path, autoharness_home, manifest
     )
 
+    # Retired packs are not in SUPPORTED_CAPABILITY_PACKS once removed, so they are
+    # dropped here; the removed-capability-pack warning above already reports them.
     installed_packs = [
         str(pack)
         for pack in (manifest.get("capability_packs") or config.get("capability_packs") or [])

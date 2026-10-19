@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
+
+import yaml
 
 
 LEGACY_CAPABILITY_PACK_ERROR_RE = re.compile(
-    r"^((?:[A-Za-z0-9_]+\.)*(?:capability_packs\.\d+|capability_pack_overlays\.\d+\.pack)): '([^']+)' is not one of"
+    r"^((?:[A-Za-z0-9_]+\.)*(?:capability_packs\.\d+|capability_pack_overlays\.\d+\.pack"
+    r"|recommendation_reasons\.capability_packs\.\d+\.item)): '([^']+)' is not one of"
 )
 LEGACY_DRIFT_CATEGORY_ERROR_RE = re.compile(
     r"^drift_report\.changes\.\d+\.category: '([^']+)' is not one of"
@@ -25,6 +31,34 @@ LEGACY_DRIFT_CATEGORIES = {
     "existing_modified",
     "gitignore_updated",
 }
+
+
+@dataclass(frozen=True)
+class RemovedPackInfo:
+    """Removal metadata for a capability pack that is no longer supported."""
+
+    pack: str
+    removed_in: str
+    overlay_instruction_path: str
+    profile_block_key: str
+
+
+REMOVED_PACK_WARNING_KIND = "removed-capability-pack"
+REMOVED_PACK_PROPOSAL_ID = "remove-retired-capability-pack"
+
+# Retired packs stay recognizable so documents that still list them degrade to a
+# warning and a migration proposal instead of a schema blocker (209-F/216-S).
+REMOVED_CAPABILITY_PACKS: Mapping[str, RemovedPackInfo] = MappingProxyType(
+    {
+        "agent-intercom": RemovedPackInfo(
+            pack="agent-intercom",
+            removed_in="209-F",
+            overlay_instruction_path=".github/instructions/agent-intercom.instructions.md",
+            profile_block_key="agent_intercom",
+        ),
+    }
+)
+
 
 SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
     "execution-epoch": {
@@ -211,6 +245,16 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "changed_fields": ["capability_packs", "capability_pack_overlays[*].pack"],
             "action": "Rewrite legacy capability-pack entries so the manifest uses the current overlay vocabulary and verification checks.",
         },
+        {
+            "proposal_id": REMOVED_PACK_PROPOSAL_ID,
+            "warning_kind": REMOVED_PACK_WARNING_KIND,
+            "from_version": "*",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Remove the retired capability pack from the manifest pack list and overlay records.",
+            "changed_fields": ["capability_packs", "capability_pack_overlays[*].pack"],
+            "action": "Remove the retired pack from capability_packs and its capability_pack_overlays record; delete its orphan overlay instruction file only when its checksum still matches the manifest record (a modified file needs manual review).",
+        },
     ],
     "config": [
         {
@@ -289,6 +333,16 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "changed_fields": ["capability_packs"],
             "action": "Remove legacy pack names from .autoharness/config.yaml and express the intended behavior through current capability packs or explicit config.",
         },
+        {
+            "proposal_id": REMOVED_PACK_PROPOSAL_ID,
+            "warning_kind": REMOVED_PACK_WARNING_KIND,
+            "from_version": "*",
+            "to_version": "1.3.0",
+            "severity": "degrading",
+            "summary": "Remove the retired capability pack from the config capability_packs list.",
+            "changed_fields": ["capability_packs"],
+            "action": "Remove the retired pack from capability_packs in .autoharness/config.yaml; delete its orphan overlay instruction file only when its checksum still matches the manifest record (a modified file needs manual review).",
+        },
     ],
     "profile": [
         {
@@ -360,6 +414,20 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "summary": "Replace legacy workspace-profile capability-pack recommendations with the current pack vocabulary.",
             "changed_fields": ["harness_recommendations.capability_packs"],
             "action": "Remove legacy pack names from the recommended capability-pack set and regenerate the profile if needed.",
+        },
+        {
+            "proposal_id": REMOVED_PACK_PROPOSAL_ID,
+            "warning_kind": REMOVED_PACK_WARNING_KIND,
+            "from_version": "*",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Remove the retired capability pack from the workspace-profile recommendations and drop its leftover profile block.",
+            "changed_fields": [
+                "harness_recommendations.capability_packs",
+                "harness_recommendations.recommendation_reasons.capability_packs[*].item",
+                "agent_intercom",
+            ],
+            "action": "Remove the retired pack from the recommendations and reasons and drop its leftover profile block; delete its orphan overlay instruction file only when its checksum still matches the manifest record (a modified file needs manual review).",
         },
     ],
 }
@@ -434,6 +502,106 @@ def summarize_schema_contract(kind: str, path: Path, data: Any) -> dict[str, Any
     }
 
 
+def _removed_pack_warning(kind: str, path: Path, field: str, pack: str) -> dict[str, Any]:
+    contract = SCHEMA_CONTRACTS[kind]
+    return {
+        "kind": REMOVED_PACK_WARNING_KIND,
+        "path": str(path),
+        "field": field,
+        "legacy_value": pack,
+        "contract": contract["contract_name"],
+        "current_version": contract["current_version"],
+        "message": (
+            f"Installed {contract['contract_name']} still records the removed capability pack '{pack}'. "
+            "verify-workspace treats this as compatibility drift and ignores the pack instead of failing."
+        ),
+        "suggested_action": f"Remove the retired '{pack}' capability pack from the installed artifact (see the {REMOVED_PACK_PROPOSAL_ID} proposal).",
+    }
+
+
+def removed_pack_site_key(warning: dict[str, Any]) -> tuple[Any, Any, Any] | None:
+    """Dedupe key (path, field, value) for a removed-capability-pack warning."""
+    if warning.get("kind") != REMOVED_PACK_WARNING_KIND:
+        return None
+    return (warning.get("path"), warning.get("field"), warning.get("legacy_value"))
+
+
+def _removed_pack_sites(kind: str, data: Any) -> list[tuple[str, str]]:
+    """List (field, pack) recording sites, with fields named as schema errors name them."""
+    if not isinstance(data, dict):
+        return []
+    sites: list[tuple[str, str]] = []
+
+    def add_pack_list(prefix: str, values: Any, item_key: str | None = None) -> None:
+        if not isinstance(values, list):
+            return
+        for index, value in enumerate(values):
+            if item_key is not None:
+                value = value.get(item_key) if isinstance(value, dict) else None
+            if isinstance(value, str) and value in REMOVED_CAPABILITY_PACKS:
+                suffix = f".{item_key}" if item_key else ""
+                sites.append((f"{prefix}.{index}{suffix}", value))
+
+    if kind == "manifest":
+        add_pack_list("capability_packs", data.get("capability_packs"))
+        add_pack_list("capability_pack_overlays", data.get("capability_pack_overlays"), "pack")
+    elif kind == "config":
+        add_pack_list("capability_packs", data.get("capability_packs"))
+    elif kind == "profile":
+        recommendations = data.get("harness_recommendations")
+        if isinstance(recommendations, dict):
+            add_pack_list("harness_recommendations.capability_packs", recommendations.get("capability_packs"))
+            reasons = recommendations.get("recommendation_reasons")
+            if isinstance(reasons, dict):
+                add_pack_list(
+                    "harness_recommendations.recommendation_reasons.capability_packs",
+                    reasons.get("capability_packs"),
+                    "item",
+                )
+        # The profile root is open, so a leftover block yields no schema error.
+        for info in REMOVED_CAPABILITY_PACKS.values():
+            if info.profile_block_key in data:
+                sites.append((info.profile_block_key, info.pack))
+    return sites
+
+
+def _recorded_overlay_checksum(kind: str, path: Path, data: Any, overlay_path: str) -> str | None:
+    manifest: Any = data
+    if kind != "manifest":
+        try:
+            manifest = yaml.safe_load((path.parent / "harness-manifest.yaml").read_text(encoding="utf-8"))
+        except (OSError, yaml.YAMLError):
+            return None
+    if not isinstance(manifest, dict):
+        return None
+    for artifact in manifest.get("artifacts") or []:
+        if isinstance(artifact, dict) and str(artifact.get("path") or "").replace("\\", "/") == overlay_path:
+            checksum = artifact.get("checksum")
+            return str(checksum) if checksum else None
+    return None
+
+
+def _retired_overlay_needs_review(kind: str, path: Path, data: Any, packs: list[str]) -> bool:
+    """True when a retired pack's overlay file exists but cannot be proven unmodified."""
+    workspace_root = path.parent.parent
+    for pack in packs:
+        info = REMOVED_CAPABILITY_PACKS.get(pack)
+        if info is None:
+            continue
+        overlay = workspace_root / info.overlay_instruction_path
+        if not overlay.is_file():
+            continue
+        try:
+            raw = overlay.read_bytes()
+        except OSError:
+            return True
+        recorded = _recorded_overlay_checksum(kind, path, data, info.overlay_instruction_path)
+        digests = {hashlib.sha256(raw).hexdigest(), hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()}
+        if recorded is None or recorded not in digests:
+            return True
+    return False
+
+
 def classify_schema_error(kind: str, path: Path, data: Any, error: str) -> tuple[str, dict[str, Any]]:
     """Classify a schema validation error as a hard blocker or compatibility finding."""
     contract = SCHEMA_CONTRACTS[kind]
@@ -458,6 +626,8 @@ def classify_schema_error(kind: str, path: Path, data: Any, error: str) -> tuple
     capability_pack_match = LEGACY_CAPABILITY_PACK_ERROR_RE.match(error)
     if kind in {"manifest", "config", "profile"} and capability_pack_match:
         field_path, pack = capability_pack_match.groups()
+        if pack in REMOVED_CAPABILITY_PACKS:
+            return "warning", _removed_pack_warning(kind, path, field_path, pack)
         if pack in LEGACY_UNSUPPORTED_PACKS:
             return (
                 "warning",
@@ -511,7 +681,9 @@ def classify_schema_error(kind: str, path: Path, data: Any, error: str) -> tuple
 
 def collect_contract_state_warnings(kind: str, path: Path, data: Any) -> list[dict[str, Any]]:
     """Collect compatibility findings that do not naturally arise from schema validation."""
-    warnings: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = [
+        _removed_pack_warning(kind, path, field, pack) for field, pack in _removed_pack_sites(kind, data)
+    ]
     if kind == "config":
         found, _value = _lookup_nested(data, "backlog.prefix_map")
         if found:
@@ -600,6 +772,10 @@ def plan_schema_contract_migrations(
             )
             if legacy_values:
                 proposal["legacy_values"] = legacy_values
+            if warning_kind == REMOVED_PACK_WARNING_KIND and _retired_overlay_needs_review(
+                kind, path, data, legacy_values
+            ):
+                proposal["manual_review"] = True
 
         proposals.append(proposal)
 
