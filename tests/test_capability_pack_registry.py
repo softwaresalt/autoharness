@@ -60,7 +60,9 @@ class CapabilityPackRegistryTests(unittest.TestCase):
         registry_enum = set(
             self.schema["definitions"]["pack"]["properties"]["id"]["enum"]
         )
-        self.assertEqual(registry_enum, config_enum)
+        # agent-intercom left the harness-config enum at 1.3.0 (209-F U4); the registry
+        # definition itself is removed by U22, which restores strict equality here.
+        self.assertEqual(registry_enum - {"agent-intercom"}, config_enum)
         self.assertEqual(registry_enum, _EXPECTED_PACK_IDS)
 
     def test_overlay_instruction_paths_exist_or_empty(self) -> None:

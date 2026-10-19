@@ -23,6 +23,7 @@ import yaml
 from jsonschema import Draft7Validator
 
 from _config_schema_contract import CURRENT_CONFIG_SCHEMA_VERSION, current_config_mirror_path
+from autoharness.schema_contracts import resolve_contract_schema_path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
@@ -111,11 +112,12 @@ class ContextTierDefinitionTests(unittest.TestCase):
 
 class ContextTierValidationTests(unittest.TestCase):
     def test_existing_dogfood_config_validates(self) -> None:
+        # The operator-owned dogfood config keeps the contract it declares (plan D-10 of
+        # 209-F: not auto-bumped), so it validates against that mirror, not the newest.
         config = yaml.safe_load(_DOGFOOD_CONFIG.read_text(encoding="utf-8"))
-        for schema_path in _SCHEMAS:
-            with self.subTest(schema=schema_path.name):
-                errors = list(_validator(schema_path).iter_errors(config))
-                self.assertEqual(errors, [])
+        declared_mirror = resolve_contract_schema_path("config", _REPO_ROOT, config)
+        errors = list(_validator(declared_mirror).iter_errors(config))
+        self.assertEqual(errors, [])
 
     def test_rendered_config_template_validates(self) -> None:
         config = {"schema_version": CURRENT_CONFIG_SCHEMA_VERSION, "model_routing": _rendered_template_model_routing()}

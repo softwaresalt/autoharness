@@ -22,6 +22,7 @@ import yaml
 from jsonschema import Draft7Validator
 
 from _config_schema_contract import CURRENT_CONFIG_SCHEMA_VERSION, current_config_mirror_path
+from autoharness.schema_contracts import resolve_contract_schema_path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
@@ -159,8 +160,9 @@ class NestedEscalationSchemaTests(unittest.TestCase):
         .autoharness/config.yaml (flat legacy escalation only, no nested
         override) remains schema-valid after the F02FD596 nested hierarchy
         addition."""
-        validator = _validator(_ROOT_CONFIG_SCHEMA)
         config = yaml.safe_load(_DOGFOOD_CONFIG.read_text(encoding="utf-8"))
+        # The operator-owned dogfood config keeps the contract it declares (209-F D-10).
+        validator = _validator(resolve_contract_schema_path("config", _REPO_ROOT, config))
         errors = list(validator.iter_errors(config))
         self.assertEqual(errors, [], f"expected dogfood config to validate cleanly: {errors}")
 

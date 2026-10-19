@@ -111,8 +111,14 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         # config with schema_version: 1.1.0 continues to validate against the
         # untouched 1.1.0 mirror; adopting routes/bindings requires bumping
         # schema_version to 1.2.0.
-        "current_version": "1.2.0",
-        "known_versions": ("0.9.0", "1.0.0", "1.1.0", "1.2.0"),
+        # Schema-version decision (209-F/216-S U4, shipped after 208-F/215-S so the
+        # slot is 1.2.0 + 1): removing the retired `agent-intercom` pack from the
+        # `capability_packs` enum is a restrictive change, so it is minted as 1.3.0.
+        # The 0.9.0/1.0.0/1.1.0/1.2.0 mirrors stay byte-identical (pinned by
+        # tests/test_schema_contract_removed_pack_config.py); a config pinned to
+        # any of them that lists the retired pack keeps validating.
+        "current_version": "1.3.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0", "1.2.0", "1.3.0"),
         "compatibility_model": "versioned-contract",
     },
     "profile": {
@@ -233,20 +239,30 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "action": "Back up .autoharness/config.yaml, bump schema_version to 1.2.0 (optionally adopt model_routing.routes and model_routing.bindings; model_routing now rejects unknown keys), and rerun verify-workspace.",
         },
         {
+            "proposal_id": "upgrade-config-contract-1.2.0-to-1.3.0",
+            "status": "known-legacy",
+            "from_version": "1.2.0",
+            "to_version": "1.3.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-config contract from 1.2.0 to 1.3.0 (the retired agent-intercom capability pack is no longer a valid capability_packs entry).",
+            "changed_fields": ["schema_version", "capability_packs"],
+            "action": "Back up .autoharness/config.yaml, remove the retired agent-intercom pack from capability_packs, bump schema_version to 1.3.0, and rerun verify-workspace.",
+        },
+        {
             "proposal_id": "backfill-config-schema-version",
             "status": "missing-version",
             "from_version": None,
-            "to_version": "1.0.0",
+            "to_version": "1.3.0",
             "severity": "degrading",
             "summary": "Backfill config schema_version to the current contract version.",
             "changed_fields": ["schema_version"],
-            "action": "Back up .autoharness/config.yaml, write schema_version: 1.0.0, and rerun verify-workspace.",
+            "action": "Back up .autoharness/config.yaml, write schema_version: 1.3.0, and rerun verify-workspace.",
         },
         {
             "proposal_id": "review-unknown-config-contract",
             "status": "unknown-version",
             "from_version": "*",
-            "to_version": "1.0.0",
+            "to_version": "1.3.0",
             "severity": "manual-review",
             "summary": "Review the unknown config contract before auto-applying tune changes.",
             "changed_fields": ["schema_version"],
@@ -266,8 +282,8 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-config-capability-packs",
             "warning_kind": "legacy-config-capability-pack",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.3.0",
             "severity": "degrading",
             "summary": "Replace legacy config capability-pack values with currently supported packs.",
             "changed_fields": ["capability_packs"],

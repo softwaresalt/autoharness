@@ -104,6 +104,7 @@ FROZEN_MIRRORS: Mapping[str, str] = {
     "schemas/harness-config/0.9.0.schema.json": "published harness-config 0.9.0 mirror is immutable",
     "schemas/harness-config/1.0.0.schema.json": "published harness-config 1.0.0 mirror is immutable",
     "schemas/harness-config/1.1.0.schema.json": "published harness-config 1.1.0 mirror is immutable",
+    "schemas/harness-config/1.2.0.schema.json": "published harness-config 1.2.0 mirror is immutable",
     "schemas/harness-manifest/0.9.0.schema.json": "published harness-manifest 0.9.0 mirror is immutable",
     "schemas/harness-manifest/1.0.0.schema.json": "published harness-manifest 1.0.0 mirror is immutable",
     "schemas/workspace-profile/0.9.0.schema.json": "published workspace-profile 0.9.0 mirror is immutable",
@@ -132,10 +133,15 @@ TOMBSTONES: Mapping[str, Tombstone] = {
     "src/autoharness/schema_contracts.py": Tombstone(
         rationale="contract metadata names the retired value to document the version bump and migrate legacy documents",
         permitted=line_contains("agent-intercom", "agent_intercom"),
-        max_count=7,
+        max_count=10,
     ),
     "tests/test_schema_contract_removed_pack_manifest.py": Tombstone(
         rationale="proves legacy 1.0.0 manifests listing the retired value still validate and that 1.1.0 rejects it",
+        permitted=any_line,
+        max_count=6,
+    ),
+    "tests/test_schema_contract_removed_pack_config.py": Tombstone(
+        rationale="proves configs pinned to earlier versions listing the retired value still validate and that 1.3.0 rejects it",
         permitted=any_line,
         max_count=6,
     ),
@@ -143,9 +149,6 @@ TOMBSTONES: Mapping[str, Tombstone] = {
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U4 - schema roots
-    "schemas/harness-config.schema.json": "U4",
-    "schemas/harness-config/1.2.0.schema.json": "U4",  # becomes a frozen mirror once 1.3.0 is minted
     # U5 - policy
     ".github/policies/workflow-policies.md": "U5",
     "templates/policies/workflow-policies.md.tmpl": "U5",
