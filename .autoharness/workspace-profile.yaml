@@ -1,5 +1,5 @@
 # .autoharness/workspace-profile.yaml
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 generated_at: "2026-05-08T09:42:00-07:00"
 workspace_path: "."
 
@@ -125,7 +125,6 @@ tools:
 harness_recommendations:
   preset: "full"
   capability_packs:
-    - "agent-intercom"
     - "backlogit"
     - "agent-engram"
     - "graphtor-docs"
@@ -134,10 +133,6 @@ harness_recommendations:
     preset:
       - "autoharness is the harness framework itself — full preset ensures all primitives are exercised"
     capability_packs:
-      - item: "agent-intercom"
-        because: "explicit opt-in: the dogfood harness weaves the intercom workflow (heartbeat, broadcast, approval routing); agent-intercom is an opt-in add-on with no MCP server"
-        signals:
-          - ".github/instructions/agent-intercom.instructions.md"
       - item: "backlogit"
         because: "MCP server configured and .backlogit/ directory present with full config"
         signals:
@@ -155,12 +150,6 @@ harness_recommendations:
           - ".graphtor/bin/graphtor-docs.exe"
           - ".graphtor/config/sources.yaml"
     install_layers: []
-
-agent_intercom:
-  detected: true
-  config_paths: []
-  instruction_markers: []
-  recommended: true
 
 agent_engram:
   detected: true

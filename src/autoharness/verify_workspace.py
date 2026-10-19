@@ -26,6 +26,8 @@ from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
     plan_schema_contract_migrations,
+    removed_overlay_record_warning,
+    removed_pack_site_key,
     resolve_contract_schema_path,
     summarize_schema_contract,
 )
@@ -39,7 +41,6 @@ from autoharness.startup_script_contract import (
 PLACEHOLDER_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
 CODE_FENCE_RE = re.compile(r"^\s*```")
 SUPPORTED_CAPABILITY_PACKS = {
-    "agent-intercom",
     "agent-engram",
     "backlogit",
     "browser-verification",
@@ -339,28 +340,6 @@ PACK_ASSERTIONS = {
             "must_contain": ["ProposedAction", "ActionRisk", "ActionResult"],
         }
     ],
-    "agent-intercom": [
-        {
-            "key": "agent_intercom_instruction",
-            "path": ".github/instructions/agent-intercom.instructions.md",
-            "must_contain": ["broadcast", "approval", "standby"],
-        },
-        {
-            "key": "review_intercom_workflow",
-            "path": ".github/skills/review/SKILL.md",
-            "must_contain": [
-                "Agent-Intercom Communication (NON-NEGOTIABLE)",
-                "Review written",
-                "Waiting for input",
-            ],
-            "must_precede": [
-                [
-                    "## Agent-Intercom Communication (NON-NEGOTIABLE)",
-                    "## Subagent Depth Constraint",
-                ]
-            ],
-        }
-    ],
     "agent-engram": [
         {
             "key": "agent_engram_instruction",
@@ -460,7 +439,6 @@ FOUNDATION_ASSERTIONS = [
         "path": ".github/copilot-instructions.md",
         "must_contain": [
             "## Remote Operator Integration",
-            "### agent-intercom",
             "### agent-engram",
             "sync_workspace",
         ],
@@ -915,9 +893,9 @@ DARK_FACTORY_ASSERTIONS = [
         ],
     },
     {
-        "key": "dark_factory_intercom_contract",
-        "path": ".github/instructions/agent-intercom.instructions.md",
-        "requires_pack": "agent-intercom",
+        "key": "dark_factory_visibility_contract",
+        "path": ".github/policies/workflow-policies.md",
+        "required": True,
         "must_contain": [
             "Dark Factory Visibility Protocol",
             "BRAINSTORM_HANDOFF_READY",
@@ -6205,10 +6183,18 @@ def verify_workspace(
         if not path.exists() or not data:
             continue
         report["warnings"].extend(collect_contract_state_warnings(kind, path, data))
+        reported_removed_sites = {
+            key for key in map(removed_pack_site_key, report["warnings"]) if key is not None
+        }
         schema_path = resolve_contract_schema_path(kind, autoharness_home, data)
         for error in _schema_errors(schema_path, data):
             classification, payload = classify_schema_error(kind, path, data, error)
             if classification == "warning":
+                site_key = removed_pack_site_key(payload)
+                if site_key is not None:
+                    if site_key in reported_removed_sites:
+                        continue
+                    reported_removed_sites.add(site_key)
                 report["warnings"].append(payload)
             else:
                 report["strict_schema_blockers"].append(payload)
@@ -6229,6 +6215,8 @@ def verify_workspace(
         workspace_path, autoharness_home, manifest
     )
 
+    # Retired packs are not in SUPPORTED_CAPABILITY_PACKS once removed, so they are
+    # dropped here; the removed-capability-pack warning above already reports them.
     installed_packs = [
         str(pack)
         for pack in (manifest.get("capability_packs") or config.get("capability_packs") or [])
@@ -6275,7 +6263,10 @@ def verify_workspace(
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
 
-    for artifact in manifest.get("artifacts") or []:
+    reported_overlay_sites = {
+        key for key in map(removed_pack_site_key, report["warnings"]) if key is not None
+    }
+    for artifact_index, artifact in enumerate(manifest.get("artifacts") or []):
         if not isinstance(artifact, dict):
             report["warnings"].append(
                 {
@@ -6284,6 +6275,15 @@ def verify_workspace(
                     "message": "Manifest artifact entry is not an object; expected {path, checksum, template, primitive}. Skipping.",
                 }
             )
+            continue
+        overlay_warning = removed_overlay_record_warning(manifest_path, artifact_index, artifact)
+        if overlay_warning is not None:
+            # Legacy overlay record of a retired pack: its template is gone, so it
+            # degrades to a warning; the tune proposal owns the cleanup.
+            overlay_site = removed_pack_site_key(overlay_warning)
+            if overlay_site not in reported_overlay_sites:
+                reported_overlay_sites.add(overlay_site)
+                report["warnings"].append(overlay_warning)
             continue
         relative_path = str(artifact.get("path", ""))
         workspace_file = workspace_path / Path(relative_path)

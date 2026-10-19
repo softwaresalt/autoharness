@@ -8,8 +8,8 @@ These tests fail until graphtor-docs is completed to agent-engram parity:
 * a ``full`` config enabling graphtor-docs must validate against the versioned
   config schema;
 * every registered capability pack (including graphtor-docs) must default into the
-  ``full`` preset, EXCEPT opt-in extra add-ons such as ``agent-intercom`` which
-  are enabled only by explicit selection.
+  ``full`` preset, EXCEPT any opt-in extra add-ons (currently none) which would be
+  enabled only by explicit selection.
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ from pathlib import Path
 
 import yaml
 from jsonschema import validate
+
+from _config_schema_contract import current_config_mirror_path
 
 _REPO = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG = _REPO / "schemas" / "harness-config.schema.json"
@@ -40,15 +42,19 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
         root_enum = set(
             _load_json(_ROOT_CONFIG)["properties"]["capability_packs"]["items"]["enum"]
         )
+        # The current versioned mirror tracks the root; the frozen 1.0.0 mirror is
+        # immutable and may keep packs the current contract has since retired.
         ver_enum = set(
-            _load_json(_VER_CONFIG)["properties"]["capability_packs"]["items"]["enum"]
+            _load_json(current_config_mirror_path())["properties"]["capability_packs"]["items"]["enum"]
         )
         self.assertEqual(
             ver_enum,
             root_enum,
-            "versioned harness-config capability_packs enum diverges from root",
+            "current versioned harness-config capability_packs enum diverges from root",
         )
         self.assertIn("graphtor-docs", ver_enum)
+        frozen_enum = _load_json(_VER_CONFIG)["properties"]["capability_packs"]["items"]["enum"]
+        self.assertIn("graphtor-docs", frozen_enum)
 
     def test_versioned_config_has_graphtor_docs_block(self) -> None:
         root_block = _load_json(_ROOT_CONFIG)["properties"]["graphtor_docs"]
@@ -94,11 +100,11 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
 
 class GraphtorDocsFullPresetMembershipTests(unittest.TestCase):
     """Every registered pack defaults into the ``full`` preset, except opt-in
-    extra add-ons (``agent-intercom``) enabled only by explicit selection."""
+    extra add-ons (currently none) enabled only by explicit selection."""
 
-    # agent-intercom is an opt-in extra add-on (no MCP server); it is
-    # intentionally NOT a default member of the full preset.
-    _OPT_IN_ADD_ONS = {"agent-intercom"}
+    # Opt-in extra add-ons are intentionally NOT default members of the full
+    # preset. The registry currently has none.
+    _OPT_IN_ADD_ONS: set[str] = set()
 
     @classmethod
     def setUpClass(cls) -> None:

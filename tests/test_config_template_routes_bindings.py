@@ -1,6 +1,7 @@
 """Config template and install-harness surfaces for catalog/bindings (208-F B8).
 
-The harness-config template renders the 1.2.0 contract with empty ``routes`` and
+The harness-config template renders the current contract (``CURRENT_CONFIG_SCHEMA_VERSION``;
+routes/bindings arrived at 1.2.0) with empty ``routes`` and
 ``bindings`` blocks and no new variable; the global, non-rendered install-harness
 skill validates by the document's own ``schema_version`` and states the shared
 site-composition rule for bound agents without install-time substitution.
@@ -25,7 +26,6 @@ from autoharness.verify_workspace import _derive_template_variables, _render_tem
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 _SKILL = _REPO_ROOT / ".github" / "skills" / "install-harness" / "SKILL.md"
-_MIRROR_1_2_0 = _REPO_ROOT / "schemas" / "harness-config" / "1.2.0.schema.json"
 _PLACEHOLDER = re.compile(r"\{\{[^}\n]*\}\}")
 _PROFILE_STACKS = ("python", "typescript", "rust")
 
@@ -73,8 +73,7 @@ def _install_validation_step() -> str:
 class TemplateRoutesBindingsBlockTests(unittest.TestCase):
     def test_template_declares_the_current_schema_version_literal(self) -> None:
         self.assertEqual(yaml.safe_load(_render())["schema_version"], CURRENT_CONFIG_SCHEMA_VERSION)
-        self.assertEqual(CURRENT_CONFIG_SCHEMA_VERSION, "1.2.0")
-        self.assertRegex(_template_text(), r'(?m)^schema_version: "1\.2\.0"$')
+        self.assertRegex(_template_text(), rf'(?m)^schema_version: "{re.escape(CURRENT_CONFIG_SCHEMA_VERSION)}"$')
 
     def test_rendered_config_has_empty_routes_and_bindings_under_model_routing(self) -> None:
         model_routing = yaml.safe_load(_render())["model_routing"]
@@ -105,8 +104,8 @@ class TemplateRoutesBindingsBlockTests(unittest.TestCase):
 
 
 class RenderedConfigValidationTests(unittest.TestCase):
-    def test_rendered_default_config_validates_against_the_1_2_0_mirror(self) -> None:
-        schema = json.loads(_MIRROR_1_2_0.read_text(encoding="utf-8"))
+    def test_rendered_default_config_validates_against_the_current_mirror_for_every_stack(self) -> None:
+        schema = json.loads(current_config_mirror_path().read_text(encoding="utf-8"))
         validator = Draft7Validator(schema)
         for stack in (None, *_PROFILE_STACKS):
             with self.subTest(stack=stack):

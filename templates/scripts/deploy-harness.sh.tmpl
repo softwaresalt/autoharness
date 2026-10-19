@@ -139,6 +139,14 @@ registry_packs() {
 	sed -n 's/^[[:space:]]*-[[:space:]]*id:[[:space:]]*"\([^"]*\)".*/\1/p' "$registry"
 }
 
+is_retired_pack() {
+	# Retired capability packs are warned about and skipped, never failed as unknown.
+	case "$1" in
+		agent-intercom) return 0 ;;
+	esac
+	return 1
+}
+
 preset_default_packs() {
 	# Enumerate pack ids whose default_in_preset list includes the given
 	# preset, via a deterministic line scan (no YAML module dependency).
@@ -363,7 +371,7 @@ invoke_scaffold() {
 			ok "enumerated ${#selected[@]} default packs for preset '$PRESET'"
 		fi
 	elif [[ "$PACKS" == "all" ]]; then
-		while IFS= read -r id; do [[ -n "$id" ]] && selected+=("$id"); done < <(registry_packs "$home_path")
+		while IFS= read -r id; do if [[ -n "$id" ]] && ! is_retired_pack "$id"; then selected+=("$id"); fi; done < <(registry_packs "$home_path")
 		if [[ "${#selected[@]}" -eq 0 ]]; then warn "Could not enumerate packs from the registry; writing config with no packs."; else ok "enumerated ${#selected[@]} packs from registry"; fi
 	else
 		local registry_list
@@ -374,6 +382,10 @@ invoke_scaffold() {
 		for p in "${requested[@]}"; do
 			p="$(echo "$p" | xargs)"
 			[[ -z "$p" ]] && continue
+			if is_retired_pack "$p"; then
+				warn "RETIRED_PACK: $p ignored"
+				continue
+			fi
 			if [[ -n "$registry_list" ]] && ! grep -qx "$p" <<< "$registry_list"; then
 				fail "Unknown pack '$p' (not in registry)."; return 1
 			fi
@@ -385,7 +397,7 @@ invoke_scaffold() {
 	local config_path="${autoharness_dir}/config.yaml"
 
 	local body
-	body="schema_version: \"1.0.0\"
+	body="schema_version: \"1.3.0\"
 preset: ${PRESET}"
 	if [[ "${#selected[@]}" -gt 0 ]]; then
 		body="${body}

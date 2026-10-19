@@ -23,23 +23,6 @@ invoked by the stage agent.
 This skill does not perform planning or review. It assumes the incoming
 plan has already been reviewed or otherwise approved for decomposition.
 
-## Agent-Intercom Communication
-
-When the `agent-intercom` capability pack is installed, call `ping` at
-session start. If reachable, broadcast at every step. If unreachable,
-warn the operator that visibility is degraded and continue locally.
-
-| Event | Level | Message prefix |
-|---|---|---|
-| Session start | info | `[HARVEST] Starting: plan={input.plan}` |
-| Plan accepted | info | `[HARVEST] Using reviewed plan: {plan_path}` |
-| Structure parsed | info | `[HARVEST] Parsed implementation units: {unit_count}` |
-| Dry run | info | `[HARVEST] Dry run: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
-| Feature created | info | `[HARVEST] Created feature: {feature_id} — {title}` |
-| Task created | info | `[HARVEST] Created task: {task_id} — {title}` |
-| Dependency wired | info | `[HARVEST] Dependency: {item_id} blocked by {depends_on}` |
-| Complete | success | `[HARVEST] Complete: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
-
 ## Inputs
 
 * `${input:plan}`: (Required) Path to the reviewed implementation plan.
@@ -67,8 +50,7 @@ warn the operator that visibility is degraded and continue locally.
    dispatch modes halt before backlog creation.
 6. Confirm the plan has already cleared the review gate or is explicitly marked ready
    for harvesting according to the markers above.
-7. Broadcast the accepted plan path.
-8. Halt if the plan is missing, unreadable, lacks review markers, has a FAIL decision,
+7. Halt if the plan is missing, unreadable, lacks review markers, has a FAIL decision,
    has an unauthorized ADVISORY decision, or is clearly not ready for backlog
    creation. Recommend running `plan-review` first when the review state is unclear.
 
@@ -200,8 +182,7 @@ If `${input:dry_run}` is `true`:
 
 1. Produce the proposed feature, task, subtask, and dependency structure,
    including the proposed `size` and `complexity` value for every task.
-2. Broadcast the dry-run counts.
-3. Do not call backlog mutation tools.
+2. Do not call backlog mutation tools.
 
 If `${input:dry_run}` is `false`:
 
@@ -224,8 +205,6 @@ If `${input:dry_run}` is `false`:
 4. Create granular subtasks under each task.
 5. Wire dependencies when the backlog tool supports dependency operations
    (check the backlog registry for availability).
-6. Broadcast each created feature, task, and dependency edge as it is
-   written.
 
 ### Phase 5: Verify and report
 

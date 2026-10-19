@@ -43,16 +43,13 @@ Invoke when CI checks fail on a PR, or when automated review comments need to be
 
 ## Required Protocol
 
-When the `agent-intercom` capability pack is installed, follow
-`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility before
-the first reproduction loop, broadcast failing-check and fixed-check milestones, and use the
-intercom clarification / approval path if a repair would require destructive action or explicit
-operator judgment.
-
 When the `agent-engram` capability pack is installed, follow
 `.github/instructions/agent-engram.instructions.md`: verify the engram surface is available before
 relying on indexed search, and prefer code-graph or impact-analysis lookup while diagnosing the CI
 failure set.
+
+When a repair would require destructive action or explicit operator judgment, follow the workspace's
+native approval path and state the decision required in the session output.
 
 ### Step 1: Identify the PR
 
@@ -469,31 +466,18 @@ order:
    full output.
 4. Only capture the full raw output as a last resort.
 
-## Intercom Events
+## Session-Output Reports
 
-When the `agent-intercom` capability pack is installed, broadcast the
-following events at the specified trigger points:
+Report these operator-visible outcomes in the session output; routine progress
+narration is not required:
 
-| Event | Trigger | Broadcast format |
-|---|---|---|
-| `start` | Skill invoked | `[FIX-CI] Starting: PR #{pr_number}` |
-| `check-found` | CI checks identified | `[FIX-CI] Checks failing: {check_names}` |
-| `copilot-detected` | Copilot threads found | `[FIX-CI] Copilot threads: {count} reply-required` |
-| `reproducing` | Beginning local reproduction | `[FIX-CI] Reproducing: {check_name}` |
-| `fix-applied` | Fix committed for a check | `[FIX-CI] Fix applied: {check_name} (attempt {n})` |
-| `gate-pass` | A quality gate passes | `[FIX-CI] Gate pass: {gate_name}` |
-| `gate-fail` | A quality gate fails | `[FIX-CI] Gate fail: {gate_name}` |
-| `regression` | An earlier gate regresses | `[FIX-CI] Regression: {gate_name} regressed after {later_gate_name} fix` |
-| `cascade-restart` | Gate loop restarted from first failure | `[FIX-CI] Cascade restart from: {gate_name}` |
-| `reply-sent` | Reply posted to a review thread | `[FIX-CI] Reply sent: thread {thread_id} ({disposition})` |
-| `reply-gate-pass` | Reply gate passed (all threads replied) | `[FIX-CI] Reply gate: PASS ({count} threads)` |
-| `push` | Fix commit pushed to branch | `[FIX-CI] Push: iteration {n}` |
-| `poll-start` | CI polling cycle begins | `[FIX-CI] Polling CI (interval: {poll_interval}s, max: {max_wait}s)` |
-| `poll-pass` | CI reaches green state | `[FIX-CI] CI green: all checks passed` |
-| `poll-fail` | CI check fails after push | `[FIX-CI] CI fail: {check_name} (iteration {n})` |
-| `defect-logged` | Defect item created on halt | `[FIX-CI] Defect logged: {item_id} for {check_name}` |
-| `halt` | Circuit breaker triggered | `[FIX-CI] Halt: {reason} after {n} iterations` |
-| `complete` | Skill exits successfully | `[FIX-CI] Complete: PR #{pr_number} CI green` |
+* the reply gate verdict (`Reply gate: PASS ({count} threads)` or the blocking
+  threads when it fails);
+* a quality gate regression and the resulting cascade restart point;
+* the CI result after each push (`CI green: all checks passed` or the failing
+  check and iteration);
+* a circuit-breaker halt with its reason, the iteration count and any defect
+  item IDs logged.
 
 ## Model Routing
 

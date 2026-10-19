@@ -46,16 +46,19 @@ def _without_id(schema: dict) -> dict:
 
 
 class ConfigContractVersionTests(unittest.TestCase):
-    def test_contract_reports_1_2_0_current_and_1_1_0_known_legacy(self) -> None:
+    def test_contract_keeps_1_1_0_and_1_2_0_as_known_legacy_mirrors(self) -> None:
         contract = SCHEMA_CONTRACTS["config"]
-        self.assertEqual(contract["current_version"], "1.2.0")
         self.assertIn("1.1.0", contract["known_versions"])
         self.assertIn("1.2.0", contract["known_versions"])
+        self.assertNotEqual(contract["current_version"], "1.2.0")
 
-        current = summarize_schema_contract("config", Path("config.yaml"), {"schema_version": "1.2.0"})
+        for version in ("1.1.0", "1.2.0"):
+            legacy = summarize_schema_contract("config", Path("config.yaml"), {"schema_version": version})
+            self.assertEqual(legacy["status"], "known-legacy", version)
+        current = summarize_schema_contract(
+            "config", Path("config.yaml"), {"schema_version": contract["current_version"]}
+        )
         self.assertEqual(current["status"], "current")
-        legacy = summarize_schema_contract("config", Path("config.yaml"), {"schema_version": "1.1.0"})
-        self.assertEqual(legacy["status"], "known-legacy")
 
     def test_resolve_contract_schema_path_selects_matching_mirror(self) -> None:
         self.assertEqual(
@@ -102,12 +105,18 @@ class ConfigSchemaMirrorTests(unittest.TestCase):
         }
         self.assertTrue(Draft7Validator(schema).is_valid(custom_route))
 
-    def test_root_schema_equals_1_2_0_mirror_except_id(self) -> None:
+    def test_root_schema_tracks_the_current_mirror_except_id(self) -> None:
         root = _load_json(_ROOT_SCHEMA)
-        mirror = _load_json(_MIRROR_1_2_0)
+        mirror = _load_json(_MIRROR_DIR / f"{SCHEMA_CONTRACTS['config']['current_version']}.schema.json")
         self.assertNotEqual(root["$id"], mirror["$id"])
         self.assertEqual(_without_id(root), _without_id(mirror))
-        self.assertEqual(root["properties"]["schema_version"]["const"], "1.2.0")
+        self.assertEqual(root["properties"]["schema_version"]["const"], SCHEMA_CONTRACTS["config"]["current_version"])
+
+    def test_1_2_0_mirror_keeps_the_catalog_bindings_and_closed_model_routing(self) -> None:
+        model_routing = _load_json(_MIRROR_1_2_0)["properties"]["model_routing"]
+        self.assertIn("routes", model_routing["properties"])
+        self.assertIn("bindings", model_routing["properties"])
+        self.assertIs(model_routing["additionalProperties"], False)
 
     def test_root_schema_carries_catalog_bindings_and_closed_model_routing(self) -> None:
         model_routing = _load_json(_ROOT_SCHEMA)["properties"]["model_routing"]
@@ -115,17 +124,18 @@ class ConfigSchemaMirrorTests(unittest.TestCase):
         self.assertIn("bindings", model_routing["properties"])
         self.assertIs(model_routing["additionalProperties"], False)
 
-    def test_dogfood_config_validates_against_root_and_current_mirror(self) -> None:
+    def test_dogfood_config_validates_against_the_mirror_it_declares(self) -> None:
+        # The operator-owned dogfood config is not bumped by the removal shipment
+        # (plan D-10), so it keeps validating against its own 1.2.0 contract.
         config = yaml.safe_load(_DOGFOOD_CONFIG.read_text(encoding="utf-8"))
         self.assertEqual(config["schema_version"], "1.2.0")
-        for path in (_ROOT_SCHEMA, _MIRROR_1_2_0):
-            validator = Draft7Validator(_load_json(path))
-            self.assertEqual([e.message for e in validator.iter_errors(config)], [], path.name)
+        validator = Draft7Validator(_load_json(_MIRROR_1_2_0))
+        self.assertEqual([e.message for e in validator.iter_errors(config)], [])
 
-    def test_dogfood_config_selects_current_mirror(self) -> None:
+    def test_dogfood_config_selects_its_declared_mirror_as_known_legacy(self) -> None:
         config = yaml.safe_load(_DOGFOOD_CONFIG.read_text(encoding="utf-8"))
         self.assertEqual(resolve_contract_schema_path("config", _REPO_ROOT, config), _MIRROR_1_2_0)
-        self.assertEqual(summarize_schema_contract("config", _DOGFOOD_CONFIG, config)["status"], "current")
+        self.assertEqual(summarize_schema_contract("config", _DOGFOOD_CONFIG, config)["status"], "known-legacy")
 
 
 if __name__ == "__main__":

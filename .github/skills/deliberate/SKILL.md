@@ -51,12 +51,6 @@ as its source document.
 
 ## Required Protocol
 
-When the `agent-intercom` capability pack is installed, follow
-`.github/instructions/agent-intercom.instructions.md`: establish heartbeat /
-ping visibility at the start of deliberation, broadcast major phase transitions,
-and use the intercom clarification flow when the operator needs to be consulted
-between phases.
-
 When the `agent-engram` capability pack is installed, follow
 `.github/instructions/agent-engram.instructions.md`: verify the engram search
 surface before relying on indexed discovery, and prefer engram-first lookup

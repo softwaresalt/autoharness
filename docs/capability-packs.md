@@ -29,7 +29,6 @@ Examples:
 * browser-backed validation needs changes to verification guidance, possibly review expectations, and installer recommendations
 * continuous learning needs changes to observation capture, maintenance workflows, and learned-artifact promotion paths
 * stricter safety postures need changes to foundation docs, risky execution skills, and tuning guidance
-* `agent-intercom` needs heartbeat, operator visibility, approval routing, and standby behavior threaded through the whole lifecycle
 
 If these were modeled as one-off add-ons, the harness would become inconsistent: one file would mention the capability, but the surrounding workflow would behave as if it did not exist.
 
@@ -129,7 +128,6 @@ Partially woven overlays should be treated as a real harness-quality problem.
 
 | Pack | Primary Purpose | Typical Primitive Impact |
 |---|---|---|
-| `agent-intercom` | Remote operator visibility, approval routing, and standby handoffs | 4, 5, 6, 7, 10 |
 | `agent-engram` | Engram-first indexed search, code graph lookup, and workspace context retrieval | 1, 4, 6, 9 |
 | `backlogit` | backlogit-native query, queue, dependencies, memory, checkpoints, traceability, and source-artifact lifecycle guidance | 1, 2, 4, 7, 8, 9 |
 | `browser-verification` | Browser-backed runtime confidence for web-facing work | 4, 7, 10 |
@@ -138,6 +136,20 @@ Partially woven overlays should be treated as a real harness-quality problem.
 | `release-observability` | Richer monitoring and closure expectations | 7, 10 |
 | `adversarial-review` | Multi-model parallel review with consensus-weighted findings and remediation queue | 7, 10 |
 | `graphtor-docs` | Indexed local documentation search and semantic retrieval via graphtor-docs MCP server | 1, 6, 9 |
+
+## Retired packs
+
+Retired capability packs are no longer shipped, recommended, detected, or installed, and they are not selectable in any preset or capability-pack list.
+
+| Retired pack | Removed in | What replaced it |
+|---|---|---|
+| `agent-intercom` | feature 209-F (shipment 216-S) | Nothing replaces the remote channel. The Dark Factory Visibility Protocol now lives in the P-017 section of the workflow policy as operator-visible session-output summaries, and the operator-choice and clarification rules are channel-neutral. |
+
+Workspaces that installed a retired pack keep working. The recording is inert and handled with legacy tolerance:
+
+* `verify-workspace` reports a `removed-capability-pack` warning (not a strict blocker) for a retired pack listed in the profile, manifest, or config, in an overlay record, or as a leftover profile `agent_intercom` block, regardless of the document's pinned schema version, and emits a `remove-retired-capability-pack` migration proposal.
+* `install-harness`, `workspace-discovery`, and the deploy wrappers ignore an explicit request for the pack, print `RETIRED_PACK: agent-intercom ignored`, and continue.
+* `tune-harness` reports the pack as the retired capability pack drift category and offers a proposal-only cleanup (list entries, overlay record, the orphan instruction file only when its checksum still matches the manifest, and stale woven sections); it never re-weaves the pack. See the [Tuning Guide](tuning-guide.md).
 
 ## Retrieval-enforcement coordinator (agent-engram, graphtor-docs)
 
@@ -226,47 +238,6 @@ semantic search, and workspace-memory layer.
 * manifest records the overlay target set
 
 This pack does not replace general search guidance. It deepens it when a workspace has Engram available.
-
-## Example: agent-intercom as a formal overlay
-
-`agent-intercom` is the clearest example of why the overlay pattern exists.
-
-> **agent-intercom is an opt-in extra add-on.** It is not a default member of any
-> preset (including `full`) and no longer ships an MCP server — it operates over a
-> non-MCP intercom/ACP tool surface. Enable it only via explicit capability-pack
-> selection. When enabled it is still a woven overlay, not a detached single-file
-> add-on.
-
-### Eligibility signals
-
-* `.intercom/settings.json`
-* existing `AGENTS.md` / `copilot-instructions.md` describing intercom heartbeat, remote approval, or operator steering (including `<!-- intercom:start -->` markers)
-* operator explicitly opts in to remote visibility and approval routing
-
-### Overlay targets
-
-* Foundation docs
-* `agent-intercom.instructions.md`
-* Pipeline agents
-* Review / verification / closure workflows
-* Long-running and gating skills
-
-### Behavior deltas
-
-* heartbeat / ping at session start and during long-running work
-* milestone broadcasts during planning, build, review, verification, and closure
-* destructive approval routed through the intercom workflow
-* transmit / standby flows used for operator clarification and wait states
-* degraded-mode warning when intercom is unavailable
-* when `backlogit` is also enabled, staging-choice broadcasts become self-contained selection messages that include item ID, priority, kind, and one-line summary data for remote operator choice
-
-### Verification checks
-
-* intercom instruction file installed
-* affected agents and skills reference the intercom workflow consistently
-* manifest records the overlay target set
-
-This is not a one-file add-on. It is a woven operational behavior layer.
 
 ## Example: backlogit as a formal overlay
 

@@ -34,14 +34,14 @@ Every capability pack definition must include:
 
 ### Example
 
-The `agent-intercom` pack is a model overlay because it changes how the harness behaves across multiple primitives and artifacts:
+The `backlogit` pack is a model overlay because it changes how the harness behaves across multiple primitives and artifacts:
 
-* Primitive 4 — orchestration agents announce milestones and use operator wait flows
-* Primitive 5 — destructive actions route through approval workflows
-* Primitive 6 — intercom instructions are injected at the right moments
-* Primitive 7 / 10 — review, verification, and closure broadcast status and degraded-mode signals
+* Primitive 1 — continuity checkpoints and query-first backlog lookup preserve state across sessions
+* Primitive 4 — queue-aware, dependency-aware work selection sequences the pipeline
+* Primitive 6 — backlogit instructions are injected at the right moments
+* Primitive 7 / 10 — commit tracking and execution comments give review and closure traceability
 
-This is why `agent-intercom` must be woven through the harness rather than installed as a single detached add-on.
+This is why `backlogit` must be woven through the harness rather than installed as a single detached add-on.
 
 `browser-verification`, `continuous-learning`, and `strict-safety` follow the same rule:
 
@@ -57,7 +57,7 @@ This is why `agent-intercom` must be woven through the harness rather than insta
 
 Dark factory mode (P-017) is a workflow-policy weave rather than a capability
 pack. It crosses multiple primitives and must stay visible across Orchestrator,
-Ship, PR automation, review readiness, intercom/telemetry, foundation docs,
+Ship, PR automation, review readiness, visibility/telemetry, foundation docs,
 prompt shims, and verification surfaces. It is always bounded, local-review-first,
 merge-commit-only, single-worktree, and closure-complete; it is never a blanket
 permission to bypass the harness.

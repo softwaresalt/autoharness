@@ -70,9 +70,9 @@ long-running sessions where earlier instructions may have been evicted.
 
 All P-010 violations are first-class observability events:
 
-- Record the violation in session output.
-- If the workspace uses the `agent-intercom` capability pack, broadcast
-  the violation: `[P-010] {agent_name} role boundary violation: {operation}`.
+- Report the violation in the session output:
+  `[P-010] {agent_name} role boundary violation: {operation}`.
+- Record the violation as P-005 telemetry.
 - The violation does not require operator intervention to continue the session,
   but the forbidden operation MUST NOT be executed.
 

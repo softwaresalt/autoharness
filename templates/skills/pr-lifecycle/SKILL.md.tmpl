@@ -28,25 +28,19 @@ request execution. It centralizes the PR control loop so higher-level
 agents can treat review, CI follow-up, and merge approval as one bounded
 workflow.
 
-## Agent-Intercom Communication
+## Session-Output Reports
 
-When the `agent-intercom` capability pack is installed, call `ping` at
-session start. If reachable, broadcast at every step. If unreachable,
-warn the operator that visibility is degraded and continue locally.
+Report these operator-visible outcomes in the session output; routine progress
+narration is not required:
 
-| Event | Level | Message prefix |
-|---|---|---|
-| Session start | info | `[PR-LIFECYCLE] Starting: branch={input.branch}` |
-| Branch pushed | info | `[PR-LIFECYCLE] Branch pushed: {branch}` |
-| PR created | info | `[PR-LIFECYCLE] PR created: {pr_url}` |
-| PR updated | info | `[PR-LIFECYCLE] PR updated: {pr_url}` |
-| Feedback received | info | `[PR-LIFECYCLE] Review feedback: {comment_count} comments` |
-| Fix applied | info | `[PR-LIFECYCLE] Fix applied for: {comment_summary}` |
-| CI failure | warning | `[PR-LIFECYCLE] CI failed — delegating to fix-ci` |
-| CI green | info | `[PR-LIFECYCLE] CI passing` |
-| Ready for merge | success | `[PR-LIFECYCLE] PR ready — awaiting user approval` |
-| Merged | success | `[PR-LIFECYCLE] Merged: {pr_url}` |
-| Blocked | warning | `[PR-LIFECYCLE] Blocked: {reason}` |
+* the PR URL when the PR is created or updated;
+* the review-feedback and CI outcomes that change the next step, including the
+  hand-off to `fix-ci` on a CI failure;
+* when Step 5b requires fresh operator approval, report `PR ready — awaiting user approval`
+  and STOP until the operator replies; when a validated `DARK_MODE_ACTIVE` record satisfies
+  approval under Step 5b, report the ready state as a status line and continue to Step 5c;
+* the merge result with the PR URL;
+* any blocking condition with its reason.
 
 ## Inputs
 

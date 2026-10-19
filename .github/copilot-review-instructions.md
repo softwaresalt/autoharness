@@ -62,7 +62,7 @@ When a change references another artifact (agent, skill, instruction, path), ver
 
 ### 5. Capability Pack Overlay Coherence
 
-If a change touches capability pack integration (`agent-intercom`, `agent-engram`, `backlogit`), verify it is **woven consistently** across all affected artifacts — not applied to just one file in isolation. A capability pack overlay must touch every artifact class it declares. A single isolated instruction block is not sufficient for a cross-cutting pack.
+If a change touches capability pack integration (`agent-engram`, `backlogit`), verify it is **woven consistently** across all affected artifacts — not applied to just one file in isolation. A capability pack overlay must touch every artifact class it declares. A single isolated instruction block is not sufficient for a cross-cutting pack.
 
 ### 6. Primitive Model Integrity
 

@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
+
+import yaml
 
 
 LEGACY_CAPABILITY_PACK_ERROR_RE = re.compile(
-    r"^((?:[A-Za-z0-9_]+\.)*(?:capability_packs\.\d+|capability_pack_overlays\.\d+\.pack)): '([^']+)' is not one of"
+    r"^((?:[A-Za-z0-9_]+\.)*(?:capability_packs\.\d+|capability_pack_overlays\.\d+\.pack"
+    r"|recommendation_reasons\.capability_packs\.\d+\.item)): '([^']+)' is not one of"
 )
 LEGACY_DRIFT_CATEGORY_ERROR_RE = re.compile(
     r"^drift_report\.changes\.\d+\.category: '([^']+)' is not one of"
@@ -25,6 +31,36 @@ LEGACY_DRIFT_CATEGORIES = {
     "existing_modified",
     "gitignore_updated",
 }
+
+
+@dataclass(frozen=True)
+class RemovedPackInfo:
+    """Removal metadata for a capability pack that is no longer supported."""
+
+    pack: str
+    removed_in: str
+    overlay_instruction_path: str
+    overlay_template_path: str
+    profile_block_key: str
+
+
+REMOVED_PACK_WARNING_KIND = "removed-capability-pack"
+REMOVED_PACK_PROPOSAL_ID = "remove-retired-capability-pack"
+
+# Retired packs stay recognizable so documents that still list them degrade to a
+# warning and a migration proposal instead of a schema blocker (209-F/216-S).
+REMOVED_CAPABILITY_PACKS: Mapping[str, RemovedPackInfo] = MappingProxyType(
+    {
+        "agent-intercom": RemovedPackInfo(
+            pack="agent-intercom",
+            removed_in="209-F",
+            overlay_instruction_path=".github/instructions/agent-intercom.instructions.md",
+            overlay_template_path="templates/instructions/agent-intercom.instructions.md.tmpl",
+            profile_block_key="agent_intercom",
+        ),
+    }
+)
+
 
 SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
     "execution-epoch": {
@@ -63,8 +99,12 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "harness-manifest",
         "schema_file": "harness-manifest.schema.json",
         "versioned_schema_dir": "harness-manifest",
-        "current_version": "1.0.0",
-        "known_versions": ("0.9.0", "1.0.0"),
+        # Schema-version decision (209-F/216-S U3): removing the retired
+        # `agent-intercom` pack from both pack enums is a restrictive change, so it
+        # is minted as 1.1.0; the 0.9.0 and 1.0.0 mirrors stay byte-identical
+        # (pinned by tests/test_schema_contract_removed_pack_manifest.py).
+        "current_version": "1.1.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
     "config": {
@@ -107,16 +147,30 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         # config with schema_version: 1.1.0 continues to validate against the
         # untouched 1.1.0 mirror; adopting routes/bindings requires bumping
         # schema_version to 1.2.0.
-        "current_version": "1.2.0",
-        "known_versions": ("0.9.0", "1.0.0", "1.1.0", "1.2.0"),
+        # Schema-version decision (209-F/216-S U4, shipped after 208-F/215-S so the
+        # slot is 1.2.0 + 1): removing the retired `agent-intercom` pack from the
+        # `capability_packs` enum is a restrictive change, so it is minted as 1.3.0.
+        # The 0.9.0/1.0.0/1.1.0/1.2.0 mirrors stay byte-identical (pinned by
+        # tests/test_schema_contract_removed_pack_config.py); a config pinned to
+        # any of them that lists the retired pack keeps validating.
+        "current_version": "1.3.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0", "1.2.0", "1.3.0"),
         "compatibility_model": "versioned-contract",
     },
     "profile": {
         "contract_name": "workspace-profile",
         "schema_file": "workspace-profile.schema.json",
         "versioned_schema_dir": "workspace-profile",
-        "current_version": "1.0.0",
-        "known_versions": ("0.9.0", "1.0.0"),
+        # Schema-version decision (209-F/216-S U2): removing the retired
+        # `agent-intercom` pack from both pack enums (and its `agent_intercom`
+        # property) is a restrictive change, so it is minted as 1.1.0 instead of
+        # mutating the published mirrors. 0.9.0 and 1.0.0 stay byte-identical
+        # (pinned by tests/test_schema_contract_removed_pack_profile.py); a legacy
+        # profile still validates against the contract it was written against.
+        # The 1.1.0 mirror also publishes the optional `copilot_review` block that
+        # the root schema already carried.
+        "current_version": "1.1.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
     "harness-resolution": {
@@ -149,20 +203,34 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "action": "Back up the installed manifest, normalize legacy capability-pack records and overlay metadata to the 1.0.0 contract, then rerun verify-workspace.",
         },
         {
+            "proposal_id": "upgrade-manifest-contract-1.0.0-to-1.1.0",
+            "status": "known-legacy",
+            "from_version": "1.0.0",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-manifest contract from 1.0.0 to 1.1.0 (the retired agent-intercom capability pack is no longer a valid pack record).",
+            "changed_fields": [
+                "schema_version",
+                "capability_packs",
+                "capability_pack_overlays[*].pack",
+            ],
+            "action": "Back up the installed manifest, remove the retired agent-intercom pack and its overlay record, write schema_version: 1.1.0, and rerun verify-workspace.",
+        },
+        {
             "proposal_id": "backfill-manifest-schema-version",
             "status": "missing-version",
             "from_version": None,
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Backfill manifest schema_version to the current contract version.",
             "changed_fields": ["schema_version"],
-            "action": "Back up the installed manifest, write schema_version: 1.0.0, and rerun verify-workspace.",
+            "action": "Back up the installed manifest, write schema_version: 1.1.0, and rerun verify-workspace.",
         },
         {
             "proposal_id": "review-unknown-manifest-contract",
             "status": "unknown-version",
             "from_version": "*",
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "manual-review",
             "summary": "Review the unknown manifest contract before auto-applying tune changes.",
             "changed_fields": ["schema_version"],
@@ -172,12 +240,22 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-manifest-capability-packs",
             "warning_kind": "legacy-manifest-capability-pack",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Replace legacy manifest capability-pack values with current overlay or health-report signals.",
             "changed_fields": ["capability_packs", "capability_pack_overlays[*].pack"],
             "action": "Rewrite legacy capability-pack entries so the manifest uses the current overlay vocabulary and verification checks.",
+        },
+        {
+            "proposal_id": REMOVED_PACK_PROPOSAL_ID,
+            "warning_kind": REMOVED_PACK_WARNING_KIND,
+            "from_version": "*",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Remove the retired capability pack from the manifest pack list and overlay records.",
+            "changed_fields": ["capability_packs", "capability_pack_overlays[*].pack"],
+            "action": "Remove the retired pack from capability_packs and its capability_pack_overlays record; delete its orphan overlay instruction file only when its checksum still matches the manifest record (a modified file needs manual review).",
         },
     ],
     "config": [
@@ -207,20 +285,30 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "action": "Back up .autoharness/config.yaml, bump schema_version to 1.2.0 (optionally adopt model_routing.routes and model_routing.bindings; model_routing now rejects unknown keys), and rerun verify-workspace.",
         },
         {
+            "proposal_id": "upgrade-config-contract-1.2.0-to-1.3.0",
+            "status": "known-legacy",
+            "from_version": "1.2.0",
+            "to_version": "1.3.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-config contract from 1.2.0 to 1.3.0 (the retired agent-intercom capability pack is no longer a valid capability_packs entry).",
+            "changed_fields": ["schema_version", "capability_packs"],
+            "action": "Back up .autoharness/config.yaml, remove the retired agent-intercom pack from capability_packs, bump schema_version to 1.3.0, and rerun verify-workspace.",
+        },
+        {
             "proposal_id": "backfill-config-schema-version",
             "status": "missing-version",
             "from_version": None,
-            "to_version": "1.0.0",
+            "to_version": "1.3.0",
             "severity": "degrading",
             "summary": "Backfill config schema_version to the current contract version.",
             "changed_fields": ["schema_version"],
-            "action": "Back up .autoharness/config.yaml, write schema_version: 1.0.0, and rerun verify-workspace.",
+            "action": "Back up .autoharness/config.yaml, write schema_version: 1.3.0, and rerun verify-workspace.",
         },
         {
             "proposal_id": "review-unknown-config-contract",
             "status": "unknown-version",
             "from_version": "*",
-            "to_version": "1.0.0",
+            "to_version": "1.3.0",
             "severity": "manual-review",
             "summary": "Review the unknown config contract before auto-applying tune changes.",
             "changed_fields": ["schema_version"],
@@ -240,12 +328,22 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-config-capability-packs",
             "warning_kind": "legacy-config-capability-pack",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.3.0",
             "severity": "degrading",
             "summary": "Replace legacy config capability-pack values with currently supported packs.",
             "changed_fields": ["capability_packs"],
             "action": "Remove legacy pack names from .autoharness/config.yaml and express the intended behavior through current capability packs or explicit config.",
+        },
+        {
+            "proposal_id": REMOVED_PACK_PROPOSAL_ID,
+            "warning_kind": REMOVED_PACK_WARNING_KIND,
+            "from_version": "*",
+            "to_version": "1.3.0",
+            "severity": "degrading",
+            "summary": "Remove the retired capability pack from the config capability_packs list.",
+            "changed_fields": ["capability_packs"],
+            "action": "Remove the retired pack from capability_packs in .autoharness/config.yaml; delete its orphan overlay instruction file only when its checksum still matches the manifest record (a modified file needs manual review).",
         },
     ],
     "profile": [
@@ -264,20 +362,35 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "action": "Back up .autoharness/workspace-profile.yaml, rewrite legacy drift categories and capability-pack recommendations to the 1.0.0 vocabulary, write schema_version: 1.0.0, and rerun verify-workspace.",
         },
         {
+            "proposal_id": "upgrade-profile-contract-1.0.0-to-1.1.0",
+            "status": "known-legacy",
+            "from_version": "1.0.0",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Upgrade the workspace-profile contract from 1.0.0 to 1.1.0 (the retired agent-intercom capability pack is no longer a valid recommendation).",
+            "changed_fields": [
+                "schema_version",
+                "harness_recommendations.capability_packs",
+                "harness_recommendations.recommendation_reasons.capability_packs[*].item",
+                "agent_intercom",
+            ],
+            "action": "Back up .autoharness/workspace-profile.yaml, remove the retired agent-intercom pack from the recommendations and drop any agent_intercom block, write schema_version: 1.1.0, and rerun verify-workspace.",
+        },
+        {
             "proposal_id": "backfill-profile-schema-version",
             "status": "missing-version",
             "from_version": None,
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Backfill workspace-profile schema_version to the current contract version.",
             "changed_fields": ["schema_version"],
-            "action": "Back up .autoharness/workspace-profile.yaml, write schema_version: 1.0.0, and rerun verify-workspace.",
+            "action": "Back up .autoharness/workspace-profile.yaml, write schema_version: 1.1.0, and rerun verify-workspace.",
         },
         {
             "proposal_id": "review-unknown-profile-contract",
             "status": "unknown-version",
             "from_version": "*",
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "manual-review",
             "summary": "Review the unknown workspace-profile contract before auto-applying tune changes.",
             "changed_fields": ["schema_version"],
@@ -287,8 +400,8 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-profile-drift-categories",
             "warning_kind": "legacy-profile-drift-category",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Rewrite legacy drift_report category values into the current taxonomy.",
             "changed_fields": ["drift_report.changes[*].category"],
@@ -297,12 +410,26 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-profile-capability-packs",
             "warning_kind": "legacy-profile-capability-pack",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Replace legacy workspace-profile capability-pack recommendations with the current pack vocabulary.",
             "changed_fields": ["harness_recommendations.capability_packs"],
             "action": "Remove legacy pack names from the recommended capability-pack set and regenerate the profile if needed.",
+        },
+        {
+            "proposal_id": REMOVED_PACK_PROPOSAL_ID,
+            "warning_kind": REMOVED_PACK_WARNING_KIND,
+            "from_version": "*",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Remove the retired capability pack from the workspace-profile recommendations and drop its leftover profile block.",
+            "changed_fields": [
+                "harness_recommendations.capability_packs",
+                "harness_recommendations.recommendation_reasons.capability_packs[*].item",
+                "agent_intercom",
+            ],
+            "action": "Remove the retired pack from the recommendations and reasons and drop its leftover profile block; delete its orphan overlay instruction file only when its checksum still matches the manifest record (a modified file needs manual review).",
         },
     ],
 }
@@ -377,6 +504,128 @@ def summarize_schema_contract(kind: str, path: Path, data: Any) -> dict[str, Any
     }
 
 
+def _removed_pack_warning(kind: str, path: Path, field: str, pack: str) -> dict[str, Any]:
+    contract = SCHEMA_CONTRACTS[kind]
+    return {
+        "kind": REMOVED_PACK_WARNING_KIND,
+        "path": str(path),
+        "field": field,
+        "legacy_value": pack,
+        "contract": contract["contract_name"],
+        "current_version": contract["current_version"],
+        "message": (
+            f"Installed {contract['contract_name']} still records the removed capability pack '{pack}'. "
+            "verify-workspace treats this as compatibility drift and ignores the pack instead of failing."
+        ),
+        "suggested_action": f"Remove the retired '{pack}' capability pack from the installed artifact (see the {REMOVED_PACK_PROPOSAL_ID} proposal).",
+    }
+
+
+def removed_overlay_record_warning(path: Path, index: int, artifact: Any) -> dict[str, Any] | None:
+    """Warning for a legacy manifest artifact record of a retired pack's overlay, else None.
+
+    The record is matched by installed path or by template source (the template was
+    deleted with the pack), so it never reaches the missing-template-source blocker.
+    """
+    if not isinstance(artifact, dict):
+        return None
+    record_path = str(artifact.get("path") or "").replace("\\", "/")
+    template = str(artifact.get("template") or "").replace("\\", "/")
+    for info in REMOVED_CAPABILITY_PACKS.values():
+        template_names = {info.overlay_template_path, info.overlay_template_path.removeprefix("templates/")}
+        if record_path == info.overlay_instruction_path or template in template_names:
+            return _removed_pack_warning("manifest", path, f"artifacts.{index}.path", info.pack)
+    return None
+
+
+def removed_pack_site_key(warning: dict[str, Any]) -> tuple[Any, Any, Any] | None:
+    """Dedupe key (path, field, value) for a removed-capability-pack warning."""
+    if warning.get("kind") != REMOVED_PACK_WARNING_KIND:
+        return None
+    return (warning.get("path"), warning.get("field"), warning.get("legacy_value"))
+
+
+def _removed_pack_sites(kind: str, data: Any) -> list[tuple[str, str]]:
+    """List (field, pack) recording sites, with fields named as schema errors name them."""
+    if not isinstance(data, dict):
+        return []
+    sites: list[tuple[str, str]] = []
+
+    def add_pack_list(prefix: str, values: Any, item_key: str | None = None) -> None:
+        if not isinstance(values, list):
+            return
+        for index, value in enumerate(values):
+            if item_key is not None:
+                value = value.get(item_key) if isinstance(value, dict) else None
+            if isinstance(value, str) and value in REMOVED_CAPABILITY_PACKS:
+                suffix = f".{item_key}" if item_key else ""
+                sites.append((f"{prefix}.{index}{suffix}", value))
+
+    if kind == "manifest":
+        add_pack_list("capability_packs", data.get("capability_packs"))
+        add_pack_list("capability_pack_overlays", data.get("capability_pack_overlays"), "pack")
+    elif kind == "config":
+        add_pack_list("capability_packs", data.get("capability_packs"))
+    elif kind == "profile":
+        recommendations = data.get("harness_recommendations")
+        if isinstance(recommendations, dict):
+            add_pack_list("harness_recommendations.capability_packs", recommendations.get("capability_packs"))
+            reasons = recommendations.get("recommendation_reasons")
+            if isinstance(reasons, dict):
+                add_pack_list(
+                    "harness_recommendations.recommendation_reasons.capability_packs",
+                    reasons.get("capability_packs"),
+                    "item",
+                )
+        # The profile root is open, so a leftover block yields no schema error.
+        for info in REMOVED_CAPABILITY_PACKS.values():
+            if info.profile_block_key in data:
+                sites.append((info.profile_block_key, info.pack))
+    return sites
+
+
+def _recorded_overlay_checksum(kind: str, path: Path, data: Any, overlay_path: str) -> str | None:
+    manifest: Any = data
+    if kind != "manifest":
+        try:
+            manifest = yaml.safe_load((path.parent / "harness-manifest.yaml").read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, yaml.YAMLError):
+            return None
+    if not isinstance(manifest, dict):
+        return None
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        return None
+    for artifact in artifacts:
+        if isinstance(artifact, dict) and str(artifact.get("path") or "").replace("\\", "/") == overlay_path:
+            checksum = artifact.get("checksum")
+            return str(checksum) if checksum else None
+    return None
+
+
+def _retired_overlay_needs_review(kind: str, path: Path, data: Any, packs: list[str]) -> bool:
+    """True when a retired pack's overlay file exists but cannot be proven unmodified."""
+    workspace_root = path.parent.parent
+    for pack in packs:
+        info = REMOVED_CAPABILITY_PACKS.get(pack)
+        if info is None:
+            continue
+        overlay = workspace_root / info.overlay_instruction_path
+        if not overlay.is_file():
+            continue
+        if overlay.is_symlink():
+            return True
+        try:
+            raw = overlay.read_bytes()
+        except OSError:
+            return True
+        recorded = _recorded_overlay_checksum(kind, path, data, info.overlay_instruction_path)
+        digests = {hashlib.sha256(raw).hexdigest(), hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()}
+        if recorded is None or recorded not in digests:
+            return True
+    return False
+
+
 def classify_schema_error(kind: str, path: Path, data: Any, error: str) -> tuple[str, dict[str, Any]]:
     """Classify a schema validation error as a hard blocker or compatibility finding."""
     contract = SCHEMA_CONTRACTS[kind]
@@ -401,6 +650,8 @@ def classify_schema_error(kind: str, path: Path, data: Any, error: str) -> tuple
     capability_pack_match = LEGACY_CAPABILITY_PACK_ERROR_RE.match(error)
     if kind in {"manifest", "config", "profile"} and capability_pack_match:
         field_path, pack = capability_pack_match.groups()
+        if pack in REMOVED_CAPABILITY_PACKS:
+            return "warning", _removed_pack_warning(kind, path, field_path, pack)
         if pack in LEGACY_UNSUPPORTED_PACKS:
             return (
                 "warning",
@@ -454,7 +705,9 @@ def classify_schema_error(kind: str, path: Path, data: Any, error: str) -> tuple
 
 def collect_contract_state_warnings(kind: str, path: Path, data: Any) -> list[dict[str, Any]]:
     """Collect compatibility findings that do not naturally arise from schema validation."""
-    warnings: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = [
+        _removed_pack_warning(kind, path, field, pack) for field, pack in _removed_pack_sites(kind, data)
+    ]
     if kind == "config":
         found, _value = _lookup_nested(data, "backlog.prefix_map")
         if found:
@@ -543,6 +796,10 @@ def plan_schema_contract_migrations(
             )
             if legacy_values:
                 proposal["legacy_values"] = legacy_values
+            if warning_kind == REMOVED_PACK_WARNING_KIND and _retired_overlay_needs_review(
+                kind, path, data, legacy_values
+            ):
+                proposal["manual_review"] = True
 
         proposals.append(proposal)
 

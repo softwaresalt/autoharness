@@ -33,21 +33,6 @@ configuration — independent of the standard tier routing set.
 When these variables resolve to empty strings (no alternate model configured),
 the skill falls back to Tier 2 defaults.
 
-## Agent-Intercom Communication
-
-Call `ping` at session start. If agent-intercom is reachable, broadcast at
-every step. If unreachable, warn that operator visibility is degraded.
-
-| Event | Level | Message prefix |
-|---|---|---|
-| Doc review start | info | `[DOC-REVIEW] Starting {mode} review of {scope}` |
-| Scope analyzed | info | `[DOC-REVIEW] Scope: {file_count} docs, {check_count} checks` |
-| Check pass | info | `[DOC-REVIEW] Check passed: {check_name}` |
-| Check finding | warning | `[DOC-REVIEW] Finding ({severity}): {summary} in {file}` |
-| Autofix applied | info | `[DOC-REVIEW] Applied safe_auto fix: {summary}` |
-| Review written | success | `[DOC-REVIEW] Artifact: {file_path}` |
-| Review complete | success | `[DOC-REVIEW] Complete: {p0} P0, {p1} P1, {p2} P2, {p3} P3` |
-
 ## Subagent Depth Constraint
 
 This skill is a leaf executor. It MUST NOT spawn its own subagents.
@@ -77,7 +62,7 @@ Check arguments for `mode:autofix` or `mode:report-only`.
 | Class | Default owner | Meaning |
 |---|---|---|
 | `safe_auto` | Doc-review skill (autofix mode) | Deterministic local fix |
-| `gated_auto` | agent-intercom approval | Fix changes meaning or structure |
+| `gated_auto` | Operator approval | Fix changes meaning or structure |
 | `manual` | Backlog follow-up item | Requires human judgment |
 | `advisory` | Informational | Suggestion; no defect |
 
@@ -198,7 +183,7 @@ verification pass
    * `.github/instructions/*.md`
    * `AGENTS.md`
    * `docs/**/*.md` (excluding `docs/archive/`)
-3. Announce scope size. Broadcast.
+3. Announce the scope size in the session output.
 
 ### Step 2: Select Review Model
 
@@ -213,7 +198,6 @@ verification pass
 Execute Checks 1–6 over the resolved scope. For each finding:
 
 1. Record: `{file, line, check_id, severity, message, action_class, fix_hint}`.
-2. Broadcast the finding at the appropriate level.
 
 ### Step 4: Apply Actions (mode-dependent)
 

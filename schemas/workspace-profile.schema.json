@@ -14,7 +14,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "1.0.0"
+      "const": "1.1.0"
     },
     "generated_at": {
       "type": "string",
@@ -627,7 +627,6 @@
           "items": {
             "type": "string",
             "enum": [
-              "agent-intercom",
               "agent-engram",
               "backlogit",
               "browser-verification",
@@ -678,7 +677,6 @@
                   "item": {
                     "type": "string",
                     "enum": [
-                      "agent-intercom",
                       "agent-engram",
                       "backlogit",
                       "browser-verification",
@@ -736,30 +734,6 @@
               }
             }
           }
-        }
-      }
-    },
-    "agent_intercom": {
-      "type": "object",
-      "description": "Detected agent-intercom integration markers and recommendation state",
-      "properties": {
-        "detected": {
-          "type": "boolean"
-        },
-        "config_paths": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "instruction_markers": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "recommended": {
-          "type": "boolean"
         }
       }
     },

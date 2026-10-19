@@ -132,8 +132,8 @@ When the `strict-safety` capability pack is enabled, the safety checklist is a
   without approval is a policy violation, not a judgment call.
 * Actions classified as `ActionRisk: high` SHOULD request operator approval
   before proceeding. If approval is unavailable, record the decision rationale.
-* If a `destructive` action proceeds without `ActionResult: approved`, broadcast
-  a P-005 violation telemetry event and halt.
+* If a `destructive` action proceeds without `ActionResult: approved`, report
+  a P-005 violation in the session output, record it via P-005 telemetry, and halt.
 
 When `strict-safety` is **not** enabled, Constitutional Principle VII
 (Destructive Command Approval — NON-NEGOTIABLE) still applies. Agents MUST NOT
@@ -142,8 +142,10 @@ when the safety checklist is advisory. To comply:
 
 * Classify destructive actions as `ActionRisk: destructive` in the checklist
 * Record them as `ActionResult: blocked` until operator approval is obtained
-* Prompt the operator via the configured interface (intercom if available, else
-  console): `Destructive action requires approval: {action_summary}. Approve? [yes/no]`
+* Prompt the operator through the workspace's native approval path (`strict-safety`
+  classification when that pack is installed, otherwise local confirmation per AGENTS.md
+  safe-operations):
+  `Destructive action requires approval: {action_summary}. Approve? [yes/no]`
 * Only proceed if the operator responds with explicit approval
 
 ## Quality Criteria

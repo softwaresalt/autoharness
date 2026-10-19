@@ -16,7 +16,6 @@ Acquire file locks ONLY when concurrent file access is likely:
 * Multiple agents are active on the same branch and the workflow policy permits
   that shared-branch activity
 * The operator has explicitly enabled concurrent-access mode
-* The workspace uses the `agent-intercom` pack with multi-agent sessions
 * A human operator is known to be editing files in the workspace concurrently
 
 In single-agent, single-branch, single-worktree workflows (the common case),

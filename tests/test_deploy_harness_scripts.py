@@ -18,6 +18,7 @@ Protects the 070-F cross-platform deploy scripts (``deploy-harness.ps1`` /
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -26,6 +27,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import yaml
+from jsonschema import Draft7Validator
+
+from _config_schema_contract import CURRENT_CONFIG_SCHEMA_VERSION, current_config_mirror_path
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PS1_INSTANCE = _REPO_ROOT / "scripts" / "deploy-harness.ps1"
@@ -311,8 +317,13 @@ class DeployHarnessCapabilityPackChecklistTests(unittest.TestCase):
 # precedence contract:
 #   1. EXPLICIT pack input is honored on every preset (including starter).
 #   2. OMITTED pack input resolves to the preset's ``default_in_preset`` members
-#      (starter -> empty), so an opt-in add-on such as ``agent-intercom``
-#      (``default_in_preset: []``) is never written by a default deploy.
+#      (starter -> empty), so a registry pack that is not a default of the
+#      selected preset is never written by a default deploy.
+#   3. A RETIRED pack id in an explicit list is warned about
+#      (``RETIRED_PACK: <id> ignored``) and skipped with exit 0, never failed as
+#      an unknown pack; ``all`` never expands to a retired pack.
+#   4. The scaffolded config carries the CURRENT harness-config schema version
+#      and validates against the current config schema.
 # The precedence mirrors the installer contract in
 # ``.github/skills/install-harness/SKILL.md:551`` (explicit capability_packs used
 # as-is regardless of preset; omitted resolves to preset defaults) and guards the
@@ -321,6 +332,9 @@ class DeployHarnessCapabilityPackChecklistTests(unittest.TestCase):
 
 _PWSH = shutil.which("pwsh") or shutil.which("powershell")
 _BASH = shutil.which("bash")
+
+# Capability packs retired from autoharness; wrappers warn-and-skip these ids.
+_RETIRED_PACKS = ("agent-intercom",)
 
 
 def _parse_registry() -> "tuple[list[str], dict[str, set[str]]]":
@@ -344,7 +358,8 @@ def _parse_registry() -> "tuple[list[str], dict[str, set[str]]]":
 
 
 def _all_registry_packs() -> list[str]:
-    return _parse_registry()[0]
+    """Every registry pack a wrapper may select."""
+    return list(_parse_registry()[0])
 
 
 def _preset_default_packs(preset: str) -> list[str]:
@@ -396,19 +411,32 @@ class _DeployWrapperOptInMixin:
             )
             return result
 
+    def _run_config(self, preset: str, packs: "str | None"):  # noqa: ANN001
+        """Run the wrapper; return (process, scaffolded config text or None)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            proc = self._scaffold(preset, packs, workspace)
+            cfg = workspace / ".autoharness" / "config.yaml"
+            text = cfg.read_text(encoding="utf-8") if cfg.exists() else None
+            return proc, text
+
     # --- OMITTED input -> preset defaults --------------------------------
-    def test_omitted_full_excludes_agent_intercom(self) -> None:
+    def test_omitted_full_selects_preset_defaults(self) -> None:
         packs = self._run_and_read("full", None)
-        self.assertNotIn("agent-intercom", packs)  # type: ignore[attr-defined]
         self.assertEqual(  # type: ignore[attr-defined]
             set(packs), set(_preset_default_packs("full"))
         )
+        self.assertEqual(  # type: ignore[attr-defined]
+            set(packs), set(_all_registry_packs())
+        )
 
-    def test_omitted_standard_excludes_agent_intercom(self) -> None:
+    def test_omitted_standard_selects_preset_defaults(self) -> None:
         packs = self._run_and_read("standard", None)
-        self.assertNotIn("agent-intercom", packs)  # type: ignore[attr-defined]
         self.assertEqual(  # type: ignore[attr-defined]
             set(packs), set(_preset_default_packs("standard"))
+        )
+        self.assertLessEqual(  # type: ignore[attr-defined]
+            set(packs), set(_all_registry_packs())
         )
 
     def test_omitted_starter_selects_no_packs(self) -> None:
@@ -416,17 +444,17 @@ class _DeployWrapperOptInMixin:
         self.assertEqual(packs, [])  # type: ignore[attr-defined]
 
     # --- EXPLICIT input -> honored regardless of preset ------------------
-    def test_explicit_all_full_includes_agent_intercom(self) -> None:
+    def test_explicit_all_full_includes_every_pack(self) -> None:
         packs = self._run_and_read("full", "all")
-        self.assertIn("agent-intercom", packs)  # type: ignore[attr-defined]
         self.assertEqual(  # type: ignore[attr-defined]
             set(packs), set(_all_registry_packs())
         )
+        for retired in _RETIRED_PACKS:
+            self.assertNotIn(retired, packs)  # type: ignore[attr-defined]
 
     def test_explicit_all_starter_includes_every_pack(self) -> None:
         # starter must NOT discard an explicit selection (guards 082-S FU-1).
         packs = self._run_and_read("starter", "all")
-        self.assertIn("agent-intercom", packs)  # type: ignore[attr-defined]
         self.assertEqual(  # type: ignore[attr-defined]
             set(packs), set(_all_registry_packs())
         )
@@ -439,9 +467,64 @@ class _DeployWrapperOptInMixin:
         self.assertEqual(set(packs), set(subset))  # type: ignore[attr-defined]
 
     def test_explicit_subset_full_keeps_exact_subset(self) -> None:
-        subset = ["agent-intercom", "backlogit"]
+        subset = ["agent-engram", "backlogit"]
         packs = self._run_and_read("full", ",".join(subset))
         self.assertEqual(set(packs), set(subset))  # type: ignore[attr-defined]
+
+    def test_genuinely_unknown_pack_still_fails(self) -> None:
+        proc, text = self._run_config("full", "backlogit,not-a-real-pack")
+        self.assertNotEqual(proc.returncode, 0)  # type: ignore[attr-defined]
+        self.assertIn(  # type: ignore[attr-defined]
+            "Unknown pack 'not-a-real-pack' (not in registry).",
+            proc.stdout + proc.stderr,
+        )
+        self.assertIsNone(text)  # type: ignore[attr-defined]
+
+    # --- RETIRED ids -> warn and skip -------------------------------------
+    def test_retired_pack_in_explicit_list_warns_and_is_skipped(self) -> None:
+        for retired in _RETIRED_PACKS:
+            with self.subTest(retired=retired):  # type: ignore[attr-defined]
+                proc, text = self._run_config("full", f"{retired},backlogit")
+                combined = proc.stdout + proc.stderr
+                self.assertEqual(  # type: ignore[attr-defined]
+                    proc.returncode,
+                    0,
+                    f"{self.interpreter}: retired pack must not fail\n{combined}",
+                )
+                self.assertIn(  # type: ignore[attr-defined]
+                    f"RETIRED_PACK: {retired} ignored", combined
+                )
+                self.assertNotIn("Unknown pack", combined)  # type: ignore[attr-defined]
+                self.assertIsNotNone(text)  # type: ignore[attr-defined]
+                self.assertNotIn(retired, text)  # type: ignore[attr-defined]
+                config = yaml.safe_load(text)
+                self.assertEqual(  # type: ignore[attr-defined]
+                    config["capability_packs"], ["backlogit"]
+                )
+
+    def test_only_retired_pack_yields_an_empty_pack_list(self) -> None:
+        proc, text = self._run_config("starter", _RETIRED_PACKS[0])
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)  # type: ignore[attr-defined]
+        self.assertIn(  # type: ignore[attr-defined]
+            f"RETIRED_PACK: {_RETIRED_PACKS[0]} ignored", proc.stdout + proc.stderr
+        )
+        self.assertEqual(yaml.safe_load(text)["capability_packs"], [])  # type: ignore[attr-defined]
+
+    # --- scaffolded config is at the CURRENT config contract --------------
+    def test_scaffolded_config_matches_current_config_contract(self) -> None:
+        schema = json.loads(current_config_mirror_path().read_text(encoding="utf-8"))
+        for preset, packs in (("full", None), ("starter", "all"), ("standard", "backlogit")):
+            with self.subTest(preset=preset, packs=packs):  # type: ignore[attr-defined]
+                proc, text = self._run_config(preset, packs)
+                self.assertIsNotNone(  # type: ignore[attr-defined]
+                    text, f"{self.interpreter}: no config scaffolded\n{proc.stdout}{proc.stderr}"
+                )
+                config = yaml.safe_load(text)
+                self.assertEqual(  # type: ignore[attr-defined]
+                    config["schema_version"], CURRENT_CONFIG_SCHEMA_VERSION
+                )
+                errors = [e.message for e in Draft7Validator(schema).iter_errors(config)]
+                self.assertEqual(errors, [])  # type: ignore[attr-defined]
 
 
 @unittest.skipUnless(_PWSH, "PowerShell (pwsh/powershell) not available")
@@ -498,23 +581,46 @@ class DeployHarnessShOptInTests(_DeployWrapperOptInMixin, unittest.TestCase):
         )
 
 
+class DeployWrapperStaticContractTests(unittest.TestCase):
+    """Interpreter-independent checks that every wrapper copy carries the contract."""
+
+    def test_every_copy_scaffolds_the_current_config_schema_version(self) -> None:
+        for path in (_PS1_INSTANCE, _SH_INSTANCE, _PS1_TEMPLATE, _SH_TEMPLATE):
+            with self.subTest(path=path.name):
+                text = _read(path)
+                self.assertRegex(
+                    text, r"schema_version: \\?\"%s\\?\"" % re.escape(CURRENT_CONFIG_SCHEMA_VERSION)
+                )
+                self.assertNotRegex(text, r"schema_version: \\?\"1\.0\.0\\?\"")
+
+    def test_every_copy_handles_retired_pack_ids(self) -> None:
+        for path in (_PS1_INSTANCE, _SH_INSTANCE, _PS1_TEMPLATE, _SH_TEMPLATE):
+            with self.subTest(path=path.name):
+                text = _read(path)
+                self.assertIn("RETIRED_PACK:", text)
+                for retired in _RETIRED_PACKS:
+                    self.assertIn(retired, text)
+
+
 class DeployWrapperRegistryEnumerationTests(unittest.TestCase):
     """The registry parse the wrappers rely on is structurally sound."""
 
-    def test_agent_intercom_is_not_a_preset_default(self) -> None:
-        _, defaults = _parse_registry()
-        self.assertEqual(defaults.get("agent-intercom"), set())
+    def test_retired_pack_is_not_a_registry_pack(self) -> None:
+        ids, _ = _parse_registry()
+        for retired in _RETIRED_PACKS:
+            self.assertNotIn(retired, ids)
 
     def test_default_in_preset_is_parseable_for_every_pack(self) -> None:
         ids, defaults = _parse_registry()
-        self.assertIn("agent-intercom", ids)
+        self.assertTrue(ids)
         for pid in ids:
             self.assertIn(pid, defaults)
 
-    def test_full_defaults_are_all_packs_except_opt_in_add_ons(self) -> None:
+    def test_full_defaults_are_all_remaining_registry_packs(self) -> None:
         full_defaults = set(_preset_default_packs("full"))
-        self.assertNotIn("agent-intercom", full_defaults)
-        self.assertLess(full_defaults, set(_all_registry_packs()))
+        self.assertEqual(full_defaults, set(_all_registry_packs()))
+        for retired in _RETIRED_PACKS:
+            self.assertNotIn(retired, full_defaults)
 
 
 # ── Checklist phase EXECUTION tests (non-interactive default; no hang) ──────

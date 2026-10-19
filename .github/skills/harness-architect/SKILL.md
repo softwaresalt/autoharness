@@ -27,23 +27,6 @@ Use this skill when a release unit needs executable test boundaries before
 implementation starts. The skill prepares the red phase and stops there. It
 does not implement production logic.
 
-## Agent-Intercom Communication
-
-When the `agent-intercom` capability pack is installed, call `ping` at
-session start. If reachable, broadcast at every step. If unreachable,
-warn the operator that visibility is degraded and continue locally.
-
-| Event | Level | Message prefix |
-|---|---|---|
-| Session start | info | `[HARNESS] Starting: feature={input.feature}` |
-| Task loaded | info | `[HARNESS] Current task: {task_id}` |
-| Codebase analyzed | info | `[HARNESS] Context gathered: {module_count} modules` |
-| Harness generated | info | `[HARNESS] Generated: {test_file} ({scenario_count} scenarios)` |
-| Compilation check | info | `[HARNESS] Compilation: {result}` |
-| Red phase check | info | `[HARNESS] Red phase: {result}` |
-| Label applied | success | `[HARNESS] harness-ready: {task_id}` |
-| Complete | success | `[HARNESS] Complete: {task_id} harnessed` |
-
 ## Inputs
 
 * `${input:feature}`: (Required) Feature or chore ID such as `001-F`

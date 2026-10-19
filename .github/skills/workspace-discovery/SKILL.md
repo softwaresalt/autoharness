@@ -213,24 +213,9 @@ runtime_validation:
     required_evidence: []
 ```
 
-#### Step 1.5c: Agent-Intercom Detection
+#### Step 1.5c: Retired Capability Pack Handling
 
-Detect whether the workspace is already configured for agent-intercom or a closely related remote-operator workflow. `agent-intercom` is an **opt-in extra add-on** with **no MCP server**, so detection relies on explicit intercom configuration/markers and operator opt-in — not on `.mcp.json`:
-
-| Signal | Meaning |
-|--------|---------|
-| `.intercom/settings.json` exists | Workspace has explicit intercom policy/configuration markers |
-| Existing `AGENTS.md` / `.github/copilot-instructions.md` references intercom heartbeat, remote approval, or Slack-mediated workflows; or contains `<!-- intercom:start -->` / `<!-- intercom:end -->` markers; or agent files use intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) | Harness may already be partially woven for intercom |
-
-Record: `agent_intercom{}` with the following structure:
-
-```yaml
-agent_intercom:
-  detected: true|false
-  config_paths: []          # paths where intercom config was found (e.g. .intercom/settings.json)
-  instruction_markers: []   # matched markers from AGENTS.md / copilot-instructions.md (e.g. <!-- intercom:start -->)
-  recommended: true|false
-```
+`agent-intercom` is a retired capability pack. Discovery never detects it, never records an `agent_intercom{}` block, and never recommends it: do not scan for `.intercom/settings.json` or for intercom markers, tool names or workflow references, and do not add the pack to `harness_recommendations.capability_packs` or any recommendation reason. When an existing profile (tuning mode) still carries an `agent_intercom{}` block or lists the pack, do not carry either forward into the new profile and do not treat them as signals; the legacy entries are reported and cleaned up by `tune-harness` (see its retired-pack cleanup step). If the operator asks for the pack by name, report `RETIRED_PACK: agent-intercom ignored` and continue discovery.
 
 #### Step 1.5d: Agent-Engram Detection
 
@@ -343,7 +328,7 @@ stack_packs: []
 
 Scan for signals that indicate specific capability packs should be recommended.
 This step covers packs whose eligibility depends on workspace characteristics
-beyond what earlier steps already detect (agent-intercom, agent-engram, and
+beyond what earlier steps already detect (agent-engram and
 backlogit are detected through their tool markers; browser-verification is
 detected through `runtime_surfaces.browser_tooling`).
 
@@ -560,7 +545,7 @@ Assemble all discovered data into the workspace profile YAML:
 
 ```yaml
 # .autoharness/workspace-profile.yaml
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 generated_at: "{{ISO_8601_TIMESTAMP}}"
 workspace_path: "{{WORKSPACE_PATH}}"
 
@@ -642,12 +627,6 @@ harness_recommendations:
     install_layers: []
   # Example when Engram is detected and recommended:
   # capability_packs: ["agent-engram"]
-
-agent_intercom:
-  detected: false
-  config_paths: []
-  instruction_markers: []
-  recommended: false
 
 agent_engram:
   detected: false
@@ -734,7 +713,6 @@ The summary MUST include:
 * Recommended install layers derived from preset, stack packs, runtime surfaces, and overlays
 * Recommended capability packs based on runtime surfaces (for example `browser-verification` when `web_ui: true` and browser tooling is present)
 * Runtime validator expectations — which surfaces are expected, which probe hints were detected, and whether releasability evidence is required before Ship treats runtime validation as complete
-* Whether the `agent-intercom` opt-in add-on is recommended because intercom markers or remote-operator workflow signals were detected (or the operator opted in). agent-intercom has no MCP server and is never recommended by preset default
 * Whether the `agent-engram` pack is recommended because engram markers or indexed-search workflow signals were detected
 * Whether the `graphtor-docs` pack is recommended because graphtor markers or indexed local-documentation workflow signals were detected
 * Whether the `backlogit` pack is recommended because backlogit was detected and its advanced workflow features are available

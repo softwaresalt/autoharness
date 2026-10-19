@@ -73,7 +73,6 @@ This dogfood harness has the following capability packs enabled. Each is woven t
 
 | Pack | Overlay Reference |
 |---|---|
-| `agent-intercom` | `.github/instructions/agent-intercom.instructions.md` |
 | `backlogit` | `.autoharness/backlog-registry.yaml` |
 | `agent-engram` | `.github/instructions/agent-engram.instructions.md` |
 | `graphtor-docs` | `.github/instructions/graphtor-docs.instructions.md` |

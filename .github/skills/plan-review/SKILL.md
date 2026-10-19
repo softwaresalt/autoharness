@@ -24,19 +24,6 @@ This skill spawns reviewer subagents. Those subagents are leaf executors and MUS
 Use the same severity conventions as the code review skill adapted for plan
 artifacts rather than code diffs.
 
-## Agent-Intercom Communication
-
-When the `agent-intercom` capability pack is installed, call `ping` at session start. If reachable, broadcast at every step. If unreachable, warn the operator that visibility is degraded.
-
-| Event | Level | Message prefix |
-|---|---|---|
-| Review start | info | `[PLAN-REVIEW] Starting review of: {plan_path}` |
-| Persona spawned | info | `[SPAWN] {persona_name} for plan review` |
-| Persona returned | info | `[RETURN] {persona_name}: {finding_count} findings` |
-| Merge complete | info | `[PLAN-REVIEW] Merged: {total_findings} findings ({p0} P0, {p1} P1, {p2} P2, {p3} P3)` |
-| Gate decision | success/error | `[PLAN-REVIEW] Gate: {PASS\|FAIL\|ADVISORY}` |
-| Review appended | success | `[PLAN-REVIEW] Review appended to: {plan_path}` |
-
 ## Inputs
 
 * `plan_path`: (Required) Path to the plan file (`docs/plans/{YYYY-MM-DD}-{slug}-plan.md`).
@@ -82,7 +69,7 @@ persona because dispatch failed.
 
 P-012 applies to both registry-backed tools and non-registry workflow capabilities.
 For this skill, reviewer subagent dispatch, model-specific reviewer routing, indexed
-knowledge retrieval, and intercom visibility are capabilities that must be surfaced
+knowledge retrieval are capabilities that must be surfaced
 as `TOOL_OK`, `TOOL_DEGRADED`, or `TOOL_UNAVAILABLE` before the review relies on
 them. A degraded review remains valid only when the appended review records:
 
@@ -146,7 +133,6 @@ If cross-model invocation is not available, run all personas with the caller's m
 2. Extract implementation units, dependency graph, decisions, risks, hardening signals, and whether a `## Plan Hardening` section is present.
 3. When `strict-safety` is enabled and the plan contains a `## Plan Hardening` section, also extract any `ProposedAction` / `ActionRisk` entries.
 4. If the plan references an origin document, read that too for context.
-5. Broadcast: `[PLAN-REVIEW] Starting review of: {plan_path}`
 
 ### Step 2: Spawn or Apply Reviewer Personas
 
@@ -170,16 +156,13 @@ When `model_routing.anchor_review` is dispatchable, route one triggered cross-mo
 persona through the anchor reviewer. If it is not dispatchable, record the declared
 degradation and run that same persona rubric inline or same-model.
 
-Broadcast each spawn or inline persona pass.
-
 ### Step 3: Collect and Merge Findings
 
 As each persona returns:
 
-1. Broadcast the return with finding count
-2. Collect all findings into a unified list
-3. Deduplicate: merge findings that identify the same issue from different perspectives
-4. Assign final severity (use the more conservative severity when personas disagree)
+1. Collect all findings into a unified list
+2. Deduplicate: merge findings that identify the same issue from different perspectives
+3. Assign final severity (use the more conservative severity when personas disagree)
 
 ### Step 4: Gate Decision
 
@@ -192,7 +175,7 @@ As each persona returns:
 | P2 findings only | **ADVISORY** | Present findings to user. User decides: revise or proceed. |
 | P3 findings only or none | **PASS** | Log findings as advisory. Proceed to `harvest`. |
 
-Broadcast the gate decision.
+Report the gate decision in the session output.
 
 ### Step 5: Append Review to Plan
 

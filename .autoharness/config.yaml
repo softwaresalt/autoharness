@@ -18,7 +18,6 @@ install_layers:
   - "knowledge"
   - "overlays"
 capability_packs:
-  - "agent-intercom"
   - "backlogit"
   - "agent-engram"
   - "graphtor-docs"

@@ -147,6 +147,11 @@ function Get-RegistryPacks([string]$HomePath) {
     return $ids
 }
 
+function Test-RetiredPack([string]$PackId) {
+    # Retired capability packs are warned about and skipped, never failed as unknown.
+    return (@("agent-intercom") -contains $PackId)
+}
+
 function Get-PresetDefaultPacks([string]$HomePath, [string]$Preset) {
     # Enumerate pack ids whose default_in_preset list includes $Preset, via a
     # deterministic line scan (no YAML module dependency).
@@ -397,7 +402,7 @@ function Invoke-Scaffold([string]$HomePath) {
         }
     }
     elseif ($Packs -eq "all") {
-        $selectedPacks = @(Get-RegistryPacks $HomePath)
+        $selectedPacks = @(Get-RegistryPacks $HomePath | Where-Object { -not (Test-RetiredPack $_) })
         if ($selectedPacks.Count -eq 0) {
             Write-Warn2 "Could not enumerate packs from the registry; writing config with no packs."
         } else {
@@ -410,6 +415,10 @@ function Invoke-Scaffold([string]$HomePath) {
         foreach ($p in ($Packs -split ",")) {
             $p = $p.Trim()
             if (-not $p) { continue }
+            if (Test-RetiredPack $p) {
+                Write-Warn2 "RETIRED_PACK: $p ignored"
+                continue
+            }
             if (($registryPacks.Count -gt 0) -and ($registryPacks -notcontains $p)) {
                 Write-Fail "Unknown pack '$p' (not in registry)."
                 return $false
@@ -421,7 +430,7 @@ function Invoke-Scaffold([string]$HomePath) {
     $autoharnessDir = Join-Path $WorkspaceRoot ".autoharness"
     $configPath = Join-Path $autoharnessDir "config.yaml"
 
-    $lines = @('schema_version: "1.0.0"', "preset: $Preset")
+    $lines = @('schema_version: "1.3.0"', "preset: $Preset")
     if ($selectedPacks.Count -gt 0) {
         $lines += "capability_packs:"
         foreach ($p in $selectedPacks) { $lines += "  - $p" }

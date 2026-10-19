@@ -91,7 +91,6 @@ Acquire file locks ONLY when:
 
 * Multiple agents are active on the same branch and policy permits that shared-branch activity
 * The operator has explicitly enabled concurrent-access mode
-* The workspace uses the `agent-intercom` pack with multi-agent sessions
 * A human operator is known to be editing concurrently
 
 In single-agent, single-branch, single-worktree workflows (the common case),
@@ -209,10 +208,13 @@ Skip this step if the `backlogit` capability pack is not installed.
 
 ### Step 0: Establish Operator Visibility
 
-When the `agent-intercom` capability pack is installed, begin by following
-`.github/instructions/agent-intercom.instructions.md`: establish heartbeat / ping visibility,
-broadcast the start of the staging session, and use the intercom clarification / wait flow
-instead of silently stalling if operator input is needed.
+When blocked on operator intent, approval, or a handoff decision, state the question, the
+options, and the decision required in the session output and STOP until the operator replies —
+never proceed on an assumed answer and never stall silently.
+
+Destructive operations (archive, delete, terminal-state moves, file or directory removal) follow
+the workspace's native approval path: the `strict-safety` classification when that capability
+pack is installed, otherwise local confirmation per the AGENTS.md safe-operations rules.
 
 When the `agent-engram` capability pack is installed, also follow
 `.github/instructions/agent-engram.instructions.md`: prefer indexed search for related modules,
@@ -269,9 +271,12 @@ for Ship to claim.
    deferred-scope-expansion entry, this traceability duty is extended: carry the entry's
    source refs (originating PR number, review-thread ID, and task/feature/shipment IDs) into
    the deliberation artifact as well, not only the stash ID.
-6. When the `agent-intercom` and `backlogit` capability packs are both installed, make any
-   remote classification broadcast self-contained: include each entry's ID, priority, kind,
-   and one-line summary, and the recommended routing so the operator can confirm remotely.
+6. **Operator Choice Presentation Rule**: when presenting stash, queue, backlog, or triage
+   choices to the operator, make the session-output message self-contained because the
+   operator may read it asynchronously: include each entry's ID, priority, kind or type, and
+   one-line summary, the recommended ordering or routing, and the exact choice requested;
+   state explicitly that operator selection or confirmation is awaited, and wait for it before
+   proceeding. Prefer self-contained messages over "see chat above" summaries.
 
 #### Deferred-Expansion Triage Obligations (P-021 C5/C6)
 
@@ -394,9 +399,10 @@ grouping analysis pre-deliberation.
    A grouping of one is valid when a high-priority task has no natural peer. Do not force
    artificial groupings.
 
-3. **Present groupings to the operator** and request selection. When `agent-intercom` is
-   installed, broadcast a self-contained grouping proposal so the operator can select from
-   the channel without reading the chat transcript.
+3. **Present groupings to the operator** and request selection. Make the proposal a
+   self-contained session-output message per the Operator Choice Presentation Rule
+   (Step 1, item 6) — each proposed grouping's covering feature title, entry IDs, estimated
+   scope, and rationale — so the operator can select without reading the chat transcript.
 
 4. **Await operator selection** before proceeding. Once a grouping is selected:
    * Treat the selected entries as a single unit of work for this session.
@@ -465,7 +471,7 @@ deliberation artifact exists.
 If both `skip_plan: true` AND `skip_review: true`, require the operator to also
 set `force_harvest_no_gates: true`. Without this explicit override:
 
-* Halt and broadcast a P-005 violation: "All planning and review gates bypassed
+* Halt and report a P-005 violation in the session output: "All planning and review gates bypassed
   without explicit force_harvest_no_gates override."
 * Do not proceed to harvest.
 
@@ -535,7 +541,7 @@ Before creating any backlog entries, validate the decomposition chain:
 4. Task candidates reference parent sub-epic
 5. Every task includes at least one acceptance criterion
 
-If any check fails, halt with a P-003 violation broadcast.
+If any check fails, halt and report a P-003 violation in the session output.
 
 #### Step 5.1: Create Top-Level Release Unit
 
@@ -650,7 +656,6 @@ directing the operator to Ship without a shipment ID is a **P-005 policy violati
      creation, an empty `items` list is acceptable; otherwise prefer `[feature_id]` so the
      create call is fully specified and parent-first ordering is satisfied at creation time.
    * Record the resulting `shipment_id` as the session output token.
-   * Broadcast `[STAGE] Created shipment: {shipment_id} — "{title}"`.
 
 3. **Scope guard (mandatory first step)**: Record the exact list of IDs returned by the
    immediately preceding harvest invocation as `harvest_ids`. This is the canonical scope
@@ -674,10 +679,6 @@ directing the operator to Ship without a shipment ID is a **P-005 policy violati
 6. **Record `shipment_id`** in the session memory checkpoint and the session summary as the
    authoritative handoff to the Ship agent.
 
-When the `agent-intercom` capability pack is installed, broadcast:
-* `[STAGE] Assembling shipment for: {feature_id} "{feature_title}"`
-* `[STAGE] Shipment ready: {shipment_id} — {feature_id} + {task_count} tasks → hand off to Ship`
-
 **Guardrail**: Do not assemble a shipment if the harvest step produced no items or produced
 items with unresolved P-003 violations. Halt and report before creating an empty shipment.
 
@@ -698,8 +699,6 @@ triaged, routed through deliberation/planning, and promoted to backlog items.
      `{{BACKLOG_DIRECTORY}}/queue/.stash.md` with the promotion target ID.
 3. Do NOT archive stash entries that were deferred (not selected for this session) — they
    remain active for future triage.
-4. When the `agent-intercom` capability pack is installed, broadcast
-   `[STAGE] Archived {count} consumed stash entries`.
 
 This step prevents stale entry accumulation across sessions. Each consumed entry carries
 a forward reference to the backlog item it became, preserving traceability.
@@ -726,9 +725,6 @@ Present the session summary:
 * Dependency graph and suggested execution order
 * Deferred stash entries and the reason each was not processed this session
 * Estimated total effort based on task count × 2 hours
-
-When the `agent-intercom` capability pack is installed, broadcast the gate outcome and summary
-milestones.
 
 When the `continuous-learning` capability pack is installed, invoke the **observe** skill for any
 recurring triage patterns, review findings, or planning decisions that appeared during this staging
@@ -781,40 +777,6 @@ entry point differs.
 * Stage does not hand off a bare list of tasks to Ship — it hands off a `shipment_id`.
 * The shipment ID must point to a valid, queryable shipment artifact with explicit item
   membership before Stage ends the session.
-
-## Remote Operator Integration (agent-intercom)
-
-When the `agent-intercom` capability pack is installed:
-
-| When | Tool | Level | Message |
-|---|---|---|---|
-| Session start | `broadcast` | `info` | `[STAGE] Starting stash-to-backlog workflow` |
-| Triage start | `broadcast` | `info` | `[STAGE] Classifying stash entries: {count} active` |
-| Entry classified | `broadcast` | `info` | `[STAGE] {stash_id}: {shape} — {one_line_summary}` |
-| Grouping proposed | `broadcast` | `info` | `[STAGE] Grouping options: {option_count} proposals. Awaiting operator selection.` |
-| Grouping selected | `broadcast` | `info` | `[STAGE] Group selected: "{covering_feature_title}" — {entry_count} entries` |
-| Deliberation handoff | `broadcast` | `info` | `[STAGE] Deliberating: {subject}` |
-| Spike handoff | `broadcast` | `info` | `[STAGE] Routing to spike skill: {stash_id}` |
-| Gate bypass blocked | `broadcast` | `warning` | `[STAGE] Gate bypass detected without force_harvest_no_gates override` |
-| Gate bypass override | `broadcast` | `warning` | `[STAGE] All planning and review gates bypassed with force_harvest_no_gates` |
-| Plan written | `broadcast` | `success` | `[STAGE] Plan written: {plan_path}` |
-| Plan hardened | `broadcast` | `info` | `[STAGE] Plan hardened: {plan_path}` |
-| Review gate | `broadcast` | `info` | `[STAGE] Review gate: {PASS\|ADVISORY\|FAIL}` |
-| Harvest start | `broadcast` | `info` | `[STAGE] Invoking harvest skill: {plan_path}` |
-| Harvest complete | `broadcast` | `success` | `[STAGE] Backlog ready: {feature_count} features, {task_count} tasks, {subtask_count} subtasks` |
-| Shipment assembling | `broadcast` | `info` | `[STAGE] Assembling shipment for: {feature_id} "{feature_title}"` |
-| Shipment ready | `broadcast` | `success` | `[STAGE] Shipment ready: {shipment_id} — {feature_id} + {task_count} tasks → hand off to Ship` |
-| Stash archived | `broadcast` | `info` | `[STAGE] Archived {count} consumed stash entries` |
-| Session complete | `broadcast` | `success` | `[STAGE] Complete: {shipment_count} shipment(s) ready, {deferred_count} entries deferred` |
-
-Grouping proposal broadcasts MUST include each proposed grouping's covering feature title,
-entry IDs, estimated scope, and rationale so the operator can select a grouping from the
-intercom channel alone without reading the chat transcript.
-
-When the `agent-intercom` and `backlogit` capability packs are both installed,
-the grouping-proposal and selection-confirmation broadcasts are a hardening requirement, not
-optional narration. Include enough detail for a remote operator to choose without reopening
-the chat transcript.
 
 ## Session Continuity (mandatory)
 
