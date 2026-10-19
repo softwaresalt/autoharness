@@ -34,7 +34,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "1.1.0",
+      "const": "1.2.0",
       "description": "Schema version for forward compatibility"
     },
     "preset": {
@@ -333,6 +333,7 @@
     },
     "model_routing": {
       "type": "object",
+      "additionalProperties": false,
       "description": "Model preferences for each routing tier and review-specific routes. Agent definitions use tier labels; this maps tiers and reviewer roles to environment-agnostic model identifiers and per-route configuration.",
       "not": {
         "description": "F02FD596/H2: the legacy flat model_routing.escalation and any nested <role>.escalation (stage.escalation / ship.escalation) MUST NOT both declare a non-empty field. This is ambiguous configuration -- fail closed at schema validation rather than let the loader silently pick a winner. See docs/decisions/2026-08-07-model-routing-hierarchy-dynamic-reload-deliberation.md.",
@@ -846,6 +847,78 @@
                 "gemini-2.5-pro",
                 ""
               ]
+            }
+          }
+        },
+        "routes": {
+          "type": "object",
+          "description": "208-F: named route catalog. Each entry is a route delta against a base tier: 'tier' is required and the optional model_family, model_provider, reasoning_effort, and context_tier fields override that tier's resolved values. Route names must not equal tier1, tier2, tier3, or default. Entries are referenced by name from model_routing.bindings.",
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_-]{0,47}$",
+            "not": {
+              "enum": ["tier1", "tier2", "tier3", "default"]
+            }
+          },
+          "additionalProperties": {
+            "type": "object",
+            "description": "Route delta: a base tier plus optional field overrides.",
+            "required": ["tier"],
+            "additionalProperties": false,
+            "properties": {
+              "tier": {
+                "type": "string",
+                "enum": ["tier1", "tier2", "tier3"],
+                "description": "Base tier this route resolves against before applying its overrides."
+              },
+              "model_family": {
+                "type": "string",
+                "description": "Optional model family override for this route."
+              },
+              "model_provider": {
+                "type": "string",
+                "description": "Optional model provider override for this route."
+              },
+              "reasoning_effort": {
+                "type": "string",
+                "description": "Optional reasoning effort override for this route."
+              },
+              "context_tier": {
+                "$ref": "#/definitions/contextTier"
+              }
+            }
+          }
+        },
+        "bindings": {
+          "type": "object",
+          "description": "208-F: bindings of routing sites to catalog routes. Keys use the agent:<name> shape; each value names a route from model_routing.routes and may carry per-binding field overrides.",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^agent:[a-z0-9][a-z0-9_-]*$": {
+              "type": "object",
+              "description": "Binding delta: a catalog route name plus optional field overrides.",
+              "required": ["route"],
+              "additionalProperties": false,
+              "properties": {
+                "route": {
+                  "type": "string",
+                  "description": "Name of a route declared under model_routing.routes, or a bare tier tier1-tier3"
+                },
+                "model_family": {
+                  "type": "string",
+                  "description": "Optional model family override for this binding."
+                },
+                "model_provider": {
+                  "type": "string",
+                  "description": "Optional model provider override for this binding."
+                },
+                "reasoning_effort": {
+                  "type": "string",
+                  "description": "Optional reasoning effort override for this binding."
+                },
+                "context_tier": {
+                  "$ref": "#/definitions/contextTier"
+                }
+              }
             }
           }
         }

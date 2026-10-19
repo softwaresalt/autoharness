@@ -76,7 +76,13 @@ If the config was modified since the last installation (compare against the mani
 
 #### Step 0b.1: Config Schema Validation
 
-Validate the loaded config against `{autoharness_home}/schemas/harness-config.schema.json`. For each discrepancy, classify as:
+Validate the loaded config against the schema version that matches the document's own `schema_version`, not against the root schema alone:
+
+* Read `schema_version` from the config. When `{autoharness_home}/schemas/harness-config/<schema_version>.schema.json` exists, validate against that mirror (the selection `resolve_contract_schema_path` makes).
+* When `schema_version` is absent, unknown to the contract, or has no mirror file, validate against the current mirror and report the version as a contract finding (see Step 0b.2) instead of declaring the file invalid on the root alone.
+* The root `schemas/harness-config.schema.json` tracks only the current version, so it is not the validation target for an older-version config.
+
+For each discrepancy, classify as:
 
 | Discrepancy | Classification | Action |
 |---|---|---|
@@ -504,6 +510,26 @@ the Phase 0b operator configuration: either the `ship` key is absent, or its
   and it never touches the `stage`, `orchestrator`, `escalation`, or tier
   routes.
 
+#### Step 1.5e: Model Routing Route Drift and Catalog Proposals
+
+Tune reads route values from the workspace config (`.autoharness/config.yaml`) and from the verifier report at runtime; this step adds no install-time placeholder. Every proposal below is **proposal only**: tune never auto-applies it, and `auto_apply` does not change that.
+
+**(a) Config validation.** Step 0b.1 validates the loaded config against the schema version that matches its own `schema_version` before this step reads `model_routing`. A config that failed that validation is not interpreted here.
+
+**(b) Route-frontmatter drift.** Read the `subagent_route_drift` targeted check from the `verify-workspace` report (Step 0b.2): `drifted` lists the agents whose installed `model_family`, `model_provider`, `reasoning_effort`, or `context_tier` differ from the route the renderer writes, and `drift` carries each agent's `expected` and `installed` values. The report also carries one `contract: model-routing` entry with `action: refresh-route-frontmatter` in `migration_proposals[]` per drifted agent; promote each directly rather than re-deriving the expected route. Propose one `refresh-route-frontmatter` update per drifted agent, naming the agent path, the changed fields, and the expected versus installed values.
+
+* Workspace-authored agents are advisory: the proposal is reported for the operator and never rewritten automatically (037-DL). Managed agents are still never rewritten without an operator accepting the proposal.
+* A site that verify reports as `ROUTING_BINDING_UNRESOLVED_SITE` or `ROUTING_SITE_DEFAULT_UNRESOLVED` gets no `refresh-route-frontmatter` proposal, because nothing can render it. Tune reports the reason verify gives for that site and the operator's options: repair the template's tier placeholder so the default tier can be established, or (for a bound site) remove the binding.
+* An unrenderable site is never guessed, skipped silently, or demoted to workspace-authored.
+
+**(c) Catalog extraction.** When three or more route blocks are field-identical, propose extracting a catalog entry under `model_routing.routes`. The candidates are the entries of `model_routing.bindings`: bindings that name the same `route` and carry the same per-field overrides (`model_family`, `model_provider`, `reasoning_effort`, `context_tier`) are field-identical. The proposal names the affected `agent:<id>` sites and a suggested route name that is not `tier1`, `tier2`, `tier3`, or `default`, and shows the resulting tier-delta route entry (a `tier` plus only the overrides) with each binding reduced to a `route` reference. Catalog entries are tier deltas and carry no YAML anchors, aliases, or merge keys. Fewer than three identical blocks produce no proposal. The role routes (`orchestrator`, `stage`, `ship`), the escalation blocks, and the tier blocks are never extraction candidates, because bindings address agents only.
+
+**(d) Schema version bump.** When the loaded config declares `schema_version: "1.1.0"`, propose the `1.1.0` to `1.2.0` `schema_version` bump, preferably by promoting the `upgrade-config-contract-1.1.0-to-1.2.0` entry from `migration_proposals[]` (Step 0b.2). The bump is additive and requires an operator-approved config edit with a backup; it is most relevant once the operator adopts `model_routing.routes` or `model_routing.bindings`, and a config at `1.2.0` closes `model_routing` to its known keys.
+
+**Ship route preservation.** The Step 1.5d rule is unchanged. An explicitly declared Ship route (a non-empty `model_routing.ship.model_family`) is a pinned operator override: this step never edits `model_routing.ship` or any other pipeline route, never proposes a catalog entry from it, and a `refresh-route-frontmatter` proposal for an agent never alters the Ship route.
+
+**Catalog and bindings preservation.** Any config write tune makes (an accepted proposal or a re-render) keeps the operator-authored `model_routing.routes` and `model_routing.bindings` verbatim, never regenerating, emptying, or reordering them. When the retained `schema_version` is below `1.2.0`, a key the config does not declare stays absent: tune never adds the template's empty `routes: {}` / `bindings: {}` defaults to such a config, because `routing_inert_keys` flags key presence below `1.2.0`. The empty defaults belong only to a fresh install or a config written at `1.2.0` or later.
+
 #### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 
 Compare the installed preset, primary stack pack, additive stack packs, install
@@ -871,6 +897,18 @@ approval (INV-B1) remain review-gated and are never auto-applied.
 Map a Step 1.5d Ship route default proposal to `priority: P2` /
 `category: growth`, and mark it with `source: ship-route-default`. It is
 informational and opt-in, and it is never auto-applied.
+
+Map `verify-workspace` `contract: model-routing` proposals with
+`action: refresh-route-frontmatter` (Step 1.5e) the same way: promote them
+directly, mark them with `source: route-drift`, map verifier `severity: P1`
+(managed agent) to tune `priority: P1` / `category: degrading` and verifier
+`severity: P2` or `manual_review: true` (workspace-authored agent) to
+`priority: P2` / `category: cosmetic` as advisory, and preserve `path`,
+`changed_fields`, and `evidence` (`expected` and `installed`). Map a Step 1.5e
+catalog extraction proposal to `priority: P2` / `category: growth` and mark it
+with `source: route-catalog`; map the `1.1.0` to `1.2.0` bump to the existing
+`source: schema-contract` mapping. None of these is auto-applied, and a site
+that verify reports as unrenderable receives no `route-drift` proposal.
 
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can

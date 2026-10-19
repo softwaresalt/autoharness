@@ -1,0 +1,543 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Language-neutral vectors for the tier-delta route catalog and subagent site bindings (BF66F08B / 040-DL D2-D4). Each vector resolves one site; `sites` is the registry passed in (never discovered); `branch` is the explicit precedence branch the resolver must take.",
+  "vectors": [
+    {
+      "id": "unbound-inherits-every-field-from-site-default-tier",
+      "description": "Contrast case: no binding, so the site default tier (tier2) supplies every field.",
+      "branch": "unbound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"}
+      }},
+      "expected": {
+        "model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context",
+        "tier_class": "tier2", "errors": [],
+        "resolution_chain": ["tier2.model_family", "tier2.model_provider", "tier2.reasoning_effort", "tier2.context_tier"]
+      }
+    },
+    {
+      "id": "bound-bare-tier-keeps-unset-fields-empty",
+      "description": "Bound to bare tier1 (family only): provider and effort stay empty and context_tier is default; none inherited from the site default tier2.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "bindings": {"agent:x": {"route": "tier1"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "", "context_tier": "default",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "default.context_tier"]
+      }
+    },
+    {
+      "id": "bound-catalog-route-sets-only-effort",
+      "description": "Bound to a catalog route (tier1, only reasoning_effort low): provider stays empty, effort is low, context_tier is default.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {"lowfx": {"tier": "tier1", "reasoning_effort": "low"}},
+        "bindings": {"agent:x": {"route": "lowfx"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "low", "context_tier": "default",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "routes.lowfx.reasoning_effort", "default.context_tier"]
+      }
+    },
+    {
+      "id": "bound-context-tier-override-only",
+      "description": "Bound to bare tier1 with only a context_tier override: that field comes from the override; the others still do not fall to tier2.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "bindings": {"agent:x": {"route": "tier1", "context_tier": "long_context"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "", "context_tier": "long_context",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "bindings.agent:x.context_tier"]
+      }
+    },
+    {
+      "id": "bound-bare-tier-with-field-overrides",
+      "description": "A binding's per-field overrides win over the tier's own values.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "bindings": {"agent:x": {"route": "tier3", "reasoning_effort": "low", "model_provider": "p-over"}}
+      }},
+      "expected": {
+        "model_family": "fam-t3", "model_provider": "p-over", "reasoning_effort": "low", "context_tier": "default",
+        "tier_class": "tier3", "errors": [],
+        "resolution_chain": ["tier3.model_family", "bindings.agent:x.model_provider", "bindings.agent:x.reasoning_effort", "default.context_tier"]
+      }
+    },
+    {
+      "id": "bound-override-beats-catalog-delta",
+      "description": "Binding override, then the route's catalog delta, then the route's tier: the override wins over the delta, the delta over the tier.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1", "reasoning_effort": "minimal"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "routes": {"r": {"tier": "tier1", "reasoning_effort": "low", "model_provider": "p-delta"}},
+        "bindings": {"agent:x": {"route": "r", "reasoning_effort": "xhigh"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "p-delta", "reasoning_effort": "xhigh", "context_tier": "default",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "routes.r.model_provider", "bindings.agent:x.reasoning_effort", "default.context_tier"]
+      }
+    },
+    {
+      "id": "bound-catalog-route-without-provider-is-valid",
+      "description": "A catalog route that declares no model_provider is valid: the provider is the runtime default (empty).",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2"},
+        "routes": {"plain": {"tier": "tier1"}},
+        "bindings": {"agent:x": {"route": "plain"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "", "context_tier": "default",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "default.context_tier"]
+      }
+    },
+    {
+      "id": "context-tier-delta-beats-tier",
+      "description": "context_tier: the route's catalog delta (default) wins over the route tier's long_context.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier1", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "context_tier": "long_context"},
+        "routes": {"r": {"tier": "tier2", "context_tier": "default"}},
+        "bindings": {"agent:x": {"route": "r"}}
+      }},
+      "expected": {
+        "model_family": "fam-t2", "model_provider": "", "reasoning_effort": "", "context_tier": "default",
+        "tier_class": "tier2", "errors": [],
+        "resolution_chain": ["tier2.model_family", "routes.r.context_tier"]
+      }
+    },
+    {
+      "id": "context-tier-override-beats-delta",
+      "description": "context_tier: the binding override (long_context) wins over the route's catalog delta (default).",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier1", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2"},
+        "routes": {"r": {"tier": "tier2", "context_tier": "default"}},
+        "bindings": {"agent:x": {"route": "r", "context_tier": "long_context"}}
+      }},
+      "expected": {
+        "model_family": "fam-t2", "model_provider": "", "reasoning_effort": "", "context_tier": "long_context",
+        "tier_class": "tier2", "errors": [],
+        "resolution_chain": ["tier2.model_family", "bindings.agent:x.context_tier"]
+      }
+    },
+    {
+      "id": "context-tier-from-route-tier",
+      "description": "context_tier: with no override and no delta, the route's tier supplies it.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier1", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "context_tier": "long_context"},
+        "bindings": {"agent:x": {"route": "tier2"}}
+      }},
+      "expected": {
+        "model_family": "fam-t2", "model_provider": "", "reasoning_effort": "", "context_tier": "long_context",
+        "tier_class": "tier2", "errors": [],
+        "resolution_chain": ["tier2.model_family", "tier2.context_tier"]
+      }
+    },
+    {
+      "id": "bound-workspace-authored-site",
+      "description": "A workspace-authored site has no default tier but can still be bound: the binding's route alone resolves it.",
+      "branch": "bound",
+      "site": "agent:custom",
+      "sites": {"custom": {"default_tier": null, "managed": false}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "bindings": {"agent:custom": {"route": "tier1"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "", "context_tier": "default",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "default.context_tier"]
+      }
+    },
+    {
+      "id": "bound-route-without-model-family-does-not-fall-through",
+      "description": "A bound route that yields no model_family is ROUTING_UNRESOLVED even though the site default tier (tier2) declares one.",
+      "branch": "bound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2"},
+        "bindings": {"agent:x": {"route": "tier3"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "default",
+        "tier_class": "tier3", "errors": ["ROUTING_UNRESOLVED: model_family"],
+        "resolution_chain": ["default.context_tier"]
+      }
+    },
+    {
+      "id": "unbound-workspace-authored-site-has-nothing-to-resolve",
+      "description": "An unbound site with no default tier cannot resolve a model_family.",
+      "branch": "unbound",
+      "site": "agent:custom",
+      "sites": {"custom": {"default_tier": null, "managed": false}},
+      "config": {"model_routing": {"tier2": {"model_family": "fam-t2"}}},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_UNRESOLVED: model_family"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "unbound-managed-site-with-unresolved-default-tier",
+      "description": "A managed site whose default tier could not be established (default_tier null) is the same as no default tier.",
+      "branch": "unbound",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": null, "managed": true}},
+      "config": {"model_routing": {"tier2": {"model_family": "fam-t2"}}},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_UNRESOLVED: model_family"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "catalog-name-equal-to-a-tier",
+      "description": "A catalog route named like a tier is invalid (a binding to it would be ambiguous with the bare tier).",
+      "branch": "error",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "routes": {"tier1": {"tier": "tier2"}},
+        "bindings": {"agent:x": {"route": "tier1"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_CATALOG_INVALID: tier1: reserved route name"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "catalog-name-equal-to-default",
+      "description": "A catalog route named 'default' is invalid (it collides with the terminal default).",
+      "branch": "error",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "routes": {"default": {"tier": "tier1"}},
+        "bindings": {"agent:x": {"route": "default"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_CATALOG_INVALID: default: reserved route name"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "catalog-route-with-no-tier",
+      "description": "A catalog route must declare a tier.",
+      "branch": "error",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "routes": {"notier": {"reasoning_effort": "low"}},
+        "bindings": {"agent:x": {"route": "notier"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_CATALOG_INVALID: notier: missing tier"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "catalog-route-with-invalid-tier",
+      "description": "A catalog route's tier must be tier1, tier2, or tier3.",
+      "branch": "error",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "routes": {"badtier": {"tier": "tier9"}},
+        "bindings": {"agent:x": {"route": "badtier"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_CATALOG_INVALID: badtier: invalid tier"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "binding-to-unknown-route",
+      "description": "A binding that names neither a catalog route nor a tier is unresolved.",
+      "branch": "error",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier2": {"model_family": "fam-t2"},
+        "routes": {"known": {"tier": "tier1"}},
+        "bindings": {"agent:x": {"route": "nope"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_REF_UNRESOLVED: nope"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "binding-without-a-route",
+      "description": "A binding with no route is an unresolved reference (the binding's site key is named).",
+      "branch": "error",
+      "site": "agent:x",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier2": {"model_family": "fam-t2"},
+        "bindings": {"agent:x": {"reasoning_effort": "low"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_REF_UNRESOLVED: agent:x"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "binding-on-pipeline-agent-site",
+      "description": "A binding keyed agent:_stage is rejected: pipeline agents use their role blocks.",
+      "branch": "error",
+      "site": "agent:_stage",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "bindings": {"agent:_stage": {"route": "tier1"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_BINDING_ON_PIPELINE_SITE: agent:_stage"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "binding-on-pipeline-role-site",
+      "description": "Resolving a role whose name is also bound under bindings is rejected.",
+      "branch": "error",
+      "site": "ship",
+      "sites": {},
+      "config": {"model_routing": {
+        "tier2": {"model_family": "fam-t2"},
+        "bindings": {"ship": {"route": "tier2"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_BINDING_ON_PIPELINE_SITE: ship"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "unknown-agent-site",
+      "description": "An agent:<id> that is not in the passed registry is unknown, bound or not.",
+      "branch": "error",
+      "site": "agent:ghost",
+      "sites": {"x": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "bindings": {"agent:ghost": {"route": "tier1"}}
+      }},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_UNKNOWN_SITE: agent:ghost"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "agent-site-outside-the-grammar",
+      "description": "agent:<id> with an id outside ^[a-z0-9][a-z0-9_-]*$ is unknown even if registered by key.",
+      "branch": "error",
+      "site": "agent:Bad_Id",
+      "sites": {"Bad_Id": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {"tier2": {"model_family": "fam-t2"}}},
+      "expected": {
+        "model_family": "", "model_provider": "", "reasoning_effort": "", "context_tier": "",
+        "tier_class": null, "errors": ["ROUTING_UNKNOWN_SITE: agent:Bad_Id"],
+        "resolution_chain": []
+      }
+    },
+    {
+      "id": "baseline-profile-fast-is-bare-tier1",
+      "description": "Baseline profile claude-tier1-fast: plain tier1.",
+      "branch": "bound",
+      "site": "agent:fast",
+      "sites": {"fast": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {
+          "ingest": {"tier": "tier1", "context_tier": "long_context"},
+          "repair": {"tier": "tier2", "reasoning_effort": "high", "context_tier": "long_context"},
+          "architect": {"tier": "tier3", "model_provider": "openai", "model_family": "gpt-6.1-sol", "reasoning_effort": "high"}
+        },
+        "bindings": {"agent:fast": {"route": "tier1"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "", "context_tier": "default",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "default.context_tier"]
+      }
+    },
+    {
+      "id": "baseline-profile-ingest-is-a-delta",
+      "description": "Baseline profile claude-tier1-ingest: tier1 with long_context.",
+      "branch": "bound",
+      "site": "agent:ingest",
+      "sites": {"ingest": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {
+          "ingest": {"tier": "tier1", "context_tier": "long_context"},
+          "repair": {"tier": "tier2", "reasoning_effort": "high", "context_tier": "long_context"},
+          "architect": {"tier": "tier3", "model_provider": "openai", "model_family": "gpt-6.1-sol", "reasoning_effort": "high"}
+        },
+        "bindings": {"agent:ingest": {"route": "ingest"}}
+      }},
+      "expected": {
+        "model_family": "fam-t1", "model_provider": "", "reasoning_effort": "", "context_tier": "long_context",
+        "tier_class": "tier1", "errors": [],
+        "resolution_chain": ["tier1.model_family", "routes.ingest.context_tier"]
+      }
+    },
+    {
+      "id": "baseline-profile-standard-is-bare-tier2",
+      "description": "Baseline profile claude-tier2-standard: plain tier2.",
+      "branch": "bound",
+      "site": "agent:standard",
+      "sites": {"standard": {"default_tier": "tier1", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {
+          "ingest": {"tier": "tier1", "context_tier": "long_context"},
+          "repair": {"tier": "tier2", "reasoning_effort": "high", "context_tier": "long_context"},
+          "architect": {"tier": "tier3", "model_provider": "openai", "model_family": "gpt-6.1-sol", "reasoning_effort": "high"}
+        },
+        "bindings": {"agent:standard": {"route": "tier2"}}
+      }},
+      "expected": {
+        "model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context",
+        "tier_class": "tier2", "errors": [],
+        "resolution_chain": ["tier2.model_family", "tier2.model_provider", "tier2.reasoning_effort", "tier2.context_tier"]
+      }
+    },
+    {
+      "id": "baseline-profile-repair-is-a-delta",
+      "description": "Baseline profile claude-tier2-repair: tier2 with high effort and long_context.",
+      "branch": "bound",
+      "site": "agent:repair",
+      "sites": {"repair": {"default_tier": "tier1", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "medium"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {
+          "ingest": {"tier": "tier1", "context_tier": "long_context"},
+          "repair": {"tier": "tier2", "reasoning_effort": "high", "context_tier": "long_context"},
+          "architect": {"tier": "tier3", "model_provider": "openai", "model_family": "gpt-6.1-sol", "reasoning_effort": "high"}
+        },
+        "bindings": {"agent:repair": {"route": "repair"}}
+      }},
+      "expected": {
+        "model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context",
+        "tier_class": "tier2", "errors": [],
+        "resolution_chain": ["tier2.model_family", "tier2.model_provider", "routes.repair.reasoning_effort", "routes.repair.context_tier"]
+      }
+    },
+    {
+      "id": "baseline-profile-reviewer-is-bare-tier3",
+      "description": "Baseline profile claude-tier3-reviewer: plain tier3.",
+      "branch": "bound",
+      "site": "agent:reviewer",
+      "sites": {"reviewer": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {
+          "ingest": {"tier": "tier1", "context_tier": "long_context"},
+          "repair": {"tier": "tier2", "reasoning_effort": "high", "context_tier": "long_context"},
+          "architect": {"tier": "tier3", "model_provider": "openai", "model_family": "gpt-6.1-sol", "reasoning_effort": "high"}
+        },
+        "bindings": {"agent:reviewer": {"route": "tier3"}}
+      }},
+      "expected": {
+        "model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium", "context_tier": "default",
+        "tier_class": "tier3", "errors": [],
+        "resolution_chain": ["tier3.model_family", "tier3.model_provider", "tier3.reasoning_effort", "default.context_tier"]
+      }
+    },
+    {
+      "id": "baseline-profile-architect-is-a-delta",
+      "description": "Baseline profile gpt-tier3-architect: tier3 with provider, family, and effort overridden; tier3 itself stays the frontier default.",
+      "branch": "bound",
+      "site": "agent:architect",
+      "sites": {"architect": {"default_tier": "tier2", "managed": true}},
+      "config": {"model_routing": {
+        "tier1": {"model_family": "fam-t1"},
+        "tier2": {"model_family": "fam-t2", "model_provider": "prov-t2", "reasoning_effort": "high", "context_tier": "long_context"},
+        "tier3": {"model_family": "fam-t3", "model_provider": "prov-t3", "reasoning_effort": "medium"},
+        "routes": {
+          "ingest": {"tier": "tier1", "context_tier": "long_context"},
+          "repair": {"tier": "tier2", "reasoning_effort": "high", "context_tier": "long_context"},
+          "architect": {"tier": "tier3", "model_provider": "openai", "model_family": "gpt-6.1-sol", "reasoning_effort": "high"}
+        },
+        "bindings": {"agent:architect": {"route": "architect"}}
+      }},
+      "expected": {
+        "model_family": "gpt-6.1-sol", "model_provider": "openai", "reasoning_effort": "high", "context_tier": "default",
+        "tier_class": "tier3", "errors": [],
+        "resolution_chain": ["routes.architect.model_family", "routes.architect.model_provider", "routes.architect.reasoning_effort", "default.context_tier"]
+      }
+    }
+  ]
+}

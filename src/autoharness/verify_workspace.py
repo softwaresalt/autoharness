@@ -20,6 +20,8 @@ from jsonschema import Draft7Validator
 
 from autoharness import frontmatter_contract as fc
 from autoharness import model_routing as _mr
+from autoharness import model_routing_sites as _mrs
+from autoharness import model_routing_yaml
 from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
@@ -2762,6 +2764,127 @@ def _compose_artifact_variables(
     return composed
 
 
+_SITE_ROUTE_VARIABLE_SUFFIXES = (
+    ("model_family", "FAMILY"),
+    ("model_provider", "PROVIDER"),
+    ("reasoning_effort", "REASONING_EFFORT"),
+    ("context_tier", "CONTEXT_TIER"),
+)
+_AGENT_ARTIFACT_PREFIX = ".github/agents/"
+
+
+def _site_id_for_artifact(relative_path: str) -> str | None:
+    """215-S B6a: the `agent:<id>` site id of an installed agent artifact (the file stem of
+    `.github/agents/**/<id>.agent.md`), or None for any other artifact and for the pipeline agents."""
+    rel = _fc_normalize_relative(relative_path)
+    if not rel.startswith(_AGENT_ARTIFACT_PREFIX) or not rel.endswith(_mrs.AGENT_FILE_SUFFIX):
+        return None
+    site_id = rel.rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)]
+    if not site_id or site_id in _mrs.PIPELINE_AGENT_IDS:
+        return None
+    return site_id
+
+
+def _site_tier_variable_names(default_tier: str) -> dict[str, str]:
+    """The four `TIER_<N>_*` variable names a managed site's template renders, keyed by route
+    field. The only place a site's tier variable names are built."""
+    number = int(default_tier[len("tier") :])
+    return {field: f"TIER_{number}_{suffix}" for field, suffix in _SITE_ROUTE_VARIABLE_SUFFIXES}
+
+
+def _bound_site_route(
+    model_routing: dict[str, Any], site_id: Any, site_registry: Any
+) -> tuple[_mr.SiteSpec, _mr.ResolvedRoute] | None:
+    """The registered spec and the pure resolver's route for a bound site whose binding resolves."""
+    if site_registry is None or not isinstance(site_id, str) or not isinstance(model_routing, dict):
+        return None
+    spec = site_registry.sites.get(site_id)
+    bindings = model_routing.get("bindings")
+    site = f"{_mr.AGENT_SITE_PREFIX}{site_id}"
+    if spec is None or not isinstance(bindings, dict) or site not in bindings:
+        return None
+    resolved = _mr.resolve_site({"model_routing": model_routing}, site, sites=site_registry.sites)
+    return None if resolved.errors else (spec, resolved)
+
+
+def _compose_site_route_variables(
+    base_variables: dict[str, str],
+    model_routing: dict[str, Any],
+    site_id: str | None,
+    site_registry: Any,
+    *,
+    config_authoritative: bool,
+    overrides: Any,
+) -> dict[str, str]:
+    """215-S B6a: the SITE overlay, the single shared composition of a subagent's route variables
+    (both render seams and the B7 drift expectation call it).
+
+    BOUND (the config binds `agent:<site_id>`, and the site is a managed site with a resolved
+    default tier N): a NEW map in which `TIER_<N>_{FAMILY,PROVIDER,REASONING_EFFORT,CONTEXT_TIER}`
+    carry the resolver's bound route, ALL FOUR assigned unconditionally, empty strings included
+    (skipping empties would let the agent's old template tier leak through), then each of those
+    four names that `overrides` sets to a valid value takes the override. Everything else (an
+    unbound or unregistered site, a pipeline artifact, a workspace-authored site, a managed site
+    with an unresolved default tier, a binding that does not resolve, a non-authoritative config)
+    returns `base_variables` itself, unchanged. `config_authoritative` has no default."""
+    if not config_authoritative:
+        return base_variables
+    bound = _bound_site_route(model_routing, site_id, site_registry)
+    if bound is None:
+        return base_variables
+    spec, resolved = bound
+    if not spec.managed or spec.default_tier is None:
+        return base_variables
+    names = _site_tier_variable_names(spec.default_tier)
+    composed = dict(base_variables)
+    for field, name in names.items():
+        composed[name] = str(getattr(resolved, field))
+    if isinstance(overrides, dict):
+        for name in names.values():
+            value = overrides.get(name)
+            if value is not None and _context_tier_override_error(name, value) is None:
+                composed[name] = str(value)
+    return composed
+
+
+def _expected_site_route(
+    base_variables: dict[str, str],
+    model_routing: dict[str, Any],
+    site_id: str | None,
+    site_registry: Any,
+    *,
+    config_authoritative: bool,
+    overrides: Any,
+) -> dict[str, str] | None:
+    """215-S B6a: the four expected frontmatter values of a registered site, read from the SAME
+    composed map the renderer uses for a managed site, and from the resolver output alone for a
+    bound workspace-authored site (no template, so no `TIER_<N>_*` variable an override could
+    name). None when there is no expectation to derive (unregistered or unbound authored site, an
+    unresolved default tier, a non-authoritative config for an authored site, an unresolvable binding)."""
+    spec = site_registry.sites.get(site_id) if site_registry is not None and isinstance(site_id, str) else None
+    if spec is None:
+        return None
+    if not spec.managed:
+        bound = _bound_site_route(model_routing, site_id, site_registry) if config_authoritative else None
+        if bound is None:
+            return None
+        return {field: str(getattr(bound[1], field)) for field in _mr.ROUTE_FIELDS}
+    if spec.default_tier is None:
+        return None
+    composed = _compose_site_route_variables(
+        base_variables,
+        model_routing,
+        site_id,
+        site_registry,
+        config_authoritative=config_authoritative,
+        overrides=overrides,
+    )
+    names = _site_tier_variable_names(spec.default_tier)
+    if any(name not in composed for name in names.values()):
+        return None
+    return {field: composed[name] for field, name in names.items()}
+
+
 def _route_family_variables(model_routing: dict[str, Any]) -> dict[str, str]:
     """194.006-T (C4b): the route family -- every variable returned by the
     tier, orchestrator, role, raw-escalation and escalation-prose derivers
@@ -2815,6 +2938,171 @@ def _add_context_tier_override_check(
         "ok": not errors,
         "errors": errors,
     }
+
+
+_CONFIG_REL_PATH = ".autoharness/config.yaml"
+_PIPELINE_SITE_NAMES = frozenset({"stage", "ship", "orchestrator"})
+
+
+def _build_verify_site_registry(
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: Any,
+    profile: Any,
+) -> tuple[_mrs.SiteRegistry | None, str | None]:
+    """215-S B6/B7: build the installed-site registry ONCE per verify run. The binding checks, both
+    render seams, and the route-drift check (B7, which reports without bindings as `info`) share it.
+    Returns (registry, build_error)."""
+    try:
+        return _mrs.build_site_registry(workspace_path, autoharness_home, manifest, profile), None
+    except Exception as exc:  # noqa: BLE001 - a registry failure is a failed check, never a crash
+        return None, f"{type(exc).__name__}: {exc}"
+
+
+def _routing_site_unknown_cause(agent_id: str, registry: _mrs.SiteRegistry) -> str:
+    for rel in registry.orphans:
+        if rel.rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)] == agent_id:
+            return f"manifest entry {rel} names a file that does not exist"
+    if agent_id in registry.conflicts:
+        return "duplicate site id: more than one installed agent file"
+    return ""
+
+
+def _routing_binding_errors(
+    model_routing_block: dict[str, Any],
+    bindings: dict[Any, Any],
+    registry: _mrs.SiteRegistry | None,
+) -> list[str]:
+    errors: list[str] = []
+    config = {"model_routing": model_routing_block}
+    sites = registry.sites if registry is not None else {}
+    for key in sorted(bindings, key=str):
+        site = str(key)
+        is_agent_site = site.startswith(_mr.AGENT_SITE_PREFIX)
+        agent_id = site[len(_mr.AGENT_SITE_PREFIX) :]
+        if site in _PIPELINE_SITE_NAMES or (is_agent_site and agent_id in _mrs.PIPELINE_AGENT_IDS):
+            errors.extend(_mr.resolve_site(config, site, sites=sites).errors)
+            continue
+        if not is_agent_site:
+            errors.append(f"ROUTING_UNKNOWN_SITE: {site}")
+            continue
+        if agent_id not in sites:
+            cause = _routing_site_unknown_cause(agent_id, registry) if registry is not None else ""
+            errors.append(f"ROUTING_UNKNOWN_SITE: {site}" + (f" ({cause})" if cause else ""))
+            continue
+        reason = registry.unresolved.get(agent_id) if registry is not None else None
+        if reason is not None:
+            errors.append(f"ROUTING_BINDING_UNRESOLVED_SITE: {agent_id}: {reason}")
+            continue
+        errors.extend(_mr.resolve_site(config, site, sites=sites).errors)
+    return errors
+
+
+def _routing_catalog_errors(
+    model_routing_block: dict[str, Any],
+    registry: _mrs.SiteRegistry | None,
+    registry_error: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if "routes" in model_routing_block:
+        routes = model_routing_block["routes"]
+        if not isinstance(routes, dict):
+            errors.append("ROUTING_CATALOG_INVALID: routes: not a mapping")
+        else:
+            # Each catalog entry is validated by the resolver itself, through a probe binding.
+            probe_site = {"probe": _mr.SiteSpec("probe", "tier1", True)}
+            for name in sorted(routes, key=str):
+                if not isinstance(name, str):
+                    errors.append(f"ROUTING_CATALOG_INVALID: {name}: route name is not a string")
+                    continue
+                probe = {"model_routing": {**model_routing_block, "bindings": {"agent:probe": {"route": name}}}}
+                result = _mr.resolve_site(probe, "agent:probe", sites=probe_site)
+                errors.extend(error for error in result.errors if error.startswith("ROUTING_CATALOG_INVALID"))
+    if "bindings" in model_routing_block:
+        bindings = model_routing_block["bindings"]
+        if not isinstance(bindings, dict):
+            errors.append("ROUTING_CATALOG_INVALID: bindings: not a mapping")
+        elif bindings and registry_error is not None:
+            errors.append(f"ROUTING_SITE_REGISTRY_UNAVAILABLE: {registry_error}")
+        elif bindings:
+            errors.extend(_routing_binding_errors(model_routing_block, bindings, registry))
+    return errors
+
+
+def _routing_advisory(kind: str, rule: str, message: str) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "path": _CONFIG_REL_PATH,
+        "rule": rule,
+        "severity": "warning",
+        "message": message,
+    }
+
+
+def _add_model_routing_catalog_checks(
+    report: dict[str, Any],
+    config: dict[str, Any],
+    config_path: Path,
+    site_registry: _mrs.SiteRegistry | None,
+    site_registry_error: str | None,
+) -> None:
+    """215-S B6 (208.008-T): existence-gated catalog, binding, site, inert-key, unknown-key and
+    anchor/alias checks. Registered only when the config declares a `model_routing` mapping.
+    Severity of the unknown-key and anchor checks follows the declared schema_version
+    (fail at 1.2.0 or unknown, advisory below), the same gate (040-DL D2, D11)."""
+    model_routing_block = config.get("model_routing") if isinstance(config, dict) else None
+    if not isinstance(model_routing_block, dict):
+        return
+    schema_version = config.get("schema_version")
+    # The shared A2a gate: one definition of "enforced from 1.2.0" for every routing check.
+    enforced = model_routing_yaml._enforced(schema_version)
+    checks = report["targeted_checks"]
+
+    errors = _routing_catalog_errors(model_routing_block, site_registry, site_registry_error)
+    checks["routing_catalog_integrity"] = {"ok": not errors, "errors": errors}
+
+    inert_errors: list[str] = []
+    if not enforced:
+        inert_errors = [
+            f"ROUTING_KEYS_REQUIRE_1_2_0: {key} is accepted and ignored under schema_version "
+            f"{schema_version}; set schema_version to 1.2.0 or remove it"
+            for key in ("routes", "bindings")
+            if key in model_routing_block
+        ]
+    checks["routing_inert_keys"] = {"ok": not inert_errors, "errors": inert_errors}
+
+    unknown = sorted(str(key) for key in model_routing_block if key not in _mr.MODEL_ROUTING_KNOWN_KEYS)
+    allowed = ", ".join(sorted(_mr.MODEL_ROUTING_KNOWN_KEYS))
+    unknown_messages = [
+        f"ROUTING_UNKNOWN_KEY: {key} is not a recognised model_routing key and would be accepted but ignored "
+        f"(allowed: {allowed})"
+        for key in unknown
+    ]
+    if enforced:
+        checks["routing_unknown_keys"] = {"ok": not unknown_messages, "errors": unknown_messages, "warnings": []}
+    else:
+        checks["routing_unknown_keys"] = {"ok": True, "errors": [], "warnings": unknown_messages}
+        report["warnings"].extend(
+            _routing_advisory("routing-unknown-key", f"ROUTING_UNKNOWN_KEY:{key}", message)
+            for key, message in zip(unknown, unknown_messages)
+        )
+
+    alias_errors: list[str] = []
+    alias_warnings: list[str] = []
+    try:
+        raw_text = config_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        alias_errors.append(f"CONFIG_UNREADABLE: {_CONFIG_REL_PATH}: {type(exc).__name__}")
+    else:
+        guard = model_routing_yaml.check_model_routing_yaml(raw_text, schema_version)
+        alias_errors.extend(guard.errors)
+        alias_warnings.extend(guard.warnings)
+        if guard.parse_error:
+            alias_errors.append(f"CONFIG_UNPARSEABLE: {guard.parse_error}")
+    checks["routing_anchor_alias_free"] = {"ok": not alias_errors, "errors": alias_errors, "warnings": alias_warnings}
+    report["warnings"].extend(
+        _routing_advisory("routing-anchor-unsupported", message, message) for message in alias_warnings
+    )
 
 
 def _route_variable_stale_warnings(
@@ -3781,6 +4069,7 @@ def _fc_rendered_candidate(
     *,
     config_authoritative: bool = True,
     overrides: Any = None,
+    site_registry: Any = None,
 ) -> dict[str, Any]:
     """Validate the rendered source candidate in installed mode (AS-F8, AN-F10).
 
@@ -3821,6 +4110,14 @@ def _fc_rendered_candidate(
                 variables,
                 model_routing,
                 _resolve_artifact_role(record["rel"]),
+                config_authoritative=config_authoritative,
+                overrides=overrides,
+            )
+            composed = _compose_site_route_variables(
+                composed,
+                model_routing,
+                _site_id_for_artifact(record["rel"]),
+                site_registry,
                 config_authoritative=config_authoritative,
                 overrides=overrides,
             )
@@ -3983,6 +4280,7 @@ def _add_frontmatter_conformity_check(
     *,
     config_authoritative: bool = True,
     overrides: Any = None,
+    site_registry: Any = None,
 ) -> None:
     """193-F B2a: agent and skill frontmatter conformity (P-013.4 / P-013.5).
 
@@ -4048,6 +4346,7 @@ def _add_frontmatter_conformity_check(
             model_routing if isinstance(model_routing, dict) else {},
             config_authoritative=config_authoritative,
             overrides=overrides,
+            site_registry=site_registry,
         )
         report.setdefault("migration_proposals", []).extend(_fc_build_proposals(record, candidate))
         if record["managed"]:
@@ -4074,6 +4373,232 @@ def _add_frontmatter_conformity_check(
         "info": info,
         "files": files,
     }
+
+
+# ---------------------------------------------------------------------------
+# 215-S B7 (208.009-T): installed subagent route drift
+# ---------------------------------------------------------------------------
+
+ROUTE_DRIFT_WARNING_KIND = "subagent-route-drift"
+CHECK_SUBAGENT_ROUTE_DRIFT = "subagent_route_drift"
+ROUTE_DRIFT_CONTRACT = "model-routing"
+ROUTE_DRIFT_ACTION = "refresh-route-frontmatter"
+_ROUTE_DRIFT_INFO_ID_LIMIT = 20
+
+
+def _route_drift_site_targets(
+    workspace_path: Path, autoharness_home: Path, profile: Any, manifest: Any, site_registry: Any
+) -> dict[str, dict[str, Any]]:
+    """The installed agent file of each registered site, keyed by site id (sorted, deterministic)."""
+    provenance = _fc_build_provenance_index(workspace_path, autoharness_home, manifest)
+    targets: dict[str, dict[str, Any]] = {}
+    for target in _fc_enumerate_targets(workspace_path, profile):
+        if target["kind"] != "agent":
+            continue
+        if _fc_is_link_or_reparse(target["path"]) or _fc_resolve_contained(workspace_path, target["path"]) is None:
+            continue  # the registry skips these too, so both views of the installed sites agree
+        site_id = target["rel"].rsplit("/", 1)[-1][: -len(_mrs.AGENT_FILE_SUFFIX)]
+        if site_id not in site_registry.sites or site_id in targets:
+            continue
+        if _fc_classify(target["rel"], provenance)["class"] == FC_CLASS_MANAGED_SOURCE:
+            continue
+        targets[site_id] = target
+    return targets
+
+
+def _installed_route(workspace_path: Path, target: dict[str, Any]) -> dict[str, Any] | None:
+    """The four installed route values (None when a key is absent); None when the file is not read."""
+    resolved = _fc_resolve_contained(workspace_path, target["path"])
+    if resolved is None:
+        return None
+    try:
+        data = fc.parse_frontmatter(_fc_read_bytes(resolved), fc.MODE_INSTALLED).data or {}
+    except Exception:  # noqa: BLE001 - an unreadable file is drift from the expectation, never a crash
+        data = {}
+    return {field: _json_safe_route_value(data.get(field)) for field, _ in _SITE_ROUTE_VARIABLE_SUFFIXES}
+
+
+def _json_safe_route_value(value: Any) -> str | None:
+    """None when absent, the string itself, else a type-tagged string: it can never equal a
+    rendered (string) value, so a non-string frontmatter value stays drift, and it serializes."""
+    if value is None or isinstance(value, str):
+        return value
+    return f"<{type(value).__name__}> {value}"
+
+
+def _bound_site_resolver_errors(model_routing: dict[str, Any], site_id: str, site_registry: Any) -> list[str]:
+    result = _mr.resolve_site(
+        {"model_routing": model_routing}, f"{_mr.AGENT_SITE_PREFIX}{site_id}", sites=site_registry.sites
+    )
+    return list(result.errors) or [f"ROUTING_UNRESOLVED: {_mr.AGENT_SITE_PREFIX}{site_id}"]
+
+
+def _route_drift_info(code: str, subject: str, items: list[str]) -> str:
+    shown = ", ".join(items[:_ROUTE_DRIFT_INFO_ID_LIMIT])
+    more = len(items) - _ROUTE_DRIFT_INFO_ID_LIMIT
+    return (
+        f"{code}: {len(items)} {subject} (non-blocking: no bindings declared): {shown}"
+        + (f", ... and {more} more" if more > 0 else "")
+    )
+
+
+def _route_drift_proposal(rel: str, managed: bool, expected: dict[str, str], installed: dict[str, Any]) -> dict[str, Any]:
+    fields = [field for field in expected if installed.get(field) != expected[field]]
+    return {
+        "contract": ROUTE_DRIFT_CONTRACT,
+        "path": rel,
+        "from_version": None,
+        "to_version": None,
+        "status": "stale-route",
+        "severity": "P1" if managed else "P2",
+        "changed_fields": fields,
+        "action": ROUTE_DRIFT_ACTION,
+        "manual_review": not managed,
+        "evidence": {"expected": dict(expected), "installed": dict(installed)},
+        "summary": f"{rel}: {ROUTE_DRIFT_ACTION} [{', '.join(fields)}]",
+    }
+
+
+def _add_subagent_route_drift_check(
+    report: dict[str, Any],
+    workspace_path: Path,
+    autoharness_home: Path,
+    manifest: Any,
+    profile: Any,
+    variables: dict[str, str],
+    model_routing: dict[str, Any],
+    *,
+    config_authoritative: bool,
+    overrides: Any,
+    site_registry: Any,
+    site_registry_error: str | None,
+) -> None:
+    """215-S B7: compare each registered site's installed route frontmatter with the route the
+    renderer writes for it, read through `_expected_site_route` (B6a), never from raw resolver
+    output. The opt-in is a non-empty `bindings` block: with it a drifting or default-unresolved
+    managed agent, a bound site the renderer cannot compose, and an unresolvable binding fail
+    closed; without it drift and unresolved defaults are non-blocking `info` lines. Workspace-
+    authored drift is one advisory warning. Every drift yields a `refresh-route-frontmatter`
+    proposal; a site nothing can render yields none. Writes nothing."""
+    bindings = model_routing.get("bindings") if config_authoritative else None
+    declares = isinstance(bindings, dict) and bool(bindings)
+    errors: list[str] = []
+    info: list[str] = []
+    compared: list[str] = []
+    skipped: list[str] = []
+    drift: dict[str, dict[str, Any]] = {}
+    unresolved: dict[str, str] = {}
+
+    def finish() -> None:
+        report["targeted_checks"][CHECK_SUBAGENT_ROUTE_DRIFT] = {
+            "ok": not errors,
+            "errors": errors,
+            "info": info,
+            "compared": compared,
+            "skipped": skipped,
+            "drifted": list(drift),
+            "drift": drift,
+            "unresolved": unresolved,
+        }
+
+    if site_registry is None:
+        if site_registry_error is not None:
+            message = f"ROUTING_SITE_REGISTRY_UNAVAILABLE: {site_registry_error}"
+            (errors if declares else info).append(message)
+            finish()
+        return
+    if not site_registry.sites:
+        return
+
+    plugin_agents, _ = _fc_load_plugin_agents(workspace_path, manifest)
+    for site_id, target in _route_drift_site_targets(workspace_path, autoharness_home, profile, manifest, site_registry).items():
+        rel = target["rel"]
+        spec = site_registry.sites[site_id]
+        reason = site_registry.unresolved.get(site_id) if spec.managed else None
+        bound = declares and f"{_mr.AGENT_SITE_PREFIX}{site_id}" in bindings
+        if fc.agent_profile_for(rel, plugin_agents) == fc.PROFILE_PLUGIN_GLOBAL:
+            skipped.append(site_id)
+            continue
+        if bound and reason is not None:
+            errors.append(f"ROUTING_BINDING_UNRESOLVED_SITE: {site_id}: {reason}")
+            unresolved[site_id] = reason
+            continue
+        if bound and _bound_site_route(model_routing, site_id, site_registry) is None:
+            errors.extend(_bound_site_resolver_errors(model_routing, site_id, site_registry))
+            continue
+        expected = None
+        if reason is None:
+            expected = _expected_site_route(
+                variables,
+                model_routing,
+                site_id,
+                site_registry,
+                config_authoritative=config_authoritative,
+                overrides=overrides,
+            )
+        if expected is None:
+            if spec.managed:
+                unresolved[site_id] = reason or "no-route-variables"
+            else:
+                skipped.append(site_id)
+            continue
+        installed = _installed_route(workspace_path, target)
+        if installed is None:
+            skipped.append(site_id)
+            continue
+        compared.append(site_id)
+        if all(installed[field] == expected[field] for field in expected):
+            continue
+        drift[site_id] = {
+            "path": rel,
+            "managed": spec.managed,
+            "expected": expected,
+            "installed": installed,
+        }
+        report.setdefault("migration_proposals", []).append(
+            _route_drift_proposal(rel, spec.managed, expected, installed)
+        )
+        if not spec.managed:
+            report["warnings"].append(
+                {
+                    "kind": ROUTE_DRIFT_WARNING_KIND,
+                    "path": rel,
+                    "rule": "SUBAGENT_ROUTE_DRIFT",
+                    "severity": "warning",
+                    "message": (
+                        f"workspace-authored agent {site_id} drifts from its bound route; advisory only, "
+                        "see migration proposals."
+                    ),
+                }
+            )
+        elif declares:
+            changed = [field for field in expected if installed[field] != expected[field]]
+            detail = "; ".join(f"{field} expected {expected[field]!r} got {installed[field]!r}" for field in changed)
+            errors.append(f"{rel}: SUBAGENT_ROUTE_DRIFT: {detail}")
+
+    blocking_unresolved = [site_id for site_id in unresolved if site_registry.sites[site_id].managed]
+    if declares:
+        errors.extend(
+            f"ROUTING_SITE_DEFAULT_UNRESOLVED: {site_id}: {unresolved[site_id]}"
+            for site_id in blocking_unresolved
+            if f"{_mr.AGENT_SITE_PREFIX}{site_id}" not in bindings
+        )
+    else:
+        if drift:
+            info.append(
+                _route_drift_info(
+                    "SUBAGENT_ROUTE_DRIFT", "installed subagent frontmatter route(s) differ from the rendered route", list(drift)
+                )
+            )
+        if blocking_unresolved:
+            info.append(
+                _route_drift_info(
+                    "ROUTING_SITE_DEFAULT_UNRESOLVED",
+                    "managed subagent(s) have no resolvable default tier",
+                    [f"{site_id} ({unresolved[site_id]})" for site_id in blocking_unresolved],
+                )
+            )
+    finish()
 
 
 _ORCHESTRATOR_DIRECTIVE_HEADING_RE = re.compile(r"^ {0,3}#{1,6}\s", re.MULTILINE)
@@ -5743,6 +6268,9 @@ def verify_workspace(
     if not isinstance(_model_routing_for_composition, dict):
         _model_routing_for_composition = {}
     _overrides_for_composition = config.get("overrides") if config_authoritative else None
+    _site_registry, _site_registry_error = _build_verify_site_registry(
+        workspace_path, autoharness_home, manifest, profile
+    )
     report["learning_signals"] = _mine_learning_signals(workspace_path, variables, config)
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
@@ -5899,6 +6427,14 @@ def verify_workspace(
                 config_authoritative=config_authoritative,
                 overrides=_overrides_for_composition,
             )
+            artifact_variables = _compose_site_route_variables(
+                artifact_variables,
+                _model_routing_for_composition,
+                _site_id_for_artifact(relative_path),
+                _site_registry,
+                config_authoritative=config_authoritative,
+                overrides=_overrides_for_composition,
+            )
             stage_path.write_text(_render_template(source_content, artifact_variables), encoding="utf-8")
             render_mode = "rendered"
         else:
@@ -5926,6 +6462,20 @@ def verify_workspace(
         model_routing=_model_routing_for_composition,
         config_authoritative=config_authoritative,
         overrides=_overrides_for_composition,
+        site_registry=_site_registry,
+    )
+    _add_subagent_route_drift_check(
+        report,
+        workspace_path,
+        autoharness_home,
+        manifest,
+        profile,
+        variables,
+        _model_routing_for_composition,
+        config_authoritative=config_authoritative,
+        overrides=_overrides_for_composition,
+        site_registry=_site_registry,
+        site_registry_error=_site_registry_error,
     )
 
     if profile_path.exists() and profile:
@@ -6152,6 +6702,10 @@ def verify_workspace(
         str(name).endswith("_CONTEXT_TIER") for name in _config_overrides
     ):
         _add_context_tier_override_check(report, "context_tier_overrides", config)
+
+    # 215-S B6: catalog, binding, site, inert-key, unknown-key and alias checks;
+    # existence-gated on a `model_routing` mapping.
+    _add_model_routing_catalog_checks(report, config, config_path, _site_registry, _site_registry_error)
 
     # P-013.6: escalation route resolution + same-route ESCALATION_DEGRADED
     # detection (106.007-T). Evaluated under the same opt-in gating as

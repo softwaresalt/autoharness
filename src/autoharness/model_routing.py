@@ -12,6 +12,7 @@ Rules reproduce the behavior pinned by
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -35,6 +36,28 @@ TIER_OWN_FAMILY_DEFAULT = MappingProxyType(
 _ESCALATION_ROUTE_FIELDS = ("model_family", "model_provider", "reasoning_effort")
 _SITES = ("stage", "ship", "orchestrator")
 _KINDS = ("route", "escalation")
+# The closed set of keys the resolver understands directly under `model_routing`.
+MODEL_ROUTING_KNOWN_KEYS = frozenset(
+    {
+        "tier1",
+        "tier2",
+        "tier3",
+        "orchestrator",
+        "stage",
+        "ship",
+        "escalation",
+        "anchor_review",
+        "alt_review",
+        "alt_doc_review",
+        "routes",
+        "bindings",
+    }
+)
+AGENT_SITE_PREFIX = "agent:"
+_AGENT_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+_PIPELINE_AGENT_IDS = {f"_{role}": role for role in _SITES}
+_TIER_KEYS = ("tier1", "tier2", "tier3")
+_RESERVED_ROUTE_NAMES = (*_TIER_KEYS, "default")
 
 
 def _nonblank(value: Any) -> bool:
@@ -341,19 +364,137 @@ def _resolve_escalation(
     return _finish(role, "escalation", values, ESCALATION_FALLBACK_TIER, chain, degraded, [], source)
 
 
+@dataclass(frozen=True)
+class SiteSpec:
+    """One registered `agent:<id>` site: its template default tier and whether it is managed.
+
+    `default_tier` is the `tier<N>` key whose variables the agent's template renders,
+    or None for a workspace-authored site or a managed site whose tier is unresolved.
+    """
+
+    site: str
+    default_tier: str | None
+    managed: bool
+
+
+def _pipeline_name(site: str) -> str | None:
+    if site in _SITES:
+        return site
+    if site.startswith(AGENT_SITE_PREFIX):
+        return _PIPELINE_AGENT_IDS.get(site[len(AGENT_SITE_PREFIX) :])
+    return None
+
+
+def _pipeline_binding_error(model_routing: Mapping[str, Any], site: str) -> str | None:
+    name = _pipeline_name(site)
+    if name is None:
+        return None
+    bindings = _mapping(model_routing.get("bindings"))
+    if name in bindings or f"{AGENT_SITE_PREFIX}_{name}" in bindings:
+        return f"ROUTING_BINDING_ON_PIPELINE_SITE: {site}"
+    return None
+
+
+def _resolve_route_ref(
+    model_routing: Mapping[str, Any], name: str
+) -> tuple[tuple[Mapping[str, Any], str, str | None] | None, str | None]:
+    """A binding's route as (catalog delta, tier key, delta label), or an error string."""
+    routes = _mapping(model_routing.get("routes"))
+    if name in _RESERVED_ROUTE_NAMES and name in routes:
+        return None, f"ROUTING_CATALOG_INVALID: {name}: reserved route name"
+    if name in _TIER_KEYS:
+        return ({}, name, None), None
+    if name not in routes:
+        return None, f"ROUTING_REF_UNRESOLVED: {name}"
+    entry = routes[name]
+    if not isinstance(entry, Mapping):
+        return None, f"ROUTING_CATALOG_INVALID: {name}: not a mapping"
+    tier = entry.get("tier")
+    if not _nonblank(tier):
+        return None, f"ROUTING_CATALOG_INVALID: {name}: missing tier"
+    if tier not in _TIER_KEYS:
+        return None, f"ROUTING_CATALOG_INVALID: {name}: invalid tier"
+    return (entry, tier, f"routes.{name}"), None
+
+
+def _resolve_bound_agent(model_routing: Mapping[str, Any], site: str, binding: Any) -> ResolvedRoute:
+    # Bound branch: the binding's route is the whole base; site.default_tier is never read.
+    name = binding.get("route") if isinstance(binding, Mapping) else None
+    if not _nonblank(name):
+        return _error_route(site, "route", f"ROUTING_REF_UNRESOLVED: {site}")
+    ref, error = _resolve_route_ref(model_routing, name)
+    if ref is None:
+        return _error_route(site, "route", error or "")
+    delta, tier_key, delta_label = ref
+    tier = model_routing.get(tier_key)
+    layers = ((binding, f"bindings.{site}"), (delta, delta_label))
+    values: dict[str, str] = {}
+    chain: list[str] = []
+    for field in ROUTE_FIELDS:
+        value: Any = None
+        label: str | None = None
+        for layer, layer_label in layers:
+            if layer_label is not None and _nonblank(layer.get(field)):
+                value, label = layer[field], f"{layer_label}.{field}"
+                break
+        else:
+            value, label = _route_field({}, tier, field, "", tier_key)
+        if field == "context_tier" and not _nonblank(value):
+            value, label = "default", "default.context_tier"
+        values[field] = _text(value)
+        if label is not None and values[field]:
+            chain.append(label)
+    return _finish(site, "route", values, tier_key, chain, (), [])
+
+
+def _resolve_unbound_agent(model_routing: Mapping[str, Any], site: str, spec: SiteSpec) -> ResolvedRoute:
+    # Unbound branch: the site default tier is the whole base.
+    tier_key = spec.default_tier if spec.default_tier in _TIER_KEYS else None
+    if tier_key is None:
+        return _error_route(site, "route", "ROUTING_UNRESOLVED: model_family")
+    values, chain = _resolve_fields({}, model_routing.get(tier_key), "", tier_key)
+    return _finish(site, "route", values, tier_key, chain, (), [])
+
+
+def _resolve_agent_route(
+    model_routing: Mapping[str, Any], site: str, sites: Mapping[str, SiteSpec] | None
+) -> ResolvedRoute:
+    agent_id = site[len(AGENT_SITE_PREFIX) :]
+    spec = sites.get(agent_id) if isinstance(sites, Mapping) and _AGENT_ID_PATTERN.fullmatch(agent_id) else None
+    if spec is None:
+        return _error_route(site, "route", f"ROUTING_UNKNOWN_SITE: {site}")
+    bindings = _mapping(model_routing.get("bindings"))
+    if site in bindings:
+        return _resolve_bound_agent(model_routing, site, bindings[site])
+    return _resolve_unbound_agent(model_routing, site, spec)
+
+
 def resolve_site(
     config: Mapping[str, Any],
     site: str,
     *,
     kind: str = "route",
     installed_roles: frozenset[str] = frozenset(),
+    sites: Mapping[str, SiteSpec] | None = None,
 ) -> ResolvedRoute:
-    """Resolve one invocation site's route (or its escalation route) from parsed config."""
-    if site not in _SITES:
+    """Resolve one invocation site's route (or its escalation route) from parsed config.
+
+    `sites` is the registry of installed `agent:<id>` sites, keyed by id; it is an input,
+    never discovered here.
+    """
+    is_agent_site = isinstance(site, str) and site.startswith(AGENT_SITE_PREFIX)
+    if site not in _SITES and not is_agent_site:
         return _error_route(site, kind, f"UNKNOWN_SITE: {site}")
     if kind not in _KINDS:
         return _error_route(site, kind, f"UNKNOWN_KIND: {kind}")
     model_routing = _mapping(_mapping(config).get("model_routing"))
+    pipeline_error = _pipeline_binding_error(model_routing, site)
+    if pipeline_error is not None:
+        return _error_route(site, kind, pipeline_error)
+    if is_agent_site:
+        if kind != "route":
+            return _error_route(site, kind, f"UNSUPPORTED: escalation is not defined for site {site}")
+        return _resolve_agent_route(model_routing, site, sites)
     if kind == "route":
         if site == "orchestrator":
             return _resolve_orchestrator_route(model_routing)

@@ -10,9 +10,11 @@ from pathlib import Path
 import yaml
 from jsonschema import Draft7Validator
 
+from _config_schema_contract import CURRENT_CONFIG_SCHEMA_VERSION, current_config_mirror_path
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _ROOT_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
-_VERSIONED_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config" / "1.1.0.schema.json"
+_VERSIONED_CONFIG_SCHEMA = current_config_mirror_path()
 _CONFIG_TEMPLATE = _REPO_ROOT / "templates" / "harness-config.yaml.tmpl"
 _VERIFY_HARNESS = _REPO_ROOT / ".github" / "skills" / "verify-harness" / "SKILL.md"
 _ADVERSARIAL_AGENT = _REPO_ROOT / "templates" / "agents" / "adversarial-review.agent.md.tmpl"
@@ -53,7 +55,9 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         validator = Draft7Validator(schema)
         model_props = schema["properties"]["model_routing"]["properties"]
         self.assertIn("anchor_review", model_props)
-        self.assertNotIn("additionalProperties", schema["properties"]["model_routing"])
+        # The current (1.2.0) schema closes model_routing; the open shape is a
+        # property of the immutable pre-1.2.0 mirrors (see test_harness_config_schema_versioning).
+        self.assertIs(schema["properties"]["model_routing"]["additionalProperties"], False)
         anchor_schema = model_props["anchor_review"]
         self.assertFalse(anchor_schema.get("additionalProperties", True))
         self.assertEqual(set(anchor_schema["required"]), {"model_provider", "model_family"})
@@ -62,7 +66,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         self.assertEqual(anchor_schema["properties"]["reasoning_effort"]["default"], "high")
 
         valid = {
-            "schema_version": "1.1.0",
+            "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
             "model_routing": {
                 "anchor_review": {
                     "model_provider": "openai",
@@ -74,7 +78,7 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         self.assertEqual(list(validator.iter_errors(valid)), [])
 
         invalid = {
-            "schema_version": "1.1.0",
+            "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
             "model_routing": {
                 "anchor_review": {
                     "model_provider": "openai",
@@ -86,12 +90,12 @@ class AnchorReviewConfigContractTests(unittest.TestCase):
         self.assertFalse(validator.is_valid(invalid))
 
         custom_route = {
-            "schema_version": "1.1.0",
+            "schema_version": CURRENT_CONFIG_SCHEMA_VERSION,
             "model_routing": {
                 "workspace_specific_review": {"model_provider": "local", "model_family": "custom"}
             },
         }
-        self.assertTrue(validator.is_valid(custom_route))
+        self.assertFalse(validator.is_valid(custom_route))
 
     def test_harness_config_template_has_anchor_defaults_and_valid_yaml_when_reasoning_empty(self) -> None:
         text = _read(_CONFIG_TEMPLATE)
