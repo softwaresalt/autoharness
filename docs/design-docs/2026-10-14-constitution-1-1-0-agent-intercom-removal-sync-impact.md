@@ -64,7 +64,8 @@ No principle text changes. In particular:
 |---|---|
 | `templates/foundation/constitution.instructions.md.tmpl` | Overlay section removed; P-005 sentence retargeted; version 1.1.0 |
 | `.github/instructions/constitution.instructions.md` | Overlay bullet removed; P-005 sentence retargeted; version 1.1.0 |
-| `templates/foundation/AGENTS.md.tmpl`, root `AGENTS.md` | Overlay section, interaction-table rows and safe-operations rule 5 removed; pack table row removed |
+| `templates/foundation/AGENTS.md.tmpl` | Overlay section, interaction-table rows and Terminal Command Execution Policy rule 5 removed; the `Constitution version` stamp bumped from 1.0.0 to 1.1.0 |
+| root `AGENTS.md` | Only the pack table row removed; the dogfood root file carries no overlay section, interaction table, terminal-policy rule or constitution version stamp |
 | `templates/foundation/copilot-instructions.md.tmpl` | Pack section and remote-operator subsection removed; the `## Remote Operator Integration` heading and its `agent-engram` subsection are kept (plan D-8) |
 | `.github/instructions/harness-architecture.instructions.md`, `.github/copilot-review-instructions.md` | Pack examples and references removed |
 | Already-installed workspaces | Keep their rendered 1.0.0 constitution text until the operator runs tune; the retained text is inert prose |
