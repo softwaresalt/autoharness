@@ -63,20 +63,6 @@ def _render(stack: str | None = None) -> str:
     return _render_template(_template_text(), variables)
 
 
-def _render_for_validation(stack: str | None = None) -> dict:
-    """Rendered default config, restricted to packs the current contract accepts.
-
-    The pack list derives from the live dogfood install, which keeps listing the
-    retired pack until its own sweep lands; the template's schema pin and routing
-    blocks are what these tests validate, not that install-state leftover.
-    """
-    rendered = yaml.safe_load(_render(stack))
-    schema = json.loads(current_config_mirror_path().read_text(encoding="utf-8"))
-    valid_packs = schema["properties"]["capability_packs"]["items"]["enum"]
-    rendered["capability_packs"] = [pack for pack in rendered.get("capability_packs", []) if pack in valid_packs]
-    return rendered
-
-
 def _install_validation_step() -> str:
     match = re.search(r"(?ms)^#### Step 1\.0b: Load Operator Configuration\n(.*?)^#### Step 1\.1: ", _skill_text())
     if match is None:
@@ -123,12 +109,12 @@ class RenderedConfigValidationTests(unittest.TestCase):
         validator = Draft7Validator(schema)
         for stack in (None, *_PROFILE_STACKS):
             with self.subTest(stack=stack):
-                rendered = _render_for_validation(stack)
+                rendered = yaml.safe_load(_render(stack))
                 self.assertEqual([e.message for e in validator.iter_errors(rendered)], [])
 
     def test_rendered_default_config_validates_against_the_current_mirror(self) -> None:
         schema = json.loads(current_config_mirror_path().read_text(encoding="utf-8"))
-        self.assertEqual(list(Draft7Validator(schema).iter_errors(_render_for_validation())), [])
+        self.assertEqual(list(Draft7Validator(schema).iter_errors(yaml.safe_load(_render()))), [])
 
     def test_rendering_leaves_no_unresolved_placeholder(self) -> None:
         for stack in (None, *_PROFILE_STACKS):

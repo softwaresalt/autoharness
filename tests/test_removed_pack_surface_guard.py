@@ -50,6 +50,11 @@ def line_contains(*snippets: str) -> Predicate:
     return predicate
 
 
+def yaml_note_line(lines: Sequence[str], index: int) -> bool:
+    """Permit an occurrence only on a YAML ``note:`` provenance line."""
+    return lines[index].lstrip().startswith("note:")
+
+
 def in_section(heading: str) -> Predicate:
     """Permit an occurrence only inside the Markdown section starting at ``heading``.
 
@@ -230,19 +235,16 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=line_contains("agent-intercom"),
         max_count=1,
     ),
+    ".autoharness/harness-manifest.yaml": Tombstone(
+        rationale="append-only artifact provenance notes record the removal history of already-swept files and are never rewritten",
+        permitted=yaml_note_line,
+        max_count=19,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
-PENDING_SURFACES: Mapping[str, str] = {
-    # U22 - pack definition removal
-    "templates/packs/capability-pack-registry.yaml": "U22",
-    "schemas/capability-pack-registry.schema.json": "U22",
-    "templates/instructions/agent-intercom.instructions.md.tmpl": "U22",
-    ".github/instructions/agent-intercom.instructions.md": "U22",
-    ".autoharness/harness-manifest.yaml": "U22",
-    "tests/test_capability_pack_registry.py": "U22",
-    "tests/test_graphtor_docs_full_suite.py": "U22",
-}
+# Empty since U22; U23 enforces that it stays empty (LEDGER_ENFORCED).
+PENDING_SURFACES: Mapping[str, str] = {}
 
 
 def git_tracked_files(root: Path = _REPO_ROOT) -> list[str]:

@@ -358,8 +358,8 @@ def _parse_registry() -> "tuple[list[str], dict[str, set[str]]]":
 
 
 def _all_registry_packs() -> list[str]:
-    """Every registry pack a wrapper may select (retired ids are never selected)."""
-    return [pid for pid in _parse_registry()[0] if pid not in _RETIRED_PACKS]
+    """Every registry pack a wrapper may select."""
+    return list(_parse_registry()[0])
 
 
 def _preset_default_packs(preset: str) -> list[str]:
@@ -605,10 +605,10 @@ class DeployWrapperStaticContractTests(unittest.TestCase):
 class DeployWrapperRegistryEnumerationTests(unittest.TestCase):
     """The registry parse the wrappers rely on is structurally sound."""
 
-    def test_retired_pack_is_not_a_preset_default(self) -> None:
-        _, defaults = _parse_registry()
+    def test_retired_pack_is_not_a_registry_pack(self) -> None:
+        ids, _ = _parse_registry()
         for retired in _RETIRED_PACKS:
-            self.assertEqual(defaults.get(retired, set()), set())
+            self.assertNotIn(retired, ids)
 
     def test_default_in_preset_is_parseable_for_every_pack(self) -> None:
         ids, defaults = _parse_registry()

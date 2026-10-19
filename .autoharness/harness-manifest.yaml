@@ -290,11 +290,6 @@ artifacts:
     template: "instructions/agent-engram.instructions.md.tmpl"
     checksum: "ceac342b56ad6aec7ab36f7e80c6c4bbd437a9c63629ce8180750acb74fee1e7"
     note: "agent-engram capability pack overlay instruction"
-  - path: ".github/instructions/agent-intercom.instructions.md"
-    primitive: 4
-    template: "instructions/agent-intercom.instructions.md.tmpl"
-    checksum: "3b8573246a426964e1a73ce962f5acb022ef83b882c68cfd4f42a6941fb88468"
-    note: "agent-intercom capability pack overlay instruction"
   - path: ".github/instructions/graphtor-docs.instructions.md"
     primitive: 1
     template: "instructions/graphtor-docs.instructions.md.tmpl"

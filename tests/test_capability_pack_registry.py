@@ -21,7 +21,6 @@ _HARNESS_CONFIG_SCHEMA = _REPO_ROOT / "schemas" / "harness-config.schema.json"
 _INSTRUCTIONS_DIR = _REPO_ROOT / "templates" / "instructions"
 
 _EXPECTED_PACK_IDS = {
-    "agent-intercom",
     "agent-engram",
     "backlogit",
     "browser-verification",
@@ -48,9 +47,9 @@ class CapabilityPackRegistryTests(unittest.TestCase):
     def test_schema_version_is_pinned(self) -> None:
         self.assertEqual(self.data["schema_version"], "1.0.0")
 
-    def test_pack_id_set_equals_nine_names(self) -> None:
+    def test_pack_id_set_equals_eight_names(self) -> None:
         ids = [p["id"] for p in self.data["packs"]]
-        self.assertEqual(len(ids), 9)
+        self.assertEqual(len(ids), 8)
         self.assertEqual(len(ids), len(set(ids)), "duplicate pack ids")
         self.assertEqual(set(ids), _EXPECTED_PACK_IDS)
 
@@ -60,9 +59,7 @@ class CapabilityPackRegistryTests(unittest.TestCase):
         registry_enum = set(
             self.schema["definitions"]["pack"]["properties"]["id"]["enum"]
         )
-        # agent-intercom left the harness-config enum at 1.3.0 (209-F U4); the registry
-        # definition itself is removed by U22, which restores strict equality here.
-        self.assertEqual(registry_enum - {"agent-intercom"}, config_enum)
+        self.assertEqual(registry_enum, config_enum)
         self.assertEqual(registry_enum, _EXPECTED_PACK_IDS)
 
     def test_overlay_instruction_paths_exist_or_empty(self) -> None:
@@ -92,21 +89,6 @@ class CapabilityPackRegistryTests(unittest.TestCase):
         allowed = {"starter", "standard", "full"}
         for pack in self.data["packs"]:
             self.assertTrue(set(pack["default_in_preset"]).issubset(allowed))
-
-    def test_agent_intercom_is_opt_in_add_on(self) -> None:
-        intercom = next(
-            p for p in self.data["packs"] if p["id"] == "agent-intercom"
-        )
-        self.assertEqual(
-            intercom["default_in_preset"],
-            [],
-            "agent-intercom is an opt-in add-on: it must not default into any preset",
-        )
-        self.assertEqual(
-            intercom["mcp_requirements"],
-            [],
-            "agent-intercom no longer ships an MCP server: mcp_requirements must be empty",
-        )
 
     def test_retrieval_enforced_is_optional_boolean(self) -> None:
         pack_props = self.schema["definitions"]["pack"]["properties"]

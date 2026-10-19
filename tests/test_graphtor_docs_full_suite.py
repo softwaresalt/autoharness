@@ -8,8 +8,8 @@ These tests fail until graphtor-docs is completed to agent-engram parity:
 * a ``full`` config enabling graphtor-docs must validate against the versioned
   config schema;
 * every registered capability pack (including graphtor-docs) must default into the
-  ``full`` preset, EXCEPT opt-in extra add-ons such as ``agent-intercom`` which
-  are enabled only by explicit selection.
+  ``full`` preset, EXCEPT any opt-in extra add-ons (currently none) which would be
+  enabled only by explicit selection.
 """
 
 from __future__ import annotations
@@ -100,11 +100,11 @@ class GraphtorDocsSchemaParityTests(unittest.TestCase):
 
 class GraphtorDocsFullPresetMembershipTests(unittest.TestCase):
     """Every registered pack defaults into the ``full`` preset, except opt-in
-    extra add-ons (``agent-intercom``) enabled only by explicit selection."""
+    extra add-ons (currently none) enabled only by explicit selection."""
 
-    # agent-intercom is an opt-in extra add-on (no MCP server); it is
-    # intentionally NOT a default member of the full preset.
-    _OPT_IN_ADD_ONS = {"agent-intercom"}
+    # Opt-in extra add-ons are intentionally NOT default members of the full
+    # preset. The registry currently has none.
+    _OPT_IN_ADD_ONS: set[str] = set()
 
     @classmethod
     def setUpClass(cls) -> None:
