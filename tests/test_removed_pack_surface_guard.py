@@ -205,12 +205,35 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=in_section("## Closed agent-intercom deferral note (AC3, review F3)"),
         max_count=5,
     ),
+    "tests/test_deploy_harness_scripts.py": Tombstone(
+        rationale="the retired-pack wrapper tests name the retired value to prove it is warned about and skipped on both interpreters",
+        permitted=line_contains("agent-intercom"),
+        max_count=1,
+    ),
+    "scripts/deploy-harness.sh": Tombstone(
+        rationale="the retired-pack handler names the retired value so an explicit pack list warns and skips it instead of failing as unknown",
+        permitted=line_contains("agent-intercom"),
+        max_count=1,
+    ),
+    "scripts/deploy-harness.ps1": Tombstone(
+        rationale="the retired-pack handler names the retired value so an explicit pack list warns and skips it instead of failing as unknown",
+        permitted=line_contains("agent-intercom"),
+        max_count=1,
+    ),
+    "templates/scripts/deploy-harness.sh.tmpl": Tombstone(
+        rationale="the retired-pack handler names the retired value so an explicit pack list warns and skips it instead of failing as unknown",
+        permitted=line_contains("agent-intercom"),
+        max_count=1,
+    ),
+    "templates/scripts/deploy-harness.ps1.tmpl": Tombstone(
+        rationale="the retired-pack handler names the retired value so an explicit pack list warns and skips it instead of failing as unknown",
+        permitted=line_contains("agent-intercom"),
+        max_count=1,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U21 - deploy wrapper tolerance
-    "tests/test_deploy_harness_scripts.py": "U21",
     # U22 - pack definition removal
     "templates/packs/capability-pack-registry.yaml": "U22",
     "schemas/capability-pack-registry.schema.json": "U22",

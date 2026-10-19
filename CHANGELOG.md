@@ -196,7 +196,9 @@
   version) plus a `remove-retired-capability-pack` migration proposal instead of failing verification.
   `install-harness`, `workspace-discovery`, and `scripts/deploy-harness.{sh,ps1}` print
   `RETIRED_PACK: agent-intercom ignored` and continue when the pack is requested explicitly, instead of
-  failing with `Unknown pack`. `tune-harness` reports the retired capability pack as a drift category
+  failing with `Unknown pack`; `all` never expands to the retired pack, and the wrappers now scaffold
+  `.autoharness/config.yaml` at the current config schema version (`1.3.0`) instead of `1.0.0`.
+  `tune-harness` reports the retired capability pack as a drift category
   and offers a proposal-only cleanup (the orphan instruction file is deleted only when its checksum
   still matches the manifest). Expected template drift in installed workspaces: most agents, skills,
   instructions, and the foundation docs; re-run tune-harness.
