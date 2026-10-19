@@ -160,23 +160,15 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=line_contains("### agent-intercom"),
         max_count=1,
     ),
+    "tests/test_skills_session_output_contract.py": Tombstone(
+        rationale="proves the swept skills carry no remote-channel text by asserting the retired value is absent",
+        permitted=line_contains('"intercom"'),
+        max_count=4,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U14 - planning-phase skills
-    ".github/skills/deliberate/SKILL.md": "U14",
-    ".github/skills/harvest/SKILL.md": "U14",
-    ".github/skills/impl-plan/SKILL.md": "U14",
-    ".github/skills/plan-harden/SKILL.md": "U14",
-    ".github/skills/plan-review/SKILL.md": "U14",
-    "templates/skills/brainstorm/SKILL.md.tmpl": "U14",
-    "templates/skills/deliberate/SKILL.md.tmpl": "U14",
-    "templates/skills/doc-review/SKILL.md.tmpl": "U14",
-    "templates/skills/harvest/SKILL.md.tmpl": "U14",
-    "templates/skills/impl-plan/SKILL.md.tmpl": "U14",
-    "templates/skills/plan-harden/SKILL.md.tmpl": "U14",
-    "templates/skills/plan-review/SKILL.md.tmpl": "U14",
     # U15 - execution-phase skills A
     ".github/skills/compact-context/SKILL.md": "U15",
     ".github/skills/fix-ci/SKILL.md": "U15",

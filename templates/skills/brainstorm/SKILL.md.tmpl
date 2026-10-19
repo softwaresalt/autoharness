@@ -72,21 +72,17 @@ source document. When `handoff` includes `queue`, a backlog entry in
 
 ## Required Protocol
 
-When the `agent-intercom` capability pack is installed, follow
-`.github/instructions/agent-intercom.instructions.md`: establish heartbeat /
-ping visibility at the start of intake, broadcast major phase transitions, and
-use the intercom clarification flow when the operator needs to be consulted
-between phases.
-
 Always record a `BRAINSTORM_HANDOFF_READY` event when the requirements artifact
 reaches `ready_for_plan`, carrying the artifact path, unresolved questions, and
-handoff target. When `agent-intercom` is installed, broadcast it on the operator
-channel; when intercom is unavailable (degraded visibility, including dark mode
-under P-017), record the same evidence in the session summary and the
-requirements artifact itself so remote operators and the downstream `impl-plan`
-and Ship steps retain handoff visibility. Brainstorm does not author pull request
-descriptions — that surface belongs to Ship. Visibility must never silently
-degrade to nothing.
+handoff target. Report it in the session output and record the same evidence in
+the requirements artifact itself so the operator and the downstream `impl-plan`
+and Ship steps retain handoff visibility (including dark mode under P-017).
+Brainstorm does not author pull request descriptions — that surface belongs to
+Ship. Visibility must never silently degrade to nothing.
+
+When blocked on operator intent between phases, state the question, the options
+and the decision required in the session output and STOP until the operator
+replies; never proceed on an assumed answer.
 
 When the `agent-engram` capability pack is installed, follow
 `.github/instructions/agent-engram.instructions.md`: verify the engram search
