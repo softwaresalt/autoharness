@@ -150,6 +150,11 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=any_line,
         max_count=6,
     ),
+    "tests/test_dogfood_removed_pack_state.py": Tombstone(
+        rationale="proves the dogfood install no longer lists the retired value in its config, manifest or profile",
+        permitted=any_line,
+        max_count=6,
+    ),
     "tests/test_verify_workspace.py": Tombstone(
         rationale="proves an install that kept the retired heading in copilot-instructions still passes copilot_remote_operator_guidance",
         permitted=line_contains("### agent-intercom"),
@@ -159,9 +164,6 @@ TOMBSTONES: Mapping[str, Tombstone] = {
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U8 - dogfood install state
-    ".autoharness/config.yaml": "U8",
-    ".autoharness/workspace-profile.yaml": "U8",
     # U9 - instruction family
     ".github/instructions/backlogit.instructions.md": "U9",
     ".github/instructions/circuit-breaker.instructions.md": "U9",

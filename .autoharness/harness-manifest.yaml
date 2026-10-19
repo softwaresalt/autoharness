@@ -1,10 +1,10 @@
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 installed_at: "2026-04-26T21:16:00-07:00"
 tuned_at: "2026-07-09T20:21:26+00:00"
 autoharness_version: "1.4.11"
 autoharness_home: null
-profile_hash: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
-config_hash: "7bdf8e83235a9af16564982075fcbc4a22656201e0e0be5ffc4be5fe3b23c211"
+profile_hash: "8db2b928a1f18f3461301f813dd98dcc9e7e82f6e5573bfc1552467bfef6110f"
+config_hash: "4d3333523bce8bcc9dfb30a0fb37c201b74268cf407a74a19d13c15dd8d682cf"
 install_preset: "full"
 install_mode: "self-install"
 primary_stack_pack: "cli-tool"
@@ -20,20 +20,10 @@ install_layers:
   - "knowledge"
   - "overlays"
 capability_packs:
-  - "agent-intercom"
   - "backlogit"
   - "agent-engram"
   - "graphtor-docs"
 capability_pack_overlays:
-  - pack: "agent-intercom"
-    overlay_targets:
-      - "foundation-docs"
-      - "instructions"
-      - "pipeline-agents"
-      - "long-running-skills"
-    verification_checks:
-      - "agent-intercom is an opt-in add-on (no MCP server; non-MCP intercom/ACP tool surface) — enabled via explicit capability-pack selection"
-      - "agent-intercom.instructions.md installed at .github/instructions/"
   - pack: "backlogit"
     overlay_targets:
       - "foundation-docs"
@@ -103,12 +93,13 @@ artifacts:
   - path: ".autoharness/workspace-profile.yaml"
     primitive: 1
     template: "workspace-discovery output"
-    checksum: "e5a71cf20952b26d42c5f8ca627c7a2e54c7744053e65268505399ea22913071"
+    checksum: "8db2b928a1f18f3461301f813dd98dcc9e7e82f6e5573bfc1552467bfef6110f"
+    note: "216-S/209.008-T: retired agent-intercom pack removed from harness_recommendations (list, reason) and the leftover agent_intercom block dropped, schema_version 1.0.0 -> 1.1.0; checksum and top-level profile_hash are the LF-normalized staged git blob digest (supersedes the earlier stale record)"
   - path: ".autoharness/config.yaml"
     primitive: 1
     template: "harness-config.yaml.tmpl"
-    checksum: "7bdf8e83235a9af16564982075fcbc4a22656201e0e0be5ffc4be5fe3b23c211"
-    note: "checksum refreshed 215-S/208.006-T (B5 atomic harness-config 1.2.0 cut-over: schema_version marker 1.1.0 -> 1.2.0, marker only, operator-confirmed in 040-DL 'Operator Confirmation (2026-10-12)' OQ9; no model_routing value changed; top-level config_hash refreshed to the same LF-normalized SHA-256); checksum refreshed 2026-10-14 chore/model-routing-config (operator model_routing edit: tier3/stage gemini-4-argon/google, long_context on tiers/orchestrator/stage/escalation, orchestrator effort medium, ship.escalation effort high; installed mirrors and top-level config_hash refreshed from LF-normalized blobs); checksum refreshed 208-S carry-forward (operator model_routing edit 2026-10-09 carried forward per operator directive: ship route claude-haiku-5.5/anthropic/xhigh with nested ship.escalation claude-sonnet-5.5/anthropic/medium; stage route claude-sonnet-5.5/anthropic/xhigh; tier1-3/orchestrator reassigned; flat escalation block removed; top-level config_hash refreshed to the same LF-normalized SHA-256; computed from the LF-normalized git blob 6c22c19e); checksum refreshed 2026-09-25 for an operator-approved model-routing change (orchestrator and ship routes set to claude-opus-5.5/anthropic/high, matching stage; route comments corrected), which also records the previously unrecorded 89b0db6d routing change; computed from the LF-normalized staged git blob `git cat-file blob :<path>`; checksum refreshed 157-S/149-F PR #420 Copilot review round 6 fix: det:D-ART/ART-01@1's applies_when.changed_paths_any now also matches the default `.backlog/**` root (previously matched only the legacy `.backlogit/**` path, so a default-`.backlog/`-rooted change was marked not_applicable before the fixed producer ever ran); no detector behavior/schema_version change otherwise. Checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>` per the procedure established in 115-S; checksum refreshed 200-S/194.005-T (194-F C4a, operator ruling 5a: model_routing.ship gains context_tier: \"long_context\", the durable Ship pin; no other key changes; top-level config_hash refreshed to the same raw-blob SHA-256); checksum computed from the LF-normalized staged git blob `git cat-file blob :<path>`"
+    checksum: "4d3333523bce8bcc9dfb30a0fb37c201b74268cf407a74a19d13c15dd8d682cf"
+    note: "216-S/209.008-T: operator-directed removal of the retired agent-intercom capability_packs entry only (no schema_version bump, no model_routing or context_tier change; top-level config_hash refreshed to the same LF-normalized staged blob digest); 215-S/208.006-T: (B5 atomic harness-config 1.2.0 cut-over: schema_version marker 1.1.0 -> 1.2.0, marker only, operator-confirmed in 040-DL 'Operator Confirmation (2026-10-12)' OQ9; no model_routing value changed; top-level config_hash refreshed to the same LF-normalized SHA-256); checksum refreshed 2026-10-14 chore/model-routing-config (operator model_routing edit: tier3/stage gemini-4-argon/google, long_context on tiers/orchestrator/stage/escalation, orchestrator effort medium, ship.escalation effort high; installed mirrors and top-level config_hash refreshed from LF-normalized blobs); checksum refreshed 208-S carry-forward (operator model_routing edit 2026-10-09 carried forward per operator directive: ship route claude-haiku-5.5/anthropic/xhigh with nested ship.escalation claude-sonnet-5.5/anthropic/medium; stage route claude-sonnet-5.5/anthropic/xhigh; tier1-3/orchestrator reassigned; flat escalation block removed; top-level config_hash refreshed to the same LF-normalized SHA-256; computed from the LF-normalized git blob 6c22c19e); checksum refreshed 2026-09-25 for an operator-approved model-routing change (orchestrator and ship routes set to claude-opus-5.5/anthropic/high, matching stage; route comments corrected), which also records the previously unrecorded 89b0db6d routing change; computed from the LF-normalized staged git blob `git cat-file blob :<path>`; checksum refreshed 157-S/149-F PR #420 Copilot review round 6 fix: det:D-ART/ART-01@1's applies_when.changed_paths_any now also matches the default `.backlog/**` root (previously matched only the legacy `.backlogit/**` path, so a default-`.backlog/`-rooted change was marked not_applicable before the fixed producer ever ran); no detector behavior/schema_version change otherwise. Checksum computed from the LF-normalized committed git blob via `git cat-file -p :<path>` per the procedure established in 115-S; checksum refreshed 200-S/194.005-T (194-F C4a, operator ruling 5a: model_routing.ship gains context_tier: \"long_context\", the durable Ship pin; no other key changes; top-level config_hash refreshed to the same raw-blob SHA-256); checksum computed from the LF-normalized staged git blob `git cat-file blob :<path>`"
   - path: ".autoharness/backlog-registry.yaml"
     primitive: 4
     template: "backlog/registries/backlogit.registry.yaml"
