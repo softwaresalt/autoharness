@@ -814,8 +814,8 @@ completion.
       approval as the mutating run. The mutating
       `autoharness shipment cascade-close` invocation (no `--classify-only`)
       **is** the destructive command: it needs the same operator approval
-      that a direct `backlogit shipment ship` call needs (the intercom
-      auto-check or explicit operator clearance). A direct
+      that a direct `backlogit shipment ship` call needs (explicit operator
+      clearance through the workspace's native approval path). A direct
       `backlogit_ship_shipment` MCP or `backlogit shipment ship` CLI call is
       a **P-005 deviation** on either path, and the closure-evidence gate
       refuses the closure it produces, because no valid evidence record

@@ -31,10 +31,9 @@ Invoke when a feature, fix, or risky change is ready to hand off into merge, dep
 
 ## Required Protocol
 
-When the `agent-intercom` capability pack is installed, follow
-`.github/instructions/agent-intercom.instructions.md`: broadcast closure readiness, blocked states,
-monitoring handoff details, and any rollback trigger that the operator should be aware of during
-the validation window.
+Report closure readiness, blocked states, monitoring handoff details, and any rollback
+trigger that the operator should be aware of during the validation window in the
+session output.
 
 When the `browser-verification` capability pack is installed, also follow
 `.github/instructions/browser-verification.instructions.md`: carry browser

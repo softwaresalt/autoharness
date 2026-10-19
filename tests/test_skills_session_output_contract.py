@@ -31,6 +31,14 @@ _EXECUTION_SKILLS_A = (
     "review",
 )
 
+_EXECUTION_SKILLS_B = (
+    "runtime-verification",
+    "operational-closure",
+    "shipment-reconcile",
+    "harness-architect",
+    "safety-modes",
+)
+
 
 def _paths(skill: str) -> list[str]:
     candidates = (
@@ -131,6 +139,49 @@ class ExecutionSkillsASessionOutputContractTests(unittest.TestCase):
         text = _read("templates/skills/build-feature/SKILL.md.tmpl")
         self.assertIn("native approval path", text)
         self.assertIn("* One file change per tool call\n", text.replace("\r\n", "\n"))
+
+
+class ExecutionSkillsBSessionOutputContractTests(unittest.TestCase):
+    def test_execution_skills_b_carry_no_remote_channel_text(self) -> None:
+        for skill in _EXECUTION_SKILLS_B:
+            for rel in _paths(skill):
+                with self.subTest(path=rel):
+                    text = _read(rel).lower()
+                    self.assertNotIn("intercom", text)
+                    self.assertNotIn("heartbeat", text)
+                    self.assertNotIn("| event | level | message prefix |", text)
+
+    def test_runtime_verification_reports_verdict_and_waits_in_session_output(self) -> None:
+        for rel in _paths("runtime-verification"):
+            with self.subTest(path=rel):
+                text = _read(rel).replace("\r\n", "\n")
+                self.assertIn("outcome in the session output", text)
+                self.assertIn("STOP until the operator replies", text)
+
+    def test_operational_closure_reports_readiness_in_session_output(self) -> None:
+        for rel in _paths("operational-closure"):
+            with self.subTest(path=rel):
+                text = _read(rel).replace("\r\n", "\n")
+                self.assertIn("Report closure readiness, blocked states", text)
+                self.assertIn("session output.", text)
+
+    def test_shipment_reconcile_destructive_approval_wording_names_native_path(self) -> None:
+        for rel in _paths("shipment-reconcile"):
+            with self.subTest(path=rel):
+                text = _read(rel).replace("\r\n", "\n")
+                self.assertIn("that a direct `backlogit shipment ship` call needs (explicit operator", text)
+                self.assertIn("clearance through the workspace's native approval path). A direct", text)
+
+    def test_harness_architect_inputs_follow_the_intro(self) -> None:
+        for rel in _paths("harness-architect"):
+            with self.subTest(path=rel):
+                headings = [line for line in _read(rel).splitlines() if line.startswith("## ")]
+                self.assertEqual(headings[:2], ["## Purpose", "## Inputs"])
+
+    def test_safety_modes_reports_violations_and_uses_native_approval(self) -> None:
+        text = _read("templates/skills/safety-modes/SKILL.md.tmpl").replace("\r\n", "\n")
+        self.assertIn("report\n  a P-005 violation in the session output, record it via P-005 telemetry, and halt.", text)
+        self.assertIn("Prompt the operator through the workspace's native approval path", text)
 
 
 if __name__ == "__main__":
