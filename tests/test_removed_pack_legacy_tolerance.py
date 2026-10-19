@@ -367,6 +367,55 @@ class MixedPackTests(unittest.TestCase):
         self.assertEqual(len(_removed_warnings(report, "manifest")), 1)
 
 
+LEGACY_OVERLAY_TEMPLATE = "templates/instructions/agent-intercom.instructions.md.tmpl"
+
+
+class LegacyOverlayArtifactRecordTests(unittest.TestCase):
+    """A legacy manifest's overlay artifact record degrades to a warning, never a blocker."""
+
+    _OVERLAY = "# overlay as installed\n"
+
+    def _docs(self) -> dict[str, dict]:
+        docs = _documents(
+            manifest_version="1.0.0",
+            config_version="1.2.0",
+            profile_version="1.0.0",
+            overlay_checksum=_sha(self._OVERLAY.encode()),
+        )
+        docs["manifest"]["artifacts"][0]["template"] = LEGACY_OVERLAY_TEMPLATE
+        return docs
+
+    def _assert_tolerated(self, report: dict) -> None:
+        self.assertEqual(report["blockers"], [])
+        self.assertEqual(report["strict_schema_blockers"], [])
+        self.assertTrue(_removed_warnings(report, "manifest"))
+        self.assertEqual(len(_removed_warnings(report, "manifest")), 1)
+
+    def test_template_is_really_absent_from_autoharness_home(self) -> None:
+        self.assertFalse((_REPO_ROOT / LEGACY_OVERLAY_TEMPLATE).exists())
+
+    def test_record_with_installed_overlay_yields_warning_not_blocker(self) -> None:
+        report = _run_verify(self._docs(), overlay_text=self._OVERLAY)
+        self._assert_tolerated(report)
+
+    def test_record_without_installed_overlay_yields_warning_not_blocker(self) -> None:
+        report = _run_verify(self._docs())
+        self._assert_tolerated(report)
+
+    def test_record_matched_by_template_alone(self) -> None:
+        docs = self._docs()
+        docs["manifest"]["artifacts"][0]["path"] = "somewhere/else.md"
+        report = _run_verify(docs)
+        self.assertEqual(report["blockers"], [])
+
+    def test_unrelated_missing_template_still_blocks(self) -> None:
+        docs = self._docs()
+        docs["manifest"]["artifacts"][0]["path"] = ".github/instructions/other.instructions.md"
+        docs["manifest"]["artifacts"][0]["template"] = "templates/instructions/other-missing.instructions.md.tmpl"
+        report = _run_verify(docs)
+        self.assertTrue([b for b in report["blockers"] if b.get("kind") == "missing-template-source"])
+
+
 class NeverRaisesTests(unittest.TestCase):
     def test_verify_never_raises_on_legacy_documents(self) -> None:
         base = _documents(manifest_version="1.0.0", config_version="1.2.0", profile_version="1.0.0")

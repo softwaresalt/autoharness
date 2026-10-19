@@ -139,7 +139,7 @@ TOMBSTONES: Mapping[str, Tombstone] = {
     "src/autoharness/schema_contracts.py": Tombstone(
         rationale="contract metadata names the retired value to document the version bump and migrate legacy documents",
         permitted=line_contains("agent-intercom", "agent_intercom"),
-        max_count=15,
+        max_count=16,
     ),
     "tests/test_removed_pack_legacy_tolerance.py": Tombstone(
         rationale="proves documents listing the retired value degrade to a removed-capability-pack warning and migration proposal instead of failing",

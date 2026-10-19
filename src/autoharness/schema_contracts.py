@@ -40,6 +40,7 @@ class RemovedPackInfo:
     pack: str
     removed_in: str
     overlay_instruction_path: str
+    overlay_template_path: str
     profile_block_key: str
 
 
@@ -54,6 +55,7 @@ REMOVED_CAPABILITY_PACKS: Mapping[str, RemovedPackInfo] = MappingProxyType(
             pack="agent-intercom",
             removed_in="209-F",
             overlay_instruction_path=".github/instructions/agent-intercom.instructions.md",
+            overlay_template_path="templates/instructions/agent-intercom.instructions.md.tmpl",
             profile_block_key="agent_intercom",
         ),
     }
@@ -517,6 +519,23 @@ def _removed_pack_warning(kind: str, path: Path, field: str, pack: str) -> dict[
         ),
         "suggested_action": f"Remove the retired '{pack}' capability pack from the installed artifact (see the {REMOVED_PACK_PROPOSAL_ID} proposal).",
     }
+
+
+def removed_overlay_record_warning(path: Path, index: int, artifact: Any) -> dict[str, Any] | None:
+    """Warning for a legacy manifest artifact record of a retired pack's overlay, else None.
+
+    The record is matched by installed path or by template source (the template was
+    deleted with the pack), so it never reaches the missing-template-source blocker.
+    """
+    if not isinstance(artifact, dict):
+        return None
+    record_path = str(artifact.get("path") or "").replace("\\", "/")
+    template = str(artifact.get("template") or "").replace("\\", "/")
+    for info in REMOVED_CAPABILITY_PACKS.values():
+        template_names = {info.overlay_template_path, info.overlay_template_path.removeprefix("templates/")}
+        if record_path == info.overlay_instruction_path or template in template_names:
+            return _removed_pack_warning("manifest", path, f"artifacts.{index}.path", info.pack)
+    return None
 
 
 def removed_pack_site_key(warning: dict[str, Any]) -> tuple[Any, Any, Any] | None:

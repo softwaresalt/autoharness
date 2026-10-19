@@ -26,6 +26,7 @@ from autoharness.schema_contracts import (
     classify_schema_error,
     collect_contract_state_warnings,
     plan_schema_contract_migrations,
+    removed_overlay_record_warning,
     removed_pack_site_key,
     resolve_contract_schema_path,
     summarize_schema_contract,
@@ -6262,7 +6263,10 @@ def verify_workspace(
 
     report["blockers"].extend(_scan_manifest_scalar_placeholders(manifest, manifest_path))
 
-    for artifact in manifest.get("artifacts") or []:
+    reported_overlay_sites = {
+        key for key in map(removed_pack_site_key, report["warnings"]) if key is not None
+    }
+    for artifact_index, artifact in enumerate(manifest.get("artifacts") or []):
         if not isinstance(artifact, dict):
             report["warnings"].append(
                 {
@@ -6271,6 +6275,15 @@ def verify_workspace(
                     "message": "Manifest artifact entry is not an object; expected {path, checksum, template, primitive}. Skipping.",
                 }
             )
+            continue
+        overlay_warning = removed_overlay_record_warning(manifest_path, artifact_index, artifact)
+        if overlay_warning is not None:
+            # Legacy overlay record of a retired pack: its template is gone, so it
+            # degrades to a warning; the tune proposal owns the cleanup.
+            overlay_site = removed_pack_site_key(overlay_warning)
+            if overlay_site not in reported_overlay_sites:
+                reported_overlay_sites.add(overlay_site)
+                report["warnings"].append(overlay_warning)
             continue
         relative_path = str(artifact.get("path", ""))
         workspace_file = workspace_path / Path(relative_path)
