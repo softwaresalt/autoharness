@@ -48,7 +48,7 @@ Before running the installer, you can create an operator configuration file to t
 ```bash
 mkdir -p .autoharness
 cat > .autoharness/config.yaml <<'EOF'
-schema_version: "1.1.0"
+schema_version: "1.3.0"
 preset: standard
 primary_stack_pack: api-service
 stack_packs:

@@ -186,6 +186,10 @@
   operator-choice presentations, and destructive-action approval are channel-neutral. The constitution
   advances to `1.1.0` and the workflow policy registry to `1.37.0`. The telemetry `route_kind:
   "intercom"` vocabulary value stays, because published, versioned telemetry contracts still list it.
+  Expected template drift in installed workspaces: the workflow-policies mirror (the P-017 Dark
+  Factory Visibility Protocol; the required `dark_factory_visibility_contract` check fails
+  verification on installs whose policy mirror lacks it) and the agent, skill, foundation, and
+  constitution (`1.1.0`) mirrors drift until the operator re-runs tune-harness.
 - **Schema contract bumps:** `workspace-profile` and `harness-manifest` advance to `1.1.0` and
   `harness-config` to `1.3.0`; each drops the pack from its pack enums, and the profile drops the
   `agent_intercom` property. The `0.9.0`, `1.0.0`, `1.1.0`, and `1.2.0` mirrors that were already

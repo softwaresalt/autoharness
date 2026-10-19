@@ -222,7 +222,7 @@ class GettingStartedRoleRouteTests(unittest.TestCase):
         for token in ("fresh-install Ship seed", "no `model_routing.ship` key", "install-harness Step 1.2",
                       "`STAGE_CONTEXT_TIER`", "`SHIP_CONTEXT_TIER`", '`schema_version: "1.1.0"`'):
             self.assertIn(token, row)
-        self.assertIn('schema_version: "1.1.0"\npreset: standard', text)
+        self.assertIn('schema_version: "1.3.0"\npreset: standard', text)
 
 
 if __name__ == "__main__":

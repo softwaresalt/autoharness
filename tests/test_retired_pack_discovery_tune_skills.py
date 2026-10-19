@@ -132,6 +132,12 @@ class TuneRetiredPackTests(unittest.TestCase):
         self.assertIn("manual_review: true", section)
         self.assertIn("never auto-delete", section)
 
+    def test_cleanup_section_names_the_grouped_warning_keys_and_expands_per_site(self) -> None:
+        section = _section(_text(_TUNE), _TUNE_SECTION)
+        for key in ("`fields[]`", "`legacy_values[]`", "`occurrence_count`", "one cleanup item per site"):
+            with self.subTest(key=key):
+                self.assertIn(key, section)
+
     def test_cleanup_section_is_proposal_only_backed_up_and_never_re_weaves(self) -> None:
         section = _section(_text(_TUNE), _TUNE_SECTION)
         self.assertIn("proposal-only", section)
