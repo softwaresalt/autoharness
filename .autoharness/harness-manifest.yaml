@@ -133,8 +133,8 @@ artifacts:
   - path: "AGENTS.md"
     primitive: 9
     template: "foundation/AGENTS.md.tmpl"
-    checksum: "153533608a773f2e140dd768c40f706fa5e01a0a3468bedf8274cd072dcb10b6"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 211-S/204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template paragraph layout split is layout-only (sentence words identical; the root mirror keeps the sentence as Core Rule 8); checksum over the LF-normalized mirror"
+    checksum: "03a9a302437d142027c1d0720fd09566c49c7910805f9f1ca80e80fdd69d601c"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 211-S/204-F/204.002-T (C2: foundation UTC rule for the memory-folder convention and file naming); template paragraph layout split is layout-only (sentence words identical; the root mirror keeps the sentence as Core Rule 8); checksum over the LF-normalized mirror; checksum refreshed 216-S/209.010-T (pack table row removed)"
   - path: ".github/copilot-instructions.md"
     primitive: 6
     template: "foundation/copilot-instructions.md.tmpl"
@@ -143,8 +143,8 @@ artifacts:
   - path: ".github/instructions/harness-architecture.instructions.md"
     primitive: 9
     template: "global instruction definition"
-    checksum: "8992685d82b71e0838dca2856d20a19691b3ecdff10b4dba865ad1168437b1f1"
-    note: "pre-existing, source-controlled global artifact; checksum refreshed 162-S/154.003-T (SHIP-4, 7628C291): added the Bounded One-Hop Review-Family Exception to the Primitive 4 Design Rules list, resolving the contradiction with templates/skills/review/SKILL.md.tmpl's self-declared one-hop persona spawning — a skill qualifies for the bounded exception iff its SKILL.md carries a conforming `## Subagent Depth Constraint` section (max depth 1 hop; spawned subagents are leaf executors that must not spawn further); `review`/`plan-review` are named as EXAMPLES only, never the definition. This artifact has NO corresponding .tmpl (per its `template: \"global instruction definition\"` field, per RK note in 154.003-T) — amended directly, no template created. The H-d residual-limitation text (document-layer-only detection) is carried verbatim, identically, in this file and in .github/instructions/role-enforcement.instructions.md."
+    checksum: "2ed428e2e5589bc1908a3b97a4d5b464cd8cb1a41b5127aed722bcf69b0fb826"
+    note: "pre-existing, source-controlled global artifact; checksum refreshed 162-S/154.003-T (SHIP-4, 7628C291): added the Bounded One-Hop Review-Family Exception to the Primitive 4 Design Rules list, resolving the contradiction with templates/skills/review/SKILL.md.tmpl's self-declared one-hop persona spawning — a skill qualifies for the bounded exception iff its SKILL.md carries a conforming `## Subagent Depth Constraint` section (max depth 1 hop; spawned subagents are leaf executors that must not spawn further); `review`/`plan-review` are named as EXAMPLES only, never the definition. This artifact has NO corresponding .tmpl (per its `template: \"global instruction definition\"` field, per RK note in 154.003-T) — amended directly, no template created. The H-d residual-limitation text (document-layer-only detection) is carried verbatim, identically, in this file and in .github/instructions/role-enforcement.instructions.md. Checksum refreshed 216-S/209.010-T (overlay example retargeted from the removed pack to backlogit)."
   - path: ".github/agents/auto-mergeinstall.agent.md"
     primitive: 4
     template: "global agent definition"
@@ -383,8 +383,8 @@ artifacts:
   - path: ".github/instructions/constitution.instructions.md"
     primitive: 5
     template: "foundation/constitution.instructions.md.tmpl"
-    checksum: "7258c8d81371eb9cde2111742492c6616e3815422727240f3e04be1aeb54c38d"
-    note: "condensed constitution self-install variant (installed 067.006-T)"
+    checksum: "a0ecaae27622611913d8e900b44e6342186ee036f9b7a23b8cd1cda5578e37b1"
+    note: "condensed constitution self-install variant (installed 067.006-T); checksum refreshed 216-S/209.010-T (version 1.1.0: overlay bullet removed, P-005 sentence retargeted to session output)"
   - path: ".github/policies/workflow-policies.md"
     primitive: 8
     template: "policies/workflow-policies.md.tmpl"
