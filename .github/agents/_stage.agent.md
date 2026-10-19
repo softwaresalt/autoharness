@@ -175,20 +175,13 @@ If the `agent-engram` capability pack is active (`.github/instructions/agent-eng
 
 See `.github/instructions/agent-engram.instructions.md` for full search protocol, fallback rules, and freshness protocol.
 
-### Step 0.1c: Intercom Startup Ping
+### Operator Interaction Rules
 
-If the `agent-intercom` capability pack is active (`.github/instructions/agent-intercom.instructions.md` exists):
+**Operator Choice Presentation Rule** (stash triage, plan review, shipment assembly, grouping selection): when presenting stash, queue, backlog, or triage choices to the operator, make the session-output message self-contained because the operator may read it asynchronously — include each item's ID, priority, kind or type, and one-line summary, the recommended ordering, and the exact choice requested; state explicitly that operator selection or confirmation is awaited, and wait for it before proceeding. Prefer self-contained messages over "see chat above" summaries.
 
-1. Call heartbeat/ping with a concise session-start status message (e.g., "Stage session started — loading stash").
-   - On success: log `INTERCOM_OK`.
-   - On failure (service unreachable): log `INTERCOM_DEGRADED — operator visibility reduced`. Do not halt. Continue with non-destructive work.
-2. In `INTERCOM_DEGRADED` mode: skip phase broadcasts; do not block on approval for non-destructive operations.
+**Blocked on the operator**: state the question, the options, and the decision required in the session output and STOP until the operator replies — never proceed on an assumed answer.
 
-**Before presenting operator choices** (stash triage, plan review, shipment assembly): broadcast a self-contained summary per the combined intercom+backlogit rule — include item ID, priority, type, one-line summary, and recommended ordering; state that operator confirmation is awaited.
-
-**Before destructive backlog operations** (archive, delete, terminal-state moves): run the intercom auto-check step. If not auto-approved, request operator clearance before proceeding.
-
-See `.github/instructions/agent-intercom.instructions.md` for full heartbeat, broadcast, approval, and degraded-mode rules.
+**Destructive backlog operations** (archive, delete, terminal-state moves): follow the workspace's native approval path — the `strict-safety` classification when that capability pack is installed, otherwise local confirmation per the AGENTS.md safe-operations rules.
 
 ### Step 0.1d: Graphtor-Docs Server Check
 
@@ -359,8 +352,9 @@ does not enter this grouping analysis pre-deliberation.
    feature title, included entries (IDs + priority + kind + one-line summary),
    coherence rationale, estimated scope (task count × 2h), and risk level. A
    grouping of one is valid; do not force artificial groupings.
-3. **Present groupings and request operator selection.** When `agent-intercom` is
-   installed, broadcast a self-contained grouping proposal.
+3. **Present groupings and request operator selection.** Make the proposal a
+   self-contained session-output message per the Operator Choice Presentation Rule
+   (Operator Interaction Rules, Step 0).
 4. **Await operator selection.** The selected entries become one unit of work; the
    synthesized covering feature scope is the deliberation subject for Step 2.
    Unselected entries remain in the stash.
@@ -400,7 +394,7 @@ Based on classification:
 
 If both `skip_plan: true` AND `skip_review: true`, require the operator to also
 set `force_harvest_no_gates: true`. Without this explicit override, halt and
-broadcast a P-005 violation ("All planning and review gates bypassed without
+report a P-005 violation in the session output ("All planning and review gates bypassed without
 explicit force_harvest_no_gates override") and do not proceed to harvest. This
 guard prevents risky plans from silently bypassing every gate.
 
