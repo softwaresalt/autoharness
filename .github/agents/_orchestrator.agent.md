@@ -66,7 +66,7 @@ Do not infer dark factory mode from vague autonomy language such as `run everyth
 
 **Activation preflight (P-017, before recording `DARK_MODE_ACTIVE`)**: after resolving `scope` to concrete IDs and BEFORE recording `DARK_MODE_ACTIVE`, run the Step 0 gate-aware eligibility probe (Step 0 step 2b — the same read-only `autoharness gate pipeline-topology --mode agent --shipment {scope_head_shipment_id} --phase pre_claim --json` invocation, from the default-branch vantage, never with `--bootstrap-grant-invocation` or `--force`) on the **scope head**: the first in-scope shipment, in dependency/queue order, that has not yet shipped (the next shipment to claim — the first entry of the ordered shipment sequence at activation). A dark run must not activate on a head the gate would block the moment it is claimed.
 
-* **Head blocked** → halt with `DARK_MODE_PREFLIGHT_BLOCKED: {shipment_id} {token}` (gate token and message verbatim; a `GLOBAL_GATE_BLOCK` at the head halts the same way), do NOT record `DARK_MODE_ACTIVE`, do NOT invoke Stage or Ship, emit the block as an operator-visible summary (broadcast it when `agent-intercom` is installed), and surface it to the operator. The preflight never applies a bootstrap grant — only Step 2a can — so a head reported with the `bootstrap grant present — evaluated only at Step 2a` annotation halts like any other blocked head; the operator can clear the block or route that shipment through a non-dark `ship {shipment_id}`, where Step 2a evaluates the grant.
+* **Head blocked** → halt with `DARK_MODE_PREFLIGHT_BLOCKED: {shipment_id} {token}` (gate token and message verbatim; a `GLOBAL_GATE_BLOCK` at the head halts the same way), do NOT record `DARK_MODE_ACTIVE`, do NOT invoke Stage or Ship, emit the block as an operator-visible session-output summary, and surface it to the operator. The preflight never applies a bootstrap grant — only Step 2a can — so a head reported with the `bootstrap grant present — evaluated only at Step 2a` annotation halts like any other blocked head; the operator can clear the block or route that shipment through a non-dark `ship {shipment_id}`, where Step 2a evaluates the grant.
 * **Head already `active`** (resuming a run) → the head is in flight, not a claim candidate, so it is not probed; record `head: active (resume)` in `preflight` and proceed. Ship's own gates govern the in-flight shipment.
 * **Head eligible** → proceed to record `DARK_MODE_ACTIVE`. Later in-scope shipments are classified informationally and never block activation: a shipment waiting only on unshipped predecessors that are all in scope — and none of which is itself `EXTERNAL_BLOCKER` (a sequencing wait, evaluated from its `blocks` edges because the gate by design blocks successors until their predecessor ships) — is reported `PENDING`, not blocked; a shipment blocked by anything outside the scope (an out-of-scope predecessor, an unattested predecessor closure condition, an external dependency, a gate token that is not an in-scope sequencing wait, or a chain through another `EXTERNAL_BLOCKER`) is listed as `EXTERNAL_BLOCKER: {shipment_id} {token}`.
 * **Record the outcome** in the optional activation-record field `preflight` (head result, `PENDING` shipment IDs, and `EXTERNAL_BLOCKER` entries) and include it in `DARK_MODE_SCOPE`. An absent `preflight` field means the preflight did not run; it is never read as a pass.
@@ -83,7 +83,7 @@ Only after the activation preflight above passes (the head is eligible or alread
 | `merge_approval_pre_authorized` | Whether the operator has pre-authorized PR merge approval for this scope. If absent or ambiguous, set `false`. |
 | `admin_fallback_pre_authorized` | Whether the operator has explicitly authorized admin fallback for branch-protection review requirements. If absent or ambiguous, set `false`. |
 | `stop_conditions` | At minimum: P-001, P-009, P-014, P-016, P-017 violations; scope expansion; unavailable required tools; unresolved P0/P1 findings; failed required CI/checks; unsafe destructive action; ambiguous approval/admin authority. |
-| `visibility_mode` | Operator-visible reporting channel, plus degraded-visibility behavior when the intercom path is unavailable. |
+| `visibility_mode` | Operator-visible reporting channel (the session output and PR/closure summaries), plus the degraded-visibility behavior defined in P-017 when that reporting surface is unavailable. |
 | `preflight` (optional) | The activation preflight outcome described above: the scope-head result (or `head: active (resume)`), `PENDING` shipment IDs, `EXTERNAL_BLOCKER: {id} {token}` entries, or `not_applicable (no shipment in scope)` / `skipped (ELIGIBILITY_GATE_SKIPPED)`. Optional so earlier activation records stay valid; absent means the preflight did not run. |
 
 Dark mode does not change normal `run pipeline` behavior. It only changes autonomy and approval routing for the recorded scope, and it never permits Orchestrator to perform Stage or Ship work directly. Pass the `DARK_MODE_ACTIVE` record to Stage/Ship subagents as context so they can enforce the same scope and stop conditions.
@@ -91,10 +91,10 @@ Dark mode does not change normal `run pipeline` behavior. It only changes autono
 **P-021 non-bypass (see P-021's "Relationship to P-017" subsection)**: a `DARK_MODE_ACTIVE` activation record does not satisfy or waive P-021. `DARK_MODE_SCOPE` bounds which shipments run — it never authorizes expanding the scope of a shipment already in flight. When a deferred-expansion entry is captured during a dark run, the capture does NOT interrupt the run: the entry is captured (P-021 C2) and left for the next Stage triage cycle; it is never triaged or planned inside the dark run itself.
 
 At activation, emit `DARK_MODE_START` and `DARK_MODE_SCOPE` as operator-visible
-summaries containing the resolved scope, approval authority, admin fallback
-state, stop conditions, visibility mode, and excluded items. When
-`agent-intercom` is installed, broadcast these events with enough context for a
-remote operator to audit the run without reading the full chat transcript.
+session-output summaries containing the resolved scope, approval authority, admin
+fallback state, stop conditions, visibility mode, and excluded items, with enough
+context for an operator to audit the run without reading the full chat transcript
+(see the P-017 Dark Factory Visibility Protocol).
 
 For a **multi-shipment dark run**, `DARK_MODE_SCOPE` MUST record the **ordered shipment sequence** and its restart cursor — the ordered list, the last completed shipment (none at activation), and the next shipment to claim (the first in the order) — derived at activation per P-017 and the backlogit **Shipment Sequencing Protocol** by listing queued shipments and traversing their `blocks` edges in sequence order. Successors stay `queued` from creation; dependency edges, not status mutations, suppress them until their predecessor ships. Backlogit 1.8.0 supports only `queued -> active`, `active -> shipped`, and `active -> abandoned` for shipments — there is no shipment `blocked` lifecycle. See `docs/compound/2026-05-07-backlogit-shipment-status-constraints.md`. This cursor is what the Step 2 "Route to Ship" rule consumes; without it there is no next shipment ID for the first handoff.
 
@@ -311,8 +311,6 @@ After each Stage or Ship cycle, re-assess state (return to Step 0):
   pass `--bootstrap-grant-invocation` here. A bootstrap grant exists only to reach a claim and is exhausted by that
   claim; cursor advance, `post_claim`, `lifecycle`, and `ambient` phases remain unforced grant-free checks. (Bootstrap
   exemption applies identically to step 2a above.)
-
-When the `agent-intercom` capability pack is installed, broadcast the iteration decision and reason.
 
 ### Step E1: Elective Agent Routing (operator-initiated)
 

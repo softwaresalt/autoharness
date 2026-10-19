@@ -165,8 +165,6 @@ TOMBSTONES: Mapping[str, Tombstone] = {
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
     # U11 / U12 / U13 - pipeline agents
-    ".github/agents/_orchestrator.agent.md": "U11",
-    "templates/agents/_orchestrator.agent.md.tmpl": "U11",
     ".github/agents/_ship.agent.md": "U12",
     "templates/agents/_ship.agent.md.tmpl": "U12",
     ".github/agents/_stage.agent.md": "U13",
