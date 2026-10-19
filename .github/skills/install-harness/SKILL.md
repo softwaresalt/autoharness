@@ -20,7 +20,7 @@ Invoke this skill after workspace-discovery has produced a profile, or let the A
 * `profile_path`: (Required) Path to workspace profile YAML (typically `{workspace_path}/.autoharness/workspace-profile.yaml`).
 * `preset`: (Optional, default `standard`) One of `starter`, `standard`, or `full`. Presets define the default primitive set and capability-pack defaults.
 * `primitives`: (Optional) Comma-separated list of primitive numbers (1-10) to install. Defaults to the selected preset.
-* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-intercom`, `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`, `graphtor-docs`.
+* `capability_packs`: (Optional) Comma-separated list of capability packs: `agent-engram`, `backlogit`, `browser-verification`, `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`, `graphtor-docs`.
 * `dry_run`: (Optional, default false) When true, generate artifacts to a staging directory without installing.
 
 ## Output
@@ -526,9 +526,6 @@ the `auto-mergeinstall` agent.
 
 | Template Variable | Source | Example (enabled) | Example (disabled) |
 |---|---|---|---|
-| `{{AGENT_INTERCOM_ENABLED}}` | `capability_packs` contains `agent-intercom` | `true` | `false` |
-| `{{AGENT_INTERCOM_DETECTED}}` | `agent_intercom.detected` | `true` | `false` |
-| `{{AGENT_INTERCOM_CONFIG_PATHS}}` | `agent_intercom.config_paths[]` | `.intercom/settings.json` | empty |
 | `{{AGENT_ENGRAM_ENABLED}}` | `capability_packs` contains `agent-engram` | `true` | `false` |
 | `{{AGENT_ENGRAM_DETECTED}}` | `agent_engram.detected` | `true` | `false` |
 | `{{AGENT_ENGRAM_CONFIG_PATHS}}` | `agent_engram.config_paths[]` | `.mcp.json, .engram/config.toml` | empty |
@@ -610,11 +607,11 @@ Preset defaults:
 | `standard` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | `continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review` | Most repositories |
 | `full` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 | Standard packs plus `agent-engram`, `backlogit`, `browser-verification`, `graphtor-docs` | Higher-operational-maturity teams |
 
-`agent-intercom` is an **opt-in extra add-on**: it is never installed by any
-preset default (including `full`) and no longer ships an MCP server. Enable it
-only via explicit `capability_packs` selection.
+If `capability_packs` input is provided explicitly, use it as-is regardless of preset (after dropping retired packs, see below). If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs.
 
-If `capability_packs` input is provided explicitly, use it as-is regardless of preset. If `capability_packs` input is omitted: for `full`, install all standard packs (`continuous-learning`, `strict-safety`, `release-observability`, `adversarial-review`) plus `agent-engram`, `backlogit`, `browser-verification`, and `graphtor-docs`; for `standard`, install `continuous-learning`, `strict-safety`, `release-observability`, and `adversarial-review`; for `starter`, apply no optional packs. `agent-intercom` is only installed when it appears in an explicit `capability_packs` list.
+#### Retired capability packs
+
+`agent-intercom` was retired and is no longer a capability pack: discovery never detects or recommends it, no preset installs it, and no overlay is woven for it. When an operator passes it explicitly (`capability_packs=agent-intercom`, or a retained config or profile still lists it), print `RETIRED_PACK: agent-intercom ignored`, drop it from the resolved `capability_packs` list, and continue the install with the remaining packs. Never write it to the new profile, manifest or config, and never re-weave its overlay. An already-installed workspace that still records it is handled by `tune-harness`, which reports the retired pack and offers cleanup.
 
 Additive stack packs are descriptive composition inputs rather than substitute
 architectures. They capture multiple concurrent workspace shapes such as
@@ -659,7 +656,6 @@ Capability-pack overlays:
 
 | Capability Pack | Overlay Behavior |
 |---|---|
-| `agent-intercom` | Installs `agent-intercom.instructions.md` and threads heartbeat, broadcast, approval-routing, and operator-wait expectations through foundation docs, pipeline agents, review / verification / closure workflows, and long-running skills |
 | `agent-engram` | Installs `agent-engram.instructions.md` and threads engram-first indexed search, workspace binding, freshness checks, and code-graph-driven analysis through foundation docs and analysis-heavy workflows |
 | `backlogit` | Installs `backlogit.instructions.md`, `backlogit-sql-schema.instructions.md`, and `backlogit-yaml-header-tooling.instructions.md`, and threads backlogit-native query, queue, dependency, memory, checkpoint, comment, commit-trace, and source-artifact-cleanup workflows through backlog-aware artifacts |
 | `browser-verification` | Installs `browser-verification.instructions.md` and threads server readiness, route selection, headed/headless choice, and human-checkpoint handling through runtime verification and closure workflows |
@@ -733,15 +729,6 @@ Overlay targets may span:
 * Prompts
 * Policies
 
-Example overlay target map for `agent-intercom`:
-
-| Overlay Element | Required Targets |
-|---|---|
-| Startup / liveness | foundation docs, long-running agents / skills |
-| Approval routing | constitution, intercom instructions, risky execution skills |
-| Progress visibility | pipeline agents, review / verification / closure skills |
-| Operator wait flows | pipeline agents and long-running skills that block on clarification |
-
 Do not model a capability pack as a single isolated artifact when its behavior is inherently cross-cutting.
 
 Example overlay target map for `backlogit`:
@@ -797,46 +784,6 @@ Example overlay target map for `agent-engram`:
 * _stage.agent.md and _ship.agent.md contain `get_workspace_status` reference (text search)
 * copilot-instructions.md contains `engram:start` / `engram:end` markers (text search)
 
-#### Formal Overlay Contract: `agent-intercom`
-
-`agent-intercom` is an **opt-in extra add-on** with **no MCP server**. It is
-never enabled by preset default; recommend it only when intercom markers are
-present or the operator explicitly opts in. It operates over a non-MCP
-intercom/ACP tool surface.
-
-**Eligibility signals** (when to recommend agent-intercom):
-* `.intercom/settings.json` exists (explicit intercom policy/configuration markers)
-* `AGENTS.md` or agent files contain intercom tool names (`ping`, `broadcast`, `standby`, `transmit`) or the `<!-- intercom:start -->` marker
-* operator explicitly opts in to remote milestone visibility and approval routing
-
-**Recommendation logic**: Recommend when `agent_intercom.detected: true` in the workspace profile. Because agent-intercom has no MCP server and is an opt-in add-on, it is never enabled by preset default and must be requested explicitly.
-
-**Overlay targets**:
-* `agent-intercom.instructions.md` — primary instruction file installed at `.github/instructions/`
-* `pipeline-agents` — _stage.agent.md, _ship.agent.md: startup heartbeat, phase broadcasts, approval routing, operator-choice broadcasts
-* `destructive-action-workflows` — anywhere the harness gates destructive operations (file deletion, directory removal)
-* `operator-choice-surfaces` — stash triage, plan review, shipment assembly (self-contained broadcast with backlogit item details)
-
-**Behavior deltas**:
-* Session start: heartbeat/ping with concise status message; log `INTERCOM_OK` or `INTERCOM_DEGRADED`
-* Before operator-facing choices: self-contained broadcast with item ID, priority, type, one-line summary, ordering rationale, and explicit wait-for-confirmation statement
-* Before destructive ops: auto-check → request clearance if not auto-approved; block if intercom unavailable
-* Phase transitions: broadcast at planning started, build started, task claimed, task completed, review complete, runtime verification, operational closure
-* Fallback: `INTERCOM_DEGRADED` — non-destructive work continues; approval-dependent ops blocked until restored
-
-**Combined backlogit+intercom operator-presentation rule**: When both `agent-intercom` and `backlogit` packs are active, operator-facing backlog presentation (stash triage choices, queue items, plan review options) must be broadcast as a self-contained message: include item ID, priority, type, one-line summary, recommended ordering or shortlist rationale, and an explicit statement that operator confirmation is awaited. The operator may be reading remotely and cannot recover context from the chat transcript.
-
-**Verification checks** (installation-time):
-* `agent-intercom.instructions.md` installed at `.github/instructions/` with valid YAML frontmatter
-* _stage.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
-* _ship.agent.md contains heartbeat/ping call and `INTERCOM_DEGRADED` reference
-* No unresolved `{{VARIABLE}}` in `agent-intercom.instructions.md` (template has none — direct copy)
-
-**Tuning drift checks**:
-* `agent-intercom.instructions.md` checksum vs. template checksum in harness-manifest
-* _stage.agent.md and _ship.agent.md contain `INTERCOM_DEGRADED` reference (text search)
-* Intercom config path in the manifest normally resolves to `.intercom/settings.json`; agent-intercom has no MCP server, so a `.mcp.json` intercom entry is not expected
-
 #### Formal Overlay Contract: `backlogit`
 
 **Eligibility signals** (when to recommend backlogit):
@@ -859,7 +806,7 @@ intercom/ACP tool surface.
 * Fallback: backlogit unreachable at restore → operator handoff, no auto-resume; `agent-engram` installed but unreachable while pruning → operator handoff, no prune/resume (this is distinct from `agent-engram` simply not being installed, which is the supported no-prune path above, never a fallback/degraded condition)
 * Hygiene ordering: `cleanup_checkpoints` (retention-based archival, which can remove still-`active` records purely for age) is sequenced AFTER every active checkpoint has reached ACTUAL resolution (`resolve_checkpoint` after a confirmed successful resume) or a separate, explicit, named operator archival/abandonment decision — a fail-closed operator handoff is NEITHER of these and does NOT satisfy this gate, since handoff by design performs no resolve and deliberately leaves the checkpoint active/unresolved to preserve it for the next session; `cleanup_checkpoints` is never called against a checkpoint population that hasn't yet reached one of these two explicit dispositions
 
-**Manifest registration** (standard first-party single-`checksum` contract — mirrors the `agent-engram`/`agent-intercom`/`graphtor-docs` overlay artifact entries; NOT the community-template `installed_checksum`/`source_checksum` pair):
+**Manifest registration** (standard first-party single-`checksum` contract — mirrors the `agent-engram`/`graphtor-docs` overlay artifact entries; NOT the community-template `installed_checksum`/`source_checksum` pair):
 1. Record `.github/instructions/backlogit.instructions.md` under `artifacts:` with `path`, `primitive`, `template: "instructions/backlogit.instructions.md.tmpl"`, and a single `checksum` field computed from the installed (variable-resolved) file content.
 2. Resolve every `{{VARIABLE}}` customization point at install time — no unresolved placeholder may remain in the installed file.
 3. Add a `capability_pack_overlays[]` entry for `pack: "backlogit"` (or extend the existing one) with a `verification_checks` row: `"backlogit.instructions.md installed at .github/instructions/"`, consistent with its existing `overlay_targets: instructions`.
@@ -1064,8 +1011,6 @@ Generate the constitutional foundation first, as all other artifacts reference i
 
 3. **copilot-instructions.md**: Generate shared development guidelines with project structure, commands, and conventions.
 
-If the `agent-intercom` capability pack is enabled, weave the intercom operating model into both files so heartbeat, milestone broadcasting, approval routing, and degraded-mode handling are part of the normal harness narrative.
-
 If the `agent-engram` capability pack is enabled, weave the engram-first search operating model into both files so indexed lookup, workspace binding, and freshness / fallback behavior become part of the normal harness narrative.
 
 If the `browser-verification` capability pack is enabled, weave browser
@@ -1113,8 +1058,7 @@ Generate instruction files. These use `applyTo` patterns to scope their rules:
 
 3. **Backlog integration instructions** (`backlog-integration.instructions.md`): Generated from the backlog tool registry. Maps abstract operations to the specific tool's MCP names and CLI commands. Only generated when a backlog tool is detected or registered.
 
-4. **Capability-pack instructions**: When `agent-intercom` is enabled, install `agent-intercom.instructions.md` and use it as the authoritative reference for heartbeat, remote approval, operator steering, and standby workflows.
-   When `agent-engram` is enabled, install `agent-engram.instructions.md` and use it as the authoritative reference for engram-first search, workspace binding, index freshness, and indexed-search fallback workflows.
+4. **Capability-pack instructions**: When `agent-engram` is enabled, install `agent-engram.instructions.md` and use it as the authoritative reference for engram-first search, workspace binding, index freshness, and indexed-search fallback workflows.
    When `backlogit` is enabled, install `backlogit.instructions.md`, `backlogit-sql-schema.instructions.md`, and `backlogit-yaml-header-tooling.instructions.md` and use them as the authoritative references for backlogit-native query, queue, dependency, memory, checkpoint, comment, traceability, SQL lookup, YAML frontmatter coverage, and source-artifact-cleanup workflows.
    When `browser-verification` is enabled, install `browser-verification.instructions.md` and use it as the authoritative reference for browser-ready server checks, route selection, headed/headless choice, and human checkpoints.
    When `continuous-learning` is enabled, install `continuous-learning.instructions.md` and use it as the authoritative reference for observation capture, instinct formation, and learned-artifact promotion.
@@ -1214,7 +1158,7 @@ scope.
    * Adapt build/test/lint commands throughout
    * Adapt quality gate sequences
     * Adapt model routing tiers (preserve structure, adjust agent assignments if needed)
-    * When `agent-intercom` is enabled, add explicit workflow guidance for ping/heartbeat, broadcast milestones, approval routing, and operator clarification waits. If P-017 dark factory guidance is present, ensure dark-mode events (`DARK_MODE_START`, `DARK_MODE_SCOPE`, `BRAINSTORM_HANDOFF_READY`, `LOCAL_REVIEW_READY`, `DARK_MODE_MERGE_AUTHORIZED`, `ADMIN_FALLBACK_ATTEMPTED`, `DARK_MODE_HALTED`, `DARK_MODE_COMPLETE`) are self-contained and include scope, decisions, brainstorm/requirements handoff state, gates, reviewed HEADs, outcomes, and next actions.
+    * If P-017 dark factory guidance is present, ensure dark-mode events (`DARK_MODE_START`, `DARK_MODE_SCOPE`, `BRAINSTORM_HANDOFF_READY`, `LOCAL_REVIEW_READY`, `DARK_MODE_MERGE_AUTHORIZED`, `ADMIN_FALLBACK_ATTEMPTED`, `DARK_MODE_HALTED`, `DARK_MODE_COMPLETE`) are reported as self-contained session-output summaries that include scope, decisions, brainstorm/requirements handoff state, gates, reviewed HEADs, outcomes, and next actions (the P-017 Dark Factory Visibility Protocol in `workflow-policies.md`).
     * When `agent-engram` is enabled, add explicit workflow guidance for engram-first search, workspace binding/index verification, and code-graph or impact-analysis style diagnostics
     * When `backlogit` is enabled, add explicit workflow guidance for queue-first work selection, dependency-aware planning, checkpoint persistence, and commit traceability
     * When `strict-safety` is enabled, keep risky planning and approval vocabulary visible through stage, review, verification, and closure handoffs
@@ -1299,8 +1243,6 @@ Generate skill files:
 
 3. **Always-installed skills** (install with every preset, regardless of primitive or layer selection):
     * `harness-doctor/SKILL.md` — Universal health diagnostic; install with every preset. Resolves health-check variables: `{{HARNESS_MANIFEST_PATH}}`, `{{AUTOHARNESS_VERSION}}`.
-
-When `agent-intercom` is enabled, weave operator visibility guidance into the long-running and gating skills rather than treating it as a separate isolated instruction.
 
 When `agent-engram` is enabled, weave indexed-search guidance into research, planning, build, and repair skills rather than treating it as a generic footnote.
 
@@ -1593,7 +1535,7 @@ Create `.autoharness/harness-manifest.yaml` recording install-time checksums tha
 the tuner can later re-hash for deterministic drift detection:
 
 ```yaml
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 installed_at: "{{ISO_8601_TIMESTAMP}}"
 autoharness_version: "{{AUTOHARNESS_VERSION}}"
 autoharness_home: "{{AUTOHARNESS_HOME}}"
@@ -1708,8 +1650,7 @@ For each enabled capability pack:
 1. Load the pack's declared overlay targets from the manifest
 2. Verify each target artifact exists
 3. For each target, verify the artifact contains at least one reference to the
-   pack's core behavior keyword (e.g., `agent-intercom` → "heartbeat" or
-   "broadcast"; `strict-safety` → "ProposedAction" or "ActionRisk";
+   pack's core behavior keyword (e.g., `strict-safety` → "ProposedAction" or "ActionRisk";
    `release-observability` → "monitoring plan" or "rollback trigger")
 4. **FAIL** verification if any target artifact is missing or lacks the
    expected behavior reference — this indicates a partially woven overlay
@@ -1757,7 +1698,7 @@ For each enabled capability pack:
    a. Confirm `workflow-policies` contains `P-017`, exact trigger `Run pipeline in dark mode`, and `DARK_MODE_ACTIVE`
    b. Confirm `_orchestrator.agent.md` records bounded scope, merge approval authority, admin fallback authority, stop conditions, and `DARK_MODE_START` / `DARK_MODE_COMPLETE`
    c. Confirm `_ship.agent.md` or `pr-lifecycle` requires current-HEAD local readiness, P-009 merge commit strategy, required checks, P-016 topology, and immediate `headRefOid` re-check before merge/admin fallback
-   d. Confirm `agent-intercom.instructions.md` contains dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY`, and degraded-visibility halt behavior
+   d. Confirm the `workflow-policies` P-017 Dark Factory Visibility Protocol contains the dark-mode visibility events, including `BRAINSTORM_HANDOFF_READY`, and degraded-visibility halt behavior
    e. Confirm `feature-flow-dark.prompt.md` routes through Orchestrator and does not bypass Stage, Ship, backlog/shipment policy, local readiness, telemetry, or closure
    f. Report FAIL for missing or stale guidance that treats dark mode as a safety bypass, allows vague trigger phrases, or omits closure evidence (decisions, gates, reviewed HEADs, merge/fallback status, closure status, follow-ups)
 9. **Pipeline-topology hook verification** (mixed scope: item (a) applies only when

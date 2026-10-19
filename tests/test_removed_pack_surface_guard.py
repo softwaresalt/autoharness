@@ -165,14 +165,20 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=line_contains('"intercom"'),
         max_count=4,
     ),
+    ".github/skills/install-harness/SKILL.md": Tombstone(
+        rationale="the Retired capability packs note names the retired value to explain how an explicit selection is ignored",
+        permitted=in_section("#### Retired capability packs"),
+        max_count=1,
+    ),
+    "tests/test_install_harness_retired_pack.py": Tombstone(
+        rationale="proves the install surfaces name the retired value only in the retired-pack note and carry no pack remnants",
+        permitted=any_line,
+        max_count=6,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U17 - install-harness skill, prompt, auto-mergeinstall agent
-    ".github/skills/install-harness/SKILL.md": "U17",
-    ".github/prompts/install-harness.prompt.md": "U17",
-    ".github/agents/auto-mergeinstall.agent.md": "U17",
     # U18 - discovery, tune, verify-harness skills
     ".github/skills/workspace-discovery/SKILL.md": "U18",
     ".github/skills/tune-harness/SKILL.md": "U18",
