@@ -10,10 +10,11 @@ classifies each match as exactly one of:
 * TELEMETRY_VOCAB - the retained ``route_kind`` telemetry vocabulary (D-6);
 * TOMBSTONES - exact paths that must name the retired value to handle it, each
   scoped to the permitted occurrences (predicate plus maximum count);
-* PENDING_SURFACES - the shrinking ledger of live surfaces still to be swept.
+* PENDING_SURFACES - the ledger of live surfaces still to be swept (empty since
+  the final unit).
 
-Each later unit deletes its own surfaces from the ledger; a stale entry fails.
-``LEDGER_ENFORCED`` is flipped to True by the final unit (U23), which also
+Each unit deleted its own surfaces from the ledger; a stale entry fails.
+``LEDGER_ENFORCED`` was flipped to True by the final unit (U23), which also
 requires the ledger to be empty. ``tests/`` is not blanket-excluded: existing
 tests that merely assume the pack are exact-file ledger entries and tests that
 intentionally name the retired value are exact-path tombstones.
@@ -31,8 +32,8 @@ from typing import Callable, Mapping, Sequence
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "intercom"
 
-# Flipped to True by U23 (final enforcement): the ledger must then be empty.
-LEDGER_ENFORCED = False
+# Enforced by U23 (final enforcement): the ledger must stay empty.
+LEDGER_ENFORCED = True
 
 Predicate = Callable[[Sequence[str], int], bool]
 
@@ -389,6 +390,9 @@ class RemovedPackSurfaceGuardTests(unittest.TestCase):
         for entry, unit in PENDING_SURFACES.items():
             self.assertRegex(unit, r"^U\d+$", entry)
             self.assertFalse(entry.endswith("/"), f"ledger entries are exact files: {entry}")
+
+    def test_guard_is_enforced(self) -> None:
+        self.assertTrue(LEDGER_ENFORCED, "U23 requires the empty-ledger guard to stay enforced")
 
     def test_ledger_is_empty_once_enforced(self) -> None:
         if not LEDGER_ENFORCED:
