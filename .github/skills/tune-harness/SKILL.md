@@ -528,7 +528,7 @@ Tune reads route values from the workspace config (`.autoharness/config.yaml`) a
 
 **Ship route preservation.** The Step 1.5d rule is unchanged. An explicitly declared Ship route (a non-empty `model_routing.ship.model_family`) is a pinned operator override: this step never edits `model_routing.ship` or any other pipeline route, never proposes a catalog entry from it, and a `refresh-route-frontmatter` proposal for an agent never alters the Ship route.
 
-**Catalog and bindings preservation.** Any config write tune makes (an accepted proposal or a re-render) keeps the operator-authored `model_routing.routes` and `model_routing.bindings` verbatim, never regenerating, emptying, or reordering them.
+**Catalog and bindings preservation.** Any config write tune makes (an accepted proposal or a re-render) keeps the operator-authored `model_routing.routes` and `model_routing.bindings` verbatim, never regenerating, emptying, or reordering them. When the retained `schema_version` is below `1.2.0`, a key the config does not declare stays absent: tune never adds the template's empty `routes: {}` / `bindings: {}` defaults to such a config, because `routing_inert_keys` flags key presence below `1.2.0`. The empty defaults belong only to a fresh install or a config written at `1.2.0` or later.
 
 #### Step 1.6: Preset, Stack-Pack, Layer, and Capability-Pack Drift
 

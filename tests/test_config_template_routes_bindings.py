@@ -188,7 +188,7 @@ class StepThreeFourPreservationTests(unittest.TestCase):
             "non-empty `model_routing.routes` and `model_routing.bindings`",
             "carried over verbatim",
             "never regenerated, emptied, or variable-substituted",
-            "literal `{}` applies only when the existing config has none",
+            "literal `{}` applies only when the existing config has none and the config is written at schema `1.2.0` or later",
         ):
             with self.subTest(token=token):
                 self.assertIn(token, self.flat)
@@ -204,6 +204,50 @@ class StepThreeFourPreservationTests(unittest.TestCase):
         manifest = yaml.safe_load((_REPO_ROOT / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))
         entry = next(a for a in manifest["artifacts"] if a["path"] == ".github/skills/install-harness/SKILL.md")
         self.assertIn("208.010-T review", entry["note"])
+
+    def test_pre_1_2_0_retention_omits_absent_routes_and_bindings(self) -> None:
+        for token in (
+            "below `1.2.0`",
+            "omit the `routes` and `bindings` keys entirely",
+            "template's empty-block lines",
+            "empty `{}` defaults apply only to a fresh install or a config written at schema `1.2.0` or later",
+            "`ROUTING_KEYS_REQUIRE_1_2_0`",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token, self.flat)
+
+    def test_omission_rule_is_not_a_license_to_drop_operator_values(self) -> None:
+        self.assertIn("never drops an operator-authored value", self.flat)
+
+    def test_manifest_note_records_the_legacy_rerender_fix(self) -> None:
+        manifest = yaml.safe_load((_REPO_ROOT / ".autoharness" / "harness-manifest.yaml").read_text(encoding="utf-8"))
+        entry = next(a for a in manifest["artifacts"] if a["path"] == ".github/skills/install-harness/SKILL.md")
+        self.assertIn("pre-1.2.0 retention omits absent routes and bindings", entry["note"])
+
+
+class LegacyRerenderInertKeyTests(unittest.TestCase):
+    """Why the Step 3.4 omission rule exists: routing_inert_keys flags key presence below 1.2.0."""
+
+    @staticmethod
+    def _inert_check(schema_version: str, model_routing: dict) -> dict:
+        from autoharness.verify_workspace import _add_model_routing_catalog_checks
+
+        report: dict = {"targeted_checks": {}, "warnings": []}
+        config = {"schema_version": schema_version, "model_routing": model_routing}
+        _add_model_routing_catalog_checks(report, config, Path("config.yaml"), None, "registry unavailable")
+        return report["targeted_checks"]["routing_inert_keys"]
+
+    def test_empty_maps_at_1_1_0_fail_the_inert_key_check(self) -> None:
+        check = self._inert_check("1.1.0", {"routes": {}, "bindings": {}})
+        self.assertFalse(check["ok"])
+        self.assertEqual(2, len(check["errors"]))
+        self.assertTrue(all(e.startswith("ROUTING_KEYS_REQUIRE_1_2_0") for e in check["errors"]))
+
+    def test_omitted_keys_at_1_1_0_pass_the_inert_key_check(self) -> None:
+        self.assertTrue(self._inert_check("1.1.0", {"tier1": {}})["ok"])
+
+    def test_empty_maps_at_1_2_0_pass_the_inert_key_check(self) -> None:
+        self.assertTrue(self._inert_check("1.2.0", {"routes": {}, "bindings": {}})["ok"])
 
 
 if __name__ == "__main__":
