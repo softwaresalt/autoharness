@@ -56,8 +56,13 @@ bookkeeping around the canonical full-suite gate rather than alongside it.
 * A delegated implementer once ran `git stash` and `git stash pop` to check a flake; with
   background backlog writes that is risky. Tell implementers never to run `git stash`.
 * The ambient `.worktrees/copilot-prewarm-*` worktree (a Copilot app artifact) reappears and trips
-  `MULTIPLE_IMPLEMENTATION_WORKTREES` in the topology tests and gate; verify it is clean and detached,
-  then `git worktree remove` it.
+  `MULTIPLE_IMPLEMENTATION_WORKTREES` in the topology tests and gate. A topology failure is not
+  authorization to delete it. Halt, inspect what remains in it (`git status --porcelain --ignored`, branch
+  and HEAD, any ignored local data), and obtain explicit operator approval for the exact worktree path
+  before `git worktree remove` (see
+  `docs/compound/2026-08-16-multiple-implementation-worktrees-blocks-topology-gate-globally.md`). In 215-S the
+  operator had pre-approved removal of a clean, detached prewarm worktree in the session brief, and it was
+  removed only after verifying it was clean and detached at the main SHA.
 * Requesting a Copilot review without GitHub MCP used the GraphQL `requestReviews` mutation with
   `botIds` (see `docs/compound/2026-10-12-requesting-copilot-review-via-graphql-bot-id.md`); the
   review arrived in about 4 minutes both rounds.
