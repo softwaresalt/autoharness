@@ -69,7 +69,6 @@ Start light and grow. Presets control the installation shape; capability packs o
 
 | Pack | Purpose |
 |---|---|
-| **agent-intercom** | Operator visibility, heartbeat, approval routing |
 | **agent-engram** | Indexed search, code graph lookup, workspace binding |
 | **backlogit** | backlogit-native query, queue, dependencies, memory/checkpoints, and traceability |
 | **browser-verification** | Browser-aware runtime verification for web UIs |

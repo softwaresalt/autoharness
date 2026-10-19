@@ -126,7 +126,7 @@ Install layers are the artifact classes the installer composes into the target w
 | `runtime` | Runtime verification and operational closure skills | When runtime surfaces are detected |
 | `backlog` | Backlog tool config, stash template, registry wiring | When a backlog tool is detected or configured |
 | `knowledge` | Compound, compact-context, and deliberation skills; docs directory scaffolding | Standard and above |
-| `overlays` | Capability pack instruction and skill files (e.g., `agent-intercom`, `strict-safety`) | When capability packs are enabled |
+| `overlays` | Capability pack instruction and skill files (e.g., `agent-engram`, `strict-safety`) | When capability packs are enabled |
 
 The `starter` preset installs `foundation` + `instructions` + `workflow`. The `standard` preset adds `review` + `backlog` + `knowledge`. The `full` preset adds `runtime` + `overlays`. You can override these defaults by listing explicit layers in your config file.
 
@@ -190,7 +190,6 @@ Capability packs deepen the harness without redefining the primitive model:
 
 | Pack | Adds |
 |---|---|
-| `agent-intercom` | Remote operator visibility, heartbeat, approval routing, and steering guidance woven through the installed harness |
 | `agent-engram` | Engram-first indexed search, code graph lookup, workspace binding, and query-driven context retrieval woven through analysis-heavy workflows |
 | `backlogit` | backlogit-native query, queue, dependency, memory, checkpoint, comment, and commit-trace guidance layered over generic backlog integration |
 | `browser-verification` | Browser-aware runtime verification and closure guidance for web UIs |
@@ -199,8 +198,6 @@ Capability packs deepen the harness without redefining the primitive model:
 | `release-observability` | Richer operational closure and monitoring artifacts |
 | `adversarial-review` | Multi-model consensus review and escalation for higher-confidence review gates |
 | `graphtor-docs` | Indexed local documentation search and semantic retrieval woven through concept and API resolution before broad web or file search |
-
-`agent-intercom` is intentionally different from a narrow add-on. When enabled, autoharness should thread its workflow expectations into `AGENTS.md`, `copilot-instructions.md`, intercom-specific instructions, pipeline agents, and long-running skills so operator visibility and approval routing become part of the normal harness behavior.
 
 `agent-engram` is also an overlay rather than a single search toggle. When enabled, autoharness should keep the generic search guidance in place while additionally teaching the harness to use Engram's higher-leverage indexed capabilities such as unified search, code graph lookup, workspace memory queries, lifecycle checks, and index freshness workflows.
 
@@ -318,7 +315,6 @@ target-workspace/
       workflows.instructions.md           # CI/CD workflow structure (when CI detected)
       mcp-server.instructions.md          # MCP server conventions (when MCP detected)
       backlog-integration.instructions.md # Backlog tool mapping (when backlog detected)
-      agent-intercom.instructions.md      # Optional: agent-intercom pack
       agent-engram.instructions.md        # Optional: agent-engram pack
       backlogit.instructions.md           # Optional: backlogit pack
       backlogit-sql-schema.instructions.md # Optional: backlogit SQL/query pack surface
@@ -402,10 +398,9 @@ The installer runs automatic verification. You can also manually check:
 5. Confirm the selected preset and capability packs are recorded in `.autoharness/harness-manifest.yaml`
 6. Ensure no `{{VARIABLE}}` placeholders remain in any generated file
 7. Confirm the local review layer is present: `.github/skills/review/SKILL.md` declares `READY`, `READY_WITH_FOLLOWUPS`, and `BLOCKED`, and `.github/policies/workflow-policies.md` records the P-014 local review readiness gate
-8. If `agent-intercom` is enabled, verify `.github/instructions/agent-intercom.instructions.md` exists and the installed agents/skills reference intercom heartbeat, broadcast, and approval usage where expected
-9. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
-10. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
-11. If `graphtor-docs` is enabled, verify `.github/instructions/graphtor-docs.instructions.md` exists and the installed agents/skills reference indexed documentation search, doc-link traversal, or indexed-fallback behaviors where expected
+8. If `agent-engram` is enabled, verify `.github/instructions/agent-engram.instructions.md` exists and the installed agents/skills reference engram-first search, workspace binding, or indexed-fallback behaviors where expected
+9. If `backlogit` is enabled, verify `.github/instructions/backlogit.instructions.md`, `.github/instructions/backlogit-sql-schema.instructions.md`, and `.github/instructions/backlogit-yaml-header-tooling.instructions.md` exist and the installed agents/skills reference backlogit query / queue / memory / traceability / source-artifact-cleanup behaviors where expected
+10. If `graphtor-docs` is enabled, verify `.github/instructions/graphtor-docs.instructions.md` exists and the installed agents/skills reference indexed documentation search, doc-link traversal, or indexed-fallback behaviors where expected
 
 ### First Use
 
@@ -443,10 +438,9 @@ If you want to drive the lifecycle manually instead of using the workflow entryp
 8. If the feature or chore changes runtime behavior, ship runs `runtime-verification`
 9. Ship captures release readiness and follow-up monitoring with `operational-closure`
 10. After merge, ship can invoke `compound-refresh` when shipped work supersedes, duplicates, or invalidates existing learnings in `docs/compound/`
-11. If the workspace enabled the opt-in `agent-intercom` add-on, confirm the intercom tool surface / path is reachable before relying on remote approval or operator steering flows (agent-intercom has no MCP server)
-12. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
-13. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
-14. If the workspace enabled `graphtor-docs`, confirm the graphtor-docs server / MCP path is reachable and sources are indexed before relying on indexed documentation retrieval
+11. If the workspace enabled `agent-engram`, confirm the engram MCP / daemon path is reachable and the workspace is bound (or auto-bound) before relying on indexed search results
+12. If the workspace enabled `backlogit`, confirm the backlogit MCP or CLI path is available before relying on queue, SQL query, checkpoint, YAML/frontmatter, or source-artifact-cleanup workflows
+13. If the workspace enabled `graphtor-docs`, confirm the graphtor-docs server / MCP path is reachable and sources are indexed before relying on indexed documentation retrieval
 
 ## Updating autoharness
 

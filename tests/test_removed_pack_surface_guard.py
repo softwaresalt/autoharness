@@ -190,16 +190,20 @@ TOMBSTONES: Mapping[str, Tombstone] = {
         permitted=any_line,
         max_count=6,
     ),
+    "docs/capability-packs.md": Tombstone(
+        rationale="the Retired packs section names the retired value to record its removal and the legacy tolerance behavior",
+        permitted=in_section("## Retired packs"),
+        max_count=3,
+    ),
+    "docs/tuning-guide.md": Tombstone(
+        rationale="the Retired capability packs section names the retired value to explain the tune cleanup of an inert recording",
+        permitted=in_section("### Retired capability packs"),
+        max_count=5,
+    ),
 }
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U19 - docs
-    "README.md": "U19",
-    "docs/capability-packs.md": "U19",
-    "docs/getting-started.md": "U19",
-    "docs/tuning-guide.md": "U19",
-    "docs/primitives.md": "U19",
     # U20 - telemetry docs and deferred-doc deletion
     "docs/telemetry/backlogit-evidence-map.md": "U20",
     "docs/telemetry/backlogit-sensitivity-guardrails.md": "U20",

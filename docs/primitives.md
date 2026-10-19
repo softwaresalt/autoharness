@@ -15,7 +15,7 @@ autoharness packages these primitives as customizable templates. The workspace-d
 
 Capability packs are the mechanism autoharness uses for optional, cross-cutting composition on top of the 10 primitives.
 
-They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-intercom` strengthens Primitive 4 (handoffs), Primitive 5 (approval routing), Primitive 6 (instruction injection), and Primitive 7/10 (operator visibility and closure signaling) without redefining the primitive model itself.
+They do **not** add an eleventh primitive. Instead, a pack deepens existing primitives by weaving coordinated changes across multiple artifacts. For example, `agent-engram` strengthens Primitive 1 (state and knowledge retrieval), Primitive 4 (handoffs), Primitive 6 (instruction injection), and Primitive 9 (repository knowledge) without redefining the primitive model itself.
 
 `browser-verification`, `continuous-learning`, and `strict-safety` follow the same overlay model:
 they deepen existing primitives through coordinated changes across instructions,

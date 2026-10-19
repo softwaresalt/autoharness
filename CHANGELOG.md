@@ -173,6 +173,37 @@
   templates this surfaces as `source_checksum` drift. Re-render to adopt the
   conformant templates.
 
+### Removed
+
+- **The `agent-intercom` capability pack (209-F / 216-S):** the pack, its overlay instruction
+  (`agent-intercom.instructions.md`), its registry entry, its `agent_intercom` profile block, its
+  verify assertions, and every remote-channel step woven through the agents, skills, policies, and
+  foundation docs (heartbeat, progress broadcasts, auto-check approval routing, transmit and standby
+  waits) are removed. Normative operator-visible events are retained as session-output summaries:
+  the Dark Factory Visibility Protocol (the eight `DARK_MODE_*` and handoff events, plus the
+  degraded-visibility halt rules) now lives in the P-017 section of the workflow policy,
+  P-005/P-010/P-016/P-017 violations are reported in the session output, and clarification waits,
+  operator-choice presentations, and destructive-action approval are channel-neutral. The constitution
+  advances to `1.1.0` and the workflow policy registry to `1.37.0`. The telemetry `route_kind:
+  "intercom"` vocabulary value stays, because published, versioned telemetry contracts still list it.
+- **Schema contract bumps:** `workspace-profile` and `harness-manifest` advance to `1.1.0` and
+  `harness-config` to `1.3.0`; each drops the pack from its pack enums, and the profile drops the
+  `agent_intercom` property. The `0.9.0`, `1.0.0`, `1.1.0`, and `1.2.0` mirrors that were already
+  published stay byte-identical, so a document pinned to a frozen version keeps validating against the
+  contract it was written for.
+- **Legacy tolerance:** an installed profile, manifest, or config that still lists the retired pack
+  degrades to a non-blocking `removed-capability-pack` warning (independent of its pinned schema
+  version) plus a `remove-retired-capability-pack` migration proposal instead of failing verification.
+  `install-harness`, `workspace-discovery`, and `scripts/deploy-harness.{sh,ps1}` print
+  `RETIRED_PACK: agent-intercom ignored` and continue when the pack is requested explicitly, instead of
+  failing with `Unknown pack`. `tune-harness` reports the retired capability pack as a drift category
+  and offers a proposal-only cleanup (the orphan instruction file is deleted only when its checksum
+  still matches the manifest). Expected template drift in installed workspaces: most agents, skills,
+  instructions, and the foundation docs; re-run tune-harness.
+- **Deferred-doc deletion:** `docs/deferred/agent-intercom-opt-in-nonmcp.md` and its `.patch` are
+  deleted. The record stays in git history and PR #253 (shipment 101-S); the patch targeted files this
+  removal deletes or rewrites and could no longer be applied.
+
 ## 1.5.0 - 2026-08-30
 
 ### Added

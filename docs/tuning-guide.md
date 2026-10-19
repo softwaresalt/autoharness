@@ -15,7 +15,6 @@ Agent harnesses degrade over time. Common causes:
 * **CI pipeline changes**: Quality gate commands in the constitution no longer match CI steps
 * **Runtime surface changes**: A repo grows a web UI or public API but the harness still assumes static-only validation
 * **Composition-model changes**: The repo shifts from `library` to `api-service` or gains new additive stack packs, but the installed harness still reflects the older composition shape
-* **Operator workflow changes**: agent-intercom is configured (or removed) but the harness does not reflect the required heartbeat, broadcast, or approval-routing behavior
 * **Indexed-search workflow changes**: agent-engram is configured (or removed) but the harness does not reflect engram-first search, binding, or freshness behavior
 * **Backlog workflow changes**: backlogit is present but the harness still uses only generic CRUD patterns and ignores queue, query, dependency, or checkpoint capabilities
 * **Convention drift**: Team adopts new naming patterns not reflected in language instructions
@@ -105,8 +104,6 @@ Additional examples: the team wants recurring workflow observations to become ex
 
 Additional examples: discovery now classifies the repo as `web-app` + `deployable-service`, but the installed composition still lacks the expected `runtime` or `overlays` layers.
 
-Additional examples: agent-intercom is configured in `.intercom/settings.json` or via existing instruction markers, but the harness does not install the intercom instruction file or thread heartbeat / approval guidance through the execution pipeline.
-
 Additional examples: agent-engram is configured in `.mcp.json` or `.engram/`, but the harness never installs the engram instruction file and still defaults to grep-heavy repo exploration even when indexed lookup is available.
 
 Additional examples: backlogit is detected, but the harness never recommends the backlogit pack and therefore misses SQL query, queue, memory, checkpoint, comment, and commit-trace workflows.
@@ -120,8 +117,6 @@ New capabilities that the harness could leverage. The workspace has evolved in w
 **Examples**: New database added (opportunity for database reviewer persona), Docker introduced (opportunity for container instructions), API documentation added (opportunity for API review).
 
 Additional examples: web UI added (opportunity for browser verification), deployment manifests added (opportunity for release observability pack), higher-risk production changes (opportunity for strict safety defaults and explicit action classification).
-
-Additional examples: a team adopts remote operator approval and progress visibility through agent-intercom (opportunity for the `agent-intercom` capability pack and intercom-woven workflow guidance).
 
 Additional examples: a team adopts agent-engram for code graph indexing and workspace memory (opportunity for the `agent-engram` capability pack and engram-first search guidance).
 
@@ -140,6 +135,16 @@ Additional examples: discovery now detects additive stack packs such as `web-app
 Functional but may cause minor confusion. Version numbers updated, minor naming changes, additional config files added.
 
 **Action**: Fix in batch during maintenance windows.
+
+### Retired capability packs
+
+A retired capability pack is one that autoharness no longer ships. An install that still records it keeps working, because the recording is inert, but `verify-workspace` reports it as a `removed-capability-pack` warning (profile, manifest, or config entries, overlay records, and a leftover profile `agent_intercom` block) with a `remove-retired-capability-pack` migration proposal, regardless of the document's pinned schema version. `tune-harness` reports it as its own drift category and offers a proposal-only cleanup that never re-weaves the pack:
+
+* remove the `agent-intercom` entry from `capability_packs`, the overlay record, and the recommendation entries
+* delete `.github/instructions/agent-intercom.instructions.md` only when its checksum still matches the manifest record; a modified file is left in place for manual review
+* review and remove the woven `intercom` sections of the generated guidance, keeping operator-authored text
+
+Approved removals are backed up first, and the document is then upgraded to the current contract (profile and manifest `1.1.0`, config `1.3.0`) through the normal upgrade proposal. Requesting the pack explicitly prints `RETIRED_PACK: agent-intercom ignored`.
 
 ## Deterministic Artifact Drift Scanning
 
@@ -175,9 +180,10 @@ Review these fields from the JSON report before proposing tune changes:
 * `migration_proposals[]` — upgrade, backfill, and normalization proposals
 * `warnings[]` — compatibility drift evidence, including grouped summaries when repeated findings collapse into fewer warning rows
 
-The current config contract is `1.2.0`; the workspace profile and harness
-manifest contracts are `1.0.0`. autoharness also recognizes `0.9.0` as a known
-legacy version for all three, and `1.0.0` and `1.1.0` as known legacy config
+The current config contract is `1.3.0`; the workspace profile and harness
+manifest contracts are `1.1.0`. autoharness also recognizes `0.9.0` as a known
+legacy version for all three, `1.0.0` as a known legacy profile and manifest
+version, and `1.0.0`, `1.1.0`, and `1.2.0` as known legacy config
 versions. Those workspaces should generate explicit upgrade proposals instead of
 being treated as unknown-contract failures. A config is always validated against
 the schema that matches its own `schema_version`, so a valid `1.1.0` config stays
@@ -600,7 +606,6 @@ All harness artifacts are regular Markdown files. You can edit them directly:
 * **Agents**: Update tool lists, modify behavioral constraints, adjust model routing
 * **Skills**: Change build/test commands, adjust circuit breaker limits
 * **Skill Packs**: Enable richer verification or safety packs without redesigning the harness
-* **Intercom Weaving**: Thread agent-intercom heartbeat, broadcast, approval, and standby guidance through the affected artifacts rather than adding a single isolated note
 * **Continuous Learning**: Keep the observation lifecycle explicit by tuning `continuous-learning.instructions.md` and the `observe` / `learn` / `evolve` skills together
 * **Strict Safety**: Tune `strict-safety.instructions.md`, `plan-harden`, `safety-modes`, review, and closure guidance together so risky actions stay legible across the workflow
 * **Conditional Reviewers**: Install or retarget `agent-native-parity-reviewer.agent.md` when agent-facing product surfaces appear
