@@ -149,9 +149,6 @@ TOMBSTONES: Mapping[str, Tombstone] = {
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U5 - policy
-    ".github/policies/workflow-policies.md": "U5",
-    "templates/policies/workflow-policies.md.tmpl": "U5",
     # U7 - verify_workspace retirement
     "src/autoharness/verify_workspace.py": "U7",
     "tests/test_verify_workspace.py": "U7",

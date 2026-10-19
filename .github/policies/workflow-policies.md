@@ -192,11 +192,11 @@ The following outcomes are NEVER valid red-phase evidence for a roster test, and
 | Applies To | All agents governed by this registry          |
 | Gate Point | Any policy violation event                    |
 
-**Statement**: All policy violations must be recorded as structured broadcast events. Policy violations are first-class observability signals.
+**Statement**: All policy violations must be reported in the session output and recorded as structured P-005 telemetry events. Policy violations are first-class observability signals.
 
 **Required Actions**:
 
-* Broadcast the violation with policy ID and one-line summary
+* Report the violation in the session output with policy ID and one-line summary, and record it via P-005 telemetry
 * Include violation details in PR descriptions as compliance annotations
 * Record violation in memory checkpoints for affected tasks
 
@@ -221,7 +221,7 @@ If the impl-plan output does not contain a `Requires plan hardening` conclusion,
 
 **Postcondition**: The plan entering plan-review either carries a `## Plan Hardening` section (when hardening was required) or an explicit `Requires plan hardening: no` conclusion.
 
-**Violation Action**: Halt. Do not proceed to plan-review or harvest. Broadcast a P-005 violation event.
+**Violation Action**: Halt. Do not proceed to plan-review or harvest. Report a P-005 violation in the session output and record it via P-005 telemetry.
 
 ---
 
@@ -241,11 +241,11 @@ If the impl-plan output does not contain a `Requires plan hardening` conclusion,
 
 **Violation Action** (Decisions G1–G9; a `git restore` of `.backlogit/archive/` is a destructive command and MUST be gated behind a fresh, live, non-synthesizable operator approval — never issued unconditionally):
 
-**G1 — The authorization source is a direct runtime operator approval (binding)**: authorization to run the restore MUST be a LIVE approval RESULT obtained at the moment of the request over an INDEPENDENT operator channel the executing agent CANNOT synthesize — the intercom approval/clearance operation, an interactive operator ask/confirm prompt, or the operator session channel. The defining property is non-synthesizability: the approving act must originate outside the agent's own writable surface, and the agent has no operation that can produce the affirmative result on its own behalf.
+**G1 — The authorization source is a direct runtime operator approval (binding)**: authorization to run the restore MUST be a LIVE approval RESULT obtained at the moment of the request over an INDEPENDENT operator channel the executing agent CANNOT synthesize — a runtime approval/clearance operation, an interactive operator ask/confirm prompt, or the operator session channel. The defining property is non-synthesizability: the approving act must originate outside the agent's own writable surface, and the agent has no operation that can produce the affirmative result on its own behalf.
 
 **G2 — A backlog comment is evidence only, never authority**: after (and only after) a G1 approval result is obtained, the agent SHOULD record an `APPROVAL: P-007-ARCHIVE-RESTORE` comment on the shipment item carrying the shipment ID, the exact archive paths, the operator actor identity, the approval timestamp, and the channel the approval came over. This record exists for audit and traceability only. It is NOT read back as authorization, is NOT a substitute for a live G1 result, and its presence does NOT shorten, cache, or pre-satisfy any future approval — each remediation attempt requires its own fresh G1 approval.
 
-**G3 — No independent channel means halt, do not restore (binding)**: when NO independent approval channel is available — intercom degraded or unreachable, no interactive operator session, ask/confirm unavailable, or the channel present but unanswered — detect the violation, halt, do not run `git restore`, record it through P-005 telemetry with the exact remediation command for a human to run, and leave the working tree untouched. Absence of a channel is NEVER an implicit approval and NEVER a fallback to the comment path in G2.
+**G3 — No independent channel means halt, do not restore (binding)**: when NO independent approval channel is available — the approval channel degraded or unreachable, no interactive operator session, ask/confirm unavailable, or the channel present but unanswered — detect the violation, halt, do not run `git restore`, record it through P-005 telemetry with the exact remediation command for a human to run, and leave the working tree untouched. Absence of a channel is NEVER an implicit approval and NEVER a fallback to the comment path in G2.
 
 **G4 — Dark-mode / AFK is fail-closed**: under dark-factory/AFK mode no operator is present to give a G1 approval, so `git restore` NEVER runs. A dark-mode run always reports and never restores. This is the Principle VII-conformant outcome, not a degradation; dark mode is the specific case of the general G3 rule, not an exception to it.
 
@@ -271,7 +271,7 @@ If the impl-plan output does not contain a `Requires plan hardening` conclusion,
 3. Build a pathspec from ONLY the revalidated paths from step 2 — never the whole `.backlogit/archive/` directory, which could discard other tracked modifications below it that were never part of the approval. Run `git restore -- <deleted-path-1> <deleted-path-2> ...` limited to that exact pathspec to recover only the deleted archive files the approval covers.
 4. Re-verify with `git status -- ".backlogit/archive/"` — confirm the same paths no longer report a deletion and no other deletion remains.
 5. Stage ONLY the same restored paths from step 3: `git add -- <deleted-path-1> <deleted-path-2> ...` — never an unscoped `git add .backlogit/archive/`, which could stage unrelated work under the same directory beyond what was approved. Proceed to the commit step only after verification passes. Record the `APPROVAL: P-007-ARCHIVE-RESTORE` audit comment (G2), naming the exact restored paths, after the restore succeeds.
-6. If no G1 approval is obtained, the revalidation in step 2 finds the approval stale with no fresh approval subsequently obtained, or restoration fails after approval, halt and prompt the operator with the exact pathspec-scoped command above (built from the same detected deletions) to run themselves (G8). Broadcast a P-005 violation event. Do not restore.
+6. If no G1 approval is obtained, the revalidation in step 2 finds the approval stale with no fresh approval subsequently obtained, or restoration fails after approval, halt and prompt the operator with the exact pathspec-scoped command above (built from the same detected deletions) to run themselves (G8). Report a P-005 violation in the session output and record it via P-005 telemetry. Do not restore.
 
 ---
 
@@ -320,8 +320,8 @@ branch's commit history.
 
 **Violation Action**: Halt. Do NOT proceed with the merge. Instruct the operator to change
 the repository merge strategy to "Create a merge commit" (GitHub Settings → General →
-Pull Requests → uncheck "Allow squash merging" and "Allow rebase merging"). Broadcast a
-P-005 violation event.
+Pull Requests → uncheck "Allow squash merging" and "Allow rebase merging"). Report a
+P-005 violation in the session output and record it via P-005 telemetry.
 
 ---
 
@@ -416,7 +416,7 @@ P-005 violation event.
 
 **Required actions at session start or before a skill depends on the surface**:
 1. Check for `.autoharness/backlog-registry.yaml`. If present, identify required backlog operations.
-2. Identify required non-registry workflow capabilities for the current phase, such as reviewer subagent dispatch, model-specific reviewer routing, intercom approval routing, indexed retrieval, or CI/PR automation.
+2. Identify required non-registry workflow capabilities for the current phase, such as reviewer subagent dispatch, model-specific reviewer routing, operator approval routing, indexed retrieval, or CI/PR automation.
 3. Probe each required tool or capability with a read-only lightweight operation when a probe exists. On success, log `TOOL_OK: {tool_or_capability}`.
 4. For registry-backed backlog tools that fail: check for a registry-declared CLI fallback (`cli_command` field).
    - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — using CLI fallback: {cli_command}` and proceed through that fallback.
@@ -533,7 +533,7 @@ Neither condition may be waived by the agent. Green CI alone is not approval. Op
 
 **Postcondition**: The PR readiness summary or merge record includes: (a) the reviewed HEAD SHA that passed the local readiness gate, (b) readiness outcome `READY` or `READY_WITH_FOLLOWUPS`, (c) zero unresolved P0/P1 findings at gate time, (d) explicit follow-up handling for any residual P2/P3 findings, and (e) operator approval received after the gate passed.
 
-**Violation Action**: Halt. Record a P-014 violation (via P-005 telemetry) naming the failed condition (missing current-HEAD review coverage, blocking findings still open, follow-up handling missing, or absent operator approval). Do not proceed with PR presentation or merge. Surface the violation in the PR description and session broadcast.
+**Violation Action**: Halt. Record a P-014 violation (via P-005 telemetry) naming the failed condition (missing current-HEAD review coverage, blocking findings still open, follow-up handling missing, or absent operator approval). Do not proceed with PR presentation or merge. Surface the violation in the PR description and session output.
 
 ---
 
@@ -704,12 +704,32 @@ and surface:
 * `DARK_MODE_COMPLETE`
 
 Each event MUST include the affected scope item, gate or decision state, outcome,
-and next action. When `agent-intercom` is installed, these events should be
-broadcast with enough context for a remote operator to understand the current
-scope and risk without reading the full chat transcript. When intercom is
-unavailable, the same event evidence must be recorded in the session/PR summary.
-Approval-dependent destructive actions, admin fallback, scope expansion,
-secrets-risk work, and ambiguous branch-protection states must halt.
+and next action. Events are operator-visible session-output summaries; no
+particular transport or capability pack is required.
+
+**Dark Factory Visibility Protocol**: when `DARK_MODE_ACTIVE` is present,
+each event below MUST be reported as a session-output summary that is
+self-contained enough for a remote or asynchronous operator to understand scope,
+authority, gate state, and risk without reading the full chat transcript. The same
+event evidence is recorded in the local session/PR summary.
+
+| Event | Required broadcast content |
+|---|---|
+| `DARK_MODE_START` | resolved scope, merge-approval authority, admin-fallback authority, stop conditions, visibility mode |
+| `DARK_MODE_SCOPE` | concrete stash IDs, feature/task IDs, shipment IDs, and any explicitly excluded items |
+| `BRAINSTORM_HANDOFF_READY` | brainstorm/requirements artifact path, unresolved questions, and handoff target |
+| `LOCAL_REVIEW_READY` | reviewed HEAD, readiness outcome, P0/P1 counts, follow-ups or residual-risk notes, shadow-review posture |
+| `DARK_MODE_MERGE_AUTHORIZED` | PR number, reviewed HEAD, checks state, merge strategy, approval source, and scope match |
+| `ADMIN_FALLBACK_ATTEMPTED` | after the fallback command/API returns: PR number, block classification, fallback authority, command/API used, and actual result |
+| `DARK_MODE_HALTED` | halt reason, violated policy or stop condition, affected scope item, and required operator action |
+| `DARK_MODE_COMPLETE` | shipped/closed shipments, decisions, gate outcomes, reviewed HEADs, merge/fallback outcome, closure status, and follow-up items |
+
+**Degraded visibility**: if the required reporting surface becomes unavailable
+during dark mode, record a degraded-visibility warning in the local session/PR
+summary and continue only with safe, non-destructive work. Approval-dependent
+destructive actions, scope expansion, admin fallback, failed local readiness,
+secrets-exposure risk, and ambiguous branch-protection state MUST halt rather
+than proceed silently.
 
 **`DARK_MODE_SCOPE` resume/audit evidence**: For a multi-shipment dark run,
 `DARK_MODE_SCOPE` MUST carry restartable resume/audit evidence — the **ordered
@@ -938,3 +958,4 @@ emitted.
 | 1.34.0  | 2026-10-13     | Amended P-011    | 210-S (203-F B5, 203.005-T, stash FB6F9FE0; `docs/plans/2026-10-08-backlogit-carryover-first-cut-plan.md`): the carry-forward set now also includes stash-referenced companion documents — a NEW file (untracked or staged as added) under `docs/` whose exact repo-relative path is a whole token in an active entry of the working-copy `stash.jsonl` of the resolved backlog root, subject to path containment (no traversal, `.git/`, outside-root, or symlink path). Exact membership only (no glob or prefix widening); modified tracked files, non-`docs/` files, and any document when the stash is unreadable or malformed stay dirt. Carry-forward stays intake only (no triage, no scope change; P-021 triage stays with Stage). Ship also commits mid-cycle stash intake on the active shipment branch as an isolated `chore(backlog): carry forward stash intake` commit. Enforced by the pipeline-topology `worktree_cleanliness` check (`details.stash_referenced_paths`, `details.stash_reference_warning`) |
 | 1.35.0  | 2026-10-16     | Added P-002.8    | 212-S (205-F R1, stash 21F8C04A; `docs/plans/2026-10-08-r1-claim-marker-consumption-plan.md`): canonical claim-marker consumption contract (`marker_contract_version: 1`, producer `scheduler-baseline-marker/v1`) — rules M1–M8 distinguish a claim-assigned member from an active residual using backlogit's `custom_fields.scheduler_baseline_claim` marker, the member item log's start epoch, and a `WORK_STARTED: <S>` start record; `WAVE_CLAIM_STATE_INDETERMINATE` outranks `WAVE_NO_PROGRESS`; a narrow operator-resumed exception to the active-residual halt (M4, three conditions, never for indeterminate). Opt-in through the registry feature `features.scheduler_baseline_claim` (default `false`; no behavior change when off). Adds no row to the P-002.7 table. Coverage: `tests/test_p002_8_marker_consumption_contract.py`, `tests/test_marker_contract_v1_fixtures.py` |
 | 1.36.0  | 2026-10-18     | Amended P-013.5  | 215-S (208-F B10, 208.012-T, stash BF66F08B; `docs/plans/2026-10-11-model-routing-catalog-bindings-plan.md`; `docs/decisions/2026-10-11-model-routing-v2-deliberation.md` 040-DL D10, D12): adds the P-013.5 **Route catalog and site bindings** clause — route catalog entries are tier deltas (not a parallel taxonomy); site bindings; per-field precedence as two explicit, never-mixed subagent branches (unbound resolves from the template default tier, bound from the binding's route with no fall-through to the site default tier); explicit `config.overrides` as a render-time layer outside the resolver; a binding on a managed agent whose template default tier cannot be established is rejected (`ROUTING_BINDING_UNRESOLVED_SITE`); installed frontmatter is a rendered default drift-checked against the route the renderer writes; YAML anchors, aliases, and merge keys are unsupported under `model_routing`; unknown sites fail verification; the resolver module and `autoharness routing resolve` are the normative executable definition; skills still inherit and are not sites. The P-013.5 fail-closed verification list gains items (e)–(g) for the new `routing_catalog_integrity`, `routing_unknown_keys`, `routing_anchor_alias_free`, `routing_inert_keys`, and `subagent_route_drift` checks. The reserved P-013 sub-policy slot for 9B582824 is left unclaimed. Coverage: `tests/test_route_catalog_policy_contract.py` |
+| 1.37.0  | 2026-10-19     | Amended P-005/P-017 | 216-S (209-F U5, 209.005-T; removal-plan D-4 of 2026-10-14): the Dark Factory Visibility Protocol (the eight `DARK_MODE_*`/handoff events and their required-content table) and its degraded-visibility halt rules live in P-017 as operator-visible session-output summaries; P-005 violations are reported in the session output and recorded via P-005 telemetry; G1/G3 independent-approval-channel wording is channel-neutral with unchanged semantics. Coverage: `tests/test_dark_factory_visibility_contract.py` |

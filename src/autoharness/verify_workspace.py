@@ -915,6 +915,17 @@ DARK_FACTORY_ASSERTIONS = [
         ],
     },
     {
+        "key": "dark_factory_visibility_contract",
+        "path": ".github/policies/workflow-policies.md",
+        "required": True,
+        "must_contain": [
+            "Dark Factory Visibility Protocol",
+            "BRAINSTORM_HANDOFF_READY",
+            "DARK_MODE_COMPLETE",
+            "degraded-visibility",
+        ],
+    },
+    {
         "key": "dark_factory_intercom_contract",
         "path": ".github/instructions/agent-intercom.instructions.md",
         "requires_pack": "agent-intercom",
