@@ -1138,12 +1138,12 @@ class VerifyWorkspaceTests(unittest.TestCase):
         summary = summarize_schema_contract(
             "manifest",
             Path("harness-manifest.yaml"),
-            {"schema_version": "1.0.0"},
+            {"schema_version": "1.1.0"},
         )
 
         self.assertEqual(summary["contract_name"], "harness-manifest")
         self.assertEqual(summary["status"], "current")
-        self.assertEqual(summary["observed_version"], "1.0.0")
+        self.assertEqual(summary["observed_version"], "1.1.0")
 
     def test_summarize_schema_contract_reports_known_legacy_version(self) -> None:
         summary = summarize_schema_contract(
@@ -1269,7 +1269,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             _write_yaml(
                 workspace / ".autoharness" / "harness-manifest.yaml",
                 {
-                    "schema_version": "1.0.0",
+                    "schema_version": "1.1.0",
                     "installed_at": "2026-04-24T00:00:00Z",
                     "autoharness_version": "1.3.2",
                     "profile_hash": "abc",

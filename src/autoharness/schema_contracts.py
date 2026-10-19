@@ -63,8 +63,12 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "contract_name": "harness-manifest",
         "schema_file": "harness-manifest.schema.json",
         "versioned_schema_dir": "harness-manifest",
-        "current_version": "1.0.0",
-        "known_versions": ("0.9.0", "1.0.0"),
+        # Schema-version decision (209-F/216-S U3): removing the retired
+        # `agent-intercom` pack from both pack enums is a restrictive change, so it
+        # is minted as 1.1.0; the 0.9.0 and 1.0.0 mirrors stay byte-identical
+        # (pinned by tests/test_schema_contract_removed_pack_manifest.py).
+        "current_version": "1.1.0",
+        "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
     "config": {
@@ -157,20 +161,34 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
             "action": "Back up the installed manifest, normalize legacy capability-pack records and overlay metadata to the 1.0.0 contract, then rerun verify-workspace.",
         },
         {
+            "proposal_id": "upgrade-manifest-contract-1.0.0-to-1.1.0",
+            "status": "known-legacy",
+            "from_version": "1.0.0",
+            "to_version": "1.1.0",
+            "severity": "degrading",
+            "summary": "Upgrade the harness-manifest contract from 1.0.0 to 1.1.0 (the retired agent-intercom capability pack is no longer a valid pack record).",
+            "changed_fields": [
+                "schema_version",
+                "capability_packs",
+                "capability_pack_overlays[*].pack",
+            ],
+            "action": "Back up the installed manifest, remove the retired agent-intercom pack and its overlay record, write schema_version: 1.1.0, and rerun verify-workspace.",
+        },
+        {
             "proposal_id": "backfill-manifest-schema-version",
             "status": "missing-version",
             "from_version": None,
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Backfill manifest schema_version to the current contract version.",
             "changed_fields": ["schema_version"],
-            "action": "Back up the installed manifest, write schema_version: 1.0.0, and rerun verify-workspace.",
+            "action": "Back up the installed manifest, write schema_version: 1.1.0, and rerun verify-workspace.",
         },
         {
             "proposal_id": "review-unknown-manifest-contract",
             "status": "unknown-version",
             "from_version": "*",
-            "to_version": "1.0.0",
+            "to_version": "1.1.0",
             "severity": "manual-review",
             "summary": "Review the unknown manifest contract before auto-applying tune changes.",
             "changed_fields": ["schema_version"],
@@ -180,8 +198,8 @@ CONTRACT_MIGRATIONS: dict[str, list[dict[str, Any]]] = {
         {
             "proposal_id": "normalize-legacy-manifest-capability-packs",
             "warning_kind": "legacy-manifest-capability-pack",
-            "from_version": "1.0.0",
-            "to_version": "1.0.0",
+            "from_version": "*",
+            "to_version": "1.1.0",
             "severity": "degrading",
             "summary": "Replace legacy manifest capability-pack values with current overlay or health-report signals.",
             "changed_fields": ["capability_packs", "capability_pack_overlays[*].pack"],

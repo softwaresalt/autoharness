@@ -16,9 +16,16 @@ from pathlib import Path
 import yaml
 from jsonschema import Draft7Validator
 
+from autoharness.schema_contracts import resolve_contract_schema_path
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_MANIFEST_SCHEMAS = (
+# Current contract (root + 1.1.0 mirror) and the frozen 1.0.0 mirror: graphtor-docs
+# must be in every enum; the root and current mirror must share identical enums.
+_CURRENT_MANIFEST_SCHEMAS = (
     _REPO_ROOT / "schemas" / "harness-manifest.schema.json",
+    _REPO_ROOT / "schemas" / "harness-manifest" / "1.1.0.schema.json",
+)
+_MANIFEST_SCHEMAS = _CURRENT_MANIFEST_SCHEMAS + (
     _REPO_ROOT / "schemas" / "harness-manifest" / "1.0.0.schema.json",
 )
 _DOGFOOD_MANIFEST = _REPO_ROOT / ".autoharness" / "harness-manifest.yaml"
@@ -43,22 +50,24 @@ class ManifestPackEnumTests(unittest.TestCase):
                     f"graphtor-docs missing from a pack enum in {schema_path.name}",
                 )
 
-    def test_both_schema_files_share_identical_pack_enums(self) -> None:
+    def test_current_schema_files_share_identical_pack_enums(self) -> None:
         enum_sets = []
-        for schema_path in _MANIFEST_SCHEMAS:
+        for schema_path in _CURRENT_MANIFEST_SCHEMAS:
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
             enum_sets.append([set(e) for e in _pack_enums(schema)])
         self.assertEqual(
             enum_sets[0],
             enum_sets[1],
-            "root and versioned manifest schemas must share the same pack enums",
+            "root and current versioned manifest schemas must share the same pack enums",
         )
 
     def test_dogfood_manifest_valid_on_capability_pack_surface(self) -> None:
         if not _DOGFOOD_MANIFEST.exists():
             self.skipTest("dogfood manifest not present")
-        schema = json.loads(_MANIFEST_SCHEMAS[0].read_text(encoding="utf-8"))
         manifest = yaml.safe_load(_DOGFOOD_MANIFEST.read_text(encoding="utf-8"))
+        # Validate against the contract the manifest declares, as verify-workspace does.
+        schema_path = resolve_contract_schema_path("manifest", _REPO_ROOT, manifest)
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
         validator = Draft7Validator(schema)
         pack_errors = [
             e
