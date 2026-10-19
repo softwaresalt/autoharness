@@ -121,7 +121,7 @@ deterministic defect rather than re-deriving key rules by hand.
    * The workspace profile's capability pack detection flags
    * The local review readiness surfaces: workflow policy text, review skill readiness contract, and GitHub PR automation readiness instructions
    * When the workspace is hosted on GitHub, the `copilot-code-review.instructions.md` focus surface: confirm it exists, carries `applyTo: '**'` and `excludeAgent: 'cloud-agent'`, keeps the FOCUS-on-high-value-concerns framing (not blanket suppression), and preserves the weakened-enforcement review guidance
-   * The dark factory mode surfaces when P-017 is installed: Orchestrator trigger/state guidance, Ship/pr-lifecycle merge/admin fallback guidance, `agent-intercom` event contract, `feature-flow-dark` prompt, and foundation docs
+   * The dark factory mode surfaces when P-017 is installed: Orchestrator trigger/state guidance, Ship/pr-lifecycle merge/admin fallback guidance, the P-017 Dark Factory Visibility Protocol event contract in `workflow-policies.md`, `feature-flow-dark` prompt, and foundation docs
 
 ### Phase 2: Define Review Domains
 
@@ -132,7 +132,7 @@ dispatched in parallel:
 |---|---|---|
 | **Template Fidelity** | Compare every installed artifact against its source template | Dropped content, unresolved variables, missing sections, incorrect variable resolution, missing Model Routing sections |
 | **Overlay Coherence** | Verify each enabled pack is consistently woven | Pack instruction file exists, foundation docs reference the pack, pipeline agents declare pack tools, skills reference pack instruction file, overlay targets contain pack behavior keywords, agent-engram structural-routing-before-grep assertions are present |
-| **Cross-Reference Integrity** | Verify all discovery tables, policy references, and agent→skill→reviewer chains resolve | Skills table complete vs actual skills, reviewer table complete vs actual reviewers, policy agents are installed agents (not skills), profile detection flags match installed packs, deprecated agent references cleaned up, local review readiness references agree across policy / skill / instruction surfaces, P-017 dark factory references agree across policy / Orchestrator / Ship / pr-lifecycle / intercom / prompt surfaces |
+| **Cross-Reference Integrity** | Verify all discovery tables, policy references, and agent→skill→reviewer chains resolve | Skills table complete vs actual skills, reviewer table complete vs actual reviewers, policy agents are installed agents (not skills), profile detection flags match installed packs, deprecated agent references cleaned up, local review readiness references agree across policy / skill / instruction surfaces, P-017 dark factory references agree across policy / Orchestrator / Ship / pr-lifecycle / prompt surfaces |
 
 When `agent-engram` is enabled, overlay coherence MUST verify both
 `.github/instructions/agent-engram.instructions.md` and

@@ -17,7 +17,6 @@ Invoke this skill periodically or when significant codebase changes occur:
 * Major directory restructuring
 * CI/CD pipeline changes
 * New runtime surfaces (web UI, API, background jobs, deployment manifests)
-* agent-intercom configuration added, removed, or partially woven into the workspace
 * agent-engram configured, removed, or partially woven into the workspace
 * backlogit detected or upgraded but the harness still only uses generic backlog CRUD guidance
 * After a large feature merge that introduces new patterns or conventions
@@ -199,6 +198,7 @@ Classify each detected change by impact and urgency:
 | **Degrading** | Harness works but is suboptimal | New framework added without instructions, new test patterns without review persona, config key renamed but old key still present, suffix_map missing entries that schema defines |
 | **Cosmetic** | Function unaffected | Minor version bumps, additional config files |
 | **Growth** | New capabilities to harness | New languages in project, new documentation patterns, uninstalled `autoharness_home` templates surfaced in `new_artifacts[]` |
+| **Retired capability pack** | A capability pack recorded in the installed profile, manifest, config or woven text has been removed from autoharness; the recording is inert | Reported as its own category (see Step 1.6b); `verify-workspace` classifies the recording as P1 degrading compatibility drift, and tune offers a proposal-only cleanup and never re-weaves the pack |
 
 Include any config-key migration and config-entry backfill proposals from Step 0b.1 as **Degrading** drift entries. Config migrations and backfills are applied in Phase 4 alongside other accepted proposals.
 
@@ -267,7 +267,6 @@ For each installed artifact, check:
   3. plan-harden template references `{{DOCS_PLANS}}/` and appends a `## Plan Hardening` section
   4. plan-review Step 1 extracts hardening signals and the gate decision table includes the hardening-required-but-missing FAIL condition
   If any of these four checks fail, flag as P1 Degrading drift.
-* **Agent-intercom weaving**: If intercom markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference heartbeat, broadcast, approval-routing, and degraded-mode handling?
 * **Agent-engram weaving**: If engram markers exist, do AGENTS.md, copilot-instructions, relevant agents, and relevant skills consistently reference engram-first search, workspace binding, and freshness / fallback behavior?
 * **backlogit weaving**: If backlogit is the selected backlog tool, do instructions and backlog-aware agents consistently reference queue, query, dependency, memory, checkpoint, or traceability behaviors?
 * **Browser-verification weaving**: If browser tooling and web UI surfaces exist, do AGENTS.md, copilot-instructions, runtime verification, operational closure, and the browser-verification instruction file consistently reference server readiness, route selection, headed/headless choice, human checkpoints, validator evidence, and manual checkpoint evidence?
@@ -544,7 +543,6 @@ current workspace profile recommendations:
 | Installed layers no longer match recommended layers | Growth or Degrading | Propose expanding or reducing the affected artifact classes |
 | Same preset, missing recommended pack | Growth | Propose enabling the pack |
 | Installed pack no longer matches runtime surfaces | Cosmetic or Degrading | Propose disabling or retargeting the pack |
-| agent-intercom markers detected but `agent-intercom` pack missing | Growth or Degrading | Propose enabling the pack and weaving intercom guidance through the harness |
 | agent-engram markers detected but `agent-engram` pack missing | Growth or Degrading | Propose enabling the pack and weaving engram-first search guidance through the harness |
 | backlogit detected as the active backlog tool but `backlogit` pack missing | Growth or Degrading | Propose enabling the pack and weaving backlogit-native workflows through the harness |
 | Browser tooling and web UI detected but `browser-verification` pack missing | Growth or Degrading | Propose enabling the pack and weaving browser-verification guidance through runtime verification and closure |
@@ -562,6 +560,21 @@ current workspace profile recommendations:
 Use the profile's structured recommendation reasons when available so proposals
 can explain **why** the preset, layers, or packs changed rather than only
 listing the new target values.
+
+#### Step 1.6b: Retired Capability Pack Cleanup
+
+`agent-intercom` is a retired capability pack: autoharness no longer ships it, so it is never an eligible, recommended or enabled pack. An installed workspace that still records it keeps working, because the recording is inert, but tune reports it as the **retired capability pack** drift category and offers cleanup. Tune is proposal-only here: nothing is changed without operator approval, and every approved change is backed up first to `.autoharness/backups/{YYYY-MM-DD}/`.
+
+Consume the verifier's report rather than re-parsing the documents: `warnings[]` entries with `kind: removed-capability-pack` (fields `field`, `legacy_value`, `message`, `suggested_action`) and `migration_proposals[]` entries with `proposal_id: remove-retired-capability-pack`, emitted per contract (profile, manifest, config) independent of the document's pinned `schema_version`. Report each recording once, with its document and field, as drift in the retired-pack category and never as a missing-pack Growth proposal.
+
+Offer these cleanup items as separate, individually approvable proposals:
+
+1. **List entries**: remove the pack from `capability_packs` in `.autoharness/config.yaml` and `.autoharness/harness-manifest.yaml`, from `harness_recommendations.capability_packs` and the matching `recommendation_reasons` items in `.autoharness/workspace-profile.yaml`, and drop a leftover `agent_intercom` profile block.
+2. **Overlay record**: remove its `capability_pack_overlays` record from the manifest.
+3. **Orphan instruction file**: propose deleting `.github/instructions/agent-intercom.instructions.md` together with its manifest `artifacts[]` entry ONLY when the file's checksum matches the checksum recorded for it in the manifest (compare the SHA-256 of the file content, accepting its LF-normalized form). A missing manifest record, a checksum mismatch or an unreadable file means the file was modified or cannot be proven unmodified: emit the proposal with `manual_review: true`, leave the file in place, and never auto-delete it. Deletion is destructive, so it also needs explicit operator approval after the backup.
+4. **Stale woven sections**: list the sections of `AGENTS.md`, `.github/copilot-instructions.md`, agents, skills and policies that still weave the pack (its `intercom` marker blocks and the pack subsection in `copilot-instructions.md`) and offer a reviewed diff that removes them. Keep operator-authored text that merely shares a section, and route anything ambiguous to manual review.
+
+Once the entries are removed, the document is brought to the current contract through the existing schema-contract upgrade proposal for its kind, so a legacy-pinned profile, manifest or config is not left on an old version. Tune must never re-weave the retired pack: do not propose enabling it, re-adding its overlay or instruction file, or restoring any removed section, even when its old markers or configuration are still present in the workspace, and skip it in the Step 1.7 overlay-coherence checks. An explicit request for the pack prints `RETIRED_PACK: agent-intercom ignored` and continues.
 
 #### Step 1.7: Overlay-Coherence Drift
 
@@ -910,6 +923,14 @@ with `source: route-catalog`; map the `1.1.0` to `1.2.0` bump to the existing
 `source: schema-contract` mapping. None of these is auto-applied, and a site
 that verify reports as unrenderable receives no `route-drift` proposal.
 
+Map `verify-workspace` `proposal_id: remove-retired-capability-pack` proposals
+(Step 1.6b) the same way: promote them directly, mark them with
+`source: retired-pack`, map verifier `severity: degrading` to tune
+`priority: P1` / `category: degrading`, and preserve `contract`, `path`,
+`changed_fields`, `legacy_values`, `evidence` and `manual_review`. A proposal with
+`manual_review: true` withholds the orphan-file deletion for operator review, and
+none of these proposals is auto-applied.
+
 When discovery produced recommendation reasons, include the relevant preset,
 install-layer, or capability-pack rationale in the proposal body so operators can
 see the causal signals behind the retune.
@@ -948,7 +969,6 @@ Scan for workspace patterns that suggest missing harness capabilities:
 * Infrastructure-as-code files without IaC instructions
 * Containerization (Dockerfile, docker-compose) without container instructions
 * Web UI or API runtime surfaces without matching runtime verification or operational closure guidance
-* Remote operator workflow markers without matching agent-intercom guidance in the harness
 * agent-engram markers or `.engram/` state without matching engram-first search guidance in the harness
 * backlogit-specific features available without matching backlogit-native guidance in the harness
 * Browser automation tooling without the browser-verification overlay
