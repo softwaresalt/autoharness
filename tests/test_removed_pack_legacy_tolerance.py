@@ -416,6 +416,60 @@ class LegacyOverlayArtifactRecordTests(unittest.TestCase):
         self.assertTrue([b for b in report["blockers"] if b.get("kind") == "missing-template-source"])
 
 
+class RetiredOverlayLookupNeverRaisesTests(unittest.TestCase):
+    """The overlay checksum lookup tolerates mangled manifests and symlinked overlays."""
+
+    _OVERLAY = "# overlay as installed\n"
+
+    def _plan(self, kind: str, manifest_bytes: bytes | None, manifest_doc: dict | None, *, symlink: bool = False) -> list[dict]:
+        docs = _documents(manifest_version="1.0.0", config_version="1.2.0", profile_version="1.0.0")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".autoharness").mkdir()
+            overlay = root / OVERLAY_PATH
+            overlay.parent.mkdir(parents=True)
+            if symlink:
+                target = root / "real-overlay.md"
+                target.write_text(self._OVERLAY, encoding="utf-8")
+                try:
+                    overlay.symlink_to(target)
+                except (OSError, NotImplementedError):
+                    self.skipTest("symlinks unavailable")
+            else:
+                overlay.write_text(self._OVERLAY, encoding="utf-8")
+            manifest_path = root / ".autoharness" / "harness-manifest.yaml"
+            if manifest_bytes is not None:
+                manifest_path.write_bytes(manifest_bytes)
+            data = docs[kind]
+            if manifest_doc is not None:
+                data = manifest_doc
+            path = root / ".autoharness" / _FILES[kind]
+            findings = collect_contract_state_warnings(kind, path, data)
+            return plan_schema_contract_migrations(kind, path, data, findings)
+
+    def test_invalid_utf8_sibling_manifest_does_not_raise(self) -> None:
+        proposals = self._plan("config", b"\xff\xfe\x00bad: [", None)
+        self.assertTrue([p for p in proposals if p["proposal_id"] == PROPOSAL][0]["manual_review"])
+
+    def test_non_list_artifacts_does_not_raise(self) -> None:
+        for artifacts in (5, "text", {"path": OVERLAY_PATH}):
+            with self.subTest(artifacts=artifacts):
+                manifest = _documents(manifest_version="1.0.0", config_version="1.2.0", profile_version="1.0.0")["manifest"]
+                manifest["artifacts"] = artifacts
+                proposals = self._plan("manifest", None, manifest)
+                self.assertTrue([p for p in proposals if p["proposal_id"] == PROPOSAL][0]["manual_review"])
+
+    def test_symlinked_overlay_requires_manual_review(self) -> None:
+        manifest = _documents(
+            manifest_version="1.0.0",
+            config_version="1.2.0",
+            profile_version="1.0.0",
+            overlay_checksum=_sha(self._OVERLAY.encode()),
+        )["manifest"]
+        proposals = self._plan("manifest", None, manifest, symlink=True)
+        self.assertTrue([p for p in proposals if p["proposal_id"] == PROPOSAL][0]["manual_review"])
+
+
 class NeverRaisesTests(unittest.TestCase):
     def test_verify_never_raises_on_legacy_documents(self) -> None:
         base = _documents(manifest_version="1.0.0", config_version="1.2.0", profile_version="1.0.0")

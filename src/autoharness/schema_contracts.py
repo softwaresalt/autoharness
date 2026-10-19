@@ -589,11 +589,14 @@ def _recorded_overlay_checksum(kind: str, path: Path, data: Any, overlay_path: s
     if kind != "manifest":
         try:
             manifest = yaml.safe_load((path.parent / "harness-manifest.yaml").read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
+        except (OSError, UnicodeError, yaml.YAMLError):
             return None
     if not isinstance(manifest, dict):
         return None
-    for artifact in manifest.get("artifacts") or []:
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list):
+        return None
+    for artifact in artifacts:
         if isinstance(artifact, dict) and str(artifact.get("path") or "").replace("\\", "/") == overlay_path:
             checksum = artifact.get("checksum")
             return str(checksum) if checksum else None
@@ -610,6 +613,8 @@ def _retired_overlay_needs_review(kind: str, path: Path, data: Any, packs: list[
         overlay = workspace_root / info.overlay_instruction_path
         if not overlay.is_file():
             continue
+        if overlay.is_symlink():
+            return True
         try:
             raw = overlay.read_bytes()
         except OSError:
