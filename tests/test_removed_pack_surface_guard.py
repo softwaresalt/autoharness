@@ -164,16 +164,6 @@ TOMBSTONES: Mapping[str, Tombstone] = {
 
 # Shrinking ledger: live surface -> unit that sweeps it. Entries are exact files.
 PENDING_SURFACES: Mapping[str, str] = {
-    # U9 - instruction family
-    ".github/instructions/backlogit.instructions.md": "U9",
-    ".github/instructions/circuit-breaker.instructions.md": "U9",
-    ".github/instructions/concurrency.instructions.md": "U9",
-    ".github/instructions/role-enforcement.instructions.md": "U9",
-    "templates/instructions/backlogit.instructions.md.tmpl": "U9",
-    "templates/instructions/circuit-breaker.instructions.md.tmpl": "U9",
-    "templates/instructions/concurrency.instructions.md.tmpl": "U9",
-    "templates/instructions/role-enforcement.instructions.md.tmpl": "U9",
-    "templates/instructions/strict-safety.instructions.md.tmpl": "U9",
     # U10 - foundation family
     "AGENTS.md": "U10",
     ".github/copilot-review-instructions.md": "U10",

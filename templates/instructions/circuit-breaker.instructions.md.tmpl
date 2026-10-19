@@ -321,7 +321,6 @@ prevents forward progress. The session stall counter increments when:
    600 s; other: 5 min)
 2. A file lock acquisition blocks and the retry also fails (per concurrency protocol)
 3. A required tool or MCP surface becomes unavailable mid-session
-4. An agent-intercom heartbeat ping fails (when the pack is enabled)
 
 After 3 session stalls in a single session, the agent MUST halt execution,
 write a session checkpoint to `{{DOCS_MEMORY}}/`, and prompt the operator:

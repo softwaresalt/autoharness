@@ -111,15 +111,18 @@ When hook event polling operations are supported:
 2. Treat returned hook events as higher-priority signals than raw queue scans.
 3. Acknowledge only the highest processed concrete event sequence; never acknowledge derived signals.
 
-## Intercom Coherence Rule
+## Operator Choice Presentation Rule
 
-When the `backlogit` and `agent-intercom` capability packs are both enabled and
-an agent is presenting queue, stash, or triage choices remotely:
+When an agent presents queue, stash, backlog, or triage choices to the
+operator, make the session-output message self-contained, because the operator
+may read it asynchronously:
 
-1. Include item IDs, priority, kind or type, and a one-line summary in the
-   broadcast.
+1. Include each candidate's item ID, priority, kind or type, and a one-line
+   summary.
 2. Include the recommended ordering and the exact choice being requested.
-3. Prefer self-contained broadcasts over "see chat above" summaries.
+3. State explicitly that operator selection or confirmation is awaited, and
+   wait for it before proceeding.
+4. Prefer self-contained messages over "see chat above" summaries.
 
 ## Continuity Protocol
 

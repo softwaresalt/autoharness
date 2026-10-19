@@ -51,14 +51,12 @@ Record the outcome after the action is reviewed or attempted:
 
 1. Do not let destructive or high-blast-radius work stay implicit.
 2. Require operator approval before any `ActionRisk: destructive` action.
-   Proceeding without approval is a policy violation — broadcast a P-005 event
-   and halt.
+   Proceeding without approval is a policy violation — report a P-005 event in
+   the session output and halt.
 3. Prefer approval for `ActionRisk: high` when the action changes production
    config, data shape, exposed contracts, or broad shared surfaces.
 4. Carry risky actions forward into runtime verification and operational closure
    instead of treating them as implementation-only detail.
-5. If the workspace also enabled `agent-intercom`, route approval and blocked
-   waits through that workflow instead of inventing a separate approval path.
 
 ## Reviewability Rule
 
