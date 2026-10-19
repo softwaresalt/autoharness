@@ -44,8 +44,10 @@ class PipelineAgentsSessionOutputContractTests(unittest.TestCase):
 
     def test_ship_template_reports_wait_notices_and_closure_warning_in_session_output(self) -> None:
         text = _read(_SHIP[0])
-        self.assertIn("Report `[WAIT] Awaiting user merge approval` in the session output", text)
+        self.assertIn("report `[WAIT] Awaiting user merge approval` in the session output", text)
         self.assertIn("STOP until the operator replies", text)
+        self.assertIn("When the activation record supplies approval, report the ready state as a status line", text)
+        self.assertIn("Only when explicit operator approval is required, report `[WAIT] Awaiting", text)
         self.assertIn("On halt, also report `[WAIT] Merge not confirmed for PR #{pr_number}: {state}`", text)
         self.assertIn("log `CLOSURE_INDEX_SYNC_WARN` and write the warning to the session output", text)
         self.assertIn("claim-verify result in the session output.", text)

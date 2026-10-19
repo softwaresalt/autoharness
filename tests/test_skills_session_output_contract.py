@@ -125,8 +125,18 @@ class ExecutionSkillsASessionOutputContractTests(unittest.TestCase):
     def test_pr_lifecycle_keeps_merge_approval_wait_in_session_output(self) -> None:
         for rel in _paths("pr-lifecycle"):
             with self.subTest(path=rel):
-                text = _read(rel)
-                self.assertIn("`PR ready — awaiting user approval`, then STOP until the operator replies", text)
+                text = " ".join(_read(rel).split())
+                self.assertIn(
+                    "when Step 5b requires fresh operator approval, report `PR ready — awaiting user approval`"
+                    " and STOP until the operator replies",
+                    text,
+                )
+                self.assertIn(
+                    "when a validated `DARK_MODE_ACTIVE` record satisfies approval under Step 5b, report the ready"
+                    " state as a status line and continue to Step 5c",
+                    text,
+                )
+                self.assertNotIn("`PR ready — awaiting user approval`, then STOP", text)
 
     def test_compact_context_reports_summary_in_session_output(self) -> None:
         for rel in _paths("compact-context"):

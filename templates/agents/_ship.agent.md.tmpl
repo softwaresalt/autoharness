@@ -691,7 +691,9 @@ After all tasks in the queue are complete:
       When the activation record supplies approval, emit `DARK_MODE_MERGE_AUTHORIZED`
       with PR number, reviewed HEAD, checks state, merge strategy, approval source,
       and scope match.
-    * Report `[WAIT] Awaiting user merge approval` in the session output as an operator-visible wait notice: state the decision required (merge approval for the PR) and STOP until the operator replies — never proceed on an assumed answer.
+      When the activation record supplies approval, report the ready state as a status line
+      and continue to the last-mile gate re-check below.
+    * Only when explicit operator approval is required, report `[WAIT] Awaiting user merge approval` in the session output as an operator-visible wait notice: state the decision required (merge approval for the PR) and STOP until the operator replies — never proceed on an assumed answer.
 15. **Last-mile gate re-check**: Immediately before any normal merge or admin
     fallback, re-run the P-018 copilot-review gate in full, **unconditionally** — a
     Copilot review can be dismissed or a Copilot-authored thread reopened without

@@ -36,7 +36,9 @@ narration is not required:
 * the PR URL when the PR is created or updated;
 * the review-feedback and CI outcomes that change the next step, including the
   hand-off to `fix-ci` on a CI failure;
-* `PR ready — awaiting user approval`, then STOP until the operator replies;
+* when Step 5b requires fresh operator approval, report `PR ready — awaiting user approval`
+  and STOP until the operator replies; when a validated `DARK_MODE_ACTIVE` record satisfies
+  approval under Step 5b, report the ready state as a status line and continue to Step 5c;
 * the merge result with the PR URL;
 * any blocking condition with its reason.
 

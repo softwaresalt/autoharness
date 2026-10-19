@@ -253,8 +253,8 @@ artifacts:
   - path: ".github/skills/pr-lifecycle/SKILL.md"
     primitive: 4
     template: "skills/pr-lifecycle/SKILL.md.tmpl"
-    checksum: "8e7ac1184c85a001806094ba3c32bd331054712535b81931e5447301f3446555"
-    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; DEFAULT_BRANCH resolved to 'main' via git symbolic-ref on     origin/HEAD; written LF-only and checksum computed with SHA-256 over the raw LF file bytes; checksum refreshed 216-S/209.015-T (agent-intercom removal: Agent-Intercom Communication table replaced by a Session-Output Reports section; template and mirror changed atomically)"
+    checksum: "d521891b8a9bfad0d3e265f1b6abc8ecd79b61f82d40c876faba6eadb71ea44f"
+    note: "installed by scoped merge-install (stash 8AC574F1) closing a pre-existing install gap: this skill is invoked by the installed pipeline agents but had never been rendered into this dogfood workspace, so every invocation was a dangling reference; DEFAULT_BRANCH resolved to 'main' via git symbolic-ref on     origin/HEAD; written LF-only and checksum computed with SHA-256 over the raw LF file bytes; checksum refreshed 216-S/209.015-T (agent-intercom removal: Agent-Intercom Communication table replaced by a Session-Output Reports section; template and mirror changed atomically); checksum refreshed 216-S/209.015-T Copilot review (the PR-ready approval wait is conditional on Step 5b, so a validated DARK_MODE_ACTIVE record continues to Step 5c; template and mirror changed atomically)"
   - path: ".github/skills/review/SKILL.md"
     primitive: 7
     template: "skills/review/SKILL.md.tmpl"
