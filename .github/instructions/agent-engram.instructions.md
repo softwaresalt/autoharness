@@ -53,8 +53,7 @@ Use the most specific engram tool first:
 | List symbols in a file or matching a concept | `list_symbols` |
 | Understand callers, callees, and local graph context | `map_code` |
 | Assess blast radius before modifying a symbol | `impact_analysis` |
-| Run advanced read-only graph queries | `query_graph` |
-| Traverse typed edges from a known node to explore local graph neighborhood | `query_graph_neighborhood` |
+| Run structured read-only graph queries (`neighborhood`, `find_path`, `transitive_closure`) | `query_graph` |
 
 Structural code questions MUST route through the agent-engram code-graph tools
 before grep/ripgrep or raw file reads unless a direct-tool exemption applies. This
@@ -62,12 +61,15 @@ includes callers/callees, impact analysis, symbol lookup, blast-radius checks,
 inheritance, implementations, implementers, and "where/how is this implemented?"
 questions. Use `list_symbols` for symbol and implementation discovery, `map_code`
 for callers/callees and local graph context, `impact_analysis` for blast radius,
-and related graph lookup tools such as `query_graph` or
-`query_graph_neighborhood` when the question needs graph traversal.
+and `query_graph` when the question needs graph traversal.
 
 Prefer these before file-based fallback whenever the question is structural or conceptual.
 
-Use `query_graph` for ad-hoc Cypher-style read-only queries across the full graph. Use `query_graph_neighborhood` for structured node-centric traversal when exploring typed edges from a known node (033-S). Prefer the neighborhood API when you have a specific starting node.
+Use `query_graph` for structured, read-only graph traversal. Select the traversal with the `operation` parameter:
+
+* `neighborhood` — expand typed edges around a known node (`root`, `direction`, `max_depth`, `max_nodes`, `edge_types`). Prefer this when you have a specific starting node.
+* `find_path` — find a path between two nodes (`from`, `to`, plus the same bounds and `edge_types` filters).
+* `transitive_closure` — compute everything reachable from a node along the selected edge types (`root`, `direction`, `max_depth`, `max_nodes`, `edge_types`).
 
 ## Fallback Protocol
 
@@ -114,11 +116,11 @@ failures to query issues:
 | Per-branch indexing and activity metrics | `get_branch_metrics` |
 | Token efficiency and savings data | `get_token_savings_report` |
 | Retry and resilience metrics for mutable scripts | `get_mutable_script_retry_metrics` |
-| Git blame and history indexing for attribution | `index_git_history` |
+| Git blame and history indexing for attribution (only when the engram build enables the `git-graph` feature) | `index_git_history` |
 
 1. Prefer `get_health_report` for daemon troubleshooting; prefer `get_workspace_statistics` for indexing coverage gaps.
 2. Use `get_evaluation_report` and `get_branch_metrics` to assess quality trends before and after major changes.
-3. `index_git_history` is expensive — run it once per session when git attribution is needed, not on every query.
+3. `index_git_history` is available only when the engram build enables the `git-graph` feature, and it is expensive — run it once per session when git attribution is needed, not on every query.
 4. Use `get_token_savings_report` to verify engram is delivering token efficiency gains; investigate if savings are unexpectedly low.
 5. Check `get_mutable_script_retry_metrics` when mutable script operations show intermittent failures.
 

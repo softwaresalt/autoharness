@@ -54,7 +54,9 @@ class AgentEngramInstructionTests(unittest.TestCase):
             self.assertIn("`map_code`", text)
             self.assertIn("`impact_analysis`", text)
             self.assertIn("`query_graph`", text)
-            self.assertIn("`query_graph_neighborhood`", text)
+            self.assertNotIn("query_graph_neighborhood", text)
+            for operation in ("neighborhood", "find_path", "transitive_closure"):
+                self.assertIn(f"`{operation}`", text)
 
     def test_direct_tool_exemptions_are_preserved(self) -> None:
         for text in (self.template, self.dogfood):

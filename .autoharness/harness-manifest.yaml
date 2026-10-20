@@ -288,7 +288,7 @@ artifacts:
   - path: ".github/instructions/agent-engram.instructions.md"
     primitive: 1
     template: "instructions/agent-engram.instructions.md.tmpl"
-    checksum: "ceac342b56ad6aec7ab36f7e80c6c4bbd437a9c63629ce8180750acb74fee1e7"
+    checksum: "2395d280ea28d8ba22e81eff3b5408e639230b5732b62f72fd75742fc666caed"
     note: "agent-engram capability pack overlay instruction"
   - path: ".github/instructions/graphtor-docs.instructions.md"
     primitive: 1
