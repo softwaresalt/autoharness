@@ -10,7 +10,7 @@ requires_plan_hardening: "yes"
 plan_hardening_status: "hardened"
 plan_hardening_record: "docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md#plan-hardening"
 plan_review_verdict: "PASS"
-plan_review_cycles: 5
+plan_review_cycles: 6
 tags: [plan, release, v1.6.0, dag, engram, backlogit, p-012, p-002, capability-packs, dogfood-parity]
 ---
 
@@ -218,22 +218,29 @@ the deliberation. Hardening items H1-H6 below apply.
 * **S5-U1 (M, medium)**: `src/autoharness/docs_only_check.py` pure checker, **implementation class** per deliberation
   D-1 item 2/3 and D-3 (path normalization, docs root fail-closed, deny list, case-insensitive compare, changed-path
   set against `HEAD` from `git diff --name-status`, staged, unstaged and untracked paths, deletions, rename/copy
-  sources, LF-normalized content hashing). Tests with temp git repositories.
-* **S5-U1b (M, medium)**: **baseline phase** (PR 543 review threads 1, 3 and 4): `--phase baseline` records the
-  pre-implementation snapshot (`head_sha`, every changed path with kind and SHA-256 of LF-normalized content, record
-  self-digest) without judging pre-existing state (claim writes, the route label, the preceding task's close-out commit,
-  tracking and session memory), and fails closed with `OWNED_PATH_DIRTY_AT_BASELINE` only when an owned path is
-  changed, staged, untracked or deleted. Depends on U1.
+  sources; each entry fingerprints the index layer and the working-tree layer independently). Tests with temp git
+  repositories.
+* **S5-U1b (M, medium)**: **baseline phase** (PR 543 review threads 1, 3, 4, 5 and 6): `--phase baseline` records the
+  pre-implementation snapshot (`head_sha`; per changed path an index-layer entry and a working-tree-layer entry; for
+  every changed backlog-root file also the SHA-256 of the raw body and of the protected frontmatter, that is the
+  frontmatter minus the allowlisted mutable keys, including non-route labels, canonically serialized; record
+  self-digest over all entries) without judging pre-existing state (claim writes, the route label, the preceding task's
+  close-out commit, tracking and session memory), fails closed on an unparseable frontmatter, and fails closed with
+  `OWNED_PATH_DIRTY_AT_BASELINE` only when an owned path is changed, staged, untracked or deleted. Depends on U1.
 * **S5-U1c (M, medium)**: **completion phase**: `--phase completion --baseline <record>` verifies the self-digest and
   that `HEAD` equals the recorded `head_sha` (the check runs before the task commit; otherwise exit 2), computes the
-  task delta (paths whose kind or hash differs from baseline), and applies the implementation class (delta outside the
-  backlog root must be owned docs paths) and the lifecycle class (siblings no delta; task, feature and shipment only
-  allowlisted frontmatter keys with byte-identical body; new checkpoint files admitted; everything else
-  `BACKLOG_PATH_NOT_LIFECYCLE`). The end-to-end test runs a **two-task shipment through both tasks to completion**:
-  claim, harness-architect label, baseline 1, docs edit 1, completion 1, close-out of task 1 (commit, tracking, done,
-  dirty session memory), label, baseline 2, docs edit 2, completion 2; and rejects an item outside the manifest, a
-  stash edit, a body edit, a non-allowlisted key, a sibling edited during the task, a non-owned docs or `src/` file, a
-  re-modified pre-existing dirty path and a modified owned path at baseline. Depends on U1b.
+  task delta layer by layer (a path is in the delta when its index entry or its working-tree entry differs from
+  baseline), and applies the implementation class (delta outside the backlog root must be owned docs paths) and the
+  lifecycle class (siblings no delta; task, feature and shipment must keep the baseline raw-body hash and
+  protected-frontmatter hash, so only allowlisted frontmatter keys may change; new checkpoint files admitted;
+  everything else `BACKLOG_PATH_NOT_LIFECYCLE`). The end-to-end test runs a **two-task shipment through both tasks to
+  completion**: claim, harness-architect label, baseline 1, docs edit 1, completion 1, close-out of task 1 (commit,
+  tracking, done, dirty session memory), label, baseline 2, docs edit 2, completion 2; and rejects an item outside the
+  manifest, a stash edit, a body edit, a non-allowlisted key, a sibling edited during the task, a non-owned docs or
+  `src/` file, a re-modified pre-existing dirty path, a path dirty in both layers whose staged content changes while
+  the working-tree bytes are restored (and the reverse), a post-baseline body, protected-frontmatter or non-route-label
+  mutation of an already-dirty lifecycle file, and a modified owned path at baseline. Allowed post-baseline mutations
+  of an already-dirty lifecycle file (an allowlisted key such as `updated_at`) must pass. Depends on U1b.
 * **S5-U2 (S, medium)**: CLI `autoharness harness docs-only-check --phase baseline|completion --owned --docs-root
   --backlog-root --task --feature --shipment [--baseline <record>] [--json]`, exit 0/1/2, JSON schema
   `schemas/docs-only-check.schema.json` (+ versioned dir and `SCHEMA_CONTRACTS` entry), `docs/gates-reference.md`

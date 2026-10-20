@@ -97,24 +97,34 @@ declares `harness-surface:none` so the existing harness-surface resolver reports
   comment and the baseline record are written to the item log under `<backlog root>/logs/`, which is git-ignored.
   1. **Baseline phase** (`--phase baseline`, run by Ship at Step 4.1 right after the task is `active` and qualified,
      before any telemetry, pre-build read or docs edit): computes the changed-path set against `HEAD` (staged, unstaged,
-     untracked, deletions, rename and copy sources) and emits the **baseline record**: `head_sha`, and for every
-     changed path its change kind and the SHA-256 of its LF-normalized content, plus a self-digest of the record. It
-     fails closed (`OWNED_PATH_DIRTY_AT_BASELINE`) only when an **owned path** is changed, staged, untracked or deleted at
-     that moment (no retroactive qualification of partial docs work); any other pre-existing state is recorded without
-     judgment. Ship writes the record into the task comment, which makes the pre-state auditable.
+     untracked, deletions, rename and copy sources) and emits the **baseline record**: `head_sha` and, for every
+     changed path, an entry that fingerprints the **two git layers independently**: the index entry (mode and blob
+     content hash, or absent) and the working-tree entry (file type or mode and SHA-256 of the LF-normalized bytes, or
+     absent). For every changed file under the backlog root the entry additionally carries the structured fingerprints
+     needed to judge a later change against the **retained baseline content rather than against `HEAD`**: a SHA-256 of
+     the raw body bytes after the frontmatter, and a SHA-256 of the **protected frontmatter**, defined as the
+     frontmatter with the allowlisted mutable keys removed and everything else, including every non-route label,
+     canonically serialized. A frontmatter that cannot be parsed fails closed (error). The record ends with a
+     self-digest that covers every entry. It fails closed (`OWNED_PATH_DIRTY_AT_BASELINE`) only when an **owned path**
+     is changed, staged, untracked or deleted at that moment (no retroactive qualification of partial docs work); any
+     other pre-existing state is recorded without judgment. Ship writes the record into the task comment, which makes the
+     pre-state auditable.
   2. **Completion phase** (`--phase completion --baseline <record>`): recomputes the same snapshot, verifies the
-     record's self-digest, and defines the **task delta** as every path whose kind or content hash differs from the
-     baseline (new, changed again, or deleted since). It partitions the task delta into two classes:
+     record's self-digest, and defines the **task delta** as every path whose index entry **or** working-tree entry
+     differs from the baseline in either layer (new, changed again, or deleted since); a layer that diverges from the
+     other at baseline is compared layer by layer, so restoring working-tree bytes while changing the staged content,
+     or the reverse, is a delta. It partitions the task delta into two classes:
      * **Implementation class**: every delta path outside the backlog root must be an owned path satisfying D-1 item 2
        and item 3. A pre-existing dirty path (for example uncommitted session memory) is not in the delta unless the task
        changed it again, in which case it is a violation unless owned.
      * **Lifecycle class**: every delta path under the backlog root. Sibling manifest members must have **no** delta.
-       The task, its feature and its shipment may differ from baseline only in the allowlisted frontmatter keys
-       (`status`, `updated_at`, `commit`, `archived_from`, `archived_status`, `labels` limited to adding or removing
-       `harness-verification-gated` and `harness-ready`, `custom_fields.harness_status`) with the body byte-identical,
-       and a newly added `<root>/checkpoints/*.json` is admitted. Every other backlog delta (an item outside the
-       manifest, a stash file, a body edit, a non-allowlisted key) is a violation (`BACKLOG_PATH_NOT_LIFECYCLE`), so
-       arbitrary backlog changes are never exempted.
+       For the task, its feature and its shipment, the recomputed raw-body hash and protected-frontmatter hash must equal
+       the baseline's: a file whose whole-file hash changed is therefore admitted only when the change is confined to the
+       allowlisted frontmatter keys (`status`, `updated_at`, `commit`, `archived_from`, `archived_status`, `labels`
+       limited to adding or removing `harness-verification-gated` and `harness-ready`, `custom_fields.harness_status`);
+       a body edit or any protected-frontmatter or non-route-label change is a violation. A newly added
+       `<root>/checkpoints/*.json` is admitted. Every other backlog delta (an item outside the manifest, a stash file) is
+       a violation (`BACKLOG_PATH_NOT_LIFECYCLE`), so arbitrary backlog changes are never exempted.
   Exit `0` pass, `1` violation (names each offending path and rule), `2` invalid input, self-digest mismatch or git
   failure (fail closed). `--json` emits a schema-stable record for the task comment.
 * Scope of the snapshot: it is git-based, so git-ignored runtime state (telemetry, metrics, item logs, caches,
@@ -159,7 +169,10 @@ wording. Out of scope: any change to the code route, any change to the P-004 ros
   completion** (claim, harness-architect label, baseline 1, docs edit 1, completion 1, close-out of task 1 with commit,
   tracking, done and a dirty session-memory file, then label, baseline 2, docs edit 2, completion 2) and still reject
   unrelated edits (an item outside the manifest, a stash file, a body edit, a non-allowlisted frontmatter key, a
-  sibling edited during the task, a non-owned docs or `src/` file, a modified owned path at baseline).
+  sibling edited during the task, a non-owned docs or `src/` file, a pre-existing dirty path modified again (including
+  a path already modified in both layers whose staged content changes while its working-tree bytes are restored, and the
+  reverse), a post-baseline mutation of an already-dirty lifecycle file that touches the body, a protected frontmatter
+  field or a non-route label, and a modified owned path at baseline).
 * **AS-8** The accepted residual risk in D-3 (non-owned pre-baseline dirt is attributed to the earlier step) is
   deliberate; closing it would require judging Ship's own lifecycle writes, which the PR 543 review showed cannot be
   enumerated safely.

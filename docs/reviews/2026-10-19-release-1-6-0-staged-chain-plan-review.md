@@ -5,7 +5,7 @@ doc_type: review
 review_target: docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md
 dispatch_mode: single-agent-declared-degradation
 decision: PASS
-review_cycles: 5
+review_cycles: 6
 reviewed_utc: 2026-10-20
 ---
 
@@ -100,5 +100,21 @@ the registry. No open P0/P1.
   Synchronized in deliberation D-3/AS-4/AS-7/AS-8, plan S5-U1/U1b/U1c/U2/U4/U7 and H1, and tasks 216.001-T, 216.002-T,
   216.004-T, 216.007-T, 216.008-T and 216.009-T. The required integration test now runs a two-task shipment through
   both tasks to completion, including the close-out of task 1 with a dirty session-memory file.
+
+## Cycle 6 (post-publication, Copilot review of PR 543 round 4): two findings accepted and fixed
+
+* **(P1) Whole-file hashes cannot judge a dirty lifecycle file.** Claim and label writes leave baseline lifecycle files
+  uncommitted, so `head_sha` cannot recover their baseline contents, and after an allowed `updated_at` change the new
+  whole-file hash cannot show whether the body or a protected field also changed. Fixed: for every changed backlog-root
+  file the baseline record also carries a SHA-256 of the raw body and of the protected frontmatter (frontmatter minus
+  the allowlisted mutable keys, including every non-route label), covered by the self-digest; completion requires
+  both to equal baseline for the task, feature and shipment, so only allowlisted keys can change. Unparseable
+  frontmatter fails closed.
+* **(P1) Index and working-tree layers.** A path already modified in both layers could have its staged content changed
+  while the working-tree bytes were restored, which a single hash and change kind would not see. Fixed: the baseline
+  fingerprints the index entry and the working-tree entry independently and the delta compares both layers.
+* Synchronized in deliberation D-3 and AS-7, plan S5-U1/U1b/U1c, and tasks 216.001-T, 216.002-T, 216.008-T and
+  216.009-T; both cases and an allowed-versus-forbidden mutation of an already-dirty lifecycle file are now required
+  tests.
 
 decision: PASS
