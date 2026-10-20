@@ -12,7 +12,7 @@ doc_type: memory
 ## Outcome
 
 * Six queued shipments form a linear `blocks` chain after the shipped 216-S: 219-S (G1) -> 220-S (G4) -> 221-S (G2) ->
-  222-S (engine line) -> 223-S (G3) -> 224-S (release cut). 24 tasks under features 212-F..217-F, all sized
+  222-S (engine line) -> 223-S (G3) -> 224-S (release cut). 25 tasks under features 212-F..217-F, all sized
   (`size` and `complexity` set separately). 207-S and 217-S (an unrelated dag-root) are untouched.
 * Artifacts: plan `docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md` (hardened, review PASS), review
   `docs/reviews/2026-10-19-release-1-6-0-staged-chain-plan-review.md`, deliberation 042-DL

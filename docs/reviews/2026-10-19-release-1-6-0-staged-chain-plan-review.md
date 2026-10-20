@@ -5,7 +5,7 @@ doc_type: review
 review_target: docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md
 dispatch_mode: single-agent-declared-degradation
 decision: PASS
-review_cycles: 2
+review_cycles: 3
 reviewed_utc: 2026-10-20
 ---
 
@@ -59,5 +59,20 @@ Revised sections re-verified against the facts table: every file and line citati
 absence was re-confirmed in the CLI help, the MCP tool list and a source search, the version-site list was re-checked
 against `git grep`, and the policy version sequence (1.37.0 current, 1.38.0 for S3, 1.39.0 for S5) was re-checked against
 the registry. No open P0/P1.
+
+## Cycle 3 (post-publication, Copilot review of PR 543): two findings accepted and fixed
+
+* **(P1) Start-SHA and lifecycle writes.** P-011 guarantees a clean worktree only before the claim; after claim and
+  activation Ship's own writes change tracked backlog files, so a changed-path union would reject a valid docs-only
+  task. The item-log comment is git-ignored and adds no tracked change, but the status and marker writes do. Fixed in
+  deliberation D-3 and assumption AS-7, plan S5-U1/U2/U4/U7 and hardening H1, and tasks 216.001-T, 216.002-T,
+  216.004-T and 216.007-T: a two-class partition (strict implementation class; exact lifecycle files of the task,
+  feature and shipment admitted only through a structurally validated frontmatter allowlist with byte-identical body,
+  plus new checkpoint files), and a required end-to-end claim, comment, docs edit, completion test that still
+  rejects unrelated edits.
+* **(P2) Config contract target.** `src/autoharness/schema_contracts.py` sets the current harness-config contract to
+  `1.3.0` (the retired agent-intercom pack leaves `capability_packs`); the plan and task 217.003-T stopped at
+  `1.2.0`. Fixed to the path `1.1.0` to `1.2.0` to `1.3.0` in plan S6-U3 and R6, task 217.003-T and the rollout entry
+  B60A27EC.
 
 decision: PASS

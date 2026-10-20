@@ -85,15 +85,30 @@ declares `harness-surface:none` so the existing harness-surface resolver reports
 ## Decision D-3: baseline and completion proof (the divergence from engram)
 
 * Baseline is the **start SHA**: Ship records `git rev-parse HEAD` in a task comment at Step 4.1, immediately after the
-  task is `active`, before any telemetry, pre-build read or docs edit. P-011 already requires a clean worktree at that
-  point, so the start SHA fully characterizes the pre-task state; an owned path that is already modified at qualification
-  fails closed (no retroactive qualification of partial work).
+  task is `active`, before any telemetry, pre-build read or docs edit. P-011 requires a clean worktree only **before
+  the claim**, so the start SHA characterizes the pre-claim state and not a clean tree: after the claim and task
+  activation, Ship's own lifecycle writes legitimately change tracked backlog files (`status`, `updated_at`,
+  `custom_fields.scheduler_baseline_claim` and the route label on the task, its feature and its shipment, plus new
+  checkpoint files). The start-SHA comment itself goes to the item log under `<backlog root>/logs/`, which is
+  git-ignored, so it adds no tracked change. An owned path that is already modified at qualification fails closed (no
+  retroactive qualification of partial work).
 * Completion proof is a deterministic, pure, no-network checker, `autoharness harness docs-only-check` (module
-  `src/autoharness/docs_only_check.py`): input is the repository root, the start SHA, the owned paths and the docs root;
-  it computes the union of `git diff --name-status <start-sha>` (rename and copy sources included), staged and unstaged
-  changes, and untracked files, and returns `pass` only when every changed path is an owned path and every changed path
-  satisfies D-1 item 2 and item 3. Exit `0` pass, `1` violation (names each offending path and rule), `2` invalid input
-  or git failure (fail closed). `--json` emits a schema-stable record for the task comment.
+  `src/autoharness/docs_only_check.py`): input is the repository root, the start SHA, the owned paths, the docs root,
+  the backlog root and the lifecycle IDs (`--task`, its `--feature` and its `--shipment`). It computes the union of
+  `git diff --name-status <start-sha>` (rename and copy sources included), staged and unstaged changes, and untracked
+  files, and partitions that set into two classes:
+  1. **Implementation class**: every path outside the backlog root. It returns `pass` only when every such path is an
+     owned path and satisfies D-1 item 2 and item 3.
+  2. **Lifecycle class**: every path under the backlog root. A path is admitted only when it is exactly
+     `<root>/queue/<id>.md` or `<root>/archive/<id>.md` for one of the three lifecycle IDs, or a newly added
+     `<root>/checkpoints/*.json`, and, for an item file, the diff against the start-SHA version changes only the
+     allowlisted frontmatter keys (`status`, `updated_at`, `commit`, `archived_from`, `archived_status`, `labels`
+     limited to adding or removing `harness-verification-gated` and `harness-ready`,
+     `custom_fields.scheduler_baseline_claim`, `custom_fields.harness_status`) and leaves the body byte-identical.
+     Every other backlog path (another item, a stash file, a body edit of the task's own file) is a violation
+     (`BACKLOG_PATH_NOT_LIFECYCLE`), so arbitrary backlog changes are never exempted.
+  Exit `0` pass, `1` violation (names each offending path and rule), `2` invalid input or git failure (fail closed).
+  `--json` emits a schema-stable record for the task comment.
 * Ship Step 4.3 (full gate) still runs; the docs route removes only the harness-ready/RED obligation, never a
   completion gate. The task cannot move to `done` until every recorded executable and manual gate has a recorded
   passing result and the checker has returned `pass`.
@@ -120,6 +135,9 @@ wording. Out of scope: any change to the code route, any change to the P-004 ros
 * **AS-5** The Markdown lint command is mandatory in every verification record.
 * **AS-6** The checker is a new CLI subcommand under the existing `autoharness harness` group, additive, no schema
   version bump of existing contracts.
+* **AS-7** (PR 543 review thread 1) Lifecycle writes under the backlog root are admitted only through the narrow,
+  structurally validated allowlist in D-3; the acceptance test must run the full sequence claim, start-SHA comment,
+  docs edit, completion and still reject unrelated edits (another item, a stash file, a body edit, a `src/` file).
 
 ## Open questions (none blocking)
 

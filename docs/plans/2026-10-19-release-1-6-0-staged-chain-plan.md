@@ -10,7 +10,7 @@ requires_plan_hardening: "yes"
 plan_hardening_status: "hardened"
 plan_hardening_record: "docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md#plan-hardening"
 plan_review_verdict: "PASS"
-plan_review_cycles: 2
+plan_review_cycles: 3
 tags: [plan, release, v1.6.0, dag, engram, backlogit, p-012, p-002, capability-packs, dogfood-parity]
 ---
 
@@ -45,7 +45,7 @@ ready-to-tag release. The git tag and publish step is operator-only.
 | R3 | G2: registry hook CLI entries, `dispose` handling, first-class CLI peer P-012, tests, 188-S alignment note | S3, S4 |
 | R4 | Engine line: keep 1.11 supported, document the 1.12 probe, never widen without a probe | S4 |
 | R5 | G3: deliberation, policy, templates, skills, checker, tests, fail-closed and auditable | S5 |
-| R6 | Release cut: versions, CHANGELOG, release notes, upgrade guide, readiness checklist, operator-only tag | S6 |
+| R6 | Release cut: versions, CHANGELOG, release notes, upgrade guide (config contract 1.1.0 -> 1.2.0 -> 1.3.0), readiness checklist, operator-only tag | S6 |
 | R7 | Downstream rollout follow-up, non-blocking | stash B60A27EC |
 
 ## Scope Boundaries
@@ -212,21 +212,29 @@ Done proves: v1.11 stays supported, 1.12 cannot be silently verified, the proced
 
 ## S5: G3 verification-gated docs-only task route
 
-Stash E89674F1. Covering feature F5. Risk high. Est. Ship effort 10-13 h. Decisions D-1..D-5 and assumptions AS-1..AS-6 are in
+Stash E89674F1. Covering feature F5. Risk high. Est. Ship effort 12-15 h. Decisions D-1..D-5 and assumptions AS-1..AS-7 are in
 the deliberation. Hardening items H1-H6 below apply.
 
 * **S5-U1 (M, medium)**: `src/autoharness/docs_only_check.py` pure checker per deliberation D-1 item 2/3 and D-3 (path
   normalization, docs root fail-closed, deny list, case-insensitive compare, union of `git diff --name-status
-  <start-sha>`, staged, unstaged and untracked paths, rename/copy sources). Tests with temp git repositories.
-* **S5-U2 (S, medium)**: CLI `autoharness harness docs-only-check --start-sha --owned --docs-root [--json]`, exit
-  0/1/2, JSON schema `schemas/docs-only-check.schema.json` (+ versioned dir and `SCHEMA_CONTRACTS` entry),
-  `docs/gates-reference.md` section. Depends on U1.
+  <start-sha>`, staged, unstaged and untracked paths, rename/copy sources) with the **two-class partition** from D-3:
+  implementation paths (outside the backlog root) are strict; backlog-root paths are admitted only as exact lifecycle
+  files of the task, its feature and its shipment (structurally validated frontmatter-only allowlist, byte-identical
+  body) or new checkpoint files, everything else is `BACKLOG_PATH_NOT_LIFECYCLE`. Tests with temp git repositories and
+  a temp backlog root, including the end-to-end sequence claim (status/marker writes) -> start-SHA comment (log only)
+  -> docs edit -> completion (passes) and rejection of an unrelated item edit, a stash edit, a body edit of the task's
+  own file and a `src/` edit (PR 543 review thread 1).
+* **S5-U2 (S, medium)**: CLI `autoharness harness docs-only-check --start-sha --owned --docs-root --backlog-root --task
+  --feature --shipment [--json]`, exit 0/1/2, JSON schema `schemas/docs-only-check.schema.json` (+ versioned dir and
+  `SCHEMA_CONTRACTS` entry), `docs/gates-reference.md` section. Depends on U1.
 * **S5-U3 (M, medium)**: P-002 and P-004 amendment in `templates/policies/workflow-policies.md.tmpl` and mirror
   (route qualification, exclusive labels, verification record, anti-loophole, version row 1.39.0). Code route text is
   unchanged except for the explicit "unchanged" sentence. Depends on S3 having landed (sequential policy edits).
 * **S5-U4 (M, medium)**: `templates/agents/_ship.agent.md.tmpl` and mirror: Step 2 queue filter and scaffold list
-  accept exactly the route matching qualified ownership; Step 3 admit; Step 4.1 start-SHA capture; completion gate runs
-  the checker and the recorded verification gates; mismatch halts as P-002 violation with P-005 telemetry. Depends on
+  accept exactly the route matching qualified ownership; Step 3 admit; Step 4.1 start-SHA capture (written to the item
+  log; the post-claim lifecycle writes are tracked backlog changes covered by the checker's lifecycle class, so Ship
+  passes the task, feature, shipment and backlog-root arguments and never pre-cleans them); completion gate runs the
+  checker and the recorded verification gates; mismatch halts as P-002 violation with P-005 telemetry. Depends on
   U2, U3.
 * **S5-U5 (M, medium)**: `templates/skills/harness-architect/SKILL.md.tmpl` and mirror (classify, validate record,
   apply only the route label, no stub/RED) plus the label vocabulary in `templates/backlog/config.yml.tmpl` and the
@@ -236,7 +244,9 @@ the deliberation. Hardening items H1-H6 below apply.
   never applies either route label). Depends on U3.
 * **S5-U7 (S, low)**: interaction test: a task with `harness-surface:none` plus `harness-verification-gated` resolves
   through `autoharness harness resolve` with no surface required; text-contract tests across policy, Ship,
-  harness-architect and build-feature that both labels never coexist and the code route is unchanged. Depends on U4-U6.
+  harness-architect and build-feature that both labels never coexist and the code route is unchanged; an end-to-end
+  test of the Ship-described sequence (claim writes, start-SHA comment, docs edit, completion via the CLI) that passes
+  and still rejects unrelated edits. Depends on U4-U6.
 
 Done proves: a docs-only task can be claimed and completed without `harness-ready` or RED, only when the owned paths
 qualify and the diff is provably confined to them; any violation halts; code tasks are unchanged.
@@ -255,8 +265,11 @@ Stash 03427861. Covering feature F6. Risk medium. Est. Ship effort 5-7 h.
   for 211-F/218-S, 208-F/215-S, 209-F/216-S, 205-F/212-S (P-002.8), 206-F/213-S, 207-F/214-S, and G1-G4 plus the
   engine-line note; a test reproduces the `release.yml` awk extraction and requires a non-empty body.
 * **S6-U3 (M, low)**: `docs/releases/1.6.0-release-notes.md` and `docs/releases/1.6.0-upgrade-guide.md` for
-  downstream workspaces (backlogit and engram): reinstall/tune steps, config schema `1.1.0` to `1.2.0`,
-  agent-intercom removal tolerance, engram needs a backlogit with the `scheduler_baseline_claim` marker producer, the
+  downstream workspaces (backlogit and engram): reinstall/tune steps, the harness-config contract path
+  `1.1.0` -> `1.2.0` (routing catalog and bindings) -> `1.3.0` (current; `src/autoharness/schema_contracts.py`
+  `current_version`, drops the retired agent-intercom pack from `capability_packs`) with the profile and manifest at
+  `1.1.0`, agent-intercom removal tolerance, engram needs a backlogit with the `scheduler_baseline_claim` marker
+  producer, the
   registry `features.scheduler_baseline_claim` enable and tune for P-002.8, CI pin `autoharness==1.5.0` to
   `1.6.0`, removal of local workarounds (140-F, 7DE66A04, 1AD161B8). Link from README.
 * **S6-U4 (M, medium)**: `docs/releases/1.6.0-release-readiness-checklist.md` executed with evidence in
@@ -279,11 +292,11 @@ rollout) must stay active; the closure must not archive it.
 | 220-S (S2, G4) | 213-F | 213.001-T, 213.002-T, 213.003-T | 219-S |
 | 221-S (S3, G2) | 214-F | 214.001-T .. 214.005-T | 220-S |
 | 222-S (S4, engine line) | 215-F | 215.001-T, 215.002-T | 221-S |
-| 223-S (S5, G3) | 216-F (+ 042-DL link) | 216.001-T .. 216.007-T | 222-S |
+| 223-S (S5, G3) | 216-F (+ 042-DL link) | 216.001-T .. 216.008-T (216.008-T = S5-U1b lifecycle class, added by PR 543 review) | 222-S |
 | 224-S (S6, release) | 217-F | 217.001-T .. 217.004-T | 223-S |
 
 Unit mapping: S1-U1..U3 = 212.001-T..212.003-T; S2-U1..U3 = 213.001-T..213.003-T; S3-U1..U5 = 214.001-T..214.005-T;
-S4-U1..U2 = 215.001-T..215.002-T; S5-U1..U7 = 216.001-T..216.007-T; S6-U1..U4 = 217.001-T..217.004-T. Stash entries
+S4-U1..U2 = 215.001-T..215.002-T; S5-U1..U7 = 216.001-T..216.007-T plus S5-U1b = 216.008-T; S6-U1..U4 = 217.001-T..217.004-T. Stash entries
 29D0ACB7, 3DB3AE91, 9CC3C661, 9AF294A4, E89674F1 and 03427861 were archived as consumed; B60A27EC stays active.
 
 ## Dependency Graph
@@ -293,7 +306,7 @@ S1-U1 -> S1-U3 <- S1-U2
 S2-U1 -> S2-U2 ; S2-U1 -> S2-U3
 S3-U1 ; S3-U2 -> S3-U3 ; S3-U2 -> S3-U4 ; (S3-U1,U2,U3) -> S3-U5
 S4-U1 -> S4-U2
-S5-U1 -> S5-U2 -> S5-U4 ; S5-U3 -> S5-U4/U5/U6 -> S5-U7
+S5-U1 -> S5-U1b -> S5-U2 -> S5-U4 ; S5-U1b -> S5-U7 ; S5-U3 -> S5-U4/U5/U6 -> S5-U7
 S6-U1 -> S6-U2 -> S6-U3 -> S6-U4
 Shipments: 216-S <- S1 <- S2 <- S3 <- S4 <- S5 <- S6 (blocks)
 ```
@@ -304,7 +317,9 @@ Hardening record for P-006 (`requires_plan_hardening: yes`: schemas, CLI distrib
 policy text). Single-agent pass; findings and the resulting plan changes:
 
 * **H1 Fail-closed docs route.** Ownership, normalization and deny list are evaluated by one function (U1) used by
-  harness-architect, Ship and the completion gate; unresolved or ambiguous input is exit `2`, never a pass.
+  harness-architect, Ship and the completion gate; unresolved or ambiguous input is exit `2`, never a pass. Lifecycle
+  writes under the backlog root are admitted only through the two-class partition (exact task/feature/shipment files,
+  structurally validated, body byte-identical), never as a blanket backlog exemption (PR 543 review thread 1).
 * **H2 No self-authorized override.** The docs-route label is applied only by harness-architect after qualification;
   Ship re-checks and never applies it. A task cannot change route after implementation starts.
 * **H3 Mirror and checksum parity.** Every template edit in S1-S3 and S5 includes its mirror and checksum refresh in the same task;
