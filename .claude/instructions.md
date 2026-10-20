@@ -15,8 +15,7 @@ Engram is registered as a stdio MCP server in `.mcp.json` (command `engram shim`
 | `list_symbols` | List symbols in a file or matching a concept |
 | `map_code` | Explore callers, callees, and local graph context |
 | `impact_analysis` | Assess blast radius before modifying a symbol |
-| `query_graph` | Run advanced read-only graph queries (ad-hoc, full-graph) |
-| `query_graph_neighborhood` | Traverse typed edges from a known node to explore the local graph neighborhood |
+| `query_graph` | Run structured read-only graph queries via `operation`: `neighborhood`, `find_path`, or `transitive_closure` |
 | `sync_workspace` | Incremental index refresh when the workspace is stale |
 | `index_workspace` | Full index rebuild when needed |
 | `flush_state` | Flush pending index state when the workspace uses it |
