@@ -10,7 +10,7 @@ requires_plan_hardening: "yes"
 plan_hardening_status: "hardened"
 plan_hardening_record: "docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md#plan-hardening"
 plan_review_verdict: "PASS"
-plan_review_cycles: 3
+plan_review_cycles: 4
 tags: [plan, release, v1.6.0, dag, engram, backlogit, p-012, p-002, capability-packs, dogfood-parity]
 ---
 
@@ -212,30 +212,39 @@ Done proves: v1.11 stays supported, 1.12 cannot be silently verified, the proced
 
 ## S5: G3 verification-gated docs-only task route
 
-Stash E89674F1. Covering feature F5. Risk high. Est. Ship effort 12-15 h. Decisions D-1..D-5 and assumptions AS-1..AS-7 are in
+Stash E89674F1. Covering feature F5. Risk high. Est. Ship effort 14-17 h. Decisions D-1..D-5 and assumptions AS-1..AS-7 are in
 the deliberation. Hardening items H1-H6 below apply.
 
-* **S5-U1 (M, medium)**: `src/autoharness/docs_only_check.py` pure checker per deliberation D-1 item 2/3 and D-3 (path
-  normalization, docs root fail-closed, deny list, case-insensitive compare, union of `git diff --name-status
-  <start-sha>`, staged, unstaged and untracked paths, rename/copy sources) with the **two-class partition** from D-3:
-  implementation paths (outside the backlog root) are strict; backlog-root paths are admitted only as exact lifecycle
-  files of the task, its feature and its shipment (structurally validated frontmatter-only allowlist, byte-identical
-  body) or new checkpoint files, everything else is `BACKLOG_PATH_NOT_LIFECYCLE`. Tests with temp git repositories and
-  a temp backlog root, including the end-to-end sequence claim (status/marker writes) -> start-SHA comment (log only)
-  -> docs edit -> completion (passes) and rejection of an unrelated item edit, a stash edit, a body edit of the task's
-  own file and a `src/` edit (PR 543 review thread 1).
-* **S5-U2 (S, medium)**: CLI `autoharness harness docs-only-check --start-sha --owned --docs-root --backlog-root --task
-  --feature --shipment [--json]`, exit 0/1/2, JSON schema `schemas/docs-only-check.schema.json` (+ versioned dir and
-  `SCHEMA_CONTRACTS` entry), `docs/gates-reference.md` section. Depends on U1.
+* **S5-U1 (M, medium)**: `src/autoharness/docs_only_check.py` pure checker, **implementation class** per deliberation
+  D-1 item 2/3 and D-3 (path normalization, docs root fail-closed, deny list, case-insensitive compare, union of
+  `git diff --name-status <start-sha>`, staged, unstaged and untracked paths, rename/copy sources). Tests with temp git
+  repositories.
+* **S5-U1b (M, medium)**: **baseline phase** (added by PR 543 review threads 1 and 3): `--phase baseline` validates
+  that the post-claim diff against the start SHA is a claim-only delta over the shipment's whole live manifest (task,
+  feature, shipment and every sibling member: `status` queued to active, `updated_at`,
+  `custom_fields.scheduler_baseline_claim` equal to the shipment ID, byte-identical body), fails closed with
+  `BASELINE_NOT_CLAIM_ONLY` otherwise (including any owned path already modified), and emits the lifecycle baseline
+  (backlog file path to SHA-256 of LF-normalized content). Depends on U1.
+* **S5-U1c (M, medium)**: **completion phase**: `--phase completion --baseline <record>`: implementation class as in U1;
+  lifecycle class: sibling manifest members must be byte-identical to baseline, the task, feature and shipment may
+  differ only in the allowlisted frontmatter keys with byte-identical body, new checkpoint files are admitted, every
+  other backlog path is `BACKLOG_PATH_NOT_LIFECYCLE`. End-to-end tests on a **two-task shipment**: claim writes for
+  both tasks, baseline, start-SHA comment (log only), docs edit, completion passes; and it still rejects an item outside
+  the manifest, a stash edit, a body edit, a non-allowlisted frontmatter key, a sibling edited during the task and a
+  `src/` edit. Depends on U1b.
+* **S5-U2 (S, medium)**: CLI `autoharness harness docs-only-check --phase baseline|completion --start-sha --owned
+  --docs-root --backlog-root --task --feature --shipment [--baseline <record>] [--json]`, exit 0/1/2, JSON schema
+  `schemas/docs-only-check.schema.json` (+ versioned dir and `SCHEMA_CONTRACTS` entry), `docs/gates-reference.md`
+  section. Depends on U1c.
 * **S5-U3 (M, medium)**: P-002 and P-004 amendment in `templates/policies/workflow-policies.md.tmpl` and mirror
   (route qualification, exclusive labels, verification record, anti-loophole, version row 1.39.0). Code route text is
   unchanged except for the explicit "unchanged" sentence. Depends on S3 having landed (sequential policy edits).
 * **S5-U4 (M, medium)**: `templates/agents/_ship.agent.md.tmpl` and mirror: Step 2 queue filter and scaffold list
-  accept exactly the route matching qualified ownership; Step 3 admit; Step 4.1 start-SHA capture (written to the item
-  log; the post-claim lifecycle writes are tracked backlog changes covered by the checker's lifecycle class, so Ship
-  passes the task, feature, shipment and backlog-root arguments and never pre-cleans them); completion gate runs the
-  checker and the recorded verification gates; mismatch halts as P-002 violation with P-005 telemetry. Depends on
-  U2, U3.
+  accept exactly the route matching qualified ownership; Step 3 admit; Step 4.1 start-SHA capture and the checker's
+    baseline phase (both recorded in the item log; the claim is a shipment-wide tracked write, so Ship passes the task,
+    feature, shipment and backlog-root arguments, records the lifecycle baseline, and never pre-cleans or exempts other
+    backlog paths); completion gate runs the checker's completion phase and the recorded verification gates; mismatch
+    halts as P-002 violation with P-005 telemetry. Depends on U2, U3.
 * **S5-U5 (M, medium)**: `templates/skills/harness-architect/SKILL.md.tmpl` and mirror (classify, validate record,
   apply only the route label, no stub/RED) plus the label vocabulary in `templates/backlog/config.yml.tmpl` and the
   installed `.autoharness` equivalent. Depends on U3.
@@ -245,8 +254,8 @@ the deliberation. Hardening items H1-H6 below apply.
 * **S5-U7 (S, low)**: interaction test: a task with `harness-surface:none` plus `harness-verification-gated` resolves
   through `autoharness harness resolve` with no surface required; text-contract tests across policy, Ship,
   harness-architect and build-feature that both labels never coexist and the code route is unchanged; an end-to-end
-  test of the Ship-described sequence (claim writes, start-SHA comment, docs edit, completion via the CLI) that passes
-  and still rejects unrelated edits. Depends on U4-U6.
+  test of the Ship-described sequence on a two-task shipment (claim writes, baseline phase, start-SHA comment, docs
+  edit, completion phase via the CLI) that passes and still rejects unrelated edits. Depends on U4-U6 and U1c.
 
 Done proves: a docs-only task can be claimed and completed without `harness-ready` or RED, only when the owned paths
 qualify and the diff is provably confined to them; any violation halts; code tasks are unchanged.
@@ -292,11 +301,11 @@ rollout) must stay active; the closure must not archive it.
 | 220-S (S2, G4) | 213-F | 213.001-T, 213.002-T, 213.003-T | 219-S |
 | 221-S (S3, G2) | 214-F | 214.001-T .. 214.005-T | 220-S |
 | 222-S (S4, engine line) | 215-F | 215.001-T, 215.002-T | 221-S |
-| 223-S (S5, G3) | 216-F (+ 042-DL link) | 216.001-T .. 216.008-T (216.008-T = S5-U1b lifecycle class, added by PR 543 review) | 222-S |
+| 223-S (S5, G3) | 216-F (+ 042-DL link) | 216.001-T .. 216.009-T (216.008-T = S5-U1b baseline phase and 216.009-T = S5-U1c completion phase, added by PR 543 review) | 222-S |
 | 224-S (S6, release) | 217-F | 217.001-T .. 217.004-T | 223-S |
 
 Unit mapping: S1-U1..U3 = 212.001-T..212.003-T; S2-U1..U3 = 213.001-T..213.003-T; S3-U1..U5 = 214.001-T..214.005-T;
-S4-U1..U2 = 215.001-T..215.002-T; S5-U1..U7 = 216.001-T..216.007-T plus S5-U1b = 216.008-T; S6-U1..U4 = 217.001-T..217.004-T. Stash entries
+S4-U1..U2 = 215.001-T..215.002-T; S5-U1..U7 = 216.001-T..216.007-T plus S5-U1b = 216.008-T and S5-U1c = 216.009-T; S6-U1..U4 = 217.001-T..217.004-T. Stash entries
 29D0ACB7, 3DB3AE91, 9CC3C661, 9AF294A4, E89674F1 and 03427861 were archived as consumed; B60A27EC stays active.
 
 ## Dependency Graph
@@ -306,7 +315,7 @@ S1-U1 -> S1-U3 <- S1-U2
 S2-U1 -> S2-U2 ; S2-U1 -> S2-U3
 S3-U1 ; S3-U2 -> S3-U3 ; S3-U2 -> S3-U4 ; (S3-U1,U2,U3) -> S3-U5
 S4-U1 -> S4-U2
-S5-U1 -> S5-U1b -> S5-U2 -> S5-U4 ; S5-U1b -> S5-U7 ; S5-U3 -> S5-U4/U5/U6 -> S5-U7
+S5-U1 -> S5-U1b -> S5-U1c -> S5-U2 -> S5-U4 ; S5-U1c -> S5-U7 ; S5-U3 -> S5-U4/U5/U6 -> S5-U7
 S6-U1 -> S6-U2 -> S6-U3 -> S6-U4
 Shipments: 216-S <- S1 <- S2 <- S3 <- S4 <- S5 <- S6 (blocks)
 ```
@@ -318,8 +327,9 @@ policy text). Single-agent pass; findings and the resulting plan changes:
 
 * **H1 Fail-closed docs route.** Ownership, normalization and deny list are evaluated by one function (U1) used by
   harness-architect, Ship and the completion gate; unresolved or ambiguous input is exit `2`, never a pass. Lifecycle
-  writes under the backlog root are admitted only through the two-class partition (exact task/feature/shipment files,
-  structurally validated, body byte-identical), never as a blanket backlog exemption (PR 543 review thread 1).
+  writes under the backlog root are admitted only through the two-phase mechanism (a claim-only baseline over the
+  shipment's whole live manifest, then sibling-unchanged and allowlisted task/feature/shipment deltas with
+  byte-identical bodies), never as a blanket backlog exemption (PR 543 review threads 1 and 3).
 * **H2 No self-authorized override.** The docs-route label is applied only by harness-architect after qualification;
   Ship re-checks and never applies it. A task cannot change route after implementation starts.
 * **H3 Mirror and checksum parity.** Every template edit in S1-S3 and S5 includes its mirror and checksum refresh in the same task;

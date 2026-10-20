@@ -93,20 +93,34 @@ declares `harness-surface:none` so the existing harness-surface resolver reports
   git-ignored, so it adds no tracked change. An owned path that is already modified at qualification fails closed (no
   retroactive qualification of partial work).
 * Completion proof is a deterministic, pure, no-network checker, `autoharness harness docs-only-check` (module
-  `src/autoharness/docs_only_check.py`): input is the repository root, the start SHA, the owned paths, the docs root,
-  the backlog root and the lifecycle IDs (`--task`, its `--feature` and its `--shipment`). It computes the union of
-  `git diff --name-status <start-sha>` (rename and copy sources included), staged and unstaged changes, and untracked
-  files, and partitions that set into two classes:
-  1. **Implementation class**: every path outside the backlog root. It returns `pass` only when every such path is an
-     owned path and satisfies D-1 item 2 and item 3.
-  2. **Lifecycle class**: every path under the backlog root. A path is admitted only when it is exactly
-     `<root>/queue/<id>.md` or `<root>/archive/<id>.md` for one of the three lifecycle IDs, or a newly added
-     `<root>/checkpoints/*.json`, and, for an item file, the diff against the start-SHA version changes only the
-     allowlisted frontmatter keys (`status`, `updated_at`, `commit`, `archived_from`, `archived_status`, `labels`
-     limited to adding or removing `harness-verification-gated` and `harness-ready`,
-     `custom_fields.scheduler_baseline_claim`, `custom_fields.harness_status`) and leaves the body byte-identical.
-     Every other backlog path (another item, a stash file, a body edit of the task's own file) is a violation
-     (`BACKLOG_PATH_NOT_LIFECYCLE`), so arbitrary backlog changes are never exempted.
+  `src/autoharness/docs_only_check.py`), run in two phases against the same inputs: the repository root, the start SHA,
+  the owned paths, the docs root, the backlog root, the lifecycle IDs (`--task`, its `--feature`, its `--shipment`) and
+  the shipment's live manifest member list (read from the shipment file, never supplied by the caller).
+  The claim is a **shipment-wide** write: P-002.7/P-002.8 specify that `ClaimShipment` activates and stamps every
+  queued manifest member, so after the claim the tracked backlog diff contains sibling-task writes as well as the
+  current task's. A fixed three-ID allowlist would reject a valid multi-task shipment (PR 543 review thread 3), so the
+  checker separates *claim-only deltas* from *task-time deltas*:
+  1. **Baseline phase** (`--phase baseline`, run by Ship at Step 4.1 right after the task is `active`): computes the
+     union of `git diff --name-status <start-sha>`, staged, unstaged and untracked paths and requires that every changed
+     path is a backlog file of the task, its feature, its shipment or one of the shipment's manifest members, and that
+     each such file's change is a **claim-only delta**: frontmatter limited to `status` queued to active, `updated_at`
+     and `custom_fields.scheduler_baseline_claim` equal to the shipment ID, body byte-identical. Any other changed path
+     (outside or inside the backlog root), any owned path already modified, or any non-claim delta fails closed
+     (`BASELINE_NOT_CLAIM_ONLY`), so partial work can never be retroactively qualified. On pass it emits the
+     **lifecycle baseline**: a map of each such backlog file path to the SHA-256 of its LF-normalized content at that
+     moment, which Ship records in the task comment (item log).
+  2. **Completion phase** (`--phase completion --baseline <record>`): computes the same changed-path union and
+     partitions it into two classes.
+     * **Implementation class**: every path outside the backlog root. It passes only when every such path is an owned
+       path satisfying D-1 item 2 and item 3.
+     * **Lifecycle class**: every path under the backlog root. A sibling manifest member file must be byte-identical
+       to its baseline digest (a sibling never changes during this task). The task, its feature and its shipment may
+       differ from baseline only in the allowlisted frontmatter keys (`status`, `updated_at`, `commit`,
+       `archived_from`, `archived_status`, `labels` limited to adding or removing `harness-verification-gated` and
+       `harness-ready`, `custom_fields.scheduler_baseline_claim`, `custom_fields.harness_status`) with the body
+       byte-identical; a newly added `<root>/checkpoints/*.json` is admitted. Every other backlog path (an item outside
+       the manifest, a stash file, a body edit, a non-allowlisted key) is a violation (`BACKLOG_PATH_NOT_LIFECYCLE`),
+       so arbitrary backlog changes are never exempted.
   Exit `0` pass, `1` violation (names each offending path and rule), `2` invalid input or git failure (fail closed).
   `--json` emits a schema-stable record for the task comment.
 * Ship Step 4.3 (full gate) still runs; the docs route removes only the harness-ready/RED obligation, never a
@@ -135,9 +149,12 @@ wording. Out of scope: any change to the code route, any change to the P-004 ros
 * **AS-5** The Markdown lint command is mandatory in every verification record.
 * **AS-6** The checker is a new CLI subcommand under the existing `autoharness harness` group, additive, no schema
   version bump of existing contracts.
-* **AS-7** (PR 543 review thread 1) Lifecycle writes under the backlog root are admitted only through the narrow,
-  structurally validated allowlist in D-3; the acceptance test must run the full sequence claim, start-SHA comment,
-  docs edit, completion and still reject unrelated edits (another item, a stash file, a body edit, a `src/` file).
+* **AS-7** (PR 543 review threads 1 and 3) Backlog-root writes are admitted only through the two-phase, structurally
+  validated mechanism in D-3 (claim-only baseline over the whole shipment manifest, then sibling-unchanged and
+  allowlisted task/feature/shipment deltas); the acceptance tests must run the full sequence claim, baseline,
+  start-SHA comment, docs edit, completion on a **two-task shipment** and still reject unrelated edits (an item outside
+  the manifest, a stash file, a body edit, a non-allowlisted frontmatter key, a sibling edited during the task, a
+  `src/` file).
 
 ## Open questions (none blocking)
 

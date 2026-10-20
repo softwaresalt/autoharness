@@ -5,7 +5,7 @@ doc_type: review
 review_target: docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md
 dispatch_mode: single-agent-declared-degradation
 decision: PASS
-review_cycles: 3
+review_cycles: 4
 reviewed_utc: 2026-10-20
 ---
 
@@ -74,5 +74,16 @@ the registry. No open P0/P1.
   `1.3.0` (the retired agent-intercom pack leaves `capability_packs`); the plan and task 217.003-T stopped at
   `1.2.0`. Fixed to the path `1.1.0` to `1.2.0` to `1.3.0` in plan S6-U3 and R6, task 217.003-T and the rollout entry
   B60A27EC.
+
+## Cycle 4 (post-publication, Copilot review of PR 543 round 2): one finding accepted and fixed
+
+* **(P1) Shipment-wide claim writes.** `ClaimShipment` activates and stamps every queued manifest member (P-002.7 and
+  P-002.8), so after the claim the start-SHA diff contains sibling-task claim writes that the three-ID lifecycle
+  allowlist rejected, and the acceptance sequence modeled only one task. Fixed in deliberation D-3 and AS-7, plan
+  S5-U1/U1b/U1c/U2/U4/U7 and hardening H1, and tasks 216.001-T, 216.002-T, 216.004-T, 216.007-T, 216.008-T and new
+  216.009-T: a baseline phase validates a claim-only delta over the whole live manifest and records a SHA-256
+  lifecycle baseline; the completion phase requires siblings byte-identical to baseline and allows only allowlisted
+  deltas on the task, feature and shipment; a two-task shipment test must pass and still reject an item outside the
+  manifest, a stash edit, a body edit, a non-allowlisted key, a sibling edited during the task and a `src/` edit.
 
 decision: PASS
