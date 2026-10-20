@@ -5,7 +5,7 @@ doc_type: review
 review_target: docs/plans/2026-10-19-release-1-6-0-staged-chain-plan.md
 dispatch_mode: single-agent-declared-degradation
 decision: PASS
-review_cycles: 4
+review_cycles: 5
 reviewed_utc: 2026-10-20
 ---
 
@@ -85,5 +85,20 @@ the registry. No open P0/P1.
   lifecycle baseline; the completion phase requires siblings byte-identical to baseline and allows only allowlisted
   deltas on the task, feature and shipment; a two-task shipment test must pass and still reject an item outside the
   manifest, a stash edit, a body edit, a non-allowlisted key, a sibling edited during the task and a `src/` edit.
+  (Superseded in design by cycle 5: the claim-only judgment of the pre-state was replaced by a recorded snapshot.)
+
+## Cycle 5 (post-publication, Copilot review of PR 543 round 3): one finding accepted; design simplified
+
+* **(P1) Pre-baseline lifecycle writes.** The claim-only baseline rejected legitimate writes made before Step 4.1: the
+  route label that harness-architect adds during preparation (S5-U5) and, at a task boundary, the preceding task's
+  close-out (commit, commit tracking, done, session memory per the Ship template). Enumerating or judging Ship's own
+  lifecycle writes cannot be made safe (three rounds of review show the allowlist keeps missing legitimate writes), so
+  the design changed class: the baseline is now a recorded pre-implementation snapshot (head SHA, changed paths with
+  content hashes, self-digest) that is not judged, except that owned paths must be clean at baseline; only the task's
+  own delta after the baseline is judged (implementation class strict, siblings unchanged, task/feature/shipment
+  allowlisted keys, byte-identical bodies). The accepted residual risk is recorded (deliberation D-3, AS-8).
+  Synchronized in deliberation D-3/AS-4/AS-7/AS-8, plan S5-U1/U1b/U1c/U2/U4/U7 and H1, and tasks 216.001-T, 216.002-T,
+  216.004-T, 216.007-T, 216.008-T and 216.009-T. The required integration test now runs a two-task shipment through
+  both tasks to completion, including the close-out of task 1 with a dirty session-memory file.
 
 decision: PASS

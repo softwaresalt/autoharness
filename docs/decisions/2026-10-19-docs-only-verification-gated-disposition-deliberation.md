@@ -45,7 +45,7 @@ Facts read on 2026-10-19:
 | A | Status quo: docs-only tasks use `harness-surface:none` and still get `harness-ready` | No change | `harness-ready` is a false claim for a harness-free task; no scope fence; no diff-verified evidence; engram's deadlock recurs whenever harness-architect cannot honestly apply the label |
 | B | One-off waivers per task | Fast | Not durable, not auditable as policy, self-authorized override risk (P-005); engram's operator already rejected it |
 | C | Engram's installed route verbatim (label, qualification, durable verification record, full workspace baseline snapshot at Step 4.1 incl. per-file content hashes) | Proven shape; converges with the operator's downstream install | The snapshot machinery is large (symlink targets, index vs worktree hashes) and duplicates what P-011 already guarantees (clean worktree at branch creation) |
-| D | **Route C's qualification and evidence contract, with the baseline reduced to the recorded start SHA plus a deterministic diff checker** | Same fail-closed qualification; diff-provable and auditable; small enough for one shipment; testable as a pure function | Departs from engram's installed baseline wording (engram re-renders will replace its manual text; behaviour stays stricter or equal) |
+| D | **Route C's qualification and evidence contract, with the baseline reduced to a recorded pre-implementation snapshot (changed paths plus content hashes) and a deterministic delta checker** | Same fail-closed qualification; diff-provable and auditable; small enough for one shipment; testable as a pure function; never has to judge Ship's own lifecycle writes | Departs from engram's installed baseline wording (engram re-renders will replace its manual text; behaviour stays stricter or equal); accepts the residual risk in D-3 |
 
 ## Decision D-1: adopt Option D
 
@@ -84,45 +84,47 @@ declares `harness-surface:none` so the existing harness-surface resolver reports
 
 ## Decision D-3: baseline and completion proof (the divergence from engram)
 
-* Baseline is the **start SHA**: Ship records `git rev-parse HEAD` in a task comment at Step 4.1, immediately after the
-  task is `active`, before any telemetry, pre-build read or docs edit. P-011 requires a clean worktree only **before
-  the claim**, so the start SHA characterizes the pre-claim state and not a clean tree: after the claim and task
-  activation, Ship's own lifecycle writes legitimately change tracked backlog files (`status`, `updated_at`,
-  `custom_fields.scheduler_baseline_claim` and the route label on the task, its feature and its shipment, plus new
-  checkpoint files). The start-SHA comment itself goes to the item log under `<backlog root>/logs/`, which is
-  git-ignored, so it adds no tracked change. An owned path that is already modified at qualification fails closed (no
-  retroactive qualification of partial work).
+* Baseline is a **pre-implementation snapshot**, not a clean-tree assumption. P-011 requires a clean worktree only
+  **before the claim**. Between the claim and the first docs edit Ship and harness-architect legitimately change tracked
+  files: the shipment-wide claim writes every manifest member (P-002.7/P-002.8), harness-architect adds the route label
+  during preparation (S5-U5), and the preceding task's close-out commits, tracks its commit, marks it done and writes
+  session memory (Ship template Step 4 close-out). The checker therefore never tries to judge or enumerate that pre-state.
+  It records it and attributes to the task only what changes **after** the baseline.
 * Completion proof is a deterministic, pure, no-network checker, `autoharness harness docs-only-check` (module
-  `src/autoharness/docs_only_check.py`), run in two phases against the same inputs: the repository root, the start SHA,
-  the owned paths, the docs root, the backlog root, the lifecycle IDs (`--task`, its `--feature`, its `--shipment`) and
-  the shipment's live manifest member list (read from the shipment file, never supplied by the caller).
-  The claim is a **shipment-wide** write: P-002.7/P-002.8 specify that `ClaimShipment` activates and stamps every
-  queued manifest member, so after the claim the tracked backlog diff contains sibling-task writes as well as the
-  current task's. A fixed three-ID allowlist would reject a valid multi-task shipment (PR 543 review thread 3), so the
-  checker separates *claim-only deltas* from *task-time deltas*:
-  1. **Baseline phase** (`--phase baseline`, run by Ship at Step 4.1 right after the task is `active`): computes the
-     union of `git diff --name-status <start-sha>`, staged, unstaged and untracked paths and requires that every changed
-     path is a backlog file of the task, its feature, its shipment or one of the shipment's manifest members, and that
-     each such file's change is a **claim-only delta**: frontmatter limited to `status` queued to active, `updated_at`
-     and `custom_fields.scheduler_baseline_claim` equal to the shipment ID, body byte-identical. Any other changed path
-     (outside or inside the backlog root), any owned path already modified, or any non-claim delta fails closed
-     (`BASELINE_NOT_CLAIM_ONLY`), so partial work can never be retroactively qualified. On pass it emits the
-     **lifecycle baseline**: a map of each such backlog file path to the SHA-256 of its LF-normalized content at that
-     moment, which Ship records in the task comment (item log).
-  2. **Completion phase** (`--phase completion --baseline <record>`): computes the same changed-path union and
-     partitions it into two classes.
-     * **Implementation class**: every path outside the backlog root. It passes only when every such path is an owned
-       path satisfying D-1 item 2 and item 3.
-     * **Lifecycle class**: every path under the backlog root. A sibling manifest member file must be byte-identical
-       to its baseline digest (a sibling never changes during this task). The task, its feature and its shipment may
-       differ from baseline only in the allowlisted frontmatter keys (`status`, `updated_at`, `commit`,
-       `archived_from`, `archived_status`, `labels` limited to adding or removing `harness-verification-gated` and
-       `harness-ready`, `custom_fields.scheduler_baseline_claim`, `custom_fields.harness_status`) with the body
-       byte-identical; a newly added `<root>/checkpoints/*.json` is admitted. Every other backlog path (an item outside
-       the manifest, a stash file, a body edit, a non-allowlisted key) is a violation (`BACKLOG_PATH_NOT_LIFECYCLE`),
-       so arbitrary backlog changes are never exempted.
-  Exit `0` pass, `1` violation (names each offending path and rule), `2` invalid input or git failure (fail closed).
-  `--json` emits a schema-stable record for the task comment.
+  `src/autoharness/docs_only_check.py`), run in two phases against the same inputs: the repository root, the owned
+  paths, the docs root, the backlog root, the lifecycle IDs (`--task`, its `--feature`, its `--shipment`) and the
+  shipment's live manifest member list (read from the shipment file, never supplied by the caller). The start-SHA
+  comment and the baseline record are written to the item log under `<backlog root>/logs/`, which is git-ignored.
+  1. **Baseline phase** (`--phase baseline`, run by Ship at Step 4.1 right after the task is `active` and qualified,
+     before any telemetry, pre-build read or docs edit): computes the changed-path set against `HEAD` (staged, unstaged,
+     untracked, deletions, rename and copy sources) and emits the **baseline record**: `head_sha`, and for every
+     changed path its change kind and the SHA-256 of its LF-normalized content, plus a self-digest of the record. It
+     fails closed (`OWNED_PATH_DIRTY_AT_BASELINE`) only when an **owned path** is changed, staged, untracked or deleted at
+     that moment (no retroactive qualification of partial docs work); any other pre-existing state is recorded without
+     judgment. Ship writes the record into the task comment, which makes the pre-state auditable.
+  2. **Completion phase** (`--phase completion --baseline <record>`): recomputes the same snapshot, verifies the
+     record's self-digest, and defines the **task delta** as every path whose kind or content hash differs from the
+     baseline (new, changed again, or deleted since). It partitions the task delta into two classes:
+     * **Implementation class**: every delta path outside the backlog root must be an owned path satisfying D-1 item 2
+       and item 3. A pre-existing dirty path (for example uncommitted session memory) is not in the delta unless the task
+       changed it again, in which case it is a violation unless owned.
+     * **Lifecycle class**: every delta path under the backlog root. Sibling manifest members must have **no** delta.
+       The task, its feature and its shipment may differ from baseline only in the allowlisted frontmatter keys
+       (`status`, `updated_at`, `commit`, `archived_from`, `archived_status`, `labels` limited to adding or removing
+       `harness-verification-gated` and `harness-ready`, `custom_fields.harness_status`) with the body byte-identical,
+       and a newly added `<root>/checkpoints/*.json` is admitted. Every other backlog delta (an item outside the
+       manifest, a stash file, a body edit, a non-allowlisted key) is a violation (`BACKLOG_PATH_NOT_LIFECYCLE`), so
+       arbitrary backlog changes are never exempted.
+  Exit `0` pass, `1` violation (names each offending path and rule), `2` invalid input, self-digest mismatch or git
+  failure (fail closed). `--json` emits a schema-stable record for the task comment.
+* Scope of the snapshot: it is git-based, so git-ignored runtime state (telemetry, metrics, item logs, caches,
+  `.worktrees/`) is outside it by construction, and a tracked runtime artifact written during the task would appear in
+  the delta and is a violation unless it is one of the admitted lifecycle writes.
+* Residual risk (accepted, recorded): the checker proves the **task's own delta**, not the cleanliness of the whole
+  tree, so a non-owned dirty path that already existed at baseline is attributed to the earlier step that wrote it. That
+  earlier step is covered by its own completion gate, Ship's one-task-one-commit boundary, the baseline listing in the
+  task comment, the Step 4.3 full gate and PR-level review of the final diff. The self-digest detects corruption of the
+  record; it is not a defense against Ship itself, whose actions stay auditable through the recorded baseline.
 * Ship Step 4.3 (full gate) still runs; the docs route removes only the harness-ready/RED obligation, never a
   completion gate. The task cannot move to `done` until every recorded executable and manual gate has a recorded
   passing result and the checker has returned `pass`.
@@ -145,16 +147,22 @@ wording. Out of scope: any change to the code route, any change to the P-004 ros
 * **AS-1** Reuse the label name `harness-verification-gated` (convergence with engram's install).
 * **AS-2** Only prose `.md` under the docs root qualifies; `.mdx`, images, diagrams and any non-Markdown file do not.
 * **AS-3** The deny list overrides the docs root, so a docs file that a test pins is not docs-only.
-* **AS-4** Start-SHA baseline (D-3) is accepted in place of engram's full workspace snapshot.
+* **AS-4** A recorded changed-path snapshot with content hashes (D-3) is accepted in place of engram's full workspace
+  baseline (symlink targets, index versus worktree hashes, clean-file hashing are not needed).
 * **AS-5** The Markdown lint command is mandatory in every verification record.
 * **AS-6** The checker is a new CLI subcommand under the existing `autoharness harness` group, additive, no schema
   version bump of existing contracts.
-* **AS-7** (PR 543 review threads 1 and 3) Backlog-root writes are admitted only through the two-phase, structurally
-  validated mechanism in D-3 (claim-only baseline over the whole shipment manifest, then sibling-unchanged and
-  allowlisted task/feature/shipment deltas); the acceptance tests must run the full sequence claim, baseline,
-  start-SHA comment, docs edit, completion on a **two-task shipment** and still reject unrelated edits (an item outside
-  the manifest, a stash file, a body edit, a non-allowlisted frontmatter key, a sibling edited during the task, a
-  `src/` file).
+* **AS-7** (PR 543 review threads 1, 3 and 4) The checker attributes to the task only what changes after a
+  pre-implementation baseline snapshot (D-3); the pre-state (claim writes, the route label, the preceding task's
+  close-out commit, tracking and session memory) is recorded, not judged, except that owned paths must be clean at
+  baseline. The acceptance tests must run a **two-task shipment end to end, qualifying and executing both tasks through
+  completion** (claim, harness-architect label, baseline 1, docs edit 1, completion 1, close-out of task 1 with commit,
+  tracking, done and a dirty session-memory file, then label, baseline 2, docs edit 2, completion 2) and still reject
+  unrelated edits (an item outside the manifest, a stash file, a body edit, a non-allowlisted frontmatter key, a
+  sibling edited during the task, a non-owned docs or `src/` file, a modified owned path at baseline).
+* **AS-8** The accepted residual risk in D-3 (non-owned pre-baseline dirt is attributed to the earlier step) is
+  deliberate; closing it would require judging Ship's own lifecycle writes, which the PR 543 review showed cannot be
+  enumerated safely.
 
 ## Open questions (none blocking)
 
