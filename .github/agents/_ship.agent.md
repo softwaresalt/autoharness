@@ -116,11 +116,11 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 1. Check for the backlog registry at `.autoharness/backlog-registry.yaml`.
    - If present: load it and identify MCP tools required for this session (shipment, task state, commit tracking).
    - If absent: proceed in manual/file-backed mode.
-2. For each required MCP tool, probe with a read-only lightweight operation:
-   - On success: log `TOOL_OK: {tool_name}`.
-   - On failure: check whether the registry declares a CLI fallback in the `cli_command` field.
-     - If CLI fallback exists: log `TOOL_DEGRADED: {tool_name} — CLI fallback: {cli_command}` and record it.
-     - If no fallback: halt with `TOOL_UNAVAILABLE: {tool_name} — required for this session.`
+2. For each required backlog operation, apply the P-012 per-operation surface choice. The registry may declare an MCP surface (`mcp_tool`), a CLI surface (`cli_command`), or both; every declared surface is an equal supported surface, and you may use either declared surface that works without trying the other first. Probe with a read-only lightweight operation:
+   - When a declared surface works: log `TOOL_OK: {operation} via {mcp|cli}`.
+   - If the selected surface fails and another declared surface works: log `TOOL_DEGRADED: {operation} — {failed_surface} failed; using {selected_surface}` and use the selected surface in subsequent steps.
+   - If no declared surface works: halt with `TOOL_UNAVAILABLE: {operation} — required for this session.`
+   - Pass CLI template values as separate argument elements; never substitute an undeclared command or a filesystem or cache edit; check the first write's result before retrying a non-idempotent mutation on another surface; `log_telemetry` stays MCP-only.
 3. Do NOT silently fall back to ad hoc filesystem `grep`/`cat` operations when a configured tool is unavailable (P-012 violation).
 4. Log overall status: `ALL_TOOLS_OK`, `DEGRADED_MODE: {tool_list}`, or `TOOL_UNAVAILABLE`.
 
@@ -129,8 +129,8 @@ Before any pipeline work begins, verify tool availability and declare degraded m
 After tool availability probing (Step 0.0), and before any subsequent semantic shipment reads, task lookups, or queue operations, call `backlogit_sync_index` to ensure the index reflects the current state of the workspace. Step 0.0 MCP probes are lightweight availability checks, not semantic reads; the index sync runs immediately after those probes complete.
 
 - On success: log `INDEX_SYNC_OK`.
-- On failure: run `backlogit sync` (CLI fallback).
-  - If the CLI succeeds: log `INDEX_SYNC_OK (CLI fallback)`.
+- On failure of the selected surface: use the other declared surface (`backlogit sync` or `backlogit_sync_index`) per P-012; either declared surface may be selected first.
+  - If the other surface succeeds: log `INDEX_SYNC_OK` and the P-012 `TOOL_DEGRADED` record naming the failed and selected surfaces.
   - If both fail: log `INDEX_SYNC_WARN — proceeding with potentially stale index` and continue.
 
 ### Step 0.1b: Engram Readiness Check
