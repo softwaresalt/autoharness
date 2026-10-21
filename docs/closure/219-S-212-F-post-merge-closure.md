@@ -46,7 +46,7 @@ None created by this closure (no backlog items were created). The `never_started
 
 ## Compaction (P-020)
 
-`compaction_status: done`. compact-context (`target: all`) was invoked: no memory, plan or closure artifact for the just-closed unit qualified for consolidation beyond this closure's own fresh session memory (`docs/memory/2026-10-21/ship-219-s-212-f-post-merge-closure.md`, kept live), so the run was a scan-only no-op. Unrelated historical memory and the active Stage chain memory were not compacted.
+`compaction_status: done`. compact-context (`target: all`) was invoked and performed the bounded Tier-1 consolidation of this unit's own completed-work session memory: the verbose original was archived to `docs/archive/memory/2026-10-21/ship-219-s-212-f-post-merge-closure.md` and its summary written to `docs/memory/compacted/2026-10-21-219-s-212-f-compacted.md`. Unrelated historical memory and the active Stage chain memory (220-S through 224-S) were not compacted.
 
 ## Close evidence
 
