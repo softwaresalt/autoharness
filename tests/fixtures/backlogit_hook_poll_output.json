@@ -1,0 +1,40 @@
+{
+  "description": "Shape of `backlogit hooks poll` / `backlogit_poll_hook_events` output. `events` are concrete and carry a `seq`; `derived_signals` are computed and are never acknowledged. The derived signal below is synthetic and deliberately carries a large `seq`-like number to prove it is never used as an acknowledgement sequence.",
+  "poll_output": {
+    "derived_signals": [
+      {
+        "signal": "queue_changed",
+        "seq": 99
+      }
+    ],
+    "events": [
+      {
+        "seq": 4,
+        "timestamp": "2026-07-01T02:06:52Z",
+        "event_type": "create_artifact",
+        "payload": {
+          "actor": "backlogit",
+          "artifact_type": "feature"
+        }
+      },
+      {
+        "seq": 7,
+        "timestamp": "2026-07-01T02:07:10Z",
+        "event_type": "update_artifact",
+        "payload": {
+          "actor": "backlogit",
+          "artifact_type": "task"
+        }
+      },
+      {
+        "seq": 5,
+        "timestamp": "2026-07-01T02:06:58Z",
+        "event_type": "move_artifact",
+        "payload": {
+          "actor": "backlogit",
+          "artifact_type": "task"
+        }
+      }
+    ]
+  }
+}

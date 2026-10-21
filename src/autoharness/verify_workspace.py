@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 from jsonschema import Draft7Validator
 
+from autoharness import backlog_surface_contract as _bsc
 from autoharness import frontmatter_contract as fc
 from autoharness import model_routing as _mr
 from autoharness import model_routing_sites as _mrs
@@ -6757,6 +6758,15 @@ def verify_workspace(
     _add_reload_propagation_check(
         report, "reload_propagation_directive", workspace_path
     )
+
+    # 214.005-T: a rendered backlogit registry must declare the hook CLI
+    # surfaces (P-012 per-operation surface choice); gated on a backlogit registry.
+    if isinstance(registry, dict) and registry.get("tool_name") == "backlogit":
+        _surface_errors = _bsc.registry_cli_surface_errors(registry)
+        report["targeted_checks"]["backlog_registry_cli_surface"] = {
+            "ok": not _surface_errors,
+            "errors": _surface_errors,
+        }
 
     project_name = variables.get("PROJECT_NAME", workspace_path.name)
     project_name_pattern = re.compile(
