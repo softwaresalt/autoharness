@@ -42,6 +42,22 @@ BASE_COPILOT_INSTRUCTIONS = (
 )
 
 
+SHIP_AGENT_WITHOUT_CLAIM_OPERATION = "\n".join(
+    (
+        "TOPOLOGY_GATE: pre_claim (before branch/worktree creation)",
+        "BRANCH_CREATED",
+        "TOPOLOGY_GATE: pre_claim (immediately before claim)",
+        "claim it using `` before",
+        "TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification)",
+        "CLAIM_NOT_OBSERVED",
+        "TOPOLOGY_GATE: lifecycle (before build)",
+        "TOPOLOGY_GATE: lifecycle (before PR creation)",
+        "TOPOLOGY_GATE: lifecycle (before closure/safe-close)",
+        "Bootstrap exemption",
+    )
+)
+
+
 def _write_yaml(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
@@ -78,7 +94,6 @@ def _build_workspace(root: Path, pack: str, *, enabled: bool, content: bool) -> 
     github = workspace / ".github"
     github.mkdir(parents=True, exist_ok=True)
     (github / "copilot-instructions.md").write_text(BASE_COPILOT_INSTRUCTIONS, encoding="utf-8")
-
     if enabled and content:
         by_path: dict[str, list[str]] = {}
         for assertion in PACK_ASSERTIONS[pack]:
@@ -122,7 +137,7 @@ class PackConditionalityTests(unittest.TestCase):
         for pack in PACKS:
             with self.subTest(pack=pack):
                 checks = _verify(pack, enabled=True, content=True)["targeted_checks"]
-                for key in _pack_keys(pack):
+                for key in _pack_keys(pack) - {"pipeline_topology_gate_ship_agent_claim_ordering"}:
                     self.assertTrue(checks[key]["ok"], key)
 
     def test_enabled_pack_with_content_removed_fails_closed(self) -> None:
@@ -132,6 +147,34 @@ class PackConditionalityTests(unittest.TestCase):
                 for key in _pack_keys(pack):
                     self.assertIn(key, checks)
                     self.assertFalse(checks[key]["ok"], key)
+
+    def test_ship_topology_wiring_does_not_require_backlogit_claim_operation(self) -> None:
+        ship_key = "pipeline_topology_gate_ship_agent_wiring"
+        claim_key = "pipeline_topology_gate_ship_agent_claim_ordering"
+        cases = (
+            # (backlogit enabled, claim operation rendered, wiring ok, claim ordering ok or absent)
+            (False, False, True, None),
+            (True, False, True, False),
+            (True, True, True, True),
+        )
+        for enabled, claim_rendered, wiring_ok, claim_ok in cases:
+            with self.subTest(enabled=enabled, claim_rendered=claim_rendered):
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    workspace, home = _build_workspace(
+                        Path(temp_dir), "backlogit", enabled=enabled, content=False
+                    )
+                    text = SHIP_AGENT_WITHOUT_CLAIM_OPERATION
+                    if claim_rendered:
+                        text = text.replace("``", "`backlogit_claim_shipment`")
+                    ship = workspace / ".github" / "agents" / "_ship.agent.md"
+                    ship.parent.mkdir(parents=True, exist_ok=True)
+                    ship.write_text(text, encoding="utf-8")
+                    checks = verify_workspace(workspace, home)["targeted_checks"]
+                self.assertEqual(checks[ship_key]["ok"], wiring_ok)
+                if claim_ok is None:
+                    self.assertNotIn(claim_key, checks)
+                else:
+                    self.assertEqual(checks[claim_key]["ok"], claim_ok)
 
     def test_remote_operator_guidance_is_agent_engram_scoped(self) -> None:
         self.assertIn("copilot_remote_operator_guidance", _pack_keys("agent-engram"))
@@ -156,7 +199,8 @@ class PackConditionalityTests(unittest.TestCase):
         offenders = [
             (assertion["key"], token)
             for assertion in FOUNDATION_ASSERTIONS
-            for token in assertion["must_contain"]
+            for token in list(assertion["must_contain"])
+            + [item for pair in assertion.get("must_precede") or [] for item in pair]
             if token in pack_tokens
         ]
         self.assertEqual(offenders, [])

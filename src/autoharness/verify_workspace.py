@@ -213,6 +213,21 @@ FIELD_VARIABLES = {
 PACK_ASSERTIONS = {
     "backlogit": [
         {
+            "key": "pipeline_topology_gate_ship_agent_claim_ordering",
+            "path": ".github/agents/_ship.agent.md",
+            "must_contain": ["backlogit_claim_shipment"],
+            "must_precede": [
+                [
+                    "TOPOLOGY_GATE: pre_claim (immediately before claim)",
+                    "backlogit_claim_shipment",
+                ],
+                [
+                    "backlogit_claim_shipment",
+                    "TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification)",
+                ],
+            ],
+        },
+        {
             "key": "backlogit_instruction_guidance",
             "path": ".github/instructions/backlogit.instructions.md",
             "must_contain": ["checkpoint", "queue", "traceability"],
@@ -804,10 +819,6 @@ FOUNDATION_ASSERTIONS = [
             ],
             [
                 "TOPOLOGY_GATE: pre_claim (immediately before claim)",
-                "backlogit_claim_shipment",
-            ],
-            [
-                "backlogit_claim_shipment",
                 "TOPOLOGY_GATE: post_claim (immediately after claim, GLOBAL verification)",
             ],
             [
