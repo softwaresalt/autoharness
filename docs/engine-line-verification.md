@@ -37,19 +37,25 @@ The gate function is `assess_cascade_engine_semantics`, and
 `select_close_path` composes it with the classifier verdict. Any result other than
 `VERIFIED` (unverified line, unreleased or unparseable build, stale probe, or a
 probe of a different surface) selects `SAFE_CLOSE` with reason
-`ENGINE_SEMANTICS_UNVERIFIED`.
+`ENGINE_SEMANTICS_UNVERIFIED`. This fallback applies to initial path selection
+only. Once `CASCADE` has been selected and recorded, a changed or failed
+revalidation halts the close; it is never a permission to switch to `SAFE_CLOSE`.
 
 ## Probe procedure
 
-1. Install or build the candidate backlogit. Released builds only; a
-   pre-release, `+dirty`, or `-N-gSHA` build always assesses `UNVERIFIED`.
+1. Install or build the candidate backlogit. Only a released build can qualify.
+   A pre-release, `+dirty`, or `-N-gSHA` development build is rejected before
+   the minor line is checked and stays unverified whatever the comparison
+   shows; the procedure qualifies a future released line, never such a build.
 2. Create a throwaway workspace (never this repository's `.backlogit/`) with a
-   small shipment whose manifest includes a feature, its tasks, and an
-   already-archived out-of-manifest descendant plus an unlisted linked
-   deliberation.
-3. Run `autoharness shipment cascade-close --classify-only` against it and run
-   the engine probe on the same surface (CLI or MCP) that the close path will
-   invoke.
+   small shipment whose manifest lists only the feature and its intended tasks.
+   Create an already-archived `parent_id` descendant and a linked deliberation
+   outside the manifest, so they are non-members.
+3. Run `autoharness shipment cascade-close --classify-only --shipment <S>
+   --feature <F> --sha <40-hex merge sha> --workspace <throwaway path> --json`
+   against the throwaway workspace (all four arguments are required), and run
+   the engine version probe on the same surface (CLI or MCP) that the close
+   path will invoke.
 4. Compare the candidate's `ArchiveItem` and `ShipShipment` cascade semantics with
    the verified facts at `v1.11.0` in `internal/core/archive.go`:
    * an already-archived out-of-manifest `parent_id` descendant is left untouched;
