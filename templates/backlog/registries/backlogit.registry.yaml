@@ -106,6 +106,7 @@ operations:
 
   append_comment:
     mcp_tool: "backlogit_append_comment"
+    cli_command: "backlogit comment add {{id}} --actor {{actor}} --comment {{comment}}"
     params:
       task_id: "item_id"
       actor: "actor"
@@ -118,6 +119,7 @@ operations:
 
   save_memory:
     mcp_tool: "backlogit_save_memory"
+    cli_command: "backlogit memory save --key {{key}} --summary {{summary}}"
     params:
       key: "key"
       summary: "summary"
@@ -152,11 +154,13 @@ operations:
 
   poll_hook_events:
     mcp_tool: "backlogit_poll_hook_events"
+    cli_command: "backlogit hooks poll --consumer-id {{consumer_id}}"
     params:
       consumer_id: "consumer_id"
 
   ack_hook_events:
     mcp_tool: "backlogit_ack_hook_events"
+    cli_command: "backlogit hooks ack --consumer-id {{consumer_id}} --seq {{seq}}"
     params:
       consumer_id: "consumer_id"
       seq: "seq"
@@ -239,6 +243,7 @@ operations:
 
   add_to_shipment:
     mcp_tool: "backlogit_add_to_shipment"
+    cli_command: "backlogit shipment add {{shipment_id}} {{item_id}}"
     params:
       shipment_id: "shipment_id"
       item_id: "item_id"
@@ -255,7 +260,7 @@ operations:
 
   stash:
     mcp_tool: "backlogit_stash"
-    cli_command: "backlogit stash add --text {{text}}"
+    cli_command: "backlogit stash add -- {{text}}"
     params:
       text: "text"
       kind: "kind"
@@ -263,6 +268,7 @@ operations:
 
   stash_edit:
     mcp_tool: "backlogit_stash_edit"
+    cli_command: "backlogit stash edit {{stash_id}}"
     params:
       stash_id: "stash_id"
       text: "text"
@@ -271,6 +277,7 @@ operations:
 
   stash_get:
     mcp_tool: "backlogit_stash_get"
+    cli_command: "backlogit stash get {{stash_id}}"
     params:
       stash_id: "stash_id"
 
@@ -309,6 +316,7 @@ operations:
 
   deliberate:
     mcp_tool: "backlogit_deliberate"
+    cli_command: "backlogit deliberate {{stash_id}}"
     params:
       stash_id: "stash_id"
       title: "title"
@@ -322,7 +330,7 @@ operations:
 
   add_link:
     mcp_tool: "backlogit_add_link"
-    cli_command: "backlogit link add {{source_id}} {{target_id}} --type {{link_type}}"
+    cli_command: "backlogit link add {{source_id}} {{target_id}} {{link_type}}"
     params:
       source_id: "source_id"
       target_id: "target_id"
@@ -330,7 +338,7 @@ operations:
 
   remove_link:
     mcp_tool: "backlogit_remove_link"
-    cli_command: "backlogit link remove {{source_id}} {{target_id}} --type {{link_type}}"
+    cli_command: "backlogit link remove {{source_id}} {{target_id}} {{link_type}}"
     params:
       source_id: "source_id"
       target_id: "target_id"
@@ -363,17 +371,21 @@ operations:
 
   get_metadata_catalog:
     mcp_tool: "backlogit_get_metadata_catalog"
+    cli_command: "backlogit metadata catalog"
 
   get_wit_metadata:
     mcp_tool: "backlogit_get_wit_metadata"
+    cli_command: "backlogit metadata wit {{type}}"
     params:
       type: "type"
 
   list_types:
     mcp_tool: "backlogit_list_types"
+    cli_command: "backlogit metadata types"
 
   list_templates:
     mcp_tool: "backlogit_list_templates"
+    cli_command: "backlogit metadata templates"
 
   get_version:
     mcp_tool: "backlogit_get_version"

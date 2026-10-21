@@ -159,7 +159,7 @@ Stage may plan the **next** stash batch while Ship executes the **current** queu
 
 ### Step 0.0: Tool Availability Gate (P-012)
 
-Before any pipeline work begins, verify tool availability per P-012. Probe required backlogit tools with read-only operations. Log `TOOL_OK`/`TOOL_DEGRADED`/`TOOL_UNAVAILABLE`. Halt on required tools with no fallback. Do not silently fall back to filesystem grep/cat when backlogit is configured.
+Before any pipeline work begins, verify tool availability per P-012. For each required backlog operation, choose any declared surface (MCP `mcp_tool` or CLI `cli_command`; every declared surface is an equal supported surface, tried without trying the other first), log `TOOL_OK: {operation} via {mcp|cli}`, log `TOOL_DEGRADED` naming the failed and selected surfaces when the selected surface fails and another declared surface works, and halt with `TOOL_UNAVAILABLE: {operation}` when no declared surface works. Never substitute an undeclared command or a filesystem or cache edit, and do not silently fall back to filesystem grep/cat when backlogit is configured.
 
 ### Step 0.0b: Crash-Resumption Protocol (Checkpoint Recovery, P-001 role separation)
 

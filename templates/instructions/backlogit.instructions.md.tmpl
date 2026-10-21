@@ -26,6 +26,21 @@ advertises them:
 Use the workspace's registered backlogit operation names or aliases. Do not invent a parallel task
 tracking system when backlogit is available.
 
+## Surface Choice Protocol
+
+Each registered backlogit operation may declare an MCP surface (`mcp_tool`), a CLI surface
+(`cli_command`), or both. Every declared surface is an equal supported surface for that operation
+(P-012): use either declared surface that works without trying the other first, report
+`TOOL_OK: {operation} via {mcp|cli}`, report `TOOL_DEGRADED` naming the failed and selected surfaces
+when the selected surface fails and another declared surface works, and halt with
+`TOOL_UNAVAILABLE: {operation}` when no declared surface works. Never substitute an undeclared
+command or a filesystem or cache edit. Pass CLI values as separate argument elements, and check
+the first write's result before retrying a non-idempotent mutation on another surface. Hook
+polling and acknowledgement follow the same choice, but acknowledge only the highest concrete
+event sequence processed, never a derived signal. `log_telemetry` is MCP-only. `dispose_shipment`
+(`backlogit_dispose_shipment` / `backlogit shipment dispose`) is not registered: it is deferred
+until backlogit 194-F ships and is Stage-only when it does (backlogit condition G-B).
+
 ## Query-First Protocol
 
 When inspecting backlog state:
@@ -66,11 +81,16 @@ Protocol above.
   candidate. This matches the Ship agent's own readiness rule that treats unmet
   `dependencies` as blocking eligibility through `dependencies`, not through a
   shipment `blocked` status.
+* **Queue-view readiness note (188-S)**: the backlogit HEAD `queue view` releases a
+  shipment `blocks` edge only when the predecessor is `shipped`, so it hides blocked
+  shipments earlier than backlogit 1.11. The Orchestrator already treats the queue listing as
+  a first filter with `pre_claim` as the sole authority, so no queue-selection wording changes.
 * **Reconstruct the full ordered sequence (scope / audit / resume)**: because
   every dependency-gated successor stays `status: queued` from creation and none
-  are hidden behind a separate `blocked` status, a single `queue view --type
-  shipment --status queued` (or an unfiltered shipment listing) already surfaces
-  the complete candidate set. Traverse the `item_deps` blocks-edges across that
+  are hidden behind a separate `blocked` status, an unfiltered shipment listing
+  (not `queue view`, which can hide dependency-blocked successors) surfaces
+  the complete candidate set; reserve `queue view` for eligibility selection.
+  Traverse the `item_deps` blocks-edges across that
   set to rebuild the ordered sequence and its restart cursor, then evaluate which
   queued successors are currently eligible by checking whether all blocking
   predecessors have reached `shipped`. This is the ordered scope P-017 records as
