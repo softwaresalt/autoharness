@@ -9,13 +9,17 @@ network.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import stat
 import subprocess
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 SCHEMA_VERSION = "1.0.0"
 
@@ -154,6 +158,53 @@ def lf_sha256(data: bytes) -> str:
     return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
 
 
+_FRONTMATTER_RE = re.compile(r"\A---[ \t]*\r?\n(?:(.*?)\r?\n)?---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
+_MUTABLE_KEYS = ("status", "updated_at", "commit", "archived_from", "archived_status")
+_MUTABLE_CUSTOM_FIELDS = ("harness_status",)
+ROUTE_LABELS = ("harness-verification-gated", "harness-ready")
+
+
+def frontmatter_fingerprints(path: str, data: bytes) -> tuple[str, str]:
+    """Return the SHA-256 of the raw body and of the protected frontmatter.
+
+    The protected frontmatter is the frontmatter minus the allowlisted mutable keys and
+    the two route labels, canonically serialized. An unparseable frontmatter raises
+    ``DocsOnlyError`` (fail closed).
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise DocsOnlyError(f"FRONTMATTER_UNPARSEABLE: {path}: not UTF-8") from exc
+    match = _FRONTMATTER_RE.match(text)
+    if match is None:
+        raise DocsOnlyError(f"FRONTMATTER_UNPARSEABLE: {path}: no frontmatter block")
+    try:
+        meta = yaml.safe_load(match.group(1) or "")
+    except yaml.YAMLError as exc:
+        raise DocsOnlyError(f"FRONTMATTER_UNPARSEABLE: {path}: invalid YAML") from exc
+    if meta is None:
+        meta = {}
+    if not isinstance(meta, dict):
+        raise DocsOnlyError(f"FRONTMATTER_UNPARSEABLE: {path}: frontmatter is not a mapping")
+    protected = {k: v for k, v in meta.items() if k not in _MUTABLE_KEYS}
+    labels = protected.get("labels")
+    if isinstance(labels, list):
+        kept = [label for label in labels if label not in ROUTE_LABELS]
+        if kept:
+            protected["labels"] = kept
+        else:
+            protected.pop("labels")
+    custom = protected.get("custom_fields")
+    if isinstance(custom, dict):
+        custom = {k: v for k, v in custom.items() if k not in _MUTABLE_CUSTOM_FIELDS}
+        if custom:
+            protected["custom_fields"] = custom
+        else:
+            protected.pop("custom_fields")
+    canonical = json.dumps(protected, sort_keys=True, separators=(",", ":"), default=str, ensure_ascii=True)
+    return lf_sha256(text[match.end():].encode("utf-8")), lf_sha256(canonical.encode("utf-8"))
+
+
 def _is_reparse(st: os.stat_result) -> bool:
     return bool(getattr(st, "st_file_attributes", 0) & _FILE_ATTRIBUTE_REPARSE_POINT)
 
@@ -176,12 +227,24 @@ def _worktree_entry(path: Path) -> str | None:
     return "other"
 
 
-def take_snapshot(repo_root: Path | str) -> Snapshot:
+def _fingerprinted(root: Path, entry: Entry) -> Entry:
+    """Add the body and protected-frontmatter fingerprints of an existing backlog Markdown file."""
+    if entry.worktree is None or not entry.path.lower().endswith(".md") or entry.worktree in ("other",):
+        return entry
+    if entry.worktree.startswith("symlink"):
+        return entry
+    body, protected = frontmatter_fingerprints(entry.path, root.joinpath(*entry.path.split("/")).read_bytes())
+    return Entry(entry.path, entry.index, entry.worktree, body, protected)
+
+
+def take_snapshot(repo_root: Path | str, backlog_root: str | None = None) -> Snapshot:
     """Return ``HEAD`` and every changed path with independent index and working-tree entries.
 
     The changed set is the union of staged changes, unstaged changes and untracked
     files; renames and copies are reported as a deletion of the source plus an
-    addition of the target so rename sources are always present.
+    addition of the target so rename sources are always present. With a
+    ``backlog_root``, each changed Markdown file under it also carries its body and
+    protected-frontmatter fingerprints.
     """
     root = Path(repo_root)
     if not root.is_dir():
@@ -196,6 +259,12 @@ def take_snapshot(repo_root: Path | str) -> Snapshot:
         path: Entry(path=path, index=index.get(path), worktree=_worktree_entry(root.joinpath(*path.split("/"))))
         for path in sorted(changed)
     }
+    if backlog_root is not None:
+        prefix = backlog_root.lower() + "/"
+        entries = {
+            path: _fingerprinted(root, entry) if path.lower().startswith(prefix) else entry
+            for path, entry in entries.items()
+        }
     return Snapshot(head_sha=head, entries=entries)
 
 
@@ -297,3 +366,75 @@ def check_owned_paths(
         return result
     result.violations.extend(_owned_violations(root, owned_list, docs, backlog))
     return result
+
+
+# --- baseline phase --------------------------------------------------------------
+
+
+def compute_self_digest(record: dict[str, Any]) -> str:
+    """SHA-256 over the canonical form of every baseline entry plus ``head_sha``."""
+    body = {
+        "schema_version": record.get("schema_version"),
+        "phase": record.get("phase"),
+        "head_sha": record.get("head_sha"),
+        "entries": record.get("entries"),
+    }
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def verify_self_digest(record: dict[str, Any]) -> bool:
+    digest = record.get("self_digest")
+    return isinstance(digest, str) and digest == compute_self_digest(record)
+
+
+def _prepare(
+    repo_root: Path | str, owned: Iterable[str] | None, docs_root: str, backlog_root: str, phase: str
+) -> tuple[CheckResult, Path, str, str]:
+    result = check_owned_paths(repo_root, owned, docs_root, backlog_root)
+    result.phase = phase
+    return result, Path(repo_root), docs_root, backlog_root
+
+
+def baseline_phase(
+    repo_root: Path | str, owned: Iterable[str] | None, docs_root: str, backlog_root: str
+) -> CheckResult:
+    """Record the pre-implementation snapshot without judging pre-existing state.
+
+    Only an owned path that is already changed, staged, untracked or deleted is a
+    violation (``OWNED_PATH_DIRTY_AT_BASELINE``); everything else is recorded.
+    """
+    result, root, _, backlog = _prepare(repo_root, owned, docs_root, backlog_root, "baseline")
+    if result.errors:
+        result.record = _record("baseline", result, None, [])
+        return result
+    try:
+        snapshot = take_snapshot(root, backlog)
+    except DocsOnlyError as exc:
+        result.errors.append(str(exc))
+        result.record = _record("baseline", result, None, [])
+        return result
+    changed_lower = {path.lower(): path for path in snapshot.entries}
+    for raw in list(owned or []):
+        hit = changed_lower.get(str(raw).lower())
+        if hit is not None:
+            result.violations.append(
+                Violation("OWNED_PATH_DIRTY_AT_BASELINE", hit, "owned path is changed, staged, untracked or deleted at baseline")
+            )
+    entries = [entry.to_dict() for entry in snapshot.entries.values()]
+    result.record = _record("baseline", result, snapshot.head_sha, entries)
+    result.record["self_digest"] = compute_self_digest(result.record)
+    return result
+
+
+def _record(phase: str, result: CheckResult, head_sha: str | None, entries: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "phase": phase,
+        "result": result.status,
+        "head_sha": head_sha,
+        "entries": entries,
+        "violations": [v.to_dict() for v in result.violations],
+        "errors": list(result.errors),
+        "self_digest": None,
+    }

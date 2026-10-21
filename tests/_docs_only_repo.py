@@ -76,3 +76,57 @@ def item_text(
         lines.append(extra)
     lines.append("---")
     return "\n".join(lines) + "\n\n" + body
+
+
+class ShipmentRepo(TempRepo):
+    """A repository holding one shipment, its feature and two docs-route tasks."""
+
+    SHIPMENT = "900-S"
+    FEATURE = "900-F"
+    TASKS = ("900.001-T", "900.002-T")
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.members = (self.FEATURE, *self.TASKS)
+        self.state: dict[str, dict] = {
+            item: {"status": "queued", "labels": (), "body": f"body of {item}\n", "extra": "", "updated": "2026-01-01T00:00:00Z"}
+            for item in (self.SHIPMENT, *self.members)
+        }
+        for item in self.state:
+            self.save(item)
+        self.write("docs/a.md", "a\n")
+        self.write("docs/b.md", "b\n")
+        self.write("docs/memory/keep.md", "keep\n")
+        self.write("src/mod.py", "x = 1\n")
+        self.commit_all("seed shipment")
+
+    def path_of(self, item: str) -> str:
+        return f"{BACKLOG}/queue/{item}.md"
+
+    def save(self, item: str, **changes) -> None:
+        self.state[item].update(changes)
+        kwargs = dict(self.state[item])
+        text = item_text(
+            item,
+            status=kwargs["status"],
+            labels=tuple(kwargs["labels"]),
+            body=kwargs["body"],
+            extra=kwargs["extra"],
+            items=self.members if item == self.SHIPMENT else (),
+            updated=kwargs["updated"],
+        )
+        self.write(self.path_of(item), text)
+
+    def claim_all(self) -> None:
+        for item in (self.SHIPMENT, *self.members):
+            self.save(item, status="active", updated="2026-02-01T00:00:00Z")
+
+    def add_label(self, item: str, label: str = "harness-verification-gated") -> None:
+        self.save(item, labels=(*self.state[item]["labels"], label))
+
+    def close_out(self, item: str, message: str, docs: tuple[str, ...]) -> None:
+        """Commit the task's docs edit and its own file; claim writes and session memory stay dirty."""
+        self.write("docs/memory/session.md", f"memory after {item}\n")
+        self.save(item, status="done", updated="2026-03-01T00:00:00Z", extra="commit: abc")
+        self.git("add", "--", self.path_of(item), *docs)
+        self.git("commit", "-q", "-m", message)
