@@ -260,7 +260,7 @@ operations:
 
   stash:
     mcp_tool: "backlogit_stash"
-    cli_command: "backlogit stash add --text {{text}}"
+    cli_command: "backlogit stash add {{text}}"
     params:
       text: "text"
       kind: "kind"

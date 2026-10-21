@@ -51,6 +51,13 @@ class RegistryCliSurfaceTests(unittest.TestCase):
                 self.assertEqual(ops["poll_hook_events"]["cli_command"], POLL_CLI)
                 self.assertEqual(ops["ack_hook_events"]["cli_command"], ACK_CLI)
 
+    def test_stash_add_cli_takes_text_as_positional_argument(self) -> None:
+        # backlogit stash add <text> declares no --text flag (v1.11.0).
+        for path in (_TEMPLATE_REGISTRY, _INSTALLED_REGISTRY):
+            with self.subTest(path=path.name):
+                ops = _registry(path)["operations"]
+                self.assertEqual(ops["stash"]["cli_command"], "backlogit stash add {{text}}")
+
     def test_every_cli_command_names_a_pinned_inventory_command(self) -> None:
         inventory = _inventory()
         for path in (_TEMPLATE_REGISTRY, _INSTALLED_REGISTRY):

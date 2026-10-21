@@ -87,9 +87,10 @@ Protocol above.
   a first filter with `pre_claim` as the sole authority, so no queue-selection wording changes.
 * **Reconstruct the full ordered sequence (scope / audit / resume)**: because
   every dependency-gated successor stays `status: queued` from creation and none
-  are hidden behind a separate `blocked` status, a single `queue view --type
-  shipment --status queued` (or an unfiltered shipment listing) already surfaces
-  the complete candidate set. Traverse the `item_deps` blocks-edges across that
+  are hidden behind a separate `blocked` status, an unfiltered shipment listing
+  (not `queue view`, which can hide dependency-blocked successors) surfaces
+  the complete candidate set; reserve `queue view` for eligibility selection.
+  Traverse the `item_deps` blocks-edges across that
   set to rebuild the ordered sequence and its restart cursor, then evaluate which
   queued successors are currently eligible by checking whether all blocking
   predecessors have reached `shipped`. This is the ordered scope P-017 records as
