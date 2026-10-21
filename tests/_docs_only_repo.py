@@ -98,6 +98,9 @@ class ShipmentRepo(TempRepo):
         self.write("docs/b.md", "b\n")
         self.write("docs/memory/keep.md", "keep\n")
         self.write("src/mod.py", "x = 1\n")
+        self.write(f"{BACKLOG}/stash.jsonl", "{}\n")
+        self.write(f"{BACKLOG}/checkpoints/old.json", "{}\n")
+        self.write(f"{BACKLOG}/queue/777-T.md", item_text("777-T"))
         self.commit_all("seed shipment")
 
     def path_of(self, item: str) -> str:

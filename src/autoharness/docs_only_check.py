@@ -438,3 +438,209 @@ def _record(phase: str, result: CheckResult, head_sha: str | None, entries: list
         "errors": list(result.errors),
         "self_digest": None,
     }
+
+
+# --- completion phase ------------------------------------------------------------
+
+_ID_RE = re.compile(r"\A[A-Za-z0-9]+(?:[.\-][A-Za-z0-9]+)*\Z")
+
+
+def _valid_id(value: object, label: str) -> str:
+    if not isinstance(value, str) or _ID_RE.match(value) is None:
+        raise DocsOnlyError(f"INVALID_INPUT: {label} is not a valid item ID")
+    return value
+
+
+def _item_candidates(backlog: str, item_id: str) -> tuple[str, str]:
+    return (f"{backlog}/queue/{item_id}.md", f"{backlog}/archive/{item_id}.md")
+
+
+def read_manifest_ids(repo_root: Path | str, backlog_root: str, shipment_id: str) -> list[str]:
+    """Read the member IDs from the live shipment file (``custom_fields.items``)."""
+    root = Path(repo_root)
+    try:
+        backlog = _normalize(backlog_root, "backlog root")
+    except ValueError as exc:
+        raise DocsOnlyError(f"INVALID_INPUT: {exc}") from exc
+    _valid_id(shipment_id, "shipment")
+    for candidate in _item_candidates(backlog, shipment_id):
+        path = root.joinpath(*candidate.split("/"))
+        if not path.is_file():
+            continue
+        text = path.read_bytes().decode("utf-8", "replace")
+        frontmatter_fingerprints(candidate, text.encode("utf-8"))
+        match = _FRONTMATTER_RE.match(text)
+        meta = yaml.safe_load(match.group(1) or "") if match else None
+        custom = meta.get("custom_fields") if isinstance(meta, dict) else None
+        items = custom.get("items") if isinstance(custom, dict) else None
+        if not isinstance(items, list) or not items or not all(isinstance(i, str) for i in items):
+            raise DocsOnlyError(f"INVALID_INPUT: shipment {shipment_id} has no readable member list")
+        return [_valid_id(i, "manifest member") for i in items]
+    raise DocsOnlyError(f"INVALID_INPUT: shipment {shipment_id} file not found under the backlog root")
+
+
+def _in_head(root: Path, rel: str) -> bool:
+    return bool(_git(root, "ls-tree", "-z", "--name-only", "HEAD", "--", f":(literal){rel}"))
+
+
+def _validated_baseline(record: object) -> dict[str, Any]:
+    if not isinstance(record, dict) or record.get("phase") != "baseline":
+        raise DocsOnlyError("INVALID_INPUT: baseline record is not a baseline phase record")
+    entries = record.get("entries")
+    head = record.get("head_sha")
+    if not isinstance(head, str) or not isinstance(entries, list):
+        raise DocsOnlyError("INVALID_INPUT: baseline record is malformed")
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+            raise DocsOnlyError("INVALID_INPUT: baseline record entry is malformed")
+        for key in ("index", "worktree"):
+            if key not in entry or not (entry[key] is None or isinstance(entry[key], str)):
+                raise DocsOnlyError("INVALID_INPUT: baseline record entry is malformed")
+    if not verify_self_digest(record):
+        raise DocsOnlyError("DIGEST_MISMATCH: baseline record self-digest does not match its entries")
+    return record
+
+
+def _baseline_fingerprints(
+    root: Path, by_path: dict[str, dict[str, Any]], backlog: str, item_id: str
+) -> tuple[str, str] | None:
+    """The item's retained baseline content: the recorded entry when dirty, else the ``HEAD`` blob."""
+    for candidate in _item_candidates(backlog, item_id):
+        entry = by_path.get(candidate.lower())
+        if entry is not None:
+            if entry.get("body_sha256"):
+                return entry["body_sha256"], entry["protected_frontmatter_sha256"]
+            continue
+        try:
+            blob = _git(root, "cat-file", "blob", f"HEAD:{candidate}")
+        except DocsOnlyError:
+            continue
+        return frontmatter_fingerprints(candidate, blob)
+    return None
+
+
+def _current_fingerprints(root: Path, backlog: str, item_id: str) -> tuple[str, str] | None:
+    for candidate in _item_candidates(backlog, item_id):
+        path = root.joinpath(*candidate.split("/"))
+        if path.is_file():
+            return frontmatter_fingerprints(candidate, path.read_bytes())
+    return None
+
+
+def completion_phase(
+    repo_root: Path | str,
+    owned: Iterable[str] | None,
+    docs_root: str,
+    backlog_root: str,
+    baseline_record: object,
+    *,
+    task_id: str,
+    feature_id: str,
+    shipment_id: str,
+    manifest_ids: Sequence[str],
+) -> CheckResult:
+    """Judge the task delta (per git layer) against the recorded baseline; run before the task commit."""
+    result, root, docs, backlog = _prepare(repo_root, owned, docs_root, backlog_root, "completion")
+    implementation: list[Violation] = []
+    lifecycle: list[Violation] = []
+    delta: list[str] = []
+    digest: str | None = None
+    head: str | None = None
+
+    def finish() -> CheckResult:
+        result.violations = [*result.violations, *implementation, *lifecycle]
+        impl_violations = [v.to_dict() for v in result.violations if v.check_class == "implementation"]
+        result.record = {
+            "schema_version": SCHEMA_VERSION,
+            "phase": "completion",
+            "result": result.status,
+            "head_sha": head,
+            "baseline_self_digest": digest,
+            "delta_paths": sorted(delta),
+            "implementation": {"result": "violation" if impl_violations else "pass", "violations": impl_violations},
+            "lifecycle": {
+                "result": "violation" if lifecycle else "pass",
+                "violations": [v.to_dict() for v in lifecycle],
+            },
+            "violations": [v.to_dict() for v in result.violations],
+            "errors": list(result.errors),
+        }
+        return result
+
+    if result.errors:
+        return finish()
+    try:
+        record = _validated_baseline(baseline_record)
+        digest = record.get("self_digest")
+        task = _valid_id(task_id, "task")
+        feature = _valid_id(feature_id, "feature")
+        shipment = _valid_id(shipment_id, "shipment")
+        members = [_valid_id(m, "manifest member") for m in manifest_ids]
+        if task not in members:
+            raise DocsOnlyError("INVALID_INPUT: task is not a member of the shipment manifest")
+        snapshot = take_snapshot(root)
+        head = snapshot.head_sha
+        if snapshot.head_sha != record["head_sha"]:
+            raise DocsOnlyError("HEAD_MOVED: HEAD differs from the baseline head_sha; run completion before the task commit")
+        by_path = {e["path"].lower(): e for e in record["entries"]}
+        current = {p.lower(): e for p, e in snapshot.entries.items()}
+        names = {p.lower(): p for p in snapshot.entries}
+        names.update({e["path"].lower(): e["path"] for e in record["entries"]})
+        delta = []
+        for key, name in names.items():
+            before = (by_path[key]["index"], by_path[key]["worktree"]) if key in by_path else None
+            after = current[key].layers() if key in current else None
+            if before != after:
+                delta.append(name)
+
+        owned_lower = {str(o).lower() for o in (owned or [])}
+        backlog_lower = backlog.lower()
+        lifecycle_ids = {task, feature, shipment}
+        lifecycle_paths = {c.lower(): i for i in lifecycle_ids for c in _item_candidates(backlog, i)}
+        sibling_paths = {
+            c.lower(): i for i in members if i not in lifecycle_ids for c in _item_candidates(backlog, i)
+        }
+        checkpoint_re = re.compile(re.escape(backlog_lower) + r"/checkpoints/[^/]+\.json\Z")
+        touched: set[str] = set()
+        for path in sorted(delta):
+            lower = path.lower()
+            if not lower.startswith(backlog_lower + "/"):
+                if lower not in owned_lower:
+                    implementation.append(Violation("NOT_OWNED_PATH", path, "task delta path is not an owned path"))
+                    implementation.extend(_owned_violations(root, [path], docs, backlog))
+                continue
+            if lower in lifecycle_paths:
+                touched.add(lifecycle_paths[lower])
+            elif lower in sibling_paths:
+                lifecycle.append(
+                    Violation("SIBLING_MEMBER_CHANGED", path, "a sibling shipment member changed during the task", "lifecycle")
+                )
+            elif checkpoint_re.match(lower) and lower not in by_path and lower in current and not _in_head(root, path):
+                continue
+            else:
+                lifecycle.append(
+                    Violation("BACKLOG_PATH_NOT_LIFECYCLE", path, "backlog path is not the task, feature, shipment or a new checkpoint", "lifecycle")
+                )
+        for item_id in sorted(touched):
+            expected = _baseline_fingerprints(root, by_path, backlog, item_id)
+            actual = _current_fingerprints(root, backlog, item_id)
+            path = _item_candidates(backlog, item_id)[0]
+            if expected is None or actual is None:
+                lifecycle.append(
+                    Violation("LIFECYCLE_FILE_MISSING", path, "lifecycle file has no baseline or current content", "lifecycle")
+                )
+                continue
+            if expected[0] != actual[0]:
+                lifecycle.append(
+                    Violation("LIFECYCLE_BODY_CHANGED", path, "the body of a lifecycle file changed during the task", "lifecycle")
+                )
+            if expected[1] != actual[1]:
+                lifecycle.append(
+                    Violation(
+                        "LIFECYCLE_PROTECTED_FRONTMATTER_CHANGED", path,
+                        "protected frontmatter or a non-route label changed during the task", "lifecycle",
+                    )
+                )
+    except DocsOnlyError as exc:
+        result.errors.append(str(exc))
+    return finish()
