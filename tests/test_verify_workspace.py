@@ -2092,9 +2092,6 @@ class VerifyWorkspaceTests(unittest.TestCase):
                 "## Session Memory Requirements\n"
                 "65%\n"
                 "phase or major task group\n"
-                "## Remote Operator Integration\n"
-                "### agent-engram\n"
-                "sync_workspace\n"
                 "## Backlog Workflow Expectations\n"
                 "queue-aware and dependency-aware operations\n"
                 "commit-tracking\n"
@@ -2110,7 +2107,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
             targeted_checks = report["targeted_checks"]
             self.assertTrue(targeted_checks["copilot_durable_knowledge_layout"]["ok"])
             self.assertTrue(targeted_checks["copilot_session_memory_guidance"]["ok"])
-            self.assertTrue(targeted_checks["copilot_remote_operator_guidance"]["ok"])
+            self.assertNotIn("copilot_remote_operator_guidance", targeted_checks)
             self.assertTrue(targeted_checks["copilot_backlog_workflow_expectations"]["ok"])
 
     def test_remote_operator_guidance_neither_requires_nor_forbids_the_legacy_heading(self) -> None:
@@ -2133,7 +2130,7 @@ class VerifyWorkspaceTests(unittest.TestCase):
                             "autoharness_version": "1.3.2",
                             "profile_hash": "abc",
                             "primitives_installed": [9],
-                            "capability_packs": [],
+                            "capability_packs": ["agent-engram"],
                             "artifacts": [],
                         },
                     )

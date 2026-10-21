@@ -345,7 +345,16 @@ PACK_ASSERTIONS = {
             "key": "agent_engram_instruction",
             "path": ".github/instructions/agent-engram.instructions.md",
             "must_contain": ["unified_search", "map_code", "impact_analysis"],
-        }
+        },
+        {
+            "key": "copilot_remote_operator_guidance",
+            "path": ".github/copilot-instructions.md",
+            "must_contain": [
+                "## Remote Operator Integration",
+                "### agent-engram",
+                "sync_workspace",
+            ],
+        },
     ],
     "adversarial-review": [
         {
@@ -432,15 +441,6 @@ FOUNDATION_ASSERTIONS = [
             "## Session Memory Requirements",
             "65%",
             "phase or major task group",
-        ],
-    },
-    {
-        "key": "copilot_remote_operator_guidance",
-        "path": ".github/copilot-instructions.md",
-        "must_contain": [
-            "## Remote Operator Integration",
-            "### agent-engram",
-            "sync_workspace",
         ],
     },
     {
