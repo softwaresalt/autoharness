@@ -613,6 +613,10 @@ If `capability_packs` input is provided explicitly, use it as-is regardless of p
 
 `agent-intercom` was retired and is no longer a capability pack: discovery never detects or recommends it, no preset installs it, and no overlay is woven for it. When an operator passes it explicitly (`capability_packs=agent-intercom`, or a retained config or profile still lists it), print `RETIRED_PACK: agent-intercom ignored`, drop it from the resolved `capability_packs` list, and continue the install with the remaining packs. Never write it to the new profile, manifest or config, and never re-weave its overlay. An already-installed workspace that still records it is handled by `tune-harness`, which reports the retired pack and offers cleanup.
 
+#### Pack-scope markers
+
+Rendered templates may wrap pack-specific content in paired HTML comment markers `<!-- pack-scope:{pack}:begin -->` and `<!-- pack-scope:{pack}:end -->` (for example `agent-engram` in `copilot-instructions.md`). The template engine has no conditionals, so after rendering, prune each marked section whose pack is not in the resolved `capability_packs` list: delete everything from the `begin` marker through the matching `end` marker, inclusive, and also delete a parent heading left with no remaining content (for example `## Remote Operator Integration` when its only pack section was pruned). For an enabled pack, keep the content and leave the markers in place. Verification requires the pack's assertions (`PACK_ASSERTIONS`) only when the pack is enabled, so a pruned section is never a verification failure. An unpaired or unknown-pack marker is an installation error.
+
 Additive stack packs are descriptive composition inputs rather than substitute
 architectures. They capture multiple concurrent workspace shapes such as
 `web-app`, `api-service`, `background-worker`, `deployable-service`,

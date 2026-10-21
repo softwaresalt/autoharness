@@ -168,3 +168,13 @@ def test_foundation_assertions_name_no_pack_owned_headings_or_tools() -> None:
         if token in pack_tokens
     ]
     assert offenders == []
+
+
+def test_template_scopes_agent_engram_section_with_pack_markers() -> None:
+    root = Path(__file__).resolve().parents[1]
+    template = (root / "templates/foundation/copilot-instructions.md.tmpl").read_text(encoding="utf-8")
+    begin = template.index("<!-- pack-scope:agent-engram:begin -->")
+    end = template.index("<!-- pack-scope:agent-engram:end -->")
+    assert begin < template.index("### agent-engram", begin) < end
+    skill = (root / ".github/skills/install-harness/SKILL.md").read_text(encoding="utf-8")
+    assert "pack-scope:{pack}:begin" in skill and "prune" in skill
