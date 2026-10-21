@@ -26,14 +26,15 @@ Shipment 222-S (feature 215-F, tasks 215.001-T and 215.002-T; release 1.6.0 chai
 
 ## Process deviations
 
+* The pre-mode report file was created after the cascade (retrospective); see Shipment close.
 * Telemetry begin/record and `backlogit_track_commit` were not run. No `backlogit commit` CLI exists, and the pre-merge task telemetry was skipped as observational.
 * The file-lock skill was not invoked for the single-agent pre-mode report.
 
 ## Shipment close
 
 * Lifecycle topology gate: exit 0 (`BRANCH_POST_MERGE_CLOSURE_ELIGIBLE`) before the close.
-* Pre-mode (`expected_status: done`): PROCEED. Report `.backlogit/reconcile/222-S-pre-20261021-211500.md`. 215-F is the qualifying feature.
-* Step 0(d) agreement-check outcome: `agreed` (CASCADE, qualifying feature set `215-F`; engine VERIFIED on backlogit 1.11.0).
+* Pre-mode (`expected_status: done`): PROCEED. Report `.backlogit/reconcile/222-S-pre-20261021-211500.md` is **retrospective**: it was written after the cascade finished, from member state read just before the close. The contemporaneous evidence is the `pre_close` snapshot (captured 2026-10-21T21:07:13Z) in the close evidence record. 215-F is the qualifying feature.
+* Step 0(d) agreement-check outcome: `agreed`, per the evidence record's `pre_close` snapshot (CASCADE, qualifying feature set `215-F`; engine VERIFIED on backlogit 1.11.0). The separate pre-mode report is not contemporaneous evidence of it.
 * Close path: `cascade` via the mutating `autoharness shipment cascade-close` (`--detach` then `--poll`; final exit 0, postcondition `pass`). No direct `backlogit shipment ship` call.
 * Linked-Deliberation Disposition (P-015 INV-12): `DISPOSITION_COMPLETE` (empty set).
 * Post-mode: PROCEED. Report `.backlogit/reconcile/222-S-post-20261021-213000.md`.
