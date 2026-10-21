@@ -74,6 +74,16 @@
 - **Fresh-install Ship route seed (194-F / 200-S)**: `install-harness` seeds a
   `model_routing.ship` route on a fresh install whose config has no `ship` key.
   An existing `ship` route is never overwritten.
+- **Backlog CLI as a first-class peer of MCP (214-F / 221-S)**: the backlogit registry now
+  declares `cli_command` for `poll_hook_events` (`backlogit hooks poll`), `ack_hook_events`
+  (`backlogit hooks ack`), `append_comment`, `save_memory`, `add_to_shipment`, `stash_edit`,
+  `stash_get`, `deliberate` and the metadata operations, each checked against the installed
+  CLI. P-012 (workflow policy `1.38.0`) treats every declared MCP or CLI surface as an equal
+  supported surface per operation and reports `TOOL_OK: {operation} via {mcp|cli}`,
+  `TOOL_DEGRADED`, or `TOOL_UNAVAILABLE`. `log_telemetry` stays MCP-only and
+  `dispose_shipment` stays unregistered until backlogit ships it. Expected template drift in
+  installed workspaces: workflow-policies, the Stage/Ship/Orchestrator agents, the backlog
+  instructions and the backlogit registry template (re-run tune-harness).
 
 ### Changed
 
