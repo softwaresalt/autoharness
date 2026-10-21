@@ -56,7 +56,18 @@ class RegistryCliSurfaceTests(unittest.TestCase):
         for path in (_TEMPLATE_REGISTRY, _INSTALLED_REGISTRY):
             with self.subTest(path=path.name):
                 ops = _registry(path)["operations"]
-                self.assertEqual(ops["stash"]["cli_command"], "backlogit stash add {{text}}")
+                self.assertEqual(ops["stash"]["cli_command"], "backlogit stash add -- {{text}}")
+
+    def test_link_cli_takes_type_as_positional_argument(self) -> None:
+        # backlogit link add/remove <source> <target> <type> declare no --type flag (v1.11.0).
+        for path in (_TEMPLATE_REGISTRY, _INSTALLED_REGISTRY):
+            with self.subTest(path=path.name):
+                ops = _registry(path)["operations"]
+                for op in ops.values():
+                    command = op.get("cli_command") or ""
+                    if command.startswith(("backlogit link add", "backlogit link remove")):
+                        self.assertNotIn("--type", command)
+                        self.assertTrue(command.endswith("{{source_id}} {{target_id}} {{link_type}}"))
 
     def test_every_cli_command_names_a_pinned_inventory_command(self) -> None:
         inventory = _inventory()
@@ -162,6 +173,12 @@ class HookContractTests(unittest.TestCase):
         events, derived = parse_hook_poll(_poll_output())
         self.assertEqual([event["seq"] for event in events], [4, 7, 5])
         self.assertEqual(derived, [{"signal": "queue_changed", "seq": 99}])
+
+    def test_empty_or_diagnostic_only_poll_output_raises(self) -> None:
+        for output in ("", "Error: hook store could not be read"):
+            with self.subTest(output=output):
+                with self.assertRaises(ValueError):
+                    parse_hook_poll(output)
 
     def test_poll_output_tolerates_log_lines_around_json(self) -> None:
         noisy = 'time=2026 level=INFO msg="workspace initialized"\n' + _poll_output()

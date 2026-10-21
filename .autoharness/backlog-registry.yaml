@@ -260,7 +260,7 @@ operations:
 
   stash:
     mcp_tool: "backlogit_stash"
-    cli_command: "backlogit stash add {{text}}"
+    cli_command: "backlogit stash add -- {{text}}"
     params:
       text: "text"
       kind: "kind"
@@ -330,7 +330,7 @@ operations:
 
   add_link:
     mcp_tool: "backlogit_add_link"
-    cli_command: "backlogit link add {{source_id}} {{target_id}} --type {{link_type}}"
+    cli_command: "backlogit link add {{source_id}} {{target_id}} {{link_type}}"
     params:
       source_id: "source_id"
       target_id: "target_id"
@@ -338,7 +338,7 @@ operations:
 
   remove_link:
     mcp_tool: "backlogit_remove_link"
-    cli_command: "backlogit link remove {{source_id}} {{target_id}} --type {{link_type}}"
+    cli_command: "backlogit link remove {{source_id}} {{target_id}} {{link_type}}"
     params:
       source_id: "source_id"
       target_id: "target_id"

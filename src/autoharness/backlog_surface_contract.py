@@ -74,7 +74,9 @@ def select_surface(registry: dict[str, Any], operation: str, working: Iterable[s
 def parse_hook_poll(output: str) -> tuple[list[dict[str, Any]], list[Any]]:
     """Parse poll output into (events, derived_signals), preserving both."""
     start = output.find("{")
-    data = json.JSONDecoder().raw_decode(output[start:])[0] if start >= 0 else {}
+    if start < 0:
+        raise ValueError("hook poll output contains no JSON payload")
+    data = json.JSONDecoder().raw_decode(output[start:])[0]
     return list(data.get("events") or []), list(data.get("derived_signals") or [])
 
 
