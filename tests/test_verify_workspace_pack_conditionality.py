@@ -7,7 +7,8 @@ import re
 import tempfile
 from pathlib import Path
 
-import pytest
+import unittest
+
 import yaml
 
 from autoharness.verify_workspace import (
@@ -104,43 +105,72 @@ def _pack_keys(pack: str) -> set[str]:
     return {assertion["key"] for assertion in PACK_ASSERTIONS[pack]}
 
 
-@pytest.mark.parametrize("pack", PACKS)
-def test_disabled_pack_yields_no_pack_derived_failure(pack: str) -> None:
-    report = _verify(pack, enabled=False, content=False)
-    checks = report["targeted_checks"]
+class PackConditionalityTests(unittest.TestCase):
+    def test_disabled_pack_yields_no_pack_derived_failure(self) -> None:
+        for pack in PACKS:
+            with self.subTest(pack=pack):
+                report = _verify(pack, enabled=False, content=False)
+                checks = report["targeted_checks"]
 
-    assert not (_pack_keys(pack) & set(checks))
-    foundation = {a["key"] for a in FOUNDATION_ASSERTIONS} & set(checks)
-    assert foundation, "foundation checks should still run"
-    assert all(checks[key]["ok"] for key in foundation), {
-        key: checks[key] for key in foundation if not checks[key]["ok"]
-    }
+                self.assertFalse(_pack_keys(pack) & set(checks))
+                foundation = {a["key"] for a in FOUNDATION_ASSERTIONS} & set(checks)
+                self.assertTrue(foundation, "foundation checks should still run")
+                failed = {key: checks[key] for key in foundation if not checks[key]["ok"]}
+                self.assertEqual(failed, {})
 
+    def test_enabled_pack_with_content_passes(self) -> None:
+        for pack in PACKS:
+            with self.subTest(pack=pack):
+                checks = _verify(pack, enabled=True, content=True)["targeted_checks"]
+                for key in _pack_keys(pack):
+                    self.assertTrue(checks[key]["ok"], key)
 
-@pytest.mark.parametrize("pack", PACKS)
-def test_enabled_pack_with_content_passes(pack: str) -> None:
-    checks = _verify(pack, enabled=True, content=True)["targeted_checks"]
+    def test_enabled_pack_with_content_removed_fails_closed(self) -> None:
+        for pack in PACKS:
+            with self.subTest(pack=pack):
+                checks = _verify(pack, enabled=True, content=False)["targeted_checks"]
+                for key in _pack_keys(pack):
+                    self.assertIn(key, checks)
+                    self.assertFalse(checks[key]["ok"], key)
 
-    for key in _pack_keys(pack):
-        assert checks[key]["ok"], key
+    def test_remote_operator_guidance_is_agent_engram_scoped(self) -> None:
+        self.assertIn("copilot_remote_operator_guidance", _pack_keys("agent-engram"))
+        self.assertNotIn(
+            "copilot_remote_operator_guidance", {a["key"] for a in FOUNDATION_ASSERTIONS}
+        )
 
+    def test_every_pack_assertion_key_is_a_supported_pack(self) -> None:
+        self.assertTrue(set(PACK_ASSERTIONS) <= SUPPORTED_CAPABILITY_PACKS)
 
-@pytest.mark.parametrize("pack", PACKS)
-def test_enabled_pack_with_content_removed_fails_closed(pack: str) -> None:
-    checks = _verify(pack, enabled=True, content=False)["targeted_checks"]
+    def test_foundation_assertions_name_no_pack_owned_headings_or_tools(self) -> None:
+        pack_tokens = {
+            token
+            for assertions in PACK_ASSERTIONS.values()
+            for assertion in assertions
+            for token in assertion["must_contain"]
+            if _is_pack_owned_token(token)
+        }
+        pack_tokens |= {f"### {pack}" for pack in PACK_ASSERTIONS}
+        pack_tokens |= {"sync_workspace"}
 
-    for key in _pack_keys(pack):
-        assert key in checks
-        assert not checks[key]["ok"], key
+        offenders = [
+            (assertion["key"], token)
+            for assertion in FOUNDATION_ASSERTIONS
+            for token in assertion["must_contain"]
+            if token in pack_tokens
+        ]
+        self.assertEqual(offenders, [])
 
-
-def test_remote_operator_guidance_is_agent_engram_scoped() -> None:
-    assert "copilot_remote_operator_guidance" in _pack_keys("agent-engram")
-    assert "copilot_remote_operator_guidance" not in {a["key"] for a in FOUNDATION_ASSERTIONS}
-
-
-def test_every_pack_assertion_key_is_a_supported_pack() -> None:
-    assert set(PACK_ASSERTIONS) <= SUPPORTED_CAPABILITY_PACKS
+    def test_template_scopes_agent_engram_section_with_pack_markers(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        template = (root / "templates/foundation/copilot-instructions.md.tmpl").read_text(
+            encoding="utf-8"
+        )
+        begin = template.index("<!-- pack-scope:agent-engram:begin -->")
+        end = template.index("<!-- pack-scope:agent-engram:end -->")
+        self.assertTrue(begin < template.index("### agent-engram", begin) < end)
+        skill = (root / ".github/skills/install-harness/SKILL.md").read_text(encoding="utf-8")
+        self.assertTrue("pack-scope:{pack}:begin" in skill and "prune" in skill)
 
 
 def _is_pack_owned_token(token: str) -> bool:
@@ -150,31 +180,6 @@ def _is_pack_owned_token(token: str) -> bool:
     ) or bool(re.fullmatch(r"[a-z]+(?:_[a-z]+)+|[A-Z][a-z]+(?:[A-Z][a-z]+)+", token))
 
 
-def test_foundation_assertions_name_no_pack_owned_headings_or_tools() -> None:
-    pack_tokens = {
-        token
-        for assertions in PACK_ASSERTIONS.values()
-        for assertion in assertions
-        for token in assertion["must_contain"]
-        if _is_pack_owned_token(token)
-    }
-    pack_tokens |= {f"### {pack}" for pack in PACK_ASSERTIONS}
-    pack_tokens |= {"sync_workspace"}
 
-    offenders = [
-        (assertion["key"], token)
-        for assertion in FOUNDATION_ASSERTIONS
-        for token in assertion["must_contain"]
-        if token in pack_tokens
-    ]
-    assert offenders == []
-
-
-def test_template_scopes_agent_engram_section_with_pack_markers() -> None:
-    root = Path(__file__).resolve().parents[1]
-    template = (root / "templates/foundation/copilot-instructions.md.tmpl").read_text(encoding="utf-8")
-    begin = template.index("<!-- pack-scope:agent-engram:begin -->")
-    end = template.index("<!-- pack-scope:agent-engram:end -->")
-    assert begin < template.index("### agent-engram", begin) < end
-    skill = (root / ".github/skills/install-harness/SKILL.md").read_text(encoding="utf-8")
-    assert "pack-scope:{pack}:begin" in skill and "prune" in skill
+if __name__ == "__main__":
+    unittest.main()
