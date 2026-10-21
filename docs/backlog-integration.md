@@ -40,7 +40,7 @@ If autoharness does not detect your backlog tool, or you use a custom tool, you 
 
 The registry file maps:
 - **MCP tool names** — the exact tool names your backlog MCP server exposes
-- **CLI commands** — fallback CLI equivalents for each operation
+- **CLI commands** — the CLI surface for each operation; a declared CLI command is an equal supported surface alongside the MCP tool (P-012 per-operation surface choice: use either declared surface that works, report `TOOL_OK: {operation} via {mcp|cli}`, never substitute an undeclared command or a filesystem edit)
 - **Status values** — how your tool represents queued, in-progress, done, blocked, etc.
 - **Field names** — the field identifiers for title, description, parent, priority, etc.
 
@@ -61,6 +61,14 @@ See the following guides for the current first-party backlogit contract:
 - **[Backlogit Operating Model](backlogit-operating-model.md)** — Defines what autoharness can consume now and the promotion criteria for future workflow changes
 - **[Backlogit Compatibility Matrix](backlogit-compatibility-matrix.md)** — Which backlogit surfaces are stable, which require validation, and which are still incubating
 - **[Backlogit Graduation Checklist](backlogit-graduation-checklist.md)** — When backlogit's emerging workflow is ready to graduate into autoharness templates
+
+## Surface Choice and Deferred Operations
+
+Per policy P-012, a registry operation may declare an MCP tool, a CLI command, or both, and every declared surface is an equal supported surface. Agents use either declared surface that works, without trying the other first, and report `TOOL_OK: {operation} via {mcp|cli}`, `TOOL_DEGRADED` (naming the failed and selected surfaces), or `TOOL_UNAVAILABLE`. For backlogit, the hook poll and acknowledgement operations declare `backlogit hooks poll` and `backlogit hooks ack`; `log_telemetry` stays MCP-only. Hook acknowledgement covers only the highest concrete event sequence, never a derived signal.
+
+`dispose_shipment` (`backlogit_dispose_shipment` / `backlogit shipment dispose`) is not registered. It is deferred until backlogit 194-F ships and is Stage-only when it does (backlogit condition G-B).
+
+Queue note (188-S): the backlogit HEAD `queue view` releases a shipment `blocks` edge only when the predecessor is `shipped`, hiding blocked shipments earlier than backlogit 1.11. The Orchestrator already treats the queue listing as a first filter with `pre_claim` as the sole authority, so queue-selection wording is unchanged.
 
 ## Next Steps
 

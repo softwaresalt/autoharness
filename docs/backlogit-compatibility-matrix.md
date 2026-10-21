@@ -44,6 +44,9 @@ Use this matrix together with:
 |---|---|---|---|
 | Backlogit detection through workspace markers | Compatible now | Use for workspace discovery and backlog tool selection | Backed by directory, config, and MCP or CLI detection |
 | Registry-backed CRUD operations | Compatible now | Use through the generic backlog abstraction | Core interoperability layer |
+| Declared MCP and CLI operation surfaces | Compatible now | Treat each declared surface as an equal supported surface per operation (P-012); report `TOOL_OK: {operation} via {mcp\|cli}` | Hook poll and ack declare `backlogit hooks poll` / `backlogit hooks ack`; `log_telemetry` stays MCP-only |
+| Shipment dispose (`backlogit_dispose_shipment` / `backlogit shipment dispose`) | Incubating | Do not register; deferred until backlogit 194-F ships, then Stage-only (backlogit condition G-B) | Not implemented in backlogit 1.11.0 or HEAD |
+| Queue view shipment `blocks` release (188-S) | Compatible with validation | The backlogit HEAD queue view releases a shipment `blocks` edge only when the predecessor is `shipped`; the Orchestrator keeps the queue listing as a first filter with `pre_claim` as the sole authority | Hides blocked shipments earlier than backlogit 1.11; no queue-selection wording change |
 | SQL query surface | Compatible with validation | Prefer for targeted backlog lookup when the pack is enabled and the tool is reachable | Must verify MCP or CLI availability first |
 | YAML frontmatter tooling coverage | Compatible now | Use to teach when MCP-backed updates are enough and when direct Markdown edits plus index refresh are required | Stable because it documents both supported fields and known gaps such as `custom_fields` and post-create `references` |
 | Queue-aware work selection | Compatible with validation | Use for ready-work and sequencing guidance | Requires queue operations to be reachable and trustworthy |
