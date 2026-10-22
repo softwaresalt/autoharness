@@ -543,6 +543,8 @@ def _current_copies(root: Path, backlog: str, item_id: str) -> dict[str, tuple[s
     copies: dict[str, tuple[str, str]] = {}
     for candidate in _item_candidates(backlog, item_id):
         path = root.joinpath(*candidate.split("/"))
+        if _link_in_path(root, candidate):
+            continue
         if path.is_file():
             copies[candidate] = frontmatter_fingerprints(candidate, path.read_bytes())
     return copies
@@ -591,7 +593,10 @@ def _stash_append_problem(root: Path, rel: str, by_path: dict[str, dict[str, Any
     if rel in by_path:
         return refusal + " (it was already dirty at baseline)"
     try:
-        base = _git(root, "cat-file", "blob", f"HEAD:{rel}") if _in_head(root, rel) else b""
+        tracked = _in_head(root, rel)
+        if tracked and rel not in _index_entries(root):
+            return refusal + " (an existing stash was deleted from the index)"
+        base = _git(root, "cat-file", "blob", f"HEAD:{rel}") if tracked else b""
         path = root.joinpath(*rel.split("/"))
         if _link_in_path(root, rel) or not path.is_file():
             return refusal

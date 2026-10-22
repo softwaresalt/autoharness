@@ -303,6 +303,14 @@ class StashAppendOnlyTests(CompletionBase):
         self.repo.write(self.STASH, self.OLD + self.NEW)
         self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(self.complete(base, self.owned)))
 
+    def test_staged_deletion_with_valid_working_tree_append_fails(self) -> None:
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.repo.git("rm", "-q", "--cached", "--", self.STASH)
+        self.repo.write(self.STASH, self.OLD + self.NEW)
+        result = self.complete(base, self.owned)
+        self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(result))
+
     def test_stash_dirty_at_baseline_fails_closed(self) -> None:
         self.repo.write(self.STASH, self.OLD + self.NEW)
         base = self.baseline(self.owned)
@@ -317,6 +325,30 @@ class ReviewHardeningTests(CompletionBase):
         self.repo.claim_all()
         self.owned = ["docs/a.md"]
 
+    def test_lifecycle_file_replaced_by_identical_symlink_is_rejected(self) -> None:
+        for item in (self.t1, self.repo.FEATURE, self.repo.SHIPMENT):
+            with self.subTest(item):
+                rel = self.repo.path_of(item)
+                base = self.baseline(self.owned)
+                self.repo.write("docs/a.md", "edit\n")
+                live = self.repo.root.joinpath(*rel.split("/"))
+                content = live.read_bytes()
+                target = self.repo.root / "docs" / "linked-copy.md"
+                target.write_bytes(content)
+                live.unlink()
+                try:
+                    live.symlink_to(target)
+                except (OSError, NotImplementedError) as exc:
+                    self.skipTest(f"cannot create symlink: {exc}")
+                try:
+                    result = self.complete(base, self.owned)
+                    self.assertIn("LIFECYCLE_FILE_MISSING", self.rules(result))
+                    self.assertEqual(result.exit_code, 1)
+                finally:
+                    live.unlink()
+                    live.write_bytes(content)
+                    target.unlink()
+                    self.repo.git("checkout", "--", "docs/a.md")
     def args(self, base, **over):
         kwargs = dict(task_id=self.t1, feature_id=self.repo.FEATURE, shipment_id=self.repo.SHIPMENT, manifest_ids=self.manifest)
         kwargs.update(over)

@@ -739,7 +739,10 @@ pre-state; it records it and judges only the task's own delta:
   `id` and `text` are strings and whose `text` carries `DEFERRED SCOPE EXPANSION`, in the working tree and, when staged
   differently from `HEAD`, the index. This lets the mandatory P-021 defer-capture run between baseline and completion; any
   edit, removal, rewrite, malformed or other new line, or a stash that was already dirty at baseline (no recoverable
-  baseline), fails closed with `BACKLOG_PATH_NOT_LIFECYCLE`. The shipment manifest is read from the live shipment file. The
+  baseline), fails closed with `BACKLOG_PATH_NOT_LIFECYCLE`; so does a staged deletion of a stash that exists in `HEAD`,
+  even when the working tree holds a valid append (a genuinely new, untracked stash is still admitted). A lifecycle file
+  that is, or sits below, a symlink or Windows reparse point is not accepted as a current copy
+  (`LIFECYCLE_FILE_MISSING`). The shipment manifest is read from the live shipment file. The
   supplied feature need not be a manifest member (Ship accepts task-only manifests); it must equal the task's `parent_id`
   and have an item file under the backlog root (`IDENTITY_MISMATCH` or invalid input otherwise, exit 2); every delta path
   outside the backlog root is judged against the path rules by its exact Git identity, including paths that match an owned
