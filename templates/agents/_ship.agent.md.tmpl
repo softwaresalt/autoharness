@@ -342,11 +342,12 @@ Ensure every task in the target feature or chore has a passing test harness befo
 1. List all tasks for the target feature or chore that are in `{{STATUS_QUEUED}}` status.
 2. Partition the task list:
    * **Already harnessed**: tasks carrying the `harness-ready` label — skip these.
-   * **Needs harness**: tasks without the `harness-ready` label — scaffold these.
+   * **Needs harness**: tasks without the `harness-ready` label — scaffold these (docs-route tasks below are excluded from this list).
+   * **Docs route**: tasks carrying the `harness-verification-gated` label (P-002 docs-only route; never together with `harness-ready`) are excluded from the scaffold list: harness-architect creates no stub, test or RED evidence for them. Ship accepts exactly the route that matches the task's qualified ownership (`harness-ready` for code or non-prose tasks, `harness-verification-gated` for qualifying docs-only tasks), re-checks qualification at intake (explicit owned paths, prose `.md` under `{{DOCS_ROOT}}`, deny list, valid verification record), and halts on a missing or mismatched route as a P-002 violation. Ship never applies either route label; a task that qualifies but lacks the docs label is routed to harness-architect.
 3. If any tasks need harnesses, invoke the **harness-architect** skill for the batch.
    * Require compilable but failing harnesses, structural stubs, and successful `{{BUILD_CHECK_COMMAND}}` verification after scaffolding.
    * Keep harness commands associated with the affected backlog items so the build loop has a strict boundary.
-4. After scaffolding completes, confirm every queued task now carries the `harness-ready` label. If any task still lacks it, halt and report the gap rather than proceeding with a partial set.
+4. After scaffolding completes, confirm every queued task now carries the `harness-ready` label. If any task still lacks it, halt and report the gap rather than proceeding with a partial set. A docs-route task instead carries `harness-verification-gated`, and a task never carries both labels.
 
 When the `backlogit` capability pack is installed and queue-aware operations are supported, prefer
 the queue operation to assemble the task set. When dependency operations are supported, verify the
@@ -416,7 +417,9 @@ Now that all tasks are harnessed, construct the execution queue:
    `{{STATUS_ACTIVE}}`, and exclude any manifest task that item 1 classified as `pre_archived_skipped` or
    `already_done` even if it would otherwise match `{{STATUS_QUEUED}}`/`{{STATUS_ACTIVE}}` elsewhere. Tasks outside
    the shipment's manifest are never added by this substitution. When the P-002.8 admission above ran, the claim-assigned
-   waiting members it held out are not restored by this substitution.
+   waiting members it held out are not restored by this substitution. **Docs route admit**: also admit tasks carrying
+   `harness-verification-gated` (never together with `harness-ready`) through the same selection; Ship re-checks qualification at claim
+   (P-002 docs-only route rules) before moving the task to `{{STATUS_ACTIVE}}` and halts as a P-002 violation when it no longer holds.
 3. Sort the queue by dependency order (tasks with no unfinished dependencies first).
 4. If the queue is empty after harness generation, halt and report — there is nothing to build.
 
@@ -437,6 +440,16 @@ appends the comment `WORK_STARTED: <S>` with actor `ship` through the registry's
 failed append, Ship re-reads the log before any retry or CLI fallback and never appends a second `WORK_STARTED: <S>` in
 the same epoch. An unreadable, missing, or unparseable log halts `WAVE_CLAIM_STATE_INDETERMINATE`.
 <!-- P-002.8:END ship step 4.1 start record -->
+
+**Docs-route baseline (P-002 docs-only route; only tasks carrying `harness-verification-gated`)**: immediately after the task is `{{STATUS_ACTIVE}}` and its qualification is re-checked, and before Step 4.1a telemetry, pre-build knowledge retrieval or any docs edit, run:
+
+```text
+autoharness harness docs-only-check --phase baseline --owned {owned_path} [--owned {owned_path} ...] \
+  --docs-root {{DOCS_ROOT}} --backlog-root {{BACKLOG_DIRECTORY}} \
+  --task {item_id} --feature {parent_id} --shipment {shipment_id} --json
+```
+
+Append the JSON baseline record (`head_sha`, per changed path the index-layer and working-tree-layer entries with their hash, and the self-digest) to the task comment (the item log under `{{BACKLOG_DIRECTORY}}/logs/`, which is git-ignored). Ship records the pre-state and never pre-cleans it (claim writes, the route label, the preceding task's close-out and session memory). Exit 1 (including `OWNED_PATH_DIRTY_AT_BASELINE`) or exit 2 halts as a P-002 violation with P-005 telemetry; do not start the task.
 
 #### Step 4.1a: Begin Telemetry Context
 
@@ -572,6 +585,16 @@ Both paths preserve identically: the mandatory capture-first ordering, the full 
 **C3 symmetric guard**: (i) a same-contract-surface completion of the authorized change IS in scope and MUST be fixed, not deferred; AND (ii) deferring such a completion WITHOUT a captured deferred entry and a residual-risk record is itself a P-021 violation, actioned per C7.
 
 #### Step 4.5: Complete Task
+
+**Docs-route completion gate (P-002 docs-only route; before the task commit)**: for a task carrying `harness-verification-gated`, before item 1 below (the task commit) and before any close-out step, run every recorded executable verification gate and record its result, then run:
+
+```text
+autoharness harness docs-only-check --phase completion --owned {owned_path} [--owned {owned_path} ...] \
+  --docs-root {{DOCS_ROOT}} --backlog-root {{BACKLOG_DIRECTORY}} \
+  --task {item_id} --feature {parent_id} --shipment {shipment_id} --baseline {baseline_record_path} --json
+```
+
+where `{baseline_record_path}` is the Step 4.1 baseline record saved from the task comment to the git-ignored item log directory. A recorded gate without a passing result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2 halts as a P-002 violation with P-005 telemetry; the task is not committed, tracked or moved to `{{STATUS_DONE}}`, and the full gate in Step 4.3 still runs.
 
 1. Commit changes with a conventional commit message
 2. If telemetry begin returned `status` `created` or `idempotent_begin` with an

@@ -401,6 +401,22 @@ For each task in the derived executable task set:
    never appends a second `WORK_STARTED: <S>` in the same epoch. An unreadable, missing, or unparseable log halts
    `WAVE_CLAIM_STATE_INDETERMINATE`.
    <!-- P-002.8:END ship step 4.1 start record -->
+
+   **Route acceptance (P-002)**: Ship accepts exactly the route that matches the task's qualified ownership —
+   `harness-ready` for code or non-prose tasks, `harness-verification-gated` for qualifying docs-only tasks (never
+   both labels). It re-checks qualification at intake and at claim, never applies either route label, and halts on a
+   missing or mismatched route as a P-002 violation. A docs-route task is never scaffolded: no stub, test or RED
+   evidence exists for it.
+
+   **Docs-route baseline (P-002 docs-only route; only tasks carrying `harness-verification-gated`)**: immediately
+   after the task is `active` and its qualification is re-checked, and before the telemetry begin, pre-build
+   retrieval or any docs edit, run
+   `autoharness harness docs-only-check --phase baseline --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root .backlogit --task {task_id} --feature {parent_id} --shipment {shipment_id} --json`
+   and append the JSON baseline record (`head_sha`, per changed path the index-layer and working-tree-layer entries
+   with their hash, and the self-digest) to the task comment (the item log under `.backlogit/logs/`, which is
+   git-ignored). Ship records the pre-state and never pre-cleans it (claim writes, the route label, the preceding
+   task's close-out and session memory). Exit 1 (including `OWNED_PATH_DIRTY_AT_BASELINE`) or exit 2 halts as a P-002
+   violation with P-005 telemetry; do not start the task.
 2. **Begin telemetry context**: Immediately after claim and before pre-build
    knowledge retrieval, build execution, implementation tool work, or review
    feedback, run:
@@ -434,6 +450,13 @@ For each task in the derived executable task set:
    call is reported but NEVER blocks execution, validation, review, or task
    completion — proceed exactly as if telemetry were disabled.
 5. **Validate**: Run quality gates.
+   **Docs-route completion gate (P-002 docs-only route; before the task commit)**: for a task carrying
+   `harness-verification-gated`, before the commit and before any close-out, run every recorded executable
+   verification gate and record its result, then run
+   `autoharness harness docs-only-check --phase completion --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root .backlogit --task {task_id} --feature {parent_id} --shipment {shipment_id} --baseline {baseline_record_path} --json`
+   where `{baseline_record_path}` is the baseline record saved from the task comment to the git-ignored item log
+   directory. A recorded gate without a passing result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2
+   halts as a P-002 violation with P-005 telemetry; the task is not committed, tracked or moved to done.
 6. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
 7. **Record close telemetry**: If begin returned `status` `created` or
    `idempotent_begin` with an enabled `context_ref`, create the close-time epoch
