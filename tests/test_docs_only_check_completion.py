@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import tempfile
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -360,6 +361,18 @@ class StashAppendOnlyTests(CompletionBase):
         self.repo.write(self.STASH, self.OLD + self.NEW + self.NEW.replace("BBBB0002", "DDDD0004"))
         self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(self.complete(base, self.owned)))
 
+    def test_staged_symlink_mode_stash_with_valid_append_fails(self) -> None:
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        content = self.OLD + self.NEW
+        blob = subprocess.run(
+            ["git", "-C", str(self.repo.root), "hash-object", "-w", "--stdin"],
+            input=content.encode("utf-8"), capture_output=True, check=True,
+        ).stdout.decode().strip()
+        self.repo.git("update-index", "--cacheinfo", f"120000,{blob},{self.STASH}")
+        self.repo.write(self.STASH, content)
+        self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(self.complete(base, self.owned)))
+
 
 class ReviewHardeningTests(CompletionBase):
     def setUp(self) -> None:
@@ -494,3 +507,31 @@ class ReviewHardeningTests(CompletionBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SubmoduleFingerprintTests(CompletionBase):
+    def add_submodule(self) -> None:
+        sub = ShipmentRepo.__mro__[1]()
+        self.addCleanup(sub.cleanup)
+        try:
+            self.repo.git("-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub.root), "vendor/sub")
+        except subprocess.CalledProcessError as exc:
+            self.skipTest(f"git submodule add unavailable: {exc}")
+        self.repo.commit_all("add submodule")
+
+    def test_dirty_submodule_at_baseline_is_rejected(self) -> None:
+        self.add_submodule()
+        self.repo.claim_all()
+        self.repo.write("vendor/sub/README.md", "dirty\n")
+        result = dc.baseline_phase(self.repo.root, ["docs/a.md"], DOCS, BACKLOG)
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("SUBMODULE_DIRTY_AT_BASELINE", self.rules(result))
+
+    def test_submodule_dirtied_during_task_is_rejected(self) -> None:
+        self.add_submodule()
+        self.repo.claim_all()
+        base = self.baseline(["docs/a.md"])
+        self.repo.write("docs/a.md", "edit\n")
+        self.repo.write("vendor/sub/README.md", "dirty\n")
+        result = self.complete(base, ["docs/a.md"])
+        self.assertIn("UNFINGERPRINTABLE_ENTRY", self.rules(result))

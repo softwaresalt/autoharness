@@ -227,6 +227,11 @@ def _worktree_entry(path: Path) -> str | None:
     return "other"
 
 
+def _unfingerprintable(entry: Entry) -> bool:
+    """A gitlink/submodule or directory entry: its contents cannot be fingerprinted, so edits inside it are invisible."""
+    return (entry.index is not None and entry.index.startswith("160000 ")) or entry.worktree == "other"
+
+
 def _fingerprinted(root: Path, entry: Entry) -> Entry:
     """Add the body and protected-frontmatter fingerprints of an existing backlog Markdown file."""
     if entry.worktree is None or not entry.path.lower().endswith(".md") or entry.worktree in ("other",):
@@ -424,6 +429,14 @@ def baseline_phase(
             result.violations.append(
                 Violation("OWNED_PATH_DIRTY_AT_BASELINE", path, "owned path is changed, staged, untracked or deleted at baseline")
             )
+    for path, entry in snapshot.entries.items():
+        if _unfingerprintable(entry):
+            result.violations.append(
+                Violation(
+                    "SUBMODULE_DIRTY_AT_BASELINE", path,
+                    "a dirty submodule, gitlink or nested repository cannot be fingerprinted; clean it before baseline",
+                )
+            )
     entries = [entry.to_dict() for entry in snapshot.entries.values()]
     result.record = _record("baseline", result, snapshot.head_sha, entries, inputs)
     result.record["self_digest"] = compute_self_digest(result.record)
@@ -565,6 +578,7 @@ def _task_parent(root: Path, backlog: str, task: str) -> str | None:
     return parent if isinstance(parent, str) else None
 
 
+_REGULAR_INDEX_MODES = ("100644 ", "100755 ")
 _DEFERRED_TOKEN = "DEFERRED SCOPE EXPANSION"
 
 
@@ -601,7 +615,10 @@ def _stash_append_problem(root: Path, rel: str, by_path: dict[str, dict[str, Any
         if _link_in_path(root, rel) or not path.is_file():
             return refusal
         layers = [path.read_bytes()]
-        if rel in _index_entries(root):
+        indexed = _index_entries(root).get(rel)
+        if indexed is not None:
+            if not indexed.startswith(_REGULAR_INDEX_MODES):
+                return refusal + " (its index entry is not a regular file)"
             staged = _git(root, "cat-file", "blob", f":{rel}")
             if staged != base:
                 layers.append(staged)
@@ -616,8 +633,6 @@ def _stash_append_problem(root: Path, rel: str, by_path: dict[str, dict[str, Any
             return refusal
     return None
 
-
-_REGULAR_INDEX_MODES = ("100644 ", "100755 ")
 
 
 def _is_regular_entry(entry: Entry) -> bool:
@@ -734,6 +749,11 @@ def completion_phase(
             if before != after:
                 delta.append(name)
 
+        for path in sorted(delta):
+            if path in current and _unfingerprintable(current[path]):
+                implementation.append(
+                    Violation("UNFINGERPRINTABLE_ENTRY", path, "a changed submodule, gitlink or directory entry cannot be fingerprinted")
+                )
         owned_lower = {str(o).lower() for o in (owned or [])}
         for index_path, index_value in _index_entries(root).items():
             if index_path.lower() in owned_lower and not index_value.startswith(_REGULAR_INDEX_MODES):
