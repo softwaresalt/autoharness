@@ -144,6 +144,36 @@ class ShipDocsRouteMirrorTests(unittest.TestCase):
         self.assertEqual(offenders, [])
 
 
+class StageToShipHandoffTests(unittest.TestCase):
+    def test_mirror_prepares_unlabeled_tasks_before_route_acceptance(self) -> None:
+        text = lf_text(MIRROR)
+        prep = text.index("**Harness preparation (P-002 / P-004")
+        loop = text.index("For each task in the derived executable task set:")
+        self.assertLess(prep, loop)
+        self.assertLess(prep, text.index("**Route acceptance (P-002)**"))
+        self.assertLess(prep, text.index("--phase baseline"))
+        block = " ".join(text[prep:loop].split())
+        for needle in (
+            "only **harness-architect** applies one",
+            "carrying neither label",
+            "invoke the **harness-architect** skill",
+            f"applies `{DOCS_LABEL}` without any stub, test or RED evidence",
+            "exactly one route label",
+            "P-002 violation",
+            "Ship never applies a route label itself",
+        ):
+            self.assertIn(needle, block)
+
+    def test_template_routes_unlabeled_tasks_to_harness_architect(self) -> None:
+        text = " ".join(lf_text(TEMPLATE).split())
+        for needle in (
+            "tasks without the `harness-ready` label — scaffold these",
+            "lacks the docs label is routed to harness-architect, which alone applies the route label",
+            "invoke the **harness-architect** skill for the batch",
+        ):
+            self.assertIn(needle, text)
+
+
 class DocsRouteBackendGateTests(unittest.TestCase):
     ARCHITECT = (
         _REPO_ROOT / "templates" / "skills" / "harness-architect" / "SKILL.md.tmpl",
