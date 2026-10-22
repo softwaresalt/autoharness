@@ -620,6 +620,13 @@ def _stash_append_problem(root: Path, rel: str, by_path: dict[str, dict[str, Any
 _REGULAR_INDEX_MODES = ("100644 ", "100755 ")
 
 
+def _is_regular_entry(entry: Entry) -> bool:
+    """A regular working-tree file whose index entry, when staged, has a regular mode."""
+    if entry.worktree is None or not entry.worktree.startswith(_REGULAR_INDEX_MODES):
+        return False
+    return entry.index is None or entry.index.startswith(_REGULAR_INDEX_MODES)
+
+
 def _completion_result(result: CheckResult, head: str | None, digest: str | None, delta: list[str]) -> CheckResult:
     implementation = [v.to_dict() for v in result.violations if v.check_class == "implementation"]
     lifecycle = [v.to_dict() for v in result.violations if v.check_class == "lifecycle"]
@@ -761,7 +768,14 @@ def completion_phase(
                     Violation("BACKLOG_PATH_NOT_LIFECYCLE", path, "backlog path matches a lifecycle file only by letter case", "lifecycle")
                 )
             elif checkpoint_re.match(lower) and path not in by_path and path in current and not _in_head(root, path):
-                continue
+                if _link_in_path(root, path) or not _is_regular_entry(current[path]):
+                    lifecycle.append(
+                        Violation(
+                            "NOT_REGULAR_FILE", path,
+                            "a new checkpoint is not a regular file (symlink, reparse point, gitlink or non-regular index entry)",
+                            "lifecycle",
+                        )
+                    )
             elif path == f"{backlog}/stash.jsonl":
                 problem = _stash_append_problem(root, path, by_path)
                 if problem:

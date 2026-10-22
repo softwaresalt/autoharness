@@ -733,7 +733,8 @@ pre-state; it records it and judges only the task's own delta:
   The **lifecycle class** judges delta paths under the backlog root: sibling manifest members must have no delta
   (`SIBLING_MEMBER_CHANGED`); the task, its feature and its shipment must keep their baseline body and
   protected-frontmatter hashes (`LIFECYCLE_BODY_CHANGED`, `LIFECYCLE_PROTECTED_FRONTMATTER_CHANGED`), so only the
-  allowlisted keys may change; a newly added `<backlog root>/checkpoints/*.json` is admitted; every other backlog path
+  allowlisted keys may change; a newly added `<backlog root>/checkpoints/*.json` is admitted only as a regular file (a symlink or reparse point at or above it, a
+  non-regular working-tree entry, or a staged non-regular index mode such as `120000` is `NOT_REGULAR_FILE`); every other backlog path
   fails with `BACKLOG_PATH_NOT_LIFECYCLE`, except `<backlog root>/stash.jsonl`, which is admitted only as a pure append:
   the baseline bytes (the `HEAD` blob) stay a byte-identical prefix and every new line is a well-formed JSON object whose
   `id` and `text` are strings and whose `text` carries `DEFERRED SCOPE EXPANSION`, in the working tree and, when staged

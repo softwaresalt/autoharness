@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import tempfile
 import unittest
+from pathlib import Path
 
 from _docs_only_repo import BACKLOG, DOCS, ShipmentRepo, item_text
 from autoharness import docs_only_check as dc
@@ -102,6 +104,46 @@ class TwoTaskShipmentFlowTests(CompletionBase):
         self.repo.write(f"{BACKLOG}/checkpoints/old.json", '{"x":1}\n')
         result = self.complete(base, ["docs/a.md"])
         self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(result))
+
+
+    def _checkpoint_link(self, target: Path) -> Path:
+        link = self.repo.root / BACKLOG / "checkpoints" / "linked.json"
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            link.symlink_to(target)
+        except OSError as exc:
+            self.skipTest(f"cannot create symlink: {exc}")
+        return link
+
+    def test_untracked_checkpoint_symlink_is_rejected(self) -> None:
+        base = self.baseline(["docs/a.md"])
+        self.repo.write("docs/a.md", "edit\n")
+        self._checkpoint_link(self.repo.root / "README.md")
+        result = self.complete(base, ["docs/a.md"])
+        self.assertIn("NOT_REGULAR_FILE", self.rules(result))
+        self.assertEqual(result.exit_code, 1)
+
+    def test_untracked_checkpoint_symlink_outside_workspace_is_rejected(self) -> None:
+        base = self.baseline(["docs/a.md"])
+        self.repo.write("docs/a.md", "edit\n")
+        with tempfile.TemporaryDirectory() as outside:
+            self._checkpoint_link(Path(outside) / "secret.json")
+            result = self.complete(base, ["docs/a.md"])
+        self.assertIn("NOT_REGULAR_FILE", self.rules(result))
+        self.assertEqual(result.exit_code, 1)
+
+    def test_staged_checkpoint_symlink_with_restored_regular_file_is_rejected(self) -> None:
+        base = self.baseline(["docs/a.md"])
+        self.repo.write("docs/a.md", "edit\n")
+        link = self.repo.root / BACKLOG / "checkpoints" / "linked.json"
+        target = self.repo.root / "README.md"
+        self._checkpoint_link(target)
+        self.repo.git("add", "--", f"{BACKLOG}/checkpoints/linked.json")
+        link.unlink()
+        link.write_text("{}\n", encoding="utf-8", newline="")
+        result = self.complete(base, ["docs/a.md"])
+        self.assertIn("NOT_REGULAR_FILE", self.rules(result))
+        self.assertEqual(result.exit_code, 1)
 
 
 class CompletionViolationTests(CompletionBase):
