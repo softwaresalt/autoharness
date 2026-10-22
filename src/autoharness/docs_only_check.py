@@ -563,6 +563,55 @@ def _task_parent(root: Path, backlog: str, task: str) -> str | None:
     return parent if isinstance(parent, str) else None
 
 
+_DEFERRED_TOKEN = "DEFERRED SCOPE EXPANSION"
+
+
+def _well_formed_deferred_entries(added: bytes) -> bool:
+    if not added.endswith(b"\n"):
+        return False
+    for line in added[:-1].split(b"\n"):
+        try:
+            entry = json.loads(line.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            return False
+        if not (
+            isinstance(entry, dict) and isinstance(entry.get("id"), str) and entry["id"]
+            and isinstance(entry.get("text"), str) and _DEFERRED_TOKEN in entry["text"]
+        ):
+            return False
+    return True
+
+
+def _stash_append_problem(root: Path, rel: str, by_path: dict[str, dict[str, Any]]) -> str | None:
+    """Why a stash change is not a pure append of well-formed deferred entries (``None`` when it is one).
+
+    The baseline bytes are the ``HEAD`` blob; a stash already dirty at baseline has no recoverable baseline, so it fails closed.
+    """
+    refusal = "stash.jsonl changed other than by appending well-formed deferred-scope-expansion entries"
+    if rel in by_path:
+        return refusal + " (it was already dirty at baseline)"
+    try:
+        base = _git(root, "cat-file", "blob", f"HEAD:{rel}") if _in_head(root, rel) else b""
+        path = root.joinpath(*rel.split("/"))
+        if _link_in_path(root, rel) or not path.is_file():
+            return refusal
+        layers = [path.read_bytes()]
+        if rel in _index_entries(root):
+            staged = _git(root, "cat-file", "blob", f":{rel}")
+            if staged != base:
+                layers.append(staged)
+    except (DocsOnlyError, OSError):
+        return refusal
+    if base and not base.endswith(b"\n"):
+        return refusal
+    for current in layers:
+        if not current.startswith(base) or len(current) == len(base):
+            return refusal
+        if not _well_formed_deferred_entries(current[len(base):]):
+            return refusal
+    return None
+
+
 _REGULAR_INDEX_MODES = ("100644 ", "100755 ")
 
 
@@ -654,10 +703,11 @@ def completion_phase(
             raise DocsOnlyError("INVALID_INPUT: task is not a member of the shipment manifest")
         if len({task, feature, shipment}) != 3:
             raise DocsOnlyError("INVALID_INPUT: task, feature and shipment must be three distinct items")
-        if feature not in members:
-            raise DocsOnlyError("INVALID_INPUT: feature is not a member of the shipment manifest")
         if _task_parent(root, backlog, task) != feature:
             raise DocsOnlyError("IDENTITY_MISMATCH: the task's parent_id is not the supplied feature")
+        # Ship accepts task-only manifests: the covering feature is resolved through parent_id, not membership.
+        if not any(root.joinpath(*c.split("/")).is_file() for c in _item_candidates(backlog, feature)):
+            raise DocsOnlyError("INVALID_INPUT: the task's parent feature has no item file under the backlog root")
         snapshot = take_snapshot(root)
         head = snapshot.head_sha
         if snapshot.head_sha != record["head_sha"]:
@@ -692,7 +742,8 @@ def completion_phase(
             if not lower.startswith(backlog_lower + "/"):
                 if lower not in owned_lower:
                     implementation.append(Violation("NOT_OWNED_PATH", path, "task delta path is not an owned path"))
-                    implementation.extend(_owned_violations(root, [path], docs, backlog))
+                # The exact delta path is judged even when it matches ownership only case-insensitively.
+                implementation.extend(_owned_violations(root, [path], docs, backlog))
                 continue
             if path in lifecycle_paths:
                 touched.add(lifecycle_paths[path])
@@ -706,6 +757,10 @@ def completion_phase(
                 )
             elif checkpoint_re.match(lower) and path not in by_path and path in current and not _in_head(root, path):
                 continue
+            elif path == f"{backlog}/stash.jsonl":
+                problem = _stash_append_problem(root, path, by_path)
+                if problem:
+                    lifecycle.append(Violation("BACKLOG_PATH_NOT_LIFECYCLE", path, problem, "lifecycle"))
             else:
                 lifecycle.append(
                     Violation("BACKLOG_PATH_NOT_LIFECYCLE", path, "backlog path is not the task, feature, shipment or a new checkpoint", "lifecycle")

@@ -74,6 +74,21 @@ class DocsOnlyCheckCliTests(unittest.TestCase):
         self.assertEqual(done["implementation"]["result"], "pass")
         self.assertEqual(done["lifecycle"]["result"], "pass")
 
+    def test_task_only_shipment_manifest_completes(self) -> None:
+        repo = self.repo
+        repo.members = tuple(repo.TASKS)
+        repo.save(repo.SHIPMENT)
+        repo.commit_all("task-only manifest")
+        _, record = self.baseline()
+        path = repo.root / ".git" / "bl.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        repo.write("docs/a.md", "edit\n")
+        status, out, _ = run_cli(repo.root, self.completion_args(path))
+        self.assertEqual(status, 0, out)
+        wrong = self.completion_args(path)
+        wrong[wrong.index("--feature") + 1] = repo.TASKS[1]
+        self.assertEqual(run_cli(repo.root, wrong)[0], 2)
+
     def test_relative_baseline_resolves_against_repo_root_from_subdirectory(self) -> None:
         _, record = self.baseline()
         (self.repo.root / ".git" / "bl.json").write_text(json.dumps(record), encoding="utf-8")

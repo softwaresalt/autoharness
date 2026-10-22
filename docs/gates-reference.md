@@ -734,8 +734,16 @@ pre-state; it records it and judges only the task's own delta:
   (`SIBLING_MEMBER_CHANGED`); the task, its feature and its shipment must keep their baseline body and
   protected-frontmatter hashes (`LIFECYCLE_BODY_CHANGED`, `LIFECYCLE_PROTECTED_FRONTMATTER_CHANGED`), so only the
   allowlisted keys may change; a newly added `<backlog root>/checkpoints/*.json` is admitted; every other backlog path
-  fails with `BACKLOG_PATH_NOT_LIFECYCLE`. The shipment manifest is read from the live shipment file. The supplied
-  feature must be a manifest member and the task's `parent_id` (`IDENTITY_MISMATCH` otherwise, exit 2); delta paths keep
+  fails with `BACKLOG_PATH_NOT_LIFECYCLE`, except `<backlog root>/stash.jsonl`, which is admitted only as a pure append:
+  the baseline bytes (the `HEAD` blob) stay a byte-identical prefix and every new line is a well-formed JSON object whose
+  `id` and `text` are strings and whose `text` carries `DEFERRED SCOPE EXPANSION`, in the working tree and, when staged
+  differently from `HEAD`, the index. This lets the mandatory P-021 defer-capture run between baseline and completion; any
+  edit, removal, rewrite, malformed or other new line, or a stash that was already dirty at baseline (no recoverable
+  baseline), fails closed with `BACKLOG_PATH_NOT_LIFECYCLE`. The shipment manifest is read from the live shipment file. The
+  supplied feature need not be a manifest member (Ship accepts task-only manifests); it must equal the task's `parent_id`
+  and have an item file under the backlog root (`IDENTITY_MISMATCH` or invalid input otherwise, exit 2); every delta path
+  outside the backlog root is judged against the path rules by its exact Git identity, including paths that match an owned
+  path only case-insensitively (a symlink at `docs/A.md` fails when `docs/a.md` is owned); delta paths keep
   their exact Git identity (case-insensitive comparison applies only to deny and ownership rules); an owned path
   with a non-regular index entry (symlink, gitlink) is `NOT_REGULAR_FILE`; a lifecycle item with simultaneous queue and
   archive copies is `LIFECYCLE_DUPLICATE_COPY`, and a queue-to-archive relocation passes only with unchanged content.

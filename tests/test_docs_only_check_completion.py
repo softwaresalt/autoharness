@@ -250,6 +250,67 @@ class CompletionViolationTests(CompletionBase):
         self.assertEqual(result.exit_code, 1)
 
 
+class StashAppendOnlyTests(CompletionBase):
+    STASH = f"{BACKLOG}/stash.jsonl"
+    OLD = '{"id":"AAAA0001","text":"existing"}\n'
+    NEW = '{"id":"BBBB0002","text":"DEFERRED SCOPE EXPANSION: follow-up","kind":"chore"}\n'
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.repo.write(self.STASH, self.OLD)
+        self.repo.commit_all("stash seed")
+        self.repo.claim_all()
+        self.owned = ["docs/a.md"]
+
+    def run_stash(self, content: str, *, stage: bool = False):
+        self.repo.write("docs/a.md", "a\n")
+        self.repo.write(self.STASH, self.OLD)
+        self.repo.git("reset", "-q", "--", self.STASH)
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.repo.write(self.STASH, content)
+        if stage:
+            self.repo.git("add", "--", self.STASH)
+        return self.complete(base, self.owned)
+
+    def test_append_of_deferred_entry_after_baseline_passes(self) -> None:
+        result = self.run_stash(self.OLD + self.NEW)
+        self.assertEqual(result.status, "pass", (result.violations, result.errors))
+        self.assertIn(self.STASH, result.record["delta_paths"])
+        self.assertEqual(self.run_stash(self.OLD + self.NEW, stage=True).status, "pass")
+
+    def test_non_append_changes_still_fail(self) -> None:
+        cases = {
+            "edit": '{"id":"AAAA0001","text":"changed"}\n' + self.NEW,
+            "removal": "",
+            "rewrite": self.NEW + self.OLD,
+            "no trailing newline": self.OLD + self.NEW.rstrip("\n"),
+            "non-deferred entry": self.OLD + '{"id":"CCCC0003","text":"plain"}\n',
+            "malformed": self.OLD + "not json\n",
+            "blank line": self.OLD + "\n" + self.NEW,
+        }
+        for name, content in cases.items():
+            with self.subTest(name):
+                result = self.run_stash(content)
+                self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(result))
+                self.assertEqual(result.exit_code, 1)
+
+    def test_staged_layer_must_also_be_append_only(self) -> None:
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.repo.write(self.STASH, "{}\n")
+        self.repo.git("add", "--", self.STASH)
+        self.repo.write(self.STASH, self.OLD + self.NEW)
+        self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(self.complete(base, self.owned)))
+
+    def test_stash_dirty_at_baseline_fails_closed(self) -> None:
+        self.repo.write(self.STASH, self.OLD + self.NEW)
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.repo.write(self.STASH, self.OLD + self.NEW + self.NEW.replace("BBBB0002", "DDDD0004"))
+        self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(self.complete(base, self.owned)))
+
+
 class ReviewHardeningTests(CompletionBase):
     def setUp(self) -> None:
         super().setUp()
@@ -292,6 +353,33 @@ class ReviewHardeningTests(CompletionBase):
         base = self.baseline(self.owned)
         result = self.args(base)
         self.assertEqual(result.exit_code, 2)
+
+    def test_task_only_manifest_resolves_feature_through_parent_id(self) -> None:
+        manifest = [self.repo.SHIPMENT, *self.repo.TASKS]
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.assertEqual(self.args(base, manifest_ids=manifest).status, "pass")
+        for wrong in (self.t2, "777-T", "404-F"):
+            self.assertEqual(self.args(base, manifest_ids=manifest, feature_id=wrong).exit_code, 2, wrong)
+        self.repo.git("rm", "-q", "--cached", "--", self.repo.path_of(self.repo.FEATURE))
+        (self.repo.root / self.repo.path_of(self.repo.FEATURE)).unlink()
+        self.assertEqual(self.args(base, manifest_ids=manifest).exit_code, 2)
+
+    def test_case_variant_owned_delta_path_gets_symlink_check(self) -> None:
+        owned = ["docs/new.md"]
+        base = dc.baseline_phase(self.repo.root, owned, DOCS, BACKLOG).record
+        target = self.repo.root / "README.md"
+        link = self.repo.root / "docs" / "NEW.md"
+        try:
+            link.symlink_to(target)
+        except OSError as exc:
+            self.skipTest(f"cannot create symlink: {exc}")
+        result = dc.completion_phase(
+            self.repo.root, owned, DOCS, BACKLOG, base, task_id=self.t1, feature_id=self.repo.FEATURE,
+            shipment_id=self.repo.SHIPMENT, manifest_ids=self.manifest,
+        )
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("SYMLINK", self.rules(result))
 
     def test_staged_symlink_with_restored_working_tree_is_rejected(self) -> None:
         base = self.baseline(self.owned)

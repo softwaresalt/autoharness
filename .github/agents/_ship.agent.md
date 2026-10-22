@@ -469,6 +469,11 @@ For each task in the derived executable task set:
    where `{baseline_record_path}` is the baseline record saved from the task comment to the git-ignored item log
    directory. A recorded gate without a passing result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2
    halts as a P-002 violation with P-005 telemetry; the task is not committed, tracked or moved to done.
+   The P-021 defer-capture procedure runs before this gate and after the baseline: the checker admits a change to
+   `.backlogit/stash.jsonl` only when every baseline line is byte-identical and the only new lines are well-formed
+   `DEFERRED SCOPE EXPANSION` entries appended at the end (checked in the working tree and the index; a stash already
+   dirty at baseline fails closed). Any edit, removal, rewrite or other new line is `BACKLOG_PATH_NOT_LIFECYCLE` and
+   halts the same way.
 6. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
 7. **Record close telemetry**: If begin returned `status` `created` or
    `idempotent_begin` with an enabled `context_ref`, create the close-time epoch
