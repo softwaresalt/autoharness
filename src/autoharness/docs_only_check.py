@@ -255,8 +255,8 @@ def take_snapshot(repo_root: Path | str, backlog_root: str | None = None) -> Sna
     if not root.is_dir():
         raise DocsOnlyError("INVALID_INPUT: repository root is not a directory")
     head = _decode(_git(root, "rev-parse", "--verify", "HEAD")).strip()
-    changed = set(_name_status_paths(_git(root, "diff", "--cached", "--name-status", "--no-renames", "-z", "HEAD")))
-    changed.update(_name_status_paths(_git(root, "diff", "--name-status", "--no-renames", "-z")))
+    changed = set(_name_status_paths(_git(root, "diff", "--cached", "--ignore-submodules=none", "--name-status", "--no-renames", "-z", "HEAD")))
+    changed.update(_name_status_paths(_git(root, "diff", "--ignore-submodules=none", "--name-status", "--no-renames", "-z")))
     untracked = _decode(_git(root, "ls-files", "--others", "--exclude-standard", "-z"))
     changed.update(p for p in untracked.split("\0") if p)
     index = _index_entries(root) if changed else {}

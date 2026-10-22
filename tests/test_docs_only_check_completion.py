@@ -527,6 +527,32 @@ class SubmoduleFingerprintTests(CompletionBase):
         self.assertEqual(result.exit_code, 1)
         self.assertIn("SUBMODULE_DIRTY_AT_BASELINE", self.rules(result))
 
+    def test_ignore_submodules_setting_does_not_hide_dirty_baseline(self) -> None:
+        self.add_submodule()
+        self.repo.claim_all()
+        self.repo.git("config", "diff.ignoreSubmodules", "all")
+        self.repo.git("config", "submodule.vendor/sub.ignore", "all")
+        self.repo.write("vendor/sub/README.md", "dirty\n")
+        result = dc.baseline_phase(self.repo.root, ["docs/a.md"], DOCS, BACKLOG)
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn("SUBMODULE_DIRTY_AT_BASELINE", self.rules(result))
+
+    def test_ignore_submodules_setting_does_not_hide_task_submodule_commit(self) -> None:
+        self.add_submodule()
+        self.repo.claim_all()
+        self.repo.git("config", "diff.ignoreSubmodules", "all")
+        self.repo.git("config", "submodule.vendor/sub.ignore", "all")
+        base = self.baseline(["docs/a.md"])
+        self.repo.write("docs/a.md", "edit\n")
+        sub_root = self.repo.root / "vendor" / "sub"
+        subprocess.run(["git", "-C", str(sub_root), "config", "user.email", "t@example.com"], check=True)
+        subprocess.run(["git", "-C", str(sub_root), "config", "user.name", "t"], check=True)
+        self.repo.write("vendor/sub/new.txt", "x\n")
+        subprocess.run(["git", "-C", str(sub_root), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(sub_root), "commit", "-q", "-m", "sub change"], check=True)
+        result = self.complete(base, ["docs/a.md"])
+        self.assertIn("UNFINGERPRINTABLE_ENTRY", self.rules(result))
+
     def test_submodule_dirtied_during_task_is_rejected(self) -> None:
         self.add_submodule()
         self.repo.claim_all()
