@@ -174,6 +174,37 @@ class StageToShipHandoffTests(unittest.TestCase):
             self.assertIn(needle, text)
 
 
+class ClaimActivatedPreparationTests(unittest.TestCase):
+    def test_mirror_prepares_claim_activated_unstarted_members(self) -> None:
+        text = lf_text(MIRROR)
+        prep = text.index("**Harness preparation (P-002 / P-004")
+        block = " ".join(text[prep : text.index("For each task in the derived executable task set:")].split())
+        for needle in (
+            "a ``queued`` task, or an ``active`` task".replace("``", "`"),
+            "activated without starting implementation (P-002.7",
+            "`features.scheduler_baseline_claim`",
+            "no `WORK_STARTED` comment",
+            "claim boundary per P-002.8",
+            "genuinely started `active` task without a label",
+            "`WORK_STARTED` present or other started evidence",
+            "halts as a P-002 violation",
+        ):
+            self.assertIn(needle, block)
+
+    def test_template_prepares_claim_activated_unstarted_members(self) -> None:
+        step = lf_text(TEMPLATE)
+        step = " ".join(step[step.index("### Step 2: Harness Generation") : step.index("### Step 3: Build Ready Queue")].split())
+        for needle in (
+            "provably unstarted claim-activated members",
+            "activated without starting implementation (P-002.7",
+            "no `WORK_STARTED` comment",
+            "claim boundary per P-002.8",
+            "genuinely started residual",
+            "halts as a P-002 violation",
+        ):
+            self.assertIn(needle, step)
+
+
 class DocsRouteBackendGateTests(unittest.TestCase):
     ARCHITECT = (
         _REPO_ROOT / "templates" / "skills" / "harness-architect" / "SKILL.md.tmpl",

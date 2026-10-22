@@ -391,13 +391,15 @@ per M3–M5, indeterminate first:
 **Harness preparation (P-002 / P-004, before route acceptance and baseline capture)**: Stage and harvest leave
 candidates without either route label, and only **harness-architect** applies one. Before any task is claimed, run
 this once up front for the derived executable set. Skip tasks already carrying exactly one route label
-(`harness-ready` or `harness-verification-gated`). For every unstarted (`queued`, not yet `active`) task carrying
-neither label, invoke the **harness-architect** skill for the batch: it applies `harness-ready` and scaffolds a
+(`harness-ready` or `harness-verification-gated`, never both). For every provably unstarted task carrying
+neither label — a `queued` task, or an `active` task that the shipment claim activated without starting
+implementation (P-002.7; when `features.scheduler_baseline_claim` is enabled, no `WORK_STARTED` comment in the
+current start epoch and no other started evidence, judged against the claim boundary per P-002.8) — invoke the **harness-architect** skill for the batch: it applies `harness-ready` and scaffolds a
 failing harness for code or non-prose tasks, or applies `harness-verification-gated` without any stub, test or RED
 evidence for a qualifying docs-only task. After it completes, confirm every such task now carries exactly one route
 label; a task still lacking one, or carrying both labels or a label that mismatches its qualified ownership, halts as
 a P-002 violation. Ship never applies a route label itself. A task that already carries a route label is never
-re-scaffolded, and an `active` task without a label is not prepared mid-flight and halts as a P-002 violation.
+re-scaffolded, and a genuinely started `active` task without a label (`WORK_STARTED` present or other started evidence, i.e. a residual) is not prepared mid-flight and halts as a P-002 violation.
 
 For each task in the derived executable task set:
 

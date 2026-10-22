@@ -339,7 +339,7 @@ it halts and requests that Stage be run first.
 
 Ensure every task in the target feature or chore has a passing test harness before any implementation begins. This step runs once, up front — not in a loop.
 
-1. List all tasks for the target feature or chore that are in `{{STATUS_QUEUED}}` status.
+1. List all tasks for the target feature or chore that are in `{{STATUS_QUEUED}}` status, plus provably unstarted claim-activated members: when operating under a claimed shipment, an `active` task the claim activated without starting implementation (P-002.7; when `features.scheduler_baseline_claim` is enabled, no `WORK_STARTED` comment in the current start epoch and no other started evidence, judged against the claim boundary per P-002.8) is prepared like a queued one. An `active` task with `WORK_STARTED` or other started evidence is a genuinely started residual and is never prepared here; if it lacks a route label it halts as a P-002 violation.
 2. Partition the task list:
    * **Already harnessed**: tasks carrying the `harness-ready` label — skip these.
    * **Needs harness**: tasks without the `harness-ready` label — scaffold these (docs-route tasks below are excluded from this list).
