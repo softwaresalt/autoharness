@@ -62,9 +62,12 @@ def item_text(
     extra: str = "",
     items: tuple[str, ...] = (),
     updated: str = "2026-01-01T00:00:00Z",
+    parent_id: str = "",
 ) -> str:
     """Render a backlog item file."""
     lines = ["---", f"id: {item_id}", f"status: {status}", f"updated_at: {updated}"]
+    if parent_id:
+        lines.append(f"parent_id: {parent_id}")
     if labels:
         lines.append("labels:")
         lines.extend(f"    - {label}" for label in labels)
@@ -117,6 +120,7 @@ class ShipmentRepo(TempRepo):
             extra=kwargs["extra"],
             items=self.members if item == self.SHIPMENT else (),
             updated=kwargs["updated"],
+            parent_id=self.FEATURE if item in self.TASKS else "",
         )
         self.write(self.path_of(item), text)
 

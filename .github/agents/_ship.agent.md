@@ -405,7 +405,10 @@ For each task in the derived executable task set:
    **Route acceptance (P-002)**: Ship accepts exactly the route that matches the task's qualified ownership —
    `harness-ready` for code or non-prose tasks, `harness-verification-gated` for qualifying docs-only tasks (never
    both labels). It re-checks qualification at intake and at claim, never applies either route label, and halts on a
-   missing or mismatched route as a P-002 violation. A docs-route task is never scaffolded: no stub, test or RED
+   missing or mismatched route as a P-002 violation. The docs route is available only when the backlog tool registry
+   declares `features.shipments: true` with a backlogit-style shipment manifest; otherwise a task carrying
+   `harness-verification-gated` is a P-002 violation and every task takes the code route unchanged. A docs-route
+   task is never scaffolded: no stub, test or RED
    evidence exists for it.
 
    **Docs-route baseline (P-002 docs-only route; only tasks carrying `harness-verification-gated`)**: immediately
@@ -437,8 +440,15 @@ For each task in the derived executable task set:
    - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup, API references, and concept research. See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md`.
 4. **Execute**: Perform the template authoring, schema change, skill
    development, or documentation work. Any `harness_cmd` lookup from harness-ready metadata is code-route-only;
-   for a docs-route task, pass the task's recorded verification commands, working directories, and pass criteria
-   to build-feature (as its Docs Route section requires). When step 2 carried a `context_ref`
+   for a docs-route task, do not delegate to build-feature (it is not installed in this workspace) and execute the
+   docs protocol inline: (a) implementation first — make the requested docs change to the task's owned prose `.md`
+   paths before any verification, and never decide that implementation is unnecessary; (b) run the task's recorded
+   verification commands, working directories, and pass criteria exactly as recorded (literal command, recorded
+   working directory), and execute and evidence manual gates as recorded; (c) the verification loop only repairs
+   failures, by correcting the docs and never by weakening or editing a recorded gate, never inventing a RED phase
+   and never creating a stub, test or harness, bounded by 5 attempts and the circuit breaker; (d) return the changes
+   without staging, committing or completing the task until the completion checker passes, after which Ship commits.
+   When step 2 carried a `context_ref`
    (`created`/`idempotent_begin`), tool use during this step MAY optionally
    emit sanitized ToolTelemetryEvent records:
    `autoharness telemetry event --context-ref {context_ref} --from-json {event_payload_path} --json`.

@@ -250,5 +250,85 @@ class CompletionViolationTests(CompletionBase):
         self.assertEqual(result.exit_code, 1)
 
 
+class ReviewHardeningTests(CompletionBase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.repo.claim_all()
+        self.owned = ["docs/a.md"]
+
+    def args(self, base, **over):
+        kwargs = dict(task_id=self.t1, feature_id=self.repo.FEATURE, shipment_id=self.repo.SHIPMENT, manifest_ids=self.manifest)
+        kwargs.update(over)
+        return dc.completion_phase(self.repo.root, self.owned, DOCS, BACKLOG, base, **kwargs)
+
+    def blob(self, path: str) -> str:
+        return self.repo.git("hash-object", "-w", path).strip()
+
+    def test_case_colliding_dirty_paths_keep_exact_identity(self) -> None:
+        repo = self.repo
+        repo.git("config", "core.ignorecase", "false")
+        upper, lower = self.blob("README.md"), self.blob("docs/b.md")
+        for name in ("src/Foo.py", "src/foo.py"):
+            repo.git("update-index", "--add", "--cacheinfo", f"100644,{upper},{name}")
+        base = self.baseline(self.owned)
+        self.assertEqual({e["path"] for e in base["entries"]} & {"src/Foo.py", "src/foo.py"}, {"src/Foo.py", "src/foo.py"})
+        repo.git("update-index", "--cacheinfo", f"100644,{lower},src/foo.py")
+        result = self.args(base)
+        self.assertIn("src/foo.py", result.record["delta_paths"])
+        self.assertNotIn("src/Foo.py", result.record["delta_paths"])
+        self.assertIn("NOT_OWNED_PATH", self.rules(result))
+
+    def test_sibling_substituted_as_feature_is_rejected(self) -> None:
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.assertEqual(self.args(base).status, "pass")
+        for wrong in (self.t2, "777-T", "404-F", self.repo.SHIPMENT, self.t1):
+            result = self.args(base, feature_id=wrong)
+            self.assertEqual(result.exit_code, 2, wrong)
+
+    def test_task_with_other_parent_is_rejected(self) -> None:
+        self.repo.save(self.t1, extra="parent_id: 901-F")
+        self.repo.commit_all("reparent")
+        base = self.baseline(self.owned)
+        result = self.args(base)
+        self.assertEqual(result.exit_code, 2)
+
+    def test_staged_symlink_with_restored_working_tree_is_rejected(self) -> None:
+        base = self.baseline(self.owned)
+        link = self.blob("README.md")
+        self.repo.git("update-index", "--cacheinfo", f"120000,{link},docs/a.md")
+        self.assertEqual(self.repo.git("diff", "--cached", "--name-only").strip(), "docs/a.md")
+        result = self.args(base)
+        self.assertIn("NOT_REGULAR_FILE", self.rules(result))
+        self.assertEqual(result.exit_code, 1)
+
+    def test_archive_copy_beside_queue_copy_is_rejected(self) -> None:
+        for item in (self.t1, self.repo.FEATURE, self.repo.SHIPMENT):
+            repo = self.repo
+            base = self.baseline(self.owned)
+            repo.write(f"{BACKLOG}/archive/{item}.md", item_text(item, body="arbitrary\n"))
+            result = self.args(base)
+            if item == self.t1:
+                self.assertEqual(result.exit_code, 2, item)
+            else:
+                self.assertIn("LIFECYCLE_DUPLICATE_COPY", self.rules(result), item)
+            (repo.root / BACKLOG / "archive" / f"{item}.md").unlink()
+
+    def test_archive_relocation_preserves_content_rules(self) -> None:
+        repo = self.repo
+        base = self.baseline(self.owned)
+        queue = repo.root / BACKLOG / "queue" / f"{self.t1}.md"
+        moved = repo.root / BACKLOG / "archive" / f"{self.t1}.md"
+        moved.parent.mkdir(parents=True, exist_ok=True)
+        text = queue.read_text(encoding="utf-8")
+        queue.unlink()
+        moved.write_text(text.replace("status: active", "status: done"), encoding="utf-8", newline="")
+        self.assertEqual(self.args(base).status, "pass")
+        moved.write_text(text + "extra body\n", encoding="utf-8", newline="")
+        self.assertIn("LIFECYCLE_BODY_CHANGED", self.rules(self.args(base)))
+        moved.write_text(text.replace("id: 900.001-T", "id: 900.001-T\nshipment: 999-S"), encoding="utf-8", newline="")
+        self.assertIn("LIFECYCLE_PROTECTED_FRONTMATTER_CHANGED", self.rules(self.args(base)))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -130,7 +130,9 @@ class ShipDocsRouteMirrorTests(unittest.TestCase):
     def test_mirror_hands_docs_verification_to_build_feature(self) -> None:
         for needle in (
             "`harness_cmd` lookup from harness-ready metadata is code-route-only;",
-            "recorded verification commands, working directories, and pass criteria", "Docs Route section",
+            "do not delegate to build-feature", "execute the\n   docs protocol inline",
+            "implementation first", "recorded\n   verification commands, working directories, and pass criteria",
+            "the verification loop only repairs\n   failures", "without staging, committing or completing the task until the completion checker passes",
         ):
             self.assertIn(needle, self.text)
 
@@ -140,6 +142,27 @@ class ShipDocsRouteMirrorTests(unittest.TestCase):
             if CODE_LABEL in line and DOCS_LABEL in line and not EXCLUSIVITY.search(line)
         ]
         self.assertEqual(offenders, [])
+
+
+class DocsRouteBackendGateTests(unittest.TestCase):
+    ARCHITECT = (
+        _REPO_ROOT / "templates" / "skills" / "harness-architect" / "SKILL.md.tmpl",
+        _REPO_ROOT / ".github" / "skills" / "harness-architect" / "SKILL.md",
+    )
+
+    def test_ship_and_architect_gate_on_shipment_capability(self) -> None:
+        for path in (TEMPLATE, MIRROR, *self.ARCHITECT):
+            text = " ".join(lf_text(path).split())
+            with self.subTest(path=path.name):
+                self.assertIn("`features.shipments: true`", text)
+                self.assertIn("backlogit-style shipment manifest", text)
+                self.assertIn("code route unchanged", text)
+
+    def test_non_shipment_registry_cannot_qualify(self) -> None:
+        registry = _REPO_ROOT / "templates" / "backlog" / "registries" / "backlog-md.registry.yaml"
+        self.assertNotRegex(lf_text(registry), r"(?m)^\s*shipments:\s*true\b")
+        backlogit = _REPO_ROOT / "templates" / "backlog" / "registries" / "backlogit.registry.yaml"
+        self.assertRegex(lf_text(backlogit), r"(?m)^\s*shipments:\s*true\b")
 
 
 if __name__ == "__main__":

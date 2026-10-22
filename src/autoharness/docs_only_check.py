@@ -418,12 +418,11 @@ def baseline_phase(
         result.errors.append(str(exc))
         result.record = _record("baseline", result, None, [], inputs)
         return result
-    changed_lower = {path.lower(): path for path in snapshot.entries}
-    for raw in list(owned or []):
-        hit = changed_lower.get(str(raw).lower())
-        if hit is not None:
+    owned_lower = {str(raw).lower() for raw in (owned or [])}
+    for path in snapshot.entries:
+        if path.lower() in owned_lower:
             result.violations.append(
-                Violation("OWNED_PATH_DIRTY_AT_BASELINE", hit, "owned path is changed, staged, untracked or deleted at baseline")
+                Violation("OWNED_PATH_DIRTY_AT_BASELINE", path, "owned path is changed, staged, untracked or deleted at baseline")
             )
     entries = [entry.to_dict() for entry in snapshot.entries.values()]
     result.record = _record("baseline", result, snapshot.head_sha, entries, inputs)
@@ -521,30 +520,50 @@ def _validated_baseline(record: object) -> dict[str, Any]:
     return record
 
 
-def _baseline_fingerprints(
+def _baseline_copies(
     root: Path, by_path: dict[str, dict[str, Any]], backlog: str, item_id: str
-) -> tuple[str, str] | None:
-    """The item's retained baseline content: the recorded entry when dirty, else the ``HEAD`` blob."""
+) -> dict[str, tuple[str, str]]:
+    """Each retained baseline copy of the item keyed by exact path: the recorded entry when dirty, else the ``HEAD`` blob."""
+    copies: dict[str, tuple[str, str]] = {}
     for candidate in _item_candidates(backlog, item_id):
-        entry = by_path.get(candidate.lower())
+        entry = by_path.get(candidate)
         if entry is not None:
             if entry.get("body_sha256"):
-                return entry["body_sha256"], entry["protected_frontmatter_sha256"]
+                copies[candidate] = (entry["body_sha256"], entry["protected_frontmatter_sha256"])
             continue
         try:
             blob = _git(root, "cat-file", "blob", f"HEAD:{candidate}")
         except DocsOnlyError:
             continue
-        return frontmatter_fingerprints(candidate, blob)
-    return None
+        copies[candidate] = frontmatter_fingerprints(candidate, blob)
+    return copies
 
 
-def _current_fingerprints(root: Path, backlog: str, item_id: str) -> tuple[str, str] | None:
+def _current_copies(root: Path, backlog: str, item_id: str) -> dict[str, tuple[str, str]]:
+    copies: dict[str, tuple[str, str]] = {}
     for candidate in _item_candidates(backlog, item_id):
         path = root.joinpath(*candidate.split("/"))
         if path.is_file():
-            return frontmatter_fingerprints(candidate, path.read_bytes())
-    return None
+            copies[candidate] = frontmatter_fingerprints(candidate, path.read_bytes())
+    return copies
+
+
+def _task_parent(root: Path, backlog: str, task: str) -> str | None:
+    """The ``parent_id`` of the task's single live item file."""
+    found = [
+        root.joinpath(*c.split("/")) for c in _item_candidates(backlog, task) if root.joinpath(*c.split("/")).is_file()
+    ]
+    if len(found) != 1:
+        raise DocsOnlyError(f"INVALID_INPUT: task {task} must have exactly one item file under the backlog root")
+    text = found[0].read_bytes().decode("utf-8", "replace")
+    frontmatter_fingerprints(found[0].name, text.encode("utf-8"))
+    match = _FRONTMATTER_RE.match(text)
+    meta = yaml.safe_load(match.group(1) or "") if match else None
+    parent = meta.get("parent_id") if isinstance(meta, dict) else None
+    return parent if isinstance(parent, str) else None
+
+
+_REGULAR_INDEX_MODES = ("100644 ", "100755 ")
 
 
 def _completion_result(result: CheckResult, head: str | None, digest: str | None, delta: list[str]) -> CheckResult:
@@ -633,25 +652,36 @@ def completion_phase(
         members = [_valid_id(m, "manifest member") for m in manifest_ids]
         if task not in members:
             raise DocsOnlyError("INVALID_INPUT: task is not a member of the shipment manifest")
+        if len({task, feature, shipment}) != 3:
+            raise DocsOnlyError("INVALID_INPUT: task, feature and shipment must be three distinct items")
+        if feature not in members:
+            raise DocsOnlyError("INVALID_INPUT: feature is not a member of the shipment manifest")
+        if _task_parent(root, backlog, task) != feature:
+            raise DocsOnlyError("IDENTITY_MISMATCH: the task's parent_id is not the supplied feature")
         snapshot = take_snapshot(root)
         head = snapshot.head_sha
         if snapshot.head_sha != record["head_sha"]:
             raise DocsOnlyError("HEAD_MOVED: HEAD differs from the baseline head_sha; run completion before the task commit")
-        by_path = {e["path"].lower(): e for e in record["entries"]}
-        current = {p.lower(): e for p, e in snapshot.entries.items()}
-        names = {p.lower(): p for p in snapshot.entries}
-        names.update({e["path"].lower(): e["path"] for e in record["entries"]})
+        by_path = {e["path"]: e for e in record["entries"]}
+        current = snapshot.entries
+        names = set(snapshot.entries) | set(by_path)
         delta = []
-        for key, name in names.items():
-            before = (by_path[key]["index"], by_path[key]["worktree"]) if key in by_path else None
-            after = current[key].layers() if key in current else None
+        for name in names:
+            before = (by_path[name]["index"], by_path[name]["worktree"]) if name in by_path else None
+            after = current[name].layers() if name in current else None
             if before != after:
                 delta.append(name)
 
         owned_lower = {str(o).lower() for o in (owned or [])}
+        for index_path, index_value in _index_entries(root).items():
+            if index_path.lower() in owned_lower and not index_value.startswith(_REGULAR_INDEX_MODES):
+                implementation.append(
+                    Violation("NOT_REGULAR_FILE", index_path, "owned path has a non-regular git index entry (symlink or gitlink)")
+                )
         backlog_lower = backlog.lower()
         lifecycle_ids = {task, feature, shipment}
-        lifecycle_paths = {c.lower(): i for i in lifecycle_ids for c in _item_candidates(backlog, i)}
+        lifecycle_paths = {c: i for i in lifecycle_ids for c in _item_candidates(backlog, i)}
+        lifecycle_lower = {c.lower() for c in lifecycle_paths}
         sibling_paths = {
             c.lower(): i for i in members if i not in lifecycle_ids for c in _item_candidates(backlog, i)
         }
@@ -664,27 +694,40 @@ def completion_phase(
                     implementation.append(Violation("NOT_OWNED_PATH", path, "task delta path is not an owned path"))
                     implementation.extend(_owned_violations(root, [path], docs, backlog))
                 continue
-            if lower in lifecycle_paths:
-                touched.add(lifecycle_paths[lower])
+            if path in lifecycle_paths:
+                touched.add(lifecycle_paths[path])
             elif lower in sibling_paths:
                 lifecycle.append(
                     Violation("SIBLING_MEMBER_CHANGED", path, "a sibling shipment member changed during the task", "lifecycle")
                 )
-            elif checkpoint_re.match(lower) and lower not in by_path and lower in current and not _in_head(root, path):
+            elif lower in lifecycle_lower:
+                lifecycle.append(
+                    Violation("BACKLOG_PATH_NOT_LIFECYCLE", path, "backlog path matches a lifecycle file only by letter case", "lifecycle")
+                )
+            elif checkpoint_re.match(lower) and path not in by_path and path in current and not _in_head(root, path):
                 continue
             else:
                 lifecycle.append(
                     Violation("BACKLOG_PATH_NOT_LIFECYCLE", path, "backlog path is not the task, feature, shipment or a new checkpoint", "lifecycle")
                 )
         for item_id in sorted(touched):
-            expected = _baseline_fingerprints(root, by_path, backlog, item_id)
-            actual = _current_fingerprints(root, backlog, item_id)
+            before = _baseline_copies(root, by_path, backlog, item_id)
+            after = _current_copies(root, backlog, item_id)
             path = _item_candidates(backlog, item_id)[0]
-            if expected is None or actual is None:
+            if len(before) > 1 or len(after) > 1:
+                dup = sorted(after if len(after) > 1 else before)[-1]
+                lifecycle.append(
+                    Violation("LIFECYCLE_DUPLICATE_COPY", dup, "a lifecycle item has simultaneous queue and archive copies", "lifecycle")
+                )
+                continue
+            if not before or not after:
                 lifecycle.append(
                     Violation("LIFECYCLE_FILE_MISSING", path, "lifecycle file has no baseline or current content", "lifecycle")
                 )
                 continue
+            # A queue-to-archive relocation is legitimate only when the single copy keeps its baseline content.
+            path, actual = next(iter(after.items()))
+            expected = next(iter(before.values()))
             if expected[0] != actual[0]:
                 lifecycle.append(
                     Violation("LIFECYCLE_BODY_CHANGED", path, "the body of a lifecycle file changed during the task", "lifecycle")

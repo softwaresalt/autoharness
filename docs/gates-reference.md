@@ -734,7 +734,11 @@ pre-state; it records it and judges only the task's own delta:
   (`SIBLING_MEMBER_CHANGED`); the task, its feature and its shipment must keep their baseline body and
   protected-frontmatter hashes (`LIFECYCLE_BODY_CHANGED`, `LIFECYCLE_PROTECTED_FRONTMATTER_CHANGED`), so only the
   allowlisted keys may change; a newly added `<backlog root>/checkpoints/*.json` is admitted; every other backlog path
-  fails with `BACKLOG_PATH_NOT_LIFECYCLE`. The shipment manifest is read from the live shipment file.
+  fails with `BACKLOG_PATH_NOT_LIFECYCLE`. The shipment manifest is read from the live shipment file. The supplied
+  feature must be a manifest member and the task's `parent_id` (`IDENTITY_MISMATCH` otherwise, exit 2); delta paths keep
+  their exact Git identity (case-insensitive comparison applies only to deny and ownership rules); an owned path
+  with a non-regular index entry (symlink, gitlink) is `NOT_REGULAR_FILE`; a lifecycle item with simultaneous queue and
+  archive copies is `LIFECYCLE_DUPLICATE_COPY`, and a queue-to-archive relocation passes only with unchanged content.
 
 ### Exit codes and output
 

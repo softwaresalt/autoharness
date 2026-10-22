@@ -78,7 +78,10 @@ route rules (deliberation 042-DL):
    config, schema, template, script, build or test artifact), which wins over
    the docs root; and mixed scope disqualifies the whole task. Missing or
    ambiguous ownership does not qualify the task and is never permission to use
-   the docs label.
+   the docs label. The route also requires backend support: the backlog tool
+   registry must declare `features.shipments: true` with a backlogit-style
+   shipment manifest (the completion checker reads the live shipment member
+   list); otherwise the task takes the code route unchanged.
 2. **Verification record**: validate the durable verification record on the
    task. Each executable gate is listed separately from each manual gate; an
    executable gate has an exact non-empty literal command, working directory,
