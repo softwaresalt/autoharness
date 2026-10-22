@@ -802,5 +802,50 @@ class HarnessArchitectPerTaskSemanticsTests(unittest.TestCase):
                 for section in edited:
                     self.assertEqual(_non_claim_hits(section), [])
 
+class DocsRouteClassificationTests(unittest.TestCase):
+    """216.005-T: harness-architect classifies docs-only tasks and applies only the route label."""
+
+    _SOURCES = {"template": _SOURCE_TEMPLATE, "installed": _INSTALLED_ACTOR}
+
+    def _each(self):
+        for which, path in self._SOURCES.items():
+            yield which, _read_lf(path)
+
+    def test_docs_route_step_covers_qualification_record_and_exclusivity(self) -> None:
+        for which, text in self._each():
+            with self.subTest(source=which):
+                section = _collapse_ws(_actor_step_section(text, "Step 2a: Classify the route"))
+                for needle in (
+                    "explicit owned paths", "prose `.md`", "deny list", "mixed scope disqualifies",
+                    "verification record", "executable gate", "manual gate", "Markdown lint",
+                    "harness-verification-gated", "never both", "harness-surface:none",
+                    "no stub, test or RED evidence", "Never apply `harness-ready`",
+                ):
+                    self.assertIn(needle, section)
+
+    def test_code_route_steps_unchanged(self) -> None:
+        for which, text in self._each():
+            with self.subTest(source=which):
+                step6 = _actor_step_section(text, "Step 6: Apply harness-ready label to the current task")
+                self.assertIn("1. Apply the `harness-ready` label to the current task only, using the", step6)
+                self.assertIn("`Compilation: PASS`", step6)
+                self.assertIn("`Red Phase: CONFIRMED`", step6)
+                self.assertIn("* Do not apply the harness-ready label until both compilation and red", text)
+                self.assertIn("### Step 3: Determine execution posture", text)
+
+    def test_docs_route_label_never_applied_with_harness_ready(self) -> None:
+        for which, text in self._each():
+            with self.subTest(source=which):
+                self.assertIn("Never apply both labels", text)
+                section = _actor_step_section(text, "Step 2a: Classify the route")
+                self.assertNotIn("Apply the `harness-ready` label", section)
+
+    def test_label_vocabulary_includes_docs_route_label(self) -> None:
+        config = _read_lf(_REPO_ROOT / "templates" / "backlog" / "config.yml.tmpl")
+        labels = config[config.index("\nlabels:") :]
+        self.assertIn('  - "harness-ready"', labels)
+        self.assertIn('  - "harness-verification-gated"', labels)
+
+
 if __name__ == "__main__":
     unittest.main()
