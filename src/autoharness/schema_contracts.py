@@ -173,6 +173,16 @@ SCHEMA_CONTRACTS: dict[str, dict[str, Any]] = {
         "known_versions": ("0.9.0", "1.0.0", "1.1.0"),
         "compatibility_model": "versioned-contract",
     },
+    "docs-only-check": {
+        "contract_name": "docs-only-check",
+        "schema_file": "docs-only-check.schema.json",
+        "versioned_schema_dir": "docs-only-check",
+        # Published by 216.002-T (S5-U2). The 1.0.0 mirror is never edited in place:
+        # a contract change is a new version.
+        "current_version": "1.0.0",
+        "known_versions": ("1.0.0",),
+        "compatibility_model": "versioned-contract",
+    },
     "harness-resolution": {
         "contract_name": "harness-resolution",
         "schema_file": "harness-resolution.schema.json",

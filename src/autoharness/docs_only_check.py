@@ -527,6 +527,41 @@ def _current_fingerprints(root: Path, backlog: str, item_id: str) -> tuple[str, 
     return None
 
 
+def _completion_result(result: CheckResult, head: str | None, digest: str | None, delta: list[str]) -> CheckResult:
+    implementation = [v.to_dict() for v in result.violations if v.check_class == "implementation"]
+    lifecycle = [v.to_dict() for v in result.violations if v.check_class == "lifecycle"]
+    result.record = {
+        "schema_version": SCHEMA_VERSION,
+        "phase": "completion",
+        "result": result.status,
+        "head_sha": head,
+        "baseline_self_digest": digest,
+        "delta_paths": sorted(delta),
+        "implementation": {"result": "violation" if implementation else "pass", "violations": implementation},
+        "lifecycle": {"result": "violation" if lifecycle else "pass", "violations": lifecycle},
+        "violations": [v.to_dict() for v in result.violations],
+        "errors": list(result.errors),
+    }
+    return result
+
+
+def error_result(phase: str, message: str) -> CheckResult:
+    """An error result (exit 2) with a schema-valid record, for failures outside the phase functions."""
+    result = CheckResult(phase=phase, errors=[message])
+    if phase == "baseline":
+        result.record = _record("baseline", result, None, [])
+        return result
+    return _completion_result(result, None, None, [])
+
+
+def resolve_repo_root(cwd: Path | str) -> Path:
+    """The git top-level of ``cwd``; every repository-relative argument resolves against it."""
+    path = Path(cwd)
+    if not path.is_dir():
+        raise DocsOnlyError("INVALID_INPUT: working directory is not a directory")
+    return Path(_decode(_git(path, "rev-parse", "--show-toplevel")).strip())
+
+
 def completion_phase(
     repo_root: Path | str,
     owned: Iterable[str] | None,
@@ -549,23 +584,7 @@ def completion_phase(
 
     def finish() -> CheckResult:
         result.violations = [*result.violations, *implementation, *lifecycle]
-        impl_violations = [v.to_dict() for v in result.violations if v.check_class == "implementation"]
-        result.record = {
-            "schema_version": SCHEMA_VERSION,
-            "phase": "completion",
-            "result": result.status,
-            "head_sha": head,
-            "baseline_self_digest": digest,
-            "delta_paths": sorted(delta),
-            "implementation": {"result": "violation" if impl_violations else "pass", "violations": impl_violations},
-            "lifecycle": {
-                "result": "violation" if lifecycle else "pass",
-                "violations": [v.to_dict() for v in lifecycle],
-            },
-            "violations": [v.to_dict() for v in result.violations],
-            "errors": list(result.errors),
-        }
-        return result
+        return _completion_result(result, head, digest, delta)
 
     if result.errors:
         return finish()

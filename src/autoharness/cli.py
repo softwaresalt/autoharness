@@ -54,6 +54,7 @@ Usage:
   autoharness telemetry begin    Create a pre-execution telemetry context artifact
   autoharness telemetry record  Record an execution epoch to the configured sink(s)
   autoharness harness resolve   Resolve a shipment's harness surfaces to one JSON document
+  autoharness harness docs-only-check  Fail-closed baseline/completion check for the docs-only task route
   autoharness routing resolve   Resolve a site's model route (read-only, fail-closed) to one JSON document
   autoharness eval              Headless evaluation (frozen-state runner + reviewer matrix)
   autoharness setup-vscode      Write agent discovery entries to VS Code user settings
@@ -4050,7 +4051,7 @@ def _harness_parser() -> argparse.ArgumentParser:
         description="Harness surface resolution for one shipment.",
         allow_abbrev=False,
     )
-    commands = parser.add_subparsers(dest="harness_command", metavar="{resolve}", required=True)
+    commands = parser.add_subparsers(dest="harness_command",     metavar="{resolve,docs-only-check}", required=True)
     resolve = commands.add_parser(
         "resolve",
         help="resolve a shipment's harness surfaces to one JSON document",
@@ -4074,7 +4075,68 @@ def _harness_parser() -> argparse.ArgumentParser:
     resolve.add_argument(
         "--json", required=True, action="store_true", help="write the result as one JSON document (required)"
     )
+    docs_only = commands.add_parser(
+        "docs-only-check",
+        help="fail-closed baseline/completion check for the verification-gated docs-only task route",
+        allow_abbrev=False,
+        description=(
+            "Check a docs-only task against the verification-gated route (deliberation 042-DL). "
+            "--phase baseline records the pre-implementation snapshot; --phase completion --baseline "
+            "<record> judges only the task's own delta against it. Paths are relative to the git "
+            "top-level of the current directory. Exit status: 0 pass, 1 violation, 2 invalid input, "
+            "unparseable frontmatter, record self-digest mismatch, moved HEAD or git failure."
+        ),
+    )
+    docs_only.add_argument("--phase", required=True, choices=("baseline", "completion"), help="check phase")
+    docs_only.add_argument("--owned", required=True, action="append", metavar="PATH", help="owned path (repeatable)")
+    docs_only.add_argument("--docs-root", required=True, metavar="PATH", help="docs root, relative to the repository")
+    docs_only.add_argument("--backlog-root", required=True, metavar="PATH", help="backlog root, relative to the repository")
+    docs_only.add_argument("--task", metavar="ID", help="task ID (required for completion)")
+    docs_only.add_argument("--feature", metavar="ID", help="feature ID (required for completion)")
+    docs_only.add_argument("--shipment", metavar="ID", help="shipment ID (required for completion)")
+    docs_only.add_argument("--baseline", metavar="FILE", help="baseline record JSON file (required for completion)")
+    docs_only.add_argument("--json", action="store_true", help="write the record as one JSON document")
     return parser
+
+
+def _docs_only_check_command(namespace: argparse.Namespace) -> None:
+    """``autoharness harness docs-only-check``: exit 0 pass, 1 violation, 2 error."""
+    from autoharness import docs_only_check as dc
+
+    phase = namespace.phase
+    if phase == "completion":
+        missing = [f"--{name}" for name in ("task", "feature", "shipment", "baseline") if not getattr(namespace, name)]
+        if missing:
+            _harness_parser().error(f"--phase completion requires {', '.join(missing)}")
+    try:
+        root = dc.resolve_repo_root(Path.cwd())
+        if phase == "baseline":
+            result = dc.baseline_phase(root, namespace.owned, namespace.docs_root, namespace.backlog_root)
+        else:
+            try:
+                baseline_path = Path(namespace.baseline)
+                if baseline_path.stat().st_size > 4 * 1024 * 1024:
+                    raise dc.DocsOnlyError("INVALID_INPUT: baseline record is larger than 4 MiB")
+                record = json.loads(baseline_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise dc.DocsOnlyError(f"INVALID_INPUT: baseline record unreadable: {type(exc).__name__}") from exc
+            manifest = dc.read_manifest_ids(root, namespace.backlog_root, namespace.shipment)
+            result = dc.completion_phase(
+                root, namespace.owned, namespace.docs_root, namespace.backlog_root, record,
+                task_id=namespace.task, feature_id=namespace.feature,
+                shipment_id=namespace.shipment, manifest_ids=manifest,
+            )
+    except dc.DocsOnlyError as exc:
+        result = dc.error_result(phase, str(exc))
+    if namespace.json:
+        print(json.dumps(result.record, indent=2, sort_keys=False))
+    else:
+        print(f"docs-only-check {phase}: {result.status}")
+        for error in result.errors:
+            print(f"  error: {error}")
+        for violation in result.violations:
+            print(f"  {violation.rule}: {violation.path}: {violation.message}")
+    sys.exit(result.exit_code)
 
 
 def _harness_command(args: list[str]) -> None:
@@ -4089,6 +4151,8 @@ def _harness_command(args: list[str]) -> None:
     after the parse writes no document, so its exit status carries no state.
     """
     namespace = _harness_parser().parse_args(args)
+    if namespace.harness_command == "docs-only-check":
+        _docs_only_check_command(namespace)
     from autoharness.harness_surfaces import resolve_shipment
 
     result = resolve_shipment(workspace_root=namespace.workspace, shipment_id=namespace.shipment)
