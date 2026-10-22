@@ -490,6 +490,8 @@ def _validated_baseline(record: object) -> dict[str, Any]:
     head = record.get("head_sha")
     if not isinstance(head, str) or not isinstance(entries, list):
         raise DocsOnlyError("INVALID_INPUT: baseline record is malformed")
+    if record.get("result") != "pass" or record.get("errors") or record.get("violations"):
+        raise DocsOnlyError("INVALID_INPUT: baseline record is not a passing baseline")
     for entry in entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise DocsOnlyError("INVALID_INPUT: baseline record entry is malformed")

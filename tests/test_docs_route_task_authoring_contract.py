@@ -43,6 +43,23 @@ class BuildFeatureDocsRouteTests(unittest.TestCase):
         ):
             self.assertIn(needle, section)
 
+    def test_docs_route_implements_before_loop_and_leaves_commit_to_ship(self) -> None:
+        section = self.text[self.text.index("## Docs Route") :]
+        section = section[: section.index("## Required Protocol")]
+        for needle in (
+            "make the requested docs change to the owned paths first",
+            "before entering the verification loop",
+            "never decides that implementation is unnecessary",
+            "do not stage, commit or complete the task",
+            "Ship, which commits after the completion checker passes",
+        ):
+            self.assertIn(needle, section)
+        commit = self.text[self.text.index("### Commit") :]
+        commit = commit[: commit.index("## Behavioral Constraints")]
+        self.assertIn("On the docs route, skip this section entirely", commit)
+        self.assertIn("do not stage, commit or complete the task", commit)
+        self.assertIn("1. Stage all changes", commit)
+
     def test_code_route_text_unchanged(self) -> None:
         for needle in (
             "Implement a requested feature by continuously looping against a strict, compiling, but failing test harness until all tests pass.",

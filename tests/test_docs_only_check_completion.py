@@ -183,6 +183,15 @@ class CompletionViolationTests(CompletionBase):
         self.repo.git("commit", "-q", "-m", "moved")
         self.assertEqual(self.complete(base, self.owned).exit_code, 2)
 
+    def test_rejected_baseline_is_invalid_for_completion(self) -> None:
+        self.repo.write("docs/a.md", "dirty\n")
+        rejected = dc.baseline_phase(self.repo.root, ["docs/a.md"], DOCS, BACKLOG)
+        self.assertEqual(rejected.exit_code, 1)
+        self.assertIn("OWNED_PATH_DIRTY_AT_BASELINE", self.rules(rejected))
+        result = self.complete(rejected.record, ["docs/a.md"])
+        self.assertEqual(result.exit_code, 2)
+        self.assertTrue(any("not a passing baseline" in e for e in result.errors))
+
     def test_bad_inputs_are_errors(self) -> None:
         base = self.baseline(self.owned)
         bad = dc.completion_phase(

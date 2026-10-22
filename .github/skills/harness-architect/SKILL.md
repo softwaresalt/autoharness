@@ -246,6 +246,8 @@ written for it.
 
 ## Completion Criteria
 
+Code route (`harness-ready`):
+
 The skill is complete only when the current task has:
 
 * harness files in the correct modules
@@ -254,6 +256,11 @@ The skill is complete only when the current task has:
 * every roster test reported as `ERROR` with its own marker, and its
   characterization tests listed apart from the roster
 * clear mapping from backlog task to harness command
+
+Docs route (Step 2a): the skill is complete when the current task has a valid
+qualification record and a valid verification record, `harness-surface:none`, and
+the exclusive `harness-verification-gated` label. The harness files, structural
+stubs, compilation result and roster `ERROR` evidence above do not apply.
 
 ## Guardrails
 

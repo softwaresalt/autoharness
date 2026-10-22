@@ -778,6 +778,20 @@ class HarnessArchitectPerTaskSemanticsTests(unittest.TestCase):
                 self.assertNotIn("all harness tests failing with the expected marker", section)
                 self.assertIn("every roster test reported as `ERROR` with its own marker", section)
 
+    def test_completion_criteria_define_docs_route_separately(self) -> None:
+        for which in self._ACTOR_SOURCES:
+            with self.subTest(source=which):
+                section = _collapse_ws(_actor_h2_section(self._text(which), "Completion Criteria"))
+                code, docs = section.split("Docs route (Step 2a):")
+                self.assertIn("Code route (`harness-ready`):", code)
+                for needle in ("harness files", "structural stubs", "after scaffolding", "roster test"):
+                    self.assertIn(needle, code)
+                for needle in (
+                    "valid qualification record", "valid verification record", "`harness-surface:none`",
+                    "exclusive `harness-verification-gated` label", "do not apply",
+                ):
+                    self.assertIn(needle, docs)
+
     def test_template_and_installed_edited_steps_are_identical(self) -> None:
         """Steps 1, 2, 3 and 6 carry no placeholders, so the parallel hunks are identical."""
         for heading in (self._STEP_1, self._STEP_2, self._STEP_3, self._STEP_6):
