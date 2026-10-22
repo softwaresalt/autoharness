@@ -390,13 +390,18 @@ per M3–M5, indeterminate first:
 
 **Harness preparation (P-002 / P-004, before route acceptance and baseline capture)**: Stage and harvest leave
 candidates without either route label, and only **harness-architect** applies one. Before any task is claimed, run
-this once up front for the derived executable set. Skip tasks already carrying exactly one route label
-(`harness-ready` or `harness-verification-gated`, never both). For every provably unstarted task carrying
-neither label — a `queued` task, or an `active` task that the shipment claim activated without starting
-implementation (P-002.7; when `features.scheduler_baseline_claim` is enabled, no `WORK_STARTED` comment in the
-current start epoch and no other started evidence, judged against the claim boundary per P-002.8) — invoke the **harness-architect** skill for the batch: it applies `harness-ready` and scaffolds a
+this once up front for the whole manifest, not only the derived executable set. Skip tasks already carrying exactly one route label
+(`harness-ready` or `harness-verification-gated`, never both). The preparation set is every provably unstarted,
+status-eligible manifest task carrying neither label — a `queued` task, or an `active` task that the shipment claim
+activated without starting implementation (P-002.7; when `features.scheduler_baseline_claim` is enabled, no
+`WORK_STARTED` comment in the current start epoch and no other started evidence, judged against the claim boundary
+per P-002.8) — including a `claim-assigned waiting` (dependency-blocked) member, which is prepared but never
+admitted for execution by this step: a later member whose dependency has not completed would otherwise reach
+claim without a label once the dependency releases it. For each task in the preparation set, invoke the
+**harness-architect** skill with exactly ONE task ID plus its covering feature or chore per invocation (the skill
+rejects multiple task IDs), iterating the set one invocation at a time: it applies `harness-ready` and scaffolds a
 failing harness for code or non-prose tasks, or applies `harness-verification-gated` without any stub, test or RED
-evidence for a qualifying docs-only task. After it completes, confirm every such task now carries exactly one route
+evidence for a qualifying docs-only task. After the iteration completes, confirm every such task now carries exactly one route
 label; a task still lacking one, or carrying both labels or a label that mismatches its qualified ownership, halts as
 a P-002 violation. Ship never applies a route label itself. A task that already carries a route label is never
 re-scaffolded, and a genuinely started `active` task without a label (`WORK_STARTED` present or other started evidence, i.e. a residual) is not prepared mid-flight and halts as a P-002 violation.
@@ -475,6 +480,12 @@ For each task in the derived executable task set:
    call is reported but NEVER blocks execution, validation, review, or task
    completion — proceed exactly as if telemetry were disabled.
 5. **Validate**: Run quality gates.
+   **Docs-route review (P-002 docs-only route; before the completion gate)**: for a task carrying
+   `harness-verification-gated`, run the Step 3 review gate for the task here, inside the per-task loop and before the
+   completion checker: invoke the `review` skill in `mode: report-only`, apply in-scope P0/P1 fixes, and perform any
+   P-021 defer-capture (the procedure below), all before the checker and before the task commit, so `HEAD` stays at the
+   baseline when the checker runs. Only then run the completion gate, commit and complete the task. The code route is
+   unchanged: its review remains the Step 3 gate after the task loop.
    **Docs-route completion gate (P-002 docs-only route; before the task commit)**: for a task carrying
    `harness-verification-gated`, before the commit and before any close-out, run every recorded executable
    verification gate and record its result, then run

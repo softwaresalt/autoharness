@@ -338,6 +338,33 @@ class StashAppendOnlyTests(CompletionBase):
                 self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(result))
                 self.assertEqual(result.exit_code, 1)
 
+    def run_crlf_worktree(self, content: str):
+        # A clean autocrlf checkout: CRLF working-tree bytes over an LF HEAD blob and index.
+        crlf = lambda text: text.replace("\n", "\r\n")
+        self.repo.git("config", "core.autocrlf", "true")
+        self.repo.write("docs/a.md", "a\n")
+        self.repo.write(self.STASH, crlf(self.OLD))
+        base = self.baseline(self.owned)
+        self.repo.write("docs/a.md", "edit\n")
+        self.repo.write(self.STASH, crlf(content))
+        return self.complete(base, self.owned)
+
+    def test_clean_crlf_worktree_baseline_valid_append_passes(self) -> None:
+        result = self.run_crlf_worktree(self.OLD + self.NEW)
+        self.assertEqual(result.status, "pass", (result.violations, result.errors))
+
+    def test_clean_crlf_worktree_baseline_edits_still_fail(self) -> None:
+        cases = {
+            "edit": '{"id":"AAAA0001","text":"changed"}\n' + self.NEW,
+            "removal": "",
+            "rewrite": self.NEW + self.OLD,
+            "non-deferred entry": self.OLD + '{"id":"CCCC0003","text":"plain"}\n',
+        }
+        for name, content in cases.items():
+            with self.subTest(name):
+                result = self.run_crlf_worktree(content)
+                self.assertIn("BACKLOG_PATH_NOT_LIFECYCLE", self.rules(result))
+
     def test_staged_layer_must_also_be_append_only(self) -> None:
         base = self.baseline(self.owned)
         self.repo.write("docs/a.md", "edit\n")

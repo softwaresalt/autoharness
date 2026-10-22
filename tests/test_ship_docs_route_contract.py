@@ -156,7 +156,8 @@ class StageToShipHandoffTests(unittest.TestCase):
         for needle in (
             "only **harness-architect** applies one",
             "carrying neither label",
-            "invoke the **harness-architect** skill",
+            "invoke the **harness-architect** skill with exactly ONE task ID plus its covering feature or chore per invocation",
+            "iterating the set one invocation at a time",
             f"applies `{DOCS_LABEL}` without any stub, test or RED evidence",
             "exactly one route label",
             "P-002 violation",
@@ -169,7 +170,8 @@ class StageToShipHandoffTests(unittest.TestCase):
         for needle in (
             "tasks without the `harness-ready` label — scaffold these",
             "lacks the docs label is routed to harness-architect, which alone applies the route label",
-            "invoke the **harness-architect** skill for the batch",
+            "invoke the **harness-architect** skill once per task",
+            "exactly ONE task ID plus its covering feature or chore per invocation",
         ):
             self.assertIn(needle, text)
 
@@ -185,6 +187,8 @@ class ClaimActivatedPreparationTests(unittest.TestCase):
             "`features.scheduler_baseline_claim`",
             "no `WORK_STARTED` comment",
             "claim boundary per P-002.8",
+            "`claim-assigned waiting` (dependency-blocked) member",
+            "prepared but never admitted for execution",
             "genuinely started `active` task without a label",
             "`WORK_STARTED` present or other started evidence",
             "halts as a P-002 violation",
@@ -195,7 +199,9 @@ class ClaimActivatedPreparationTests(unittest.TestCase):
         step = lf_text(TEMPLATE)
         step = " ".join(step[step.index("### Step 2: Harness Generation") : step.index("### Step 3: Build Ready Queue")].split())
         for needle in (
-            "provably unstarted claim-activated members",
+            "provably unstarted claim-activated member",
+            "`claim-assigned waiting` (dependency-blocked) members",
+            "never admitted for execution here",
             "activated without starting implementation (P-002.7",
             "no `WORK_STARTED` comment",
             "claim boundary per P-002.8",
@@ -203,6 +209,30 @@ class ClaimActivatedPreparationTests(unittest.TestCase):
             "halts as a P-002 violation",
         ):
             self.assertIn(needle, step)
+
+
+class DocsRouteReviewOrderingTests(unittest.TestCase):
+    def test_mirror_review_fix_defer_precede_checker_commit_done(self) -> None:
+        text = lf_text(MIRROR)
+        loop = text.index("For each task in the derived executable task set:")
+        review = text.index("**Docs-route review (P-002 docs-only route; before the completion gate)**", loop)
+        checker = text.index("**Docs-route completion gate (P-002 docs-only route; before the task commit)**", loop)
+        commit = text.index("6. **Commit**", loop)
+        done = text.index("8. **Complete**", loop)
+        self.assertLess(review, checker)
+        self.assertLess(checker, commit)
+        self.assertLess(commit, done)
+        block = " ".join(text[review:checker].split())
+        for needle in ("`review` skill", "in-scope P0/P1 fixes", "P-021 defer-capture", "`HEAD` stays at the baseline", "code route is unchanged"):
+            self.assertIn(needle, block)
+
+    def test_template_review_gate_precedes_completion_for_docs_route(self) -> None:
+        text = lf_text(TEMPLATE)
+        review = text.index("#### Step 4.4: Review Gate")
+        complete = text.index("#### Step 4.5: Complete Task")
+        self.assertLess(review, complete)
+        block = " ".join(text[review:complete].split())
+        self.assertIn("inside the per-task loop before the Step 4.5 completion checker", block)
 
 
 class DocsRouteBackendGateTests(unittest.TestCase):

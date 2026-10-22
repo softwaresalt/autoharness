@@ -626,7 +626,10 @@ def _stash_append_problem(root: Path, rel: str, by_path: dict[str, dict[str, Any
         return refusal
     if base and not base.endswith(b"\n"):
         return refusal
-    for current in layers:
+    for position, current in enumerate(layers):
+        # core.autocrlf checks an LF blob out as CRLF; the working tree keeps its own representation.
+        if position == 0 and b"\r" not in base and b"\r\n" in current:
+            current = current.replace(b"\r\n", b"\n")
         if not current.startswith(base) or len(current) == len(base):
             return refusal
         if not _well_formed_deferred_entries(current[len(base):]):
