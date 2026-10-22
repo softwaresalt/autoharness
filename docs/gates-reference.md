@@ -723,10 +723,10 @@ pre-state; it records it and judges only the task's own delta:
   entry (mode and SHA-256 of the LF-normalized bytes, or `null`). Each changed backlog-root file also carries the
   SHA-256 of its raw body and of its protected frontmatter (the frontmatter minus `status`, `updated_at`, `commit`,
   `archived_from`, `archived_status`, `custom_fields.harness_status` and the two route labels). A `self_digest` covers
-  every entry. An owned path that is already changed, staged, untracked or deleted fails with
+  every entry and binds the normalized owned paths, docs root and backlog root the baseline was admitted with. An owned path that is already changed, staged, untracked or deleted fails with
   `OWNED_PATH_DIRTY_AT_BASELINE`.
 * `--phase completion --baseline <record>` verifies the self-digest, that the baseline is a passing record
-  (`result` is `pass` with no errors or violations; any other baseline is rejected as invalid input, exit 2) and that `HEAD` still equals the recorded
+  (`result` is `pass` with no errors or violations; any other baseline is rejected as invalid input, exit 2), that the supplied `--owned`, `--docs-root` and `--backlog-root` equal the inputs bound into the record (otherwise `INPUT_MISMATCH`, exit 2) and that `HEAD` still equals the recorded
   `head_sha` (run it before the task commit), recomputes the snapshot and defines the **task delta** as every path whose
   index entry or working-tree entry differs from the baseline in either layer. The **implementation class** requires
   each delta path outside the backlog root to be an owned path (`NOT_OWNED_PATH`, plus the path rule that it breaks).

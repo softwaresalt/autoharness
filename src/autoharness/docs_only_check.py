@@ -372,12 +372,15 @@ def check_owned_paths(
 
 
 def compute_self_digest(record: dict[str, Any]) -> str:
-    """SHA-256 over the canonical form of every baseline entry plus ``head_sha``."""
+    """SHA-256 over the canonical form of every baseline entry, ``head_sha`` and the bound admission inputs."""
     body = {
         "schema_version": record.get("schema_version"),
         "phase": record.get("phase"),
         "head_sha": record.get("head_sha"),
         "entries": record.get("entries"),
+        "owned_paths": record.get("owned_paths"),
+        "docs_root": record.get("docs_root"),
+        "backlog_root": record.get("backlog_root"),
     }
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -405,14 +408,15 @@ def baseline_phase(
     violation (``OWNED_PATH_DIRTY_AT_BASELINE``); everything else is recorded.
     """
     result, root, _, backlog = _prepare(repo_root, owned, docs_root, backlog_root, "baseline")
+    inputs = (sorted({str(o) for o in (owned or [])}), str(docs_root), str(backlog_root))
     if result.errors:
-        result.record = _record("baseline", result, None, [])
+        result.record = _record("baseline", result, None, [], inputs)
         return result
     try:
         snapshot = take_snapshot(root, backlog)
     except DocsOnlyError as exc:
         result.errors.append(str(exc))
-        result.record = _record("baseline", result, None, [])
+        result.record = _record("baseline", result, None, [], inputs)
         return result
     changed_lower = {path.lower(): path for path in snapshot.entries}
     for raw in list(owned or []):
@@ -422,13 +426,16 @@ def baseline_phase(
                 Violation("OWNED_PATH_DIRTY_AT_BASELINE", hit, "owned path is changed, staged, untracked or deleted at baseline")
             )
     entries = [entry.to_dict() for entry in snapshot.entries.values()]
-    result.record = _record("baseline", result, snapshot.head_sha, entries)
+    result.record = _record("baseline", result, snapshot.head_sha, entries, inputs)
     result.record["self_digest"] = compute_self_digest(result.record)
     return result
 
 
-def _record(phase: str, result: CheckResult, head_sha: str | None, entries: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
+def _record(
+    phase: str, result: CheckResult, head_sha: str | None, entries: list[dict[str, Any]],
+    inputs: tuple[list[str], str, str] | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "phase": phase,
         "result": result.status,
@@ -438,6 +445,12 @@ def _record(phase: str, result: CheckResult, head_sha: str | None, entries: list
         "errors": list(result.errors),
         "self_digest": None,
     }
+    if phase == "baseline":
+        owned_paths, docs_root, backlog_root = inputs if inputs is not None else ([], "", "")
+        data["owned_paths"] = owned_paths
+        data["docs_root"] = docs_root
+        data["backlog_root"] = backlog_root
+    return data
 
 
 # --- completion phase ------------------------------------------------------------
@@ -488,7 +501,12 @@ def _validated_baseline(record: object) -> dict[str, Any]:
         raise DocsOnlyError("INVALID_INPUT: baseline record is not a baseline phase record")
     entries = record.get("entries")
     head = record.get("head_sha")
-    if not isinstance(head, str) or not isinstance(entries, list):
+    owned_paths = record.get("owned_paths")
+    if (
+        not isinstance(head, str) or not isinstance(entries, list)
+        or not isinstance(owned_paths, list) or not all(isinstance(o, str) for o in owned_paths)
+        or not isinstance(record.get("docs_root"), str) or not isinstance(record.get("backlog_root"), str)
+    ):
         raise DocsOnlyError("INVALID_INPUT: baseline record is malformed")
     if record.get("result") != "pass" or record.get("errors") or record.get("violations"):
         raise DocsOnlyError("INVALID_INPUT: baseline record is not a passing baseline")
@@ -593,6 +611,22 @@ def completion_phase(
     try:
         record = _validated_baseline(baseline_record)
         digest = record.get("self_digest")
+        # A rule-violating owned path can never match a passing baseline; report the path violation instead.
+        if not result.violations and (
+            sorted({str(o) for o in (owned or [])}) != record["owned_paths"]
+            or str(docs_root) != record["docs_root"] or str(backlog_root) != record["backlog_root"]
+        ):
+            raise DocsOnlyError(
+                "INPUT_MISMATCH: --owned/--docs-root/--backlog-root differ from the inputs bound into the baseline record"
+            )
+        # A rule-violating owned path can never match a passing baseline; report the path violation instead.
+        if not result.violations and (
+            sorted({str(o) for o in (owned or [])}) != record["owned_paths"]
+            or str(docs_root) != record["docs_root"] or str(backlog_root) != record["backlog_root"]
+        ):
+            raise DocsOnlyError(
+                "INPUT_MISMATCH: --owned/--docs-root/--backlog-root differ from the inputs bound into the baseline record"
+            )
         task = _valid_id(task_id, "task")
         feature = _valid_id(feature_id, "feature")
         shipment = _valid_id(shipment_id, "shipment")

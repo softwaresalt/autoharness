@@ -74,6 +74,21 @@ class DocsOnlyCheckCliTests(unittest.TestCase):
         self.assertEqual(done["implementation"]["result"], "pass")
         self.assertEqual(done["lifecycle"]["result"], "pass")
 
+    def test_relative_baseline_resolves_against_repo_root_from_subdirectory(self) -> None:
+        _, record = self.baseline()
+        (self.repo.root / ".git" / "bl.json").write_text(json.dumps(record), encoding="utf-8")
+        self.repo.write("docs/a.md", "edit\n")
+        args = self.completion_args(Path(".git") / "bl.json")
+        status, out, _ = run_cli(self.repo.root / "docs", args)
+        self.assertEqual(status, 0, out)
+
+    def test_mismatched_owned_exits_2(self) -> None:
+        _, record = self.baseline()
+        path = self.repo.root / ".git" / "bl.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        status, out, _ = run_cli(self.repo.root, self.completion_args(path, owned="docs/b.md"))
+        self.assertEqual(status, 2, out)
+
     def test_exit_1_on_violation_with_separate_classes(self) -> None:
         _, record = self.baseline()
         path = self.repo.root.parent / f"{self.repo.root.name}-baseline.json"

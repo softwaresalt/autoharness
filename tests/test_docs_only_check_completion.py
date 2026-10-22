@@ -32,6 +32,36 @@ class CompletionBase(unittest.TestCase):
         return {v.rule for v in result.violations}
 
 
+class BaselineInputBindingTests(CompletionBase):
+    def test_completion_rejects_owned_path_not_admitted_at_baseline(self) -> None:
+        self.repo.claim_all()
+        self.repo.write("docs/b.md", "dirty before baseline\n")
+        base = self.baseline(["docs/a.md"])
+        self.assertEqual(base["owned_paths"], ["docs/a.md"])
+        result = self.complete(base, ["docs/b.md"])
+        self.assertEqual(result.status, "error")
+        self.assertEqual(result.exit_code, 2)
+        self.assertTrue(any("INPUT_MISMATCH" in e for e in result.errors), result.errors)
+
+    def test_completion_rejects_mismatched_roots(self) -> None:
+        self.repo.claim_all()
+        base = self.baseline(["docs/a.md"])
+        result = dc.completion_phase(
+            self.repo.root, ["docs/a.md"], DOCS, ".other-backlog", base,
+            task_id=self.t1, feature_id=self.repo.FEATURE,
+            shipment_id=self.repo.SHIPMENT, manifest_ids=self.manifest,
+        )
+        self.assertEqual(result.exit_code, 2)
+
+    def test_tampered_bound_inputs_fail_digest(self) -> None:
+        self.repo.claim_all()
+        base = copy.deepcopy(self.baseline(["docs/a.md"]))
+        base["owned_paths"] = ["docs/b.md"]
+        result = self.complete(base, ["docs/b.md"])
+        self.assertEqual(result.exit_code, 2)
+        self.assertTrue(any("DIGEST_MISMATCH" in e for e in result.errors), result.errors)
+
+
 class TwoTaskShipmentFlowTests(CompletionBase):
     def test_two_task_shipment_end_to_end(self) -> None:
         repo = self.repo

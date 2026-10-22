@@ -4115,6 +4115,8 @@ def _docs_only_check_command(namespace: argparse.Namespace) -> None:
         else:
             try:
                 baseline_path = Path(namespace.baseline)
+                if not baseline_path.is_absolute():
+                    baseline_path = root / baseline_path
                 if baseline_path.stat().st_size > 4 * 1024 * 1024:
                     raise dc.DocsOnlyError("INVALID_INPUT: baseline record is larger than 4 MiB")
                 record = json.loads(baseline_path.read_text(encoding="utf-8"))

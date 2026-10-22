@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/softwaresalt/autoharness/schemas/docs-only-check.schema.json",
   "title": "DocsOnlyCheck",
-  "description": "docs-only-check 1.0.0: the JSON record written by `autoharness harness docs-only-check --json` for the verification-gated docs-only route (deliberation 042-DL D-3). A baseline record snapshots the changed paths before implementation, with independent index-layer and working-tree-layer entries, body and protected-frontmatter fingerprints for backlog files, and a self-digest. A completion record reports the task delta, with the implementation class and the lifecycle class judged separately. result is pass (exit 0), violation (exit 1) or error (exit 2).",
+  "description": "docs-only-check 1.0.0: the JSON record written by `autoharness harness docs-only-check --json` for the verification-gated docs-only route (deliberation 042-DL D-3). A baseline record snapshots the changed paths before implementation, with independent index-layer and working-tree-layer entries, body and protected-frontmatter fingerprints for backlog files, owned paths, docs root and backlog root bound by the self-digest (completion rejects mismatched inputs), and a self-digest. A completion record reports the task delta, with the implementation class and the lifecycle class judged separately. result is pass (exit 0), violation (exit 1) or error (exit 2).",
   "oneOf": [
     { "$ref": "#/$defs/baseline" },
     { "$ref": "#/$defs/completion" }
@@ -53,13 +53,16 @@
     "baseline": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["schema_version", "phase", "result", "head_sha", "entries", "violations", "errors", "self_digest"],
+      "required": ["schema_version", "phase", "result", "head_sha", "entries", "owned_paths", "docs_root", "backlog_root", "violations", "errors", "self_digest"],
       "properties": {
         "schema_version": { "const": "1.0.0" },
         "phase": { "const": "baseline" },
         "result": { "$ref": "#/$defs/result" },
         "head_sha": { "oneOf": [{ "$ref": "#/$defs/gitSha" }, { "type": "null" }] },
         "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+        "owned_paths": { "type": "array", "items": { "type": "string" } },
+        "docs_root": { "type": "string" },
+        "backlog_root": { "type": "string" },
         "violations": { "$ref": "#/$defs/violations" },
         "errors": { "$ref": "#/$defs/errors" },
         "self_digest": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }

@@ -436,7 +436,9 @@ For each task in the derived executable task set:
    - When `GRAPHTOR_OK`: Run `search_local_docs` or `search_semantic` to resolve any documentation questions about the feature scope before beginning implementation.
    - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup, API references, and concept research. See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md`.
 4. **Execute**: Perform the template authoring, schema change, skill
-   development, or documentation work. When step 2 carried a `context_ref`
+   development, or documentation work. Any `harness_cmd` lookup from harness-ready metadata is code-route-only;
+   for a docs-route task, pass the task's recorded verification commands, working directories, and pass criteria
+   to build-feature (as its Docs Route section requires). When step 2 carried a `context_ref`
    (`created`/`idempotent_begin`), tool use during this step MAY optionally
    emit sanitized ToolTelemetryEvent records:
    `autoharness telemetry event --context-ref {context_ref} --from-json {event_payload_path} --json`.

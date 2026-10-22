@@ -80,6 +80,14 @@ class ShipDocsRouteTemplateTests(unittest.TestCase):
         ):
             self.assertIn(needle, text)
 
+    def test_step_4_2_harness_cmd_is_code_route_only(self) -> None:
+        step42 = self.step("#### Step 4.2: Delegate to Build Feature", "#### Step 4.3: Quality Gates")
+        for needle in (
+            "code route only", "docs-route task", "do not look up `harness_cmd`",
+            "recorded verification commands, working directories, and pass criteria", "Docs Route section",
+        ):
+            self.assertIn(needle, step42)
+
     def test_baseline_precedes_telemetry(self) -> None:
         self.assertLess(
             self.text.index("--phase baseline"), self.text.index("#### Step 4.1a: Begin Telemetry Context")
@@ -117,6 +125,13 @@ class ShipDocsRouteMirrorTests(unittest.TestCase):
     def test_mirror_keeps_numbered_steps_and_anchors(self) -> None:
         for needle in ("5. **Validate**: Run quality gates.", "6. **Commit**: Use conventional commits",
                        "which is built for exactly that mixed state."):
+            self.assertIn(needle, self.text)
+
+    def test_mirror_hands_docs_verification_to_build_feature(self) -> None:
+        for needle in (
+            "`harness_cmd` lookup from harness-ready metadata is code-route-only;",
+            "recorded verification commands, working directories, and pass criteria", "Docs Route section",
+        ):
             self.assertIn(needle, self.text)
 
     def test_mirror_labels_never_coexist(self) -> None:

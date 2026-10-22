@@ -497,7 +497,8 @@ autoharness telemetry event --context-ref {context_ref} --from-json {event_paylo
 Invoke the **build-feature** skill with:
 
 * `task_id`: The current task ID
-* `harness_cmd`: The test command from the task's harness-ready metadata (e.g., `{{TEST_COMMAND}} --test {feature}_test`)
+* `harness_cmd`: The test command from the task's harness-ready metadata (e.g., `{{TEST_COMMAND}} --test {feature}_test`) — code route only
+* For a docs-route task, do not look up `harness_cmd`; pass the task's recorded verification commands, working directories, and pass criteria to build-feature, as its Docs Route section requires
 
 The skill runs a 5-attempt harness loop: execute tests, capture errors, fix, repeat.
 
