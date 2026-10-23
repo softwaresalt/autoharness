@@ -108,6 +108,7 @@ HISTORICAL_ALLOWLIST: Mapping[str, str] = {
     "docs/audits/": "dated audits are historical records",
     "docs/compound/": "compound learnings are historical records",
     "docs/design-docs/": "dated design documents are historical records",
+    "docs/releases/": "versioned release notes and upgrade guides are point-in-time records",
     "CHANGELOG.md": "changelog history is never rewritten; only new entries are added",
 }
 

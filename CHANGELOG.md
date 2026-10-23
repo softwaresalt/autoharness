@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 - 2026-10-23
 
 ### Added
 
@@ -84,9 +84,31 @@
   `dispose_shipment` stays unregistered until backlogit ships it. Expected template drift in
   installed workspaces: workflow-policies, the Stage/Ship/Orchestrator agents, the backlog
   instructions and the backlogit registry template (re-run tune-harness).
+- **Verification-gated docs-only task route (216-F / 223-S, G3):** a task may take a
+  `harness-verification-gated` route instead of `harness-ready` when it is documentation-only. The new offline,
+  deterministic `autoharness harness docs-only-check` (`--phase baseline` and `--phase completion`; schema
+  `docs-only-check.schema.json`) records a start-SHA baseline and proves completion without running a shell.
+  Ship, `harness-architect`, `build-feature`, harvest and Stage are amended; P-002 and P-004 are amended
+  (workflow policy `1.39.0`); ambiguity fails closed. See `docs/gates-reference.md`. Expected template drift in
+  installed workspaces: workflow-policies and the Stage/Ship agents and skills (re-run tune-harness).
+- **Backlogit engine-line verification runbook (215-F / 222-S, engine line):**
+  `docs/engine-line-verification.md` documents the probe a candidate backlogit engine line must pass before
+  joining the verified cascade engine-semantics set. `1.11` stays the only verified line; `1.12` and any other
+  line remain `UNVERIFIED` (SAFE_CLOSE) until the runbook probe passes, and pin tests lock the set.
+- **Shipment-reconcile post-169-S hygiene (206-F / 213-S):** the `shipment-reconcile` skill keys its Safe-Close
+  skip on shipment status using status placeholders rather than hard-coded values, halts on a refused
+  move-to-done in Safe-Close step 4, carries the P-002.7 cross-references, and calibrates its timeout guidance.
 
 ### Changed
 
+- **Capability-pack assertions and rendered content conditional on enabled packs (213-F / 220-S, G4):**
+  `verify-workspace` no longer unconditionally requires `### agent-engram` in the remote-operator guidance of
+  the foundation `copilot-instructions`, and the claim-ordering assertion is scoped to the backlogit pack, so a
+  workspace without an optional pack no longer fails verification for that pack's content.
+- **Agent-engram guidance names only registered tools (212-F / 219-S, G1):** the `agent-engram` instruction
+  template, its installed mirror and the pinning test now direct graph traversal through the single registered
+  `query_graph` tool (`operation` = `neighborhood`, `find_path`, or `transitive_closure`) instead of the
+  unregistered `query_graph_neighborhood` helper and Cypher-style wording.
 - **UTC mandatory for all recorded dates and times (204-F, shipment 211-S):**
   the output-timestamps instruction, the foundation copilot-instructions and AGENTS
   templates, and the compact-context skill state the UTC rule, and a new P7 contract

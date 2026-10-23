@@ -158,6 +158,7 @@ These are workflow aliases, not separate pipelines, over the existing Orchestrat
 | [Tuning Guide](docs/tuning-guide.md) | Maintain and adapt your harness as the codebase evolves, including checksum drift and schema-contract upgrades |
 | [Backlog Integration](docs/backlog-integration.md) | Backlog tool detection, registry abstraction, and manual registration |
 | [Credits](docs/credits.md) | Sources of inspiration, research, and tools that shaped autoharness |
+| [1.6.0 Release Notes](docs/releases/1.6.0-release-notes.md) | What changed in 1.6.0, with the [upgrade guide](docs/releases/1.6.0-upgrade-guide.md) for downstream workspaces |
 
 ## Acknowledgements
 
