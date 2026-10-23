@@ -431,10 +431,17 @@ For each task in the derived executable task set:
 
    **Docs-route baseline (P-002 docs-only route; only tasks carrying `harness-verification-gated`)**: immediately
    after the task is `active` and its qualification is re-checked, and before the telemetry begin, pre-build
-   retrieval or any docs edit, run
-   `autoharness harness docs-only-check --phase baseline --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root .backlogit --task {task_id} --feature {parent_id} --shipment {shipment_id} --json`
+   retrieval or any docs edit, first resolve the effective backlog root once. This workspace's `.backlogit` is only the
+   default: the backlog tool honors the `BACKLOGIT_WORKSPACE_DIR` override, so run the shared resolver from the
+   repository root (in the interpreter environment that provides the `autoharness` CLI):
+   `python -c "from pathlib import Path; from autoharness.backlog_root import resolve_backlog_root; r = Path.cwd().resolve(); print(resolve_backlog_root(r).relative_to(r).as_posix())"`
+   and take its stdout as `{backlog_root}`. Any non-zero exit, error (including an ambiguous or unavailable root), or
+   empty output halts as a P-002 violation with P-005 telemetry; never fall back to `.backlogit`. Use this one
+   `{backlog_root}` for both checker phases (`--backlog-root`) and for the baseline-log and item-log storage below;
+   never re-resolve it or substitute `.backlogit` later in the task. Then run
+   `autoharness harness docs-only-check --phase baseline --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root {backlog_root} --task {task_id} --feature {parent_id} --shipment {shipment_id} --json`
    and append the JSON baseline record (`head_sha`, per changed path the index-layer and working-tree-layer entries
-   with their hash, and the self-digest) to the task comment (the item log under `.backlogit/logs/`, which is
+   with their hash, and the self-digest) to the task comment (the item log under `{backlog_root}/logs/`, which is
    git-ignored). Ship records the pre-state and never pre-cleans it (claim writes, the route label, the preceding
    task's close-out and session memory). Exit 1 (including `OWNED_PATH_DIRTY_AT_BASELINE`) or exit 2 halts as a P-002
    violation with P-005 telemetry; do not start the task.
@@ -487,14 +494,17 @@ For each task in the derived executable task set:
    baseline when the checker runs. Only then run the completion gate, commit and complete the task. The code route is
    unchanged: its review remains the Step 3 gate after the task loop.
    **Docs-route completion gate (P-002 docs-only route; before the task commit)**: for a task carrying
-   `harness-verification-gated`, before the commit and before any close-out, run every recorded executable
-   verification gate and record its result, then run
-   `autoharness harness docs-only-check --phase completion --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root .backlogit --task {task_id} --feature {parent_id} --shipment {shipment_id} --baseline {baseline_record_path} --json`
+   `harness-verification-gated`, before the commit and before any close-out, and after every review fix,
+   defer-capture and docs edit made in this task, re-execute every recorded executable verification gate AND every
+   recorded manual gate against the final post-review docs and record each result; results recorded before a review
+   fix are stale and never satisfy this gate. The sequence is: review fixes, rerun executable and manual gates,
+   checker completion, commit, done. Then run, with the same `{backlog_root}` resolved at the baseline,
+   `autoharness harness docs-only-check --phase completion --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root {backlog_root} --task {task_id} --feature {parent_id} --shipment {shipment_id} --baseline {baseline_record_path} --json`
    where `{baseline_record_path}` is the baseline record saved from the task comment to the git-ignored item log
-   directory. A recorded gate without a passing result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2
+   directory. A recorded gate (executable or manual) without a passing post-review result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2
    halts as a P-002 violation with P-005 telemetry; the task is not committed, tracked or moved to done.
    The P-021 defer-capture procedure runs before this gate and after the baseline: the checker admits a change to
-   `.backlogit/stash.jsonl` only when every baseline line is byte-identical and the only new lines are well-formed
+   `{backlog_root}/stash.jsonl` only when every baseline line is byte-identical and the only new lines are well-formed
    `DEFERRED SCOPE EXPANSION` entries appended at the end (checked in the working tree and the index; a stash already
    dirty at baseline fails closed). Any edit, removal, rewrite or other new line is `BACKLOG_PATH_NOT_LIFECYCLE` and
    halts the same way.

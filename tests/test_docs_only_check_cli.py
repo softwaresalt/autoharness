@@ -104,6 +104,37 @@ class DocsOnlyCheckCliTests(unittest.TestCase):
         status, out, _ = run_cli(self.repo.root, self.completion_args(path, owned="docs/b.md"))
         self.assertEqual(status, 2, out)
 
+    def test_effective_backlog_root_override_baseline_through_completion(self) -> None:
+        repo = self.repo
+        repo.git("mv", BACKLOG, ".backlog")
+        repo.commit_all("use .backlog")
+        override = {"BACKLOGIT_WORKSPACE_DIR": ".backlog"}
+        previous = os.environ.get("BACKLOGIT_WORKSPACE_DIR")
+        os.environ.update(override)
+        self.addCleanup(
+            lambda: os.environ.pop("BACKLOGIT_WORKSPACE_DIR", None) if previous is None
+            else os.environ.__setitem__("BACKLOGIT_WORKSPACE_DIR", previous)
+        )
+        from autoharness.backlog_root import resolve_backlog_root
+
+        resolved = resolve_backlog_root(repo.root).relative_to(repo.root).as_posix()
+        self.assertEqual(resolved, ".backlog")
+        common = ["harness", "docs-only-check", "--owned", "docs/a.md", "--docs-root", DOCS, "--backlog-root", resolved, "--json"]
+        status, out, _ = run_cli(repo.root, [*common, "--phase", "baseline"])
+        self.assertEqual(status, 0, out)
+        record = json.loads(out)
+        self.assertEqual(record["backlog_root"], ".backlog")
+        path = repo.root / ".git" / "bl.json"
+        path.write_text(json.dumps(record), encoding="utf-8")
+        repo.write("docs/a.md", "edit\n")
+        completion = [*common, "--phase", "completion", "--baseline", str(path),
+                      "--task", self.t1, "--feature", repo.FEATURE, "--shipment", repo.SHIPMENT]
+        status, out, _ = run_cli(repo.root, completion)
+        self.assertEqual(status, 0, out)
+        stale = completion[:]
+        stale[stale.index("--backlog-root") + 1] = BACKLOG
+        self.assertEqual(run_cli(repo.root, stale)[0], 2)
+
     def test_exit_1_on_violation_with_separate_classes(self) -> None:
         _, record = self.baseline()
         path = self.repo.root.parent / f"{self.repo.root.name}-baseline.json"

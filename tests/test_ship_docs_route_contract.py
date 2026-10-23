@@ -256,5 +256,51 @@ class DocsRouteBackendGateTests(unittest.TestCase):
         self.assertRegex(lf_text(backlogit), r"(?m)^\s*shipments:\s*true\b")
 
 
+class DocsRouteEffectiveBacklogRootTests(unittest.TestCase):
+    RESOLVER = "from autoharness.backlog_root import resolve_backlog_root"
+
+    def test_both_surfaces_resolve_root_once_and_pass_it_to_both_phases(self) -> None:
+        for path in (TEMPLATE, MIRROR):
+            text = lf_text(path)
+            baseline = text.index("--phase baseline")
+            completion = text.index("--phase completion")
+            block = " ".join(text[text.index(self.RESOLVER) - 600 : baseline].split())
+            with self.subTest(path=path.name):
+                self.assertLess(text.index(self.RESOLVER), baseline)
+                self.assertIn("BACKLOGIT_WORKSPACE_DIR", block)
+                self.assertIn("`{backlog_root}`", block)
+                self.assertIn("never fall back to", block)
+                self.assertIn("halts as a P-002 violation", " ".join(text[baseline - 900 : baseline + 900].split()))
+                for phase_at in (baseline, completion):
+                    line = text[phase_at : text.index("--json", phase_at)]
+                    self.assertIn("--backlog-root {backlog_root}", line)
+                self.assertIn("{backlog_root}/logs/", text)
+                self.assertIn("{backlog_root}/stash.jsonl", text)
+
+    def test_resolver_only_hardcoded_default_is_not_passed_to_checker(self) -> None:
+        for path in (TEMPLATE, MIRROR):
+            text = lf_text(path)
+            self.assertNotRegex(text, r"--backlog-root (\.backlogit|\{\{BACKLOG_DIRECTORY\}\})")
+
+
+class DocsRouteManualGateRerunTests(unittest.TestCase):
+    def test_gates_rerun_after_review_fixes_before_checker_commit_done(self) -> None:
+        for path in (TEMPLATE, MIRROR):
+            text = lf_text(path)
+            start = text.index("**Docs-route completion gate (P-002 docs-only route; before the task commit)**")
+            checker = text.index("--phase completion", start)
+            block = " ".join(text[start:checker].split())
+            with self.subTest(path=path.name):
+                for needle in (
+                    "after every review fix",
+                    "re-execute every recorded executable verification gate AND every recorded manual gate",
+                    "final post-review docs",
+                    "stale",
+                    "review fixes, rerun executable and manual gates, checker completion, commit, done",
+                ):
+                    self.assertIn(needle, block)
+                self.assertIn("(executable or manual) without a passing post-review result", " ".join(text[checker:].split()))
+
+
 if __name__ == "__main__":
     unittest.main()
