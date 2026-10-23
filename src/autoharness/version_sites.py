@@ -4,10 +4,43 @@ from __future__ import annotations
 
 import json
 import re
-import tomllib
 from pathlib import Path
 
 _FALLBACK_RE = re.compile(r'__version__\s*=\s*"([^"]+)"')
+_VERSION_LINE_RE = re.compile(r'^version\s*=\s*"([^"]+)"\s*$')
+_NAME_LINE_RE = re.compile(r'^name\s*=\s*"([^"]+)"\s*$')
+
+
+def _pyproject_project_version(text: str) -> str | None:
+    in_project = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("["):
+            in_project = stripped == "[project]"
+        elif in_project:
+            match = _VERSION_LINE_RE.match(stripped)
+            if match:
+                return match.group(1)
+    return None
+
+
+def _lock_editable_version(text: str, package: str) -> str | None:
+    for block in re.split(r"^\[\[package\]\]\s*$", text, flags=re.MULTILINE)[1:]:
+        name = version = None
+        editable = False
+        for line in block.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("["):
+                break
+            if (m := _NAME_LINE_RE.match(stripped)) and name is None:
+                name = m.group(1)
+            elif (m := _VERSION_LINE_RE.match(stripped)) and version is None:
+                version = m.group(1)
+            elif stripped.startswith("source") and "editable" in stripped:
+                editable = True
+        if name == package and editable and version:
+            return version
+    return None
 
 
 def _missing(site: str) -> str:
@@ -32,9 +65,9 @@ def collect_version_sites(root: Path, *, case: str) -> dict[str, str]:
 
     name = "pyproject.toml"
     try:
-        data = tomllib.loads((root / name).read_text(encoding="utf-8"))
-        sites[name] = str(data["project"]["version"])
-    except (OSError, KeyError, ValueError):
+        found = _pyproject_project_version((root / name).read_text(encoding="utf-8"))
+        sites[name] = found if found else _missing(name)
+    except (OSError, ValueError):
         sites[name] = _missing(name)
 
     name = "src/autoharness/__init__.py"
@@ -62,13 +95,8 @@ def collect_version_sites(root: Path, *, case: str) -> dict[str, str]:
 
     name = "uv.lock"
     try:
-        data = tomllib.loads((root / name).read_text(encoding="utf-8"))
-        found = [
-            str(p["version"])
-            for p in data.get("package", [])
-            if p.get("name") == "autoharness" and "editable" in p.get("source", {})
-        ]
-        sites[name] = found[0] if found else _missing(name)
+        found = _lock_editable_version((root / name).read_text(encoding="utf-8"), "autoharness")
+        sites[name] = found if found else _missing(name)
     except (OSError, ValueError):
         sites[name] = _missing(name)
 
