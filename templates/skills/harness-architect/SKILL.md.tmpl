@@ -65,6 +65,40 @@ When the `agent-engram` capability pack is installed, prefer indexed
 symbol lookup and code-graph tools over broad grep when surveying
 existing modules, test patterns, and import paths.
 
+### Step 2a: Classify the route
+
+Before choosing a posture, classify the current task against the P-002 docs-only
+route rules (deliberation 042-DL):
+
+1. **Qualification**: the task declares explicit owned paths; every owned path
+   is a regular prose `.md` file under the configured docs root (normalized: no
+   traversal, drive, backslash, absolute path, symlink or reparse point); no
+   owned path is on the deny list (`.github/`, `.autoharness/`, the backlog
+   root, `templates/`, `schemas/`, `scripts/`, `src/`, `tests/`, or a policy,
+   config, schema, template, script, build or test artifact), which wins over
+   the docs root; and mixed scope disqualifies the whole task. Missing or
+   ambiguous ownership does not qualify the task and is never permission to use
+   the docs label. The route also requires backend support: the backlog tool
+   registry must declare `features.shipments: true` with a backlogit-style
+   shipment manifest (the completion checker reads the live shipment member
+   list); otherwise the task takes the code route unchanged.
+2. **Verification record**: validate the durable verification record on the
+   task. Each executable gate is listed separately from each manual gate; an
+   executable gate has an exact non-empty literal command, working directory,
+   exact pass criteria and a result field; a manual gate names source and target
+   paths, exact pass/fail criteria and required evidence; at least one
+   executable gate exists and it is the Markdown lint command over the owned
+   paths. A missing, empty, ambiguous or unreadable record halts and reports.
+3. **Route label**: when the task qualifies and the record is valid, the task
+   declares `harness-surface:none`; apply only the `harness-verification-gated`
+   label to the current task, using the backlog tool's update operation, and
+   skip Steps 3 to 6. Create no stub, test or RED evidence for it. Never apply
+   `harness-ready` to a docs-route task. The two labels are mutually exclusive
+   (never both). Never apply both labels; if the task already carries
+   `harness-ready`, halt and report.
+4. A task that does not qualify takes the code route unchanged: continue with
+   Step 3.
+
 ### Step 3: Determine execution posture
 
 For the current task, select the appropriate harness strategy:
@@ -137,7 +171,8 @@ task's expected-RED roster, as P-004 defines it:
   `harness-surface:none` is allowed only for a task whose file budget
   contains no Python production module under `src/`; if the current task
   declares it but its file budget contains one, halt and report without
-  applying `harness-ready`.
+  applying `harness-ready`. A docs-route task (Step 2a) also declares
+  `harness-surface:none`; it never reaches this step.
 * **RED (R2)**: RED for a roster test is that test reported as `ERROR`
   in the canonical command's output with its own unique
   `NotImplementedError` marker. Attribution is roster-relative (R2):
@@ -207,7 +242,13 @@ pass for the current task (P-004 gate satisfied):
 4. Record the harness manifest: `Compilation: PASS`,
    `Red Phase: CONFIRMED`.
 
+On the docs route (Step 2a) this step does not apply: the task receives
+`harness-verification-gated` instead, and no harness manifest or RED record is
+written for it.
+
 ## Completion Criteria
+
+Code route (`harness-ready`):
 
 The skill is complete only when the current task has:
 
@@ -218,6 +259,11 @@ The skill is complete only when the current task has:
   characterization tests listed apart from the roster
 * clear mapping from backlog task to harness command
 
+Docs route (Step 2a): the skill is complete when the current task has a valid
+qualification record and a valid verification record, `harness-surface:none`, and
+the exclusive `harness-verification-gated` label. The harness files, structural
+stubs, compilation result and roster `ERROR` evidence above do not apply.
+
 ## Guardrails
 
 * Do not implement production logic — stubs only.
@@ -225,6 +271,8 @@ The skill is complete only when the current task has:
 * Do not apply the harness-ready label until both compilation and red
   phase checks pass.
 * Keep test scenarios traceable to acceptance criteria.
+* On the docs route create no stub, test or RED evidence, and never apply both
+  route labels.
 
 ## Model Routing
 

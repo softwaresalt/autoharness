@@ -9,7 +9,7 @@ Implement a requested feature by continuously looping against a strict, compilin
 
 ## When to Use
 
-Invoked by the ship agent when a task has the `harness-ready` label. Not invoked directly by users.
+Invoked by the ship agent when a task has the `harness-ready` label (code route) or the `harness-verification-gated` label (docs-only route; see Docs Route below). Not invoked directly by users.
 
 ## Inputs
 
@@ -21,6 +21,10 @@ Invoked by the ship agent when a task has the `harness-ready` label. Not invoked
 * All harness tests passing
 * Code changes committed
 * Task marked complete in backlog
+
+## Docs Route
+
+For a task carrying the `harness-verification-gated` label (P-002 docs-only route), `harness_cmd` is the task's recorded executable verification gate commands, each run exactly as recorded (literal command, recorded working directory) against its recorded pass criteria. The skill edits only the task's owned prose `.md` paths, never invents a RED phase, and never creates a stub, test or harness for the task. On this route, make the requested docs change to the owned paths first (implementation step), before entering the verification loop; the loop only repairs verification failures and never decides that implementation is unnecessary. Manual gates are executed and evidenced as recorded. The loop below and its circuit breaker still bound fix attempts: a failing recorded gate is fixed by correcting the docs, never by weakening or editing the recorded gate. On this route the Commit section below does not apply: do not stage, commit or complete the task, and return the changes to Ship, which commits after the completion checker passes. Ship runs the `autoharness harness docs-only-check` baseline phase before this skill starts and the completion phase after it succeeds.
 
 ## Required Protocol
 
@@ -125,6 +129,8 @@ After the harness passes:
 3. **Full test suite**: `{{TEST_COMMAND}}`
 
 ### Commit
+
+On the docs route, skip this section entirely: do not stage, commit or complete the task, and return the changes to Ship, which commits after the completion checker passes.
 
 If all quality gates pass:
 

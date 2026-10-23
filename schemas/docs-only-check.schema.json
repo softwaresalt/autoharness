@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/softwaresalt/autoharness/schemas/docs-only-check.schema.json",
+  "title": "DocsOnlyCheck",
+  "description": "docs-only-check 1.0.0: the JSON record written by `autoharness harness docs-only-check --json` for the verification-gated docs-only route (deliberation 042-DL D-3). A baseline record snapshots the changed paths before implementation, with independent index-layer and working-tree-layer entries, body and protected-frontmatter fingerprints for backlog files, owned paths, docs root and backlog root bound by the self-digest (completion rejects mismatched inputs), and a self-digest. A completion record reports the task delta, with the implementation class and the lifecycle class judged separately. result is pass (exit 0), violation (exit 1) or error (exit 2).",
+  "oneOf": [
+    { "$ref": "#/$defs/baseline" },
+    { "$ref": "#/$defs/completion" }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$" },
+    "result": { "enum": ["pass", "violation", "error"] },
+    "layer": { "type": ["string", "null"] },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "index", "worktree"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "index": { "$ref": "#/$defs/layer" },
+        "worktree": { "$ref": "#/$defs/layer" },
+        "body_sha256": { "$ref": "#/$defs/sha256" },
+        "protected_frontmatter_sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "dependentRequired": {
+        "body_sha256": ["protected_frontmatter_sha256"],
+        "protected_frontmatter_sha256": ["body_sha256"]
+      }
+    },
+    "violation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "path", "message", "class"],
+      "properties": {
+        "rule": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "message": { "type": "string" },
+        "class": { "enum": ["implementation", "lifecycle"] }
+      }
+    },
+    "violations": { "type": "array", "items": { "$ref": "#/$defs/violation" } },
+    "errors": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "classResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "violations"],
+      "properties": {
+        "result": { "enum": ["pass", "violation"] },
+        "violations": { "$ref": "#/$defs/violations" }
+      }
+    },
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "phase", "result", "head_sha", "entries", "owned_paths", "docs_root", "backlog_root", "violations", "errors", "self_digest"],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "phase": { "const": "baseline" },
+        "result": { "$ref": "#/$defs/result" },
+        "head_sha": { "oneOf": [{ "$ref": "#/$defs/gitSha" }, { "type": "null" }] },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+        "owned_paths": { "type": "array", "items": { "type": "string" } },
+        "docs_root": { "type": "string" },
+        "backlog_root": { "type": "string" },
+        "violations": { "$ref": "#/$defs/violations" },
+        "errors": { "$ref": "#/$defs/errors" },
+        "self_digest": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+      }
+    },
+    "completion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "phase", "result", "head_sha", "baseline_self_digest", "delta_paths", "implementation", "lifecycle", "violations", "errors"],
+      "properties": {
+        "schema_version": { "const": "1.0.0" },
+        "phase": { "const": "completion" },
+        "result": { "$ref": "#/$defs/result" },
+        "head_sha": { "oneOf": [{ "$ref": "#/$defs/gitSha" }, { "type": "null" }] },
+        "baseline_self_digest": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "delta_paths": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "implementation": { "$ref": "#/$defs/classResult" },
+        "lifecycle": { "$ref": "#/$defs/classResult" },
+        "violations": { "$ref": "#/$defs/violations" },
+        "errors": { "$ref": "#/$defs/errors" }
+      }
+    }
+  }
+}

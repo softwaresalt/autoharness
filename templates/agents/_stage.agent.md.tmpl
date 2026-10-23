@@ -578,6 +578,7 @@ Each task includes:
 * Parent sub-epic reference
 * Acceptance criteria
 * Suggested execution posture (test-first, characterization-first, migration-first, spike)
+* **Docs-route candidates (P-002 docs-only route)**: when a candidate task's file budget qualifies as docs-only (explicit owned paths, prose `.md` under the docs root only, no deny-list path), declare `harness-surface:none` on it and say in the task body that it is a docs-route candidate. Never apply either route label (`harness-ready` or `harness-verification-gated`): only harness-architect applies a route label.
 * `size` and `complexity` (see below)
 
 **Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task

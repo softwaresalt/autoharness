@@ -418,6 +418,10 @@ guard prevents risky plans from silently bypassing every gate.
 2. Enforce the 2-hour rule: each task targets a single template family or concern.
 3. Width isolation: do not combine template work with CLI work or schema work
    in the same task.
+   **Docs-route candidates (P-002 docs-only route)**: when a candidate task's file budget qualifies as docs-only
+   (explicit owned paths, prose `.md` under the docs root only, no deny-list path), declare `harness-surface:none`
+   on it and say in the task body that it is a docs-route candidate. Never apply either route label (`harness-ready`
+   or `harness-verification-gated`): only harness-architect applies a route label.
 4. **Size + complexity mandatory at task creation (NON-NEGOTIABLE):** every task
    you create MUST be assigned both `size` (effort/volume: `XS`, `S`, `M`, `L`,
    `XL`) and `complexity` (difficulty/uncertainty: `trivial`, `low`, `medium`,

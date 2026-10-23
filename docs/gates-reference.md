@@ -690,6 +690,87 @@ upstream `backlogit` maintainers is recorded in
 [the backlogit `shipment ship` structured-evidence request](bugs/2026-09-27-backlogit-shipment-ship-structured-evidence-request.md).
 autoharness does not depend on it.
 
+## Docs-Only Route Checker
+
+`autoharness harness docs-only-check` is the deterministic, offline completion proof for the
+verification-gated docs-only task route (P-002/P-004, deliberation 042-DL). It never runs a shell, never
+touches the network and uses fixed `git` argument lists. All path arguments are relative to the git
+top-level of the current directory. The JSON record is described by
+[`docs-only-check.schema.json`](../schemas/docs-only-check.schema.json) (contract `docs-only-check`, version 1.0.0).
+
+```text
+autoharness harness docs-only-check --phase baseline   --owned <path>... --docs-root <dir> --backlog-root <dir> [--json]
+autoharness harness docs-only-check --phase completion --owned <path>... --docs-root <dir> --backlog-root <dir> \
+    --task <id> --feature <id> --shipment <id> --baseline <record.json> [--json]
+```
+
+### Qualification rules
+
+Every `--owned` path must normalize cleanly (no empty, dot or dotdot segment, drive, colon, backslash or absolute
+path, and no symlink or Windows reparse point in the path or any parent), be a regular `.md` file under the docs
+root, and stay off the deny list (`.github`, `.autoharness`, the backlog root, `templates`, `schemas`, `scripts`, `src`,
+`tests`, and policy, agent, instruction, prompt and skill files). The deny list overrides the docs root. Comparison is
+case-insensitive. An empty, dot or repository-root docs root is invalid input.
+
+### Snapshot-and-delta mechanism
+
+The checker implements a snapshot-and-delta mechanism. Between the claim and the first docs edit Ship and harness-architect legitimately change tracked files (claim writes,
+the route label, the preceding task's close-out and session memory). The checker therefore never judges that
+pre-state; it records it and judges only the task's own delta:
+
+* `--phase baseline` records `head_sha` and, for every changed path (staged, unstaged, untracked, deleted, rename
+  and copy sources), an **index-layer** entry (mode and blob hash, or `null`) and an independent **working-tree-layer**
+  entry (mode and SHA-256 of the LF-normalized bytes, or `null`). Each changed backlog-root file also carries the
+  SHA-256 of its raw body and of its protected frontmatter (the frontmatter minus `status`, `updated_at`, `commit`,
+  `archived_from`, `archived_status`, `custom_fields.harness_status` and the two route labels). A `self_digest` covers
+  every entry and binds the normalized owned paths, docs root and backlog root the baseline was admitted with. An owned path that is already changed, staged, untracked or deleted fails with
+  `OWNED_PATH_DIRTY_AT_BASELINE`.
+* `--phase completion --baseline <record>` verifies the self-digest, that the baseline is a passing record
+  (`result` is `pass` with no errors or violations; any other baseline is rejected as invalid input, exit 2), that the supplied `--owned`, `--docs-root` and `--backlog-root` equal the inputs bound into the record (otherwise `INPUT_MISMATCH`, exit 2) and that `HEAD` still equals the recorded
+  `head_sha` (run it before the task commit), recomputes the snapshot and defines the **task delta** as every path whose
+  index entry or working-tree entry differs from the baseline in either layer. The **implementation class** requires
+  each delta path outside the backlog root to be an owned path (`NOT_OWNED_PATH`, plus the path rule that it breaks).
+  The **lifecycle class** judges delta paths under the backlog root: sibling manifest members must have no delta
+  (`SIBLING_MEMBER_CHANGED`); the task, its feature and its shipment must keep their baseline body and
+  protected-frontmatter hashes (`LIFECYCLE_BODY_CHANGED`, `LIFECYCLE_PROTECTED_FRONTMATTER_CHANGED`), so only the
+  allowlisted keys may change; a newly added `<backlog root>/checkpoints/*.json` is admitted only as a regular file (a symlink or reparse point at or above it, a
+  non-regular working-tree entry, or a staged non-regular index mode such as `120000` is `NOT_REGULAR_FILE`); every other backlog path
+  fails with `BACKLOG_PATH_NOT_LIFECYCLE`, except `<backlog root>/stash.jsonl`, which is admitted only as a pure append:
+  the baseline bytes (the `HEAD` blob) stay a byte-identical prefix and every new line is a well-formed JSON object whose
+  `id` and `text` are strings and whose `text` carries `DEFERRED SCOPE EXPANSION`, in the working tree and, when staged
+  differently from `HEAD`, the index. This lets the mandatory P-021 defer-capture run between baseline and completion; any
+  edit, removal, rewrite, malformed or other new line, or a stash that was already dirty at baseline (no recoverable
+  baseline), fails closed with `BACKLOG_PATH_NOT_LIFECYCLE`; so does a staged deletion of a stash that exists in `HEAD`,
+  even when the working tree holds a valid append (a genuinely new, untracked stash is still admitted). A staged stash whose index mode is not regular (for example `120000`) fails closed the same way, even when the working tree is a regular file. Submodules, gitlinks and nested repositories cannot be fingerprinted, so a dirty one at baseline fails with `SUBMODULE_DIRTY_AT_BASELINE` and one changed during the task fails with `UNFINGERPRINTABLE_ENTRY`. Changed-path collection passes `--ignore-submodules=none` to `git diff`, so repository settings such as `diff.ignoreSubmodules=all` or `submodule.<name>.ignore=all` cannot hide submodule changes. A lifecycle file
+  that is, or sits below, a symlink or Windows reparse point is not accepted as a current copy
+  (`LIFECYCLE_FILE_MISSING`). The shipment manifest is read from the live shipment file. The
+  supplied feature need not be a manifest member (Ship accepts task-only manifests); it must equal the task's `parent_id`
+  and have an item file under the backlog root (`IDENTITY_MISMATCH` or invalid input otherwise, exit 2); every delta path
+  outside the backlog root is judged against the path rules by its exact Git identity, including paths that match an owned
+  path only case-insensitively (a symlink at `docs/A.md` fails when `docs/a.md` is owned); delta paths keep
+  their exact Git identity (case-insensitive comparison applies only to deny and ownership rules); an owned path
+  with a non-regular index entry (symlink, gitlink) is `NOT_REGULAR_FILE`; a lifecycle item with simultaneous queue and
+  archive copies is `LIFECYCLE_DUPLICATE_COPY`, and a queue-to-archive relocation passes only with unchanged content.
+
+### Exit codes and output
+
+| Exit code | Meaning |
+|---|---|
+| `0` | Pass |
+| `1` | Violation; each offending path and rule is listed, and the implementation and lifecycle classes are reported separately |
+| `2` | Invalid input, unparseable frontmatter, record self-digest mismatch, moved `HEAD`, or git failure (fail closed) |
+
+The exit code of the command is the result: `--json` writes one schema-valid record, also for exit 2, suitable for a task comment. Without `--json` the command
+prints a short text summary.
+
+### Accepted residual risk
+
+The checker proves the task's own delta, not the cleanliness of the whole tree. A non-owned dirty path that already
+existed at baseline is attributed to the earlier step that wrote it; that step is covered by its own completion gate,
+the one-task-one-commit boundary, the baseline listing in the task comment, the full gate and PR-level review. The
+self-digest detects corruption of the record; it is not a defense against Ship itself, whose actions stay auditable
+through the recorded baseline (deliberation 042-DL D-3 and AS-8).
+
 ## References
 
 * [Copilot-Review Merge Gate Reference](copilot-review-gate.md) — the separate fail-closed `autoharness gate copilot-review` CLI and P-018

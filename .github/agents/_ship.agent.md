@@ -388,6 +388,24 @@ per M3–M5, indeterminate first:
   derived-set restoration and the ordering that follow. `active_ids` lists only residuals.
 <!-- P-002.8:END ship step 3 claim-marker admission -->
 
+**Harness preparation (P-002 / P-004, before route acceptance and baseline capture)**: Stage and harvest leave
+candidates without either route label, and only **harness-architect** applies one. Before any task is claimed, run
+this once up front for the whole manifest, not only the derived executable set. Skip tasks already carrying exactly one route label
+(`harness-ready` or `harness-verification-gated`, never both). The preparation set is every provably unstarted,
+status-eligible manifest task carrying neither label — a `queued` task, or an `active` task that the shipment claim
+activated without starting implementation (P-002.7; when `features.scheduler_baseline_claim` is enabled, no
+`WORK_STARTED` comment in the current start epoch and no other started evidence, judged against the claim boundary
+per P-002.8) — including a `claim-assigned waiting` (dependency-blocked) member, which is prepared but never
+admitted for execution by this step: a later member whose dependency has not completed would otherwise reach
+claim without a label once the dependency releases it. For each task in the preparation set, invoke the
+**harness-architect** skill with exactly ONE task ID plus its covering feature or chore per invocation (the skill
+rejects multiple task IDs), iterating the set one invocation at a time: it applies `harness-ready` and scaffolds a
+failing harness for code or non-prose tasks, or applies `harness-verification-gated` without any stub, test or RED
+evidence for a qualifying docs-only task. After the iteration completes, confirm every such task now carries exactly one route
+label; a task still lacking one, or carrying both labels or a label that mismatches its qualified ownership, halts as
+a P-002 violation. Ship never applies a route label itself. A task that already carries a route label is never
+re-scaffolded, and a genuinely started `active` task without a label (`WORK_STARTED` present or other started evidence, i.e. a residual) is not prepared mid-flight and halts as a P-002 violation.
+
 For each task in the derived executable task set:
 
 1. **Claim**: Move the task to active via `backlogit_move_item` when `features.scheduler_baseline_claim` is false or absent, or the task is `queued`. A claim-assigned task is never moved again.
@@ -401,6 +419,32 @@ For each task in the derived executable task set:
    never appends a second `WORK_STARTED: <S>` in the same epoch. An unreadable, missing, or unparseable log halts
    `WAVE_CLAIM_STATE_INDETERMINATE`.
    <!-- P-002.8:END ship step 4.1 start record -->
+
+   **Route acceptance (P-002)**: Ship accepts exactly the route that matches the task's qualified ownership —
+   `harness-ready` for code or non-prose tasks, `harness-verification-gated` for qualifying docs-only tasks (never
+   both labels). It re-checks qualification at intake and at claim, never applies either route label, and halts on a
+   missing or mismatched route as a P-002 violation. The docs route is available only when the backlog tool registry
+   declares `features.shipments: true` with a backlogit-style shipment manifest; otherwise a task carrying
+   `harness-verification-gated` is a P-002 violation and every task takes the code route unchanged. A docs-route
+   task is never scaffolded: no stub, test or RED
+   evidence exists for it.
+
+   **Docs-route baseline (P-002 docs-only route; only tasks carrying `harness-verification-gated`)**: immediately
+   after the task is `active` and its qualification is re-checked, and before the telemetry begin, pre-build
+   retrieval or any docs edit, first resolve the effective backlog root once. This workspace's `.backlogit` is only the
+   default: the backlog tool honors the `BACKLOGIT_WORKSPACE_DIR` override, so run the shared resolver from the
+   repository root (in the interpreter environment that provides the `autoharness` CLI):
+   `python -c "from pathlib import Path; from autoharness.backlog_root import resolve_backlog_root; r = Path.cwd().resolve(); print(resolve_backlog_root(r).relative_to(r).as_posix())"`
+   and take its stdout as `{backlog_root}`. Any non-zero exit, error (including an ambiguous or unavailable root), or
+   empty output halts as a P-002 violation with P-005 telemetry; never fall back to `.backlogit`. Use this one
+   `{backlog_root}` for both checker phases (`--backlog-root`) and for the baseline-log and item-log storage below;
+   never re-resolve it or substitute `.backlogit` later in the task. Then run
+   `autoharness harness docs-only-check --phase baseline --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root {backlog_root} --task {task_id} --feature {parent_id} --shipment {shipment_id} --json`
+   and append the JSON baseline record (`head_sha`, per changed path the index-layer and working-tree-layer entries
+   with their hash, and the self-digest) to the task comment (the item log under `{backlog_root}/logs/`, which is
+   git-ignored). Ship records the pre-state and never pre-cleans it (claim writes, the route label, the preceding
+   task's close-out and session memory). Exit 1 (including `OWNED_PATH_DIRTY_AT_BASELINE`) or exit 2 halts as a P-002
+   violation with P-005 telemetry; do not start the task.
 2. **Begin telemetry context**: Immediately after claim and before pre-build
    knowledge retrieval, build execution, implementation tool work, or review
    feedback, run:
@@ -420,7 +464,16 @@ For each task in the derived executable task set:
    - When `GRAPHTOR_OK`: Run `search_local_docs` or `search_semantic` to resolve any documentation questions about the feature scope before beginning implementation.
    - **Multi-pack routing**: Use Engram for code relationships and impact analysis; use graphtor-docs for documentation lookup, API references, and concept research. See `.github/instructions/agent-engram.instructions.md` and `.github/instructions/graphtor-docs.instructions.md`.
 4. **Execute**: Perform the template authoring, schema change, skill
-   development, or documentation work. When step 2 carried a `context_ref`
+   development, or documentation work. Any `harness_cmd` lookup from harness-ready metadata is code-route-only;
+   for a docs-route task, do not delegate to build-feature (it is not installed in this workspace) and execute the
+   docs protocol inline: (a) implementation first — make the requested docs change to the task's owned prose `.md`
+   paths before any verification, and never decide that implementation is unnecessary; (b) run the task's recorded
+   verification commands, working directories, and pass criteria exactly as recorded (literal command, recorded
+   working directory), and execute and evidence manual gates as recorded; (c) the verification loop only repairs
+   failures, by correcting the docs and never by weakening or editing a recorded gate, never inventing a RED phase
+   and never creating a stub, test or harness, bounded by 5 attempts and the circuit breaker; (d) return the changes
+   without staging, committing or completing the task until the completion checker passes, after which Ship commits.
+   When step 2 carried a `context_ref`
    (`created`/`idempotent_begin`), tool use during this step MAY optionally
    emit sanitized ToolTelemetryEvent records:
    `autoharness telemetry event --context-ref {context_ref} --from-json {event_payload_path} --json`.
@@ -434,6 +487,27 @@ For each task in the derived executable task set:
    call is reported but NEVER blocks execution, validation, review, or task
    completion — proceed exactly as if telemetry were disabled.
 5. **Validate**: Run quality gates.
+   **Docs-route review (P-002 docs-only route; before the completion gate)**: for a task carrying
+   `harness-verification-gated`, run the Step 3 review gate for the task here, inside the per-task loop and before the
+   completion checker: invoke the `review` skill in `mode: report-only`, apply in-scope P0/P1 fixes, and perform any
+   P-021 defer-capture (the procedure below), all before the checker and before the task commit, so `HEAD` stays at the
+   baseline when the checker runs. Only then run the completion gate, commit and complete the task. The code route is
+   unchanged: its review remains the Step 3 gate after the task loop.
+   **Docs-route completion gate (P-002 docs-only route; before the task commit)**: for a task carrying
+   `harness-verification-gated`, before the commit and before any close-out, and after every review fix,
+   defer-capture and docs edit made in this task, re-execute every recorded executable verification gate AND every
+   recorded manual gate against the final post-review docs and record each result; results recorded before a review
+   fix are stale and never satisfy this gate. The sequence is: review fixes, rerun executable and manual gates,
+   checker completion, commit, done. Then run, with the same `{backlog_root}` resolved at the baseline,
+   `autoharness harness docs-only-check --phase completion --owned {owned_path} [--owned {owned_path} ...] --docs-root docs --backlog-root {backlog_root} --task {task_id} --feature {parent_id} --shipment {shipment_id} --baseline {baseline_record_path} --json`
+   where `{baseline_record_path}` is the baseline record saved from the task comment to the git-ignored item log
+   directory. A recorded gate (executable or manual) without a passing post-review result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2
+   halts as a P-002 violation with P-005 telemetry; the task is not committed, tracked or moved to done.
+   The P-021 defer-capture procedure runs before this gate and after the baseline: the checker admits a change to
+   `{backlog_root}/stash.jsonl` only when every baseline line is byte-identical and the only new lines are well-formed
+   `DEFERRED SCOPE EXPANSION` entries appended at the end (checked in the working tree and the index; a stash already
+   dirty at baseline fails closed). Any edit, removal, rewrite or other new line is `BACKLOG_PATH_NOT_LIFECYCLE` and
+   halts the same way.
 6. **Commit**: Use conventional commits (`feat:`, `fix:`, `docs:`, `test:`).
 7. **Record close telemetry**: If begin returned `status` `created` or
    `idempotent_begin` with an enabled `context_ref`, create the close-time epoch

@@ -226,6 +226,12 @@ If `${input:dry_run}` is `false`:
 * Never combine `size` and `complexity` into one field or derive one axis from
   the other. This rule is fully stated above and does not require any external
   file to be present in the installed workspace.
+* **Docs-route candidates (P-002 docs-only route)**: when a candidate task's file
+  budget qualifies as docs-only (explicit owned paths, prose `.md` under the docs
+  root only, no deny-list path), declare `harness-surface:none` on it and say in
+  the task body that it is a docs-route candidate. Never apply either route label
+  (`harness-ready` or `harness-verification-gated`): only harness-architect applies
+  a route label.
 
 ## Model Routing
 

@@ -339,14 +339,15 @@ it halts and requests that Stage be run first.
 
 Ensure every task in the target feature or chore has a passing test harness before any implementation begins. This step runs once, up front — not in a loop.
 
-1. List all tasks for the target feature or chore that are in `{{STATUS_QUEUED}}` status.
+1. List all tasks for the target feature or chore that are in `{{STATUS_QUEUED}}` status, plus every provably unstarted claim-activated member, including `claim-assigned waiting` (dependency-blocked) members, which are prepared up front but never admitted for execution here (a later member released by a completed dependency must already carry its route label): when operating under a claimed shipment, an `active` task the claim activated without starting implementation (P-002.7; when `features.scheduler_baseline_claim` is enabled, no `WORK_STARTED` comment in the current start epoch and no other started evidence, judged against the claim boundary per P-002.8) is prepared like a queued one. An `active` task with `WORK_STARTED` or other started evidence is a genuinely started residual and is never prepared here; if it lacks a route label it halts as a P-002 violation.
 2. Partition the task list:
    * **Already harnessed**: tasks carrying the `harness-ready` label — skip these.
-   * **Needs harness**: tasks without the `harness-ready` label — scaffold these.
-3. If any tasks need harnesses, invoke the **harness-architect** skill for the batch.
+   * **Needs harness**: tasks without the `harness-ready` label — scaffold these (docs-route tasks below are excluded from this list).
+   * **Docs route**: tasks carrying the `harness-verification-gated` label (P-002 docs-only route; never together with `harness-ready`) are excluded from the scaffold list: harness-architect creates no stub, test or RED evidence for them. Ship accepts exactly the route that matches the task's qualified ownership (`harness-ready` for code or non-prose tasks, `harness-verification-gated` for qualifying docs-only tasks), re-checks qualification at intake (explicit owned paths, prose `.md` under `{{DOCS_ROOT}}`, deny list, valid verification record), and halts on a missing or mismatched route as a P-002 violation. The docs route is available only when the backlog tool registry declares `features.shipments: true` with a backlogit-style shipment manifest; in any other workspace a task carrying `harness-verification-gated` is a P-002 violation and every task takes the code route unchanged. Ship never applies either route label;    a task that qualifies but lacks the docs label is routed to harness-architect, which alone applies the route label (unlabeled tasks from Stage/harvest are prepared here, before route acceptance and baseline capture).
+3. If any tasks need harnesses, invoke the **harness-architect** skill once per task: it accepts exactly ONE task ID plus its covering feature or chore per invocation (multiple task IDs halt), so iterate the whole preparation set one invocation at a time.
    * Require compilable but failing harnesses, structural stubs, and successful `{{BUILD_CHECK_COMMAND}}` verification after scaffolding.
    * Keep harness commands associated with the affected backlog items so the build loop has a strict boundary.
-4. After scaffolding completes, confirm every queued task now carries the `harness-ready` label. If any task still lacks it, halt and report the gap rather than proceeding with a partial set.
+4. After scaffolding completes, confirm every queued task now carries the `harness-ready` label. If any task still lacks it, halt and report the gap rather than proceeding with a partial set. A docs-route task instead carries `harness-verification-gated`, and a task never carries both labels.
 
 When the `backlogit` capability pack is installed and queue-aware operations are supported, prefer
 the queue operation to assemble the task set. When dependency operations are supported, verify the
@@ -416,7 +417,9 @@ Now that all tasks are harnessed, construct the execution queue:
    `{{STATUS_ACTIVE}}`, and exclude any manifest task that item 1 classified as `pre_archived_skipped` or
    `already_done` even if it would otherwise match `{{STATUS_QUEUED}}`/`{{STATUS_ACTIVE}}` elsewhere. Tasks outside
    the shipment's manifest are never added by this substitution. When the P-002.8 admission above ran, the claim-assigned
-   waiting members it held out are not restored by this substitution.
+   waiting members it held out are not restored by this substitution. **Docs route admit**: also admit tasks carrying
+   `harness-verification-gated` (never together with `harness-ready`) through the same selection; Ship re-checks qualification at claim
+   (P-002 docs-only route rules) before moving the task to `{{STATUS_ACTIVE}}` and halts as a P-002 violation when it no longer holds.
 3. Sort the queue by dependency order (tasks with no unfinished dependencies first).
 4. If the queue is empty after harness generation, halt and report — there is nothing to build.
 
@@ -437,6 +440,22 @@ appends the comment `WORK_STARTED: <S>` with actor `ship` through the registry's
 failed append, Ship re-reads the log before any retry or CLI fallback and never appends a second `WORK_STARTED: <S>` in
 the same epoch. An unreadable, missing, or unparseable log halts `WAVE_CLAIM_STATE_INDETERMINATE`.
 <!-- P-002.8:END ship step 4.1 start record -->
+
+**Docs-route baseline (P-002 docs-only route; only tasks carrying `harness-verification-gated`)**: immediately after the task is `{{STATUS_ACTIVE}}` and its qualification is re-checked, and before Step 4.1a telemetry, pre-build knowledge retrieval or any docs edit, first resolve the effective backlog root once. `{{BACKLOG_DIRECTORY}}` is fixed at install, but the backlog tool honors the `BACKLOGIT_WORKSPACE_DIR` override, so run the shared resolver from the repository root (in the interpreter environment that provides the `autoharness` CLI):
+
+```text
+python -c "from pathlib import Path; from autoharness.backlog_root import resolve_backlog_root; r = Path.cwd().resolve(); print(resolve_backlog_root(r).relative_to(r).as_posix())"
+```
+
+Take its stdout as `{backlog_root}`. Any non-zero exit, error (including an ambiguous or unavailable root), or empty output halts as a P-002 violation with P-005 telemetry; never fall back to `{{BACKLOG_DIRECTORY}}`. Use this one `{backlog_root}` for both checker phases (`--backlog-root`) and for the baseline-log and item-log storage below; never re-resolve it or substitute `{{BACKLOG_DIRECTORY}}` later in the task. Then run:
+
+```text
+autoharness harness docs-only-check --phase baseline --owned {owned_path} [--owned {owned_path} ...] \
+  --docs-root {{DOCS_ROOT}} --backlog-root {backlog_root} \
+  --task {item_id} --feature {parent_id} --shipment {shipment_id} --json
+```
+
+Append the JSON baseline record (`head_sha`, per changed path the index-layer and working-tree-layer entries with their hash, and the self-digest) to the task comment (the item log under `{backlog_root}/logs/`, which is git-ignored). Ship records the pre-state and never pre-cleans it (claim writes, the route label, the preceding task's close-out and session memory). Exit 1 (including `OWNED_PATH_DIRTY_AT_BASELINE`) or exit 2 halts as a P-002 violation with P-005 telemetry; do not start the task.
 
 #### Step 4.1a: Begin Telemetry Context
 
@@ -484,7 +503,8 @@ autoharness telemetry event --context-ref {context_ref} --from-json {event_paylo
 Invoke the **build-feature** skill with:
 
 * `task_id`: The current task ID
-* `harness_cmd`: The test command from the task's harness-ready metadata (e.g., `{{TEST_COMMAND}} --test {feature}_test`)
+* `harness_cmd`: The test command from the task's harness-ready metadata (e.g., `{{TEST_COMMAND}} --test {feature}_test`) — code route only
+* For a docs-route task, do not look up `harness_cmd`; pass the task's recorded verification commands, working directories, and pass criteria to build-feature, as its Docs Route section requires
 
 The skill runs a 5-attempt harness loop: execute tests, capture errors, fix, repeat.
 
@@ -520,6 +540,8 @@ its reviewed HEAD into the PR readiness block; do not rely on hosted review as a
 substitute while the operator is AFK.
 
 When the `adversarial-review` capability pack is installed, Ship invokes the **adversarial-review** agent in place of the standard review skill, with `mode: report-only` and `reviewers: 3`. HIGH-confidence consensus findings block the gate identically to standard review P0/P1 findings. MEDIUM-confidence findings are advisory but must be acknowledged in the task completion note.
+
+When a docs-route task (`harness-verification-gated`) is in flight, run this review gate, any in-scope fixes and any Step 4.4a defer-capture inside the per-task loop before the Step 4.5 completion checker, so `HEAD` stays at the baseline; then commit and complete the task. The code route is unchanged.
 
 #### Step 4.4a: P-021 Scope Classification and Defer-Capture Procedure
 
@@ -572,6 +594,16 @@ Both paths preserve identically: the mandatory capture-first ordering, the full 
 **C3 symmetric guard**: (i) a same-contract-surface completion of the authorized change IS in scope and MUST be fixed, not deferred; AND (ii) deferring such a completion WITHOUT a captured deferred entry and a residual-risk record is itself a P-021 violation, actioned per C7.
 
 #### Step 4.5: Complete Task
+
+**Docs-route completion gate (P-002 docs-only route; before the task commit)**: for a task carrying `harness-verification-gated`, before item 1 below (the task commit) and before any close-out step, and after every review fix, defer-capture and docs edit made in this task, re-execute every recorded executable verification gate AND every recorded manual gate against the final post-review docs, and record each result; results recorded before a review fix are stale and never satisfy this gate. The sequence is: review fixes, rerun executable and manual gates, checker completion, commit, done. Then run, with the same `{backlog_root}` resolved at the Step 4.1 baseline:
+
+```text
+autoharness harness docs-only-check --phase completion --owned {owned_path} [--owned {owned_path} ...] \
+  --docs-root {{DOCS_ROOT}} --backlog-root {backlog_root} \
+  --task {item_id} --feature {parent_id} --shipment {shipment_id} --baseline {baseline_record_path} --json
+```
+
+where `{baseline_record_path}` is the Step 4.1 baseline record saved from the task comment to the git-ignored item log directory. A recorded gate (executable or manual) without a passing post-review result, a baseline mismatch, a moved `HEAD`, or checker exit 1 or 2 halts as a P-002 violation with P-005 telemetry; the task is not committed, tracked or moved to `{{STATUS_DONE}}`, and the full gate in Step 4.3 still runs. Step 4.4a defer-capture runs before this gate and after the baseline: the checker admits a change to `{backlog_root}/stash.jsonl` only when every baseline line is byte-identical and the only new lines are well-formed `DEFERRED SCOPE EXPANSION` entries appended at the end (checked in the working tree and the index; a stash already dirty at baseline fails closed). Any edit, removal, rewrite or other new line is `BACKLOG_PATH_NOT_LIFECYCLE` and halts the same way.
 
 1. Commit changes with a conventional commit message
 2. If telemetry begin returned `status` `created` or `idempotent_begin` with an
