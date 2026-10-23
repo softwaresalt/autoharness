@@ -48,7 +48,7 @@ Shipment 223-S (feature 216-F, tasks 216.001-T through 216.009-T) merged through
 
 ## Follow-ups
 
-Stash IDs: `C345FC7A`, `69C2D77B`, `AF61F88C`, `B942F27B`, `C6AE7553` (transient lineage deadline), plus `92CCBA85` (`--replace-pre-close` should supersede a finalized failed record).
+Stash IDs: `C345FC7A`, `69C2D77B`, `AF61F88C`, `B942F27B`. Two further follow-ups (the transient backlogit lineage-check deadline, and `--replace-pre-close` superseding a finalized failed record with `mutation_state: none`) were captured only in the operator's uncommitted local stash intake, so they are not cited by ID here.
 
 ## Source artifact cleanup
 
