@@ -452,8 +452,8 @@ class DogfoodWorkspaceTests(unittest.TestCase):
         check = report["targeted_checks"][CHECK]
         self.assertTrue(check["ok"], check)
         self.assertEqual(check["errors"], [])
-        self.assertEqual(len(check["info"]), 1, check["info"])
-        self.assertEqual(len(check["drifted"]), 13, check["drifted"])
+        self.assertEqual(len(check["info"]), 0, check["info"])
+        self.assertEqual(len(check["drifted"]), 0, check["drifted"])
 
 
 if __name__ == "__main__":
