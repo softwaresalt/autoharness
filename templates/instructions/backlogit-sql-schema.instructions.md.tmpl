@@ -128,7 +128,13 @@ Tracks tool invocation counts and token usage per session.
 SELECT id, title, status, priority
 FROM items
 WHERE artifact_type = 'feature' AND status = 'active'
-ORDER BY priority DESC, created_at ASC
+ORDER BY CASE priority
+  WHEN 'critical' THEN 1
+  WHEN 'high'     THEN 2
+  WHEN 'medium'   THEN 3
+  WHEN 'low'      THEN 4
+  ELSE 5
+END, created_at ASC
 ```
 
 ### List tasks under a specific feature
@@ -147,7 +153,13 @@ SELECT id, title, artifact_type, status, priority, parent_id, level
 FROM items
 WHERE status IN ('queued', 'active')
   AND artifact_type IN ('feature', 'task', 'subtask')
-ORDER BY level ASC, priority DESC, created_at ASC
+ORDER BY level ASC, CASE priority
+  WHEN 'critical' THEN 1
+  WHEN 'high'     THEN 2
+  WHEN 'medium'   THEN 3
+  WHEN 'low'      THEN 4
+  ELSE 5
+END, created_at ASC
 ```
 
 ### Find items without a parent (orphaned tasks, should be investigated)
@@ -160,14 +172,24 @@ WHERE artifact_type IN ('task', 'subtask')
 ORDER BY artifact_type, id
 ```
 
-### Check hierarchy integrity (tasks with wrong ID prefix)
+### Check hierarchy integrity (broken parent links or un-adopted prefix divergence)
+
+Validate relationships via `parent_id` and `level` first; treat `hierarchy_path` prefix checks as informational and exclude items re-parented via `backlogit_adopt_item` (which preserves the original ID and records `custom_fields.origin_feature`):
 
 ```sql
-SELECT i.id, i.parent_id, p.id AS expected_parent
+SELECT i.id, i.parent_id, p.id AS resolved_parent, i.level, p.level AS parent_level
 FROM items i
-JOIN items p ON i.parent_id = p.id
-WHERE i.artifact_type = 'task'
-  AND i.id NOT LIKE p.id || '.%'
+LEFT JOIN items p ON i.parent_id = p.id
+WHERE i.artifact_type IN ('task', 'subtask')
+  AND i.parent_id IS NOT NULL AND i.parent_id != ''
+  AND (
+    p.id IS NULL
+    OR i.level != p.level + 1
+    OR (
+      i.hierarchy_path NOT LIKE p.hierarchy_path || '.%'
+      AND json_extract(i.custom_fields, '$.origin_feature') IS NULL
+    )
+  )
 ```
 
 ### Count items by status
@@ -185,8 +207,8 @@ ORDER BY status
 ```sql
 SELECT i.id, i.title, i.artifact_type, i.status
 FROM items s
-JOIN items i ON instr(',' || json_extract(s.custom_fields, '$.items') || ',',
-                      ',' || i.id || ',') > 0
+JOIN json_each(s.custom_fields, '$.items') m
+JOIN items i ON i.id = m.value
 WHERE s.id = '005-S'
 ORDER BY i.level, i.id
 ```
@@ -200,10 +222,10 @@ JOIN items i ON d.depends_on = i.id
 WHERE d.item_id = '022.004-T'
 ```
 
-### Find items that block a given item
+### Find items blocked by a given item
 
 ```sql
-SELECT d.item_id AS blocker, i.title, i.status
+SELECT d.item_id AS blocked_item, i.title, i.status
 FROM item_deps d
 JOIN items i ON d.item_id = i.id
 WHERE d.depends_on = '022.004-T'

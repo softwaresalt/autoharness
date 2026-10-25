@@ -1,6 +1,6 @@
 ---
 description: "Analyze stash and backlog queue to identify contextually consistent groupings of work for staging and shipment"
-agent: Stage
+agent: _Stage
 argument-hint: "[scope=priority-band-or-label]"
 ---
 

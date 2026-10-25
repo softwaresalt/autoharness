@@ -453,7 +453,7 @@ artifacts:
   - path: ".github/instructions/backlogit-sql-schema.instructions.md"
     primitive: 1
     template: "instructions/backlogit-sql-schema.instructions.md.tmpl"
-    checksum: "44bfab6aba8391dc12cc0c1d759aab58739972892d8eb5d3bcbb8a63a198609d"
+    checksum: "fb59d0199a1d4d533c6b5949ed7f1efbda97cfa21d804d05b289cbd3ba5a3db4"
     note: "installed 2026-10-24 tune-harness 1.6.0 (TUNE-015): backlogit SQL schema reference instruction rendered with BACKLOG_DIRECTORY=.backlogit; LF-only SHA-256"
   - path: ".github/instructions/backlogit-yaml-header-tooling.instructions.md"
     primitive: 1
@@ -463,7 +463,7 @@ artifacts:
   - path: ".github/prompts/stage-grouping-analysis.prompt.md"
     primitive: 6
     template: "prompts/stage-grouping-analysis.prompt.md.tmpl"
-    checksum: "d9cdc97d07fde6f09a0b3bfaac6252f46ca2c7ebca42503ceb4c0a99835be78e"
+    checksum: "0c8f2182de01ea434f9847d67dcdd181a79c1522ca0a75ee41e7ffba5c8b1fc9"
     note: "installed 2026-10-24 tune-harness 1.6.0 (TUNE-019): Stage grouping analysis prompt shim; LF-only SHA-256"
 variables_used:
   PROJECT_NAME: "autoharness"
