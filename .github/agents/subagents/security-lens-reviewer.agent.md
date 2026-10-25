@@ -4,9 +4,9 @@ description: "Reviews implementation plans for security gaps: attack surface inv
 maturity: stable
 tools: read, search
 max_subagent_tier: 2
-reasoning_effort: ""
-model_provider: ""
-model_family: "claude-sonnet-5"
+reasoning_effort: "high"
+model_provider: "anthropic"
+model_family: "claude-sonnet-5.5"
 context_tier: "long_context"
 subagent_depth: 0
 ---
